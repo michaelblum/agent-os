@@ -37,8 +37,11 @@ struct SuccessResponse: Encodable {
     var base64: [String]?
     var cursor: CursorJSON?
     var bounds: BoundsJSON?
+    var click_x: Int?
+    var click_y: Int?
+    var warning: String?
 
-    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds }
+    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -47,6 +50,9 @@ struct SuccessResponse: Encodable {
         if let b = base64 { try c.encode(b, forKey: .base64) }
         if let cur = cursor { try c.encode(cur, forKey: .cursor) }
         if let bnd = bounds { try c.encode(bnd, forKey: .bounds) }
+        if let cx = click_x { try c.encode(cx, forKey: .click_x) }
+        if let cy = click_y { try c.encode(cy, forKey: .click_y) }
+        if let w = warning { try c.encode(w, forKey: .warning) }
     }
 }
 
@@ -138,6 +144,28 @@ func parseHexColor(_ hex: String) -> CGColor {
     return CGColor(srgbRed: r, green: g, blue: b, alpha: a)
 }
 
+// MARK: - Permission Checks
+
+func checkScreenRecordingPermission() {
+    if !CGPreflightScreenCaptureAccess() {
+        CGRequestScreenCaptureAccess()
+        exitError(
+            "Screen recording permission required. A system prompt should appear. Grant access in System Settings > Privacy & Security > Screen Recording, then retry.",
+            code: "PERMISSION_DENIED"
+        )
+    }
+}
+
+func checkAccessibilityPermission() {
+    let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+    if !AXIsProcessTrustedWithOptions(opts) {
+        exitError(
+            "Accessibility permission required for --wait-for-click. Grant in System Settings > Privacy & Security > Accessibility.",
+            code: "ACCESSIBILITY_DENIED"
+        )
+    }
+}
+
 // MARK: - Display Enumeration
 
 func getDisplays() -> [DisplayEntry] {
@@ -186,6 +214,38 @@ func getDisplays() -> [DisplayEntry] {
 func displayForWindow(_ window: SCWindow, displays: [DisplayEntry]) -> DisplayEntry {
     let pt = CGPoint(x: window.frame.midX, y: window.frame.midY)
     return displays.first(where: { $0.bounds.contains(pt) }) ?? displays.first(where: { $0.isMain })!
+}
+
+/// Resolve a target string to a display entry.
+func resolveDisplayTarget(_ target: String, displays: [DisplayEntry]) -> DisplayEntry? {
+    switch target {
+    case "main", "center", "middle":
+        return displays.first(where: { $0.isMain })
+    case "external":
+        return displays.first(where: { !$0.isMain && !$0.isMirrored })
+    case "external 1":
+        return displays.filter({ !$0.isMain && !$0.isMirrored }).first
+    case "external 2":
+        let exts = displays.filter({ !$0.isMain && !$0.isMirrored })
+        return exts.count >= 2 ? exts[1] : exts.first
+    default:
+        return displays.first(where: { $0.isMain })
+    }
+}
+
+/// Find the display containing the current mouse cursor.
+func displayForMouse(displays: [DisplayEntry]) -> DisplayEntry? {
+    let mouse = NSEvent.mouseLocation
+    let mainH = CGDisplayBounds(CGMainDisplayID()).height
+    let pt = CGPoint(x: mouse.x, y: mainH - mouse.y)
+    return displays.first(where: { $0.bounds.contains(pt) }) ?? displays.first(where: { $0.isMain })
+}
+
+/// Get mouse position in CG screen coordinates (top-left origin).
+func mouseInCGCoords() -> CGPoint {
+    let mouse = NSEvent.mouseLocation
+    let mainH = CGDisplayBounds(CGMainDisplayID()).height
+    return CGPoint(x: mouse.x, y: mainH - mouse.y)
 }
 
 func largestWindow(for pid: pid_t, in windows: [SCWindow]) -> SCWindow? {
@@ -252,8 +312,6 @@ func selfieWindow(content: SCShareableContent) -> SCWindow? {
 
 // MARK: - Image Drawing Infrastructure
 
-/// Create a mutable copy of a CGImage, run drawing commands, return result.
-/// CGContext uses bottom-left origin. Use `h - y` to convert from top-left pixel coords.
 func drawOnImage(_ image: CGImage, _ draw: (CGContext, Int, Int) -> Void) -> CGImage {
     let w = image.width
     let h = image.height
@@ -268,7 +326,6 @@ func drawOnImage(_ image: CGImage, _ draw: (CGContext, Int, Int) -> Void) -> CGI
     return ctx.makeImage() ?? image
 }
 
-/// Draw a text label with dark background pill using CoreText.
 func drawLabel(ctx: CGContext, text: String, at point: CGPoint, font: CTFont) {
     let attrs: [NSAttributedString.Key: Any] = [
         .font: font,
@@ -317,7 +374,6 @@ func writeImage(_ image: CGImage, to path: String, format: UTType, quality: Doub
 
 // MARK: - Crop
 
-/// Returns both the cropped image and the crop rect used (in pixel coords, top-left origin).
 func applyCrop(_ image: CGImage, style: String) -> (image: CGImage, rect: CGRect) {
     let w = CGFloat(image.width)
     let h = CGFloat(image.height)
@@ -349,18 +405,11 @@ func applyCrop(_ image: CGImage, style: String) -> (image: CGImage, rect: CGRect
 
 // MARK: - Cursor Position
 
-/// Get mouse position in image pixel coordinates (top-left origin) for a given display.
-/// Returns nil if cursor is not on the specified display.
 func cursorPositionInImageSpace(display: DisplayEntry) -> (x: Int, y: Int)? {
-    let mouse = NSEvent.mouseLocation
-    // NSEvent: bottom-left of primary screen = (0,0), Y up
-    // CG:     top-left of primary screen = (0,0), Y down
-    let mainH = CGDisplayBounds(CGMainDisplayID()).height
-    let cgX = mouse.x
-    let cgY = mainH - mouse.y
-    guard display.bounds.contains(CGPoint(x: cgX, y: cgY)) else { return nil }
-    let relX = cgX - display.bounds.origin.x
-    let relY = cgY - display.bounds.origin.y
+    let pt = mouseInCGCoords()
+    guard display.bounds.contains(pt) else { return nil }
+    let relX = pt.x - display.bounds.origin.x
+    let relY = pt.y - display.bounds.origin.y
     return (Int(relX * display.scaleFactor), Int(relY * display.scaleFactor))
 }
 
@@ -377,13 +426,11 @@ func drawGrid(on image: CGImage, spec: GridSpec, thickness: CGFloat, shadow: Sha
         let colW = CGFloat(w) / CGFloat(spec.cols)
         let rowH = CGFloat(h) / CGFloat(spec.rows)
 
-        // Vertical interior lines
         for c in 1..<spec.cols {
             let x = CGFloat(c) * colW
             ctx.move(to: CGPoint(x: x, y: 0))
             ctx.addLine(to: CGPoint(x: x, y: CGFloat(h)))
         }
-        // Horizontal interior lines
         for r in 1..<spec.rows {
             let y = CGFloat(r) * rowH
             ctx.move(to: CGPoint(x: 0, y: y))
@@ -391,18 +438,15 @@ func drawGrid(on image: CGImage, spec: GridSpec, thickness: CGFloat, shadow: Sha
         }
         ctx.strokePath()
 
-        // Labels: pixel coordinates at grid boundaries
         ctx.setShadow(offset: .zero, blur: 0)
         let fontSize = max(12.0, min(24.0, CGFloat(min(w, h)) / 80.0))
         let font = CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
 
-        // Column labels along top edge (CGContext: top = high y)
         for c in 0...spec.cols {
             let px = Int(CGFloat(c) * colW)
             drawLabel(ctx: ctx, text: "\(px)",
                      at: CGPoint(x: CGFloat(px) + 2, y: CGFloat(h) - fontSize - 4), font: font)
         }
-        // Row labels along left edge (pixel y = 0 is at CGContext y = h)
         for r in 0...spec.rows {
             let py = Int(CGFloat(r) * rowH)
             drawLabel(ctx: ctx, text: "\(py)",
@@ -420,7 +464,6 @@ func drawRects(on image: CGImage, rects: [RectOverlay], thickness: CGFloat, shad
         }
         ctx.setLineWidth(thickness)
         for r in rects {
-            // Convert from top-left origin to CGContext bottom-left origin
             let rect = CGRect(
                 x: CGFloat(r.x),
                 y: CGFloat(h - r.y - r.height),
@@ -476,10 +519,19 @@ struct CaptureOptions {
 
     // Cursor
     var showCursor: Bool = false
-    var highlightCursor: Bool = false
+    var highlightCursorColor: String? = nil  // nil = no highlight; string = hex color
+
+    // Mouse target
+    var radius: Int? = nil
 
     // Interactive
     var interactive: Bool = false
+
+    // Wait for click
+    var waitForClick: Bool = false
+
+    // Timeout for interactive flags (seconds)
+    var timeout: Double = 60.0
 
     // Utilities
     var delay: Double? = nil
@@ -502,7 +554,6 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
     var opts = CaptureOptions()
     var i = 0
 
-    // Extract target (first non-flag arg)
     if i < args.count && !args[i].hasPrefix("--") {
         opts.target = args[i]
         i += 1
@@ -514,7 +565,6 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         }
     }
 
-    // Parse flags
     while i < args.count {
         switch args[i] {
         case "--window":
@@ -542,11 +592,39 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         case "--show-cursor":
             opts.showCursor = true
         case "--highlight-cursor":
-            opts.highlightCursor = true
+            // Optional color argument: --highlight-cursor or --highlight-cursor #FF000080
+            if i + 1 < args.count && args[i + 1].hasPrefix("#") {
+                i += 1
+                opts.highlightCursorColor = args[i]
+            } else {
+                opts.highlightCursorColor = "#FFFF0066"  // default: yellow 40% opacity
+            }
+
+        // Mouse radius
+        case "--radius":
+            i += 1
+            guard i < args.count else { exitError("--radius requires a pixel value", code: "MISSING_ARG") }
+            guard let r = Int(args[i]), r > 0 else {
+                exitError("--radius must be a positive integer", code: "INVALID_ARG")
+            }
+            opts.radius = r
 
         // Interactive
         case "--interactive":
             opts.interactive = true
+
+        // Wait for click
+        case "--wait-for-click":
+            opts.waitForClick = true
+
+        // Timeout
+        case "--timeout":
+            i += 1
+            guard i < args.count else { exitError("--timeout requires seconds", code: "MISSING_ARG") }
+            guard let t = Double(args[i]), t > 0 else {
+                exitError("--timeout must be a positive number", code: "INVALID_ARG")
+            }
+            opts.timeout = t
 
         // Utilities
         case "--delay":
@@ -569,7 +647,7 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
             }
             opts.grid = GridSpec(cols: c, rows: r)
 
-        // Draw rects (repeatable, each consumes 2 extra args)
+        // Draw rects
         case "--draw-rect", "--draw-rect-fill":
             let fill = args[i] == "--draw-rect-fill"
             let flag = args[i]
@@ -604,7 +682,7 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
                 exitError("--shadow format: offsetX,offsetY,blur,#color", code: "INVALID_ARG")
             }
             opts.shadow = ShadowSpec(
-                offsetX: CGFloat(ox), offsetY: CGFloat(-oy),  // negate Y for intuitive top-left origin
+                offsetX: CGFloat(ox), offsetY: CGFloat(-oy),
                 blur: CGFloat(bl), color: parseHexColor(String(parts[3]))
             )
 
@@ -636,7 +714,7 @@ func resolveQuality(for level: String) -> Double {
 
 // MARK: - Known Targets
 
-let knownTargets: Set<String> = ["main", "center", "middle", "external", "user_active", "all", "selfie"]
+let knownTargets: Set<String> = ["main", "center", "middle", "external", "user_active", "all", "selfie", "mouse"]
 
 // MARK: - Named Zones
 
@@ -660,7 +738,7 @@ func saveZones(_ zones: [String: ZoneEntry]) {
 
 func zoneCommand(args: [String]) {
     guard !args.isEmpty else {
-        exitError("Usage: side-eye zone <save|list|delete> [args]", code: "MISSING_SUBCOMMAND")
+        exitError("Usage: side-eye zone <save|define|list|delete> [args]", code: "MISSING_SUBCOMMAND")
     }
     switch args[0] {
     case "list":
@@ -669,23 +747,50 @@ func zoneCommand(args: [String]) {
 
     case "save":
         guard args.count >= 3 else {
-            exitError("Usage: side-eye zone save <name> [--target <display>] <x,y,w,h>", code: "MISSING_ARG")
+            exitError("Usage: side-eye zone save <name> [--target <display>] [--bounds] <x,y,w,h>", code: "MISSING_ARG")
         }
         let name = args[1]
         var target = "main"
-        var cropStr: String
-        if args.count >= 5 && args[2] == "--target" {
-            target = args[3]
-            cropStr = args[4]
-        } else {
-            cropStr = args[2]
+        var cropStr: String? = nil
+        var j = 2
+        while j < args.count {
+            if args[j] == "--target" && j + 1 < args.count {
+                target = args[j + 1]; j += 2
+            } else if args[j] == "--bounds" && j + 1 < args.count {
+                cropStr = args[j + 1]; j += 2
+            } else {
+                cropStr = args[j]; j += 1
+            }
         }
-        let parts = cropStr.split(separator: ",").compactMap { Int($0) }
-        guard parts.count == 4 else { exitError("Crop must be x,y,w,h", code: "INVALID_ARG") }
+        guard let crop = cropStr else { exitError("Missing bounds. Provide x,y,w,h.", code: "MISSING_ARG") }
+        let parts = crop.split(separator: ",").compactMap { Int($0) }
+        guard parts.count == 4 else { exitError("Bounds must be x,y,w,h", code: "INVALID_ARG") }
+        var zones = loadZones()
+        zones[name] = ZoneEntry(target: target, crop: crop)
+        saveZones(zones)
+        print(jsonString(["status": "saved", "zone": name]))
+
+    case "define":
+        guard args.count >= 2 else {
+            exitError("Usage: side-eye zone define <name> [--target <display>]", code: "MISSING_ARG")
+        }
+        let name = args[1]
+        var target = "main"
+        if args.count >= 4 && args[2] == "--target" { target = args[3] }
+
+        let displays = getDisplays()
+        guard let targetDisplay = resolveDisplayTarget(target, displays: displays) else {
+            exitError("Cannot resolve display '\(target)'", code: "NO_DISPLAY")
+        }
+        guard let rect = showInteractiveSelection(on: targetDisplay, timeout: 120) else {
+            exitError("Interactive zone definition cancelled or timed out", code: "SELECTION_CANCELLED")
+        }
+        let scale = targetDisplay.scaleFactor
+        let cropStr = "\(Int(rect.origin.x * scale)),\(Int(rect.origin.y * scale)),\(Int(rect.width * scale)),\(Int(rect.height * scale))"
         var zones = loadZones()
         zones[name] = ZoneEntry(target: target, crop: cropStr)
         saveZones(zones)
-        print(jsonString(["status": "saved", "zone": name]))
+        print(jsonString(["status": "saved", "zone": name, "bounds": cropStr]))
 
     case "delete":
         guard args.count >= 2 else { exitError("Usage: side-eye zone delete <name>", code: "MISSING_ARG") }
@@ -697,8 +802,37 @@ func zoneCommand(args: [String]) {
         print(jsonString(["status": "deleted", "zone": args[1]]))
 
     default:
-        exitError("Unknown zone command: '\(args[0])'. Use save, list, or delete.", code: "UNKNOWN_SUBCOMMAND")
+        exitError("Unknown zone command: '\(args[0])'. Use save, define, list, or delete.", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+// MARK: - Wait For Click
+
+/// Block until a global left-click occurs. Returns click position in CG screen coords (top-left origin).
+func waitForGlobalClick(timeout: Double) -> CGPoint {
+    checkAccessibilityPermission()
+
+    var clickPoint: CGPoint? = nil
+    var done = false
+    let deadline = Date(timeIntervalSinceNow: timeout)
+
+    let monitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { _ in
+        clickPoint = mouseInCGCoords()
+        done = true
+    }
+
+    while !done && Date() < deadline {
+        autoreleasepool {
+            _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+        }
+    }
+
+    if let m = monitor { NSEvent.removeMonitor(m) }
+
+    guard done, let pt = clickPoint else {
+        exitError("Timed out waiting for click (\(Int(timeout))s)", code: "TIMEOUT")
+    }
+    return pt
 }
 
 // MARK: - Interactive Selection
@@ -710,7 +844,7 @@ class SelectionOverlayView: NSView {
     var onComplete: ((NSRect) -> Void)?
     var onCancel: (() -> Void)?
 
-    override var isFlipped: Bool { true }  // top-left origin, matches image coords
+    override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
     var selectionRect: NSRect {
@@ -737,15 +871,12 @@ class SelectionOverlayView: NSView {
         currentPoint = convert(event.locationInWindow, from: nil)
         isDragging = false
         let sel = selectionRect
-        if sel.width > 5 && sel.height > 5 {
-            onComplete?(sel)
-        } else {
-            needsDisplay = true
-        }
+        if sel.width > 5 && sel.height > 5 { onComplete?(sel) }
+        else { needsDisplay = true }
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { onCancel?() }  // ESC
+        if event.keyCode == 53 { onCancel?() }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -753,21 +884,18 @@ class SelectionOverlayView: NSView {
         let dark = NSColor(calibratedWhite: 0, alpha: 0.3)
 
         if (isDragging || sel.width > 5) && sel.width > 0 && sel.height > 0 {
-            // Draw dark overlay around selection (4 rects)
             dark.setFill()
             NSRect(x: 0, y: 0, width: bounds.width, height: sel.minY).fill()
             NSRect(x: 0, y: sel.maxY, width: bounds.width, height: bounds.height - sel.maxY).fill()
             NSRect(x: 0, y: sel.minY, width: sel.minX, height: sel.height).fill()
             NSRect(x: sel.maxX, y: sel.minY, width: bounds.width - sel.maxX, height: sel.height).fill()
 
-            // Selection border
             NSColor.white.setStroke()
             let path = NSBezierPath(rect: sel)
             path.lineWidth = 2
             path.setLineDash([6, 4], count: 2, phase: 0)
             path.stroke()
 
-            // Dimensions label
             let label = "\(Int(sel.width))x\(Int(sel.height))"
             let attrs: [NSAttributedString.Key: Any] = [
                 .foregroundColor: NSColor.white,
@@ -786,11 +914,9 @@ class SelectionOverlayView: NSView {
     }
 }
 
-/// Show interactive selection overlay on a display. Returns the selection rect in logical points, or nil if cancelled.
-func showInteractiveSelection(on display: DisplayEntry) -> NSRect? {
+func showInteractiveSelection(on display: DisplayEntry, timeout: Double = 60) -> NSRect? {
     NSApp.setActivationPolicy(.accessory)
 
-    // Find the NSScreen matching this display for correct Cocoa coordinates
     let nsScreen = NSScreen.screens.first { screen in
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) == display.cgID
     }
@@ -801,6 +927,7 @@ func showInteractiveSelection(on display: DisplayEntry) -> NSRect? {
 
     var result: NSRect? = nil
     var done = false
+    let deadline = Date(timeIntervalSinceNow: timeout)
 
     let window = NSWindow(contentRect: windowRect, styleMask: .borderless, backing: .buffered, defer: false)
     window.level = .screenSaver
@@ -819,8 +946,7 @@ func showInteractiveSelection(on display: DisplayEntry) -> NSRect? {
     window.makeFirstResponder(overlay)
     NSApp.activate(ignoringOtherApps: true)
 
-    // Pump run loop until selection completes
-    while !done {
+    while !done && Date() < deadline {
         autoreleasepool {
             _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
         }
@@ -828,7 +954,7 @@ func showInteractiveSelection(on display: DisplayEntry) -> NSRect? {
 
     window.orderOut(nil)
     NSApp.setActivationPolicy(.prohibited)
-    return result
+    return done ? result : nil
 }
 
 // MARK: - Usage
@@ -841,7 +967,8 @@ func printUsage() {
       side-eye list                            Display topology as JSON
       side-eye capture <target> [options]      Take a screenshot
       side-eye <target> [options]              Shorthand for capture
-      side-eye zone save <name> [--target <t>] <x,y,w,h>
+      side-eye zone save <name> [--target <t>] [--bounds] <x,y,w,h>
+      side-eye zone define <name> [--target <t>]   Interactive zone definition
       side-eye zone list                       List saved zones
       side-eye zone delete <name>              Delete a zone
       side-eye <zone-name> [options]           Capture using saved zone
@@ -853,6 +980,7 @@ func printUsage() {
       external 2              Next external display
       user_active             Display with the focused app
       selfie                  Display hosting this process
+      mouse                   Display containing the cursor
       all                     Every connected display
 
     OPTIONS:
@@ -863,8 +991,11 @@ func printUsage() {
       --format <ext>          png (default), jpg, heic
       --quality <level>       high (default), med, low
       --show-cursor           Include system cursor in capture
-      --highlight-cursor      Draw translucent circle at cursor position
+      --highlight-cursor [#color]  Draw translucent circle at cursor position
+      --radius <px>           With 'mouse' target: capture box centered on cursor
       --interactive           Drag to select capture region
+      --wait-for-click        Wait for left-click, then capture (returns click_x/y)
+      --timeout <secs>        Timeout for interactive flags (default: 60)
       --delay <secs>          Wait before capturing
       --clipboard             Also copy image to system clipboard
       --grid <CxR>            Draw coordinate grid (e.g., 4x3)
@@ -877,11 +1008,6 @@ func printUsage() {
       All coordinates are LOCAL to the captured target.
       (0,0) = top-left of whatever you're capturing.
       Overlays (--draw-rect, --grid) use post-crop coordinates.
-
-    CROP STYLES:
-      top-half, bottom-half, left-half, right-half
-      top-left, top-right, bottom-left, bottom-right, center
-      x,y,w,h (exact pixel coordinates)
 
     COLORS:
       #RRGGBB or #RRGGBBAA (e.g., #FF0000 or #FF000080)
@@ -926,6 +1052,15 @@ func captureCommand(args: [String]) async {
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
     }
 
+    // ── Wait for click (blocks until click or timeout) ──
+    var clickCGPos: CGPoint? = nil
+    if opts.waitForClick {
+        clickCGPos = waitForGlobalClick(timeout: opts.timeout)
+    }
+
+    // ── Permission pre-check ──
+    checkScreenRecordingPermission()
+
     // ── Get ScreenCaptureKit content ──
     let content: SCShareableContent
     do {
@@ -942,6 +1077,7 @@ func captureCommand(args: [String]) async {
     // ── Resolve target ──
     var targetDisplayIDs: [CGDirectDisplayID] = []
     var specificWindow: SCWindow? = nil
+    var responseWarning: String? = nil
 
     switch opts.target {
     case "main", "center", "middle":
@@ -982,6 +1118,23 @@ func captureCommand(args: [String]) async {
         specificWindow = w
         targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
 
+    case "mouse":
+        guard let d = displayForMouse(displays: displays) else {
+            exitError("Cannot determine display for cursor", code: "NO_DISPLAY")
+        }
+        targetDisplayIDs = [d.cgID]
+        // Auto-crop to radius box centered on cursor
+        if let r = opts.radius {
+            let pt = mouseInCGCoords()
+            let relX = pt.x - d.bounds.origin.x
+            let relY = pt.y - d.bounds.origin.y
+            let scale = d.scaleFactor
+            let px = Int(relX * scale)
+            let py = Int(relY * scale)
+            let pr = Int(Double(r) * scale)
+            opts.crop = "\(max(0, px - pr)),\(max(0, py - pr)),\(pr * 2),\(pr * 2)"
+        }
+
     case "all":
         targetDisplayIDs = displays.filter { !$0.isMirrored }.map { $0.cgID }
 
@@ -996,8 +1149,8 @@ func captureCommand(args: [String]) async {
               let targetDisplay = displays.first(where: { $0.cgID == firstID }) else {
             exitError("Cannot determine display for interactive selection", code: "NO_DISPLAY")
         }
-        guard let rect = showInteractiveSelection(on: targetDisplay) else {
-            exitError("Interactive selection cancelled", code: "SELECTION_CANCELLED")
+        guard let rect = showInteractiveSelection(on: targetDisplay, timeout: opts.timeout) else {
+            exitError("Interactive selection cancelled or timed out", code: "SELECTION_CANCELLED")
         }
         let scale = targetDisplay.scaleFactor
         let px = Int(rect.origin.x * scale)
@@ -1005,12 +1158,14 @@ func captureCommand(args: [String]) async {
         let pw = Int(rect.width * scale)
         let ph = Int(rect.height * scale)
         opts.crop = "\(px),\(py),\(pw),\(ph)"
-        interactiveBounds = BoundsJSON(x: 0, y: 0, width: pw, height: ph)  // LCS: (0,0) is selection top-left
+        interactiveBounds = BoundsJSON(x: 0, y: 0, width: pw, height: ph)
     }
 
     // ── Capture loop ──
     var results: [(CGImage, String)] = []
     var responseCursor: CursorJSON? = nil
+    var responseClickX: Int? = nil
+    var responseClickY: Int? = nil
 
     for (idx, cgID) in targetDisplayIDs.enumerated() {
         guard let entry = displays.first(where: { $0.cgID == cgID }) else { continue }
@@ -1028,8 +1183,27 @@ func captureCommand(args: [String]) async {
                 }
                 window = w
             }
-            do { image = try await captureWindow(window, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
-            catch { exitError("Window capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+
+            // Hidden window fallback: check for suspiciously small window
+            if window.frame.width < 10 || window.frame.height < 10 {
+                responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
+                guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
+                    exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                }
+                do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+            } else {
+                do { image = try await captureWindow(window, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                catch {
+                    // Window capture failed — fall back to display
+                    responseWarning = "Window capture failed (\(error.localizedDescription)). Falling back to display capture."
+                    guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
+                        exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                    }
+                    do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                    catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+                }
+            }
         } else {
             guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
                 exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
@@ -1040,11 +1214,12 @@ func captureCommand(args: [String]) async {
 
         // 2. Cursor highlight (capture-space, before crop)
         var cursorCapPos: (x: Int, y: Int)? = nil
-        if opts.highlightCursor, let pos = cursorPositionInImageSpace(display: entry) {
+        if let hlColor = opts.highlightCursorColor, let pos = cursorPositionInImageSpace(display: entry) {
             cursorCapPos = pos
             let radius = 25.0 * entry.scaleFactor
+            let color = parseHexColor(hlColor)
             image = drawOnImage(image) { ctx, w, h in
-                ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 0, alpha: 0.4))
+                ctx.setFillColor(color)
                 let ctxY = CGFloat(h) - CGFloat(pos.y)
                 ctx.fillEllipse(in: CGRect(
                     x: CGFloat(pos.x) - radius, y: ctxY - radius,
@@ -1061,7 +1236,7 @@ func captureCommand(args: [String]) async {
             cropRect = result.rect
         }
 
-        // 4. Cursor position in LCS (post-crop local coordinates)
+        // 4. Cursor position in LCS
         if let capPos = cursorCapPos {
             if let cr = cropRect {
                 let localX = capPos.x - Int(cr.origin.x)
@@ -1074,7 +1249,21 @@ func captureCommand(args: [String]) async {
             }
         }
 
-        // 5. Overlays (LCS — post-crop coordinates)
+        // 5. Click position in LCS
+        if let clickPt = clickCGPos {
+            let relX = clickPt.x - entry.bounds.origin.x
+            let relY = clickPt.y - entry.bounds.origin.y
+            var px = Int(relX * entry.scaleFactor)
+            var py = Int(relY * entry.scaleFactor)
+            if let cr = cropRect {
+                px -= Int(cr.origin.x)
+                py -= Int(cr.origin.y)
+            }
+            responseClickX = px
+            responseClickY = py
+        }
+
+        // 6. Overlays (LCS — post-crop coordinates)
         if let grid = opts.grid {
             image = drawGrid(on: image, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
         }
@@ -1082,7 +1271,7 @@ func captureCommand(args: [String]) async {
             image = drawRects(on: image, rects: opts.drawRects, thickness: opts.thickness, shadow: opts.shadow)
         }
 
-        // 6. Output path
+        // 7. Output path
         let basePath = opts.resolvedOutputPath
         let path: String
         if targetDisplayIDs.count > 1 {
@@ -1107,6 +1296,16 @@ func captureCommand(args: [String]) async {
     }
 
     // ── Output ──
+    func buildResponse() -> SuccessResponse {
+        var resp = SuccessResponse()
+        resp.cursor = responseCursor
+        resp.bounds = interactiveBounds
+        resp.click_x = responseClickX
+        resp.click_y = responseClickY
+        resp.warning = responseWarning
+        return resp
+    }
+
     if opts.useBase64 {
         var b64s: [String] = []
         for (img, _) in results {
@@ -1115,10 +1314,8 @@ func captureCommand(args: [String]) async {
             }
             b64s.append(data.base64EncodedString())
         }
-        var resp = SuccessResponse()
+        var resp = buildResponse()
         resp.base64 = b64s
-        resp.cursor = responseCursor
-        resp.bounds = interactiveBounds
         print(jsonString(resp))
     } else {
         var files: [String] = []
@@ -1128,10 +1325,8 @@ func captureCommand(args: [String]) async {
             }
             files.append(path)
         }
-        var resp = SuccessResponse()
+        var resp = buildResponse()
         resp.files = files
-        resp.cursor = responseCursor
-        resp.bounds = interactiveBounds
         print(jsonString(resp))
     }
 }
@@ -1160,7 +1355,6 @@ struct SideEye {
             if knownTargets.contains(args[0]) {
                 await captureCommand(args: args)
             } else {
-                // Check saved zones
                 let zones = loadZones()
                 if zones[args[0]] != nil {
                     await captureCommand(args: args)
