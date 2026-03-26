@@ -6,20 +6,6 @@ import ApplicationServices
 
 // MARK: - JSON Output Models
 
-struct DisplayJSON: Encodable {
-    let id: Int
-    let type: String
-    let resolution: String
-    let scale_factor: Double
-    let rotation: Double
-    let arrangement: String
-}
-
-struct TopologyJSON: Encodable {
-    let active_app: String
-    let displays: [DisplayJSON]
-}
-
 // MARK: - Spatial Topology Output Models (spatial-topology.schema.json v0.1.0)
 
 struct STBounds: Encodable {
@@ -1286,7 +1272,7 @@ func printUsage() {
     side-eye — Agent-first macOS screenshot CLI  (v3)
 
     USAGE
-      side-eye list                              Display topology as JSON
+      side-eye list                              Spatial topology (displays + windows + apps)
       side-eye [capture] <target> [options]      Take a screenshot
       side-eye zone <save|define|list|delete>    Manage named zones
       side-eye <zone-name> [options]             Capture a saved zone
