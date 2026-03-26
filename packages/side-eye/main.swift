@@ -20,6 +20,67 @@ struct TopologyJSON: Encodable {
     let displays: [DisplayJSON]
 }
 
+// MARK: - Spatial Topology Output Models (spatial-topology.schema.json v0.1.0)
+
+struct STBounds: Encodable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+struct STFocusedApp: Encodable {
+    let pid: Int
+    let name: String
+    let bundle_id: String?
+}
+
+struct STWindow: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_pid: Int
+    let app_name: String
+    let bundle_id: String?
+    let bounds: STBounds
+    let is_focused: Bool
+    let is_on_screen: Bool
+    let layer: Int
+    let alpha: Double
+}
+
+struct STDisplay: Encodable {
+    let display_id: Int
+    let display_uuid: String?
+    let ordinal: Int
+    let label: String
+    let is_main: Bool
+    let bounds: STBounds
+    let visible_bounds: STBounds
+    let scale_factor: Double
+    let rotation: Double
+    let windows: [STWindow]
+}
+
+struct STApp: Encodable {
+    let pid: Int
+    let name: String
+    let bundle_id: String?
+    let is_active: Bool
+    let is_hidden: Bool
+    let window_ids: [Int]
+}
+
+struct SpatialTopology: Encodable {
+    let schema: String
+    let version: String
+    let timestamp: String
+    let screens_have_separate_spaces: Bool
+    let focused_window_id: Int?
+    let focused_app: STFocusedApp?
+    let displays: [STDisplay]
+    let apps: [STApp]
+}
+
 struct CursorJSON: Encodable {
     let x: Int
     let y: Int
