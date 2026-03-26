@@ -12,9 +12,9 @@ This repo is the "constitution" — it holds architectural decisions, shared sch
 | `hand-off` | OS action (mouse, keyboard via CGEvent) | Planned |
 | `heads-up` | OS projection (floating overlays, avatar) | Planned |
 | `speak-up` | Audio I/O (TTS, STT, dictation) | Planned |
-| [`chrome-harness`](https://github.com/michaelblum/syborg/tree/main/tools/chrome-harness) | Chrome lifecycle & CDP broker | Production |
+| [`chrome-harness`](https://github.com/Findly-Inc/syborg/tree/main/tools/chrome-harness) | Chrome lifecycle & CDP broker | Production |
 | `pw-bridge` | Playwright over CDP stdin protocol | Production |
 | `tear-sheet` | Web artifact extraction & packaging | Planned |
-| [Syborg Studio](https://github.com/michaelblum/syborg) | Chrome extension control surface | Production |
+| [Syborg Studio](https://github.com/Findly-Inc/syborg) | Chrome extension control surface | Production |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.

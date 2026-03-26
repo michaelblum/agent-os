@@ -108,16 +108,33 @@ Syborg Studio is one possible assembly. The CLIs don't know it exists. Another t
 
 ## 3. Component Roster
 
+### Repo Ownership Policy
+
+| Owner | Purpose | Visibility |
+|-------|---------|------------|
+| **michaelblum** | Open-source ecosystem tools (the "parts bin") | Public (or private during early dev) |
+| **Findly-Inc** | Proprietary product + business IP | Private |
+
+Litmus test: "Would I open-source this?" → michaelblum. Business logic, client data, product IP → Findly-Inc.
+
 | Component | Layer | Language | Repo | Status | Key Capabilities |
 |-----------|-------|----------|------|--------|-----------------|
 | `side-eye` | OS | Swift | `michaelblum/side-eye` | Production | Screenshots, `--xray` AX tree, grids, overlays, zones, LCS |
-| `hand-off` | OS | Swift | `michaelblum/hand-off` | Planned | CGEvent mouse/keyboard, coordinate-targeted actions |
-| `heads-up` | OS | Swift | `michaelblum/heads-up` | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
-| `speak-up` | OS | Swift | `michaelblum/speak-up` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
-| `chrome-harness` | Web | Node.js | `syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
-| `pw-bridge` | Web | Node.js | `syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
-| `tear-sheet` | Web | Node.js | TBD | Planned | Element capture, scroll stitch, artifact packaging |
-| Syborg Studio | Control | React/TS | `michaelblum/syborg` | Production | Chrome extension: sidebar, portal, annotation system |
+| `hand-off` | OS | Swift | `michaelblum/hand-off` (private) | Planned | CGEvent mouse/keyboard, coordinate-targeted actions |
+| `heads-up` | OS | Swift | `michaelblum/heads-up` (private) | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
+| `speak-up` | OS | Swift | `michaelblum/speak-up` (private) | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
+| `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
+| `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
+| `tear-sheet` | Web | Node.js | `michaelblum/tear-sheet` (private) | Planned | Element capture, scroll stitch, artifact packaging |
+| Syborg Studio | Control | React/TS | `Findly-Inc/syborg` | Production | Chrome extension: sidebar, portal, annotation system |
+
+### Archived Repos
+
+| Repo | What's in it | Notes |
+|------|-------------|-------|
+| `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only — no local clone needed. |
+| `Findly-Inc/DRAW` | Historical web scraping/capture codebase (1.5 GB) | Curated extraction in local scrapyard bundle at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/` |
+| `michaelblum/bridgehand` | Slippy orb prototype | May inform `heads-up` skin system |
 
 ---
 
