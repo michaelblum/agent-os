@@ -2,6 +2,7 @@ import Cocoa
 import ScreenCaptureKit
 import UniformTypeIdentifiers
 import CoreText
+import ApplicationServices
 
 // MARK: - JSON Output Models
 
@@ -31,6 +32,16 @@ struct BoundsJSON: Encodable {
     let height: Int
 }
 
+struct AXElementJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let enabled: Bool
+    let context_path: [String]
+    let bounds: BoundsJSON
+}
+
 struct SuccessResponse: Encodable {
     let status = "success"
     var files: [String]?
@@ -40,8 +51,9 @@ struct SuccessResponse: Encodable {
     var click_x: Int?
     var click_y: Int?
     var warning: String?
+    var elements: [AXElementJSON]?
 
-    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning }
+    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -53,6 +65,7 @@ struct SuccessResponse: Encodable {
         if let cx = click_x { try c.encode(cx, forKey: .click_x) }
         if let cy = click_y { try c.encode(cy, forKey: .click_y) }
         if let w = warning { try c.encode(w, forKey: .warning) }
+        if let e = elements { try c.encode(e, forKey: .elements) }
     }
 }
 
@@ -160,13 +173,60 @@ func checkScreenRecordingPermission() {
     }
 }
 
-func checkAccessibilityPermission() {
+func checkAccessibilityPermission(feature: String = "this feature") {
     let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
     if !AXIsProcessTrustedWithOptions(opts) {
         exitError(
-            "Accessibility permission required for --wait-for-click. Grant in System Settings > Privacy & Security > Accessibility.",
+            "Accessibility permission required for \(feature). Grant in System Settings > Privacy & Security > Accessibility.",
             code: "ACCESSIBILITY_DENIED"
         )
+    }
+}
+
+// MARK: - Coordinate Mapper (Global CG → LCS)
+
+/// Translates global macOS screen coordinates into the Local Coordinate System
+/// of a captured target (display, window, or cropped region).
+struct CoordinateMapper {
+    let displayOrigin: CGPoint   // CG top-left origin of the target display
+    let scaleFactor: Double
+    let cropRect: CGRect?        // In pixel coords (post-scale), nil = no crop
+    let windowFrame: CGRect?     // CG global frame of window (nil = full display capture)
+
+    /// The base origin for coordinate translation (window origin if window capture, else display origin).
+    private var baseOrigin: CGPoint { windowFrame?.origin ?? displayOrigin }
+
+    /// Convert a global CG screen point to LCS pixel coordinates.
+    /// Returns nil if the point falls outside the capture area.
+    func toLCS(globalPoint pt: CGPoint) -> (x: Int, y: Int)? {
+        var px = Int((pt.x - baseOrigin.x) * scaleFactor)
+        var py = Int((pt.y - baseOrigin.y) * scaleFactor)
+
+        if let crop = cropRect {
+            px -= Int(crop.origin.x)
+            py -= Int(crop.origin.y)
+            guard px >= 0 && py >= 0 && px < Int(crop.width) && py < Int(crop.height) else { return nil }
+        }
+        return (px, py)
+    }
+
+    /// Convert a global CG screen rect to LCS pixel rect.
+    /// Returns nil if the rect doesn't intersect the capture area.
+    func toLCS(globalRect rect: CGRect, imageSize: CGSize) -> CGRect? {
+        let lcsX = (rect.origin.x - baseOrigin.x) * scaleFactor
+        let lcsY = (rect.origin.y - baseOrigin.y) * scaleFactor
+        let lcsW = rect.width * scaleFactor
+        let lcsH = rect.height * scaleFactor
+
+        var lcsRect = CGRect(x: lcsX, y: lcsY, width: lcsW, height: lcsH)
+
+        if let crop = cropRect {
+            lcsRect = lcsRect.offsetBy(dx: -crop.origin.x, dy: -crop.origin.y)
+        }
+
+        let captureRect = CGRect(origin: .zero, size: imageSize)
+        guard lcsRect.intersects(captureRect) else { return nil }
+        return lcsRect.intersection(captureRect)
     }
 }
 
@@ -485,6 +545,133 @@ func drawRects(on image: CGImage, rects: [RectOverlay], thickness: CGFloat, shad
     }
 }
 
+// MARK: - Accessibility Traversal (--xray)
+
+/// Roles considered actionable for agent consumption.
+let xrayWhitelistRoles: Set<String> = [
+    "AXButton", "AXTextField", "AXTextArea", "AXCheckBox",
+    "AXRadioButton", "AXPopUpButton", "AXComboBox", "AXMenuItem",
+    "AXMenuBarItem", "AXLink", "AXSlider", "AXIncrementor",
+    "AXColorWell", "AXDisclosureTriangle", "AXTab", "AXStaticText",
+    "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField"
+]
+
+/// Helper to read a string AX attribute.
+private func axString(_ element: AXUIElement, _ attr: String) -> String? {
+    var ref: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, attr as CFString, &ref) == .success else { return nil }
+    return ref as? String
+}
+
+/// Helper to read a boolean AX attribute.
+private func axBool(_ element: AXUIElement, _ attr: String) -> Bool? {
+    var ref: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, attr as CFString, &ref) == .success else { return nil }
+    return ref as? Bool
+}
+
+/// Get the global CG bounding rect of an AX element. Returns nil if unavailable.
+private func axFrame(_ element: AXUIElement) -> CGRect? {
+    var posRef: AnyObject?
+    var sizeRef: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
+          AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success
+    else { return nil }
+
+    var point = CGPoint.zero
+    var size = CGSize.zero
+    AXValueGetValue(posRef as! AXValue, .cgPoint, &point)
+    AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+    return CGRect(origin: point, size: size)
+}
+
+/// Recursively traverse AX tree, emitting whitelisted elements as a flat array.
+func traverseAXElements(
+    _ element: AXUIElement,
+    mapper: CoordinateMapper,
+    imageSize: CGSize,
+    contextPath: [String],
+    depth: Int,
+    maxDepth: Int,
+    results: inout [AXElementJSON]
+) {
+    guard depth < maxDepth else { return }
+
+    let role = axString(element, kAXRoleAttribute) ?? ""
+    let title = axString(element, kAXTitleAttribute)
+    let label = axString(element, kAXDescriptionAttribute)
+    let hidden = axBool(element, kAXHiddenAttribute) ?? false
+
+    // Get value — truncate if excessively long
+    var valueStr: String? = nil
+    var valRef: AnyObject?
+    if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valRef) == .success {
+        if let s = valRef as? String {
+            valueStr = s.count > 200 ? String(s.prefix(200)) + "..." : s
+        } else if let n = valRef as? NSNumber {
+            valueStr = n.stringValue
+        }
+    }
+
+    let enabled = axBool(element, kAXEnabledAttribute) ?? true
+
+    // Spatial check + emit if whitelisted
+    if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
+        if xrayWhitelistRoles.contains(role) {
+            if let lcsRect = mapper.toLCS(globalRect: frame, imageSize: imageSize) {
+                results.append(AXElementJSON(
+                    role: role,
+                    title: title,
+                    label: label,
+                    value: valueStr,
+                    enabled: enabled,
+                    context_path: contextPath,
+                    bounds: BoundsJSON(
+                        x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
+                        width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
+                    )
+                ))
+            }
+        }
+    }
+
+    // Build context path for children (use title > label > role as breadcrumb)
+    var childPath = contextPath
+    if let t = title, !t.isEmpty { childPath.append(t) }
+    else if let l = label, !l.isEmpty { childPath.append(l) }
+    else if !role.isEmpty && role != "AXGroup" && role != "AXUnknown" && role != "AXSplitGroup"
+            && role != "AXScrollArea" && role != "AXLayoutArea" {
+        childPath.append(role)
+    }
+
+    // Recurse into children
+    var childrenRef: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+          let children = childrenRef as? [AXUIElement] else { return }
+    for child in children {
+        traverseAXElements(child, mapper: mapper, imageSize: imageSize,
+                          contextPath: childPath, depth: depth + 1,
+                          maxDepth: maxDepth, results: &results)
+    }
+}
+
+/// Run --xray on a specific app by PID, returning elements in LCS coordinates.
+func xrayApp(pid: pid_t, appName: String, mapper: CoordinateMapper, imageSize: CGSize) -> [AXElementJSON] {
+    let axApp = AXUIElementCreateApplication(pid)
+    var results: [AXElementJSON] = []
+    traverseAXElements(axApp, mapper: mapper, imageSize: imageSize,
+                      contextPath: [appName], depth: 0, maxDepth: 15,
+                      results: &results)
+    return results
+}
+
+/// Run --xray on the frontmost app, returning elements in LCS coordinates.
+func xrayFrontmostApp(mapper: CoordinateMapper, imageSize: CGSize) -> [AXElementJSON] {
+    guard let frontApp = NSWorkspace.shared.frontmostApplication else { return [] }
+    return xrayApp(pid: frontApp.processIdentifier, appName: frontApp.localizedName ?? "App",
+                   mapper: mapper, imageSize: imageSize)
+}
+
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
@@ -533,6 +720,9 @@ struct CaptureOptions {
 
     // Wait for click
     var waitForClick: Bool = false
+
+    // Xray (accessibility traversal)
+    var xray: Bool = false
 
     // Timeout for interactive flags (seconds)
     var timeout: Double = 60.0
@@ -620,6 +810,10 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         // Wait for click
         case "--wait-for-click":
             opts.waitForClick = true
+
+        // Xray (accessibility traversal)
+        case "--xray":
+            opts.xray = true
 
         // Timeout
         case "--timeout":
@@ -829,7 +1023,6 @@ func waitForGlobalClick(timeout: Double) -> CGPoint {
         DispatchQueue.main.sync { result = waitForGlobalClick(timeout: timeout) }
         return result
     }
-    checkAccessibilityPermission()
 
     var clickPoint: CGPoint? = nil
     var done = false
@@ -1043,6 +1236,14 @@ func printUsage() {
       --radius <px>           With 'mouse': capture <px>-radius box around cursor
       --highlight-cursor [#color]   Draw 50px circle at cursor (default: #FFFF0066)
 
+    PERCEPTION (Accessibility APIs)
+      --xray                  Emit flat JSON array of interactive UI elements in
+                              the capture area. Each element has role, title, label,
+                              value, enabled, context_path (ancestor breadcrumbs),
+                              and bounds in LCS coordinates. Requires Accessibility
+                              permission. Elements outside the capture/crop area are
+                              automatically filtered out.
+
     OVERLAYS (baked into the image via CoreGraphics)
       --grid <CxR>            Coordinate grid, e.g. 10x10 — aids LLM spatial reasoning
       --draw-rect <x,y,w,h> <#color>       Stroke bounding box
@@ -1109,6 +1310,10 @@ func captureCommand(args: [String]) async {
     if let delay = opts.delay {
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
     }
+
+    // ── Accessibility pre-check (for features that need it) ──
+    if opts.waitForClick { checkAccessibilityPermission(feature: "--wait-for-click") }
+    if opts.xray { checkAccessibilityPermission(feature: "--xray") }
 
     // ── Wait for click (blocks until click or timeout) ──
     var clickCGPos: CGPoint? = nil
@@ -1233,6 +1438,7 @@ func captureCommand(args: [String]) async {
     var responseCursor: CursorJSON? = nil
     var responseClickX: Int? = nil
     var responseClickY: Int? = nil
+    var responseElements: [AXElementJSON]? = nil
 
     // If interactive captured an image, use it directly (skip display/window capture)
     if let iImg = interactiveImage {
@@ -1317,34 +1523,52 @@ func captureCommand(args: [String]) async {
             cropRect = result.rect
         }
 
-        // 4. Cursor position in LCS
+        // 4. Build CoordinateMapper for this capture
+        let windowFrame: CGRect? = opts.windowOnly ? (specificWindow?.frame ?? nil) : nil
+        let mapper = CoordinateMapper(
+            displayOrigin: entry.bounds.origin,
+            scaleFactor: entry.scaleFactor,
+            cropRect: cropRect,
+            windowFrame: windowFrame
+        )
+        let imageSize = CGSize(width: image.width, height: image.height)
+
+        // 5. Cursor position in LCS (via mapper)
         if let capPos = cursorCapPos {
-            if let cr = cropRect {
-                let localX = capPos.x - Int(cr.origin.x)
-                let localY = capPos.y - Int(cr.origin.y)
-                if localX >= 0 && localY >= 0 && localX < Int(cr.width) && localY < Int(cr.height) {
-                    responseCursor = CursorJSON(x: localX, y: localY)
-                }
-            } else {
-                responseCursor = CursorJSON(x: capPos.x, y: capPos.y)
+            // capPos is already in pixel coords relative to display, convert to LCS
+            let displayRelPt = CGPoint(
+                x: entry.bounds.origin.x + Double(capPos.x) / entry.scaleFactor,
+                y: entry.bounds.origin.y + Double(capPos.y) / entry.scaleFactor
+            )
+            if let lcs = mapper.toLCS(globalPoint: displayRelPt) {
+                responseCursor = CursorJSON(x: lcs.x, y: lcs.y)
             }
         }
 
-        // 5. Click position in LCS
+        // 6. Click position in LCS (via mapper)
         if let clickPt = clickCGPos {
-            let relX = clickPt.x - entry.bounds.origin.x
-            let relY = clickPt.y - entry.bounds.origin.y
-            var px = Int(relX * entry.scaleFactor)
-            var py = Int(relY * entry.scaleFactor)
-            if let cr = cropRect {
-                px -= Int(cr.origin.x)
-                py -= Int(cr.origin.y)
+            if let lcs = mapper.toLCS(globalPoint: clickPt) {
+                responseClickX = lcs.x
+                responseClickY = lcs.y
             }
-            responseClickX = px
-            responseClickY = py
         }
 
-        // 6. Overlays (LCS — post-crop coordinates)
+        // 7. Xray — AX traversal in LCS
+        //    For --window captures, traverse the window's owning app.
+        //    For display captures, traverse the frontmost app.
+        if opts.xray {
+            if opts.windowOnly, let sw = specificWindow, let ownerApp = sw.owningApplication {
+                responseElements = xrayApp(
+                    pid: ownerApp.processID,
+                    appName: ownerApp.applicationName,
+                    mapper: mapper, imageSize: imageSize
+                )
+            } else {
+                responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
+            }
+        }
+
+        // 8. Overlays (LCS — post-crop coordinates)
         if let grid = opts.grid {
             image = drawGrid(on: image, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
         }
@@ -1352,7 +1576,7 @@ func captureCommand(args: [String]) async {
             image = drawRects(on: image, rects: opts.drawRects, thickness: opts.thickness, shadow: opts.shadow)
         }
 
-        // 7. Output path
+        // 9. Output path
         let basePath = opts.resolvedOutputPath
         let path: String
         if targetDisplayIDs.count > 1 {
@@ -1384,6 +1608,7 @@ func captureCommand(args: [String]) async {
         resp.click_x = responseClickX
         resp.click_y = responseClickY
         resp.warning = responseWarning
+        resp.elements = responseElements
         return resp
     }
 
