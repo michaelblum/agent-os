@@ -244,6 +244,29 @@ func checkAccessibilityPermission(feature: String = "this feature") {
     }
 }
 
+// MARK: - Focused Window (Private AX Bridge)
+
+@_silgen_name("_AXUIElementGetWindow")
+func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
+
+/// Returns the CGWindowID of the currently focused window, or nil if unavailable.
+/// Requires Accessibility permission. Does NOT exit on failure — returns nil instead.
+func getFocusedWindowID() -> CGWindowID? {
+    guard AXIsProcessTrusted() else { return nil }
+    guard let frontApp = NSWorkspace.shared.frontmostApplication else { return nil }
+
+    let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+    var value: AnyObject?
+    let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &value)
+    guard result == .success, let windowElement = value else { return nil }
+
+    var windowID: CGWindowID = 0
+    let axResult = _AXUIElementGetWindow(windowElement as! AXUIElement, &windowID)
+    guard axResult == .success, windowID != 0 else { return nil }
+
+    return windowID
+}
+
 // MARK: - Coordinate Mapper (Global CG → LCS)
 
 /// Translates global macOS screen coordinates into the Local Coordinate System
