@@ -108,31 +108,42 @@ Syborg Studio is one possible assembly. The CLIs don't know it exists. Another t
 
 ## 3. Component Roster
 
-### Repo Ownership Policy
+### Monorepo Structure
 
-| Owner | Purpose | Visibility |
-|-------|---------|------------|
-| **michaelblum** | Open-source ecosystem tools (the "parts bin") | Public (or private during early dev) |
-| **Findly-Inc** | Proprietary product + business IP | Private |
+All ecosystem tools live in `michaelblum/agent-os` as a monorepo. Each tool is a separate package with its own build, but agents see everything from one session.
 
-Litmus test: "Would I open-source this?" → michaelblum. Business logic, client data, product IP → Findly-Inc.
+```
+agent-os/
+  packages/
+    side-eye/          ← Swift CLI, builds independently
+    hand-off/          ← (planned) Swift CLI
+    heads-up/          ← (planned) Swift CLI
+    speak-up/          ← (planned) Swift CLI
+    tear-sheet/        ← (planned) Node.js CLI
+  shared/
+    schemas/           ← Cross-tool JSON contracts (spatial model, etc.)
+  ARCHITECTURE.md      ← This file
+```
 
-| Component | Layer | Language | Repo | Status | Key Capabilities |
-|-----------|-------|----------|------|--------|-----------------|
-| `side-eye` | OS | Swift | `michaelblum/side-eye` | Production | Screenshots, `--xray` AX tree, grids, overlays, zones, LCS |
-| `hand-off` | OS | Swift | `michaelblum/hand-off` (private) | Planned | CGEvent mouse/keyboard, coordinate-targeted actions |
-| `heads-up` | OS | Swift | `michaelblum/heads-up` (private) | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
-| `speak-up` | OS | Swift | `michaelblum/speak-up` (private) | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
+**Syborg Studio** (`Findly-Inc/syborg`) remains a separate repo — it's proprietary business IP. `chrome-harness` and `pw-bridge` live inside it for now; they may be extracted to agent-os when decoupled from the extension build.
+
+| Component | Layer | Language | Location | Status | Key Capabilities |
+|-----------|-------|----------|----------|--------|-----------------|
+| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, grids, overlays, zones, LCS |
+| `hand-off` | OS | Swift | `packages/hand-off/` | Planned | CGEvent mouse/keyboard, coordinate-targeted actions |
+| `heads-up` | OS | Swift | `packages/heads-up/` | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
+| `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
 | `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
 | `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
-| `tear-sheet` | Web | Node.js | `michaelblum/tear-sheet` (private) | Planned | Element capture, scroll stitch, artifact packaging |
+| `tear-sheet` | Web | Node.js | `packages/tear-sheet/` | Planned | Element capture, scroll stitch, artifact packaging |
 | Syborg Studio | Control | React/TS | `Findly-Inc/syborg` | Production | Chrome extension: sidebar, portal, annotation system |
 
 ### Archived Repos
 
 | Repo | What's in it | Notes |
 |------|-------------|-------|
-| `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only — no local clone needed. |
+| `michaelblum/side-eye` | Original standalone repo | Migrated to `agent-os/packages/side-eye/`. Pending deletion. |
+| `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only. |
 | `Findly-Inc/DRAW` | Historical web scraping/capture codebase (1.5 GB) | Curated extraction in local scrapyard bundle at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/` |
 | `michaelblum/bridgehand` | Slippy orb prototype | May inform `heads-up` skin system |
 
