@@ -258,10 +258,12 @@ func getFocusedWindowID() -> CGWindowID? {
     let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
     var value: AnyObject?
     let result = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &value)
-    guard result == .success, let windowElement = value else { return nil }
+    guard result == .success, let rawValue = value,
+          CFGetTypeID(rawValue) == AXUIElementGetTypeID() else { return nil }
+    let windowElement = rawValue as! AXUIElement
 
     var windowID: CGWindowID = 0
-    let axResult = _AXUIElementGetWindow(windowElement as! AXUIElement, &windowID)
+    let axResult = _AXUIElementGetWindow(windowElement, &windowID)
     guard axResult == .success, windowID != 0 else { return nil }
 
     return windowID
@@ -1390,7 +1392,7 @@ func listCommand() {
     }
 
     // -- Window enumeration + filtering --
-    let windowInfoList = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+    let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 
     struct RawWindow {
         let windowID: Int
@@ -1457,9 +1459,10 @@ func listCommand() {
 
     // -- Build STDisplay array --
     let stDisplays: [STDisplay] = displays.map { d in
-        // Display UUID (CGDisplayCreateUUIDFromDisplayID is a Create function → returns managed CFUUID?)
+        // Display UUID (CGDisplayCreateUUIDFromDisplayID returns Unmanaged<CFUUID>?)
         let uuid: String? = {
-            let cfUUID = CGDisplayCreateUUIDFromDisplayID(d.cgID).takeRetainedValue()
+            guard let unmanaged = CGDisplayCreateUUIDFromDisplayID(d.cgID) else { return nil }
+            let cfUUID = unmanaged.takeRetainedValue()
             return CFUUIDCreateString(nil, cfUUID) as String
         }()
 
