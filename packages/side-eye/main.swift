@@ -820,7 +820,7 @@ func buildAnnotations(from elements: [AXElementJSON]) -> [AnnotationJSON] {
                 width: Double(el.bounds.width),
                 height: Double(el.bounds.height)
             ),
-            label: el.title ?? el.label
+            label: [el.title, el.label].compactMap { $0?.isEmpty == false ? $0 : nil }.first
         )
     }
 }
