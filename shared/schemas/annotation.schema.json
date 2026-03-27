@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/annotation.schema.json",
+  "title": "Annotations",
+  "description": "Labeled regions for agent-os ecosystem tools. Array position = display ordinal (0-based index, render as 1-based label).",
+  "type": "object",
+  "required": ["schema", "version", "annotations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "annotations"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver. Current: 0.1.0."
+    },
+    "annotations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Annotation" },
+      "description": "Labeled regions. Array index = ordinal (display as index + 1)."
+    }
+  },
+  "$defs": {
+    "Bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "description": "Left edge." },
+        "y": { "type": "number", "description": "Top edge." },
+        "width": { "type": "number", "description": "Width." },
+        "height": { "type": "number", "description": "Height." }
+      },
+      "description": "Rectangle. Coordinate space is determined by context (LCS for screenshots/windows, global CG for topology)."
+    },
+    "Annotation": {
+      "type": "object",
+      "required": ["bounds"],
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/Bounds",
+          "description": "Region this annotation labels."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable label. If omitted, the ordinal number is used."
+        }
+      }
+    }
+  }
+}
