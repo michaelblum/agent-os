@@ -137,6 +137,20 @@ struct AXElementJSON: Encodable {
     let bounds: BoundsJSON
 }
 
+// MARK: - Annotation Output Model (annotation.schema.json v0.1.0)
+
+struct AnnotationBoundsJSON: Encodable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+struct AnnotationJSON: Encodable {
+    let bounds: AnnotationBoundsJSON
+    let label: String?
+}
+
 struct SuccessResponse: Encodable {
     let status = "success"
     var files: [String]?
@@ -147,8 +161,9 @@ struct SuccessResponse: Encodable {
     var click_y: Int?
     var warning: String?
     var elements: [AXElementJSON]?
+    var annotations: [AnnotationJSON]?
 
-    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements }
+    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -161,6 +176,7 @@ struct SuccessResponse: Encodable {
         if let cy = click_y { try c.encode(cy, forKey: .click_y) }
         if let w = warning { try c.encode(w, forKey: .warning) }
         if let e = elements { try c.encode(e, forKey: .elements) }
+        if let a = annotations { try c.encode(a, forKey: .annotations) }
     }
 }
 
@@ -792,6 +808,60 @@ func xrayFrontmostApp(mapper: CoordinateMapper, imageSize: CGSize) -> [AXElement
                    mapper: mapper, imageSize: imageSize)
 }
 
+// MARK: - Annotation Label Generation
+
+/// Convert xray elements to annotation schema format.
+func buildAnnotations(from elements: [AXElementJSON]) -> [AnnotationJSON] {
+    return elements.map { el in
+        AnnotationJSON(
+            bounds: AnnotationBoundsJSON(
+                x: Double(el.bounds.x),
+                y: Double(el.bounds.y),
+                width: Double(el.bounds.width),
+                height: Double(el.bounds.height)
+            ),
+            label: el.title ?? el.label
+        )
+    }
+}
+
+/// Generate HTML/SVG for numbered badge overlays.
+/// Each badge is a small circle with the ordinal number, positioned at the top-left of the element bounds.
+/// The HTML has a transparent background for compositing over screenshots.
+///
+/// IMPORTANT: annotation bounds are in LCS points, but the SVG dimensions are in pixels.
+/// The scaleFactor parameter converts from points to pixels so badges align correctly
+/// on Retina displays (scale_factor = 2.0 means point 100 = pixel 200).
+func generateBadgeHTML(annotations: [AnnotationJSON], width: Int, height: Int, scaleFactor: Double) -> String {
+    let r = 10.0  // badge radius in pixels
+    var badges = ""
+    for (i, ann) in annotations.enumerated() {
+        let num = i + 1
+        // Convert LCS point bounds to pixel coordinates
+        let px = ann.bounds.x * scaleFactor
+        let py = ann.bounds.y * scaleFactor
+        // Position badge at top-left of element, clamped to stay within image
+        let cx = max(r, min(Double(width) - r, px))
+        let cy = max(r, min(Double(height) - r, py))
+        // Badge: 20px diameter circle with number
+        badges += """
+            <g>
+              <circle cx="\(cx)" cy="\(cy)" r="\(r)" fill="rgba(30,30,30,0.88)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+              <text x="\(cx)" y="\(cy)" text-anchor="middle" dominant-baseline="central"
+                    fill="rgba(255,255,255,0.9)" font-family="-apple-system,system-ui,sans-serif"
+                    font-size="10" font-weight="700" style="font-variant-numeric:tabular-nums">\(num)</text>
+            </g>
+
+        """
+    }
+    return """
+    <!DOCTYPE html>
+    <html><head><style>html,body{margin:0;padding:0;background:transparent!important;overflow:hidden}</style></head>
+    <body><svg width="\(width)" height="\(height)" xmlns="http://www.w3.org/2000/svg">
+    \(badges)</svg></body></html>
+    """
+}
+
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
@@ -843,6 +913,9 @@ struct CaptureOptions {
 
     // Xray (accessibility traversal)
     var xray: Bool = false
+
+    // Label (badge annotations; implies xray)
+    var label: Bool = false
 
     // Timeout for interactive flags (seconds)
     var timeout: Double = 60.0
@@ -934,6 +1007,11 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         // Xray (accessibility traversal)
         case "--xray":
             opts.xray = true
+
+        // Label (badge annotations; implies --xray)
+        case "--label":
+            opts.label = true
+            opts.xray = true  // --label implies --xray
 
         // Timeout
         case "--timeout":
@@ -1375,6 +1453,8 @@ func printUsage() {
                               and bounds in LCS coordinates. Requires Accessibility
                               permission. Elements outside the capture/crop area are
                               automatically filtered out.
+      --label                 Number interactive elements with badges (requires heads-up).
+                              Implies --xray. Emits annotations[] in JSON output.
 
     OVERLAYS (baked into the image via CoreGraphics)
       --grid <CxR>            Coordinate grid, e.g. 10x10 — aids LLM spatial reasoning
