@@ -79,7 +79,7 @@ Pure Swift binaries using only Apple frameworks. Zero external dependencies. Eac
 | Tool | Role | Frameworks | Status |
 |------|------|------------|--------|
 | `side-eye` | **Perception** — screenshots, AX tree traversal, spatial metadata | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (v3.0) |
-| `hand-off` | **Action** — mouse movement, clicks, drags, keystrokes | CoreGraphics (CGEvent), ApplicationServices | Planned |
+| `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
 | `heads-up` | **Projection** — floating overlays, the avatar orb, spotlights, laser pointers | AppKit (NSWindow), CoreAnimation | Planned |
 | `speak-up` | **Audio** — text-to-speech output, speech-to-text dictation | AVFoundation, Speech | Planned |
 
@@ -140,8 +140,8 @@ agent-os/
 
 | Component | Layer | Language | Location | Status | Key Capabilities |
 |-----------|-------|----------|----------|--------|-----------------|
-| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, grids, overlays, zones, LCS |
-| `hand-off` | OS | Swift | `packages/hand-off/` | Planned | CGEvent mouse/keyboard, coordinate-targeted actions |
+| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, cursor query, selection query, grids, overlays, zones, LCS |
+| `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize |
 | `heads-up` | OS | Swift | `packages/heads-up/` | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
 | `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
 | `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
