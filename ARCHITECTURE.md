@@ -80,7 +80,7 @@ Pure Swift binaries using only Apple frameworks. Zero external dependencies. Eac
 |------|------|------------|--------|
 | `side-eye` | **Perception** — screenshots, AX tree traversal, spatial metadata | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (v3.0) |
 | `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
-| `heads-up` | **Projection** — floating overlays, the avatar orb, spotlights, laser pointers | AppKit (NSWindow), CoreAnimation | Planned |
+| `heads-up` | **Projection** — display server: renders HTML/CSS/SVG to OS overlays, transparent bitmaps, or browser injection | WebKit (WKWebView), AppKit (NSWindow) | Render mode production, serve mode planned |
 | `speak-up` | **Audio** — text-to-speech output, speech-to-text dictation | AVFoundation, Speech | Planned |
 
 All four share the LCS convention. All four emit JSON. All four are stateless — the orchestrator holds state, not the tools.
@@ -133,6 +133,8 @@ agent-os/
     schemas/           ← Cross-tool JSON contracts
       spatial-topology.schema.json   ← Display→Window topology (v0.1.0)
       spatial-topology.md            ← Companion docs + coordinate system spec
+      annotation.schema.json         ← Labeled regions for annotations (v0.1.0)
+      annotation.md                  ← Companion docs
   ARCHITECTURE.md      ← This file
 ```
 
@@ -140,9 +142,9 @@ agent-os/
 
 | Component | Layer | Language | Location | Status | Key Capabilities |
 |-----------|-------|----------|----------|--------|-----------------|
-| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, cursor query, selection query, grids, overlays, zones, LCS |
+| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, grids, overlays, zones, LCS |
 | `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize |
-| `heads-up` | OS | Swift | `packages/heads-up/` | Planned | Floating overlays, avatar orb, spotlight, laser, `--skin` system |
+| `heads-up` | OS | Swift | `packages/heads-up/` | Render mode production | Display server: HTML→bitmap (render mode), persistent canvases (serve mode planned), browser injection (planned) |
 | `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
 | `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
 | `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
