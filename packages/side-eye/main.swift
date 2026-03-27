@@ -56,11 +56,18 @@ struct STApp: Encodable {
     let window_ids: [Int]
 }
 
+struct STCursor: Encodable {
+    let x: Double
+    let y: Double
+    let display: Int
+}
+
 struct SpatialTopology: Encodable {
     let schema: String
     let version: String
     let timestamp: String
     let screens_have_separate_spaces: Bool
+    let cursor: STCursor
     let focused_window_id: Int?
     let focused_app: STFocusedApp?
     let displays: [STDisplay]
@@ -70,6 +77,47 @@ struct SpatialTopology: Encodable {
 struct CursorJSON: Encodable {
     let x: Int
     let y: Int
+}
+
+// MARK: - Cursor Command Output Models
+
+struct CursorPointJSON: Encodable {
+    let x: Double
+    let y: Double
+}
+
+struct CursorWindowJSON: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_name: String
+    let app_pid: Int
+    let bundle_id: String?
+    let bounds: STBounds
+}
+
+struct CursorElementJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let enabled: Bool
+}
+
+struct CursorResponse: Encodable {
+    let cursor: CursorPointJSON
+    let display: Int
+    let window: CursorWindowJSON?
+    let element: CursorElementJSON?
+}
+
+// MARK: - Selection Command Output Models
+
+struct SelectionResponse: Encodable {
+    let selected_text: String
+    let app_name: String
+    let app_pid: Int
+    let bundle_id: String?
+    let role: String
 }
 
 struct BoundsJSON: Encodable {
@@ -1273,6 +1321,8 @@ func printUsage() {
 
     USAGE
       side-eye list                              Spatial topology (displays + windows + apps)
+      side-eye cursor                            What's under the mouse cursor (window + AX element)
+      side-eye selection                         Selected text across all visible apps
       side-eye [capture] <target> [options]      Take a screenshot
       side-eye zone <save|define|list|delete>    Manage named zones
       side-eye <zone-name> [options]             Capture a saved zone
@@ -1307,6 +1357,16 @@ func printUsage() {
       mouse                   Target: resolves to display under cursor
       --radius <px>           With 'mouse': capture <px>-radius box around cursor
       --highlight-cursor [#color]   Draw 50px circle at cursor (default: #FFFF0066)
+
+    QUERIES (read-only, no screenshot needed)
+      cursor                  Mouse cursor position + frontmost window hit-test +
+                              AX element at point. Returns {cursor, display, window, element}.
+                              Requires Accessibility permission for element info.
+      selection               Walks all visible apps looking for selected text.
+                              Checks non-focused apps first (cursor-vs-focus gap).
+                              Prioritizes text-bearing roles (AXTextArea, AXWebArea, etc.).
+                              Returns {selected_text, app_name, app_pid, bundle_id, role}
+                              or {selected_text: null} if nothing is selected.
 
     PERCEPTION (Accessibility APIs)
       --xray                  Emit flat JSON array of interactive UI elements in
@@ -1512,6 +1572,11 @@ func listCommand() {
         )
     }
 
+    // -- Cursor position --
+    let cursorPt = mouseInCGCoords()
+    let cursorDisplay = displays.first(where: { $0.bounds.contains(cursorPt) }) ?? displays.first(where: { $0.isMain })!
+    let stCursor = STCursor(x: cursorPt.x, y: cursorPt.y, display: cursorDisplay.ordinal)
+
     // -- Assemble and print --
     let iso8601 = ISO8601DateFormatter()
     iso8601.formatOptions = [.withInternetDateTime]
@@ -1521,12 +1586,207 @@ func listCommand() {
         version: "0.1.0",
         timestamp: iso8601.string(from: Date()),
         screens_have_separate_spaces: NSScreen.screensHaveSeparateSpaces,
+        cursor: stCursor,
         focused_window_id: focusedWindowID.map { Int($0) },
         focused_app: focusedApp,
         displays: stDisplays,
         apps: stApps
     )
     print(jsonString(topology))
+}
+
+// MARK: - Command: cursor
+
+@available(macOS 14.0, *)
+func cursorCommand() {
+    let cursorPt = mouseInCGCoords()
+
+    // -- Which display? --
+    let displays = getDisplays()
+    let display = displays.first(where: { $0.bounds.contains(cursorPt) }) ?? displays.first(where: { $0.isMain })!
+
+    // -- Window list (on-screen, front-to-back) --
+    let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+
+    // -- App lookup for bundle IDs --
+    var appLookup: [pid_t: String?] = [:]
+    for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        appLookup[app.processIdentifier] = app.bundleIdentifier
+    }
+
+    // -- Hit-test: find the frontmost window containing the cursor --
+    // CGWindowList is already front-to-back, so first match at layer 0 wins.
+    var matchedWindow: CursorWindowJSON? = nil
+    var matchedPID: pid_t? = nil
+    for info in windowInfoList {
+        guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) else { continue }
+        guard rect.contains(cursorPt) else { continue }
+        let layer = info[kCGWindowLayer as String] as? Int ?? 0
+        guard layer == 0 else { continue }
+        let alpha = info[kCGWindowAlpha as String] as? Double ?? 1.0
+        guard alpha > 0 else { continue }
+        let ownerName = info[kCGWindowOwnerName as String] as? String ?? ""
+        guard ownerName != "Window Server" else { continue }
+
+        let windowID = info[kCGWindowNumber as String] as? Int ?? 0
+        let pid = info[kCGWindowOwnerPID as String] as? pid_t ?? 0
+        let title = info[kCGWindowName as String] as? String
+
+        matchedWindow = CursorWindowJSON(
+            window_id: windowID,
+            title: title,
+            app_name: ownerName,
+            app_pid: Int(pid),
+            bundle_id: appLookup[pid] ?? nil,
+            bounds: STBounds(x: rect.origin.x, y: rect.origin.y,
+                             width: rect.width, height: rect.height)
+        )
+        matchedPID = pid
+        break  // frontmost hit
+    }
+
+    // -- AX element at cursor point --
+    var matchedElement: CursorElementJSON? = nil
+    if let pid = matchedPID, AXIsProcessTrusted() {
+        let axApp = AXUIElementCreateApplication(pid)
+        var elementRef: AXUIElement?
+        let axResult = AXUIElementCopyElementAtPosition(axApp, Float(cursorPt.x), Float(cursorPt.y), &elementRef)
+        if axResult == .success, let el = elementRef {
+            let role = axString(el, kAXRoleAttribute) ?? "unknown"
+            let title = axString(el, kAXTitleAttribute)
+            let label = axString(el, kAXDescriptionAttribute)
+            var valueStr: String? = nil
+            var valRef: AnyObject?
+            if AXUIElementCopyAttributeValue(el, kAXValueAttribute as CFString, &valRef) == .success {
+                if let s = valRef as? String {
+                    valueStr = s.count > 200 ? String(s.prefix(200)) + "..." : s
+                } else if let n = valRef as? NSNumber {
+                    valueStr = n.stringValue
+                }
+            }
+            let enabled = axBool(el, kAXEnabledAttribute) ?? true
+
+            matchedElement = CursorElementJSON(
+                role: role, title: title, label: label, value: valueStr, enabled: enabled
+            )
+        }
+    }
+
+    let response = CursorResponse(
+        cursor: CursorPointJSON(x: cursorPt.x, y: cursorPt.y),
+        display: display.ordinal,
+        window: matchedWindow,
+        element: matchedElement
+    )
+    print(jsonString(response))
+}
+
+// MARK: - Command: selection
+
+/// Roles most likely to carry selected text — check these first for speed.
+private let textBearingRoles: Set<String> = [
+    "AXWebArea",       // Electron apps (VS Code, Slack, Discord)
+    "AXTextArea",      // Native multi-line text fields
+    "AXTextField",     // Native single-line text fields
+    "AXSearchField",   // Search bars
+    "AXSecureTextField", // Password fields (unlikely but complete)
+    "AXStaticText",    // Labels with selectable text
+]
+
+@available(macOS 14.0, *)
+func selectionCommand() {
+    guard AXIsProcessTrusted() else {
+        exitError("Accessibility permission required.", code: "PERMISSION_DENIED")
+    }
+
+    // -- Get visible apps from window list (same source as topology) --
+    let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+    var visiblePIDs: Set<pid_t> = []
+    for info in windowInfoList {
+        let layer = info[kCGWindowLayer as String] as? Int ?? 0
+        guard layer == 0 else { continue }
+        let alpha = info[kCGWindowAlpha as String] as? Double ?? 1.0
+        guard alpha > 0 else { continue }
+        if let pid = info[kCGWindowOwnerPID as String] as? pid_t {
+            visiblePIDs.insert(pid)
+        }
+    }
+
+    // -- App lookup for names + bundle IDs --
+    var appInfo: [pid_t: (name: String, bundleId: String?)] = [:]
+    for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        appInfo[app.processIdentifier] = (
+            name: app.localizedName ?? "Unknown",
+            bundleId: app.bundleIdentifier
+        )
+    }
+
+    // -- Check non-focused apps first (user is typing in the focused one) --
+    let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1
+    let sortedPIDs = visiblePIDs.sorted { pid1, pid2 in
+        // Non-focused apps first
+        (pid1 != frontPID ? 0 : 1) < (pid2 != frontPID ? 0 : 1)
+    }
+
+    for pid in sortedPIDs {
+        let axApp = AXUIElementCreateApplication(pid)
+        if let result = findSelectedText(in: axApp, maxDepth: 12) {
+            let info = appInfo[pid]
+            let response = SelectionResponse(
+                selected_text: result.text,
+                app_name: info?.name ?? "Unknown",
+                app_pid: Int(pid),
+                bundle_id: info?.bundleId,
+                role: result.role
+            )
+            print(jsonString(response))
+            return
+        }
+    }
+
+    // Nothing selected anywhere
+    print("{\"selected_text\":null}")
+}
+
+/// Targeted AX tree search for selected text. Prioritizes text-bearing roles
+/// and stops as soon as a selection is found.
+private func findSelectedText(in element: AXUIElement, depth: Int = 0, maxDepth: Int) -> (text: String, role: String)? {
+    guard depth < maxDepth else { return nil }
+
+    let role = axString(element, kAXRoleAttribute) ?? ""
+
+    // Fast path: check text-bearing elements immediately
+    if textBearingRoles.contains(role) {
+        if let sel = axString(element, kAXSelectedTextAttribute), !sel.isEmpty {
+            return (text: sel, role: role)
+        }
+    }
+
+    // Recurse into children — text-bearing children first for speed
+    var childrenRef: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+          let children = childrenRef as? [AXUIElement] else { return nil }
+
+    // Partition: text-bearing roles first, then the rest
+    var textFirst: [AXUIElement] = []
+    var rest: [AXUIElement] = []
+    for child in children {
+        let childRole = axString(child, kAXRoleAttribute) ?? ""
+        if textBearingRoles.contains(childRole) {
+            textFirst.append(child)
+        } else {
+            rest.append(child)
+        }
+    }
+
+    for child in textFirst + rest {
+        if let result = findSelectedText(in: child, depth: depth + 1, maxDepth: maxDepth) {
+            return result
+        }
+    }
+
+    return nil
 }
 
 // MARK: - Command: capture
@@ -1896,6 +2156,10 @@ struct SideEye {
         switch args[0] {
         case "list":
             listCommand(); exit(0)
+        case "cursor":
+            cursorCommand(); exit(0)
+        case "selection":
+            selectionCommand(); exit(0)
         case "zone":
             zoneCommand(args: Array(args.dropFirst())); exit(0)
         case "help", "--help", "-h":

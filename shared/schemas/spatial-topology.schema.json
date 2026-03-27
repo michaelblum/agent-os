@@ -4,7 +4,7 @@
   "title": "Spatial Topology",
   "description": "Display → Window topology for the agent-os ecosystem. Produced by side-eye, consumed by hand-off and orchestrators.",
   "type": "object",
-  "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "displays", "apps"],
+  "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "cursor", "displays", "apps"],
   "additionalProperties": false,
   "properties": {
     "schema": {
@@ -23,6 +23,10 @@
     "screens_have_separate_spaces": {
       "type": "boolean",
       "description": "NSScreen.screensHaveSeparateSpaces. true = each display has independent spaces (default macOS). false = all displays share one space set."
+    },
+    "cursor": {
+      "$ref": "#/$defs/Cursor",
+      "description": "Current mouse cursor position in global CG coordinates."
     },
     "focused_window_id": {
       "type": ["integer", "null"],
@@ -48,6 +52,17 @@
   },
 
   "$defs": {
+    "Cursor": {
+      "type": "object",
+      "required": ["x", "y", "display"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "description": "Cursor X in global CG points." },
+        "y": { "type": "number", "description": "Cursor Y in global CG points." },
+        "display": { "type": "integer", "minimum": 1, "description": "Ordinal of the display the cursor is on." }
+      }
+    },
+
     "Bounds": {
       "type": "object",
       "required": ["x", "y", "width", "height"],

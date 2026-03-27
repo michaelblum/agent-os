@@ -1,6 +1,6 @@
 # side-eye
 
-Agent-first macOS screenshot CLI. Pure Swift, zero dependencies.
+Agent-first macOS perception CLI. Pure Swift, zero dependencies.
 
 ## Build
 
@@ -15,8 +15,14 @@ Requires macOS 14+ and Screen Recording permission for the calling terminal.
 ## Usage
 
 ```bash
-# Display topology
+# Display topology (includes cursor position)
 ./side-eye list
+
+# What's under the cursor? (window + AX element)
+./side-eye cursor
+
+# Selected text across visible apps (checks non-focused apps first)
+./side-eye selection
 
 # Screenshot main display
 ./side-eye main --out /tmp/main.png
