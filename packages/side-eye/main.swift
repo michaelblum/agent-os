@@ -862,6 +862,85 @@ func generateBadgeHTML(annotations: [AnnotationJSON], width: Int, height: Int, s
     """
 }
 
+/// Find the heads-up binary: same directory as side-eye, or in PATH.
+/// Returns the path, or nil if not found.
+func findHeadsUp() -> String? {
+    let selfPath = CommandLine.arguments[0]
+    let selfDir = (selfPath as NSString).deletingLastPathComponent
+    let siblingPath = (selfDir as NSString).appendingPathComponent("heads-up")
+
+    if FileManager.default.isExecutableFile(atPath: siblingPath) {
+        return siblingPath
+    }
+
+    // Try PATH
+    let whichProc = Process()
+    whichProc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+    whichProc.arguments = ["heads-up"]
+    let whichPipe = Pipe()
+    whichProc.standardOutput = whichPipe
+    whichProc.standardError = FileHandle.nullDevice
+    try? whichProc.run()
+    whichProc.waitUntilExit()
+    let whichOut = String(data: whichPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if whichProc.terminationStatus == 0 && !whichOut.isEmpty {
+        return whichOut
+    }
+    return nil
+}
+
+/// Shell out to heads-up render to rasterize HTML to a transparent PNG bitmap.
+/// Uses stdin for HTML input and a temp file for PNG output to avoid base64 overhead
+/// and command-line arg length limits.
+/// Returns the resulting CGImage, or nil if heads-up is not available or rendering fails.
+func renderHTMLToBitmap(html: String, width: Int, height: Int) -> CGImage? {
+    guard let headsUpPath = findHeadsUp() else { return nil }
+
+    // Use a temp file for the output PNG — avoids base64 encoding overhead
+    let tempPath = NSTemporaryDirectory() + "heads-up-overlay-\(ProcessInfo.processInfo.processIdentifier).png"
+    defer { try? FileManager.default.removeItem(atPath: tempPath) }
+
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: headsUpPath)
+    proc.arguments = ["render", "--width", "\(width)", "--height", "\(height)", "--out", tempPath]
+
+    // Pipe HTML via stdin — avoids command-line arg length limits
+    let inPipe = Pipe()
+    proc.standardInput = inPipe
+    proc.standardOutput = FileHandle.nullDevice
+    proc.standardError = Pipe()  // suppress stderr
+
+    do { try proc.run() } catch { return nil }
+    inPipe.fileHandleForWriting.write(html.data(using: .utf8)!)
+    inPipe.fileHandleForWriting.closeFile()
+    proc.waitUntilExit()
+    guard proc.terminationStatus == 0 else { return nil }
+
+    // Read the rendered PNG directly as CGImage
+    guard let provider = CGDataProvider(filename: tempPath),
+          let image = CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+    else { return nil }
+
+    return image
+}
+
+/// Composite a transparent overlay image on top of a base image.
+/// Both images must have the same pixel dimensions.
+func compositeOverlay(_ overlay: CGImage, onto base: CGImage) -> CGImage {
+    let w = base.width
+    let h = base.height
+    guard let ctx = CGContext(
+        data: nil, width: w, height: h,
+        bitsPerComponent: 8, bytesPerRow: 0,
+        space: base.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { return base }
+    ctx.draw(base, in: CGRect(x: 0, y: 0, width: w, height: h))
+    ctx.draw(overlay, in: CGRect(x: 0, y: 0, width: w, height: h))
+    return ctx.makeImage() ?? base
+}
+
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
@@ -2019,6 +2098,7 @@ func captureCommand(args: [String]) async {
     var responseClickX: Int? = nil
     var responseClickY: Int? = nil
     var responseElements: [AXElementJSON]? = nil
+    var responseAnnotations: [AnnotationJSON]? = nil
 
     // If interactive captured an image, use it directly (skip display/window capture)
     if let iImg = interactiveImage {
@@ -2148,6 +2228,19 @@ func captureCommand(args: [String]) async {
             }
         }
 
+        // 7b. Label — generate annotation badges and composite via heads-up
+        if opts.label, let elems = responseElements, !elems.isEmpty {
+            let anns = buildAnnotations(from: elems)
+            responseAnnotations = anns
+
+            let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height, scaleFactor: entry.scaleFactor)
+            if let overlay = renderHTMLToBitmap(html: badgeHTML, width: image.width, height: image.height) {
+                image = compositeOverlay(overlay, onto: image)
+            } else {
+                exitError("heads-up not found. Install heads-up for --label support.", code: "MISSING_DEPENDENCY")
+            }
+        }
+
         // 8. Overlays (LCS — post-crop coordinates)
         if let grid = opts.grid {
             image = drawGrid(on: image, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
@@ -2189,6 +2282,7 @@ func captureCommand(args: [String]) async {
         resp.click_y = responseClickY
         resp.warning = responseWarning
         resp.elements = responseElements
+        resp.annotations = responseAnnotations
         return resp
     }
 
