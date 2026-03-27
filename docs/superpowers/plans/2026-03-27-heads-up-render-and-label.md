@@ -338,13 +338,13 @@ func renderCommand(args: [String]) {
         }
         html = contents
     } else {
-        // Try stdin
-        var stdinData = Data()
-        while let chunk = try? FileHandle.standardInput.availableData, !chunk.isEmpty {
-            stdinData.append(chunk)
-        }
-        if stdinData.isEmpty {
+        // Try stdin — but only if it's actually piped, not a terminal
+        if isatty(FileHandle.standardInput.fileDescriptor) != 0 {
             exitError("No HTML content provided. Use --html, --file, or pipe to stdin.", code: "NO_CONTENT")
+        }
+        let stdinData = FileHandle.standardInput.readDataToEndOfFile()
+        if stdinData.isEmpty {
+            exitError("No HTML content provided via stdin.", code: "NO_CONTENT")
         }
         guard let s = String(data: stdinData, encoding: .utf8) else {
             exitError("stdin is not valid UTF-8", code: "INVALID_CONTENT")
@@ -367,8 +367,12 @@ func renderCommand(args: [String]) {
         CFRunLoopStop(CFRunLoopGetMain())
     }
 
-    // Pump the run loop until rendering completes
+    // Pump the run loop until rendering completes, with a 10-second timeout
+    let deadline = Date().addingTimeInterval(10.0)
     while !renderDone {
+        if Date() > deadline {
+            exitError("WKWebView rendering timed out after 10 seconds", code: "RENDER_TIMEOUT")
+        }
         CFRunLoopRunInMode(.defaultMode, 0.1, false)
     }
 
@@ -688,16 +692,25 @@ func buildAnnotations(from elements: [AXElementJSON]) -> [AnnotationJSON] {
 /// Generate HTML/SVG for numbered badge overlays.
 /// Each badge is a small circle with the ordinal number, positioned at the top-left of the element bounds.
 /// The HTML has a transparent background for compositing over screenshots.
-func generateBadgeHTML(annotations: [AnnotationJSON], width: Int, height: Int) -> String {
+///
+/// IMPORTANT: annotation bounds are in LCS points, but the SVG dimensions are in pixels.
+/// The scaleFactor parameter converts from points to pixels so badges align correctly
+/// on Retina displays (scale_factor = 2.0 means point 100 = pixel 200).
+func generateBadgeHTML(annotations: [AnnotationJSON], width: Int, height: Int, scaleFactor: Double) -> String {
+    let r = 10.0  // badge radius in pixels
     var badges = ""
     for (i, ann) in annotations.enumerated() {
         let num = i + 1
-        let cx = Int(ann.bounds.x) + 2
-        let cy = Int(ann.bounds.y) + 2
-        // Badge: 20px diameter circle with number, offset to top-left corner
+        // Convert LCS point bounds to pixel coordinates
+        let px = ann.bounds.x * scaleFactor
+        let py = ann.bounds.y * scaleFactor
+        // Position badge at top-left of element, clamped to stay within image
+        let cx = max(r, min(Double(width) - r, px))
+        let cy = max(r, min(Double(height) - r, py))
+        // Badge: 20px diameter circle with number
         badges += """
             <g>
-              <circle cx="\(cx)" cy="\(cy)" r="10" fill="rgba(30,30,30,0.88)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+              <circle cx="\(cx)" cy="\(cy)" r="\(r)" fill="rgba(30,30,30,0.88)" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
               <text x="\(cx)" y="\(cy)" text-anchor="middle" dominant-baseline="central"
                     fill="rgba(255,255,255,0.9)" font-family="-apple-system,system-ui,sans-serif"
                     font-size="10" font-weight="700" style="font-variant-numeric:tabular-nums">\(num)</text>
@@ -748,54 +761,63 @@ Wire up the annotation pipeline: generate badges, shell out to heads-up render, 
 After `generateBadgeHTML`, add a function that shells out to `heads-up render` and returns the resulting transparent PNG as a CGImage:
 
 ```swift
-/// Shell out to heads-up render to rasterize HTML to a transparent PNG bitmap.
-/// Returns the resulting CGImage, or nil if heads-up is not available or rendering fails.
-func renderHTMLToBitmap(html: String, width: Int, height: Int) -> CGImage? {
-    // Find heads-up binary: same directory as side-eye, or in PATH
+/// Find the heads-up binary: same directory as side-eye, or in PATH.
+/// Returns the path, or nil if not found.
+func findHeadsUp() -> String? {
     let selfPath = CommandLine.arguments[0]
     let selfDir = (selfPath as NSString).deletingLastPathComponent
     let siblingPath = (selfDir as NSString).appendingPathComponent("heads-up")
 
-    let headsUpPath: String
     if FileManager.default.isExecutableFile(atPath: siblingPath) {
-        headsUpPath = siblingPath
-    } else {
-        // Try PATH
-        let whichProc = Process()
-        whichProc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        whichProc.arguments = ["heads-up"]
-        let whichPipe = Pipe()
-        whichProc.standardOutput = whichPipe
-        whichProc.standardError = FileHandle.nullDevice
-        try? whichProc.run()
-        whichProc.waitUntilExit()
-        let whichOut = String(data: whichPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if whichProc.terminationStatus == 0 && !whichOut.isEmpty {
-            headsUpPath = whichOut
-        } else {
-            return nil  // heads-up not found
-        }
+        return siblingPath
     }
+
+    // Try PATH
+    let whichProc = Process()
+    whichProc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+    whichProc.arguments = ["heads-up"]
+    let whichPipe = Pipe()
+    whichProc.standardOutput = whichPipe
+    whichProc.standardError = FileHandle.nullDevice
+    try? whichProc.run()
+    whichProc.waitUntilExit()
+    let whichOut = String(data: whichPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if whichProc.terminationStatus == 0 && !whichOut.isEmpty {
+        return whichOut
+    }
+    return nil
+}
+
+/// Shell out to heads-up render to rasterize HTML to a transparent PNG bitmap.
+/// Uses stdin for HTML input and a temp file for PNG output to avoid base64 overhead
+/// and command-line arg length limits.
+/// Returns the resulting CGImage, or nil if heads-up is not available or rendering fails.
+func renderHTMLToBitmap(html: String, width: Int, height: Int) -> CGImage? {
+    guard let headsUpPath = findHeadsUp() else { return nil }
+
+    // Use a temp file for the output PNG — avoids base64 encoding overhead
+    let tempPath = NSTemporaryDirectory() + "heads-up-overlay-\(ProcessInfo.processInfo.processIdentifier).png"
+    defer { try? FileManager.default.removeItem(atPath: tempPath) }
 
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: headsUpPath)
-    proc.arguments = ["render", "--width", "\(width)", "--height", "\(height)", "--base64", "--html", html]
+    proc.arguments = ["render", "--width", "\(width)", "--height", "\(height)", "--out", tempPath]
 
-    let outPipe = Pipe()
-    let errPipe = Pipe()
-    proc.standardOutput = outPipe
-    proc.standardError = errPipe
+    // Pipe HTML via stdin — avoids command-line arg length limits
+    let inPipe = Pipe()
+    proc.standardInput = inPipe
+    proc.standardOutput = FileHandle.nullDevice
+    proc.standardError = Pipe()  // suppress stderr
 
     do { try proc.run() } catch { return nil }
+    inPipe.fileHandleForWriting.write(html.data(using: .utf8)!)
+    inPipe.fileHandleForWriting.closeFile()
     proc.waitUntilExit()
     guard proc.terminationStatus == 0 else { return nil }
 
-    let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-    guard let json = try? JSONSerialization.jsonObject(with: outData) as? [String: Any],
-          let b64 = json["base64"] as? String,
-          let pngData = Data(base64Encoded: b64),
-          let provider = CGDataProvider(data: pngData as CFData),
+    // Read the rendered PNG directly as CGImage
+    guard let provider = CGDataProvider(filename: tempPath),
           let image = CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
     else { return nil }
 
@@ -841,7 +863,7 @@ Insert BEFORE it:
             let anns = buildAnnotations(from: elems)
             responseAnnotations = anns
 
-            let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height)
+            let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height, scaleFactor: entry.scaleFactor)
             if let overlay = renderHTMLToBitmap(html: badgeHTML, width: image.width, height: image.height) {
                 image = compositeOverlay(overlay, onto: image)
             } else {
@@ -849,6 +871,8 @@ Insert BEFORE it:
             }
         }
 ```
+
+Note: `entry.scaleFactor` is available in the capture loop — it's the display's backing scale factor (2.0 on Retina). This converts LCS point-space annotation bounds to pixel-space SVG coordinates.
 
 This requires a `responseAnnotations` variable. Add it near the other response variables (around line 1941):
 
@@ -908,6 +932,22 @@ Expected:
 ```
 
 Expected: Both `annotations` and `base64` present in the response.
+
+- [ ] **Step 8b: Verify Retina coordinate alignment**
+
+Check that badge positions match element positions. On a Retina display (scale_factor 2.0), annotation bounds in the JSON are in LCS points, but badges on the screenshot should be at pixel positions (2× the point values).
+
+```bash
+./packages/side-eye/side-eye main --label --out /tmp/retina-test.png | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for i, ann in enumerate(d.get('annotations', [])[:3]):
+    b = ann['bounds']
+    print(f'Badge {i+1}: point ({b[\"x\"]:.0f}, {b[\"y\"]:.0f}) — check screenshot visually')
+"
+```
+
+Open `/tmp/retina-test.png` and verify badges align with the top-left corner of their corresponding elements. If badges are offset by half (appearing at 1× instead of 2× positions), the scale factor multiplication is not working.
 
 - [ ] **Step 9: Test --label without heads-up**
 
