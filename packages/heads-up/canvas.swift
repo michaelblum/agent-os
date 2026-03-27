@@ -72,9 +72,9 @@ class Canvas {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
-        window.level = .floating
+        window.level = .statusBar
         window.ignoresMouseEvents = !interactive
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: NSRect(origin: .zero, size: screenFrame.size), configuration: config)

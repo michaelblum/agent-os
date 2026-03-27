@@ -1,0 +1,48 @@
+<!--
+  Rainbow ball — persistent floating orb with glow and idle bob.
+
+  Usage with heads-up:
+    heads-up create --id ball --at 500,300,160,160 --file rainbow-ball.html
+
+  Design notes:
+    - Ball is 60px centered in 160px canvas → 50px padding for glow fadeout
+    - Glow radii (12/25/40px) stay within the 50px padding
+    - background: transparent !important on html+body for clean alpha
+    - Bob animation: 10px Y oscillation, 2.5s cycle, ease-in-out
+    - Rainbow: conic-gradient + hue-rotate animation (GPU-accelerated)
+    - Highlight: ::after pseudo-element with radial gradient for glass effect
+-->
+<!DOCTYPE html>
+<html style="background:transparent"><head><style>
+* { margin: 0; padding: 0; }
+html, body { background: transparent !important; }
+body { overflow: hidden; }
+#ball {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  position: absolute; left: 50px; top: 50px;
+  background: conic-gradient(from 0deg, #ff0040, #ff8800, #ffff00, #00ff88, #0088ff, #8800ff, #ff0040);
+  box-shadow:
+    0 0 12px 6px rgba(255,100,255,0.45),
+    0 0 25px 12px rgba(100,100,255,0.25),
+    0 0 40px 20px rgba(255,255,100,0.1);
+  animation: rainbow-glow 1.5s ease-in-out infinite alternate, bob 2.5s ease-in-out infinite;
+}
+#ball::after {
+  content: "";
+  position: absolute;
+  top: 6px; left: 10px;
+  width: 25px; height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 100%);
+  transform: rotate(-30deg);
+}
+@keyframes rainbow-glow {
+  0%   { filter: hue-rotate(0deg) brightness(1) saturate(1.2); }
+  100% { filter: hue-rotate(180deg) brightness(1.4) saturate(1.5); }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+</style></head><body><div id="ball"></div></body></html>
