@@ -102,6 +102,7 @@ func createCommand(args: [String]) {
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive = false
+    var ttlValue: String? = nil
 
     var i = 0
     while i < args.count {
@@ -129,6 +130,9 @@ func createCommand(args: [String]) {
             urlValue = args[i]
         case "--interactive":
             interactive = true
+        case "--ttl":
+            i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
+            ttlValue = args[i]
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -140,6 +144,10 @@ func createCommand(args: [String]) {
     var request = CanvasRequest(action: "create")
     request.id = canvasID
     request.interactive = interactive
+
+    if let ttlStr = ttlValue {
+        request.ttl = parseDuration(ttlStr)
+    }
 
     if let atStr = at {
         let parts = atStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
@@ -178,6 +186,7 @@ func updateCommand(args: [String]) {
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive: Bool? = nil
+    var ttlValue: String? = nil
 
     var i = 0
     while i < args.count {
@@ -207,6 +216,9 @@ func updateCommand(args: [String]) {
             interactive = true
         case "--no-interactive":
             interactive = false
+        case "--ttl":
+            i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
+            ttlValue = args[i]
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -218,6 +230,10 @@ func updateCommand(args: [String]) {
     var request = CanvasRequest(action: "update")
     request.id = canvasID
     request.interactive = interactive
+
+    if let ttlStr = ttlValue {
+        request.ttl = parseDuration(ttlStr)
+    }
 
     if let atStr = at {
         let parts = atStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }

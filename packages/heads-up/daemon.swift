@@ -182,6 +182,10 @@ func serveCommand(args: [String]) {
     let canvasManager = CanvasManager()
     let server = DaemonServer(socketPath: kSocketPath, canvasManager: canvasManager)
 
+    canvasManager.onCanvasCountChanged = { [weak server] in
+        server?.checkIdle()
+    }
+
     server.start()
 
     NSApplication.shared.run()

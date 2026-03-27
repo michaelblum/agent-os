@@ -56,6 +56,29 @@ class Canvas {
     var anchorWindowID: CGWindowID?
     var offset: CGRect?
     var isInteractive: Bool
+    var ttlTimer: DispatchSourceTimer?
+    var ttlDeadline: Date?
+    var onTTLExpired: (() -> Void)?
+
+    func setTTL(_ seconds: Double?) {
+        ttlTimer?.cancel()
+        ttlTimer = nil
+        ttlDeadline = nil
+        guard let seconds = seconds else { return }
+        ttlDeadline = Date().addingTimeInterval(seconds)
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + seconds)
+        timer.setEventHandler { [weak self] in
+            self?.onTTLExpired?()
+        }
+        timer.resume()
+        ttlTimer = timer
+    }
+
+    var remainingTTL: Double? {
+        guard let deadline = ttlDeadline else { return nil }
+        return max(0, deadline.timeIntervalSinceNow)
+    }
 
     init(id: String, cgFrame: CGRect, interactive: Bool) {
         self.id = id
@@ -104,6 +127,8 @@ class Canvas {
     }
 
     func close() {
+        ttlTimer?.cancel()
+        ttlTimer = nil
         window.orderOut(nil)
         window.close()
     }
@@ -124,7 +149,8 @@ class Canvas {
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
             anchorWindow: anchorWindowID.map { Int($0) },
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
-            interactive: isInteractive
+            interactive: isInteractive,
+            ttl: remainingTTL
         )
     }
 }
@@ -134,9 +160,17 @@ class Canvas {
 class CanvasManager {
     private var canvases: [String: Canvas] = [:]
     private var anchorTimer: DispatchSourceTimer?
+    var onCanvasCountChanged: (() -> Void)?
 
     var isEmpty: Bool { canvases.isEmpty }
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
+
+    func removeByTTL(_ id: String) {
+        guard let canvas = canvases.removeValue(forKey: id) else { return }
+        canvas.close()
+        if !hasAnchoredCanvases { stopAnchorPolling() }
+        onCanvasCountChanged?()
+    }
 
     func handle(_ request: CanvasRequest) -> CanvasResponse {
         switch request.action {
@@ -194,6 +228,13 @@ class CanvasManager {
         canvas.show()
         canvases[id] = canvas
 
+        if let ttl = req.ttl {
+            canvas.onTTLExpired = { [weak self] in
+                self?.removeByTTL(id)
+            }
+            canvas.setTTL(ttl)
+        }
+
         if hasAnchoredCanvases { startAnchorPolling() }
 
         return .ok()
@@ -237,6 +278,13 @@ class CanvasManager {
         if let interactive = req.interactive {
             canvas.isInteractive = interactive
             canvas.window.ignoresMouseEvents = !interactive
+        }
+
+        if let ttl = req.ttl {
+            canvas.onTTLExpired = { [weak self] in
+                self?.removeByTTL(id)
+            }
+            canvas.setTTL(ttl > 0 ? ttl : nil)  // ttl=0 clears the TTL
         }
 
         return .ok()
