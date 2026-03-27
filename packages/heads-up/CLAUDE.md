@@ -65,6 +65,35 @@ heads-up remove-all
 
 Unix socket at `~/.config/heads-up/sock`. Newline-delimited JSON protocol. The `serve` command starts the daemon directly (normally auto-started by `create`).
 
+#### Canvas Lifecycle
+
+- `--ttl <duration>` on create/update — auto-remove after timeout (e.g. `5s`, `10m`, `1h`)
+- Reset TTL with `heads-up update --id foo --ttl 10s`
+- Clear TTL with `heads-up update --id foo --ttl 0`
+
+#### Daemon Configuration
+
+- `heads-up serve --idle-timeout 10m` — daemon exits after this duration with no canvases (default: 5s)
+- `heads-up serve --idle-timeout none` — daemon never auto-exits
+
+#### JavaScript Eval
+
+Run JavaScript inside a canvas's WKWebView:
+
+```bash
+heads-up eval --id mycanvas --js "document.title"
+heads-up eval --id mycanvas --js "setState({mode: 'active'})"
+```
+
+Returns `{"status": "success", "result": "..."}` with the JS return value.
+
+#### Health Check
+
+```bash
+heads-up ping
+# {"status": "success", "uptime": 45.2}
+```
+
 ### Output
 
 All output is JSON. Success to stdout, errors to stderr with exit code 1.
