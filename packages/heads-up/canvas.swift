@@ -36,6 +36,17 @@ func screenToCG(_ nsRect: NSRect) -> CGRect {
     )
 }
 
+// MARK: - CanvasWindow (unconstrained NSWindow)
+
+/// NSWindow subclass that disables frame constraining.
+/// By default macOS may reposition or resize windows to fit within a single display.
+/// Canvases need to span multiple displays, so we return the proposed frame unchanged.
+class CanvasWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        return frameRect
+    }
+}
+
 // MARK: - Canvas
 
 class Canvas {
@@ -52,7 +63,7 @@ class Canvas {
 
         let screenFrame = cgToScreen(cgFrame)
 
-        let window = NSWindow(
+        let window = CanvasWindow(
             contentRect: screenFrame,
             styleMask: .borderless,
             backing: .buffered,
