@@ -18,7 +18,7 @@ func printUsage() {
       remove-all              Remove all canvases
       list                    List active canvases
       ping                    Ping the running daemon (returns uptime)
-      eval                    Evaluate JS in a canvas (not yet implemented)
+      eval                    Evaluate JavaScript in a canvas WKWebView
       serve                   Start the daemon (normally auto-started by create)
 
     Run 'heads-up <command> --help' for command-specific options.

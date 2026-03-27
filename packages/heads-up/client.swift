@@ -336,7 +336,38 @@ func pingCommand(args: [String]) {
 // MARK: - CLI Command: eval
 
 func evalCommand(args: [String]) {
-    exitError("eval not yet implemented", code: "NOT_IMPLEMENTED")
+    var id: String? = nil
+    var js: String? = nil
+
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--id":
+            i += 1; guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
+            id = args[i]
+        case "--js":
+            i += 1; guard i < args.count else { exitError("--js requires a value", code: "MISSING_ARG") }
+            js = args[i]
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+
+    guard let canvasID = id else { exitError("eval requires --id <name>", code: "MISSING_ARG") }
+    guard let jsCode = js else { exitError("eval requires --js <code>", code: "MISSING_ARG") }
+
+    var request = CanvasRequest(action: "eval")
+    request.id = canvasID
+    request.js = jsCode
+
+    let client = DaemonClient()
+    guard let fd = client.connect() else {
+        exitError("Daemon not running.", code: "NO_DAEMON")
+    }
+    close(fd)
+    let response = client.send(request)
+    outputResponse(response)
 }
 
 // MARK: - Output

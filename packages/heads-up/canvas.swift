@@ -181,6 +181,7 @@ class CanvasManager {
         case "remove-all": return handleRemoveAll()
         case "list":    return handleList()
         case "ping":    return handlePing()
+        case "eval":    return handleEval(request)
         default:
             return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
         }
@@ -322,6 +323,49 @@ class CanvasManager {
         var resp = CanvasResponse.ok()
         resp.uptime = Date().timeIntervalSince(startTime)
         return resp
+    }
+
+    private func handleEval(_ req: CanvasRequest) -> CanvasResponse {
+        guard let id = req.id else {
+            return .fail("eval requires --id", code: "MISSING_ID")
+        }
+        guard let canvas = canvases[id] else {
+            return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
+        }
+        guard let js = req.js else {
+            return .fail("eval requires --js", code: "MISSING_JS")
+        }
+
+        var evalResult: String? = nil
+        var evalDone = false
+
+        canvas.webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                evalResult = "error: \(error.localizedDescription)"
+            } else if let result = result {
+                if JSONSerialization.isValidJSONObject(result),
+                   let data = try? JSONSerialization.data(withJSONObject: result),
+                   let str = String(data: data, encoding: .utf8) {
+                    evalResult = str
+                } else {
+                    evalResult = "\(result)"
+                }
+            }
+            evalDone = true
+        }
+
+        let deadline = Date().addingTimeInterval(5.0)
+        while !evalDone && Date() < deadline {
+            CFRunLoopRunInMode(.defaultMode, 0.01, true)
+        }
+
+        if !evalDone {
+            return .fail("eval timed out after 5 seconds", code: "EVAL_TIMEOUT")
+        }
+
+        var response = CanvasResponse.ok()
+        response.result = evalResult
+        return response
     }
 
     // MARK: - Window Anchoring
