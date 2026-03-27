@@ -161,6 +161,7 @@ class CanvasManager {
     private var canvases: [String: Canvas] = [:]
     private var anchorTimer: DispatchSourceTimer?
     var onCanvasCountChanged: (() -> Void)?
+    let startTime = Date()
 
     var isEmpty: Bool { canvases.isEmpty }
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
@@ -179,6 +180,7 @@ class CanvasManager {
         case "remove":  return handleRemove(request)
         case "remove-all": return handleRemoveAll()
         case "list":    return handleList()
+        case "ping":    return handlePing()
         default:
             return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
         }
@@ -314,6 +316,12 @@ class CanvasManager {
     private func handleList() -> CanvasResponse {
         let infos = canvases.values.map { $0.toInfo() }.sorted { $0.id < $1.id }
         return CanvasResponse(status: "success", canvases: infos)
+    }
+
+    private func handlePing() -> CanvasResponse {
+        var resp = CanvasResponse.ok()
+        resp.uptime = Date().timeIntervalSince(startTime)
+        return resp
     }
 
     // MARK: - Window Anchoring

@@ -320,6 +320,25 @@ func listCommand(args: [String]) {
     outputResponse(response)
 }
 
+// MARK: - CLI Command: ping
+
+func pingCommand(args: [String]) {
+    let request = CanvasRequest(action: "ping")
+    let client = DaemonClient()
+    guard let fd = client.connect() else {
+        exitError("Daemon not running.", code: "NO_DAEMON")
+    }
+    close(fd)
+    let response = client.send(request)
+    outputResponse(response)
+}
+
+// MARK: - CLI Command: eval
+
+func evalCommand(args: [String]) {
+    exitError("eval not yet implemented", code: "NOT_IMPLEMENTED")
+}
+
 // MARK: - Output
 
 func outputResponse(_ response: CanvasResponse) {

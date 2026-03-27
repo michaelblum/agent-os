@@ -17,6 +17,8 @@ func printUsage() {
       remove                  Remove a canvas
       remove-all              Remove all canvases
       list                    List active canvases
+      ping                    Ping the running daemon (returns uptime)
+      eval                    Evaluate JS in a canvas (not yet implemented)
       serve                   Start the daemon (normally auto-started by create)
 
     Run 'heads-up <command> --help' for command-specific options.
@@ -49,6 +51,10 @@ struct HeadsUp {
             listCommand(args: Array(args.dropFirst()))
         case "serve":
             serveCommand(args: Array(args.dropFirst()))
+        case "ping":
+            pingCommand(args: Array(args.dropFirst()))
+        case "eval":
+            evalCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             printUsage()
         default:

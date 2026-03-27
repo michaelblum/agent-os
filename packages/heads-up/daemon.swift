@@ -11,11 +11,12 @@ class DaemonServer {
     let canvasManager: CanvasManager
     var serverFD: Int32 = -1
     var idleTimer: DispatchSourceTimer?
-    let idleTimeout: TimeInterval = 5.0
+    var idleTimeout: TimeInterval
 
-    init(socketPath: String, canvasManager: CanvasManager) {
+    init(socketPath: String, canvasManager: CanvasManager, idleTimeout: TimeInterval = 5.0) {
         self.socketPath = socketPath
         self.canvasManager = canvasManager
+        self.idleTimeout = idleTimeout
     }
 
     /// Create the socket file and start accepting connections.
@@ -125,6 +126,7 @@ class DaemonServer {
     }
 
     private func startIdleTimer() {
+        guard idleTimeout.isFinite else { return }
         cancelIdleTimer()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + idleTimeout)
@@ -167,6 +169,21 @@ class DaemonServer {
 // MARK: - Serve Command
 
 func serveCommand(args: [String]) {
+    var idleTimeout: TimeInterval = 5.0
+
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--idle-timeout":
+            i += 1
+            guard i < args.count else { exitError("--idle-timeout requires a duration", code: "MISSING_ARG") }
+            idleTimeout = parseDuration(args[i])
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+
     // Check for existing daemon
     let testSock = socket(AF_UNIX, SOCK_STREAM, 0)
     if testSock >= 0 {
@@ -180,7 +197,7 @@ func serveCommand(args: [String]) {
     }
 
     let canvasManager = CanvasManager()
-    let server = DaemonServer(socketPath: kSocketPath, canvasManager: canvasManager)
+    let server = DaemonServer(socketPath: kSocketPath, canvasManager: canvasManager, idleTimeout: idleTimeout)
 
     canvasManager.onCanvasCountChanged = { [weak server] in
         server?.checkIdle()
