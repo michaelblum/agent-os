@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/spatial-topology.schema.json",
+  "title": "Spatial Topology",
+  "description": "Display → Window topology for the agent-os ecosystem. Produced by side-eye, consumed by hand-off and orchestrators.",
+  "type": "object",
+  "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "displays", "apps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "spatial-topology"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver. Current: 0.1.0."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when this snapshot was taken."
+    },
+    "screens_have_separate_spaces": {
+      "type": "boolean",
+      "description": "NSScreen.screensHaveSeparateSpaces. true = each display has independent spaces (default macOS). false = all displays share one space set."
+    },
+    "focused_window_id": {
+      "type": ["integer", "null"],
+      "description": "CGWindowID of the focused window. Null if no window is focused."
+    },
+    "focused_app": {
+      "oneOf": [
+        { "$ref": "#/$defs/FocusedApp" },
+        { "type": "null" }
+      ],
+      "description": "The frontmost application. Null if none."
+    },
+    "displays": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Display" },
+      "description": "All active displays, ordered: main first, then left-to-right by X coordinate."
+    },
+    "apps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/App" },
+      "description": "All running GUI applications with at least one window."
+    }
+  },
+
+  "$defs": {
+    "Bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "description": "Left edge in global CG points." },
+        "y": { "type": "number", "description": "Top edge in global CG points." },
+        "width": { "type": "number", "description": "Width in points." },
+        "height": { "type": "number", "description": "Height in points." }
+      }
+    },
+
+    "FocusedApp": {
+      "type": "object",
+      "required": ["pid", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": { "type": "integer", "description": "Process ID." },
+        "name": { "type": "string", "description": "Localized application name." },
+        "bundle_id": { "type": ["string", "null"], "description": "CFBundleIdentifier. Null for unbundled processes." }
+      }
+    },
+
+    "Display": {
+      "type": "object",
+      "required": ["display_id", "ordinal", "is_main", "bounds", "scale_factor", "rotation", "windows"],
+      "additionalProperties": false,
+      "properties": {
+        "display_id": {
+          "type": "integer",
+          "description": "CGDirectDisplayID. Session-scoped but stable across sleep/wake."
+        },
+        "display_uuid": {
+          "type": ["string", "null"],
+          "description": "CGDisplayCreateUUIDFromDisplayID. Persistent across reboots. Null if unavailable."
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based human-friendly index. Main = 1."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable name (e.g. 'Built-in Retina Display', 'DELL U2723QE')."
+        },
+        "is_main": {
+          "type": "boolean",
+          "description": "true if this is CGMainDisplayID()."
+        },
+        "bounds": {
+          "$ref": "#/$defs/Bounds",
+          "description": "Full display frame in global CG coordinates (points)."
+        },
+        "visible_bounds": {
+          "$ref": "#/$defs/Bounds",
+          "description": "Usable area excluding menu bar and dock (NSScreen.visibleFrame)."
+        },
+        "scale_factor": {
+          "type": "number",
+          "description": "NSScreen.backingScaleFactor. 2.0 = Retina."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "Display rotation in degrees."
+        },
+        "windows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Window" },
+          "description": "Visible windows on this display, ordered front-to-back (index 0 = frontmost)."
+        }
+      }
+    },
+
+    "Window": {
+      "type": "object",
+      "required": ["window_id", "app_pid", "bounds", "layer"],
+      "additionalProperties": false,
+      "properties": {
+        "window_id": {
+          "type": "integer",
+          "description": "CGWindowID (uint32, session-scoped)."
+        },
+        "title": {
+          "type": ["string", "null"],
+          "description": "Window title from CGWindowListCopyWindowInfo. Null if untitled."
+        },
+        "app_pid": {
+          "type": "integer",
+          "description": "Owning process ID."
+        },
+        "app_name": {
+          "type": "string",
+          "description": "Owning application name (inline for convenience)."
+        },
+        "bundle_id": {
+          "type": ["string", "null"],
+          "description": "Owning app CFBundleIdentifier. Null for unbundled processes."
+        },
+        "bounds": {
+          "$ref": "#/$defs/Bounds",
+          "description": "Window frame in global CG coordinates (points)."
+        },
+        "is_focused": {
+          "type": "boolean",
+          "description": "true if this is the focused window."
+        },
+        "is_on_screen": {
+          "type": "boolean",
+          "description": "true if the window is currently visible (not minimized, not on another space)."
+        },
+        "layer": {
+          "type": "integer",
+          "description": "CGWindowLayer. 0 = normal app window. >0 = system/overlay."
+        },
+        "alpha": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "Window opacity. 1.0 = fully opaque."
+        }
+      }
+    },
+
+    "App": {
+      "type": "object",
+      "required": ["pid", "name", "window_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "description": "Process ID."
+        },
+        "name": {
+          "type": "string",
+          "description": "Localized application name."
+        },
+        "bundle_id": {
+          "type": ["string", "null"],
+          "description": "CFBundleIdentifier. Null for unbundled processes."
+        },
+        "is_active": {
+          "type": "boolean",
+          "description": "true if this is the frontmost application."
+        },
+        "is_hidden": {
+          "type": "boolean",
+          "description": "true if the app is hidden (Cmd+H)."
+        },
+        "window_ids": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "All CGWindowIDs owned by this app (across all displays)."
+        }
+      }
+    }
+  }
+}

@@ -32,14 +32,23 @@ Every tool in the ecosystem follows the same output contract:
 
 No tool emits unstructured text. No tool requires interactive input during normal operation. An LLM can parse every response without heuristics.
 
-### Local Coordinate System (LCS)
+### Two-Layer Coordinate System
 
-All spatial data uses coordinates relative to the captured target, never global macOS screen space. `(0,0)` is always the top-left of whatever region is being discussed — a display, a window, a cropped zone, a DOM element.
+The ecosystem uses two coordinate layers that compose cleanly:
 
-This is a safety constraint. It means:
-- Agents never do global screen math
+| Layer | Origin | Used by |
+|-------|--------|---------|
+| **Global CG** | Top-left of primary display = `(0,0)` | Spatial topology (`shared/schemas/spatial-topology.schema.json`), `hand-off` targeting, display arrangement |
+| **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `side-eye` captures, `--xray` element bounds, annotations |
+
+**LCS is what agents see.** All perception output uses coordinates relative to the captured target — a display, a window, a cropped zone. `(0,0)` is always the top-left of whatever was captured. This means:
+- Agents never do global screen math during perception
 - Coordinates from one tool's output can be fed directly to another tool's input
 - Foveated perception (cropping to a region) automatically filters out everything outside the crop
+
+**Global CG is the world map.** The spatial topology model uses global coordinates so `hand-off` can translate window-relative positions to absolute click targets. Converting between layers: LCS → Global = add display/window origin; Global → LCS = subtract it.
+
+See `shared/schemas/spatial-topology.md` for the full coordinate system specification.
 
 ### Sensor / Actuator / Projection Separation
 
@@ -121,7 +130,9 @@ agent-os/
     speak-up/          ← (planned) Swift CLI
     tear-sheet/        ← (planned) Node.js CLI
   shared/
-    schemas/           ← Cross-tool JSON contracts (spatial model, etc.)
+    schemas/           ← Cross-tool JSON contracts
+      spatial-topology.schema.json   ← Display→Window topology (v0.1.0)
+      spatial-topology.md            ← Companion docs + coordinate system spec
   ARCHITECTURE.md      ← This file
 ```
 
