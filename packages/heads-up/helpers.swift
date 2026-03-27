@@ -46,3 +46,17 @@ func withSockAddr(_ path: String, _ body: (UnsafePointer<sockaddr>, socklen_t) -
         }
     }
 }
+
+// MARK: - Duration Parser
+
+/// Parse a duration string like "5s", "10m", "1h", or "none".
+/// Returns seconds. "none" returns .infinity (no timeout).
+func parseDuration(_ str: String) -> TimeInterval {
+    if str == "none" { return .infinity }
+    let s = str.lowercased()
+    if s.hasSuffix("s"), let n = Double(s.dropLast()) { return n }
+    if s.hasSuffix("m"), let n = Double(s.dropLast()) { return n * 60 }
+    if s.hasSuffix("h"), let n = Double(s.dropLast()) { return n * 3600 }
+    if let n = Double(s) { return n }  // plain number = seconds
+    exitError("Invalid duration: \(str). Use format like 5s, 10m, 1h, or 'none'.", code: "INVALID_DURATION")
+}
