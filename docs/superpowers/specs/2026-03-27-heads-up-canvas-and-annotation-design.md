@@ -1,7 +1,7 @@
 # heads-up: Display Server & Annotation Schema
 
 **Date:** 2026-03-27
-**Status:** Design (pending approval)
+**Status:** Approved. Steps 1–3 implemented (`402e33f`). Steps 4–5 (serve mode, browser backend) queued.
 **Scope:** `packages/heads-up/`, `shared/schemas/annotation.schema.json`, `packages/side-eye/` (`--label` flag)
 
 ## Problem

@@ -19,6 +19,7 @@ func printUsage() {
       list                    List active canvases
       ping                    Ping the running daemon (returns uptime)
       eval                    Evaluate JavaScript in a canvas WKWebView
+      listen                  Persistent connection: subscribe to events, forward stdin commands
       serve                   Start the daemon (normally auto-started by create)
 
     Run 'heads-up <command> --help' for command-specific options.
@@ -55,6 +56,8 @@ struct HeadsUp {
             pingCommand(args: Array(args.dropFirst()))
         case "eval":
             evalCommand(args: Array(args.dropFirst()))
+        case "listen":
+            listenCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             printUsage()
         default:

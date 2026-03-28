@@ -13,6 +13,12 @@ class DaemonServer {
     var idleTimer: DispatchSourceTimer?
     var idleTimeout: TimeInterval
 
+    // Subscriber tracking for event relay (thread-safe)
+    private var subscriberLock = NSLock()
+    private var subscribers: [UUID: Int32] = [:]    // connectionID → FD
+    private var activeConnections = Set<UUID>()      // all live connections
+    private let eventWriteQueue = DispatchQueue(label: "heads-up.event-write")
+
     init(socketPath: String, canvasManager: CanvasManager, idleTimeout: TimeInterval = 5.0) {
         self.socketPath = socketPath
         self.canvasManager = canvasManager
@@ -73,7 +79,32 @@ class DaemonServer {
     }
 
     private func handleConnection(_ clientFD: Int32) {
-        defer { close(clientFD) }
+        let connectionID = UUID()
+
+        // Track this connection
+        subscriberLock.lock()
+        activeConnections.insert(connectionID)
+        subscriberLock.unlock()
+
+        defer {
+            // Remove from subscribers and active connections
+            subscriberLock.lock()
+            subscribers.removeValue(forKey: connectionID)
+            activeConnections.remove(connectionID)
+            subscriberLock.unlock()
+
+            // Remove connection-scoped canvases (synchronous, on main thread)
+            let sem = DispatchSemaphore(value: 0)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { sem.signal(); return }
+                self.canvasManager.cleanupConnection(connectionID)
+                self.checkIdle()
+                sem.signal()
+            }
+            sem.wait()
+
+            close(clientFD)
+        }
 
         var buffer = Data()
         var chunk = [UInt8](repeating: 0, count: 4096)
@@ -94,11 +125,21 @@ class DaemonServer {
                     continue
                 }
 
+                // Handle subscribe at the server level (not forwarded to CanvasManager)
+                if request.action == "subscribe" {
+                    subscriberLock.lock()
+                    subscribers[connectionID] = clientFD
+                    subscriberLock.unlock()
+                    self.sendResponse(to: clientFD, .ok())
+                    DispatchQueue.main.async { [weak self] in self?.checkIdle() }
+                    continue
+                }
+
                 let semaphore = DispatchSemaphore(value: 0)
                 var response = CanvasResponse.fail("Internal error", code: "INTERNAL")
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self else { semaphore.signal(); return }
-                    response = self.canvasManager.handle(request)
+                    response = self.canvasManager.handle(request, connectionID: connectionID)
                     self.checkIdle()
                     semaphore.signal()
                 }
@@ -117,11 +158,44 @@ class DaemonServer {
         }
     }
 
+    var hasSubscribers: Bool {
+        subscriberLock.lock()
+        let result = !subscribers.isEmpty
+        subscriberLock.unlock()
+        return result
+    }
+
     func checkIdle() {
-        if canvasManager.isEmpty {
+        // Revised idle: no canvases AND no subscriber connections
+        if canvasManager.isEmpty && !hasSubscribers {
             startIdleTimer()
         } else {
             cancelIdleTimer()
+        }
+    }
+
+    /// Relay a canvas JS event to all subscriber connections.
+    /// Called on the main thread from CanvasManager.onEvent.
+    func relayEvent(canvasID: String, payload: Any) {
+        let event: [String: Any] = ["type": "event", "id": canvasID, "payload": payload]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: event, options: [.sortedKeys]) else { return }
+        var data = jsonData
+        data.append(contentsOf: "\n".utf8)
+
+        subscriberLock.lock()
+        let fds = Array(subscribers.values)
+        subscriberLock.unlock()
+
+        guard !fds.isEmpty else { return }
+
+        // Write on background queue to avoid blocking main thread
+        let bytes = [UInt8](data)
+        eventWriteQueue.async {
+            for fd in fds {
+                bytes.withUnsafeBufferPointer { ptr in
+                    _ = write(fd, ptr.baseAddress!, ptr.count)
+                }
+            }
         }
     }
 
@@ -201,6 +275,10 @@ func serveCommand(args: [String]) {
 
     canvasManager.onCanvasCountChanged = { [weak server] in
         server?.checkIdle()
+    }
+
+    canvasManager.onEvent = { [weak server] canvasID, payload in
+        server?.relayEvent(canvasID: canvasID, payload: payload)
     }
 
     server.start()

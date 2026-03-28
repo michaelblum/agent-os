@@ -1,8 +1,20 @@
 // heads-up — Canvas: transparent NSWindow + WKWebView
 // Each canvas is an (id, bounds, content) tuple rendered on screen.
+// Includes WKScriptMessageHandler relay for canvas→host events.
 
 import AppKit
 import WebKit
+
+// MARK: - Script Message Handler
+
+/// Receives postMessage calls from canvas JS: window.webkit.messageHandlers.headsup.postMessage({...})
+class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
+    var onMessage: ((Any) -> Void)?
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        onMessage?(message.body)
+    }
+}
 
 // MARK: - Coordinate Conversion
 
@@ -59,6 +71,13 @@ class Canvas {
     var ttlTimer: DispatchSourceTimer?
     var ttlDeadline: Date?
     var onTTLExpired: (() -> Void)?
+    var scope: String = "global"        // "global" or "connection"
+    var connectionID: UUID?             // which connection owns this canvas (if connection-scoped)
+    let messageHandler = CanvasMessageHandler()
+    var onMessage: ((Any) -> Void)? {
+        get { messageHandler.onMessage }
+        set { messageHandler.onMessage = newValue }
+    }
 
     func setTTL(_ seconds: Double?) {
         ttlTimer?.cancel()
@@ -100,6 +119,9 @@ class Canvas {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()
+        let controller = WKUserContentController()
+        controller.add(messageHandler, name: "headsup")
+        config.userContentController = controller
         let webView = WKWebView(frame: NSRect(origin: .zero, size: screenFrame.size), configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.wantsLayer = true
@@ -127,6 +149,7 @@ class Canvas {
     }
 
     func close() {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "headsup")
         ttlTimer?.cancel()
         ttlTimer = nil
         window.orderOut(nil)
@@ -150,7 +173,8 @@ class Canvas {
             anchorWindow: anchorWindowID.map { Int($0) },
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
             interactive: isInteractive,
-            ttl: remainingTTL
+            ttl: remainingTTL,
+            scope: scope
         )
     }
 }
@@ -161,6 +185,7 @@ class CanvasManager {
     private var canvases: [String: Canvas] = [:]
     private var anchorTimer: DispatchSourceTimer?
     var onCanvasCountChanged: (() -> Void)?
+    var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
     let startTime = Date()
 
     var isEmpty: Bool { canvases.isEmpty }
@@ -173,9 +198,25 @@ class CanvasManager {
         onCanvasCountChanged?()
     }
 
-    func handle(_ request: CanvasRequest) -> CanvasResponse {
+    /// Remove all connection-scoped canvases owned by the given connection.
+    func cleanupConnection(_ connectionID: UUID) {
+        let toRemove = canvases.values
+            .filter { $0.connectionID == connectionID && $0.scope == "connection" }
+            .map { $0.id }
+        for id in toRemove {
+            if let canvas = canvases.removeValue(forKey: id) {
+                canvas.close()
+            }
+        }
+        if !toRemove.isEmpty {
+            if !hasAnchoredCanvases { stopAnchorPolling() }
+            onCanvasCountChanged?()
+        }
+    }
+
+    func handle(_ request: CanvasRequest, connectionID: UUID = UUID()) -> CanvasResponse {
         switch request.action {
-        case "create":  return handleCreate(request)
+        case "create":  return handleCreate(request, connectionID: connectionID)
         case "update":  return handleUpdate(request)
         case "remove":  return handleRemove(request)
         case "remove-all": return handleRemoveAll()
@@ -187,7 +228,7 @@ class CanvasManager {
         }
     }
 
-    private func handleCreate(_ req: CanvasRequest) -> CanvasResponse {
+    private func handleCreate(_ req: CanvasRequest, connectionID: UUID) -> CanvasResponse {
         guard let id = req.id else {
             return .fail("create requires --id", code: "MISSING_ID")
         }
@@ -213,6 +254,18 @@ class CanvasManager {
 
         let interactive = req.interactive ?? false
         let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive)
+
+        // Connection-scoped lifecycle
+        let scope = req.scope ?? "global"
+        canvas.scope = scope
+        if scope == "connection" {
+            canvas.connectionID = connectionID
+        }
+
+        // Message handler relay: canvas JS → orchestrator
+        canvas.onMessage = { [weak self] body in
+            self?.onEvent?(id, body)
+        }
 
         if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
             canvas.anchorWindowID = CGWindowID(anchorWin)

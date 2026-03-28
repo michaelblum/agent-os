@@ -103,6 +103,7 @@ func createCommand(args: [String]) {
     var urlValue: String? = nil
     var interactive = false
     var ttlValue: String? = nil
+    var scope: String? = nil
 
     var i = 0
     while i < args.count {
@@ -133,6 +134,12 @@ func createCommand(args: [String]) {
         case "--ttl":
             i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
             ttlValue = args[i]
+        case "--scope":
+            i += 1; guard i < args.count else { exitError("--scope requires 'connection' or 'global'", code: "MISSING_ARG") }
+            scope = args[i]
+            guard scope == "connection" || scope == "global" else {
+                exitError("--scope must be 'connection' or 'global'", code: "INVALID_ARG")
+            }
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -144,6 +151,7 @@ func createCommand(args: [String]) {
     var request = CanvasRequest(action: "create")
     request.id = canvasID
     request.interactive = interactive
+    request.scope = scope
 
     if let ttlStr = ttlValue {
         request.ttl = parseDuration(ttlStr)
@@ -368,6 +376,79 @@ func evalCommand(args: [String]) {
     close(fd)
     let response = client.send(request)
     outputResponse(response)
+}
+
+// MARK: - CLI Command: listen
+
+func listenCommand(args: [String]) {
+    if !args.isEmpty {
+        exitError("Unknown argument: \(args[0])", code: "UNKNOWN_ARG")
+    }
+
+    let client = DaemonClient()
+    if !client.ensureDaemon() {
+        exitError("Failed to start heads-up daemon", code: "DAEMON_START_FAILED")
+    }
+
+    guard let fd = client.connect() else {
+        exitError("Cannot connect to daemon", code: "CONNECTION_FAILED")
+    }
+
+    // Send subscribe to register for events
+    guard var subData = CanvasRequest(action: "subscribe").toData() else {
+        close(fd)
+        exitError("Failed to encode subscribe", code: "ENCODE_ERROR")
+    }
+    subData.append(UInt8(ascii: "\n"))
+    subData.withUnsafeBytes { ptr in
+        _ = write(fd, ptr.baseAddress!, ptr.count)
+    }
+
+    // Set up clean exit on signals
+    signal(SIGINT, SIG_IGN)
+    signal(SIGTERM, SIG_IGN)
+    let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .global())
+    sigint.setEventHandler { close(fd); exit(0) }
+    sigint.resume()
+    let sigterm = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .global())
+    sigterm.setEventHandler { close(fd); exit(0) }
+    sigterm.resume()
+
+    // Forward stdin → daemon (allows sending commands on a persistent connection)
+    DispatchQueue.global(qos: .userInitiated).async {
+        var stdinBuf = Data()
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let n = Foundation.read(STDIN_FILENO, &chunk, chunk.count)
+            guard n > 0 else { break }  // EOF on stdin — stop forwarding but keep reading events
+            stdinBuf.append(contentsOf: chunk[0..<n])
+            while let nl = stdinBuf.firstIndex(of: UInt8(ascii: "\n")) {
+                let line = Data(stdinBuf[stdinBuf.startIndex...nl])
+                stdinBuf = Data(stdinBuf[(stdinBuf.index(after: nl))...])
+                line.withUnsafeBytes { ptr in
+                    _ = write(fd, ptr.baseAddress!, ptr.count)
+                }
+            }
+        }
+    }
+
+    // Read daemon → stdout (responses + events)
+    var buffer = Data()
+    var chunk = [UInt8](repeating: 0, count: 4096)
+    while true {
+        let n = read(fd, &chunk, chunk.count)
+        guard n > 0 else { break }  // daemon disconnected
+        buffer.append(contentsOf: chunk[0..<n])
+        while let nl = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+            let line = Data(buffer[buffer.startIndex..<nl])
+            buffer = Data(buffer[(buffer.index(after: nl))...])
+            if let str = String(data: line, encoding: .utf8) {
+                print(str)
+                fflush(stdout)
+            }
+        }
+    }
+    exit(0)
 }
 
 // MARK: - Output

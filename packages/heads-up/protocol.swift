@@ -6,7 +6,7 @@ import Foundation
 // MARK: - Request (CLI → Daemon)
 
 struct CanvasRequest: Codable {
-    let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval"
+    let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval", "subscribe"
     var id: String?             // canvas ID (required for create/update/remove)
     var at: [CGFloat]?          // [x, y, w, h] in global CG coords (Y-down)
     var anchorWindow: Int?      // CGWindowID to track
@@ -16,6 +16,7 @@ struct CanvasRequest: Codable {
     var interactive: Bool?      // override click-through (default: false)
     var ttl: Double?            // seconds until auto-remove (nil = no expiry)
     var js: String?             // JavaScript to evaluate (for "eval" action)
+    var scope: String?          // "connection" or "global" (default: global)
 }
 
 // MARK: - Response (Daemon → CLI)
@@ -36,6 +37,7 @@ struct CanvasInfo: Codable {
     var offset: [CGFloat]?
     var interactive: Bool
     var ttl: Double?            // remaining seconds until expiry (nil = no expiry)
+    var scope: String?          // "connection" or "global"
 }
 
 // MARK: - Encode/Decode Helpers
