@@ -807,7 +807,7 @@ On SIGINT/SIGTERM, the session releases all held modifier keys before exiting (p
 
 1. **Channel update frequency.** How often should side-eye daemon re-scan the AX tree for an active channel? 1Hz? On-demand? Event-driven (AX notifications)? Trade-off: freshness vs. CPU cost.
 
-2. **Multiple bound channels.** Can a hand-off session be bound to multiple channels simultaneously? (e.g., watching Slack in one channel and Safari in another, acting in whichever the orchestrator specifies per-action.) Current design: one binding at a time. Worth reconsidering.
+2. **Multiple bound channels (HIGH PRIORITY).** The current design limits a hand-off session to one bound channel at a time. This forces the orchestrator to rebind (`bind` → `unbind` → `bind`) every time it switches between apps. For a real workflow — monitoring Slack while editing in Xcode while checking Safari — this is constant rebinding overhead. The architecture supports multi-channel binding (channel file reads are cheap, element resolution is a local array scan). The likely design: each action specifies `"channel": "slack-msgs"` alongside its other fields, and the session resolves targeting against that channel's data. Default channel (from most recent `bind`) used when no per-action channel specified. This is the single most impactful usability improvement for multi-app orchestration.
 
 3. **Profile inheritance.** Should profiles support `"extends": "natural"` to inherit from another profile and override specific fields? Keeps profiles DRY. Adds complexity.
 
