@@ -63,7 +63,8 @@ private func positionalArgs(_ args: [String]) -> [String] {
             // Flags that take a value
             let valuedFlags = ["--pid", "--role", "--title", "--label", "--identifier",
                                "--index", "--near", "--match", "--depth", "--timeout",
-                               "--profile", "--value", "--to", "--dy", "--dx", "--window"]
+                               "--profile", "--value", "--to", "--dy", "--dx", "--window",
+                               "--delay", "--variance", "--dwell", "--steps", "--speed"]
             if valuedFlags.contains(arg) { skipNext = true }
             continue
         }
@@ -307,6 +308,11 @@ func cliClick(args: [String]) {
     let isRight = hasFlag(args, "--right")
     let isDouble = hasFlag(args, "--double")
 
+    // Override click dwell from CLI flag
+    if let dwellMs = parseInt(getArg(args, "--dwell")) {
+        state.profile.timing.click_dwell = DelayRange(min: dwellMs, max: dwellMs)
+    }
+
     var target = LegacyTargetInfo()
     target.x = coords.0
     target.y = coords.1
@@ -369,6 +375,11 @@ func cliDrag(args: [String]) {
           let from = parseCoords(positional[0]),
           let to = parseCoords(positional[1]) else {
         exitWithError("drag requires two coordinate pairs (x1,y1 x2,y2)", code: "MISSING_ARG")
+    }
+
+    // Override drag speed from CLI flags
+    if let speedPxPerSec = parseDouble(getArg(args, "--speed")) {
+        state.profile.mouse.pixels_per_second = speedPxPerSec
     }
 
     var target = LegacyTargetInfo()
@@ -443,6 +454,16 @@ func cliType(args: [String]) {
 
     guard let text = positional.first else {
         exitWithError("type requires a text argument", code: "MISSING_ARG")
+    }
+
+    // Override typing cadence from CLI flags
+    if let delayMs = parseDouble(getArg(args, "--delay")) {
+        // delay is ms per character -> derive WPM: chars/sec = 1000/delay, WPM = chars_per_sec * 60 / 5
+        let charsPerSec = 1000.0 / max(1.0, delayMs)
+        state.profile.timing.typing_cadence.wpm = max(1, Int(charsPerSec * 60.0 / 5.0))
+    }
+    if let variance = parseDouble(getArg(args, "--variance")) {
+        state.profile.timing.typing_cadence.variance = variance
     }
 
     var target = LegacyTargetInfo()
@@ -536,12 +557,16 @@ func printUsage() {
       click <x,y>                   Click at coordinates
           --right                   Right-click instead of left
           --double                  Double-click
+          --dwell <ms>              Override click dwell time (ms)
       hover <x,y>                   Move cursor to coordinates
       drag <x1,y1> <x2,y2>         Drag from one point to another
+          --speed <px/s>            Override drag speed (pixels per second)
       scroll <x,y>                  Scroll at coordinates
           --dx <n>                  Horizontal scroll amount (pixels)
           --dy <n>                  Vertical scroll amount (pixels)
       type <text>                   Type text string
+          --delay <ms>              Override per-character delay (ms)
+          --variance <float>        Override timing variance (0.0-1.0)
       key <combo>                   Press key combo (e.g. cmd+s, ctrl+shift+tab)
 
     COMMANDS (AX backend):
