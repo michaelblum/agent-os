@@ -189,7 +189,8 @@ class SpatialModel {
         let displays = getDisplays()
         return displays.map { d in
             DisplayInfo(
-                id: Int(d.cgID),
+                id: d.ordinal,
+                cgID: Int(d.cgID),
                 width: Int(d.bounds.width),
                 height: Int(d.bounds.height),
                 scale_factor: d.scaleFactor,
@@ -240,8 +241,8 @@ class SpatialModel {
                 $0.bounds.contains(CGPoint(x: centerX, y: centerY))
             }) ?? displays.first(where: { $0.isMain })!
 
-            // If display filter specified, skip windows not on that display
-            if let filterDisplay = display, Int(targetDisplay.cgID) != filterDisplay {
+            // If display filter specified, skip windows not on that display (by ordinal)
+            if let filterDisplay = display, targetDisplay.ordinal != filterDisplay {
                 continue
             }
 
@@ -253,7 +254,7 @@ class SpatialModel {
                 app: ownerName,
                 title: title,
                 bounds: ChannelBounds(x: x, y: y, w: w, h: h),
-                display: Int(targetDisplay.cgID),
+                display: targetDisplay.ordinal,
                 is_frontmost: isFrontmost
             ))
         }

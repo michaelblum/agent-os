@@ -74,7 +74,8 @@ struct SnapshotData: Codable {
 }
 
 struct DisplayInfo: Codable {
-    let id: Int                    // CGDirectDisplayID
+    let id: Int                    // ordinal (1, 2, 3) — matches channel target.display
+    let cgID: Int                  // raw CGDirectDisplayID
     let width: Int
     let height: Int
     let scale_factor: Double
