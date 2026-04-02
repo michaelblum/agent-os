@@ -687,16 +687,7 @@ func handleListActions(_ req: ActionRequest, state: SessionState) -> ActionRespo
 func handleEnd(state: SessionState) -> ActionResponse {
     let start = Date()
 
-    // Release all held modifiers by posting keyUp events
-    let source = CGEventSource(stateID: .hidSystemState)
-    for mod in state.modifiers {
-        if let entry = modifierMap[mod] {
-            if let event = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: false) {
-                event.post(tap: .cghidEventTap)
-            }
-        }
-    }
-    state.modifiers.removeAll()
+    releaseAllModifiers(state)
 
     return okResponse("end", state: state, start: start)
 }

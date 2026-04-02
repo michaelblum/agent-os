@@ -1,7 +1,27 @@
 // session.swift — Stdin/stdout ndjson session loop with action dispatch for hand-off v2.
 // Reads ActionRequest JSON lines from stdin, dispatches to handlers, writes ActionResponse JSON to stdout.
 
+import CoreGraphics
 import Foundation
+
+// MARK: - Signal-Safe Modifier Cleanup
+
+/// Module-level reference so signal handlers (which can't capture) can access session state.
+private var _activeSessionState: SessionState?
+
+/// Release all held modifier keys by posting key-up CGEvents for each.
+/// Callable from signal handlers and normal shutdown paths.
+func releaseAllModifiers(_ state: SessionState) {
+    let source = CGEventSource(stateID: .hidSystemState)
+    for mod in state.modifiers {
+        if let entry = modifierMap[mod] {
+            if let event = CGEvent(keyboardEventSource: source, virtualKey: entry.keyCode, keyDown: false) {
+                event.post(tap: .cghidEventTap)
+            }
+        }
+    }
+    state.modifiers.removeAll()
+}
 
 // MARK: - Session Entry Point
 
@@ -19,6 +39,19 @@ func runSession(profileName: String) -> Never {
     }
 
     let state = SessionState(profile: profile, profileName: profileName)
+
+    // Store in module-level variable so signal handlers can reach it
+    _activeSessionState = state
+
+    // Register signal handlers to release held modifiers on kill
+    signal(SIGINT) { _ in
+        if let s = _activeSessionState { releaseAllModifiers(s) }
+        exit(0)
+    }
+    signal(SIGTERM) { _ in
+        if let s = _activeSessionState { releaseAllModifiers(s) }
+        exit(0)
+    }
 
     // Disable stdout buffering so every response line flushes immediately
     setbuf(stdout, nil)
