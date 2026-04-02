@@ -129,7 +129,7 @@ Reads newline-delimited JSON from stdin. Emits newline-delimited JSON responses 
 {"action": "click", "x": 450, "y": 320, "button": "right"}
 {"action": "click", "x": 450, "y": 320, "count": 2}
 ```
-Fields: `x` (required), `y` (required), `button` ("left"|"right", default "left"), `count` (int, default 1).
+Fields: `x` (optional), `y` (optional — clicks at current cursor position if omitted), `button` ("left"|"right", default "left"), `count` (int, default 1).
 
 **`drag`** — Drag from current position (or `from`) to target.
 ```json
@@ -629,13 +629,14 @@ Level 3+: Subtree elements (expanded on focus)
 
 **Navigation commands:**
 ```json
-{"action": "focus", "display": 1}
-{"action": "focus", "window_id": 5678}
-{"action": "focus", "window_id": 5678, "subtree": {"role": "AXToolbar"}}
-{"action": "defocus", "window_id": 5678}
+{"action": "graph-deepen", "id": "slack-msgs"}
+{"action": "graph-deepen", "id": "slack-msgs", "subtree": {"role": "AXToolbar"}}
+{"action": "graph-deepen", "id": "slack-msgs", "depth": 5}
+{"action": "graph-collapse", "id": "slack-msgs"}
+{"action": "graph-collapse", "id": "slack-msgs", "depth": 2}
 ```
 
-Each focus command deepens the graph at the specified node and writes/updates the corresponding channel file. Defocus collapses the node back to a summary.
+Each `graph-deepen` command deepens the graph at the specified channel and writes/updates the corresponding channel file. `graph-collapse` reduces depth back to a summary (default depth 1).
 
 ### 6.2 Action Introspection
 
