@@ -283,5 +283,9 @@ func serveCommand(args: [String]) {
 
     server.start()
 
+    // .accessory allows the daemon to become key window target (receive keyboard
+    // events for interactive canvases) without appearing in the Dock or app switcher.
+    NSApp.setActivationPolicy(.accessory)
+
     NSApplication.shared.run()
 }

@@ -50,13 +50,40 @@ func screenToCG(_ nsRect: NSRect) -> CGRect {
 
 // MARK: - CanvasWindow (unconstrained NSWindow)
 
-/// NSWindow subclass that disables frame constraining.
+/// NSWindow subclass that disables frame constraining and enables keyboard input for interactive canvases.
 /// By default macOS may reposition or resize windows to fit within a single display.
 /// Canvases need to span multiple displays, so we return the proposed frame unchanged.
+/// Borderless windows return false for canBecomeKey by default, which prevents text input.
+/// Interactive canvases override this to accept keyboard focus.
 class CanvasWindow: NSWindow {
+    var isInteractiveCanvas: Bool = false
+
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         return frameRect
     }
+
+    override var canBecomeKey: Bool {
+        return isInteractiveCanvas
+    }
+
+    override var canBecomeMain: Bool {
+        return false  // Never steal main window status from the user's app
+    }
+
+    /// Intercept all events so we can grab keyboard focus before the WKWebView
+    /// processes the click. Without this, clicks on text inputs show a cursor
+    /// but keystrokes go to whatever app macOS considers "active".
+    override func sendEvent(_ event: NSEvent) {
+        if isInteractiveCanvas && event.type == .leftMouseDown && !isKeyWindow {
+            // Activate the heads-up process so macOS routes keystrokes here
+            NSApp.activate(ignoringOtherApps: true)
+            makeKey()
+        }
+        super.sendEvent(event)
+    }
+
+    // Note: acceptsFirstMouse is an NSView method, not NSWindow.
+    // WKWebView handles first-mouse internally.
 }
 
 // MARK: - Canvas
@@ -118,6 +145,7 @@ class Canvas {
         window.hasShadow = false
         window.level = .statusBar
         window.ignoresMouseEvents = !interactive
+        window.isInteractiveCanvas = interactive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()
@@ -147,7 +175,11 @@ class Canvas {
     }
 
     func show() {
-        window.orderFront(nil)
+        if isInteractive {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            window.orderFront(nil)
+        }
     }
 
     func close() {
@@ -320,7 +352,20 @@ class CanvasManager {
         }
 
         // Message handler relay: canvas JS → orchestrator
+        // Special handling for "move" messages: drag the window directly.
         canvas.onMessage = { [weak self] body in
+            if let dict = body as? [String: Any],
+               let type = dict["type"] as? String, type == "move",
+               let dx = dict["dx"] as? Double,
+               let dy = dict["dy"] as? Double {
+                DispatchQueue.main.async {
+                    var frame = canvas.window.frame
+                    frame.origin.x += CGFloat(dx)
+                    frame.origin.y -= CGFloat(dy)  // CG Y is inverted from screen Y
+                    canvas.window.setFrameOrigin(frame.origin)
+                }
+                return  // Don't relay move events to subscribers
+            }
             self?.onEvent?(id, body)
         }
 
