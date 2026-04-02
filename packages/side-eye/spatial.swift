@@ -24,6 +24,7 @@ class SpatialModel {
     /// Polling timer
     private var pollTimer: DispatchSourceTimer?
     private var lastFocusedPID: pid_t = 0
+    private var pollTick: Int = 0
 
     var isEmpty: Bool {
         channelsLock.lock()
@@ -54,6 +55,9 @@ class SpatialModel {
     }
 
     private func poll() {
+        pollTick += 1
+        let forceRefresh = (pollTick % 3 == 0) // Full AX refresh every 3 ticks (~3s at 1Hz)
+
         // Take a snapshot of channels under lock, then operate outside lock
         channelsLock.lock()
         let snapshot = channels
@@ -63,13 +67,18 @@ class SpatialModel {
         for (id, state) in snapshot {
             guard let newBounds = windowBoundsForID(state.windowID) else { continue }
             let old = state.lastBounds
-            if abs(newBounds.x - old.x) > 0.5 || abs(newBounds.y - old.y) > 0.5 ||
-               abs(newBounds.w - old.w) > 0.5 || abs(newBounds.h - old.h) > 0.5 {
+            let windowMoved = abs(newBounds.x - old.x) > 0.5 || abs(newBounds.y - old.y) > 0.5 ||
+                              abs(newBounds.w - old.w) > 0.5 || abs(newBounds.h - old.h) > 0.5
+
+            if windowMoved {
                 channelsLock.lock()
                 channels[id]?.lastBounds = newBounds
                 channelsLock.unlock()
                 refreshChannel(id: id)
                 onWindowMoved?(state.windowID, newBounds)
+            } else if forceRefresh {
+                // Periodic full refresh to catch UI content changes
+                refreshChannel(id: id)
             }
         }
 
