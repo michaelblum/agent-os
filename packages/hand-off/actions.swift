@@ -112,13 +112,16 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
     let profile = state.profile
 
-    // Resolve click position: explicit coords or current cursor
+    // Resolve click position: explicit coords, channel element, or current cursor
     let clickPoint: CGPoint
     if req.x != nil && req.y != nil {
         guard let resolved = resolveActionCoordinates(req, state: state) else {
             return errorResponse("click", state: state, message: "Unresolvable x,y coordinates", code: "INVALID_COORDS")
         }
         clickPoint = resolved
+    } else if let channelPoint = resolveChannelElement(req, state: state) {
+        // Bound to channel and targeting fields matched an element — use its center
+        clickPoint = channelPoint
     } else {
         clickPoint = CGPoint(x: state.cursor.x, y: state.cursor.y)
     }
@@ -463,7 +466,18 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("press", state: state, message: "Accessibility permission not granted", code: "AX_NOT_TRUSTED")
     }
 
-    let query = ElementQuery(from: req, context: state.context, profile: state.profile)
+    // If bound to a channel, try resolving element coordinates to use as a near-hint
+    var augmentedReq = req
+    if let channelPoint = resolveChannelElement(req, state: state), req.near == nil {
+        augmentedReq = ActionRequest(
+            action: req.action, pid: req.pid, role: req.role, title: req.title,
+            label: req.label, identifier: req.identifier, value: req.value,
+            index: req.index, near: [channelPoint.x, channelPoint.y],
+            match: req.match, depth: req.depth, timeout: req.timeout
+        )
+    }
+
+    let query = ElementQuery(from: augmentedReq, context: state.context, profile: state.profile)
 
     switch findElement(query: query) {
     case .found(let element):
