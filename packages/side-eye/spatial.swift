@@ -12,8 +12,9 @@ import Foundation
 // MARK: - Spatial Model
 
 class SpatialModel {
-    /// Active channels keyed by ID
-    var channels: [String: ChannelState] = [:]
+    /// Active channels keyed by ID — access only under channelsLock
+    private var channels: [String: ChannelState] = [:]
+    private let channelsLock = NSLock()
 
     /// Callback when a channel is updated (daemon relays to subscribers)
     var onChannelUpdated: ((String) -> Void)?
@@ -24,8 +25,16 @@ class SpatialModel {
     private var pollTimer: DispatchSourceTimer?
     private var lastFocusedPID: pid_t = 0
 
-    var isEmpty: Bool { channels.isEmpty }
-    var channelCount: Int { channels.count }
+    var isEmpty: Bool {
+        channelsLock.lock()
+        defer { channelsLock.unlock() }
+        return channels.isEmpty
+    }
+    var channelCount: Int {
+        channelsLock.lock()
+        defer { channelsLock.unlock() }
+        return channels.count
+    }
 
     // MARK: - Polling
 
@@ -45,13 +54,20 @@ class SpatialModel {
     }
 
     private func poll() {
+        // Take a snapshot of channels under lock, then operate outside lock
+        channelsLock.lock()
+        let snapshot = channels
+        channelsLock.unlock()
+
         // Check each channel's window bounds for movement
-        for (id, state) in channels {
+        for (id, state) in snapshot {
             guard let newBounds = windowBoundsForID(state.windowID) else { continue }
             let old = state.lastBounds
             if abs(newBounds.x - old.x) > 0.5 || abs(newBounds.y - old.y) > 0.5 ||
                abs(newBounds.w - old.w) > 0.5 || abs(newBounds.h - old.h) > 0.5 {
+                channelsLock.lock()
                 channels[id]?.lastBounds = newBounds
+                channelsLock.unlock()
                 refreshChannel(id: id)
                 onWindowMoved?(state.windowID, newBounds)
             }
@@ -92,25 +108,33 @@ class SpatialModel {
             createdAt: iso8601Now()
         )
 
+        channelsLock.lock()
         channels[id] = state
+        channelsLock.unlock()
         refreshChannel(id: id)
         return .ok
     }
 
     func updateChannel(id: String, subtree: ChannelSubtree?, depth: Int?) -> DaemonResponse {
+        channelsLock.lock()
         guard channels[id] != nil else {
+            channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
         if let s = subtree { channels[id]!.subtree = s }
         if let d = depth { channels[id]!.depth = d }
+        channelsLock.unlock()
         refreshChannel(id: id)
         return .ok
     }
 
     func removeChannel(id: String) -> DaemonResponse {
+        channelsLock.lock()
         guard channels.removeValue(forKey: id) != nil else {
+            channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
+        channelsLock.unlock()
         // Delete channel file
         let path = "\(kChannelDirectory)/\(id).json"
         try? FileManager.default.removeItem(atPath: path)
@@ -118,6 +142,7 @@ class SpatialModel {
     }
 
     func listChannels() -> DaemonResponse {
+        channelsLock.lock()
         let summaries = channels.values.map { state in
             ChannelSummary(
                 id: state.id,
@@ -127,6 +152,7 @@ class SpatialModel {
                 updated_at: state.lastUpdated
             )
         }.sorted { $0.id < $1.id }
+        channelsLock.unlock()
 
         var resp = DaemonResponse.ok
         resp.channels = summaries
@@ -135,11 +161,23 @@ class SpatialModel {
 
     func snapshot() -> DaemonResponse {
         let displays = getDisplays()
+        channelsLock.lock()
+        let chCount = channels.count
+        channelsLock.unlock()
+
+        // Count on-screen windows
+        let windowCount: Int
+        if let infoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] {
+            windowCount = infoList.count
+        } else {
+            windowCount = 0
+        }
+
         var resp = DaemonResponse.ok
         resp.snapshot = SnapshotData(
             displays: displays.count,
-            windows: 0,
-            channels: channels.count,
+            windows: windowCount,
+            channels: chCount,
             focused_app: NSWorkspace.shared.frontmostApplication?.localizedName
         )
         return resp
@@ -226,7 +264,9 @@ class SpatialModel {
     // MARK: - Graph: Deepen Channel
 
     func deepenChannel(id: String, subtree: ChannelSubtree?, depth: Int?) -> DaemonResponse {
+        channelsLock.lock()
         guard var state = channels[id] else {
+            channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
 
@@ -242,6 +282,7 @@ class SpatialModel {
         } else if let d = depth {
             // Just increase depth (must be >= current)
             guard d >= state.depth else {
+                channelsLock.unlock()
                 return .fail("Depth \(d) is less than current depth \(state.depth). Use graph-collapse to reduce depth.",
                              code: "INVALID_DEPTH")
             }
@@ -252,23 +293,31 @@ class SpatialModel {
         }
 
         channels[id] = state
+        channelsLock.unlock()
         refreshChannel(id: id)
 
+        channelsLock.lock()
+        let elCount = channels[id]?.lastElementCount
+        channelsLock.unlock()
+
         var resp = DaemonResponse.ok
-        resp.elements_count = channels[id]?.lastElementCount
+        resp.elements_count = elCount
         return resp
     }
 
     // MARK: - Graph: Collapse Channel
 
     func collapseChannel(id: String, depth: Int?) -> DaemonResponse {
+        channelsLock.lock()
         guard var state = channels[id] else {
+            channelsLock.unlock()
             return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
         }
 
         let targetDepth = depth ?? 1
 
         guard targetDepth < state.depth else {
+            channelsLock.unlock()
             return .fail("Target depth \(targetDepth) is not less than current depth \(state.depth). Use graph-deepen to increase depth.",
                          code: "INVALID_DEPTH")
         }
@@ -281,17 +330,27 @@ class SpatialModel {
         }
 
         channels[id] = state
+        channelsLock.unlock()
         refreshChannel(id: id)
 
+        channelsLock.lock()
+        let elCount = channels[id]?.lastElementCount
+        channelsLock.unlock()
+
         var resp = DaemonResponse.ok
-        resp.elements_count = channels[id]?.lastElementCount
+        resp.elements_count = elCount
         return resp
     }
 
     // MARK: - Channel Refresh (AX traversal + file write)
 
     func refreshChannel(id: String) {
-        guard var state = channels[id] else { return }
+        channelsLock.lock()
+        guard var state = channels[id] else {
+            channelsLock.unlock()
+            return
+        }
+        channelsLock.unlock()
 
         // Get current window bounds
         guard let bounds = windowBoundsForID(state.windowID) else { return }
@@ -308,7 +367,10 @@ class SpatialModel {
 
         state.lastElementCount = elements.count
         state.lastUpdated = iso8601Now()
+
+        channelsLock.lock()
         channels[id] = state
+        channelsLock.unlock()
 
         // Build channel file
         let file = ChannelFile(
