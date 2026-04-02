@@ -1485,6 +1485,10 @@ func printUsage() {
       side-eye <zone-name> [options]             Capture a saved zone
       side-eye serve [--idle-timeout 30s]        Start daemon (persistent spatial tracking)
       side-eye focus <create|update|list|remove> Focus channel management
+      side-eye graph displays                    Enumerate connected displays
+      side-eye graph windows [--display N]       Enumerate on-screen windows
+      side-eye graph deepen --id X [--depth N]   Deepen AX traversal on a channel
+      side-eye graph collapse --id X [--depth N] Collapse channel to shallower depth
       side-eye daemon-snapshot                   Daemon status (displays/windows/channels)
 
     TARGETS
@@ -2197,6 +2201,23 @@ struct SideEye {
             case "remove":  focusRemoveCommand(args: rest)
             default:
                 exitError("Unknown focus subcommand: \(sub). Use: create, update, list, remove", code: "UNKNOWN_COMMAND")
+            }
+            exit(0)
+
+        case "graph":
+            guard args.count >= 2 else {
+                printUsage()
+                exit(1)
+            }
+            let sub = args[1]
+            let rest = Array(args.dropFirst(2))
+            switch sub {
+            case "displays":   graphDisplaysCommand()
+            case "windows":    graphWindowsCommand(args: rest)
+            case "deepen":     graphDeepenCommand(args: rest)
+            case "collapse":   graphCollapseCommand(args: rest)
+            default:
+                exitError("Unknown graph subcommand: \(sub). Use: displays, windows, deepen, collapse", code: "UNKNOWN_COMMAND")
             }
             exit(0)
 

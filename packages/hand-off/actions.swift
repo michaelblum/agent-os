@@ -630,6 +630,59 @@ func handleStatus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     }
 }
 
+// MARK: - Action Introspection
+
+/// Map AX action names to hand-off session verbs.
+let axActionToVerb: [String: String] = [
+    "AXPress": "press",
+    "AXConfirm": "press",
+    "AXCancel": "press",
+    "AXRaise": "raise",
+    "AXShowMenu": "right_click",
+    "AXIncrement": "set_value",
+    "AXDecrement": "set_value",
+    "AXPick": "press",
+]
+
+/// List available actions for the currently bound channel's elements plus global actions.
+func handleListActions(_ req: ActionRequest, state: SessionState) -> ActionResponse {
+    let start = Date()
+    guard state.boundChannel != nil else {
+        return errorResponse("list_actions", state: state, message: "Not bound to a channel. Use bind first.", code: "NOT_BOUND")
+    }
+
+    var available: [AvailableAction] = []
+
+    for elem in state.channelElements {
+        // Map AX actions to hand-off verbs
+        var verbs = Set<String>()
+        for axAction in elem.actions {
+            if let verb = axActionToVerb[axAction] {
+                verbs.insert(verb)
+            }
+        }
+        // All visible elements can be clicked and right-clicked
+        verbs.insert("click")
+        verbs.insert("right_click")
+
+        available.append(AvailableAction(
+            element: ElementRef(role: elem.role, title: elem.title),
+            actions: Array(verbs).sorted()
+        ))
+    }
+
+    // Global actions always available (no element required)
+    available.append(AvailableAction(
+        global: true,
+        actions: ["key_down", "key_tap", "key_up", "move", "scroll", "type"]
+    ))
+
+    return okResponse("list_actions", state: state, start: start) { resp in
+        resp.available = available
+        resp.bound_channel = state.boundChannel
+    }
+}
+
 /// End session: release all held modifier keys, clear state, return final response.
 func handleEnd(state: SessionState) -> ActionResponse {
     let start = Date()

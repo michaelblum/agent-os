@@ -100,9 +100,11 @@ func dispatchAction(_ req: ActionRequest, state: SessionState) -> ActionResponse
     case "status":  return handleStatus(req, state: state)
     case "end":     return handleEnd(state: state)
 
-    // Channel binding
+    // Channel binding + introspection
     case "bind":
         return handleBind(req, state: state)
+    case "list_actions":
+        return handleListActions(req, state: state)
 
     // Unknown action
     default:

@@ -178,5 +178,98 @@ session_contains \
     --profile natural
 
 echo ""
+echo "=== Channel Binding & Action Introspection ==="
+
+# Create a mock channel file for bind/list_actions tests
+CHAN_DIR="$HOME/.config/agent-os/channels"
+mkdir -p "$CHAN_DIR"
+CHAN_FILE="$CHAN_DIR/test-handoff-la.json"
+cat > "$CHAN_FILE" << 'CHANEOF'
+{
+  "channel_id": "test-handoff-la",
+  "target": {
+    "pid": 99999,
+    "app": "MockApp",
+    "bundle_id": "com.mock.app",
+    "window_id": 11111,
+    "display": 1,
+    "scale_factor": 2.0
+  },
+  "focus": {
+    "subtree": null,
+    "depth": 10
+  },
+  "window_bounds": {"x": 0, "y": 0, "w": 800, "h": 600},
+  "elements": [
+    {
+      "role": "AXButton",
+      "title": "Save",
+      "label": null,
+      "identifier": "save-btn",
+      "value": null,
+      "enabled": true,
+      "actions": ["AXPress"],
+      "bounds_pixel": {"x": 100, "y": 200, "w": 80, "h": 30},
+      "bounds_window": {"x": 100, "y": 200, "w": 80, "h": 30},
+      "bounds_global": {"x": 100, "y": 200, "w": 80, "h": 30}
+    },
+    {
+      "role": "AXTextField",
+      "title": "Search",
+      "label": "Search field",
+      "identifier": null,
+      "value": "hello",
+      "enabled": true,
+      "actions": ["AXConfirm", "AXShowMenu"],
+      "bounds_pixel": {"x": 200, "y": 300, "w": 200, "h": 25},
+      "bounds_window": {"x": 200, "y": 300, "w": 200, "h": 25},
+      "bounds_global": {"x": 200, "y": 300, "w": 200, "h": 25}
+    }
+  ],
+  "updated_at": "2099-01-01T00:00:00Z"
+}
+CHANEOF
+cleanup_chan() { rm -f "$CHAN_FILE"; }
+trap cleanup_chan EXIT
+
+# Test: list_actions without bind returns NOT_BOUND
+session_contains \
+    "list_actions without bind returns NOT_BOUND" \
+    "NOT_BOUND" \
+    '{"action":"list_actions"}'
+
+# Test: list_actions after bind returns available array
+session_line_contains \
+    "list_actions after bind returns available" \
+    '"available"' \
+    2 \
+    '{"action":"bind","channel":"test-handoff-la"}
+{"action":"list_actions"}'
+
+# Test: list_actions response includes global actions entry
+session_line_contains \
+    "list_actions includes global actions" \
+    '"global":true' \
+    2 \
+    '{"action":"bind","channel":"test-handoff-la"}
+{"action":"list_actions"}'
+
+# Test: list_actions response includes element with role
+session_line_contains \
+    "list_actions includes element role AXButton" \
+    "AXButton" \
+    2 \
+    '{"action":"bind","channel":"test-handoff-la"}
+{"action":"list_actions"}'
+
+# Test: list_actions response includes bound_channel
+session_line_contains \
+    "list_actions includes bound_channel" \
+    "test-handoff-la" \
+    2 \
+    '{"action":"bind","channel":"test-handoff-la"}
+{"action":"list_actions"}'
+
+echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ] || exit 1

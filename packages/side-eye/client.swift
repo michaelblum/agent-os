@@ -166,6 +166,63 @@ func snapshotCommand() {
     printDaemonResponse(resp)
 }
 
+// MARK: - CLI Command: graph displays
+
+func graphDisplaysCommand() {
+    let req = DaemonRequest(action: "graph-displays")
+    let client = SideEyeClient()
+    let resp = client.sendRequest(req)
+    printDaemonResponse(resp)
+}
+
+// MARK: - CLI Command: graph windows
+
+func graphWindowsCommand(args: [String]) {
+    let display = getArg(args, "--display").flatMap(Int.init)
+    let req = DaemonRequest(action: "graph-windows", display: display)
+    let client = SideEyeClient()
+    let resp = client.sendRequest(req)
+    printDaemonResponse(resp)
+}
+
+// MARK: - CLI Command: graph deepen
+
+func graphDeepenCommand(args: [String]) {
+    guard let id = getArg(args, "--id") else {
+        exitError("--id is required", code: "MISSING_ARG")
+    }
+
+    var subtree: ChannelSubtree? = nil
+    let subRole = getArg(args, "--subtree-role")
+    let subTitle = getArg(args, "--subtree-title")
+    let subIdent = getArg(args, "--subtree-identifier")
+    if subRole != nil || subTitle != nil || subIdent != nil {
+        subtree = ChannelSubtree(role: subRole, title: subTitle, identifier: subIdent)
+    }
+
+    let depth = getArg(args, "--depth").flatMap(Int.init)
+
+    let req = DaemonRequest(action: "graph-deepen", id: id, subtree: subtree, depth: depth)
+    let client = SideEyeClient()
+    let resp = client.sendRequest(req)
+    printDaemonResponse(resp)
+}
+
+// MARK: - CLI Command: graph collapse
+
+func graphCollapseCommand(args: [String]) {
+    guard let id = getArg(args, "--id") else {
+        exitError("--id is required", code: "MISSING_ARG")
+    }
+
+    let depth = getArg(args, "--depth").flatMap(Int.init)
+
+    let req = DaemonRequest(action: "graph-collapse", id: id, depth: depth)
+    let client = SideEyeClient()
+    let resp = client.sendRequest(req)
+    printDaemonResponse(resp)
+}
+
 // MARK: - Response Output
 
 private func printDaemonResponse(_ resp: DaemonResponse) {

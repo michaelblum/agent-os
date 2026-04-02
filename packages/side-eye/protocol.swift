@@ -8,12 +8,14 @@ import Foundation
 // MARK: - Daemon Request (ndjson from client)
 
 struct DaemonRequest: Codable {
-    let action: String           // "focus-create", "focus-update", "focus-remove", "focus-list", "snapshot", "subscribe"
+    let action: String           // "focus-create", "focus-update", "focus-remove", "focus-list", "snapshot", "subscribe",
+                                 // "graph-displays", "graph-windows", "graph-deepen", "graph-collapse"
     var id: String?              // channel ID
     var window_id: Int?          // target window
     var pid: Int?                // target process (alternative to window_id)
     var subtree: ChannelSubtree? // optional AX subtree to focus on
     var depth: Int?              // AX tree depth (default: 3)
+    var display: Int?            // display filter (for graph-windows)
 
     static func from(_ data: Data) -> DaemonRequest? {
         try? JSONDecoder().decode(DaemonRequest.self, from: data)
@@ -35,6 +37,9 @@ struct DaemonResponse: Codable {
     var channels: [ChannelSummary]?  // for focus-list
     var snapshot: SnapshotData?      // for snapshot
     var uptime: Double?              // daemon uptime
+    var displays: [DisplayInfo]?     // for graph-displays
+    var windows: [GraphWindowInfo]?  // for graph-windows
+    var elements_count: Int?         // for graph-deepen, graph-collapse
 
     static let ok = DaemonResponse(status: "ok")
 
@@ -66,6 +71,25 @@ struct SnapshotData: Codable {
     let windows: Int
     let channels: Int
     let focused_app: String?
+}
+
+struct DisplayInfo: Codable {
+    let id: Int                    // CGDirectDisplayID
+    let width: Int
+    let height: Int
+    let scale_factor: Double
+    let bounds: ChannelBounds
+    let is_main: Bool
+}
+
+struct GraphWindowInfo: Codable {
+    let window_id: Int
+    let pid: Int
+    let app: String
+    let title: String?
+    let bounds: ChannelBounds
+    let display: Int
+    let is_frontmost: Bool
 }
 
 // MARK: - Daemon Event (pushed to subscribers)

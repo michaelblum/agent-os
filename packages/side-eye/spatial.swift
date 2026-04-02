@@ -145,6 +145,149 @@ class SpatialModel {
         return resp
     }
 
+    // MARK: - Graph: Display Enumeration
+
+    func enumerateDisplays() -> [DisplayInfo] {
+        let displays = getDisplays()
+        return displays.map { d in
+            DisplayInfo(
+                id: Int(d.cgID),
+                width: Int(d.bounds.width),
+                height: Int(d.bounds.height),
+                scale_factor: d.scaleFactor,
+                bounds: ChannelBounds(from: d.bounds),
+                is_main: d.isMain
+            )
+        }
+    }
+
+    // MARK: - Graph: Window Enumeration
+
+    func enumerateWindows(display: Int?) -> [GraphWindowInfo] {
+        let displays = getDisplays()
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+
+        let windowInfoList = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+
+        var results: [GraphWindowInfo] = []
+
+        for info in windowInfoList {
+            // Filter: must have bounds
+            guard let boundsDict = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = boundsDict["X"] as? Double,
+                  let y = boundsDict["Y"] as? Double,
+                  let w = boundsDict["Width"] as? Double,
+                  let h = boundsDict["Height"] as? Double else { continue }
+
+            // Filter: skip zero-size
+            guard w > 0 && h > 0 else { continue }
+
+            // Filter: layer 0 only (regular windows)
+            let layer = info[kCGWindowLayer as String] as? Int ?? -1
+            guard layer == 0 else { continue }
+
+            // Filter: skip Window Server
+            let ownerName = info[kCGWindowOwnerName as String] as? String ?? ""
+            guard ownerName != "Window Server" else { continue }
+
+            let windowID = info[kCGWindowNumber as String] as? Int ?? 0
+            let pid = info[kCGWindowOwnerPID as String] as? Int ?? 0
+            let title = info[kCGWindowName as String] as? String
+
+            // Determine which display this window's center is on
+            let centerX = x + w / 2
+            let centerY = y + h / 2
+            let targetDisplay = displays.first(where: {
+                $0.bounds.contains(CGPoint(x: centerX, y: centerY))
+            }) ?? displays.first(where: { $0.isMain })!
+
+            // If display filter specified, skip windows not on that display
+            if let filterDisplay = display, Int(targetDisplay.cgID) != filterDisplay {
+                continue
+            }
+
+            let isFrontmost = frontmostPID != nil && pid == Int(frontmostPID!)
+
+            results.append(GraphWindowInfo(
+                window_id: windowID,
+                pid: pid,
+                app: ownerName,
+                title: title,
+                bounds: ChannelBounds(x: x, y: y, w: w, h: h),
+                display: Int(targetDisplay.cgID),
+                is_frontmost: isFrontmost
+            ))
+        }
+
+        return results
+    }
+
+    // MARK: - Graph: Deepen Channel
+
+    func deepenChannel(id: String, subtree: ChannelSubtree?, depth: Int?) -> DaemonResponse {
+        guard var state = channels[id] else {
+            return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
+        }
+
+        if let sub = subtree {
+            // Focus deeper into a subtree — update subtree spec and optionally increase depth
+            state.subtree = sub
+            if let d = depth {
+                state.depth = d
+            } else {
+                // Default: increase depth by 2 when focusing into subtree
+                state.depth = state.depth + 2
+            }
+        } else if let d = depth {
+            // Just increase depth (must be >= current)
+            guard d >= state.depth else {
+                return .fail("Depth \(d) is less than current depth \(state.depth). Use graph-collapse to reduce depth.",
+                             code: "INVALID_DEPTH")
+            }
+            state.depth = d
+        } else {
+            // No subtree, no depth — default: increase depth by 2
+            state.depth = state.depth + 2
+        }
+
+        channels[id] = state
+        refreshChannel(id: id)
+
+        var resp = DaemonResponse.ok
+        resp.elements_count = channels[id]?.lastElementCount
+        return resp
+    }
+
+    // MARK: - Graph: Collapse Channel
+
+    func collapseChannel(id: String, depth: Int?) -> DaemonResponse {
+        guard var state = channels[id] else {
+            return .fail("Channel '\(id)' not found", code: "CHANNEL_NOT_FOUND")
+        }
+
+        let targetDepth = depth ?? 1
+
+        guard targetDepth < state.depth else {
+            return .fail("Target depth \(targetDepth) is not less than current depth \(state.depth). Use graph-deepen to increase depth.",
+                         code: "INVALID_DEPTH")
+        }
+
+        state.depth = targetDepth
+
+        // Clear subtree focus when collapsing to shallow depth
+        if targetDepth <= 1 {
+            state.subtree = nil
+        }
+
+        channels[id] = state
+        refreshChannel(id: id)
+
+        var resp = DaemonResponse.ok
+        resp.elements_count = channels[id]?.lastElementCount
+        return resp
+    }
+
     // MARK: - Channel Refresh (AX traversal + file write)
 
     func refreshChannel(id: String) {

@@ -108,6 +108,20 @@ struct ActionResponse: Encodable {
 
     // Element count (for bind)
     var elements_count: Int?
+
+    // Action introspection (for list_actions)
+    var available: [AvailableAction]?
+}
+
+struct AvailableAction: Encodable {
+    var element: ElementRef?
+    var global: Bool?
+    var actions: [String]
+}
+
+struct ElementRef: Encodable {
+    var role: String
+    var title: String?
 }
 
 struct CursorPosition: Codable {

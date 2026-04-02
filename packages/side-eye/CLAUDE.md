@@ -83,6 +83,27 @@ side-eye daemon-snapshot
 
 Channel files are written to `~/.config/agent-os/channels/<id>.json` with triple coordinates (pixel, window, global) on every element. hand-off reads these via `{"action":"bind","channel":"<id>"}`.
 
+### Graph Navigation (Progressive Perception)
+
+Discovery and depth control for the perception graph.
+
+```bash
+# Enumerate connected displays
+side-eye graph displays
+
+# Enumerate on-screen windows (layer 0)
+side-eye graph windows [--display <display_id>]
+
+# Deepen AX traversal on an existing channel
+side-eye graph deepen --id slack-msgs [--depth 5]
+side-eye graph deepen --id slack-msgs --subtree-role AXScrollArea [--depth 5]
+
+# Collapse channel to shallower depth (default: 1)
+side-eye graph collapse --id slack-msgs [--depth 2]
+```
+
+Deepen/collapse return `elements_count` showing how many elements the channel has after the operation.
+
 Daemon socket: `~/.config/side-eye/sock`. Auto-exits after 30s idle (no channels, no subscribers).
 
 ## Architecture

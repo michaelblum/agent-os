@@ -172,6 +172,25 @@ class SideEyeDaemon {
         case "subscribe":
             // Already handled above, but just in case
             return .ok
+
+        // Graph navigation commands
+        case "graph-displays":
+            let displays = spatial.enumerateDisplays()
+            var resp = DaemonResponse.ok
+            resp.displays = displays
+            return resp
+        case "graph-windows":
+            let windows = spatial.enumerateWindows(display: req.display)
+            var resp = DaemonResponse.ok
+            resp.windows = windows
+            return resp
+        case "graph-deepen":
+            guard let id = req.id else { return .fail("id required", code: "MISSING_ARG") }
+            return spatial.deepenChannel(id: id, subtree: req.subtree, depth: req.depth)
+        case "graph-collapse":
+            guard let id = req.id else { return .fail("id required", code: "MISSING_ARG") }
+            return spatial.collapseChannel(id: id, depth: req.depth)
+
         default:
             return .fail("Unknown action: \(req.action)", code: "UNKNOWN_ACTION")
         }
