@@ -626,7 +626,7 @@ func handleStatus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     return okResponse("status", state: state, start: start) { resp in
         resp.profile = state.profileName
         resp.session_uptime_s = Date().timeIntervalSince(state.startTime)
-        resp.bound_channel = nil // Phase 1: no channel binding
+        resp.bound_channel = state.boundChannel
     }
 }
 

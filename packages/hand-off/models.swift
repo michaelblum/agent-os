@@ -134,6 +134,11 @@ class SessionState {
     var profile: BehaviorProfile
     var startTime: Date = Date()
 
+    // Channel binding (Phase 2)
+    var boundChannel: String? = nil
+    var channelElements: [ChannelFileElement] = []
+    var preBindContext: SessionContext? = nil  // saved context to restore on unbind
+
     init(profile: BehaviorProfile, profileName: String) {
         // Get current cursor position from CGEvent
         let pos = CGEvent(source: nil)?.location ?? .zero
@@ -332,4 +337,56 @@ struct LegacyTargetInfo: Encodable {
     var height: Double?
     var text: String?
     var keys: String?
+}
+
+// MARK: - Focus Channel File Types (read from side-eye channel files)
+
+struct ChannelFileBounds: Codable {
+    let x: Double
+    let y: Double
+    let w: Double
+    let h: Double
+}
+
+struct ChannelFileTarget: Codable {
+    let pid: Int
+    let app: String
+    let bundle_id: String?
+    let window_id: Int
+    let display: Int
+    let scale_factor: Double
+}
+
+struct ChannelFileFocus: Codable {
+    let subtree: ChannelFileSubtree?
+    let depth: Int
+}
+
+struct ChannelFileSubtree: Codable {
+    let role: String?
+    let title: String?
+    let identifier: String?
+}
+
+/// Element from a focus channel file. Used for element resolution when bound.
+struct ChannelFileElement: Codable {
+    let role: String
+    let title: String?
+    let label: String?
+    let identifier: String?
+    let value: String?
+    let enabled: Bool
+    let actions: [String]
+    let bounds_pixel: ChannelFileBounds
+    let bounds_window: ChannelFileBounds
+    let bounds_global: ChannelFileBounds
+}
+
+struct ChannelFileData: Codable {
+    let channel_id: String
+    let target: ChannelFileTarget
+    let focus: ChannelFileFocus
+    let window_bounds: ChannelFileBounds
+    let elements: [ChannelFileElement]
+    let updated_at: String
 }

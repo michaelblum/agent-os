@@ -7,7 +7,7 @@ Agent-first macOS perception CLI. Pure Swift, zero dependencies.
 ```bash
 ./build.sh
 # or manually:
-swiftc -parse-as-library -O -o side-eye main.swift
+swiftc -parse-as-library -O -o side-eye *.swift
 ```
 
 Requires macOS 14+ and Screen Recording permission for the calling terminal.
@@ -57,9 +57,43 @@ Requires macOS 14+ and Screen Recording permission for the calling terminal.
 ./side-eye user_active --window --label --base64
 ```
 
+### Daemon Mode
+
+Persistent daemon for live spatial tracking and focus channels.
+
+```bash
+# Start daemon (auto-started by focus commands)
+side-eye serve [--idle-timeout 30s]
+
+# Create a focus channel for a window
+side-eye focus create --id slack-msgs --window 5678 [--pid 1234] [--subtree-role AXScrollArea] [--subtree-title Messages] [--depth 3]
+
+# List active channels
+side-eye focus list
+
+# Update channel focus
+side-eye focus update --id slack-msgs --subtree-role AXToolbar --depth 2
+
+# Remove a channel
+side-eye focus remove --id slack-msgs
+
+# Daemon snapshot (display/window/channel counts)
+side-eye daemon-snapshot
+```
+
+Channel files are written to `~/.config/agent-os/channels/<id>.json` with triple coordinates (pixel, window, global) on every element. hand-off reads these via `{"action":"bind","channel":"<id>"}`.
+
+Daemon socket: `~/.config/side-eye/sock`. Auto-exits after 30s idle (no channels, no subscribers).
+
 ## Architecture
 
-Single file: `main.swift`. No SPM, no Xcode project, no external deps.
+Multi-file Swift (no SPM, no Xcode project, no external deps). Key files:
+- `main.swift` — entry point, all commands, capture pipeline
+- `enumerate-windows.swift` — `enumerateWindows()` shared window/app/display builder
+- `daemon.swift` — Unix socket server, idle timeout, signal handling
+- `spatial.swift` — SpatialModel: channel registry, polling loop, channel file writer
+- `client.swift` — CLI commands that talk to daemon (focus create/update/list/remove, snapshot)
+- `protocol.swift` — Shared types: DaemonRequest, DaemonResponse, DaemonEvent, ChannelSubtree
 
 **Key frameworks:** ScreenCaptureKit (capture), AppKit/CoreGraphics (display enumeration + overlay drawing), CoreText (grid labels), UniformTypeIdentifiers (format handling).
 

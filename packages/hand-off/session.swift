@@ -69,8 +69,11 @@ func runSession(profileName: String) -> Never {
 /// - **AX actions:** press, set_value, focus, raise
 /// - **AppleScript actions:** tell
 /// - **Meta actions:** context, status, end
-/// - **Phase 2 placeholders:** bind
+/// - **Channel binding:** bind
 func dispatchAction(_ req: ActionRequest, state: SessionState) -> ActionResponse {
+    // Re-read channel file before each action if bound
+    refreshChannelBinding(state: state)
+
     switch req.action {
 
     // CGEvent actions
@@ -97,16 +100,9 @@ func dispatchAction(_ req: ActionRequest, state: SessionState) -> ActionResponse
     case "status":  return handleStatus(req, state: state)
     case "end":     return handleEnd(state: state)
 
-    // Phase 2 placeholder
+    // Channel binding
     case "bind":
-        return ActionResponse(
-            status: "error",
-            action: "bind",
-            cursor: state.cursor,
-            modifiers: Array(state.modifiers),
-            error: "\"bind\" is a Phase 2 feature and is not yet implemented",
-            code: "UNKNOWN_ACTION"
-        )
+        return handleBind(req, state: state)
 
     // Unknown action
     default:
