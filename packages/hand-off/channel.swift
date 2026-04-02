@@ -94,6 +94,7 @@ func handleBind(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         context: state.contextSnapshot(),
         duration_ms: Int(Date().timeIntervalSince(start) * 1000)
     )
+    resp.bound_channel = channelID
     resp.elements_count = channel.elements.count
 
     // Warn if stale
