@@ -245,4 +245,4 @@ Multi-file Swift: `main.swift` (entry + CLI dispatch), `cli.swift` (CLI command 
 
 **CLI mode:** Success and dry-run responses go to stdout with v1 format (`status`, `action`, `backend`, `target`). Errors go to stderr with exit code 1 (`error`, `code`).
 
-**Error codes:** `PARSE_ERROR`, `UNKNOWN_ACTION`, `INVALID_COORDS`, `MISSING_PARAM`, `UNKNOWN_KEY`, `ELEMENT_NOT_FOUND`, `AX_TIMEOUT`, `AX_NOT_TRUSTED`, `AX_ACTION_FAILED`, `AX_NOT_SETTABLE`, `APP_NOT_FOUND`, `CGEVENT_FAILED`, `APPLESCRIPT_FAILED`, `INVALID_CONTEXT`, `PROFILE_NOT_FOUND`.
+**Error codes:** `PARSE_ERROR`, `UNKNOWN_ACTION`, `INVALID_COORDS`, `MISSING_ARG`, `INVALID_KEY`, `ELEMENT_NOT_FOUND`, `AX_TIMEOUT`, `PERMISSION_DENIED`, `AX_ACTION_FAILED`, `AX_NOT_SETTABLE`, `APP_NOT_FOUND`, `CGEVENT_FAILED`, `APPLESCRIPT_FAILED`, `INVALID_CONTEXT`, `PROFILE_NOT_FOUND`.

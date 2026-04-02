@@ -81,7 +81,7 @@ func cliPress(args: [String]) {
     let t = axTargetingFields(args: args)
 
     guard t.pid != nil else {
-        exitWithError("press requires --pid", code: "MISSING_PARAM")
+        exitWithError("press requires --pid", code: "MISSING_ARG")
     }
 
     let target = axTargetInfo(args: args)
@@ -111,13 +111,13 @@ func cliSetValue(args: [String]) {
     let t = axTargetingFields(args: args)
 
     guard t.pid != nil else {
-        exitWithError("set-value requires --pid", code: "MISSING_PARAM")
+        exitWithError("set-value requires --pid", code: "MISSING_ARG")
     }
     guard t.role != nil else {
-        exitWithError("set-value requires --role", code: "MISSING_PARAM")
+        exitWithError("set-value requires --role", code: "MISSING_ARG")
     }
     guard let value = getArg(args, "--value") else {
-        exitWithError("set-value requires --value", code: "MISSING_PARAM")
+        exitWithError("set-value requires --value", code: "MISSING_ARG")
     }
 
     var target = axTargetInfo(args: args)
@@ -148,10 +148,10 @@ func cliFocusElement(args: [String]) {
     let t = axTargetingFields(args: args)
 
     guard t.pid != nil else {
-        exitWithError("focus requires --pid", code: "MISSING_PARAM")
+        exitWithError("focus requires --pid", code: "MISSING_ARG")
     }
     guard t.role != nil else {
-        exitWithError("focus requires --role", code: "MISSING_PARAM")
+        exitWithError("focus requires --role", code: "MISSING_ARG")
     }
 
     let target = axTargetInfo(args: args)
@@ -180,7 +180,7 @@ func cliRaise(args: [String]) {
     let state = cliSessionState(args: args)
 
     guard let pid = parseInt(getArg(args, "--pid")) else {
-        exitWithError("raise requires --pid", code: "MISSING_PARAM")
+        exitWithError("raise requires --pid", code: "MISSING_ARG")
     }
 
     let windowID = parseInt(getArg(args, "--window"))
@@ -205,10 +205,10 @@ func cliMove(args: [String]) {
     let dryRun = hasFlag(args, "--dry-run")
 
     guard let pid = parseInt(getArg(args, "--pid")) else {
-        exitWithError("move requires --pid", code: "MISSING_PARAM")
+        exitWithError("move requires --pid", code: "MISSING_ARG")
     }
     guard let toStr = getArg(args, "--to"), let coords = parseCoords(toStr) else {
-        exitWithError("move requires --to x,y", code: "MISSING_PARAM")
+        exitWithError("move requires --to x,y", code: "MISSING_ARG")
     }
 
     let windowID = parseInt(getArg(args, "--window"))
@@ -251,10 +251,10 @@ func cliResize(args: [String]) {
     let dryRun = hasFlag(args, "--dry-run")
 
     guard let pid = parseInt(getArg(args, "--pid")) else {
-        exitWithError("resize requires --pid", code: "MISSING_PARAM")
+        exitWithError("resize requires --pid", code: "MISSING_ARG")
     }
     guard let toStr = getArg(args, "--to"), let dims = parseCoords(toStr) else {
-        exitWithError("resize requires --to w,h", code: "MISSING_PARAM")
+        exitWithError("resize requires --to w,h", code: "MISSING_ARG")
     }
 
     let windowID = parseInt(getArg(args, "--window"))
@@ -301,7 +301,7 @@ func cliClick(args: [String]) {
     let positional = positionalArgs(args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
-        exitWithError("click requires coordinates (x,y)", code: "MISSING_PARAM")
+        exitWithError("click requires coordinates (x,y)", code: "MISSING_ARG")
     }
 
     let isRight = hasFlag(args, "--right")
@@ -339,7 +339,7 @@ func cliHover(args: [String]) {
     let positional = positionalArgs(args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
-        exitWithError("hover requires coordinates (x,y)", code: "MISSING_PARAM")
+        exitWithError("hover requires coordinates (x,y)", code: "MISSING_ARG")
     }
 
     var target = LegacyTargetInfo()
@@ -368,7 +368,7 @@ func cliDrag(args: [String]) {
     guard positional.count >= 2,
           let from = parseCoords(positional[0]),
           let to = parseCoords(positional[1]) else {
-        exitWithError("drag requires two coordinate pairs (x1,y1 x2,y2)", code: "MISSING_PARAM")
+        exitWithError("drag requires two coordinate pairs (x1,y1 x2,y2)", code: "MISSING_ARG")
     }
 
     var target = LegacyTargetInfo()
@@ -401,14 +401,14 @@ func cliScroll(args: [String]) {
     let positional = positionalArgs(args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
-        exitWithError("scroll requires coordinates (x,y)", code: "MISSING_PARAM")
+        exitWithError("scroll requires coordinates (x,y)", code: "MISSING_ARG")
     }
 
     let dx = parseDouble(getArg(args, "--dx"))
     let dy = parseDouble(getArg(args, "--dy"))
 
     guard dx != nil || dy != nil else {
-        exitWithError("scroll requires at least one of --dx or --dy", code: "MISSING_PARAM")
+        exitWithError("scroll requires at least one of --dx or --dy", code: "MISSING_ARG")
     }
 
     var target = LegacyTargetInfo()
@@ -442,7 +442,7 @@ func cliType(args: [String]) {
     let positional = positionalArgs(args)
 
     guard let text = positional.first else {
-        exitWithError("type requires a text argument", code: "MISSING_PARAM")
+        exitWithError("type requires a text argument", code: "MISSING_ARG")
     }
 
     var target = LegacyTargetInfo()
@@ -468,7 +468,7 @@ func cliKey(args: [String]) {
     let positional = positionalArgs(args)
 
     guard let combo = positional.first else {
-        exitWithError("key requires a key combo argument (e.g. cmd+s)", code: "MISSING_PARAM")
+        exitWithError("key requires a key combo argument (e.g. cmd+s)", code: "MISSING_ARG")
     }
 
     var target = LegacyTargetInfo()
@@ -495,7 +495,7 @@ func cliTell(args: [String]) {
     let positional = positionalArgs(args)
 
     guard positional.count >= 2 else {
-        exitWithError("tell requires an app name and a script body", code: "MISSING_PARAM")
+        exitWithError("tell requires an app name and a script body", code: "MISSING_ARG")
     }
 
     let appName = positional[0]

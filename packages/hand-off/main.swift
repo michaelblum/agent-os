@@ -31,7 +31,7 @@ struct HandOff {
         case "profiles":
             if rest.first == "show" {
                 guard rest.count >= 2 else {
-                    exitWithError("Usage: hand-off profiles show <name>", code: "MISSING_PARAM")
+                    exitWithError("Usage: hand-off profiles show <name>", code: "MISSING_ARG")
                 }
                 profilesShowCommand(name: rest[1])
             } else {

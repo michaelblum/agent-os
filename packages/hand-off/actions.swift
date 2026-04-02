@@ -251,7 +251,7 @@ func handleScroll(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let profile = state.profile
 
     guard req.dx != nil || req.dy != nil else {
-        return errorResponse("scroll", state: state, message: "At least one of dx or dy is required", code: "MISSING_PARAM")
+        return errorResponse("scroll", state: state, message: "At least one of dx or dy is required", code: "MISSING_ARG")
     }
 
     // Resolve scroll position (move cursor there first)
@@ -306,7 +306,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
     let start = Date()
 
     guard let keyName = req.key else {
-        return errorResponse("key_down", state: state, message: "Missing 'key' field", code: "MISSING_PARAM")
+        return errorResponse("key_down", state: state, message: "Missing 'key' field", code: "MISSING_ARG")
     }
 
     let lower = keyName.lowercased()
@@ -324,7 +324,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
 
     // Regular key
     guard let keyCode = keyCodeMap[lower] else {
-        return errorResponse("key_down", state: state, message: "Unknown key: \(keyName)", code: "UNKNOWN_KEY")
+        return errorResponse("key_down", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
     let source = CGEventSource(stateID: .hidSystemState)
@@ -341,7 +341,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
 
     guard let keyName = req.key else {
-        return errorResponse("key_up", state: state, message: "Missing 'key' field", code: "MISSING_PARAM")
+        return errorResponse("key_up", state: state, message: "Missing 'key' field", code: "MISSING_ARG")
     }
 
     let lower = keyName.lowercased()
@@ -363,7 +363,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
     // Regular key
     guard let keyCode = keyCodeMap[lower] else {
-        return errorResponse("key_up", state: state, message: "Unknown key: \(keyName)", code: "UNKNOWN_KEY")
+        return errorResponse("key_up", state: state, message: "Unknown key: \(keyName)", code: "INVALID_KEY")
     }
 
     let source = CGEventSource(stateID: .hidSystemState)
@@ -381,11 +381,11 @@ func handleKeyTap(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let profile = state.profile
 
     guard let keyName = req.key else {
-        return errorResponse("key_tap", state: state, message: "Missing 'key' field", code: "MISSING_PARAM")
+        return errorResponse("key_tap", state: state, message: "Missing 'key' field", code: "MISSING_ARG")
     }
 
     guard let (keyCode, comboFlags) = parseKeyCombo(keyName) else {
-        return errorResponse("key_tap", state: state, message: "Unknown key combo: \(keyName)", code: "UNKNOWN_KEY")
+        return errorResponse("key_tap", state: state, message: "Unknown key combo: \(keyName)", code: "INVALID_KEY")
     }
 
     // Combine combo flags with currently held modifiers
@@ -417,7 +417,7 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let profile = state.profile
 
     guard let text = req.text, !text.isEmpty else {
-        return errorResponse("type", state: state, message: "Missing or empty 'text' field", code: "MISSING_PARAM")
+        return errorResponse("type", state: state, message: "Missing or empty 'text' field", code: "MISSING_ARG")
     }
 
     let cadence = profile.timing.typing_cadence
@@ -463,7 +463,7 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
 
     guard AXIsProcessTrusted() else {
-        return errorResponse("press", state: state, message: "Accessibility permission not granted", code: "AX_NOT_TRUSTED")
+        return errorResponse("press", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
     }
 
     // If bound to a channel, try resolving element coordinates to use as a near-hint
@@ -498,11 +498,11 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
     let start = Date()
 
     guard AXIsProcessTrusted() else {
-        return errorResponse("set_value", state: state, message: "Accessibility permission not granted", code: "AX_NOT_TRUSTED")
+        return errorResponse("set_value", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
     }
 
     guard let newValue = req.value else {
-        return errorResponse("set_value", state: state, message: "Missing 'value' field", code: "MISSING_PARAM")
+        return errorResponse("set_value", state: state, message: "Missing 'value' field", code: "MISSING_ARG")
     }
 
     // Build query without value — value is the payload, not a search criterion
@@ -555,7 +555,7 @@ func handleFocus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
 
     guard AXIsProcessTrusted() else {
-        return errorResponse("focus", state: state, message: "Accessibility permission not granted", code: "AX_NOT_TRUSTED")
+        return errorResponse("focus", state: state, message: "Accessibility permission not granted", code: "PERMISSION_DENIED")
     }
 
     let query = ElementQuery(from: req, context: state.context, profile: state.profile)
@@ -580,7 +580,7 @@ func handleRaise(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
 
     guard let pid = req.pid ?? state.context.pid else {
-        return errorResponse("raise", state: state, message: "No pid specified (in request or context)", code: "MISSING_PARAM")
+        return errorResponse("raise", state: state, message: "No pid specified (in request or context)", code: "MISSING_ARG")
     }
 
     let pidT = pid_t(pid)
@@ -613,10 +613,10 @@ func handleTell(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
 
     guard let appName = req.app else {
-        return errorResponse("tell", state: state, message: "Missing 'app' field", code: "MISSING_PARAM")
+        return errorResponse("tell", state: state, message: "Missing 'app' field", code: "MISSING_ARG")
     }
     guard let scriptBody = req.script else {
-        return errorResponse("tell", state: state, message: "Missing 'script' field", code: "MISSING_PARAM")
+        return errorResponse("tell", state: state, message: "Missing 'script' field", code: "MISSING_ARG")
     }
 
     let source = "tell application \"\(appName)\" to \(scriptBody)"
