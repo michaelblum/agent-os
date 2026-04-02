@@ -97,12 +97,14 @@ func createCommand(args: [String]) {
     var id: String? = nil
     var at: String? = nil
     var anchorWindow: Int? = nil
+    var anchorChannel: String? = nil
     var offset: String? = nil
     var htmlValue: String? = nil
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive = false
     var ttlValue: String? = nil
+    var autoProject: String? = nil
 
     var i = 0
     while i < args.count {
@@ -116,6 +118,9 @@ func createCommand(args: [String]) {
         case "--anchor-window":
             i += 1; guard i < args.count, let w = Int(args[i]) else { exitError("--anchor-window requires an integer", code: "INVALID_ARG") }
             anchorWindow = w
+        case "--anchor-channel":
+            i += 1; guard i < args.count else { exitError("--anchor-channel requires a channel ID", code: "MISSING_ARG") }
+            anchorChannel = args[i]
         case "--offset":
             i += 1; guard i < args.count else { exitError("--offset requires x,y,w,h", code: "MISSING_ARG") }
             offset = args[i]
@@ -133,6 +138,9 @@ func createCommand(args: [String]) {
         case "--ttl":
             i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
             ttlValue = args[i]
+        case "--auto-project":
+            i += 1; guard i < args.count else { exitError("--auto-project requires a mode (cursor_trail, highlight_focused, label_elements)", code: "MISSING_ARG") }
+            autoProject = args[i]
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -155,15 +163,17 @@ func createCommand(args: [String]) {
         request.at = parts
     }
     if let aw = anchorWindow { request.anchorWindow = aw }
+    if let ac = anchorChannel { request.anchorChannel = ac }
     if let offStr = offset {
         let parts = offStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
         guard parts.count == 4 else { exitError("--offset must be x,y,w,h (comma-separated)", code: "INVALID_ARG") }
         request.offset = parts
     }
+    if let ap = autoProject { request.autoProject = ap }
 
     if let url = urlValue {
         request.url = url
-    } else {
+    } else if autoProject == nil {
         request.html = resolveHTML(htmlValue: htmlValue, fileValue: fileValue)
     }
 
@@ -181,6 +191,7 @@ func updateCommand(args: [String]) {
     var id: String? = nil
     var at: String? = nil
     var anchorWindow: Int? = nil
+    var anchorChannel: String? = nil
     var offset: String? = nil
     var htmlValue: String? = nil
     var fileValue: String? = nil
@@ -200,6 +211,9 @@ func updateCommand(args: [String]) {
         case "--anchor-window":
             i += 1; guard i < args.count, let w = Int(args[i]) else { exitError("--anchor-window requires an integer", code: "INVALID_ARG") }
             anchorWindow = w
+        case "--anchor-channel":
+            i += 1; guard i < args.count else { exitError("--anchor-channel requires a channel ID", code: "MISSING_ARG") }
+            anchorChannel = args[i]
         case "--offset":
             i += 1; guard i < args.count else { exitError("--offset requires x,y,w,h", code: "MISSING_ARG") }
             offset = args[i]
@@ -241,6 +255,7 @@ func updateCommand(args: [String]) {
         request.at = parts
     }
     if let aw = anchorWindow { request.anchorWindow = aw }
+    if let ac = anchorChannel { request.anchorChannel = ac }
     if let offStr = offset {
         let parts = offStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
         guard parts.count == 4 else { exitError("--offset must be x,y,w,h", code: "INVALID_ARG") }

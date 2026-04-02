@@ -54,11 +54,13 @@ class Canvas {
     let window: NSWindow
     let webView: WKWebView
     var anchorWindowID: CGWindowID?
+    var anchorChannelID: String?
     var offset: CGRect?
     var isInteractive: Bool
     var ttlTimer: DispatchSourceTimer?
     var ttlDeadline: Date?
     var onTTLExpired: (() -> Void)?
+    var autoProjectMode: String?
 
     func setTTL(_ seconds: Double?) {
         ttlTimer?.cancel()
@@ -148,9 +150,11 @@ class Canvas {
             id: id,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
             anchorWindow: anchorWindowID.map { Int($0) },
+            anchorChannel: anchorChannelID,
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
             interactive: isInteractive,
-            ttl: remainingTTL
+            ttl: remainingTTL,
+            autoProject: autoProjectMode
         )
     }
 }
@@ -162,9 +166,13 @@ class CanvasManager {
     private var anchorTimer: DispatchSourceTimer?
     var onCanvasCountChanged: (() -> Void)?
     let startTime = Date()
+    private var lastChannelReRead: Date = .distantPast
+    private var lastAutoProjectUpdate: Date = .distantPast
+    private var lastCursorTrailUpdate: Date = .distantPast
 
     var isEmpty: Bool { canvases.isEmpty }
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
+    var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
 
     func removeByTTL(_ id: String) {
         guard let canvas = canvases.removeValue(forKey: id) else { return }
@@ -195,37 +203,99 @@ class CanvasManager {
             return .fail("Canvas '\(id)' already exists. Use update or remove first.", code: "DUPLICATE_ID")
         }
 
+        // Resolve anchorChannel → anchorWindow + window_bounds
+        var resolvedAnchorWindow = req.anchorWindow
+        var channelWindowBounds: CGRect? = nil
+        let channelID: String? = req.anchorChannel
+        var channelData: ChannelData? = nil
+
+        if let chanID = req.anchorChannel {
+            guard let channel = readChannelFile(id: chanID) else {
+                if !channelFileExists(id: chanID) {
+                    return .fail("Channel '\(chanID)' not found", code: "CHANNEL_NOT_FOUND")
+                }
+                return .fail("Channel '\(chanID)' could not be parsed", code: "CHANNEL_NOT_FOUND")
+            }
+            if isChannelStale(channel) {
+                return .fail("Channel '\(chanID)' is stale (>10s since last update)", code: "CHANNEL_STALE")
+            }
+            channelData = channel
+            resolvedAnchorWindow = channel.target.window_id
+            let wb = channel.window_bounds
+            channelWindowBounds = CGRect(x: wb.x, y: wb.y, width: wb.w, height: wb.h)
+        }
+
+        // Resolve auto-projection mode
+        let autoMode = req.autoProject
+        if let mode = autoMode {
+            let validModes = ["cursor_trail", "highlight_focused", "label_elements"]
+            guard validModes.contains(mode) else {
+                return .fail("Unknown auto-project mode: \(mode). Valid: \(validModes.joined(separator: ", "))", code: "INVALID_AUTO_PROJECT")
+            }
+            if mode != "cursor_trail" && channelID == nil {
+                return .fail("auto-project '\(mode)' requires --anchor-channel", code: "MISSING_CHANNEL")
+            }
+        }
+
         let cgFrame: CGRect
-        if let at = req.at, at.count == 4 {
+        if autoMode == "cursor_trail" {
+            // cursor_trail spans all displays
+            cgFrame = allDisplaysBounds()
+        } else if let at = req.at, at.count == 4 {
             cgFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-        } else if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
-            guard let windowBounds = getWindowBounds(CGWindowID(anchorWin)) else {
-                return .fail("Window \(anchorWin) not found", code: "WINDOW_NOT_FOUND")
+        } else if let anchorWin = resolvedAnchorWindow, let off = req.offset, off.count == 4 {
+            let winBounds: CGRect
+            if let chanBounds = channelWindowBounds {
+                winBounds = chanBounds
+            } else {
+                guard let wb = getWindowBounds(CGWindowID(anchorWin)) else {
+                    return .fail("Window \(anchorWin) not found", code: "WINDOW_NOT_FOUND")
+                }
+                winBounds = wb
             }
             cgFrame = CGRect(
-                x: windowBounds.origin.x + off[0],
-                y: windowBounds.origin.y + off[1],
+                x: winBounds.origin.x + off[0],
+                y: winBounds.origin.y + off[1],
                 width: off[2], height: off[3]
             )
+        } else if resolvedAnchorWindow != nil, channelWindowBounds != nil {
+            // Channel-anchored without explicit offset: cover the whole window
+            cgFrame = channelWindowBounds!
+        } else if autoMode != nil && channelWindowBounds != nil {
+            // Auto-project with channel: cover the whole window
+            cgFrame = channelWindowBounds!
         } else {
-            return .fail("create requires --at x,y,w,h or --anchor-window + --offset", code: "MISSING_POSITION")
+            return .fail("create requires --at x,y,w,h, --anchor-window + --offset, or --anchor-channel", code: "MISSING_POSITION")
         }
 
         let interactive = req.interactive ?? false
         let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive)
 
-        if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
+        if let anchorWin = resolvedAnchorWindow {
             canvas.anchorWindowID = CGWindowID(anchorWin)
-            canvas.offset = CGRect(x: off[0], y: off[1], width: off[2], height: off[3])
+            if let off = req.offset, off.count == 4 {
+                canvas.offset = CGRect(x: off[0], y: off[1], width: off[2], height: off[3])
+            } else if channelWindowBounds != nil && autoMode != "cursor_trail" {
+                // Channel-anchored without explicit offset: offset covers the whole window (0,0,w,h)
+                canvas.offset = CGRect(x: 0, y: 0, width: channelWindowBounds!.width, height: channelWindowBounds!.height)
+            }
         }
 
-        if let html = req.html {
+        canvas.anchorChannelID = channelID
+        canvas.autoProjectMode = autoMode
+
+        // Resolve content: auto-projection generates HTML, otherwise use user-supplied
+        if let mode = autoMode, let cd = channelData {
+            canvas.loadHTML(generateAutoProjectHTML(mode: mode, channelData: cd))
+        } else if let mode = autoMode, mode == "cursor_trail" {
+            canvas.loadHTML(generateAutoProjectHTML(mode: mode, channelData: nil))
+        } else if let html = req.html {
             canvas.loadHTML(html)
         } else if let url = req.url {
             canvas.loadURL(url)
         } else {
             canvas.close()
-            return .fail("create requires --html, --file, --url, or stdin content", code: "NO_CONTENT")
+            return .fail("create requires --html, --file, --url, --auto-project, or stdin content", code: "NO_CONTENT")
         }
 
         canvas.show()
@@ -238,7 +308,7 @@ class CanvasManager {
             canvas.setTTL(ttl)
         }
 
-        if hasAnchoredCanvases { startAnchorPolling() }
+        if hasAnchoredCanvases || autoMode != nil { startAnchorPolling() }
 
         return .ok()
     }
@@ -255,11 +325,42 @@ class CanvasManager {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
             canvas.updatePosition(cgRect: newFrame)
             canvas.anchorWindowID = nil
+            canvas.anchorChannelID = nil
             canvas.offset = nil
         }
 
-        if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
+        // anchorChannel on update: re-read channel, update anchor
+        if let chanID = req.anchorChannel {
+            guard let channel = readChannelFile(id: chanID) else {
+                if !channelFileExists(id: chanID) {
+                    return .fail("Channel '\(chanID)' not found", code: "CHANNEL_NOT_FOUND")
+                }
+                return .fail("Channel '\(chanID)' could not be parsed", code: "CHANNEL_NOT_FOUND")
+            }
+            if isChannelStale(channel) {
+                return .fail("Channel '\(chanID)' is stale (>10s since last update)", code: "CHANNEL_STALE")
+            }
+            canvas.anchorChannelID = chanID
+            canvas.anchorWindowID = CGWindowID(channel.target.window_id)
+            let wb = channel.window_bounds
+            let winBounds = CGRect(x: wb.x, y: wb.y, width: wb.w, height: wb.h)
+
+            if let off = req.offset, off.count == 4 {
+                canvas.offset = CGRect(x: off[0], y: off[1], width: off[2], height: off[3])
+                let newFrame = CGRect(
+                    x: winBounds.origin.x + off[0],
+                    y: winBounds.origin.y + off[1],
+                    width: off[2], height: off[3]
+                )
+                canvas.updatePosition(cgRect: newFrame)
+            } else {
+                canvas.offset = CGRect(x: 0, y: 0, width: winBounds.width, height: winBounds.height)
+                canvas.updatePosition(cgRect: winBounds)
+            }
+            startAnchorPolling()
+        } else if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
             canvas.anchorWindowID = CGWindowID(anchorWin)
+            canvas.anchorChannelID = nil
             canvas.offset = CGRect(x: off[0], y: off[1], width: off[2], height: off[3])
             if let windowBounds = getWindowBounds(CGWindowID(anchorWin)) {
                 let newFrame = CGRect(
@@ -387,8 +488,65 @@ class CanvasManager {
     }
 
     private func updateAnchoredCanvases() {
+        let now = Date()
         var anyAnchored = false
+        var anyAutoProject = false
+
+        // Re-read channel files every 1s (not every frame)
+        let shouldReReadChannels = now.timeIntervalSince(lastChannelReRead) >= 1.0
+        if shouldReReadChannels { lastChannelReRead = now }
+
+        // Update auto-projection content every 500ms
+        let shouldUpdateAutoProject = now.timeIntervalSince(lastAutoProjectUpdate) >= 0.5
+        if shouldUpdateAutoProject { lastAutoProjectUpdate = now }
+
+        // Update cursor trail at 30fps (every frame)
+        let shouldUpdateCursorTrail = now.timeIntervalSince(lastCursorTrailUpdate) >= (1.0 / 30.0)
+        if shouldUpdateCursorTrail { lastCursorTrailUpdate = now }
+
         for (_, canvas) in canvases {
+            // Handle cursor_trail auto-projection (30fps, no anchor needed)
+            if canvas.autoProjectMode == "cursor_trail" {
+                anyAutoProject = true
+                if shouldUpdateCursorTrail {
+                    let loc = NSEvent.mouseLocation
+                    // Convert from NSScreen coords (Y-up) to CG coords (Y-down)
+                    let screenHeight = NSScreen.screens.first?.frame.height ?? 0
+                    let cgX = loc.x
+                    let cgY = screenHeight - loc.y
+                    let js = "if(typeof addPoint==='function')addPoint(\(cgX),\(cgY),\(now.timeIntervalSince1970*1000))"
+                    canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+                }
+                continue
+            }
+
+            // Channel re-read: check if window_id changed
+            if shouldReReadChannels, let chanID = canvas.anchorChannelID {
+                if let channel = readChannelFile(id: chanID) {
+                    let newWindowID = CGWindowID(channel.target.window_id)
+                    if newWindowID != canvas.anchorWindowID {
+                        canvas.anchorWindowID = newWindowID
+                        // Update offset to match new window dimensions
+                        if canvas.offset != nil && canvas.autoProjectMode != nil {
+                            let wb = channel.window_bounds
+                            canvas.offset = CGRect(x: 0, y: 0, width: wb.w, height: wb.h)
+                        }
+                    }
+                }
+            }
+
+            // Auto-projection content updates (highlight_focused, label_elements)
+            if shouldUpdateAutoProject, let mode = canvas.autoProjectMode, let chanID = canvas.anchorChannelID {
+                anyAutoProject = true
+                if let channel = readChannelFile(id: chanID) {
+                    let js = generateAutoProjectUpdate(mode: mode, channelData: channel)
+                    if !js.isEmpty {
+                        canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+                    }
+                }
+            }
+
+            // Standard anchor position tracking
             guard let wid = canvas.anchorWindowID, let offset = canvas.offset else { continue }
             anyAnchored = true
             guard let windowBounds = getWindowBounds(wid) else { continue }
@@ -400,8 +558,23 @@ class CanvasManager {
             )
             canvas.updatePosition(cgRect: newFrame)
         }
-        if !anyAnchored { stopAnchorPolling() }
+        if !anyAnchored && !anyAutoProject { stopAnchorPolling() }
     }
+}
+
+// MARK: - Display Bounds Helper
+
+/// Compute the bounding rect of all connected displays in CG coordinates.
+func allDisplaysBounds() -> CGRect {
+    var result = CGRect.zero
+    for screen in NSScreen.screens {
+        let cgFrame = screenToCG(screen.frame)
+        result = result.isEmpty ? cgFrame : result.union(cgFrame)
+    }
+    if result.isEmpty {
+        return CGRect(x: 0, y: 0, width: 1920, height: 1080) // fallback
+    }
+    return result
 }
 
 // MARK: - CGWindowList Helper
