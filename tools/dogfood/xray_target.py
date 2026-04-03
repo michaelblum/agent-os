@@ -29,27 +29,23 @@ def run_cmd(args):
     return json.loads(result.stdout)
 
 
-def get_focused_window_info(topology):
-    """Extract focused window bounds and display scale factor."""
+def _get_focused_window_info(topology):
+    """Fallback: extract focused window bounds from topology. Non-atomic."""
     focused_wid = topology.get("focused_window_id")
     if not focused_wid:
         return None, None
-
     for display in topology.get("displays", []):
         scale = display.get("scale_factor", 1)
         for window in display.get("windows", []):
             if window.get("window_id") == focused_wid:
                 bounds = window["bounds"]
                 return {
-                    "x": bounds["x"],
-                    "y": bounds["y"],
-                    "w": bounds["width"],
-                    "h": bounds["height"],
+                    "x": bounds["x"], "y": bounds["y"],
+                    "w": bounds["width"], "h": bounds["height"],
                     "window_id": focused_wid,
                     "app_name": window.get("app_name", ""),
                     "title": window.get("title", ""),
                 }, scale
-
     return None, None
 
 
@@ -111,22 +107,42 @@ def main():
     parser.add_argument("--no-image", action="store_true", help="Skip base64 image in output")
     args = parser.parse_args()
 
-    # Step 1: Get topology for window bounds + scale factor
-    topology = run_cmd([SIDE_EYE, "list"])
-    window_info, scale_factor = get_focused_window_info(topology)
-
-    if not window_info:
-        print(json.dumps({"error": "No focused window found"}), file=sys.stderr)
-        sys.exit(1)
-
-    # Step 2: Get xray elements
+    # Single atomic capture: side-eye capture --window --xray now includes
+    # window metadata (window_id, bounds, scale_factor, app_name) in output.
+    # No separate topology call needed — eliminates focus-change race.
     xray_args = [SIDE_EYE, "capture", "user_active", "--window", "--xray"]
     if args.no_image:
-        xray_args.append("--base64")  # still need to capture, but won't write file
+        xray_args.append("--base64")
     else:
         xray_args.extend(["--out", "/tmp/agent-os-dogfood/xray-capture.png"])
 
     xray_data = run_cmd(xray_args)
+
+    # Extract window metadata from the capture response.
+    # If side-eye binary is too old (pre window field), fall back to
+    # a separate topology call. The fallback has a focus-change race
+    # but is better than hard-failing.
+    win = xray_data.get("window")
+    if win:
+        wb = win["bounds"]
+        window_info = {
+            "x": wb["x"],
+            "y": wb["y"],
+            "w": wb["width"],
+            "h": wb["height"],
+            "window_id": win["window_id"],
+            "app_name": win.get("app_name", ""),
+            "title": win.get("title", ""),
+        }
+        scale_factor = win.get("scale_factor", 1)
+    else:
+        # Fallback: separate topology call (non-atomic, may race)
+        topology = run_cmd([SIDE_EYE, "list"])
+        window_info, scale_factor = _get_focused_window_info(topology)
+        if not window_info:
+            print(json.dumps({"error": "No focused window found"}), file=sys.stderr)
+            sys.exit(1)
+
     elements = xray_data.get("elements", [])
 
     if not elements:

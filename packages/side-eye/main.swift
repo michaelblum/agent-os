@@ -151,6 +151,15 @@ struct AnnotationJSON: Encodable {
     let label: String?
 }
 
+struct CaptureWindowJSON: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_name: String
+    let app_pid: Int
+    let bounds: STBounds
+    let scale_factor: Double
+}
+
 struct SuccessResponse: Encodable {
     let status = "success"
     var files: [String]?
@@ -162,8 +171,9 @@ struct SuccessResponse: Encodable {
     var warning: String?
     var elements: [AXElementJSON]?
     var annotations: [AnnotationJSON]?
+    var window: CaptureWindowJSON?
 
-    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations }
+    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations, window }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -177,6 +187,7 @@ struct SuccessResponse: Encodable {
         if let w = warning { try c.encode(w, forKey: .warning) }
         if let e = elements { try c.encode(e, forKey: .elements) }
         if let a = annotations { try c.encode(a, forKey: .annotations) }
+        if let win = window { try c.encode(win, forKey: .window) }
     }
 }
 
@@ -2130,6 +2141,18 @@ func captureCommand(args: [String]) async {
         resp.warning = responseWarning
         resp.elements = responseElements
         resp.annotations = responseAnnotations
+        if opts.windowOnly, let sw = specificWindow {
+            let f = sw.frame
+            let displayEntry = displays.first(where: { $0.cgID == targetDisplayIDs.first })
+            resp.window = CaptureWindowJSON(
+                window_id: Int(sw.windowID),
+                title: sw.title,
+                app_name: sw.owningApplication?.applicationName ?? "",
+                app_pid: Int(sw.owningApplication?.processID ?? 0),
+                bounds: STBounds(x: f.origin.x, y: f.origin.y, width: f.width, height: f.height),
+                scale_factor: displayEntry?.scaleFactor ?? 1.0
+            )
+        }
         return resp
     }
 

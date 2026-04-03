@@ -1,18 +1,28 @@
 #!/bin/bash
 # agent_helpers.sh — Shell helpers for agent-os dogfood sessions
-# Source this: source /tmp/agent-os-dogfood/agent_helpers.sh
+# Source this: source tools/dogfood/agent_helpers.sh
 
-HEADS_UP="/Users/Michael/Documents/GitHub/agent-os/packages/heads-up/heads-up"
-SIDE_EYE="/Users/Michael/Documents/GitHub/agent-os/packages/side-eye/side-eye"
-HAND_OFF="/Users/Michael/Documents/GitHub/agent-os/packages/hand-off/hand-off"
-XRAY_TARGET="python3 /tmp/agent-os-dogfood/xray_target.py"
+AGENT_OS_ROOT="/Users/Michael/Documents/GitHub/agent-os"
+HEADS_UP="$AGENT_OS_ROOT/packages/heads-up/heads-up"
+SIDE_EYE="$AGENT_OS_ROOT/packages/side-eye/side-eye"
+HAND_OFF="$AGENT_OS_ROOT/packages/hand-off/hand-off"
+XRAY_TARGET="python3 $AGENT_OS_ROOT/tools/dogfood/xray_target.py"
+CHAT_HTML="$AGENT_OS_ROOT/tools/dogfood/chat.html"
+HIGHLIGHT_HTML="$AGENT_OS_ROOT/tools/dogfood/highlight.html"
 EVENTS_FILE="/tmp/agent-os-dogfood/events.jsonl"
 LISTEN_PID_FILE="/tmp/agent-os-dogfood/listen.pid"
 CHIME="/System/Library/Sounds/Glass.aiff"
 
-# --- Session lifecycle ---
+# TTS: set AGENT_TTS=1 to enable Ella (Voice 4) vocalization
+# Voice: override with AGENT_VOICE (default: "Voice 4" = Ella)
+AGENT_VOICE="${AGENT_VOICE:-Ava (Premium)}"
+
+# ============================================================
+# Session lifecycle
+# ============================================================
 
 agent_session_start() {
+  mkdir -p /tmp/agent-os-dogfood
   kill $(cat "$LISTEN_PID_FILE" 2>/dev/null) 2>/dev/null
   pkill -f "heads-up serve" 2>/dev/null
   sleep 0.3
@@ -22,9 +32,9 @@ agent_session_start() {
   echo $! > "$LISTEN_PID_FILE"
   sleep 0.5
 
-  # Create overlay but start dismissed (invisible until first question)
-  "$HEADS_UP" create --id agent-confirm --at 600,1500,470,400 \
-    --file /tmp/agent-os-dogfood/confirm.html --interactive 2>/dev/null
+  # Chat overlay — starts dismissed (invisible until first message)
+  "$HEADS_UP" create --id agent-chat --at 600,1500,470,500 \
+    --file "$CHAT_HTML" --interactive 2>/dev/null
   sleep 0.3
 }
 
@@ -34,13 +44,55 @@ agent_session_end() {
   rm -f "$EVENTS_FILE"
 }
 
-# --- Ask + Wait (reactive, ~300ms latency) ---
+# ============================================================
+# Core transport — base64-encoded JSON via headsup.receive()
+# ============================================================
+
+_agent_send() {
+  # Usage: _agent_send '{"type":"assistant","content":[...]}'
+  # Base64 encoding eliminates all bash/JS escaping problems.
+  # Python handles the full pipeline — bash echo corrupts escaped chars.
+  local json="$1"
+  local b64=$(python3 -c "
+import sys, base64
+b = base64.b64encode(sys.argv[1].encode('utf-8')).decode('ascii')
+print(b, end='')
+" "$json")
+  "$HEADS_UP" eval --id agent-chat --js "headsup.receive('${b64}')" 2>/dev/null
+}
+
+_agent_tts() {
+  # Speak text if TTS enabled. Strips markdown formatting.
+  # Kills any in-flight speech to prevent overlap.
+  if [[ "${AGENT_TTS:-0}" == "1" ]]; then
+    pkill -x say 2>/dev/null
+    local clean=$(echo "$1" | sed 's/[*_`#>]//g' | sed -E 's/\[([^]]*)\]\([^)]*\)/\1/g')
+    say -v "$AGENT_VOICE" "$clean" &
+  fi
+}
+
+# ============================================================
+# Agent → Human messages
+# ============================================================
+
+agent_say() {
+  # Usage: agent_say "markdown text"
+  # Sends an assistant text message. Overlay renders markdown.
+  local text="$1"
+  local json
+  json=$(python3 -c "
+import json, sys
+msg = {'type': 'assistant', 'content': [{'type': 'text', 'text': sys.argv[1]}]}
+print(json.dumps(msg))
+" "$text")
+  _agent_send "$json"
+  _agent_tts "$text"
+}
 
 agent_ask() {
-  # Usage: agent_ask "question html" ["opt1" "opt2" ... "optN"]
-  # First arg is the question. Remaining args are numbered options.
-  # If no options, shows only the text input escape hatch.
-  # Returns the user's response value on stdout.
+  # Usage: agent_ask "question" ["opt1" "opt2" ... "optN"]
+  # Sends an AskUserQuestion-shaped message. Blocks for response.
+  # Returns user's response on stdout.
   local question="$1"
   shift
   local options=("$@")
@@ -48,34 +100,47 @@ agent_ask() {
   # Clear old events
   : > "$EVENTS_FILE"
 
-  # Build JS call
-  local escaped_q=$(echo "$question" | sed "s/'/\\\\\\\\'/g")
-  local js_call
+  # Build Anthropic-shaped AskUserQuestion JSON
+  local json
+  json=$(python3 -c "
+import json, sys, time
+question = sys.argv[1]
+options = sys.argv[2:]
+opts = [{'label': o} for o in options]
+msg = {
+  'type': 'assistant',
+  'content': [{
+    'type': 'tool_use',
+    'name': 'AskUserQuestion',
+    'id': 'ask-' + str(int(time.time() * 1000)),
+    'input': {'questions': [{'question': question, 'options': opts}]}
+  }]
+}
+print(json.dumps(msg))
+" "$question" "${options[@]}")
 
-  if [[ ${#options[@]} -gt 0 ]]; then
-    local opts_json="["
-    for i in "${!options[@]}"; do
-      [[ $i -gt 0 ]] && opts_json+=","
-      local escaped_opt=$(echo "${options[$i]}" | sed "s/'/\\\\\\\\'/g")
-      opts_json+="'${escaped_opt}'"
-    done
-    opts_json+="]"
-    js_call="setQuestion('${escaped_q}', ${opts_json})"
-  else
-    js_call="setQuestion('${escaped_q}')"
-  fi
+  _agent_send "$json"
 
-  # Chime to get attention
-  afplay "$CHIME" &
+  # Chime then TTS — kill previous audio, chime, then speak
+  pkill -x say 2>/dev/null
+  afplay "$CHIME"
+  _agent_tts "$question"
 
-  # Show the question
-  "$HEADS_UP" eval --id agent-confirm --js "$js_call" 2>/dev/null
-
-  # Poll every 300ms for a confirm event
+  # Poll every 300ms for a response event
   while true; do
-    local event=$(tr -d '\000' < "$EVENTS_FILE" 2>/dev/null | grep '"type":"confirm"' | tail -1)
+    local event=$(tr -d '\000' < "$EVENTS_FILE" 2>/dev/null | grep '"type":"response"' | tail -1)
     if [[ -n "$event" ]]; then
-      local value=$(echo "$event" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['payload']['value'])")
+      local value=$(echo "$event" | python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read())
+# Event from daemon: {type:'event', id:'agent-chat', payload:{type:'response', payload:{...}}}
+p = data
+if 'payload' in p:
+  p = p['payload']
+if 'payload' in p:
+  p = p['payload']
+print(p.get('value', ''))
+")
       echo "$value"
       return 0
     fi
@@ -83,41 +148,39 @@ agent_ask() {
   done
 }
 
-# --- Acknowledge (immediate visual feedback) ---
-
-agent_ack() {
-  "$HEADS_UP" eval --id agent-confirm --js "
-var card = document.getElementById('card');
-card.classList.remove('dismissed');
-card.style.background = 'transparent'; card.style.border = 'none'; card.style.boxShadow = 'none';
-card.style.backdropFilter = 'none'; card.style.webkitBackdropFilter = 'none'; card.style.transition = 'none';
-card.innerHTML = '<div id=\"thumb\" style=\"text-align:center;font-size:100px;line-height:1;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.4));transform:scale(0);transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1),opacity 1.5s ease 0.8s;opacity:1;\">👍</div>';
-requestAnimationFrame(function(){ requestAnimationFrame(function(){
-  document.getElementById('thumb').style.transform = 'scale(1)';
-  setTimeout(function(){ document.getElementById('thumb').style.opacity = '0'; }, 100);
-}); });
-" 2>/dev/null
-  sleep 3
-  # Reload the overlay so it's ready for next question (starts dismissed)
-  "$HEADS_UP" update --id agent-confirm \
-    --file /tmp/agent-os-dogfood/confirm.html 2>/dev/null
+agent_status() {
+  # Usage: agent_status "Analyzing..."
+  # Shows a transient status indicator. Replaces previous status.
+  local text="$1"
+  local json
+  json=$(python3 -c "
+import json, sys
+msg = {'type': 'status', 'text': sys.argv[1]}
+print(json.dumps(msg))
+" "$text")
+  _agent_send "$json"
 }
 
-# --- Signal completion ---
+agent_ack() {
+  # Quick acknowledgment message
+  agent_say "Got it."
+}
 
 agent_done() {
+  # Usage: agent_done "Completed successfully."
   local msg="${1:-Done.}"
   afplay "$CHIME" &
-  local escaped=$(echo "$msg" | sed "s/'/\\\\\\\\'/g")
-  "$HEADS_UP" eval --id agent-confirm --js "setQuestion('${escaped}')" 2>/dev/null
+  agent_say "$msg"
 }
 
 agent_cleanup() {
-  "$HEADS_UP" remove --id agent-confirm 2>/dev/null
+  "$HEADS_UP" remove --id agent-chat 2>/dev/null
   "$HEADS_UP" remove --id highlight 2>/dev/null
 }
 
-# --- Highlighting ---
+# ============================================================
+# Highlighting
+# ============================================================
 
 agent_highlight() {
   local at
@@ -133,41 +196,32 @@ agent_highlight() {
   local px=6
   at="$((x - px)),$((y - px)),$((w + px*2)),$((h + px*2))"
   "$HEADS_UP" create --id highlight --at "$at" \
-    --file /tmp/agent-os-dogfood/highlight.html 2>/dev/null
+    --file "$HIGHLIGHT_HTML" 2>/dev/null
 }
 
 agent_highlight_remove() {
   "$HEADS_UP" remove --id highlight 2>/dev/null
 }
 
-# --- Logging ---
+# ============================================================
+# Logging
+# ============================================================
 
 agent_log() {
+  # Usage: agent_log "message" "level"
+  # level: info, error, warn, success
   local msg="$1"
   local level="${2:-info}"
-  msg="${msg//\\/\\\\}"
-  msg="${msg//\'/\\\'}"
-  msg="${msg//\"/\\\"}"
-  "$HEADS_UP" eval --id agent-confirm \
-    --js "addLog('$msg', '$level')" 2>/dev/null
+  local json
+  json=$(python3 -c "
+import json, sys
+print(json.dumps({'msg': sys.argv[1], 'level': sys.argv[2]}))
+" "$msg" "$level")
+  local b64=$(echo -n "$json" | base64 | tr -d '\n')
+  "$HEADS_UP" eval --id agent-chat --js "
+    var d = JSON.parse(atob('${b64}'));
+    addLog(d.msg, d.level);
+  " 2>/dev/null
 }
 
-# --- TTS ---
-
-agent_tts_on() {
-  "$HEADS_UP" eval --id agent-confirm \
-    --js "window._ttsEnabled = true" 2>/dev/null
-}
-
-agent_tts_off() {
-  "$HEADS_UP" eval --id agent-confirm \
-    --js "window._ttsEnabled = false" 2>/dev/null
-}
-
-# --- Voice (Apple native say) ---
-
-agent_speak() {
-  say -v Samantha "$1" &
-}
-
-echo "agent-os helpers loaded."
+echo "agent-os helpers loaded. (TTS: ${AGENT_TTS:-off}, Voice: $AGENT_VOICE)"
