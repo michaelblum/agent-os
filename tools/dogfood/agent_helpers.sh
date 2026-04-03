@@ -58,7 +58,7 @@ import sys, base64
 b = base64.b64encode(sys.argv[1].encode('utf-8')).decode('ascii')
 print(b, end='')
 " "$json")
-  "$HEADS_UP" eval --id agent-chat --js "headsup.receive('${b64}')" 2>/dev/null
+  "$HEADS_UP" eval --id agent-chat --js "headsup.receive('${b64}')" >/dev/null 2>/dev/null
 }
 
 _agent_tts() {
@@ -234,7 +234,7 @@ print(json.dumps({'msg': sys.argv[1], 'level': sys.argv[2]}))
   "$HEADS_UP" eval --id agent-chat --js "
     var d = JSON.parse(atob('${b64}'));
     addLog(d.msg, d.level);
-  " 2>/dev/null
+  " >/dev/null 2>/dev/null
 }
 
 echo "agent-os helpers loaded. (TTS: ${AGENT_TTS:-off}, Voice: $AGENT_VOICE)"
