@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.card {
+  background: rgba(22, 22, 26, 0.96);
+  color: #e8e8ed;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+.card.dismissed {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  pointer-events: none;
+}
+
+/* --- Header (drag handle) --- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #86868b;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+.header:active { cursor: grabbing; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #30d158; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* --- Tab bar --- */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 20px 0;
+  flex-shrink: 0;
+}
+.tab {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #86868b;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover { color: #b0b0b5; }
+.tab.active { color: #f5f5f7; border-bottom-color: #64d2ff; }
+.tab-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ff453a;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* --- Tab panels --- */
+.panel { display: none; padding: 14px 20px 16px; flex: 1; overflow: hidden; }
+.panel.active { display: flex; flex-direction: column; }
+
+/* --- Confirm panel --- */
+.question {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 14px;
+  color: #f5f5f7;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  flex-shrink: 0;
+}
+.question strong { color: #64d2ff; }
+
+/* --- Numbered options --- */
+.options { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; flex-shrink: 0; }
+.opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: #f5f5f7;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  text-align: left;
+  width: 100%;
+}
+.opt-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(100,210,255,0.4); }
+.opt-btn:active { transform: scale(0.98); }
+.opt-num {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: rgba(100,210,255,0.15);
+  color: #64d2ff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.opt-label { flex: 1; }
+
+/* --- Escape hatch (text input) --- */
+.input-row { display: flex; gap: 8px; flex-shrink: 0; }
+.text-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: #f5f5f7;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  outline: none;
+}
+.text-input::placeholder { color: rgba(255,255,255,0.3); }
+.text-input:focus { border-color: rgba(100,210,255,0.5); background: rgba(255,255,255,0.12); }
+.btn-send {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(100,210,255,0.2);
+  color: #64d2ff;
+  border: 1px solid rgba(100,210,255,0.3);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.15s ease;
+}
+.btn-send:hover { background: rgba(100,210,255,0.3); }
+.btn-send:active { transform: scale(0.96); }
+
+.ack {
+  display: none;
+  text-align: center;
+  padding: 16px 0 4px;
+  font-size: 13px;
+  color: #30d158;
+  font-weight: 500;
+}
+
+/* --- Log panel --- */
+.log-viewer {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #a0a0a5;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.log-viewer::-webkit-scrollbar { width: 4px; }
+.log-viewer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.log-entry .ts { color: #555; margin-right: 8px; }
+.log-entry.error { color: #ff453a; }
+.log-entry.warn { color: #ffd60a; }
+.log-entry.success { color: #30d158; }
+.log-empty { color: #555; font-style: italic; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="card dismissed" id="card">
+  <div class="header" id="dragHandle">
+    <div class="dot" id="dot"></div>
+    <span id="header-text">AGENT</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="confirm" onclick="switchTab('confirm')">Confirm</button>
+    <button class="tab" data-tab="log" onclick="switchTab('log')">
+      Log
+      <span class="tab-badge" id="logBadge">0</span>
+    </button>
+  </div>
+
+  <div class="panel active" id="panel-confirm">
+    <div class="question" id="question"></div>
+    <div id="controls" style="display:none">
+      <div class="options" id="options"></div>
+      <div class="input-row">
+        <input class="text-input" type="text" id="feedback" placeholder="Or type a response..." onkeydown="if(event.key==='Enter')respond(this.value)">
+        <button class="btn-send" onclick="respond(document.getElementById('feedback').value)">Send</button>
+      </div>
+    </div>
+    <div class="ack" id="ack"></div>
+  </div>
+
+  <div class="panel" id="panel-log">
+    <div class="log-viewer" id="logViewer">
+      <div class="log-empty">No log entries yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var dismissed = true;
+var activeTab = 'confirm';
+var unreadLogs = 0;
+window._ttsEnabled = false;
+
+// --- Tab switching ---
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'panel-' + name);
+  });
+  if (name === 'log') {
+    unreadLogs = 0;
+    var badge = document.getElementById('logBadge');
+    badge.style.display = 'none';
+    badge.textContent = '0';
+  }
+}
+
+// --- Log ---
+function addLog(message, level) {
+  var viewer = document.getElementById('logViewer');
+  var empty = viewer.querySelector('.log-empty');
+  if (empty) empty.remove();
+  var entry = document.createElement('div');
+  entry.className = 'log-entry' + (level ? ' ' + level : '');
+  var now = new Date();
+  var ts = now.toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  entry.innerHTML = '<span class="ts">' + ts + '</span>' + escapeHtml(message);
+  viewer.appendChild(entry);
+  viewer.scrollTop = viewer.scrollHeight;
+  if (activeTab !== 'log') {
+    unreadLogs++;
+    var badge = document.getElementById('logBadge');
+    badge.textContent = unreadLogs > 99 ? '99+' : unreadLogs;
+    badge.style.display = 'flex';
+  }
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Drag handling ---
+(function() {
+  var handle = document.getElementById('dragHandle');
+  var dragging = false;
+  var lastX = 0, lastY = 0;
+  handle.addEventListener('mousedown', function(e) {
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+    dragging = true;
+    lastX = e.screenX;
+    lastY = e.screenY;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var dx = e.screenX - lastX;
+    var dy = e.screenY - lastY;
+    lastX = e.screenX;
+    lastY = e.screenY;
+    if (dx !== 0 || dy !== 0) {
+      window.webkit.messageHandlers.headsup.postMessage({ type: 'move', dx: dx, dy: dy });
+    }
+  });
+  document.addEventListener('mouseup', function() { dragging = false; });
+})();
+
+// --- Response handling ---
+function respond(value) {
+  if (!value || value.trim() === '' || dismissed) return;
+  window.webkit.messageHandlers.headsup.postMessage({
+    type: 'confirm',
+    value: value.trim(),
+    timestamp: Date.now()
+  });
+  document.getElementById('controls').style.display = 'none';
+  var ack = document.getElementById('ack');
+  ack.style.display = 'block';
+  ack.textContent = '\u2713 Sent: ' + value.trim();
+  document.getElementById('dot').style.background = '#86868b';
+  document.getElementById('dot').style.animation = 'none';
+  document.getElementById('header-text').textContent = 'WAITING FOR AGENT';
+  dismissed = true;
+}
+
+// --- Keyboard shortcuts for numbered options ---
+document.addEventListener('keydown', function(e) {
+  if (dismissed) return;
+  if (e.target.tagName === 'INPUT') return;
+  var num = parseInt(e.key);
+  if (num >= 1 && num <= 9) {
+    var btns = document.querySelectorAll('.opt-btn');
+    if (num <= btns.length) {
+      btns[num - 1].click();
+    }
+  }
+});
+
+/**
+ * setQuestion(text, options)
+ *   text: HTML string for the question
+ *   options: array of strings for numbered buttons. Last one is the escape hatch.
+ *            If omitted, shows only the text input.
+ *
+ * Examples:
+ *   setQuestion('What next?', ['Continue', 'Skip', 'Other'])
+ *   setQuestion('Enter your name:')  // text input only
+ */
+function setQuestion(text, options) {
+  var q = document.getElementById('question');
+  q.innerHTML = text;
+
+  var optContainer = document.getElementById('options');
+  optContainer.innerHTML = '';
+
+  if (options && options.length > 0) {
+    for (var i = 0; i < options.length; i++) {
+      var btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerHTML = '<span class="opt-num">' + (i + 1) + '</span><span class="opt-label">' + escapeHtml(options[i]) + '</span>';
+      btn.setAttribute('data-value', options[i]);
+      btn.onclick = function() { respond(this.getAttribute('data-value')); };
+      optContainer.appendChild(btn);
+    }
+  }
+
+  document.getElementById('controls').style.display = 'block';
+  document.getElementById('ack').style.display = 'none';
+  document.getElementById('dot').style.background = '#30d158';
+  document.getElementById('dot').style.animation = 'pulse 2s infinite';
+  document.getElementById('header-text').textContent = 'AGENT';
+  document.getElementById('feedback').value = '';
+  document.getElementById('card').classList.remove('dismissed');
+  dismissed = false;
+  switchTab('confirm');
+
+  // TTS
+  if (window._ttsEnabled && window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+    var clean = text.replace(/<[^>]*>/g, '');
+    var u = new SpeechSynthesisUtterance(clean);
+    u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+function dismiss() {
+  document.getElementById('card').classList.add('dismissed');
+  dismissed = true;
+}
+
+function show() {
+  document.getElementById('card').classList.remove('dismissed');
+}
+
+// Start dismissed — overlay only appears when setQuestion is called
+</script>
+</body>
+</html>
