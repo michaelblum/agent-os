@@ -90,9 +90,16 @@ print(json.dumps(msg))
 }
 
 agent_ask() {
-  # Usage: agent_ask "question" ["opt1" "opt2" ... "optN"]
+  # Usage: agent_ask [--timeout SECONDS] "question" ["opt1" "opt2" ... "optN"]
   # Sends an AskUserQuestion-shaped message. Blocks for response.
-  # Returns user's response on stdout.
+  # Returns user's response on stdout, exit 0.
+  # On timeout: returns nothing, exit 1. Question stays live on overlay.
+  # Default timeout: AGENT_ASK_TIMEOUT env var, or infinite if unset.
+  local timeout="${AGENT_ASK_TIMEOUT:-0}"
+  if [[ "$1" == "--timeout" ]]; then
+    timeout="$2"
+    shift 2
+  fi
   local question="$1"
   shift
   local options=("$@")
@@ -127,13 +134,13 @@ print(json.dumps(msg))
   _agent_tts "$question"
 
   # Poll every 300ms for a response event
+  local elapsed=0
   while true; do
     local event=$(tr -d '\000' < "$EVENTS_FILE" 2>/dev/null | grep '"type":"response"' | tail -1)
     if [[ -n "$event" ]]; then
       local value=$(echo "$event" | python3 -c "
 import sys, json
 data = json.loads(sys.stdin.read())
-# Event from daemon: {type:'event', id:'agent-chat', payload:{type:'response', payload:{...}}}
 p = data
 if 'payload' in p:
   p = p['payload']
@@ -145,6 +152,12 @@ print(p.get('value', ''))
       return 0
     fi
     sleep 0.3
+    if [[ "$timeout" -gt 0 ]]; then
+      elapsed=$((elapsed + 300))
+      if [[ $elapsed -ge $((timeout * 1000)) ]]; then
+        return 1
+      fi
+    fi
   done
 }
 
