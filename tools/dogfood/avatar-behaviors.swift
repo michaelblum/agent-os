@@ -40,6 +40,14 @@ func queryAvatar() {
 }
 
 // -- Hit tests --
+func isClickOnAvatar(_ px: Double, _ py: Double) -> Bool {
+    // Circular hit-test: click within the avatar's visual radius (center of canvas)
+    let cx = curX + curSize / 2, cy = curY + curSize / 2
+    let radius = curSize * 0.35  // avatar visual fills ~70% of canvas
+    let dist = sqrt(pow(px - cx, 2) + pow(py - cy, 2))
+    return dist <= radius
+}
+
 func isClickOnChat(_ px: Double, _ py: Double) -> Bool {
     px >= chatX && px < chatX + chatW && py >= chatY && py < chatY + chatH
 }
@@ -402,7 +410,8 @@ func startBackgroundMonitor() {
                 }
             case .docked, .docking, .undocking,
                  .possessingCursor, .possessingKeyboard,
-                 .transitioning, .idle, .following, .tracing:
+                 .transitioning, .idle, .following, .tracing,
+                 .followMe:
                 Thread.sleep(forTimeInterval: 0.2)
             }
         }

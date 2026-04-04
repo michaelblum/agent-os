@@ -18,11 +18,12 @@ import CoreGraphics
 
 enum AvatarState {
     case idle, roaming, following, tracing
+    case followMe  // user clicked avatar — subsequent clicks move it
     case possessingCursor, possessingKeyboard
     case docking, docked, undocking, transitioning
 }
 
-var avatarState: AvatarState = .roaming
+var avatarState: AvatarState = .idle
 var isAnimating: Bool = false
 var occlusionGraceUntil: Date = .distantPast
 var eventTap: CFMachPort? = nil
@@ -113,6 +114,11 @@ func handleChannelEvent(channel: String, data: [String: Any]) {
 // MARK: - CGEventTap (Click Following)
 // ============================================================================
 
+/// Timestamp of last left-mouse-down on the avatar (for press-and-hold detection).
+var avatarMouseDownTime: Date? = nil
+var avatarMouseDownWasOnAvatar = false
+let pressAndHoldThreshold: TimeInterval = 0.5
+
 /// Event tap callback — handles click-follow, dock/undock via direct clicks.
 func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
            _ refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
@@ -121,18 +127,84 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
         return Unmanaged.passUnretained(event)
     }
 
+    func log(_ msg: String) {
+        fputs("TAP: \(msg)\n", stderr)
+    }
+
+    // -- Right click on avatar: stub (future: context menu / radial menu) --
+    if type == .rightMouseDown {
+        let p = event.location
+        let onAvatar = isClickOnAvatar(p.x, p.y)
+        log("RIGHT click (\(Int(p.x)),\(Int(p.y))) onAvatar=\(onAvatar) avatar=(\(Int(curX)),\(Int(curY)),\(Int(curSize)))")
+        if onAvatar {
+            DispatchQueue.global(qos: .userInteractive).async {
+                sendBehavior("thinking")
+                pushEvent("Right-click (stub)", level: "info")
+            }
+        }
+        return Unmanaged.passUnretained(event)
+    }
+
+    // -- Left mouse up: check for press-and-hold --
+    if type == .leftMouseUp {
+        let held = avatarMouseDownWasOnAvatar && avatarMouseDownTime != nil
+        let duration = avatarMouseDownTime.map { Date().timeIntervalSince($0) } ?? 0
+        log("LEFT UP held=\(held) duration=\(String(format: "%.2f", duration))s threshold=\(pressAndHoldThreshold)")
+        if avatarMouseDownWasOnAvatar,
+           let downTime = avatarMouseDownTime,
+           Date().timeIntervalSince(downTime) >= pressAndHoldThreshold {
+            log("PRESS-AND-HOLD triggered")
+            DispatchQueue.global(qos: .userInteractive).async {
+                sendBehavior("look_at_me")
+                pushEvent("Press-and-hold (stub)", level: "info")
+            }
+        }
+        avatarMouseDownTime = nil
+        avatarMouseDownWasOnAvatar = false
+        return Unmanaged.passUnretained(event)
+    }
+
     if type == .leftMouseDown {
         let p = event.location
+
+        // Track mouse-down on avatar for press-and-hold detection
+        let onAvatar = isClickOnAvatar(p.x, p.y)
+        avatarMouseDownWasOnAvatar = onAvatar
+        avatarMouseDownTime = onAvatar ? Date() : nil
         moveID &+= 1
         let mid = moveID
 
+        log("LEFT click (\(Int(p.x)),\(Int(p.y))) onAvatar=\(onAvatar) state=\(avatarState) avatar=(\(Int(curX)),\(Int(curY)),\(Int(curSize)))")
+
         switch avatarState {
-        case .roaming, .idle:
-            if isClickOnChat(p.x, p.y) {
+        case .idle, .roaming:
+            if onAvatar {
+                avatarState = .followMe
+                log("→ FOLLOW-ME mode")
+                DispatchQueue.global(qos: .userInteractive).async {
+                    sendBehavior("look_at_me")
+                    pushEvent("Follow-me mode", level: "info")
+                }
+            } else if isClickOnChat(p.x, p.y) {
                 DispatchQueue.global(qos: .userInteractive).async { behaviorDock(mid) }
-            } else {
-                DispatchQueue.global(qos: .userInteractive).async { behaviorFollowClick(p.x, p.y, mid) }
             }
+            // Clicks on screen in idle/roaming → pass through (do nothing)
+
+        case .followMe:
+            if onAvatar {
+                avatarState = .idle
+                log("→ EXIT follow-me, IDLE")
+                DispatchQueue.global(qos: .userInteractive).async {
+                    sendBehavior("idle")
+                    pushEvent("Idle", level: "info")
+                }
+            } else {
+                log("→ fast-travel to (\(Int(p.x)),\(Int(p.y)))")
+                DispatchQueue.global(qos: .userInteractive).async {
+                    behaviorFastTravel(toX: p.x - curSize / 2, toY: p.y - curSize / 2, mid: mid)
+                }
+            }
+
         case .docked:
             if !isClickOnChat(p.x, p.y) {
                 DispatchQueue.global(qos: .userInteractive).async { behaviorUndock(p.x, p.y, mid) }
@@ -149,6 +221,8 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
 
 func startEventTap() {
     let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
+               | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
+               | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
                | CGEventMask(1 << CGEventType.tapDisabledByTimeout.rawValue)
                | CGEventMask(1 << CGEventType.tapDisabledByUserInput.rawValue)
 
@@ -157,10 +231,11 @@ func startEventTap() {
         eventsOfInterest: mask,
         callback: tapCB, userInfo: nil
     ) else {
-        FileHandle.standardError.write("Event tap failed. Click-follow disabled (grant Accessibility permission).\n".data(using: .utf8)!)
+        fputs("EVENT TAP FAILED — grant Accessibility permission to this binary.\n", stderr)
         return  // subscriber + channel events still work without click-follow
     }
     eventTap = tap
+    fputs("EVENT TAP OK — click-follow active.\n", stderr)
     let src = CFMachPortCreateRunLoopSource(nil, tap, 0)!
     CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
     CGEvent.tapEnable(tap: tap, enable: true)
