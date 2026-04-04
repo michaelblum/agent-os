@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html style="background:transparent"><head><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { background: transparent !important; overflow: hidden; height: 100%; }
+#hud {
+  background: rgba(0,0,0,0.88);
+  color: #0f0;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,255,0,0.15);
+  position: absolute;
+  inset: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+#hud::-webkit-scrollbar { width: 4px; }
+#hud::-webkit-scrollbar-thumb { background: rgba(0,255,0,0.2); border-radius: 2px; }
+
+.section { margin-bottom: 6px; }
+.section-header {
+  color: #666;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 2px;
+  margin-bottom: 3px;
+}
+
+.row { display: flex; gap: 8px; }
+.label { color: #888; min-width: 90px; flex-shrink: 0; }
+.val { color: #0f0; }
+.val.warn { color: #ffd60a; }
+.val.error { color: #ff453a; }
+.val.info { color: #6cf; }
+.val.muted { color: #555; }
+.val.active { color: #30d158; }
+
+.event-log {
+  max-height: 80px;
+  overflow-y: auto;
+  font-size: 10px;
+  color: #555;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: 4px;
+  padding-top: 3px;
+}
+.event-log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-log .ts { color: #444; margin-right: 6px; }
+</style></head><body>
+<div id="hud"></div>
+<script>
+// ============================================================
+// Telemetry HUD — Push-based, channel-oriented
+//
+// Components push data via:
+//   heads-up eval --id telemetry --js "headsup.receive('<b64>')"
+//
+// Message format (after base64 decode):
+//   { channel: "avatar", data: { key: "value", ... } }
+//   { channel: "avatar", data: { state: "roaming", pos: "(200,300)" } }
+//   { channel: "_event", data: { text: "Docked", level: "info" } }
+//   { channel: "_clear" }
+//
+// Each channel gets its own section. Keys become rows.
+// Special channels:
+//   _event  — appends to scrolling event log
+//   _clear  — clears all channels
+//   _config — { title: "...", compact: true/false }
+// ============================================================
+
+var channels = {};    // { channelName: { key: value, ... } }
+var eventLog = [];    // [{ ts, text, level }]
+var maxEvents = 50;
+var title = "TELEMETRY";
+var compact = false;
+
+function render() {
+  var hud = document.getElementById('hud');
+  var html = '';
+
+  // Title
+  html += '<div style="color:#666;font-size:9px;letter-spacing:1.5px;margin-bottom:6px;text-align:center">'
+    + title + '</div>';
+
+  // Channel sections
+  var names = Object.keys(channels).sort();
+  for (var i = 0; i < names.length; i++) {
+    var ch = names[i];
+    var data = channels[ch];
+    html += '<div class="section">';
+    html += '<div class="section-header">' + escapeHtml(ch) + '</div>';
+    var keys = Object.keys(data);
+    for (var j = 0; j < keys.length; j++) {
+      var k = keys[j];
+      var v = data[k];
+      var cls = 'val';
+      if (typeof v === 'object' && v !== null && v._class) {
+        cls = 'val ' + v._class;
+        v = v.text;
+      }
+      html += '<div class="row"><span class="label">' + escapeHtml(k)
+        + ':</span><span class="' + cls + '">' + escapeHtml(String(v)) + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  // Event log
+  if (eventLog.length > 0) {
+    html += '<div class="event-log" id="elog">';
+    for (var e = eventLog.length - 1; e >= Math.max(0, eventLog.length - 20); e--) {
+      var ev = eventLog[e];
+      var lvl = ev.level || '';
+      html += '<div><span class="ts">' + ev.ts + '</span>'
+        + '<span class="val ' + lvl + '">' + escapeHtml(ev.text) + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  hud.innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function now() {
+  var d = new Date();
+  return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+}
+
+// headsup.receive — push-based message handler
+window.headsup = {
+  manifest: { name: 'telemetry', accepts: ['channel-data', 'event', 'config'], emits: [] },
+  receive: function(b64) {
+    try {
+      var bytes = Uint8Array.from(atob(b64), function(c) { return c.charCodeAt(0); });
+      var msg = JSON.parse(new TextDecoder().decode(bytes));
+
+      if (msg.channel === '_clear') {
+        channels = {};
+        eventLog = [];
+      } else if (msg.channel === '_config') {
+        if (msg.data.title) title = msg.data.title;
+        if (msg.data.compact !== undefined) compact = msg.data.compact;
+      } else if (msg.channel === '_event') {
+        eventLog.push({ ts: now(), text: msg.data.text || '', level: msg.data.level || '' });
+        if (eventLog.length > maxEvents) eventLog.shift();
+      } else if (msg.channel && msg.data) {
+        // Merge data into channel (preserves keys not in this update)
+        if (!channels[msg.channel]) channels[msg.channel] = {};
+        var keys = Object.keys(msg.data);
+        for (var i = 0; i < keys.length; i++) {
+          channels[msg.channel][keys[i]] = msg.data[keys[i]];
+        }
+      }
+
+      render();
+    } catch(e) {
+      // Silent fail — telemetry should never break
+    }
+  }
+};
+
+// Also accept direct update() calls for backward compat with debug-hud.py
+function update(d) {
+  channels['debug'] = d;
+  render();
+}
+
+render();
+</script>
+</body></html>

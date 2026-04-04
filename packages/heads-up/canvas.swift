@@ -281,6 +281,7 @@ class CanvasManager {
         case "list":    return handleList()
         case "ping":    return handlePing()
         case "eval":    return handleEval(request)
+        case "to-front": return handleToFront(request)
         default:
             return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
         }
@@ -379,8 +380,8 @@ class CanvasManager {
                let type = dict["type"] as? String {
 
                 if type == "move_abs",
-                   let screenX = dict["screenX"] as? Double,
-                   let screenY = dict["screenY"] as? Double,
+                   let _ = dict["screenX"] as? Double,
+                   let _ = dict["screenY"] as? Double,
                    let offsetX = dict["offsetX"] as? Double,
                    let offsetY = dict["offsetY"] as? Double {
                     DispatchQueue.main.async {
@@ -388,25 +389,13 @@ class CanvasManager {
                         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
                         let cgMouseX = mouse.x
                         let cgMouseY = primaryHeight - mouse.y
-                        var newX = cgMouseX - CGFloat(offsetX)
-                        var newY = cgMouseY - CGFloat(offsetY)
+                        let newX = cgMouseX - CGFloat(offsetX)
+                        let newY = cgMouseY - CGFloat(offsetY)
                         let cg = canvas.cgFrame
 
-                        // Snap: constrain canvas to the display the mouse is on.
-                        // Prevents straddling the boundary (macOS clips cross-display windows).
-                        for screen in NSScreen.screens {
-                            let sf = screen.frame
-                            let cgScreenY = primaryHeight - sf.maxY
-                            let cgScreenBottom = primaryHeight - sf.minY
-                            if cgMouseX >= sf.minX && cgMouseX < sf.maxX &&
-                               cgMouseY >= cgScreenY && cgMouseY < cgScreenBottom {
-                                // Clamp canvas to this display
-                                newX = max(sf.minX - cg.width + 40, min(newX, sf.maxX - 40))
-                                newY = max(cgScreenY, min(newY, cgScreenBottom - 40))
-                                break
-                            }
-                        }
-
+                        // No display-snap: let the canvas straddle displays freely,
+                        // same as the avatar animation path. updatePosition's retry
+                        // logic handles any single-frame OS rejection at boundaries.
                         canvas.updatePosition(cgRect: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
                     }
                     return
@@ -629,6 +618,17 @@ class CanvasManager {
         var response = CanvasResponse.ok()
         response.result = evalResult
         return response
+    }
+
+    private func handleToFront(_ req: CanvasRequest) -> CanvasResponse {
+        guard let id = req.id else {
+            return .fail("to-front requires --id", code: "MISSING_ID")
+        }
+        guard let canvas = canvases[id] else {
+            return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
+        }
+        canvas.window.orderFront(nil)
+        return .ok()
     }
 
     // MARK: - Window Anchoring

@@ -393,6 +393,26 @@ func evalCommand(args: [String]) {
     outputResponse(response)
 }
 
+// MARK: - CLI Command: to-front
+
+func toFrontCommand(args: [String]) {
+    var id: String? = nil
+    var i = 0
+    while i < args.count {
+        if args[i] == "--id" && i + 1 < args.count { id = args[i + 1]; i += 2; continue }
+        exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+    }
+    guard let canvasID = id else { exitError("to-front requires --id <name>", code: "MISSING_ARG") }
+
+    var request = CanvasRequest(action: "to-front")
+    request.id = canvasID
+
+    let client = DaemonClient()
+    if !client.ensureDaemon() { exitError("Failed to start daemon", code: "DAEMON_START_FAILED") }
+    let response = client.send(request)
+    outputResponse(response)
+}
+
 // MARK: - CLI Command: listen
 
 func listenCommand(args: [String]) {
