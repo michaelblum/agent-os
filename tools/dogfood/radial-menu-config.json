@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "geometry": "torus",
+      "name": "Torus",
+      "description": "A green torus",
+      "color": "#00ff88"
+    },
+    {
+      "geometry": "tetrahedron",
+      "name": "Pyramid",
+      "description": "A blue three-sided pyramid",
+      "color": "#4488ff"
+    },
+    {
+      "geometry": "box",
+      "name": "Cube",
+      "description": "A red cube",
+      "color": "#ff4444"
+    }
+  ]
+}

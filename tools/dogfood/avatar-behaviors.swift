@@ -411,7 +411,7 @@ func startBackgroundMonitor() {
             case .docked, .docking, .undocking,
                  .possessingCursor, .possessingKeyboard,
                  .transitioning, .idle, .following, .tracing,
-                 .followMe:
+                 .followMe, .stellating, .radialMenuOpen, .cursorDecorated:
                 Thread.sleep(forTimeInterval: 0.2)
             }
         }

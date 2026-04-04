@@ -117,6 +117,58 @@ avatarGroup.add(pointLight);
 scene.add(new THREE.AmbientLight(0x222244, 0.3));
 
 // ============================================================
+// Stellation geometry — ported from celestial _legacy/js/geometry.js
+// Extrudes each face's centroid outward by `factor`.
+// ============================================================
+function createStellatedGeometry(baseGeometry, factor) {
+  var nonIndexed = baseGeometry.toNonIndexed();
+  if (Math.abs(factor) < 0.01) { nonIndexed.computeVertexNormals(); return nonIndexed; }
+  var posAttr = nonIndexed.getAttribute('position');
+  var count = posAttr.count;
+  var newVerts = [];
+  var vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+  var centroid = new THREE.Vector3(), normal = new THREE.Vector3();
+  var cb = new THREE.Vector3(), ab = new THREE.Vector3();
+  for (var i = 0; i < count; i += 3) {
+    vA.fromBufferAttribute(posAttr, i);
+    vB.fromBufferAttribute(posAttr, i + 1);
+    vC.fromBufferAttribute(posAttr, i + 2);
+    centroid.copy(vA).add(vB).add(vC).divideScalar(3);
+    cb.subVectors(vC, vB); ab.subVectors(vA, vB);
+    normal.crossVectors(cb, ab).normalize();
+    var peak = new THREE.Vector3().copy(centroid).add(normal.clone().multiplyScalar(factor));
+    newVerts.push(vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, peak.x, peak.y, peak.z);
+    newVerts.push(vB.x, vB.y, vB.z, vC.x, vC.y, vC.z, peak.x, peak.y, peak.z);
+    newVerts.push(vC.x, vC.y, vC.z, vA.x, vA.y, vA.z, peak.x, peak.y, peak.z);
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(newVerts, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Cache base geometry for stellation rebuilds
+var baseGeo = new THREE.IcosahedronGeometry(0.6, 1);
+
+// ============================================================
+// Radial menu geometry factory
+// ============================================================
+function createMenuGeometry(type) {
+  switch (type) {
+    case 'torus':       return new THREE.TorusGeometry(0.3, 0.12, 16, 32);
+    case 'tetrahedron': return new THREE.TetrahedronGeometry(0.35);
+    case 'box':         return new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    case 'octahedron':  return new THREE.OctahedronGeometry(0.35);
+    case 'dodecahedron': return new THREE.DodecahedronGeometry(0.35);
+    case 'icosahedron': return new THREE.IcosahedronGeometry(0.35, 0);
+    case 'sphere':      return new THREE.SphereGeometry(0.3, 16, 16);
+    case 'torusknot':   return new THREE.TorusKnotGeometry(0.25, 0.08, 64, 8);
+    case 'cylinder':    return new THREE.CylinderGeometry(0.25, 0.25, 0.4, 16);
+    default:            return new THREE.IcosahedronGeometry(0.35, 0);
+  }
+}
+
+// ============================================================
 // State — ALL visual properties. Presets write directly to this.
 // ============================================================
 var state = {
@@ -139,6 +191,12 @@ var state = {
   ghostCount: 12,
   ghostMode: 'edgeScatter',
   ghostDuration: 1.5,
+  // Stellation
+  stellationFactor: 0,
+  stellationTarget: 0,
+  stellationBase: 0,
+  _stellationDirty: false,
+  _idleFrozen: false,
   // Transition animation (internal)
   _transition: null,  // { from, to, duration, elapsed, easing, onComplete }
   // Internal ghost state (not preset-driven)
@@ -148,7 +206,401 @@ var state = {
   _lastPosInit: false
 };
 
+// ============================================================
+// Radial Menu State
+// ============================================================
+var radialMenu = {
+  active: false,
+  items: [],           // config items
+  meshes: [],          // { group, solid, wire, glow, angle, config, highlightT, spinSpeed }
+  beam: null,          // gamma-ray mesh
+  beamAngle: 0,
+  originAngle: 0,      // drag direction
+  arcRadius: 1.5,
+  arcSpan: 50 * Math.PI / 180,  // 50 degrees — tight row with marginal spacing
+  highlightedIndex: -1,
+  highlightThreshold: 12 * Math.PI / 180,  // ±12 degrees
+  _flashParticles: [],
+  _selectionAnim: null,
+  canvasMapping: null   // { offsetX, offsetY, scaleX, scaleY } for screen→scene coords
+};
+
 var currentSlot = 'idle';
+
+// ============================================================
+// Gamma-Ray Beam — single cylinder, additive blend, not parented to avatarGroup
+// ============================================================
+function createBeam() {
+  // Beam length matches arcRadius so it stops at the shapes
+  var beamLen = 1.3;  // slightly shorter than arcRadius (1.5) so it doesn't poke through
+  var beamGeo = new THREE.CylinderGeometry(0.02, 0.02, beamLen, 8, 1, true);
+  // Shift geometry so one end is at origin (beam emits from center)
+  beamGeo.translate(0, beamLen / 2, 0);
+  var beamMat = new THREE.MeshBasicMaterial({
+    transparent: true, opacity: 0.6, side: THREE.DoubleSide,
+    depthWrite: true, depthTest: true
+  });
+  var beam = new THREE.Mesh(beamGeo, beamMat);
+  beam.visible = false;
+  beam.renderOrder = 0;
+  scene.add(beam);
+  return beam;
+}
+
+var gammaBeam = createBeam();
+
+// ============================================================
+// Radial Menu — open, track, close, select
+// ============================================================
+
+// Convert screen pixel coords (relative to canvas) to Three.js scene coords
+function screenToScene(sx, sy) {
+  var m = radialMenu.canvasMapping;
+  if (!m) return { x: 0, y: 0 };
+  return {
+    x: (sx - m.offsetX) * m.scaleX,
+    y: -(sy - m.offsetY) * m.scaleY  // flip Y: screen Y down, scene Y up
+  };
+}
+
+function openRadialMenu(angle, items, canvasSize, avatarOffset) {
+  if (radialMenu.active) closeRadialMenu();
+
+  // Compute canvas mapping: how screen pixels map to scene units
+  // The avatar is centered in the original canvas. When the canvas expands,
+  // we need to know where the avatar center is in the new canvas.
+  var visibleHeight = 2 * Math.tan((50 * Math.PI / 180) / 2) * 5; // FOV 50, z=5
+  var visibleWidth = visibleHeight * (canvasSize[0] / canvasSize[1]);
+  radialMenu.canvasMapping = {
+    offsetX: avatarOffset[0],
+    offsetY: avatarOffset[1],
+    scaleX: visibleWidth / canvasSize[0],
+    scaleY: visibleHeight / canvasSize[1]
+  };
+
+  radialMenu.active = true;
+  radialMenu.items = items;
+  radialMenu.originAngle = angle;
+  radialMenu.highlightedIndex = -1;
+
+  // Spawn menu item meshes in arc
+  var n = items.length;
+  var startAngle = angle - radialMenu.arcSpan / 2;
+  var step = n > 1 ? radialMenu.arcSpan / (n - 1) : 0;
+
+  for (var i = 0; i < n; i++) {
+    var item = items[i];
+    var itemAngle = n > 1 ? startAngle + step * i : angle;
+    var ix = Math.cos(itemAngle) * radialMenu.arcRadius;
+    var iy = Math.sin(itemAngle) * radialMenu.arcRadius;
+
+    var color = new THREE.Color(item.color || '#ffffff');
+
+    // Solid mesh
+    var geo = createMenuGeometry(item.geometry || 'icosahedron');
+    var mat = new THREE.MeshPhongMaterial({
+      color: color, emissive: color.clone().multiplyScalar(0.3),
+      emissiveIntensity: 0.5, transparent: true, opacity: 0.85, shininess: 80
+    });
+    var solid = new THREE.Mesh(geo, mat);
+
+    // Wireframe overlay
+    var wireMat2 = new THREE.MeshBasicMaterial({
+      color: color.clone().multiplyScalar(1.5), wireframe: true,
+      transparent: true, opacity: 0.3
+    });
+    var wire = new THREE.Mesh(geo, wireMat2);
+    wire.scale.set(1.03, 1.03, 1.03);
+
+    // Small glow sprite
+    var glowMat2 = new THREE.SpriteMaterial({
+      map: glowTexture, color: color, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    var glow = new THREE.Sprite(glowMat2);
+    glow.scale.set(1.2, 1.2, 1);
+
+    var group = new THREE.Group();
+    group.add(solid);
+    group.add(wire);
+    group.add(glow);
+    group.position.set(ix, iy, 0);
+    group.scale.set(0.01, 0.01, 0.01);  // spawn at zero, animate in
+    group.renderOrder = 1;  // render after beam so shapes occlude it
+    scene.add(group);
+
+    radialMenu.meshes.push({
+      group: group, solid: solid, wire: wire, glow: glow,
+      angle: itemAngle, config: item,
+      highlightT: 0, spinSpeed: 0,
+      baseScale: 0.5,  // 0.5x of avatar size — fits tight row
+      targetScale: 0.5,
+      _spawnT: 0, _spawnDelay: i * 0.05, _spawned: false
+    });
+  }
+
+  // Show gamma-ray beam, pointed at the center of the arc
+  gammaBeam.visible = true;
+  gammaBeam.material.color.copy(new THREE.Color().setHSL(state.hueShift, 0.8, 0.6));
+  radialMenu.beamAngle = angle;
+  gammaBeam.rotation.z = angle - Math.PI / 2;
+
+  // Revert stellation
+  state.stellationTarget = state.stellationBase;
+}
+
+function closeRadialMenu() {
+  if (!radialMenu.active) return;
+  radialMenu.active = false;
+  radialMenu.highlightedIndex = -1;
+
+  // Remove all menu meshes
+  for (var i = 0; i < radialMenu.meshes.length; i++) {
+    var m = radialMenu.meshes[i];
+    scene.remove(m.group);
+    m.solid.geometry.dispose(); m.solid.material.dispose();
+    m.wire.material.dispose();
+    m.glow.material.dispose();
+  }
+  radialMenu.meshes = [];
+
+  // Hide beam
+  gammaBeam.visible = false;
+
+  // Clear flash particles
+  for (var i = 0; i < radialMenu._flashParticles.length; i++) {
+    scene.remove(radialMenu._flashParticles[i].mesh);
+    radialMenu._flashParticles[i].mesh.material.dispose();
+  }
+  radialMenu._flashParticles = [];
+  radialMenu._selectionAnim = null;
+  radialMenu.canvasMapping = null;
+}
+
+function trackRadialMenu(screenX, screenY) {
+  if (!radialMenu.active) return;
+  var sc = screenToScene(screenX, screenY);
+  var angle = Math.atan2(sc.y, sc.x);
+  radialMenu.beamAngle = angle;
+
+  // Update beam rotation (cylinder extends along Y, need to rotate to point at angle)
+  gammaBeam.rotation.z = angle - Math.PI / 2;
+
+  // Beam color follows hue
+  gammaBeam.material.color.setHSL(state.hueShift, 0.8, 0.6);
+
+  // Distance from center for minimum distance check
+  var dist = Math.sqrt(sc.x * sc.x + sc.y * sc.y);
+  var minDist = radialMenu.arcRadius * 0.3;
+
+  // Find highlighted item
+  var bestIdx = -1;
+  var bestDelta = Infinity;
+  for (var i = 0; i < radialMenu.meshes.length; i++) {
+    var m = radialMenu.meshes[i];
+    var delta = angleDelta(angle, m.angle);
+    if (Math.abs(delta) < radialMenu.highlightThreshold && Math.abs(delta) < bestDelta && dist > minDist) {
+      bestDelta = Math.abs(delta);
+      bestIdx = i;
+    }
+  }
+  radialMenu.highlightedIndex = bestIdx;
+}
+
+// Shortest signed angle between two angles
+function angleDelta(a, b) {
+  var d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+}
+
+function queryRadialHighlight() {
+  return radialMenu.highlightedIndex;
+}
+
+function selectRadialItem(index, generation) {
+  if (index < 0 || index >= radialMenu.meshes.length) {
+    closeRadialMenu();
+    return null;
+  }
+  var selected = radialMenu.meshes[index];
+  var config = selected.config;
+
+  // Start selection animation — completion emits selection_complete event
+  radialMenu._selectionAnim = {
+    index: index,
+    elapsed: 0,
+    duration: 0.4,
+    flashFired: false,
+    generation: generation || 0,
+    config: config
+  };
+
+  return config;
+}
+
+// Fire mini supernova at position
+function fireMenuFlash(x, y, color) {
+  for (var i = 0; i < 20; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var speed = 0.3 + Math.random() * 1.5;
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture, color: new THREE.Color(color),
+      blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    s.position.set(x, y, 0);
+    s.scale.set(0.3, 0.3, 1);
+    scene.add(s);
+    radialMenu._flashParticles.push({
+      mesh: s,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0.6,
+      maxLife: 0.6
+    });
+  }
+  // Bright center flash
+  var flash = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture, color: 0xffffff,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  }));
+  flash.position.set(x, y, 0);
+  flash.scale.set(2.0, 2.0, 1);
+  scene.add(flash);
+  radialMenu._flashParticles.push({
+    mesh: flash, vx: 0, vy: 0, life: 0.3, maxLife: 0.3
+  });
+}
+
+// Update radial menu animations per frame
+function updateRadialMenu(dt) {
+  if (!radialMenu.active && radialMenu._flashParticles.length === 0) return;
+
+  // Beam turbulence
+  if (gammaBeam.visible) {
+    var t = clock.elapsedTime;
+    var turb = (Math.sin(t * 3.0) + Math.sin(t * 5.2 + 1.3)) * 0.5;
+    gammaBeam.material.opacity = 0.6 + turb * 0.2;
+    gammaBeam.scale.x = 0.8 + turb * 0.2;
+  }
+
+  // Spawn animation (staggered scale-in)
+  for (var i = 0; i < radialMenu.meshes.length; i++) {
+    var m = radialMenu.meshes[i];
+    if (!m._spawned) {
+      m._spawnT += dt;
+      if (m._spawnT >= m._spawnDelay) {
+        var spawnProgress = Math.min((m._spawnT - m._spawnDelay) / 0.3, 1.0);
+        var eased = easeOutBack(spawnProgress);
+        var s = m.baseScale * eased;
+        m.group.scale.set(s, s, s);
+        if (spawnProgress >= 1.0) m._spawned = true;
+      }
+    }
+  }
+
+  // Highlight interpolation
+  for (var i = 0; i < radialMenu.meshes.length; i++) {
+    var m = radialMenu.meshes[i];
+    var isHighlighted = (i === radialMenu.highlightedIndex);
+    var targetHL = isHighlighted ? 1.0 : 0.0;
+    m.highlightT += (targetHL - m.highlightT) * Math.min(dt * 8.0, 1.0);
+
+    // Scale: base → base + 0.15
+    if (m._spawned && !radialMenu._selectionAnim) {
+      var s = m.baseScale + m.highlightT * 0.15;
+      m.group.scale.set(s, s, s);
+    }
+
+    // Spin: 0 → 0.08
+    m.spinSpeed = m.highlightT * 0.08;
+    m.solid.rotation.y += m.spinSpeed;
+    m.solid.rotation.x += m.spinSpeed * 0.3;
+    m.wire.rotation.copy(m.solid.rotation);
+
+    // Emissive boost when highlighted
+    if (m.solid.material.emissiveIntensity !== undefined) {
+      m.solid.material.emissiveIntensity = 0.3 + m.highlightT * 0.7;
+    }
+  }
+
+  // Selection animation
+  if (radialMenu._selectionAnim) {
+    var anim = radialMenu._selectionAnim;
+    anim.elapsed += dt;
+    var progress = Math.min(anim.elapsed / anim.duration, 1.0);
+    var eased = easeInBack(progress);
+
+    for (var i = 0; i < radialMenu.meshes.length; i++) {
+      var m = radialMenu.meshes[i];
+      if (i === anim.index) {
+        // Selected: accelerating spin + collapse
+        m.solid.rotation.y += 0.05 + progress * 0.3;
+        m.wire.rotation.copy(m.solid.rotation);
+        var s = m.baseScale * (1.0 - eased);
+        m.group.scale.set(Math.max(s, 0.01), Math.max(s, 0.01), Math.max(s, 0.01));
+      } else {
+        // Others: shrink in place
+        var shrink = m.baseScale * (1.0 - eased * 1.2);
+        shrink = Math.max(shrink, 0.01);
+        m.group.scale.set(shrink, shrink, shrink);
+      }
+    }
+
+    // Fire flash at midpoint
+    if (progress > 0.3 && !anim.flashFired) {
+      anim.flashFired = true;
+      var sm = radialMenu.meshes[anim.index];
+      fireMenuFlash(sm.group.position.x, sm.group.position.y, sm.config.color || '#ffffff');
+    }
+
+    // Fade beam
+    gammaBeam.material.opacity = 0.7 * (1.0 - progress);
+
+    if (progress >= 1.0) {
+      // Emit selection_complete with item config + generation for native side
+      var gen = anim.generation || 0;
+      var cfg = anim.config || {};
+      emit('selection_complete', {
+        generation: gen,
+        item: {
+          name: cfg.name,
+          geometry: cfg.geometry,
+          color: cfg.color,
+          index: anim.index
+        }
+      });
+      // Keep flash particles alive, close menu structure
+      var particles = radialMenu._flashParticles;
+      radialMenu._flashParticles = [];  // temporarily detach
+      closeRadialMenu();
+      radialMenu._flashParticles = particles;  // reattach
+
+      // Unfreeze idle
+      state._idleFrozen = false;
+    }
+  }
+
+  // Update flash particles
+  for (var i = radialMenu._flashParticles.length - 1; i >= 0; i--) {
+    var p = radialMenu._flashParticles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      scene.remove(p.mesh);
+      p.mesh.material.dispose();
+      radialMenu._flashParticles.splice(i, 1);
+      continue;
+    }
+    var t = p.life / p.maxLife;
+    p.mesh.material.opacity = t;
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.vx *= 0.95; p.vy *= 0.95;
+    var sc = 0.3 * t;
+    p.mesh.scale.set(sc, sc, 1);
+  }
+}
 
 // ============================================================
 // Presets — one per behavior slot. Data, not code.
@@ -484,13 +936,29 @@ function animate() {
   var dt = clock.getDelta();
   var elapsed = clock.elapsedTime;
 
-  // Spin
-  coreMesh.rotation.y += state.idleSpinSpeed;
-  coreMesh.rotation.x += state.idleSpinSpeed * 0.3;
+  // Stellation interpolation
+  if (Math.abs(state.stellationFactor - state.stellationTarget) > 0.001) {
+    state.stellationFactor += (state.stellationTarget - state.stellationFactor) * Math.min(dt * 4.0, 1.0);
+    state._stellationDirty = true;
+  }
+  if (state._stellationDirty) {
+    var newGeo = createStellatedGeometry(baseGeo, state.stellationFactor);
+    coreMesh.geometry.dispose();
+    coreMesh.geometry = newGeo;
+    wireMesh.geometry.dispose();
+    wireMesh.geometry = newGeo;
+    state._stellationDirty = false;
+  }
+
+  // Spin (frozen when holding mousedown or menu open)
+  if (!state._idleFrozen) {
+    coreMesh.rotation.y += state.idleSpinSpeed;
+    coreMesh.rotation.x += state.idleSpinSpeed * 0.3;
+  }
   wireMesh.rotation.copy(coreMesh.rotation);
 
-  // Bob
-  var bob = Math.sin(elapsed * state.bobSpeed * Math.PI * 2) * state.bobAmplitude;
+  // Bob (frozen when idle is frozen)
+  var bob = state._idleFrozen ? 0 : Math.sin(elapsed * state.bobSpeed * Math.PI * 2) * state.bobAmplitude;
   avatarGroup.position.y = bob;
 
   // Aura pulse
@@ -527,6 +995,9 @@ function animate() {
   // Ghost trail
   updateGhosts(dt);
 
+  // Radial menu
+  updateRadialMenu(dt);
+
   renderer.render(scene, camera);
 }
 
@@ -548,8 +1019,9 @@ window.headsup = {
     name: 'celestial',
     version: '1.0',
     slots: Object.keys(presets),
-    accepts: ['behavior', 'mood', 'color', 'preset_override', 'load_skin'],
-    emits: ['ready', 'behavior_complete']
+    accepts: ['behavior', 'mood', 'color', 'preset_override', 'load_skin',
+              'stellate', 'radial_open', 'radial_track', 'radial_close', 'radial_select', 'radial_query'],
+    emits: ['ready', 'behavior_complete', 'menu_select', 'radial_highlight']
   },
   receive: function(b64) {
     try {
@@ -591,6 +1063,41 @@ window.headsup = {
         glowSprite.material.color.copy(c);
         auraSprite.material.color.copy(c);
         pointLight.color.copy(c);
+
+      } else if (msg.type === 'stellate') {
+        if (msg.target !== undefined) state.stellationTarget = msg.target;
+        if (msg.freezeIdle !== undefined) state._idleFrozen = msg.freezeIdle;
+
+      } else if (msg.type === 'radial_open') {
+        openRadialMenu(msg.angle, msg.items, msg.canvasSize, msg.avatarOffset);
+
+      } else if (msg.type === 'radial_track') {
+        trackRadialMenu(msg.x, msg.y);
+
+      } else if (msg.type === 'radial_close') {
+        closeRadialMenu();
+        state._idleFrozen = false;
+        state.stellationTarget = state.stellationBase;
+
+      } else if (msg.type === 'radial_select') {
+        selectRadialItem(msg.index, msg.generation);
+
+      } else if (msg.type === 'radial_select_at') {
+        // Atomic: resolve highlight from coords + select in one message
+        trackRadialMenu(msg.x, msg.y);
+        var idx = radialMenu.highlightedIndex;
+        if (idx >= 0) {
+          selectRadialItem(idx, msg.generation);
+        } else {
+          // No item highlighted — close and notify
+          closeRadialMenu();
+          state._idleFrozen = false;
+          state.stellationTarget = state.stellationBase;
+          emit('menu_closed', { generation: msg.generation || 0 });
+        }
+
+      } else if (msg.type === 'radial_query') {
+        emit('radial_highlight', { index: radialMenu.highlightedIndex });
       }
     } catch(e) {}
   }

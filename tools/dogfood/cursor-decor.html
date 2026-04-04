@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html style="background:transparent">
+<head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+* { margin: 0; padding: 0; }
+html, body { background: transparent !important; overflow: hidden; width: 100%; height: 100%; }
+canvas { background: transparent !important; }
+.halo {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  border-radius: 50%; pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div class="halo" id="halo"></div>
+<script>
+// Cursor decoration: miniature shape with halo ring
+// Configured via headsup.receive() with {type:"configure", geometry, color}
+
+var W = 40, H = 40;
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0, 0, 2);
+
+var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, premultipliedAlpha: false });
+renderer.setSize(W, H);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+var shapeMesh = null;
+var shapeColor = '#ffffff';
+
+function createShape(type, color) {
+  if (shapeMesh) { scene.remove(shapeMesh); shapeMesh.geometry.dispose(); shapeMesh.material.dispose(); }
+  var geo;
+  switch (type) {
+    case 'torus':       geo = new THREE.TorusGeometry(0.2, 0.08, 12, 24); break;
+    case 'tetrahedron': geo = new THREE.TetrahedronGeometry(0.25); break;
+    case 'box':         geo = new THREE.BoxGeometry(0.3, 0.3, 0.3); break;
+    case 'octahedron':  geo = new THREE.OctahedronGeometry(0.25); break;
+    case 'dodecahedron': geo = new THREE.DodecahedronGeometry(0.25); break;
+    case 'icosahedron': geo = new THREE.IcosahedronGeometry(0.25, 0); break;
+    case 'sphere':      geo = new THREE.SphereGeometry(0.2, 12, 12); break;
+    default:            geo = new THREE.IcosahedronGeometry(0.25, 0); break;
+  }
+  var c = new THREE.Color(color);
+  var mat = new THREE.MeshPhongMaterial({
+    color: c, emissive: c.clone().multiplyScalar(0.4),
+    emissiveIntensity: 0.6, transparent: true, opacity: 0.9, shininess: 80
+  });
+  shapeMesh = new THREE.Mesh(geo, mat);
+  scene.add(shapeMesh);
+  shapeColor = color;
+
+  // Update halo
+  var halo = document.getElementById('halo');
+  halo.style.background = 'radial-gradient(circle, transparent 6px, ' + color + '66 8px, ' + color + '22 14px, transparent 18px)';
+}
+
+scene.add(new THREE.AmbientLight(0x444444, 0.5));
+var pl = new THREE.PointLight(0xffffff, 1.5, 10);
+pl.position.set(1, 1, 3);
+scene.add(pl);
+
+var clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  if (shapeMesh) {
+    shapeMesh.rotation.y += 0.02;
+    shapeMesh.rotation.x += 0.006;
+  }
+  renderer.render(scene, camera);
+}
+animate();
+
+window.headsup = {
+  manifest: { name: 'cursor-decor', version: '1.0', accepts: ['configure'], emits: ['ready'] },
+  receive: function(b64) {
+    try {
+      var bytes = Uint8Array.from(atob(b64), function(c) { return c.charCodeAt(0); });
+      var msg = JSON.parse(new TextDecoder().decode(bytes));
+      if (msg.type === 'configure') {
+        createShape(msg.geometry || 'icosahedron', msg.color || '#ffffff');
+      }
+    } catch(e) {}
+  }
+};
+
+function emit(type, payload) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+    window.webkit.messageHandlers.headsup.postMessage(
+      payload !== undefined ? { type: type, payload: payload } : { type: type }
+    );
+  }
+}
+emit('ready', window.headsup.manifest);
+</script>
+</body>
+</html>
