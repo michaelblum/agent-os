@@ -82,8 +82,18 @@ class CanvasWindow: NSWindow {
         super.sendEvent(event)
     }
 
-    // Note: acceptsFirstMouse is an NSView method, not NSWindow.
-    // WKWebView handles first-mouse internally.
+}
+
+// MARK: - CanvasWebView (accept-first-mouse WKWebView)
+
+/// WKWebView subclass that delivers the first mousedown immediately — no
+/// "click to focus, click again to interact" dance.  Also keeps cursor
+/// tracking active when the window is in the background so CSS `cursor:`
+/// rules (e.g. `cursor: grab` on a drag handle) render without prior focus.
+class CanvasWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
 }
 
 // MARK: - Canvas
@@ -152,7 +162,12 @@ class Canvas {
         let controller = WKUserContentController()
         controller.add(messageHandler, name: "headsup")
         config.userContentController = controller
-        let webView = WKWebView(frame: NSRect(origin: .zero, size: screenFrame.size), configuration: config)
+        // Interactive canvases use CanvasWebView so the first mousedown
+        // starts a drag immediately (no "click to focus" delay) and CSS
+        // cursors render without prior focus.
+        let webView: WKWebView = interactive
+            ? CanvasWebView(frame: NSRect(origin: .zero, size: screenFrame.size), configuration: config)
+            : WKWebView(frame: NSRect(origin: .zero, size: screenFrame.size), configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.wantsLayer = true
         webView.layer?.backgroundColor = NSColor.clear.cgColor
