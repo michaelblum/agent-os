@@ -11,14 +11,115 @@ html, body {
   height: 100%;
   width: 100%;
 }
+body { position: relative; }
 /* Shadow: drawn via <canvas> to bypass WKWebView's broken box-shadow
    and filter compositing in transparent windows. */
 .card-shadow {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 0;
 }
+.light-rig {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.3s ease;
+}
+.light-rig.dismissed { opacity: 0; }
+.light-pole {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 86px;
+  height: 4px;
+  margin-left: -43px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.18));
+}
+.light-hook {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.45);
+  border-top: none;
+  border-left-color: transparent;
+  border-radius: 0 0 12px 12px;
+  transform: translate(-50%, -2px);
+  opacity: 0.8;
+}
+.light-cord {
+  position: absolute;
+  width: 2px;
+  transform-origin: 50% 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0.16));
+  box-shadow: 0 0 6px rgba(255,255,255,0.08);
+}
+.lightbulb {
+  position: absolute;
+  width: 34px;
+  height: 44px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  pointer-events: auto;
+  transform-origin: 50% 12%;
+}
+.lightbulb:focus-visible {
+  outline: 2px solid rgba(100,210,255,0.8);
+  outline-offset: 3px;
+}
+.lightbulb-glow {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 60px;
+  height: 60px;
+  margin-left: -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,244,214,0.35), rgba(255,244,214,0.12) 35%, rgba(255,244,214,0) 72%);
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+.lightbulb-glass {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  border-radius: 50% 50% 46% 46%;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.92), rgba(255,244,214,0.95) 35%, rgba(255,214,130,0.52) 70%, rgba(255,188,82,0.28));
+  border: 1px solid rgba(255,255,255,0.42);
+  box-shadow: inset -6px -8px 12px rgba(0,0,0,0.12);
+}
+.lightbulb-base {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  width: 18px;
+  height: 12px;
+  margin-left: -9px;
+  border-radius: 3px 3px 6px 6px;
+  background: linear-gradient(180deg, rgba(182,186,196,0.95), rgba(92,98,112,0.95));
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.28);
+}
+.lightbulb-base::before,
+.lightbulb-base::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  height: 1px;
+  background: rgba(30,30,34,0.35);
+}
+.lightbulb-base::before { top: 3px; }
+.lightbulb-base::after { top: 7px; }
 .card {
   background: rgba(22, 22, 26, 0.96);
   color: #e8e8ed;
@@ -32,6 +133,19 @@ html, body {
   flex-direction: column;
   position: absolute;
   inset: 16px;
+  isolation: isolate;
+  z-index: 1;
+}
+.card-lighting {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.95;
+}
+.card > :not(.card-lighting) {
+  position: relative;
   z-index: 1;
 }
 .card.dismissed {
@@ -413,7 +527,18 @@ html, body {
 </head>
 <body>
 <canvas class="card-shadow dismissed" id="cardShadow"></canvas>
+<div class="light-rig dismissed" id="lightRig">
+  <div class="light-pole"></div>
+  <div class="light-hook" id="lightHook"></div>
+  <div class="light-cord" id="lightCord"></div>
+  <button class="lightbulb" id="lightbulb" type="button" aria-label="Cycle light color">
+    <span class="lightbulb-glow" id="lightGlow"></span>
+    <span class="lightbulb-glass" id="lightGlass"></span>
+    <span class="lightbulb-base"></span>
+  </button>
+</div>
 <div class="card dismissed" id="card">
+  <div class="card-lighting" id="cardLighting"></div>
   <div class="header" id="dragHandle">
     <div class="dot" id="dot"></div>
     <span id="header-text">AGENT</span>
@@ -447,6 +572,35 @@ var dismissed = true;
 var activeTab = 'chat';
 var unreadLogs = 0;
 var pendingToolUseId = null;
+var lightModes = [
+  { name: 'white', color: [255, 244, 214], intensity: 1.0 },
+  { name: 'red', color: [255, 86, 86], intensity: 0.95 },
+  { name: 'green', color: [96, 233, 132], intensity: 0.92 },
+  { name: 'blue', color: [95, 180, 255], intensity: 0.9 },
+  { name: 'yellow', color: [255, 214, 74], intensity: 0.98 },
+  { name: 'off', color: [120, 126, 138], intensity: 0.0 }
+];
+var scene = {
+  pivotX: 0,
+  pivotY: 22,
+  bulbX: 0,
+  bulbY: 0,
+  lightIndex: 0,
+  lastFrame: 0,
+  pendulum: {
+    length: 58,
+    angle: 0,
+    angularVelocity: 0,
+    supportAx: 0,
+    supportAy: 0
+  },
+  drag: {
+    active: false,
+    lastMoveTs: 0,
+    lastVX: 0,
+    lastVY: 0
+  }
+};
 
 // ============================================================
 // Minimal markdown renderer (no external dependencies)
@@ -915,31 +1069,197 @@ function escapeAttr(s) {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function rgba(rgb, alpha) {
+  return 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha + ')';
+}
+
+function currentLightMode() {
+  return lightModes[scene.lightIndex];
+}
+
+function updateBulbColor() {
+  var mode = currentLightMode();
+  var glass = document.getElementById('lightGlass');
+  var glow = document.getElementById('lightGlow');
+  var bulb = document.getElementById('lightbulb');
+  var color = mode.color;
+  var coreAlpha = mode.intensity > 0 ? (0.94 - mode.intensity * 0.12) : 0.18;
+  glass.style.background =
+    'radial-gradient(circle at 35% 30%, rgba(255,255,255,' + (mode.intensity > 0 ? '0.96' : '0.36') + '), '
+    + rgba(color, coreAlpha) + ' 38%, '
+    + rgba(color, mode.intensity > 0 ? 0.56 : 0.16) + ' 72%, rgba(0,0,0,0.18))';
+  glass.style.boxShadow =
+    'inset -6px -8px 12px rgba(0,0,0,0.12), 0 0 18px ' + rgba(color, mode.intensity * 0.26);
+  glow.style.background =
+    'radial-gradient(circle, '
+    + rgba(color, mode.intensity * 0.46) + ', '
+    + rgba(color, mode.intensity * 0.18) + ' 35%, '
+    + rgba(color, 0) + ' 72%)';
+  glow.style.opacity = mode.intensity > 0 ? (0.45 + mode.intensity * 0.5) : 0.08;
+  bulb.title = 'Light: ' + mode.name;
+}
+
+function cycleLightMode() {
+  scene.lightIndex = (scene.lightIndex + 1) % lightModes.length;
+  updateBulbColor();
+}
+
+function updateBulbPosition() {
+  scene.bulbX = scene.pivotX + Math.sin(scene.pendulum.angle) * scene.pendulum.length;
+  scene.bulbY = scene.pivotY + Math.cos(scene.pendulum.angle) * scene.pendulum.length;
+}
+
+function positionSceneAnchors() {
+  scene.pivotX = window.innerWidth * 0.5;
+  scene.pivotY = 24;
+
+  var hook = document.getElementById('lightHook');
+  hook.style.left = scene.pivotX + 'px';
+  hook.style.top = (scene.pivotY - 5) + 'px';
+}
+
+function registerDragImpulse(dx, dy) {
+  var now = performance.now();
+  var drag = scene.drag;
+  var dt = drag.lastMoveTs ? Math.max((now - drag.lastMoveTs) / 1000, 1 / 240) : 1 / 60;
+  var vx = dx / dt;
+  var vy = dy / dt;
+  var ax = (vx - drag.lastVX) / dt;
+  var ay = (vy - drag.lastVY) / dt;
+
+  scene.pendulum.supportAx = clamp(ax, -4200, 4200);
+  scene.pendulum.supportAy = clamp(ay, -2400, 2400);
+  scene.pendulum.angle = clamp(scene.pendulum.angle - dx * 0.0019, -0.75, 0.75);
+  scene.pendulum.angularVelocity += clamp((-dx * 0.032) - (vx * 0.00011), -0.26, 0.26);
+
+  drag.active = true;
+  drag.lastMoveTs = now;
+  drag.lastVX = vx;
+  drag.lastVY = vy;
+}
+
+function stepPendulum(now) {
+  if (!scene.lastFrame) scene.lastFrame = now;
+  var dt = Math.min((now - scene.lastFrame) / 1000, 0.033);
+  scene.lastFrame = now;
+
+  var p = scene.pendulum;
+  var gravity = 1850;
+  var damping = 4.6;
+  var angularAccel =
+    -((gravity + p.supportAy) / p.length) * Math.sin(p.angle)
+    - (p.supportAx / p.length) * Math.cos(p.angle)
+    - damping * p.angularVelocity;
+
+  p.angularVelocity += angularAccel * dt;
+  p.angle += p.angularVelocity * dt;
+  p.angle = clamp(p.angle, -0.82, 0.82);
+
+  var supportDecay = Math.pow(0.018, dt);
+  p.supportAx *= supportDecay;
+  p.supportAy *= supportDecay;
+
+  if (!scene.drag.active) {
+    p.angularVelocity *= Math.pow(0.992, dt * 60);
+  }
+
+  if (!scene.drag.active &&
+      Math.abs(p.angle) < 0.0005 &&
+      Math.abs(p.angularVelocity) < 0.0005 &&
+      Math.abs(p.supportAx) < 0.25 &&
+      Math.abs(p.supportAy) < 0.25) {
+    p.angle = 0;
+    p.angularVelocity = 0;
+  }
+
+  updateBulbPosition();
+}
+
+function syncLightRig() {
+  var bulb = document.getElementById('lightbulb');
+  var cord = document.getElementById('lightCord');
+  var dx = scene.bulbX - scene.pivotX;
+  var dy = scene.bulbY - scene.pivotY;
+  var cordLength = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+  var angle = Math.atan2(dx, dy);
+
+  cord.style.left = (scene.pivotX - 1) + 'px';
+  cord.style.top = scene.pivotY + 'px';
+  cord.style.height = cordLength + 'px';
+  cord.style.transform = 'rotate(' + angle + 'rad)';
+
+  bulb.style.transform =
+    'translate(' + (scene.bulbX - 17) + 'px,' + (scene.bulbY - 20) + 'px) rotate(' + scene.pendulum.angle + 'rad)';
+}
+
+function syncCardLighting(cardRect) {
+  var lighting = document.getElementById('cardLighting');
+  var mode = currentLightMode();
+  var intensity = mode.intensity;
+  var localX = scene.bulbX - cardRect.left;
+  var localY = scene.bulbY - cardRect.top;
+
+  if (dismissed) {
+    lighting.style.opacity = '0';
+    return;
+  }
+
+  lighting.style.opacity = '0.96';
+  lighting.style.background =
+    'radial-gradient(circle 240px at ' + localX.toFixed(1) + 'px ' + localY.toFixed(1) + 'px, '
+    + rgba(mode.color, intensity * 0.26) + ' 0%, '
+    + rgba(mode.color, intensity * 0.14) + ' 24%, '
+    + rgba(mode.color, intensity * 0.04) + ' 48%, rgba(0,0,0,0) 72%), '
+    + 'linear-gradient(180deg, rgba(255,255,255,' + (0.02 + intensity * 0.06) + '), rgba(0,0,0,0) 42%, rgba(0,0,0,0.14) 100%)';
+  lighting.style.boxShadow =
+    'inset 0 1px 0 rgba(255,255,255,' + (0.10 + intensity * 0.10) + '), '
+    + 'inset 0 -34px 48px rgba(0,0,0,' + (0.16 - intensity * 0.05) + ')';
+}
+
 // ============================================================
 // Drag handling
 // ============================================================
 (function() {
   var handle = document.getElementById('dragHandle');
   var dragging = false;
-  var lastX = 0, lastY = 0;
+  var lastX = 0;
+  var lastY = 0;
+
   handle.addEventListener('mousedown', function(e) {
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     dragging = true;
+    scene.drag.active = true;
+    scene.drag.lastMoveTs = 0;
+    scene.drag.lastVX = 0;
+    scene.drag.lastVY = 0;
     lastX = e.screenX;
     lastY = e.screenY;
     e.preventDefault();
   });
+
   document.addEventListener('mousemove', function(e) {
     if (!dragging) return;
     var dx = e.screenX - lastX;
     var dy = e.screenY - lastY;
     lastX = e.screenX;
     lastY = e.screenY;
-    if (dx !== 0 || dy !== 0) {
-      window.webkit.messageHandlers.headsup.postMessage({ type: 'move', dx: dx, dy: dy });
-    }
+    if (dx === 0 && dy === 0) return;
+
+    registerDragImpulse(dx, dy);
+    window.webkit.messageHandlers.headsup.postMessage({ type: 'move', dx: dx, dy: dy });
   });
-  document.addEventListener('mouseup', function() { dragging = false; });
+
+  document.addEventListener('mouseup', function() {
+    dragging = false;
+    scene.drag.active = false;
+    scene.drag.lastVX = 0;
+    scene.drag.lastVY = 0;
+    scene.drag.lastMoveTs = 0;
+  });
 })();
 
 // ============================================================
@@ -947,8 +1267,8 @@ function escapeAttr(s) {
 // ============================================================
 document.addEventListener('keydown', function(e) {
   if (dismissed || !pendingToolUseId) return;
-  if (e.target.tagName === 'INPUT') return;
-  var num = parseInt(e.key);
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  var num = parseInt(e.key, 10);
   if (num >= 1 && num <= 9) {
     var btns = document.querySelectorAll('.opt-btn');
     if (num <= btns.length) {
@@ -960,61 +1280,123 @@ document.addEventListener('keydown', function(e) {
 // ============================================================
 // Canvas-drawn shadow (WKWebView breaks CSS box-shadow rounding)
 // ============================================================
-function drawShadow() {
+function drawShadow(cardRect) {
   var canvas = document.getElementById('cardShadow');
   if (!canvas) return;
+
+  var canvasRect = canvas.getBoundingClientRect();
+  var width = Math.max(1, Math.round(canvasRect.width));
+  var height = Math.max(1, Math.round(canvasRect.height));
   var dpr = window.devicePixelRatio || 1;
-  canvas.width = canvas.offsetWidth * dpr;
-  canvas.height = canvas.offsetHeight * dpr;
+
+  if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+  }
+
   var ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, height);
 
-  var card = document.querySelector('.card');
-  if (!card || dismissed) return;
+  if (!cardRect || dismissed) return;
 
-  var r = card.getBoundingClientRect();
+  var mode = currentLightMode();
+  var x = cardRect.left - canvasRect.left;
+  var y = cardRect.top - canvasRect.top;
+  var w = cardRect.width;
+  var h = cardRect.height;
   var radius = 14;
-  var layers = 20;
-  var spread = 28;
-  var offsetY = 8;
+  var centerX = x + w * 0.5;
+  var centerY = y + h * 0.5;
+  var toCenterX = centerX - scene.bulbX;
+  var toCenterY = centerY - scene.bulbY;
+  var distance = Math.max(Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY), 1);
+  var dirX = toCenterX / distance;
+  var dirY = toCenterY / distance;
+  var intensity = mode.intensity;
+  var shadowDx = dirX * (12 + intensity * 18);
+  var shadowDy = 8 + dirY * (8 + intensity * 16);
+  var layers = 28;
+  var spread = 26 + intensity * 12;
+  var baseAlpha = 0.022 + intensity * 0.016;
 
   for (var i = layers; i >= 0; i--) {
     var t = i / layers;
     var expand = t * spread;
-    var alpha = 0.025 * (1 - t);
-    ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
-    roundRect(ctx,
-      r.left - expand,
-      r.top - expand + offsetY * t,
-      r.width + expand * 2,
-      r.height + expand * 2,
-      radius + expand * 0.5
+    var alpha = baseAlpha * (1 - t) * (1.08 - t * 0.28);
+    ctx.fillStyle = 'rgba(0,0,0,' + alpha.toFixed(4) + ')';
+    roundRect(
+      ctx,
+      x + shadowDx - expand,
+      y + shadowDy - expand,
+      w + expand * 2,
+      h + expand * 2,
+      radius + expand * 0.55
     );
     ctx.fill();
   }
+
+  ctx.fillStyle = 'rgba(0,0,0,' + (0.08 + intensity * 0.06).toFixed(4) + ')';
+  roundRect(ctx, x + shadowDx * 0.55, y + shadowDy * 0.55, w, h, radius);
+  ctx.fill();
 }
 
 function roundRect(ctx, x, y, w, h, r) {
+  var radius = Math.max(0, Math.min(r, Math.min(w, h) * 0.5));
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
 }
 
-// Redraw shadow when card appears
+function renderScene(now) {
+  positionSceneAnchors();
+  stepPendulum(now || performance.now());
+  syncLightRig();
+
+  var card = document.getElementById('card');
+  var cardRect = card ? card.getBoundingClientRect() : null;
+  if (cardRect && cardRect.width && cardRect.height) {
+    syncCardLighting(cardRect);
+    drawShadow(cardRect);
+  }
+
+  window.requestAnimationFrame(renderScene);
+}
+
+window.addEventListener('resize', function() {
+  positionSceneAnchors();
+});
+
+document.getElementById('lightbulb').addEventListener('click', function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  cycleLightMode();
+});
+
 var _origShowCard = showCard;
 showCard = function() {
   _origShowCard();
-  setTimeout(drawShadow, 50);
+  document.getElementById('lightRig').classList.remove('dismissed');
 };
+
+var _origDismiss = dismiss;
+dismiss = function() {
+  _origDismiss();
+  document.getElementById('lightRig').classList.add('dismissed');
+};
+
+updateBulbColor();
+positionSceneAnchors();
+updateBulbPosition();
+window.requestAnimationFrame(renderScene);
 
 // Start dismissed -- overlay appears when first message arrives
 emit('ready', window.headsup.manifest);
