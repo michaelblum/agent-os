@@ -104,8 +104,10 @@ agent_ask() {
   shift
   local options=("$@")
 
-  # Clear old events
-  : > "$EVENTS_FILE"
+  # Mark current position in events file — only parse events after this point.
+  # Don't truncate: the listen process has the file handle open.
+  local start_offset=$(wc -c < "$EVENTS_FILE" 2>/dev/null || echo 0)
+  start_offset=$((start_offset + 0))  # ensure numeric
 
   # Build Anthropic-shaped AskUserQuestion JSON
   local json
@@ -133,21 +135,49 @@ print(json.dumps(msg))
   afplay "$CHIME"
   _agent_tts "$question"
 
-  # Poll every 300ms for a response event
+  # Poll every 300ms for a response event.
+  # Events file may contain multi-line JSON (e.g. newlines in text input).
+  # Use python3 to parse robustly instead of grep.
+  # Suppress xtrace to avoid 'value=' spam if caller has set -x.
+  { local _xtrace_was_on=0; [[ $- == *x* ]] && _xtrace_was_on=1 && set +x; } 2>/dev/null
   local elapsed=0
+  local value
   while true; do
-    local event=$(tr -d '\000' < "$EVENTS_FILE" 2>/dev/null | grep '"type":"response"' | tail -1)
-    if [[ -n "$event" ]]; then
-      local value=$(echo "$event" | python3 -c "
+    value=$(python3 -c "
 import sys, json
-data = json.loads(sys.stdin.read())
-p = data
-if 'payload' in p:
-  p = p['payload']
-if 'payload' in p:
-  p = p['payload']
-print(p.get('value', ''))
-")
+try:
+    offset = int(sys.argv[2])
+    raw = open(sys.argv[1], 'rb').read()
+    raw = raw[offset:].replace(b'\x00', b'')
+    text = raw.decode('utf-8', errors='replace')
+    if not text.strip():
+        sys.exit(1)
+    decoder = json.JSONDecoder()
+    pos = 0
+    last_value = None
+    while pos < len(text):
+        text_part = text[pos:].lstrip()
+        if not text_part:
+            break
+        try:
+            obj, end = decoder.raw_decode(text_part)
+            pos += len(text[pos:]) - len(text_part) + end
+            p = obj
+            if 'payload' in p: p = p['payload']
+            if 'payload' in p: p = p['payload']
+            if p.get('type') == 'response':
+                last_value = p.get('value', '')
+        except json.JSONDecodeError:
+            pos += 1
+    if last_value is not None:
+        print(last_value)
+        sys.exit(0)
+    sys.exit(1)
+except Exception:
+    sys.exit(1)
+" "$EVENTS_FILE" "$start_offset" 2>/dev/null)
+    if [[ $? -eq 0 ]]; then
+      [[ $_xtrace_was_on -eq 1 ]] && set -x
       echo "$value"
       return 0
     fi
@@ -155,6 +185,7 @@ print(p.get('value', ''))
     if [[ "$timeout" -gt 0 ]]; then
       elapsed=$((elapsed + 300))
       if [[ $elapsed -ge $((timeout * 1000)) ]]; then
+        [[ $_xtrace_was_on -eq 1 ]] && set -x
         return 1
       fi
     fi

@@ -359,6 +359,7 @@ body {
 .text-input::placeholder { color: rgba(255,255,255,0.3); }
 .text-input:focus { border-color: rgba(100,210,255,0.5); background: rgba(255,255,255,0.12); }
 .text-input:disabled { opacity: 0.4; cursor: not-allowed; }
+.text-input { resize: none; }
 .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-send {
   padding: 8px 16px;
@@ -414,7 +415,7 @@ body {
   <div class="panel active" id="panel-chat">
     <div class="messages" id="messages"></div>
     <div class="input-bar">
-      <input class="text-input" type="text" id="userInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendUserInput()" disabled>
+      <textarea class="text-input" id="userInput" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendUserInput()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'" disabled></textarea>
       <button class="btn-send" onclick="sendUserInput()" disabled>Send</button>
     </div>
   </div>
