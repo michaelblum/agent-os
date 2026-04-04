@@ -135,6 +135,15 @@ class DaemonServer {
                     continue
                 }
 
+                // Handle post at the server level — relay to all subscribers
+                if request.action == "post" {
+                    if let channel = request.channel {
+                        self.relayChannelPost(channel: channel, dataStr: request.data)
+                    }
+                    self.sendResponse(to: clientFD, .ok())
+                    continue
+                }
+
                 let semaphore = DispatchSemaphore(value: 0)
                 var response = CanvasResponse.fail("Internal error", code: "INTERNAL")
                 DispatchQueue.main.async { [weak self] in
@@ -189,6 +198,35 @@ class DaemonServer {
         guard !fds.isEmpty else { return }
 
         // Write on background queue to avoid blocking main thread
+        let bytes = [UInt8](data)
+        eventWriteQueue.async {
+            for fd in fds {
+                bytes.withUnsafeBufferPointer { ptr in
+                    _ = write(fd, ptr.baseAddress!, ptr.count)
+                }
+            }
+        }
+    }
+
+    /// Relay a channel post to all subscriber connections.
+    /// Format: {"type":"channel","channel":"...","data":{...}}
+    func relayChannelPost(channel: String, dataStr: String?) {
+        var envelope: [String: Any] = ["type": "channel", "channel": channel]
+        if let ds = dataStr,
+           let raw = ds.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: raw) {
+            envelope["data"] = parsed
+        }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]) else { return }
+        var data = jsonData
+        data.append(contentsOf: "\n".utf8)
+
+        subscriberLock.lock()
+        let fds = Array(subscribers.values)
+        subscriberLock.unlock()
+
+        guard !fds.isEmpty else { return }
+
         let bytes = [UInt8](data)
         eventWriteQueue.async {
             for fd in fds {

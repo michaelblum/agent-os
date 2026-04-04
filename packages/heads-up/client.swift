@@ -393,6 +393,37 @@ func evalCommand(args: [String]) {
     outputResponse(response)
 }
 
+// MARK: - CLI Command: post
+
+func postCommand(args: [String]) {
+    var channel: String? = nil
+    var data: String? = nil
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--channel":
+            i += 1; guard i < args.count else { exitError("--channel requires a value", code: "MISSING_ARG") }
+            channel = args[i]
+        case "--data":
+            i += 1; guard i < args.count else { exitError("--data requires a JSON value", code: "MISSING_ARG") }
+            data = args[i]
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+    guard let ch = channel else { exitError("post requires --channel <name>", code: "MISSING_ARG") }
+
+    var request = CanvasRequest(action: "post")
+    request.channel = ch
+    request.data = data
+
+    let client = DaemonClient()
+    if !client.ensureDaemon() { exitError("Failed to start daemon", code: "DAEMON_START_FAILED") }
+    let response = client.send(request)
+    outputResponse(response)
+}
+
 // MARK: - CLI Command: to-front
 
 func toFrontCommand(args: [String]) {

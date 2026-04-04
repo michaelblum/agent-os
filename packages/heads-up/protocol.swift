@@ -55,7 +55,7 @@ import Foundation
 // MARK: - Request (CLI → Daemon)
 
 struct CanvasRequest: Codable {
-    let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval", "subscribe"
+    let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval", "subscribe", "post"
     var id: String?             // canvas ID (required for create/update/remove)
     var at: [CGFloat]?          // [x, y, w, h] in global CG coords (Y-down)
     var anchorWindow: Int?      // CGWindowID to track
@@ -68,6 +68,8 @@ struct CanvasRequest: Codable {
     var js: String?             // JavaScript to evaluate (for "eval" action)
     var scope: String?          // "connection" or "global" (default: global)
     var autoProject: String?    // auto-projection mode: "cursor_trail", "highlight_focused", "label_elements"
+    var channel: String?        // channel name (for "post" action)
+    var data: String?           // JSON string payload (for "post" action)
 }
 
 // MARK: - Response (Daemon → CLI)

@@ -56,6 +56,8 @@ struct HeadsUp {
             pingCommand(args: Array(args.dropFirst()))
         case "eval":
             evalCommand(args: Array(args.dropFirst()))
+        case "post":
+            postCommand(args: Array(args.dropFirst()))
         case "to-front":
             toFrontCommand(args: Array(args.dropFirst()))
         case "listen":
