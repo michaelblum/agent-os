@@ -248,6 +248,90 @@ agent_highlight_remove() {
 }
 
 # ============================================================
+# Action Events — emit to heads-up pub/sub for avatar effects
+# ============================================================
+
+DOGFOOD="$AGENT_OS_ROOT/tools/dogfood"
+
+_emit_action() {
+  # Usage: _emit_action "before|after" "action_name" [extra_json_fields]
+  # Posts to the "actions" channel. avatar-sub subscribes and reacts.
+  local phase="$1" action="$2"
+  shift 2
+  local extra="$*"
+  "$HEADS_UP" post --channel actions \
+    --data "{\"type\":\"$phase\",\"action\":\"$action\"$extra}" \
+    >/dev/null 2>/dev/null
+}
+
+_resolve_target_bounds() {
+  # Resolve an element's global bounds via xray_target.py.
+  # Returns: ,"bounds":[x,y,w,h]  (or empty string if not found)
+  local target="$1"
+  local result
+  result=$($XRAY_TARGET --role "$target" --no-image 2>/dev/null)
+  if [ -n "$result" ]; then
+    echo "$result" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    b = d.get('target', {}).get('global_bounds', {})
+    x, y, w, h = b.get('x', 0), b.get('y', 0), b.get('w', 0), b.get('h', 0)
+    print(f',\"bounds\":[{x},{y},{w},{h}]', end='')
+except Exception:
+    pass
+" 2>/dev/null
+  fi
+}
+
+agent_action_type() {
+  # Usage: agent_action_type "AXTextField:Search" "hello world"
+  # Emits before/after events around a hand-off type command.
+  # The avatar possesses the keyboard input, then releases.
+  local target="$1"; shift
+  local text="$*"
+  local bounds
+  bounds=$(_resolve_target_bounds "$target")
+  _emit_action "before" "type" ",\"target\":{\"name\":\"$target\"$bounds},\"text\":\"$text\""
+  "$HAND_OFF" type "$target" "$text"
+  local rc=$?
+  _emit_action "after" "type" ",\"target\":{\"name\":\"$target\"}"
+  return $rc
+}
+
+agent_action_click() {
+  # Usage: agent_action_click "AXButton:Submit"
+  # Emits before/after events around a hand-off click command.
+  # The avatar possesses the cursor, then releases.
+  local target="$1"
+  local bounds
+  bounds=$(_resolve_target_bounds "$target")
+  _emit_action "before" "click" ",\"target\":{\"name\":\"$target\"$bounds}"
+  "$HAND_OFF" click "$target"
+  local rc=$?
+  _emit_action "after" "click" ",\"target\":{\"name\":\"$target\"}"
+  return $rc
+}
+
+agent_action_trace() {
+  # Usage: agent_action_trace "AXButton:Submit"
+  # Avatar orbits the element's perimeter (no action — visual only).
+  local target="$1"
+  local bounds
+  bounds=$(_resolve_target_bounds "$target")
+  if [ -n "$bounds" ]; then
+    _emit_action "before" "trace" ",\"target\":{\"name\":\"$target\"$bounds}"
+  fi
+}
+
+agent_fast_travel() {
+  # Usage: agent_fast_travel X Y
+  # Bullet-speed avatar movement to a screen coordinate.
+  local x="$1" y="$2"
+  _emit_action "before" "fast_travel" ",\"to\":[$x,$y]"
+}
+
+# ============================================================
 # Logging
 # ============================================================
 

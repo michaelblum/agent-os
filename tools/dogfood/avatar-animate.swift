@@ -31,7 +31,7 @@ func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -
 }
 
 // -- Position animation --
-func moveTo(x: Double, y: Double, duration: Double, easing: EasingFn = easeInOutCubic, mid: UInt64? = nil) {
+func moveTo(x: Double, y: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic, mid: UInt64? = nil) {
     let sx = curX, sy = curY
     let fd = connectSock()
     guard fd >= 0 else { return }
@@ -47,7 +47,7 @@ func moveTo(x: Double, y: Double, duration: Double, easing: EasingFn = easeInOut
 }
 
 // -- Size animation --
-func scaleTo(size: Double, duration: Double, easing: EasingFn = easeInOutCubic) {
+func scaleTo(size: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic) {
     let ss = curSize
     let fd = connectSock()
     guard fd >= 0 else { return }
@@ -61,7 +61,7 @@ func scaleTo(size: Double, duration: Double, easing: EasingFn = easeInOutCubic) 
 }
 
 // -- Combined move + scale --
-func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: EasingFn = easeInOutCubic, mid: UInt64? = nil) {
+func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic, mid: UInt64? = nil) {
     let sx = curX, sy = curY, ss = curSize
     let fd = connectSock()
     guard fd >= 0 else { return }
