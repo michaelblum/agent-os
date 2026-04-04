@@ -11,11 +11,11 @@ html, body {
   height: 100%;
   width: 100%;
 }
+/* Shadow: drawn via <canvas> to bypass WKWebView's broken box-shadow
+   and filter compositing in transparent windows. */
 .card-shadow {
   position: absolute;
-  inset: 16px;
-  border-radius: 14px;
-  box-shadow: 0 16px 56px rgba(0,0,0,0.7), 0 4px 12px rgba(0,0,0,0.35);
+  inset: 0;
   pointer-events: none;
   z-index: 0;
 }
@@ -412,7 +412,7 @@ html, body {
 </style>
 </head>
 <body>
-<div class="card-shadow dismissed" id="cardShadow"></div>
+<canvas class="card-shadow dismissed" id="cardShadow"></canvas>
 <div class="card dismissed" id="card">
   <div class="header" id="dragHandle">
     <div class="dot" id="dot"></div>
@@ -956,6 +956,65 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+// ============================================================
+// Canvas-drawn shadow (WKWebView breaks CSS box-shadow rounding)
+// ============================================================
+function drawShadow() {
+  var canvas = document.getElementById('cardShadow');
+  if (!canvas) return;
+  var dpr = window.devicePixelRatio || 1;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = canvas.offsetHeight * dpr;
+  var ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+
+  var card = document.querySelector('.card');
+  if (!card || dismissed) return;
+
+  var r = card.getBoundingClientRect();
+  var radius = 14;
+  var layers = 20;
+  var spread = 28;
+  var offsetY = 8;
+
+  for (var i = layers; i >= 0; i--) {
+    var t = i / layers;
+    var expand = t * spread;
+    var alpha = 0.025 * (1 - t);
+    ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
+    roundRect(ctx,
+      r.left - expand,
+      r.top - expand + offsetY * t,
+      r.width + expand * 2,
+      r.height + expand * 2,
+      radius + expand * 0.5
+    );
+    ctx.fill();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Redraw shadow when card appears
+var _origShowCard = showCard;
+showCard = function() {
+  _origShowCard();
+  setTimeout(drawShadow, 50);
+};
 
 // Start dismissed -- overlay appears when first message arrives
 emit('ready', window.headsup.manifest);
