@@ -1,8 +1,262 @@
 // heads-up — Daemon server
 // Listens on Unix socket, dispatches commands to CanvasManager, manages idle timeout.
+// Optional status bar icon (configured via ~/.config/heads-up/config.json).
 
 import AppKit
 import Foundation
+
+// MARK: - Daemon Config
+
+struct DaemonConfig: Codable {
+    var statusItem: StatusItemConfig?
+
+    struct StatusItemConfig: Codable {
+        var enabled: Bool?          // false by default — headless daemon is the default
+        var icon: String?           // path to 18×18pt template PNG (nil = built-in hexagon)
+        var onClick: String?        // "toggle" (future: "popover")
+        var toggleId: String?       // canvas ID to toggle (default: "avatar")
+        var toggleUrl: String?      // URL to load when creating the toggle canvas
+        var toggleAt: [Double]?     // [x, y, w, h] position for the toggle canvas
+    }
+}
+
+// MARK: - Status Item Manager
+
+/// Manages the menu bar icon. Click = toggle a canvas on/off.
+/// The icon, toggle target, and behavior are all configurable via DaemonConfig.
+class StatusItemManager: NSObject {
+    let canvasManager: CanvasManager
+    var statusItem: NSStatusItem?
+
+    let toggleId: String
+    let toggleUrl: String
+    let toggleAt: [Double]
+    let customIconPath: String?
+
+    init(canvasManager: CanvasManager, config: DaemonConfig.StatusItemConfig) {
+        self.canvasManager = canvasManager
+        self.toggleId = config.toggleId ?? "avatar"
+        self.toggleUrl = config.toggleUrl ?? ""
+        self.toggleAt = config.toggleAt ?? [200, 200, 300, 300]
+        self.customIconPath = config.icon
+        super.init()
+    }
+
+    func setup() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        updateIcon()
+        statusItem?.button?.target = self
+        statusItem?.button?.action = #selector(handleClick(_:))
+    }
+
+    private var isDismissing = false
+
+    @objc func handleClick(_ sender: Any?) {
+        guard !isDismissing else { return }  // ignore clicks during dismiss animation
+
+        if canvasManager.hasCanvas(toggleId) {
+            // Egress: play dismissed skin animation + fly back to icon, then remove
+            isDismissing = true
+            updateIcon()  // switch to outline immediately
+
+            // Tell the skin to play the dismissed transition (shrink to 0 internally)
+            var evalReq = CanvasRequest(action: "eval")
+            evalReq.id = toggleId
+            let msg = "{\"type\":\"behavior\",\"slot\":\"dismissed\"}"
+            let b64 = Data(msg.utf8).base64EncodedString()
+            evalReq.js = "headsup.receive('\(b64)')"
+            _ = canvasManager.handle(evalReq)
+
+            // Simultaneously animate canvas position/size back to the icon
+            let iconCG = statusItemCGPosition()
+            let endSize: CGFloat = 20
+
+            // Read current canvas position for the animation start
+            let listResp = canvasManager.handle(CanvasRequest(action: "list"))
+            var fromX: CGFloat = 200, fromY: CGFloat = 200, fromW: CGFloat = 300, fromH: CGFloat = 300
+            if let canvases = listResp.canvases {
+                for c in canvases where c.id == toggleId {
+                    fromX = c.at[0]; fromY = c.at[1]; fromW = c.at[2]; fromH = c.at[3]
+                }
+            }
+            let toX = iconCG.x - endSize / 2, toY = iconCG.y
+
+            let duration = 0.4
+            let fps = 60.0
+            let totalFrames = Int(duration * fps)
+
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                let t0 = Date()
+                for i in 0...totalFrames {
+                    let t = Double(i) / Double(totalFrames)
+                    // easeInBack: accelerate into the icon
+                    let c1 = 1.70158, c3 = c1 + 1
+                    let e = c3 * t * t * t - c1 * t * t
+
+                    let x = fromX + (toX - fromX) * CGFloat(e)
+                    let y = fromY + (toY - fromY) * CGFloat(e)
+                    let w = fromW + (endSize - fromW) * CGFloat(e)
+                    let h = fromH + (endSize - fromH) * CGFloat(e)
+
+                    DispatchQueue.main.async {
+                        var updateReq = CanvasRequest(action: "update")
+                        updateReq.id = self?.toggleId
+                        updateReq.at = [x, y, w, h]
+                        _ = self?.canvasManager.handle(updateReq)
+                    }
+
+                    let want = Double(i + 1) / fps
+                    let got = Date().timeIntervalSince(t0)
+                    if want > got { Thread.sleep(forTimeInterval: want - got) }
+                }
+
+                // Remove after animation completes
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    var removeReq = CanvasRequest(action: "remove")
+                    removeReq.id = self.toggleId
+                    _ = self.canvasManager.handle(removeReq)
+                    self.isDismissing = false
+                    self.updateIcon()
+                }
+            }
+        } else {
+            // Ingress: create canvas at the menu bar icon position (invisible),
+            // wait for WKWebView to load, then reveal + animate to target.
+            guard !toggleUrl.isEmpty, toggleAt.count == 4 else { return }
+
+            let iconCG = statusItemCGPosition()
+            let startSize: CGFloat = 40
+            let fromX = iconCG.x - startSize / 2
+            let fromY = iconCG.y
+
+            // Target position/size from config
+            let targetX = CGFloat(toggleAt[0])
+            let targetY = CGFloat(toggleAt[1])
+            let targetW = CGFloat(toggleAt[2])
+            let targetH = CGFloat(toggleAt[3])
+
+            // Create canvas at icon position — starts INVISIBLE to avoid flash
+            var req = CanvasRequest(action: "create")
+            req.id = toggleId
+            req.url = toggleUrl
+            req.at = [fromX, fromY, startSize, startSize]
+            _ = canvasManager.handle(req)
+            canvasManager.setCanvasAlpha(toggleId, 0)  // hide until ready
+            updateIcon()
+
+            // Wait for WKWebView to initialize, then reveal + animate
+            let duration = 0.5
+            let fps = 60.0
+            let totalFrames = Int(duration * fps)
+
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                // Give WKWebView time to load + Three.js to initialize
+                Thread.sleep(forTimeInterval: 0.35)
+
+                // Reveal the canvas
+                DispatchQueue.main.async {
+                    self?.canvasManager.setCanvasAlpha(self?.toggleId ?? "", 1)
+                }
+
+                // Animate from icon to target
+                let t0 = Date()
+                for i in 0...totalFrames {
+                    let t = Double(i) / Double(totalFrames)
+                    let e = 1 - pow(1 - t, 3)  // easeOutCubic
+
+                    let x = fromX + (targetX - fromX) * CGFloat(e)
+                    let y = fromY + (targetY - fromY) * CGFloat(e)
+                    let w = startSize + (targetW - startSize) * CGFloat(e)
+                    let h = startSize + (targetH - startSize) * CGFloat(e)
+
+                    DispatchQueue.main.async {
+                        var updateReq = CanvasRequest(action: "update")
+                        updateReq.id = self?.toggleId
+                        updateReq.at = [x, y, w, h]
+                        _ = self?.canvasManager.handle(updateReq)
+                    }
+
+                    let want = Double(i + 1) / fps
+                    let got = Date().timeIntervalSince(t0)
+                    if want > got { Thread.sleep(forTimeInterval: want - got) }
+                }
+            }
+        }
+    }
+
+    /// Get the menu bar icon's position in CG coordinates (Y-down).
+    func statusItemCGPosition() -> CGPoint {
+        guard let button = statusItem?.button,
+              let window = button.window else {
+            return CGPoint(x: 100, y: 0)  // fallback: top of screen
+        }
+        let frameInScreen = window.frame
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        // Center of the icon in CG coords
+        let cgX = frameInScreen.midX
+        let cgY = primaryHeight - frameInScreen.midY
+        return CGPoint(x: cgX, y: cgY)
+    }
+
+    func updateIcon() {
+        let showing = canvasManager.hasCanvas(toggleId)
+
+        if let iconPath = customIconPath,
+           let img = NSImage(contentsOfFile: iconPath) {
+            img.isTemplate = true
+            img.size = NSSize(width: 18, height: 18)
+            statusItem?.button?.image = img
+        } else {
+            statusItem?.button?.image = drawDefaultIcon(filled: showing)
+        }
+    }
+
+    /// Draw a small hexagon — geometric, neutral, suggests "display surface."
+    /// Filled when the toggle canvas is showing, outline when hidden.
+    private func drawDefaultIcon(filled: Bool) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let img = NSImage(size: size, flipped: false) { rect in
+            let cx = rect.midX, cy = rect.midY
+            let r: CGFloat = 7.0   // hexagon radius
+            let path = NSBezierPath()
+
+            // Regular hexagon (flat-top)
+            for i in 0..<6 {
+                let angle = CGFloat(Double(i) * .pi / 3.0 - .pi / 6.0)
+                let px = cx + r * cos(angle)
+                let py = cy + r * sin(angle)
+                if i == 0 { path.move(to: NSPoint(x: px, y: py)) }
+                else { path.line(to: NSPoint(x: px, y: py)) }
+            }
+            path.close()
+
+            NSColor.black.setStroke()
+            path.lineWidth = 1.2
+
+            if filled {
+                NSColor.black.setFill()
+                path.fill()
+            }
+            path.stroke()
+
+            // Inner dot
+            let dotR: CGFloat = filled ? 2.0 : 1.5
+            let dotRect = NSRect(x: cx - dotR, y: cy - dotR, width: dotR * 2, height: dotR * 2)
+            let dot = NSBezierPath(ovalIn: dotRect)
+            if filled {
+                NSColor.white.setFill()
+            } else {
+                NSColor.black.setFill()
+            }
+            dot.fill()
+
+            return true
+        }
+        img.isTemplate = true
+        return img
+    }
+}
 
 // MARK: - Daemon Server
 
@@ -174,7 +428,12 @@ class DaemonServer {
         return result
     }
 
+    /// If true, the status item keeps the daemon alive regardless of canvas/subscriber count.
+    var hasStatusItem: Bool = false
+
     func checkIdle() {
+        // Status item keeps daemon alive — it's a reason to exist
+        if hasStatusItem { cancelIdleTimer(); return }
         // Revised idle: no canvases AND no subscriber connections
         if canvasManager.isEmpty && !hasSubscribers {
             startIdleTimer()
@@ -282,6 +541,7 @@ class DaemonServer {
 
 func serveCommand(args: [String]) {
     var idleTimeout: TimeInterval = 5.0
+    var configPath: String? = nil
 
     var i = 0
     while i < args.count {
@@ -290,10 +550,27 @@ func serveCommand(args: [String]) {
             i += 1
             guard i < args.count else { exitError("--idle-timeout requires a duration", code: "MISSING_ARG") }
             idleTimeout = parseDuration(args[i])
+        case "--config":
+            i += 1
+            guard i < args.count else { exitError("--config requires a file path", code: "MISSING_ARG") }
+            configPath = args[i]
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
         i += 1
+    }
+
+    // Load config: explicit --config flag, or auto-load from well-known path
+    var config = DaemonConfig()
+    let defaultConfigPath = kSocketDir + "/config.json"
+    let resolvedConfigPath = configPath ?? (FileManager.default.fileExists(atPath: defaultConfigPath) ? defaultConfigPath : nil)
+    if let path = resolvedConfigPath,
+       let data = FileManager.default.contents(atPath: path) {
+        if let loaded = try? JSONDecoder().decode(DaemonConfig.self, from: data) {
+            config = loaded
+        } else {
+            FileHandle.standardError.write("Warning: could not parse config at \(path)\n".data(using: .utf8)!)
+        }
     }
 
     // Check for existing daemon
@@ -311,8 +588,18 @@ func serveCommand(args: [String]) {
     let canvasManager = CanvasManager()
     let server = DaemonServer(socketPath: kSocketPath, canvasManager: canvasManager, idleTimeout: idleTimeout)
 
-    canvasManager.onCanvasCountChanged = { [weak server] in
+    // Status item (menu bar icon) — configured via config file
+    var statusItemManager: StatusItemManager?
+    if config.statusItem?.enabled == true {
+        let mgr = StatusItemManager(canvasManager: canvasManager, config: config.statusItem!)
+        mgr.setup()
+        statusItemManager = mgr
+        server.hasStatusItem = true
+    }
+
+    canvasManager.onCanvasCountChanged = { [weak server, weak statusItemManager] in
         server?.checkIdle()
+        statusItemManager?.updateIcon()
     }
 
     canvasManager.onEvent = { [weak server] canvasID, payload in

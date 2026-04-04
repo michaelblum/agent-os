@@ -261,6 +261,13 @@ class CanvasManager {
     private var lastCursorTrailUpdate: Date = .distantPast
 
     var isEmpty: Bool { canvases.isEmpty }
+    func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
+
+    /// Set the window alpha for a canvas (0 = invisible, 1 = fully visible).
+    /// Used by StatusItemManager to hide the canvas until WKWebView is ready.
+    func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
+        canvases[id]?.window.alphaValue = alpha
+    }
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
     var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
 
@@ -431,6 +438,27 @@ class CanvasManager {
 
                 // drag_start and drag_end — don't relay, just consume
                 if type == "drag_start" || type == "drag_end" {
+                    return
+                }
+
+                // Skin-requested resize: expand/shrink canvas from center.
+                // The skin declares how much space it needs (e.g. for aura spread).
+                // { type: "request_resize", width: 450, height: 450 }
+                if type == "request_resize",
+                   let w = dict["width"] as? Double,
+                   let h = dict["height"] as? Double {
+                    DispatchQueue.main.async {
+                        let cg = canvas.cgFrame
+                        let cx = cg.origin.x + cg.size.width / 2
+                        let cy = cg.origin.y + cg.size.height / 2
+                        let newFrame = CGRect(
+                            x: cx - CGFloat(w) / 2,
+                            y: cy - CGFloat(h) / 2,
+                            width: CGFloat(w),
+                            height: CGFloat(h)
+                        )
+                        canvas.updatePosition(cgRect: newFrame)
+                    }
                     return
                 }
             }

@@ -25,7 +25,9 @@ var W = window.innerWidth, H = window.innerHeight;
 
 // --- Scene setup ---
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
+// FOV 50 at z=5 gives ~4.7 units of visible height.
+// Aura sprites are scaled to fit within this (max ~4x).
+var camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
 camera.position.set(0, 0, 5);
 
 var renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, premultipliedAlpha: false });
@@ -80,7 +82,7 @@ var glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
   map: glowTexture, color: 0xcc88ff, transparent: true,
   blending: THREE.AdditiveBlending, depthWrite: false
 }));
-glowSprite.scale.set(4, 4, 1);
+glowSprite.scale.set(2.5, 2.5, 1);
 avatarGroup.add(glowSprite);
 
 // --- Outer aura (desktop light casting) ---
@@ -89,10 +91,11 @@ auraCanvas.width = 512; auraCanvas.height = 512;
 var aCtx = auraCanvas.getContext('2d');
 var aGrad = aCtx.createRadialGradient(256, 256, 0, 256, 256, 256);
 aGrad.addColorStop(0, 'rgba(180, 100, 255, 0.25)');
-aGrad.addColorStop(0.2, 'rgba(140, 70, 255, 0.15)');
-aGrad.addColorStop(0.5, 'rgba(100, 50, 255, 0.06)');
-aGrad.addColorStop(0.8, 'rgba(80, 30, 255, 0.02)');
-aGrad.addColorStop(1, 'rgba(60, 20, 255, 0)');
+aGrad.addColorStop(0.15, 'rgba(140, 70, 255, 0.15)');
+aGrad.addColorStop(0.35, 'rgba(100, 50, 255, 0.06)');
+aGrad.addColorStop(0.55, 'rgba(80, 30, 255, 0.02)');
+aGrad.addColorStop(0.75, 'rgba(0, 0, 0, 0)');  // RGB must be 0 at alpha 0 to prevent bleed
+aGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 aCtx.fillStyle = aGrad;
 aCtx.fillRect(0, 0, 512, 512);
 
@@ -101,8 +104,12 @@ var auraSprite = new THREE.Sprite(new THREE.SpriteMaterial({
   map: auraTexture, color: 0xcc88ff, transparent: true,
   blending: THREE.AdditiveBlending, depthWrite: false
 }));
-auraSprite.scale.set(8, 8, 1);
+auraSprite.scale.set(4, 4, 1);
+// Start aura sprite tiny — scales up after 2s delay to avoid the
+// squared-off flash that occurs during initial texture compositing.
+auraSprite.scale.set(0.01, 0.01, 1);
 avatarGroup.add(auraSprite);
+setTimeout(function() { state._auraReady = true; }, 2000);
 
 // --- Lights ---
 var pointLight = new THREE.PointLight(0xbb77ff, 2, 10);
@@ -122,6 +129,8 @@ var state = {
   auraIntensity: 1.0,
   auraReach: 1.0,
   auraPulseRate: 0.003,
+  // Scale (for ingress/egress transitions)
+  scaleMultiplier: 1.0,
   // Hue
   hueShift: 0,
   hueSpeed: 0.0005,
@@ -130,6 +139,8 @@ var state = {
   ghostCount: 12,
   ghostMode: 'edgeScatter',
   ghostDuration: 1.5,
+  // Transition animation (internal)
+  _transition: null,  // { from, to, duration, elapsed, easing, onComplete }
   // Internal ghost state (not preset-driven)
   _ghosts: [],
   _ghostTimer: 0,
@@ -204,7 +215,20 @@ var presets = {
 
   release:           { idleSpinSpeed: 0.008, bobAmplitude: 0.15, bobSpeed: 0.5,
                        auraIntensity: 1.0, auraPulseRate: 0.003, auraReach: 1.0,
-                       hueSpeed: 0.0005, ghostsEnabled: false }
+                       hueSpeed: 0.0005, ghostsEnabled: false },
+
+  // --- Lifecycle transitions ---
+  summoned:          { idleSpinSpeed: 0.12, bobAmplitude: 0.0, bobSpeed: 0.0,
+                       auraIntensity: 2.5, auraPulseRate: 0.02, auraReach: 1.8,
+                       hueSpeed: 0.004, scaleMultiplier: 1.0,
+                       ghostsEnabled: true, ghostCount: 8, ghostMode: 'edgeScatter',
+                       ghostDuration: 1.0 },
+
+  dismissed:         { idleSpinSpeed: 0.15, bobAmplitude: 0.0, bobSpeed: 0.0,
+                       auraIntensity: 2.0, auraPulseRate: 0.015, auraReach: 0.5,
+                       hueSpeed: 0.005, scaleMultiplier: 0.0,
+                       ghostsEnabled: true, ghostCount: 10, ghostMode: 'shrink',
+                       ghostDuration: 0.6 }
 };
 
 // ============================================================
@@ -213,10 +237,74 @@ var presets = {
 function applyBehavior(slot, data) {
   var preset = presets[slot] || presets['idle'];
   var keys = Object.keys(preset);
+
+  // Summoned: start at scale 0, animate to 1 with overshoot
+  if (slot === 'summoned') {
+    state.scaleMultiplier = 0.0;
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i] !== 'scaleMultiplier') state[keys[i]] = preset[keys[i]];
+    }
+    startTransition(0.0, 1.0, 0.6, easeOutBack, function() {
+      applyBehavior('idle', {});
+    });
+    currentSlot = slot;
+    return;
+  }
+
+  // Dismissed: animate from current scale to 0
+  if (slot === 'dismissed') {
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i] !== 'scaleMultiplier') state[keys[i]] = preset[keys[i]];
+    }
+    startTransition(state.scaleMultiplier, 0.0, 0.4, easeInBack);
+    currentSlot = slot;
+    return;
+  }
+
+  // Normal: apply all preset values directly
   for (var i = 0; i < keys.length; i++) {
     state[keys[i]] = preset[keys[i]];
   }
   currentSlot = slot;
+}
+
+// ============================================================
+// Transition engine — smoothly interpolates scaleMultiplier
+// between presets. Used for summoned/dismissed lifecycle.
+// ============================================================
+function easeOutBack(t) {
+  var c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function easeInBack(t) {
+  var c1 = 1.70158, c3 = c1 + 1;
+  return c3 * t * t * t - c1 * t * t;
+}
+
+function startTransition(from, to, duration, easing, onComplete) {
+  state._transition = {
+    prop: 'scaleMultiplier',
+    from: from, to: to,
+    duration: duration, elapsed: 0,
+    easing: easing || function(t) { return t; },
+    onComplete: onComplete || null
+  };
+}
+
+function updateTransition(dt) {
+  var t = state._transition;
+  if (!t) return;
+  t.elapsed += dt;
+  var progress = Math.min(t.elapsed / t.duration, 1.0);
+  var eased = t.easing(progress);
+  state[t.prop] = t.from + (t.to - t.from) * eased;
+  if (progress >= 1.0) {
+    state[t.prop] = t.to;
+    var cb = t.onComplete;
+    state._transition = null;
+    if (cb) cb();
+  }
 }
 
 // ============================================================
@@ -391,8 +479,10 @@ var clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-  var elapsed = clock.getElapsedTime();
+  // getDelta() must be called first — getElapsedTime() calls getDelta()
+  // internally and resets the timer, making a subsequent getDelta() return ~0.
   var dt = clock.getDelta();
+  var elapsed = clock.elapsedTime;
 
   // Spin
   coreMesh.rotation.y += state.idleSpinSpeed;
@@ -405,8 +495,16 @@ function animate() {
 
   // Aura pulse
   var pulse = 1.0 + Math.sin(elapsed * state.auraPulseRate * Math.PI * 2000) * 0.15 * state.auraIntensity;
-  glowSprite.scale.set(3.5 * state.auraReach * pulse, 3.5 * state.auraReach * pulse, 1);
-  auraSprite.scale.set(7 * state.auraReach * pulse, 7 * state.auraReach * pulse, 1);
+  // Inner glow — always active
+  glowSprite.scale.set(2.5 * state.auraReach * pulse, 2.5 * state.auraReach * pulse, 1);
+
+  // Outer aura — starts at 0, ramps up after 2s delay to avoid initial flash
+  if (state._auraReady) {
+    if (!state._auraScale) state._auraScale = 0.01;
+    state._auraScale = Math.min(state._auraScale + 0.02, 1.0);  // ramp over ~50 frames
+    var auraTarget = 4 * state.auraReach * pulse;
+    auraSprite.scale.set(auraTarget * state._auraScale, auraTarget * state._auraScale, 1);
+  }
 
   // Hue rotation
   state.hueShift += state.hueSpeed;
@@ -418,6 +516,13 @@ function animate() {
   glowSprite.material.color.copy(hueColor);
   auraSprite.material.color.copy(hueColor);
   pointLight.color.copy(hueColor);
+
+  // Transition animation (scale, etc.)
+  updateTransition(dt);
+
+  // Apply scale multiplier to entire avatar group
+  var s = state.scaleMultiplier;
+  avatarGroup.scale.set(s, s, s);
 
   // Ghost trail
   updateGhosts(dt);
@@ -498,6 +603,18 @@ function emit(type, payload) {
     );
   }
 }
+
+// Auto-play summoned transition on load.
+// Start invisible — the ingress animation (or a brief delay) will reveal us.
+// This prevents the white-flash from WKWebView before Three.js clears to transparent.
+state.scaleMultiplier = 0.0;
+avatarGroup.scale.set(0, 0, 0);
+renderer.domElement.style.opacity = '0';
+
+setTimeout(function() {
+  renderer.domElement.style.opacity = '1';
+  applyBehavior('summoned', {});
+}, 200);
 
 emit('ready', window.headsup.manifest);
 </script>
