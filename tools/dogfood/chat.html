@@ -3,30 +3,44 @@
 <head>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
+html, body {
   background: transparent;
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+.card-shadow {
+  position: absolute;
+  inset: 16px;
+  border-radius: 14px;
+  box-shadow: 0 16px 56px rgba(0,0,0,0.7), 0 4px 12px rgba(0,0,0,0.35);
+  pointer-events: none;
+  z-index: 0;
 }
 .card {
   background: rgba(22, 22, 26, 0.96);
   color: #e8e8ed;
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,0.12);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
   transition: opacity 0.3s ease, transform 0.3s ease;
   display: flex;
   flex-direction: column;
-  max-height: 100vh;
-  height: 100vh;
+  position: absolute;
+  inset: 16px;
+  z-index: 1;
 }
 .card.dismissed {
   opacity: 0;
   transform: translateY(8px) scale(0.97);
   pointer-events: none;
+}
+.card-shadow.dismissed {
+  opacity: 0;
 }
 
 /* --- Header (drag handle) --- */
@@ -398,6 +412,7 @@ body {
 </style>
 </head>
 <body>
+<div class="card-shadow dismissed" id="cardShadow"></div>
 <div class="card dismissed" id="card">
   <div class="header" id="dragHandle">
     <div class="dot" id="dot"></div>
@@ -835,12 +850,14 @@ function setIdle() {
 function showCard() {
   if (dismissed) {
     document.getElementById('card').classList.remove('dismissed');
+    document.getElementById('cardShadow').classList.remove('dismissed');
     dismissed = false;
   }
 }
 
 function dismiss() {
   document.getElementById('card').classList.add('dismissed');
+  document.getElementById('cardShadow').classList.add('dismissed');
   dismissed = true;
 }
 
