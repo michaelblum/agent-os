@@ -228,11 +228,19 @@ func dockAnimation(_ mid: UInt64) {
         if want > got { Thread.sleep(forTimeInterval: want - got) }
     }
 
-    // Slow spin back down, reduce bob for docked state
+    // Z-swap: remove and recreate avatar so it renders ON TOP of the chat widget.
+    // Now that curX/curY are correct (verified: 1005, 1252), the recreate lands in the right spot.
+    let avatarPath = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/avatar.html").expandingTildeInPath
+    sendJSON(fd, "{\"action\":\"remove\",\"id\":\"\(avatarID)\"}")
+    Thread.sleep(forTimeInterval: 0.05)
+    sendJSON(fd, "{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)],\"url\":\"file://\(avatarPath)\"}")
+    Thread.sleep(forTimeInterval: 0.5)
+
+    // Slow spin, small bob for docked state
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.005; state.bobAmplitude = 0.03;\"}")
 
     state = .docked
-    FileHandle.standardError.write("Docked as icon.\n".data(using: .utf8)!)
+    FileHandle.standardError.write("Docked as icon at (\(curX), \(curY)).\n".data(using: .utf8)!)
 }
 
 // -- UNDOCKING: expand from icon and fly to click --

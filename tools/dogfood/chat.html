@@ -906,10 +906,11 @@ function escapeAttr(s) {
   var dragging = false;
   var lastX = 0, lastY = 0;
   handle.addEventListener('mousedown', function(e) {
-    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     dragging = true;
     lastX = e.screenX;
     lastY = e.screenY;
+    window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_start' });
     e.preventDefault();
   });
   document.addEventListener('mousemove', function(e) {
@@ -922,7 +923,12 @@ function escapeAttr(s) {
       window.webkit.messageHandlers.headsup.postMessage({ type: 'move', dx: dx, dy: dy });
     }
   });
-  document.addEventListener('mouseup', function() { dragging = false; });
+  document.addEventListener('mouseup', function() {
+    if (dragging) {
+      window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_end' });
+      dragging = false;
+    }
+  });
 })();
 
 // ============================================================

@@ -190,9 +190,27 @@ class Canvas {
         window.close()
     }
 
+    private var pendingCGFrame: CGRect?
+
     func updatePosition(cgRect: CGRect) {
         let screenFrame = cgToScreen(cgRect)
         window.setFrame(screenFrame, display: true)
+        // macOS window server may reject cross-display moves on the first frame.
+        // Store the intended position and retry on the next run loop cycle.
+        let actual = screenToCG(window.frame)
+        if abs(actual.origin.x - cgRect.origin.x) > 2 || abs(actual.origin.y - cgRect.origin.y) > 2 {
+            pendingCGFrame = cgRect
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                guard let self = self, let pending = self.pendingCGFrame else { return }
+                self.pendingCGFrame = nil
+                let retry = cgToScreen(pending)
+                self.window.setFrame(retry, display: true)
+                // Double-tap: some display transitions need two attempts
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.window.setFrame(retry, display: true)
+                }
+            }
+        }
     }
 
     var cgFrame: CGRect {
@@ -352,17 +370,18 @@ class CanvasManager {
         }
 
         // Message handler relay: canvas JS → orchestrator
-        // Special handling for "move" messages: drag the window directly.
+        // Special handling for "move" messages: update via CG coordinate path
+        // so dragging works across display boundaries (setFrameOrigin alone doesn't).
         canvas.onMessage = { [weak self] body in
             if let dict = body as? [String: Any],
                let type = dict["type"] as? String, type == "move",
                let dx = dict["dx"] as? Double,
                let dy = dict["dy"] as? Double {
                 DispatchQueue.main.async {
-                    var frame = canvas.window.frame
-                    frame.origin.x += CGFloat(dx)
-                    frame.origin.y -= CGFloat(dy)  // CG Y is inverted from screen Y
-                    canvas.window.setFrameOrigin(frame.origin)
+                    var cg = canvas.cgFrame
+                    cg.origin.x += CGFloat(dx)
+                    cg.origin.y += CGFloat(dy)  // CG Y-down, same direction as screen drag
+                    canvas.updatePosition(cgRect: cg)
                 }
                 return  // Don't relay move events to subscribers
             }
