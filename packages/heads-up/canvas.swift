@@ -370,20 +370,65 @@ class CanvasManager {
         }
 
         // Message handler relay: canvas JS → orchestrator
-        // Special handling for "move" messages: update via CG coordinate path
-        // so dragging works across display boundaries (setFrameOrigin alone doesn't).
+        // Drag handling: absolute positioning via NSEvent.mouseLocation for
+        // reliable cross-display dragging. JS sends screenX/screenY + the
+        // mouse offset within the canvas at drag start. We convert the
+        // absolute mouse position to CG coords and subtract the offset.
         canvas.onMessage = { [weak self] body in
             if let dict = body as? [String: Any],
-               let type = dict["type"] as? String, type == "move",
-               let dx = dict["dx"] as? Double,
-               let dy = dict["dy"] as? Double {
-                DispatchQueue.main.async {
-                    var cg = canvas.cgFrame
-                    cg.origin.x += CGFloat(dx)
-                    cg.origin.y += CGFloat(dy)  // CG Y-down, same direction as screen drag
-                    canvas.updatePosition(cgRect: cg)
+               let type = dict["type"] as? String {
+
+                if type == "move_abs",
+                   let screenX = dict["screenX"] as? Double,
+                   let screenY = dict["screenY"] as? Double,
+                   let offsetX = dict["offsetX"] as? Double,
+                   let offsetY = dict["offsetY"] as? Double {
+                    DispatchQueue.main.async {
+                        let mouse = NSEvent.mouseLocation
+                        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+                        let cgMouseX = mouse.x
+                        let cgMouseY = primaryHeight - mouse.y
+                        var newX = cgMouseX - CGFloat(offsetX)
+                        var newY = cgMouseY - CGFloat(offsetY)
+                        let cg = canvas.cgFrame
+
+                        // Snap: constrain canvas to the display the mouse is on.
+                        // Prevents straddling the boundary (macOS clips cross-display windows).
+                        for screen in NSScreen.screens {
+                            let sf = screen.frame
+                            let cgScreenY = primaryHeight - sf.maxY
+                            let cgScreenBottom = primaryHeight - sf.minY
+                            if cgMouseX >= sf.minX && cgMouseX < sf.maxX &&
+                               cgMouseY >= cgScreenY && cgMouseY < cgScreenBottom {
+                                // Clamp canvas to this display
+                                newX = max(sf.minX - cg.width + 40, min(newX, sf.maxX - 40))
+                                newY = max(cgScreenY, min(newY, cgScreenBottom - 40))
+                                break
+                            }
+                        }
+
+                        canvas.updatePosition(cgRect: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
+                    }
+                    return
                 }
-                return  // Don't relay move events to subscribers
+
+                // Legacy relative move (for backward compat)
+                if type == "move",
+                   let dx = dict["dx"] as? Double,
+                   let dy = dict["dy"] as? Double {
+                    DispatchQueue.main.async {
+                        var cg = canvas.cgFrame
+                        cg.origin.x += CGFloat(dx)
+                        cg.origin.y += CGFloat(dy)
+                        canvas.updatePosition(cgRect: cg)
+                    }
+                    return
+                }
+
+                // drag_start and drag_end — don't relay, just consume
+                if type == "drag_start" || type == "drag_end" {
+                    return
+                }
             }
             self?.onEvent?(id, body)
         }

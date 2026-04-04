@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html style="background:transparent"><head><style>
+* { margin: 0; padding: 0; }
+html, body { background: transparent !important; overflow: hidden; }
+#hud {
+  background: rgba(0,0,0,0.85);
+  color: #0f0;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,255,0,0.2);
+  position: absolute;
+  inset: 4px;
+  overflow: hidden;
+}
+.label { color: #888; }
+.val { color: #0f0; }
+.drag-on { color: #ff0; }
+.drag-off { color: #666; }
+.display-name { color: #6cf; }
+</style></head><body>
+<div id="hud">
+  <div><span class="label">Mouse CG:</span> <span class="val" id="mousePos">—</span></div>
+  <div><span class="label">Mouse NS:</span> <span class="val" id="mouseNS">—</span></div>
+  <div><span class="label">Drag:</span> <span id="dragState" class="drag-off">idle</span></div>
+  <div><span class="label">Mouse on:</span> <span class="display-name" id="mouseDisplay">—</span></div>
+  <div style="margin-top:4px"><span class="label">Widget CG:</span> <span class="val" id="widgetPos">—</span></div>
+  <div><span class="label">Widget rel:</span> <span class="val" id="widgetRel">—</span></div>
+  <div><span class="label">Widget on:</span> <span class="display-name" id="widgetDisplay">—</span></div>
+  <div style="margin-top:4px;color:#555" id="dispInfo"></div>
+</div>
+<script>
+function update(d) {
+  document.getElementById('mousePos').textContent = d.mouse || '—';
+  document.getElementById('mouseNS').textContent = d.mouseNS || '—';
+  var ds = document.getElementById('dragState');
+  ds.textContent = d.dragging ? 'DRAGGING' : 'idle';
+  ds.className = d.dragging ? 'drag-on' : 'drag-off';
+  document.getElementById('mouseDisplay').textContent = d.mouseDisplay || '—';
+  document.getElementById('widgetPos').textContent = d.widgetCG || '—';
+  document.getElementById('widgetRel').textContent = d.widgetRel || '—';
+  document.getElementById('widgetDisplay').textContent = d.widgetDisplay || '—';
+  if (d.dispInfo) document.getElementById('dispInfo').textContent = d.dispInfo;
+}
+</script>
+</body></html>

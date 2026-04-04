@@ -905,23 +905,29 @@ function escapeAttr(s) {
   var handle = document.getElementById('dragHandle');
   var dragging = false;
   var lastX = 0, lastY = 0;
+  var dragOffsetX = 0, dragOffsetY = 0;
   handle.addEventListener('mousedown', function(e) {
     if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     dragging = true;
-    lastX = e.screenX;
-    lastY = e.screenY;
-    window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_start' });
+    // Record the offset between mouse and the element's position at drag start.
+    // e.clientX/Y = mouse position within the viewport (WKWebView).
+    // This offset stays constant throughout the drag.
+    dragOffsetX = e.clientX;
+    dragOffsetY = e.clientY;
+    window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_start', offsetX: dragOffsetX, offsetY: dragOffsetY });
     e.preventDefault();
   });
   document.addEventListener('mousemove', function(e) {
     if (!dragging) return;
-    var dx = e.screenX - lastX;
-    var dy = e.screenY - lastY;
-    lastX = e.screenX;
-    lastY = e.screenY;
-    if (dx !== 0 || dy !== 0) {
-      window.webkit.messageHandlers.headsup.postMessage({ type: 'move', dx: dx, dy: dy });
-    }
+    // Send absolute screen position + the drag offset.
+    // The Swift side computes: canvasX = screenX - offsetX, canvasY = screenY - offsetY
+    window.webkit.messageHandlers.headsup.postMessage({
+      type: 'move_abs',
+      screenX: e.screenX,
+      screenY: e.screenY,
+      offsetX: dragOffsetX,
+      offsetY: dragOffsetY
+    });
   });
   document.addEventListener('mouseup', function() {
     if (dragging) {
