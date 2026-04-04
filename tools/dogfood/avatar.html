@@ -11,10 +11,14 @@ canvas { background: transparent !important; }
 <body>
 <script>
 // ============================================================
-// Avatar prototype — Celestial object with aura glow
-// Runs in a heads-up click-through canvas.
-// The aura bleeds onto the transparent background, creating
-// the illusion of casting light onto the desktop beneath.
+// Avatar Skin — Celestial (default)
+//
+// Data-driven renderer with preset system. Every visual property
+// (spin, bob, aura, ghosts, colors) is controlled by presets.
+// Behavior slots apply presets. The avatar creation studio (future)
+// edits presets, not code.
+//
+// Ghost trail system ported from celestial omega.js.
 // ============================================================
 
 var W = window.innerWidth, H = window.innerHeight;
@@ -48,7 +52,7 @@ var coreMat = new THREE.MeshPhongMaterial({
 var coreMesh = new THREE.Mesh(coreGeo, coreMat);
 avatarGroup.add(coreMesh);
 
-// --- Wireframe overlay ---
+// --- Wireframe overlay (used for ghost cloning) ---
 var wireMat = new THREE.MeshBasicMaterial({
   color: 0xbb66ff,
   wireframe: true,
@@ -61,8 +65,7 @@ avatarGroup.add(wireMesh);
 
 // --- Inner glow (additive sprite) ---
 var glowCanvas = document.createElement('canvas');
-glowCanvas.width = 256;
-glowCanvas.height = 256;
+glowCanvas.width = 256; glowCanvas.height = 256;
 var gCtx = glowCanvas.getContext('2d');
 var gradient = gCtx.createRadialGradient(128, 128, 0, 128, 128, 128);
 gradient.addColorStop(0, 'rgba(188, 100, 255, 0.8)');
@@ -74,19 +77,15 @@ gCtx.fillRect(0, 0, 256, 256);
 
 var glowTexture = new THREE.CanvasTexture(glowCanvas);
 var glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-  map: glowTexture,
-  color: 0xcc88ff,
-  transparent: true,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false
+  map: glowTexture, color: 0xcc88ff, transparent: true,
+  blending: THREE.AdditiveBlending, depthWrite: false
 }));
 glowSprite.scale.set(4, 4, 1);
 avatarGroup.add(glowSprite);
 
-// --- Outer aura (larger, softer glow for desktop light casting) ---
+// --- Outer aura (desktop light casting) ---
 var auraCanvas = document.createElement('canvas');
-auraCanvas.width = 512;
-auraCanvas.height = 512;
+auraCanvas.width = 512; auraCanvas.height = 512;
 var aCtx = auraCanvas.getContext('2d');
 var aGrad = aCtx.createRadialGradient(256, 256, 0, 256, 256, 256);
 aGrad.addColorStop(0, 'rgba(180, 100, 255, 0.25)');
@@ -99,36 +98,295 @@ aCtx.fillRect(0, 0, 512, 512);
 
 var auraTexture = new THREE.CanvasTexture(auraCanvas);
 var auraSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-  map: auraTexture,
-  color: 0xcc88ff,
-  transparent: true,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false
+  map: auraTexture, color: 0xcc88ff, transparent: true,
+  blending: THREE.AdditiveBlending, depthWrite: false
 }));
 auraSprite.scale.set(8, 8, 1);
 avatarGroup.add(auraSprite);
 
-// --- Point light (casts light from the avatar position) ---
+// --- Lights ---
 var pointLight = new THREE.PointLight(0xbb77ff, 2, 10);
 avatarGroup.add(pointLight);
-
-// --- Ambient light ---
 scene.add(new THREE.AmbientLight(0x222244, 0.3));
 
-// --- State ---
+// ============================================================
+// State — ALL visual properties. Presets write directly to this.
+// ============================================================
 var state = {
-  auraColor: new THREE.Color(0xbc13fe),
+  // Spin
+  idleSpinSpeed: 0.008,
+  // Bob
+  bobAmplitude: 0.15,
+  bobSpeed: 0.5,
+  // Aura
   auraIntensity: 1.0,
   auraReach: 1.0,
   auraPulseRate: 0.003,
-  idleSpinSpeed: 0.008,
-  bobAmplitude: 0.15,
-  bobSpeed: 0.5,
+  // Hue
   hueShift: 0,
-  hueSpeed: 0.0005
+  hueSpeed: 0.0005,
+  // Ghost trail
+  ghostsEnabled: false,
+  ghostCount: 12,
+  ghostMode: 'edgeScatter',
+  ghostDuration: 1.5,
+  // Internal ghost state (not preset-driven)
+  _ghosts: [],
+  _ghostTimer: 0,
+  _lastPos: new THREE.Vector3(),
+  _lastPosInit: false
 };
 
-// --- Animation loop ---
+var currentSlot = 'idle';
+
+// ============================================================
+// Presets — one per behavior slot. Data, not code.
+// The avatar creation studio will edit these.
+// ============================================================
+var presets = {
+  idle:              { idleSpinSpeed: 0.008, bobAmplitude: 0.15, bobSpeed: 0.5,
+                       auraIntensity: 1.0, auraPulseRate: 0.003, auraReach: 1.0,
+                       hueSpeed: 0.0005, ghostsEnabled: false },
+
+  fast_travel:       { idleSpinSpeed: 0.08, bobAmplitude: 0.05, bobSpeed: 2.0,
+                       auraIntensity: 1.5, auraPulseRate: 0.01, auraReach: 1.2,
+                       hueSpeed: 0.003,
+                       ghostsEnabled: true, ghostCount: 12, ghostMode: 'edgeScatter',
+                       ghostDuration: 1.5 },
+
+  standby:           { idleSpinSpeed: 0.005, bobAmplitude: 0.1, bobSpeed: 0.4,
+                       auraIntensity: 0.8, auraPulseRate: 0.002, auraReach: 0.9,
+                       hueSpeed: 0.0003, ghostsEnabled: false },
+
+  thinking:          { idleSpinSpeed: 0.003, bobAmplitude: 0.08, bobSpeed: 0.3,
+                       auraIntensity: 0.7, auraPulseRate: 0.015, auraReach: 0.8,
+                       hueSpeed: 0.001, ghostsEnabled: false },
+
+  talking:           { idleSpinSpeed: 0.02, bobAmplitude: 0.2, bobSpeed: 1.0,
+                       auraIntensity: 1.5, auraPulseRate: 0.008, auraReach: 1.1,
+                       hueSpeed: 0.001, ghostsEnabled: false },
+
+  error:             { idleSpinSpeed: 0.04, bobAmplitude: 0.3, bobSpeed: 2.0,
+                       auraIntensity: 1.8, auraPulseRate: 0.02, auraReach: 1.3,
+                       hueSpeed: 0, ghostsEnabled: false },
+
+  look_at_me:        { idleSpinSpeed: 0.015, bobAmplitude: 0.25, bobSpeed: 1.5,
+                       auraIntensity: 2.0, auraPulseRate: 0.01, auraReach: 1.4,
+                       hueSpeed: 0.002, ghostsEnabled: false },
+
+  parking:           { idleSpinSpeed: 0.03, bobAmplitude: 0.05, bobSpeed: 1.0,
+                       auraIntensity: 1.2, auraPulseRate: 0.005, auraReach: 1.0,
+                       hueSpeed: 0.001,
+                       ghostsEnabled: true, ghostCount: 8, ghostMode: 'shrink',
+                       ghostDuration: 1.0 },
+
+  unparking:         { idleSpinSpeed: 0.06, bobAmplitude: 0.15, bobSpeed: 1.5,
+                       auraIntensity: 1.3, auraPulseRate: 0.008, auraReach: 1.1,
+                       hueSpeed: 0.002,
+                       ghostsEnabled: true, ghostCount: 6, ghostMode: 'fade',
+                       ghostDuration: 0.8 },
+
+  possess_mouse:     { idleSpinSpeed: 0.1, bobAmplitude: 0.02, bobSpeed: 3.0,
+                       auraIntensity: 2.0, auraPulseRate: 0.005, auraReach: 0.6,
+                       hueSpeed: 0.002,
+                       ghostsEnabled: true, ghostCount: 6, ghostMode: 'fade',
+                       ghostDuration: 0.5 },
+
+  possess_keyboard:  { idleSpinSpeed: 0.06, bobAmplitude: 0.03, bobSpeed: 2.0,
+                       auraIntensity: 1.8, auraPulseRate: 0.01, auraReach: 0.7,
+                       hueSpeed: 0.001, ghostsEnabled: false },
+
+  highlighting:      { idleSpinSpeed: 0.02, bobAmplitude: 0.05, bobSpeed: 1.0,
+                       auraIntensity: 1.3, auraPulseRate: 0.006, auraReach: 1.0,
+                       hueSpeed: 0.001,
+                       ghostsEnabled: true, ghostCount: 10, ghostMode: 'fade',
+                       ghostDuration: 2.0 },
+
+  release:           { idleSpinSpeed: 0.008, bobAmplitude: 0.15, bobSpeed: 0.5,
+                       auraIntensity: 1.0, auraPulseRate: 0.003, auraReach: 1.0,
+                       hueSpeed: 0.0005, ghostsEnabled: false }
+};
+
+// ============================================================
+// Generic behavior handler — one function, not N handlers
+// ============================================================
+function applyBehavior(slot, data) {
+  var preset = presets[slot] || presets['idle'];
+  var keys = Object.keys(preset);
+  for (var i = 0; i < keys.length; i++) {
+    state[keys[i]] = preset[keys[i]];
+  }
+  currentSlot = slot;
+}
+
+// ============================================================
+// Ghost Trail System — ported from celestial omega.js
+// Activated by any preset with ghostsEnabled: true.
+// Mode, count, duration come from the active preset.
+// ============================================================
+
+function spawnGhost() {
+  // Clone wireframe geometry for independent vertex manipulation
+  var ghostGeo = wireMesh.geometry.clone();
+  var origPositions = new Float32Array(ghostGeo.attributes.position.array);
+
+  // Compute centroid for edgeScatter
+  var cx = 0, cy = 0, cz = 0;
+  var posCount = origPositions.length / 3;
+  for (var i = 0; i < origPositions.length; i += 3) {
+    cx += origPositions[i]; cy += origPositions[i+1]; cz += origPositions[i+2];
+  }
+  cx /= posCount; cy /= posCount; cz /= posCount;
+
+  // Ghost material — independent so opacity changes don't affect avatar
+  var ghostMat = new THREE.MeshBasicMaterial({
+    wireframe: true, transparent: true, opacity: 0.8,
+    depthWrite: false, blending: THREE.AdditiveBlending
+  });
+
+  // Copy current hue color
+  var hueColor = new THREE.Color().setHSL(state.hueShift, 0.8, 0.6);
+  ghostMat.color.copy(hueColor);
+
+  var ghostMesh = new THREE.Mesh(ghostGeo, ghostMat);
+
+  // Copy world transform from avatarGroup
+  ghostMesh.position.copy(avatarGroup.position);
+  ghostMesh.quaternion.copy(coreMesh.quaternion);
+  ghostMesh.scale.copy(wireMesh.scale);
+
+  scene.add(ghostMesh);
+
+  state._ghosts.push({
+    mesh: ghostMesh,
+    life: state.ghostDuration,
+    maxLife: state.ghostDuration,
+    startScale: 1.02,
+    originalPositions: origPositions,
+    centroid: new THREE.Vector3(cx, cy, cz),
+    randomAxis: new THREE.Vector3(
+      Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
+    ).normalize()
+  });
+}
+
+function updateGhosts(dt) {
+  if (!state.ghostsEnabled) {
+    cleanupGhosts();
+    return;
+  }
+
+  // Detect movement
+  if (!state._lastPosInit) {
+    state._lastPos.copy(avatarGroup.position);
+    state._lastPosInit = true;
+  }
+  var delta = avatarGroup.position.distanceTo(state._lastPos);
+  state._lastPos.copy(avatarGroup.position);
+
+  // Spawn when moving
+  if (delta > 0.01) {
+    state._ghostTimer -= dt;
+    if (state._ghostTimer <= 0) {
+      spawnGhost();
+      state._ghostTimer = state.ghostDuration / Math.max(state.ghostCount, 1);
+    }
+  }
+
+  // Update existing ghosts
+  for (var i = state._ghosts.length - 1; i >= 0; i--) {
+    var ghost = state._ghosts[i];
+    ghost.life -= dt;
+
+    if (ghost.life <= 0) {
+      scene.remove(ghost.mesh);
+      ghost.mesh.geometry.dispose();
+      ghost.mesh.material.dispose();
+      state._ghosts.splice(i, 1);
+      continue;
+    }
+
+    var progress = ghost.life / ghost.maxLife; // 1 = born, 0 = dead
+
+    switch (state.ghostMode) {
+      case 'fade':
+        ghost.mesh.material.opacity = progress * 0.8;
+        break;
+
+      case 'shrink':
+        ghost.mesh.scale.setScalar(ghost.startScale * progress);
+        break;
+
+      case 'edgeScatter': {
+        ghost.mesh.material.opacity = progress * 0.8;
+        var positions = ghost.mesh.geometry.attributes.position.array;
+        var orig = ghost.originalPositions;
+        var t = 1 - progress;
+        for (var v = 0; v < positions.length; v += 3) {
+          positions[v]     = orig[v]     + (orig[v]     - ghost.centroid.x) * t * 2.0;
+          positions[v + 1] = orig[v + 1] + (orig[v + 1] - ghost.centroid.y) * t * 2.0;
+          positions[v + 2] = orig[v + 2] + (orig[v + 2] - ghost.centroid.z) * t * 2.0;
+        }
+        ghost.mesh.geometry.attributes.position.needsUpdate = true;
+        break;
+      }
+
+      case 'vertexDissolve': {
+        ghost.mesh.material.opacity = progress * 0.8;
+        var positions = ghost.mesh.geometry.attributes.position.array;
+        var orig = ghost.originalPositions;
+        var t = 1 - progress;
+        for (var v = 0; v < positions.length; v += 3) {
+          positions[v]     = orig[v]     + (Math.random() - 0.5) * 0.5 * t;
+          positions[v + 1] = orig[v + 1] + (Math.random() - 0.5) * 0.5 * t;
+          positions[v + 2] = orig[v + 2] + (Math.random() - 0.5) * 0.5 * t;
+        }
+        ghost.mesh.geometry.attributes.position.needsUpdate = true;
+        break;
+      }
+
+      case 'scaleWarp': {
+        ghost.mesh.material.opacity = progress * 0.8;
+        var t = 1 - progress;
+        var stretchFactor = 1 + t * 2;
+        var compressFactor = 1 / Math.sqrt(stretchFactor);
+        var axis = ghost.randomAxis;
+        ghost.mesh.scale.set(
+          ghost.startScale * (1 + Math.abs(axis.x) * (stretchFactor - 1) + (1 - Math.abs(axis.x)) * (compressFactor - 1)),
+          ghost.startScale * (1 + Math.abs(axis.y) * (stretchFactor - 1) + (1 - Math.abs(axis.y)) * (compressFactor - 1)),
+          ghost.startScale * (1 + Math.abs(axis.z) * (stretchFactor - 1) + (1 - Math.abs(axis.z)) * (compressFactor - 1))
+        );
+        break;
+      }
+
+      default:
+        ghost.mesh.material.opacity = progress * 0.8;
+    }
+  }
+
+  // Cap ghost count
+  while (state._ghosts.length > state.ghostCount) {
+    var oldest = state._ghosts.shift();
+    scene.remove(oldest.mesh);
+    oldest.mesh.geometry.dispose();
+    oldest.mesh.material.dispose();
+  }
+}
+
+function cleanupGhosts() {
+  for (var i = 0; i < state._ghosts.length; i++) {
+    scene.remove(state._ghosts[i].mesh);
+    state._ghosts[i].mesh.geometry.dispose();
+    state._ghosts[i].mesh.material.dispose();
+  }
+  state._ghosts.length = 0;
+  state._ghostTimer = 0;
+  state._lastPosInit = false;
+}
+
+// ============================================================
+// Animation loop
+// ============================================================
 var clock = new THREE.Clock();
 
 function animate() {
@@ -136,7 +394,7 @@ function animate() {
   var elapsed = clock.getElapsedTime();
   var dt = clock.getDelta();
 
-  // Idle spin
+  // Spin
   coreMesh.rotation.y += state.idleSpinSpeed;
   coreMesh.rotation.x += state.idleSpinSpeed * 0.3;
   wireMesh.rotation.copy(coreMesh.rotation);
@@ -147,13 +405,10 @@ function animate() {
 
   // Aura pulse
   var pulse = 1.0 + Math.sin(elapsed * state.auraPulseRate * Math.PI * 2000) * 0.15 * state.auraIntensity;
-  var glowScale = 3.5 * state.auraReach * pulse;
-  glowSprite.scale.set(glowScale, glowScale, 1);
+  glowSprite.scale.set(3.5 * state.auraReach * pulse, 3.5 * state.auraReach * pulse, 1);
+  auraSprite.scale.set(7 * state.auraReach * pulse, 7 * state.auraReach * pulse, 1);
 
-  var auraScale = 7 * state.auraReach * pulse;
-  auraSprite.scale.set(auraScale, auraScale, 1);
-
-  // Hue rotation (rainbow cycle)
+  // Hue rotation
   state.hueShift += state.hueSpeed;
   if (state.hueShift > 1) state.hueShift -= 1;
   var hueColor = new THREE.Color().setHSL(state.hueShift, 0.8, 0.6);
@@ -164,6 +419,9 @@ function animate() {
   auraSprite.material.color.copy(hueColor);
   pointLight.color.copy(hueColor);
 
+  // Ghost trail
+  updateGhosts(dt);
+
   renderer.render(scene, camera);
 }
 
@@ -171,37 +429,57 @@ animate();
 
 // --- Resize ---
 window.addEventListener('resize', function() {
-  W = window.innerWidth;
-  H = window.innerHeight;
+  W = window.innerWidth; H = window.innerHeight;
   camera.aspect = W / H;
   camera.updateProjectionMatrix();
   renderer.setSize(W, H);
 });
 
-// --- headsup message convention ---
+// ============================================================
+// headsup message protocol
+// ============================================================
 window.headsup = {
-  manifest: { name: 'avatar', accepts: ['mood', 'color', 'intensity', 'position'], emits: ['ready', 'click'] },
+  manifest: {
+    name: 'celestial',
+    version: '1.0',
+    slots: Object.keys(presets),
+    accepts: ['behavior', 'mood', 'color', 'preset_override', 'load_skin'],
+    emits: ['ready', 'behavior_complete']
+  },
   receive: function(b64) {
     try {
       var bytes = Uint8Array.from(atob(b64), function(c) { return c.charCodeAt(0); });
       var msg = JSON.parse(new TextDecoder().decode(bytes));
-      if (msg.type === 'mood') {
-        // Change aura behavior based on mood
-        if (msg.payload === 'active') {
-          state.auraPulseRate = 0.008;
-          state.auraIntensity = 1.5;
-          state.idleSpinSpeed = 0.02;
-        } else if (msg.payload === 'idle') {
-          state.auraPulseRate = 0.003;
-          state.auraIntensity = 1.0;
-          state.idleSpinSpeed = 0.008;
-        } else if (msg.payload === 'thinking') {
-          state.auraPulseRate = 0.015;
-          state.auraIntensity = 0.7;
-          state.idleSpinSpeed = 0.003;
+
+      if (msg.type === 'behavior') {
+        applyBehavior(msg.slot, msg.data || {});
+        emit('behavior_complete', { slot: msg.slot });
+
+      } else if (msg.type === 'preset_override') {
+        // Override specific properties for a slot
+        if (msg.slot && presets[msg.slot]) {
+          var keys = Object.keys(msg.data || {});
+          for (var i = 0; i < keys.length; i++) {
+            presets[msg.slot][keys[i]] = msg.data[keys[i]];
+          }
         }
+
+      } else if (msg.type === 'load_skin') {
+        // Replace entire preset set
+        if (msg.presets) {
+          var slots = Object.keys(msg.presets);
+          for (var i = 0; i < slots.length; i++) {
+            presets[slots[i]] = msg.presets[slots[i]];
+          }
+        }
+
+      } else if (msg.type === 'mood') {
+        // Legacy mood support — map to behavior slots
+        var moodMap = { active: 'talking', idle: 'idle', thinking: 'thinking' };
+        if (moodMap[msg.payload]) applyBehavior(moodMap[msg.payload], {});
+
       } else if (msg.type === 'color') {
-        state.hueSpeed = 0; // stop cycling
+        state.hueSpeed = 0;
         var c = new THREE.Color(msg.payload);
         coreMat.color.copy(c);
         coreMat.emissive.copy(c).multiplyScalar(0.5);
