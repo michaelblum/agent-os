@@ -6,6 +6,8 @@ import Foundation
 class UnifiedDaemon {
     let socketPath: String
     let config: AosConfig
+    private(set) var currentConfig: AosConfig
+    private let configWatcher = ConfigWatcher()
     let startTime = Date()
 
     // Modules
@@ -32,6 +34,7 @@ class UnifiedDaemon {
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
         self.socketPath = kAosSocketPath
         self.config = config
+        self.currentConfig = config
         self.idleTimeout = idleTimeout
         self.perception = PerceptionEngine(config: config)
     }
@@ -89,6 +92,15 @@ class UnifiedDaemon {
         // Start idle timer
         startIdleTimer()
         setupSignalHandlers()
+
+        // Watch config for changes
+        configWatcher.onChange = { [weak self] newConfig in
+            guard let self = self else { return }
+            let oldConfig = self.currentConfig
+            self.currentConfig = newConfig
+            self.onConfigChanged(old: oldConfig, new: newConfig)
+        }
+        configWatcher.start()
     }
 
     // MARK: - Event Broadcasting
@@ -250,6 +262,27 @@ class UnifiedDaemon {
         default:
             sendJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
         }
+    }
+
+    // MARK: - Config Hot-Reload
+
+    private func onConfigChanged(old: AosConfig, new: AosConfig) {
+        if old.voice.enabled != new.voice.enabled {
+            fputs("Config: voice.enabled = \(new.voice.enabled)\n", stderr)
+        }
+        if old.perception.default_depth != new.perception.default_depth {
+            fputs("Config: perception.default_depth = \(new.perception.default_depth)\n", stderr)
+        }
+        if old.perception.settle_threshold_ms != new.perception.settle_threshold_ms {
+            fputs("Config: perception.settle_threshold_ms = \(new.perception.settle_threshold_ms)\n", stderr)
+        }
+        // Broadcast config change event to subscribers
+        let data: [String: Any] = [
+            "voice_enabled": new.voice.enabled,
+            "perception_depth": new.perception.default_depth,
+            "settle_threshold_ms": new.perception.settle_threshold_ms
+        ]
+        broadcastEvent(service: "system", event: "config_changed", data: data)
     }
 
     // MARK: - Helpers

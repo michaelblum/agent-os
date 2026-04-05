@@ -83,3 +83,57 @@ func setConfigValue(key: String, value: String) {
     saveConfig(config)
     print(jsonString(config))
 }
+
+// MARK: - Config File Watcher
+
+/// Watches the config file for changes and calls the handler on each change.
+class ConfigWatcher {
+    private var source: DispatchSourceFileSystemObject?
+    private var fd: Int32 = -1
+    private let path: String
+    var onChange: ((AosConfig) -> Void)?
+
+    init(path: String = kAosConfigPath) {
+        self.path = path
+    }
+
+    func start() {
+        // Ensure the file exists (create with defaults if not)
+        if !FileManager.default.fileExists(atPath: path) {
+            saveConfig(.defaults)
+        }
+
+        fd = open(path, O_EVTONLY)
+        guard fd >= 0 else {
+            fputs("Warning: cannot watch config file at \(path)\n", stderr)
+            return
+        }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: DispatchQueue.global(qos: .utility)
+        )
+
+        source.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            // Brief delay to let the write finish
+            usleep(50_000) // 50ms
+            let config = loadConfig()
+            self.onChange?(config)
+        }
+
+        source.setCancelHandler { [weak self] in
+            guard let self = self else { return }
+            if self.fd >= 0 { close(self.fd); self.fd = -1 }
+        }
+
+        source.resume()
+        self.source = source
+    }
+
+    func stop() {
+        source?.cancel()
+        source = nil
+    }
+}
