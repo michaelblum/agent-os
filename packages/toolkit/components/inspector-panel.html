@@ -2,87 +2,151 @@
 <html style="background:transparent">
 <head>
 <style>
+/* Inlined from _base/theme.css */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-panel: rgba(18, 18, 28, 0.93);
+  --bg-hover: rgba(60, 60, 90, 0.15);
+  --border-panel: rgba(100, 100, 140, 0.35);
+  --border-subtle: rgba(80, 80, 120, 0.2);
+  --text-primary: #e0e0e0;
+  --text-secondary: #999;
+  --text-muted: #666;
+  --text-label: #888;
+  --text-header: #556;
+  --accent-blue: #8ab4ff;
+  --accent-green: #6a9;
+  --accent-yellow: #da6;
+  --accent-red: #e66;
+  --accent-purple: rgba(80, 120, 255, 0.25);
+  --font-mono: "SF Mono", "Menlo", "Courier New", monospace;
+  --font-size-base: 11px;
+  --font-size-small: 10px;
+  --font-size-header: 9px;
+  --blur-radius: 20px;
+  --radius-panel: 8px;
+}
+
 html, body {
   background: transparent !important;
-  font-family: -apple-system, "SF Mono", "Menlo", monospace;
-  font-size: 11px;
-  color: #e0e0e0;
+  font-family: -apple-system, var(--font-mono);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
   overflow: hidden;
   width: 100%; height: 100%;
 }
 
-#panel {
-  background: rgba(20, 20, 30, 0.92);
-  border: 1px solid rgba(100, 100, 140, 0.4);
-  border-radius: 8px;
-  padding: 10px 12px;
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(100,100,140,0.3); border-radius: 2px; }
+
+.aos-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius-panel);
+  backdrop-filter: blur(var(--blur-radius));
+  -webkit-backdrop-filter: blur(var(--blur-radius));
   width: 100%; height: 100%;
+}
+
+.aos-header {
+  font-size: var(--font-size-header);
+  color: var(--text-header);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Component styles */
+#panel {
+  padding: 10px 12px;
   overflow-y: auto;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
 }
 
 .row { display: flex; margin-bottom: 4px; line-height: 1.4; }
 .label {
-  color: #888;
+  color: var(--text-label);
   min-width: 52px;
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--font-size-small);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 .value {
-  color: #e8e8f0;
+  color: var(--text-primary);
   word-break: break-word;
   flex: 1;
 }
 .role-badge {
   display: inline-block;
-  background: rgba(80, 120, 255, 0.25);
-  color: #8ab4ff;
+  background: var(--accent-purple);
+  color: var(--accent-blue);
   padding: 1px 6px;
   border-radius: 3px;
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--font-size-base);
 }
 .path {
-  color: #999;
-  font-size: 10px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px solid rgba(100, 100, 140, 0.2);
+  border-top: 1px solid var(--border-subtle);
 }
 .path span { color: #bbb; }
-.path .sep { color: #555; margin: 0 3px; }
+.path .sep { color: var(--text-muted); margin: 0 3px; }
 .bounds {
-  color: #7a9; font-size: 10px; font-family: "SF Mono", monospace;
+  color: var(--accent-green);
+  font-size: var(--font-size-small);
+  font-family: var(--font-mono);
 }
 #empty {
-  color: #666;
+  color: var(--text-muted);
   text-align: center;
   padding: 20px;
   font-style: italic;
 }
-.header {
-  font-size: 9px;
-  color: #556;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.aos-header {
   margin-bottom: 8px;
 }
 </style>
 </head>
 <body>
-<div id="panel">
-  <div class="header">AOS Inspector</div>
+<div id="panel" class="aos-panel">
+  <div class="header aos-header">AOS Inspector</div>
   <div id="content">
     <div id="empty">Move cursor to inspect elements</div>
   </div>
 </div>
 
 <script>
-// Bridge: receives data from aos daemon via evaluateJavaScript
+/* Inlined from _base/bridge.js */
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+  window.headsup = {
+    receive: function(b64) {
+      try {
+        var msg = JSON.parse(atob(b64));
+        if (typeof onHeadsupMessage === 'function') {
+          onHeadsupMessage(msg);
+        }
+      } catch(e) {}
+    }
+  };
+}
+
+/* Component logic */
+function onHeadsupMessage(msg) {
+  if (msg.type === 'element') updateElement(msg.data);
+  if (msg.type === 'cursor') updateCursor(msg.x, msg.y, msg.display);
+}
+
 // Called as: updateElement({role, title, label, value, bounds, context_path})
 function updateElement(data) {
   var c = document.getElementById('content');
@@ -137,26 +201,6 @@ function updateElement(data) {
 function updateCursor(x, y, display) {
   var h = document.querySelector('.header');
   h.textContent = 'AOS Inspector — ' + Math.round(x) + ', ' + Math.round(y) + '  Display ' + display;
-}
-
-function esc(s) {
-  if (!s) return '';
-  var d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// headsup bridge
-if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
-  window.headsup = {
-    receive: function(b64) {
-      try {
-        var msg = JSON.parse(atob(b64));
-        if (msg.type === 'element') updateElement(msg.data);
-        if (msg.type === 'cursor') updateCursor(msg.x, msg.y, msg.display);
-      } catch(e) {}
-    }
-  };
 }
 </script>
 </body>
