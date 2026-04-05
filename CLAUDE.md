@@ -5,6 +5,7 @@ Ecosystem of macOS and web automation CLIs. Each package builds independently. S
 ## Structure
 
 ```
+src/              AOS unified binary source (perception, display, action, voice)
 packages/
   side-eye/       Swift CLI — OS perception (screenshots, AX tree)
   hand-off/       Swift CLI — OS action (mouse, keyboard)
