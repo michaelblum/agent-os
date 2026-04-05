@@ -13,7 +13,7 @@ class DaemonClient {
         let flags = fcntl(sock, F_GETFL)
         fcntl(sock, F_SETFL, flags | O_NONBLOCK)
 
-        let result = withSockAddr(kAosSocketPath) { addr, len in
+        let result = withSocketAddress(kDefaultSocketPath) { addr, len in
             Foundation.connect(sock, addr, len)
         }
 
@@ -49,8 +49,8 @@ class DaemonClient {
         proc.standardOutput = FileHandle.nullDevice
 
         // Log to file instead of /dev/null
-        let logPath = kAosSocketDir + "/daemon.log"
-        try? FileManager.default.createDirectory(atPath: kAosSocketDir, withIntermediateDirectories: true)
+        let logPath = kDefaultSocketDir + "/daemon.log"
+        try? FileManager.default.createDirectory(atPath: kDefaultSocketDir, withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: logPath, contents: nil)
         if let logHandle = FileHandle(forWritingAtPath: logPath) {
             logHandle.seekToEndOfFile()

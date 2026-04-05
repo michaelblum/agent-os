@@ -33,9 +33,9 @@ func observeCommand(args: [String]) {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { exitError("socket() failed", code: "SOCKET_ERROR") }
 
-    let connectResult = withSockAddr(kAosSocketPath) { addr, len in connect(fd, addr, len) }
+    let connectResult = withSocketAddress(kDefaultSocketPath) { addr, len in connect(fd, addr, len) }
     guard connectResult == 0 else {
-        exitError("Cannot connect to daemon at \(kAosSocketPath). Is 'aos serve' running?", code: "CONNECT_ERROR")
+        exitError("Cannot connect to daemon at \(kDefaultSocketPath). Is 'aos serve' running?", code: "CONNECT_ERROR")
     }
 
     // Send perceive request

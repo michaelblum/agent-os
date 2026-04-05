@@ -186,7 +186,7 @@ private func connectInspectDaemon() -> Int32 {
 private func tryInspectConnect() -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { return -1 }
-    let result = withSockAddr(kAosSocketPath) { addr, len in connect(fd, addr, len) }
+    let result = withSocketAddress(kDefaultSocketPath) { addr, len in connect(fd, addr, len) }
     if result != 0 { close(fd); return -1 }
     return fd
 }

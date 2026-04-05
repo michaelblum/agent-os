@@ -33,7 +33,7 @@ class UnifiedDaemon {
     }
 
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
-        self.socketPath = kAosSocketPath
+        self.socketPath = kDefaultSocketPath
         self.config = config
         self.currentConfig = config
         self.idleTimeout = idleTimeout
@@ -53,7 +53,7 @@ class UnifiedDaemon {
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else { exitError("socket() failed: \(errno)", code: "SOCKET_ERROR") }
 
-        let bindResult = withSockAddr(socketPath) { addr, len in bind(serverFD, addr, len) }
+        let bindResult = withSocketAddress(socketPath) { addr, len in bind(serverFD, addr, len) }
         guard bindResult == 0 else { exitError("bind() failed: \(errno)", code: "BIND_ERROR") }
         guard listen(serverFD, 10) == 0 else { exitError("listen() failed: \(errno)", code: "LISTEN_ERROR") }
 
@@ -184,7 +184,7 @@ class UnifiedDaemon {
 
                 guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                       let action = json["action"] as? String else {
-                    sendJSON(to: clientFD, ["error": "Invalid JSON", "code": "PARSE_ERROR"])
+                    sendResponseJSON(to: clientFD, ["error": "Invalid JSON", "code": "PARSE_ERROR"])
                     continue
                 }
 
@@ -208,7 +208,7 @@ class UnifiedDaemon {
             subscribers[connectionID]?.perceptionChannelIDs.insert(channelID)
             subscribers[connectionID]?.isSubscribed = true
             subscriberLock.unlock()
-            sendJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
 
         case "perceive":
             let depth = json["depth"] as? Int ?? config.perception.default_depth
@@ -219,13 +219,13 @@ class UnifiedDaemon {
             subscribers[connectionID]?.perceptionChannelIDs.insert(channelID)
             subscribers[connectionID]?.isSubscribed = true
             subscriberLock.unlock()
-            sendJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
             guard let request = CanvasRequest.from(requestData) else {
-                sendJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
+                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
                 return
             }
 
@@ -267,7 +267,7 @@ class UnifiedDaemon {
                 let payload = json["data"] as? String
                 relayChannelPost(channel: channel, dataStr: payload)
             }
-            sendJSON(to: clientFD, ["status": "ok"])
+            sendResponseJSON(to: clientFD, ["status": "ok"])
 
         // -- Unified ping --
         case "ping":
@@ -276,7 +276,7 @@ class UnifiedDaemon {
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
-            sendJSON(to: clientFD, [
+            sendResponseJSON(to: clientFD, [
                 "status": "ok",
                 "uptime": uptime,
                 "perception_channels": perceptionChannels,
@@ -284,7 +284,7 @@ class UnifiedDaemon {
             ])
 
         default:
-            sendJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
+            sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
         }
     }
 
@@ -418,7 +418,7 @@ class UnifiedDaemon {
 
     private func setupSignalHandlers() {
         let handler: @convention(c) (Int32) -> Void = { _ in
-            unlink(kAosSocketPath)
+            unlink(kDefaultSocketPath)
             exit(0)
         }
         signal(SIGINT, handler)
