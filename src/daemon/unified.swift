@@ -13,6 +13,7 @@ class UnifiedDaemon {
     // Modules
     let perception: PerceptionEngine
     let canvasManager = CanvasManager()
+    private var speechEngine: SpeechEngine?
 
     // Socket server
     var serverFD: Int32 = -1
@@ -101,6 +102,11 @@ class UnifiedDaemon {
             self.onConfigChanged(old: oldConfig, new: newConfig)
         }
         configWatcher.start()
+
+        // Initialize voice if enabled
+        if currentConfig.voice.enabled {
+            initSpeechEngine()
+        }
     }
 
     // MARK: - Event Broadcasting
@@ -237,6 +243,24 @@ class UnifiedDaemon {
                 sendResponse(to: clientFD, data)
             }
 
+            // Announce display actions
+            if currentConfig.voice.enabled && currentConfig.voice.announce_actions {
+                switch action {
+                case "create":
+                    if let id = json["id"] as? String {
+                        announce("Canvas \(id) created")
+                    }
+                case "remove":
+                    if let id = json["id"] as? String {
+                        announce("Canvas \(id) removed")
+                    }
+                case "remove-all":
+                    announce("All canvases removed")
+                default:
+                    break
+                }
+            }
+
         // -- Channel post (relay to all subscribers) --
         case "post":
             if let channel = json["channel"] as? String {
@@ -283,6 +307,53 @@ class UnifiedDaemon {
             "settle_threshold_ms": new.perception.settle_threshold_ms
         ]
         broadcastEvent(service: "system", event: "config_changed", data: data)
+
+        // Voice engine lifecycle
+        if new.voice.enabled && !old.voice.enabled {
+            initSpeechEngine()
+        } else if !new.voice.enabled && old.voice.enabled {
+            stopSpeechEngine()
+        }
+        // Voice settings change while enabled
+        if new.voice.enabled {
+            if old.voice.voice != new.voice.voice {
+                if let voiceID = new.voice.voice {
+                    speechEngine?.setVoice(voiceID)
+                }
+            }
+            if old.voice.rate != new.voice.rate, let rate = new.voice.rate {
+                speechEngine?.setRate(rate)
+            }
+        }
+    }
+
+    // MARK: - Autonomic Voice
+
+    private func initSpeechEngine() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.speechEngine = SpeechEngine(voice: self.currentConfig.voice.voice)
+            if let rate = self.currentConfig.voice.rate {
+                self.speechEngine?.setRate(rate)
+            }
+            fputs("Voice engine initialized\n", stderr)
+        }
+    }
+
+    private func stopSpeechEngine() {
+        DispatchQueue.main.async { [weak self] in
+            self?.speechEngine?.stop()
+            self?.speechEngine = nil
+            fputs("Voice engine stopped\n", stderr)
+        }
+    }
+
+    /// Speak text if voice is enabled. Non-blocking.
+    func announce(_ text: String) {
+        guard currentConfig.voice.enabled, let engine = speechEngine else { return }
+        DispatchQueue.main.async {
+            engine.speak(text)
+        }
     }
 
     // MARK: - Helpers
