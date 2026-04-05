@@ -6,8 +6,6 @@ Unified binary for macOS perception, display, action, and voice.
 
 ```bash
 bash build.sh
-# or manually:
-find src -name '*.swift' | xargs swiftc -parse-as-library -O -o aos
 ```
 
 Requires macOS 14+ and Accessibility permission.
@@ -17,15 +15,19 @@ Requires macOS 14+ and Accessibility permission.
 ### One-Shot Commands (no daemon needed)
 
 ```bash
-aos see cursor          # What's under the cursor
-aos set voice.enabled true  # Configure autonomic settings
+aos see cursor                    # What's under the cursor
+aos show render --html "..." --out /tmp/x.png  # Render HTML to PNG
+aos set voice.enabled true        # Configure autonomic settings
 ```
 
 ### Daemon Mode
 
 ```bash
-aos serve               # Start unified daemon
-aos see observe --depth 2   # Stream perception events
+aos serve                         # Start unified daemon
+aos see observe --depth 2         # Stream perception events
+aos show create --id x --at 100,100,200,200 --html "<div>overlay</div>"
+aos show list                     # List active canvases
+aos show remove --id x            # Remove canvas
 ```
 
 ### Config
@@ -39,20 +41,18 @@ Socket: `~/.config/aos/sock`
 src/
   main.swift          # Entry point, subcommand routing
   shared/             # Helpers, envelope, config, types
-  perceive/           # Perception module (cursor, daemon, AX, events)
+  perceive/           # Perception module (cursor, AX, events, attention)
+  display/            # Display module (canvas, render, auto-projection)
+  daemon/             # UnifiedDaemon (socket server, routing)
   commands/           # serve, set
 ```
 
-### Perception Daemon
+### Unified Daemon
 
-The daemon monitors cursor position via CGEventTap and queries the
-AX tree on cursor settle. Events are published in the standard
-daemon-event envelope format to subscribers over Unix socket.
-
-Depth levels:
-- 0: Cursor position + display
-- 1: Window + app identification
-- 2: AX element at cursor (role, title, label, bounds)
+`aos serve` starts a single daemon that hosts both perception and display.
+One socket (`~/.config/aos/sock`), one CGEventTap, one process. Requests
+routed by `action` field: perception actions -> PerceptionEngine, display
+actions -> CanvasManager.
 
 ### Spec
 
