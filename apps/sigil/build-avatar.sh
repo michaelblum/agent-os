@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 cd "$(dirname "$0")"
+REPO_ROOT="$(cd ../.. && pwd)"
 echo "Compiling avatar-sub..."
 swiftc -parse-as-library -O -o avatar-sub \
     avatar-easing.swift \
@@ -8,5 +9,6 @@ swiftc -parse-as-library -O -o avatar-sub \
     avatar-animate.swift \
     avatar-spatial.swift \
     avatar-behaviors.swift \
-    avatar-sub.swift
+    avatar-sub.swift \
+    "$REPO_ROOT"/shared/swift/ipc/*.swift
 echo "Done: ./avatar-sub ($(du -h avatar-sub | cut -f1))"
