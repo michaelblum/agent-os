@@ -21,6 +21,8 @@ func printUsage() {
       eval                    Evaluate JavaScript in a canvas WKWebView
       listen                  Persistent connection: subscribe to events, forward stdin commands
       serve                   Start the daemon (normally auto-started by create)
+      install                 Install as launchd service (auto-restart on crash)
+      uninstall               Remove launchd service
 
     Run 'heads-up <command> --help' for command-specific options.
     """
@@ -62,6 +64,10 @@ struct HeadsUp {
             toFrontCommand(args: Array(args.dropFirst()))
         case "listen":
             listenCommand(args: Array(args.dropFirst()))
+        case "install":
+            installCommand(args: Array(args.dropFirst()))
+        case "uninstall":
+            uninstallCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             printUsage()
         default:

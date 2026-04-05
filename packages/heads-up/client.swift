@@ -541,6 +541,166 @@ func listenCommand(args: [String]) {
     exit(0)
 }
 
+// MARK: - CLI Command: install
+
+let kPlistLabel = "com.agent-os.heads-up"
+
+func launchAgentPlistPath() -> String {
+    let home = NSHomeDirectory()
+    return home + "/Library/LaunchAgents/\(kPlistLabel).plist"
+}
+
+func installCommand(args: [String]) {
+    // Resolve absolute binary path (follow symlinks)
+    let rawPath = ProcessInfo.processInfo.arguments[0]
+    let resolvedURL = URL(fileURLWithPath: rawPath).standardizedFileURL.resolvingSymlinksInPath()
+    let binaryPath = resolvedURL.path
+
+    // Ensure LaunchAgents directory exists
+    let launchAgentsDir = NSHomeDirectory() + "/Library/LaunchAgents"
+    try? FileManager.default.createDirectory(atPath: launchAgentsDir, withIntermediateDirectories: true)
+
+    // Ensure log directory exists
+    try? FileManager.default.createDirectory(atPath: kSocketDir, withIntermediateDirectories: true)
+    let logPath = kSocketDir + "/daemon.log"
+
+    // Generate plist
+    let plist = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+      "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>\(kPlistLabel)</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>\(binaryPath)</string>
+            <string>serve</string>
+            <string>--idle-timeout</string>
+            <string>none</string>
+        </array>
+        <key>KeepAlive</key>
+        <true/>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>StandardOutPath</key>
+        <string>\(logPath)</string>
+        <key>StandardErrorPath</key>
+        <string>\(logPath)</string>
+        <key>ProcessType</key>
+        <string>Interactive</string>
+    </dict>
+    </plist>
+    """
+
+    let plistPath = launchAgentPlistPath()
+
+    // If already installed, unload first
+    if FileManager.default.fileExists(atPath: plistPath) {
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        proc.arguments = ["unload", plistPath]
+        proc.standardOutput = FileHandle.nullDevice
+        proc.standardError = FileHandle.nullDevice
+        try? proc.run()
+        proc.waitUntilExit()
+    }
+
+    // Stop any manually-spawned daemon so launchd takes over
+    let client = DaemonClient()
+    if let fd = client.connect() {
+        close(fd)
+        // Daemon is running outside launchd — kill it
+        let killProc = Process()
+        killProc.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        killProc.arguments = ["-f", "heads-up serve"]
+        killProc.standardOutput = FileHandle.nullDevice
+        killProc.standardError = FileHandle.nullDevice
+        try? killProc.run()
+        killProc.waitUntilExit()
+        usleep(500_000)  // let it die
+    }
+
+    // Write plist
+    do {
+        try plist.write(toFile: plistPath, atomically: true, encoding: .utf8)
+    } catch {
+        exitError("Failed to write plist: \(error)", code: "WRITE_FAILED")
+    }
+
+    // Load via launchctl
+    let loadProc = Process()
+    loadProc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    loadProc.arguments = ["load", plistPath]
+    do { try loadProc.run() } catch {
+        exitError("launchctl load failed: \(error)", code: "LAUNCHCTL_FAILED")
+    }
+    loadProc.waitUntilExit()
+
+    if loadProc.terminationStatus != 0 {
+        exitError("launchctl load exited with status \(loadProc.terminationStatus)", code: "LAUNCHCTL_FAILED")
+    }
+
+    // Wait for daemon to come up (up to 5s)
+    var started = false
+    for _ in 0..<50 {
+        usleep(100_000)
+        if let fd = client.connect() {
+            close(fd)
+            started = true
+            break
+        }
+    }
+
+    if started {
+        let result: [String: Any] = [
+            "status": "success",
+            "message": "Installed. Daemon managed by launchd.",
+            "plist": plistPath,
+            "binary": binaryPath,
+            "log": logPath
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+           let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+    } else {
+        exitError("Daemon did not start within 5s. Check: launchctl list | grep heads-up", code: "DAEMON_START_TIMEOUT")
+    }
+}
+
+// MARK: - CLI Command: uninstall
+
+func uninstallCommand(args: [String]) {
+    let plistPath = launchAgentPlistPath()
+
+    guard FileManager.default.fileExists(atPath: plistPath) else {
+        exitError("Not installed. No plist at \(plistPath)", code: "NOT_INSTALLED")
+    }
+
+    // Unload (this stops the daemon)
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+    proc.arguments = ["unload", plistPath]
+    do { try proc.run() } catch {
+        exitError("launchctl unload failed: \(error)", code: "LAUNCHCTL_FAILED")
+    }
+    proc.waitUntilExit()
+
+    // Remove plist
+    try? FileManager.default.removeItem(atPath: plistPath)
+
+    let result: [String: String] = [
+        "status": "success",
+        "message": "Uninstalled. Daemon stopped."
+    ]
+    if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+       let str = String(data: data, encoding: .utf8) {
+        print(str)
+    }
+}
+
 // MARK: - Output
 
 func outputResponse(_ response: CanvasResponse) {
