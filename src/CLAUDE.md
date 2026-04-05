@@ -16,12 +16,12 @@ Requires macOS 14+ and Accessibility permission.
 
 ```bash
 aos see cursor                    # What's under the cursor
-aos show render --html "..." --out /tmp/x.png  # Render HTML to PNG
+aos show render --html "..." --out /tmp/x.png
 aos do click 500,300              # Click at coordinates
-aos do type "hello world"         # Type text with natural cadence
-aos do key "cmd+s"                # Key combo
-aos do press --pid 1234 --role AXButton --title Save  # Press AX element
-aos set voice.enabled true        # Configure autonomic settings
+aos do type "hello world"         # Type with natural cadence
+aos say "Hello, I'm your agent"   # Speak text aloud
+aos say --list-voices             # List available voices
+aos set voice.enabled true        # Configure settings
 ```
 
 ### Daemon Mode
@@ -30,47 +30,49 @@ aos set voice.enabled true        # Configure autonomic settings
 aos serve                         # Start unified daemon
 aos see observe --depth 2         # Stream perception events
 aos show create --id x --at 100,100,200,200 --html "<div>overlay</div>"
-aos show list                     # List active canvases
-aos show remove --id x            # Remove canvas
+aos do session                    # Interactive action session
 ```
 
-### Session Mode (stateful action loop)
+### Autonomic Configuration
+
+Config file: `~/.config/aos/config.json` (daemon watches for changes)
 
 ```bash
-aos do session [--profile natural]
-# Then send ndjson on stdin:
-{"action":"click","x":500,"y":300}
-{"action":"type","text":"hello"}
-{"action":"key","key":"cmd+s"}
-{"action":"status"}
-{"action":"end"}
+aos set voice.enabled true        # Daemon starts speaking automatically
+aos set voice.voice "com.apple.voice.compact.en-US.Samantha"
+aos set voice.rate 200            # Words per minute
+aos set voice.enabled false       # Mute
 ```
 
-### Config
+When voice is enabled, the daemon announces canvas lifecycle events
+and other significant actions without the agent needing to call `aos say`.
 
-Config file: `~/.config/aos/config.json`
-Socket: `~/.config/aos/sock`
-Profiles: `~/.config/aos/profiles/`
+### Config Keys
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| voice.enabled | bool | false | Auto-speak daemon events |
+| voice.announce_actions | bool | true | Announce canvas/action events |
+| voice.voice | string | system default | Voice identifier |
+| voice.rate | float | ~180 | Speech rate (WPM) |
+| perception.default_depth | int | 1 | Default perception depth (0-3) |
+| perception.settle_threshold_ms | int | 200 | Cursor settle threshold |
+| feedback.visual | bool | true | Visual feedback overlays |
+| feedback.sound | bool | false | Sound feedback |
 
 ## Architecture
 
 ```
 src/
   main.swift          # Entry point, subcommand routing
-  shared/             # Helpers, envelope, config, types
-  perceive/           # Perception module (cursor, AX, events, attention)
-  display/            # Display module (canvas, render, auto-projection)
-  act/                # Action module (click, type, press, session, profiles)
-  daemon/             # UnifiedDaemon (socket server, routing)
+  shared/             # Helpers, envelope, config (+watcher), types
+  perceive/           # Perception: cursor, AX, events, attention
+  display/            # Display: canvas, render, auto-projection
+  act/                # Action: click, type, press, session, profiles
+  voice/              # Voice: TTS engine, say command
+  daemon/             # UnifiedDaemon: socket, routing, autonomic
   commands/           # serve, set
 ```
-
-### Unified Daemon
-
-`aos serve` starts a single daemon that hosts both perception and display.
-One socket (`~/.config/aos/sock`), one CGEventTap, one process. Requests
-routed by `action` field: perception actions -> PerceptionEngine, display
-actions -> CanvasManager.
 
 ### Spec
 
