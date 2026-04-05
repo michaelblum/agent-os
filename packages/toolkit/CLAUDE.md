@@ -12,7 +12,6 @@ agent-os primitives (side-eye, heads-up, hand-off)
 
 ```
 components/     HTML/CSS/JS templates loaded into heads-up canvases
-patterns/       Reusable code patterns (IPC helpers, state machines, etc.)
 ```
 
 ## Components
