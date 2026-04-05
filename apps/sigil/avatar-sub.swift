@@ -81,7 +81,7 @@ func startCoalescingWorker() {
         guard let session = coalescingWorkerSession, session.isConnected else { return }
 
         if let pos = decorPos {
-            session.sendOnly(["action": "update", "id": "cursor-decor", "at": [pos.x, pos.y, 40, 40]])
+            session.sendAndReceive(["action": "update", "id": "cursor-decor", "at": [pos.x, pos.y, 40, 40]])
         }
         if let pos = trackPos, let expanded = expandedCanvasRect {
             let canvasRelX = pos.x - expanded.x
@@ -89,7 +89,7 @@ func startCoalescingWorker() {
             // Build radial_track message inline to avoid JSONSerialization overhead
             let msg = "{\"type\":\"radial_track\",\"x\":\(canvasRelX),\"y\":\(canvasRelY)}"
             let b64 = Data(msg.utf8).base64EncodedString()
-            session.sendOnly(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
+            session.sendAndReceive(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
         }
     }
     timer.resume()
@@ -676,9 +676,15 @@ func startSubscriber() {
     let stream = DaemonEventStream()
     subscriberStream = stream  // retain
 
-    stream.onReconnect = {
+    stream.onConnected = { _ in
+        // Re-query avatar geometry on every connect (first and reconnect).
+        // Critical: hydrates curX/curY/curSize for hit-testing.
         queryAvatar()
         fputs("avatar-sub: connected to daemon.\n", stderr)
+    }
+
+    stream.onReconnect = {
+        fputs("avatar-sub: reconnected, resyncing state.\n", stderr)
     }
 
     stream.onDisconnect = {

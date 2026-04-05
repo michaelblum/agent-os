@@ -56,7 +56,7 @@ func inspectCommand(args: [String]) {
 
     // Connect to daemon (persistent session for the lifetime of the command)
     let session = DaemonSession()
-    guard session.connectWithAutoStart() else {
+    guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon. Run 'aos serve' first.", code: "CONNECT_ERROR")
     }
 

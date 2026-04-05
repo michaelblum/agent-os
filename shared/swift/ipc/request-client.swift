@@ -37,14 +37,19 @@ class DaemonSession {
     }
 
     /// Connect, auto-starting the daemon if needed.
-    /// Spawns `aos serve` and polls for the socket to become available.
-    func connectWithAutoStart(binaryPath: String? = nil, timeoutMs: Int32 = 1000) -> Bool {
+    /// Spawns the binary at `binaryPath` with `serve --idle-timeout 5m` and polls
+    /// for the socket to become available.
+    ///
+    /// `binaryPath` is required. There is no default — callers must know which
+    /// binary provides the daemon. For `aos` commands, pass `CommandLine.arguments[0]`.
+    /// External consumers (e.g. Sigil) must pass the path to the `aos` binary explicitly.
+    func connectWithAutoStart(binaryPath: String, timeoutMs: Int32 = 1000) -> Bool {
         if connect(timeoutMs: timeoutMs) { return true }
 
         // Try to start daemon
         fputs("ipc: starting daemon...\n", stderr)
         let proc = Process()
-        let binary = binaryPath ?? CommandLine.arguments[0]
+        let binary = binaryPath
         proc.executableURL = URL(fileURLWithPath: binary)
         proc.arguments = ["serve", "--idle-timeout", "5m"]
         proc.standardOutput = FileHandle.nullDevice
@@ -112,17 +117,20 @@ class DaemonSession {
 // MARK: - One-Shot Convenience
 
 /// Connect, send one JSON dictionary, read one response, close.
-/// Auto-starts daemon if `autoStart` is true.
+/// If `autoStartBinary` is provided and connection fails, spawns that binary as daemon.
 @discardableResult
 func daemonOneShot(
     _ json: [String: Any],
     socketPath: String = kDefaultSocketPath,
-    autoStart: Bool = false
+    autoStartBinary: String? = nil
 ) -> [String: Any]? {
     let session = DaemonSession(socketPath: socketPath)
-    let connected = autoStart
-        ? session.connectWithAutoStart()
-        : session.connect()
+    let connected: Bool
+    if let binary = autoStartBinary {
+        connected = session.connectWithAutoStart(binaryPath: binary)
+    } else {
+        connected = session.connect()
+    }
     guard connected else { return nil }
     defer { session.disconnect() }
     return session.sendAndReceive(json)

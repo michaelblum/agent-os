@@ -29,8 +29,10 @@ func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -
 }
 
 /// Helper: update avatar position on a persistent session.
+/// Uses sendAndReceive (not sendOnly) to drain the daemon's response and
+/// prevent socket buffer backlog during sustained 60fps animation loops.
 func sendAvatarUpdate(_ session: DaemonSession) {
-    session.sendOnly([
+    session.sendAndReceive([
         "action": "update",
         "id": avatarID,
         "at": [curX, curY, curSize, curSize]

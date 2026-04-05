@@ -71,7 +71,7 @@ func logCommand(args: [String]) {
     }
 
     let session = DaemonSession()
-    guard session.connectWithAutoStart() else {
+    guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon. Run 'aos serve' first.", code: "CONNECT_ERROR")
     }
 
