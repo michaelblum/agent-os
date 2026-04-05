@@ -79,7 +79,3 @@ func handleSet(args: [String]) {
 func handleServe(args: [String]) {
     serveCommand(args: args)
 }
-
-// Temporary stubs — replaced by subsequent tasks
-func observeCommand(args: [String]) { print("{\"status\":\"stub\",\"command\":\"observe\"}") }
-func setCommand(args: [String]) { print("{\"status\":\"stub\",\"command\":\"set\"}") }
