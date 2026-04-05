@@ -88,6 +88,7 @@ class DaemonEventStream {
 
     private func subscriberLoop() {
         var backoff = initialBackoffSec
+        var isFirstConnect = true
 
         while true {
             lock.lock()
@@ -109,19 +110,30 @@ class DaemonEventStream {
             guard running else { fd = -1; lock.unlock(); close(sockFD); return }
             lock.unlock()
 
-            // Send subscribe message
+            // Send subscribe message and notify consumer of connection.
+            // defer ensures session.fd is cleared before deinit regardless of exit path,
+            // preventing double-close of sockFD.
             let session = DaemonSession(socketPath: socketPath)
             // Inject the already-connected fd (DaemonSession manages its own fd,
             // but here we share the subscriber fd for setup commands)
             session.fd = sockFD
-            session.sendAndReceive(subscribeMessage)
+            defer { session.fd = -1 }  // guaranteed cleanup — prevents deinit double-close
+
+            guard session.sendAndReceive(subscribeMessage) != nil else {
+                fputs("event-stream: subscribe failed, retrying...\n", stderr)
+                close(sockFD)
+                lock.lock(); fd = -1; lock.unlock()
+                usleep(UInt32(backoff * 1_000_000))
+                continue  // defer fires here: session.fd = -1 (already -1 is fine)
+            }
 
             // Notify consumer of connection
             onConnected?(session)
-            onReconnect?()
-
-            // Prevent session deinit from closing our fd
-            session.fd = -1
+            if isFirstConnect {
+                isFirstConnect = false
+            } else {
+                onReconnect?()
+            }
 
             fputs("event-stream: connected.\n", stderr)
 
@@ -151,6 +163,10 @@ class DaemonEventStream {
             lock.lock()
             guard running else { lock.unlock(); return }
             lock.unlock()
+
+            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pfd, 1, 500)  // 500ms timeout — allows running check
+            if ready <= 0 { continue }      // timeout — loop back, recheck running
 
             let n = read(fd, &chunk, chunk.count)
             guard n > 0 else { return }
