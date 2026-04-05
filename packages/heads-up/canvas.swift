@@ -255,6 +255,8 @@ class CanvasManager {
     private var anchorTimer: DispatchSourceTimer?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
+    /// (canvasID, action, at?) — relayed to subscribers as canvas_lifecycle events
+    var onCanvasLifecycle: ((String, String, [CGFloat]?) -> Void)?
     let startTime = Date()
     private var lastChannelReRead: Date = .distantPast
     private var lastAutoProjectUpdate: Date = .distantPast
@@ -275,6 +277,7 @@ class CanvasManager {
         guard let canvas = canvases.removeValue(forKey: id) else { return }
         canvas.close()
         if !hasAnchoredCanvases { stopAnchorPolling() }
+        onCanvasLifecycle?(id, "removed", nil)
         onCanvasCountChanged?()
     }
 
@@ -286,6 +289,7 @@ class CanvasManager {
         for id in toRemove {
             if let canvas = canvases.removeValue(forKey: id) {
                 canvas.close()
+                onCanvasLifecycle?(id, "removed", nil)
             }
         }
         if !toRemove.isEmpty {
@@ -504,6 +508,10 @@ class CanvasManager {
 
         if hasAnchoredCanvases || autoMode != nil { startAnchorPolling() }
 
+        onCanvasCountChanged?()
+        let at: [CGFloat] = [cgFrame.origin.x, cgFrame.origin.y, cgFrame.size.width, cgFrame.size.height]
+        onCanvasLifecycle?(id, "created", at)
+
         return .ok()
     }
 
@@ -521,6 +529,8 @@ class CanvasManager {
             canvas.anchorWindowID = nil
             canvas.anchorChannelID = nil
             canvas.offset = nil
+            let atArr: [CGFloat] = [at[0], at[1], at[2], at[3]]
+            onCanvasLifecycle?(id, "updated", atArr)
         }
 
         // anchorChannel on update: re-read channel, update anchor
@@ -547,9 +557,13 @@ class CanvasManager {
                     width: off[2], height: off[3]
                 )
                 canvas.updatePosition(cgRect: newFrame)
+                let atArr: [CGFloat] = [newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height]
+                onCanvasLifecycle?(id, "updated", atArr)
             } else {
                 canvas.offset = CGRect(x: 0, y: 0, width: winBounds.width, height: winBounds.height)
                 canvas.updatePosition(cgRect: winBounds)
+                let atArr: [CGFloat] = [winBounds.origin.x, winBounds.origin.y, winBounds.size.width, winBounds.size.height]
+                onCanvasLifecycle?(id, "updated", atArr)
             }
             startAnchorPolling()
         } else if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
@@ -563,6 +577,8 @@ class CanvasManager {
                     width: off[2], height: off[3]
                 )
                 canvas.updatePosition(cgRect: newFrame)
+                let atArr: [CGFloat] = [newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height]
+                onCanvasLifecycle?(id, "updated", atArr)
             }
             startAnchorPolling()
         }
@@ -597,15 +613,22 @@ class CanvasManager {
         }
         canvas.close()
         if !hasAnchoredCanvases { stopAnchorPolling() }
+        onCanvasCountChanged?()
+        onCanvasLifecycle?(id, "removed", nil)
         return .ok()
     }
 
     private func handleRemoveAll() -> CanvasResponse {
+        let removedIds = Array(canvases.keys)
         for (_, canvas) in canvases {
             canvas.close()
         }
         canvases.removeAll()
         stopAnchorPolling()
+        for id in removedIds {
+            onCanvasLifecycle?(id, "removed", nil)
+        }
+        onCanvasCountChanged?()
         return .ok()
     }
 

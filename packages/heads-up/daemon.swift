@@ -606,6 +606,14 @@ func serveCommand(args: [String]) {
         server?.relayEvent(canvasID: canvasID, payload: payload)
     }
 
+    canvasManager.onCanvasLifecycle = { [weak server] canvasID, action, at in
+        var payload: [String: Any] = ["type": "canvas_lifecycle", "id": canvasID, "action": action]
+        if let at = at {
+            payload["at"] = at.map { Double($0) }
+        }
+        server?.relayEvent(canvasID: "__lifecycle__", payload: payload)
+    }
+
     server.start()
 
     // .accessory allows the daemon to become key window target (receive keyboard
