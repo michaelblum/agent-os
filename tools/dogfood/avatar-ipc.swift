@@ -15,6 +15,11 @@ let telemetryID = "telemetry"
 func connectSock() -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { return -1 }
+
+    // Set non-blocking for connect timeout
+    let flags = fcntl(fd, F_GETFL)
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
     let pathBytes = socketPath.utf8CString
@@ -30,8 +35,33 @@ func connectSock() -> Int32 {
             connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
         }
     }
-    guard r == 0 else { close(fd); return -1 }
+    if r != 0 {
+        if errno == EINPROGRESS {
+            // Wait for connect to complete (1s timeout)
+            var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+            let ready = poll(&pfd, 1, 1000)
+            if ready <= 0 { close(fd); return -1 }
+            // Check for connect error
+            var optErr: Int32 = 0
+            var optLen = socklen_t(MemoryLayout<Int32>.size)
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &optErr, &optLen)
+            if optErr != 0 { close(fd); return -1 }
+        } else {
+            close(fd); return -1
+        }
+    }
+
+    // Restore blocking mode for subsequent reads/writes
+    fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
     return fd
+}
+
+/// Read with poll-based timeout. Returns bytes read, or -1 on timeout/error.
+func readWithTimeout(_ fd: Int32, _ buf: inout [UInt8], _ count: Int, timeoutMs: Int32 = 2000) -> Int {
+    var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+    let ready = poll(&pfd, 1, timeoutMs)
+    guard ready > 0 else { return -1 }  // timeout or poll error
+    return read(fd, &buf, count)
 }
 
 // -- Send JSON + read response on an open fd --
@@ -39,7 +69,7 @@ func sendJSON(_ fd: Int32, _ json: String) {
     let line = json + "\n"
     line.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
     var buf = [UInt8](repeating: 0, count: 4096)
-    _ = read(fd, &buf, buf.count)
+    _ = readWithTimeout(fd, &buf, buf.count)
 }
 
 // -- Fire-and-forget: connect, send, close --
@@ -57,7 +87,7 @@ func getCanvasList() -> String {
     let req = "{\"action\":\"list\"}\n"
     req.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
     var buf = [UInt8](repeating: 0, count: 8192)
-    let n = read(fd, &buf, buf.count)
+    let n = readWithTimeout(fd, &buf, buf.count)
     close(fd)
     guard n > 0 else { return "" }
     return String(bytes: buf[0..<n], encoding: .utf8) ?? ""
@@ -86,7 +116,7 @@ func queryDotPosition() -> (Double, Double) {
     let req = "{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"\(js)\"}\n"
     req.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
     var buf = [UInt8](repeating: 0, count: 4096)
-    let n = read(fd, &buf, buf.count)
+    let n = readWithTimeout(fd, &buf, buf.count)
     close(fd)
     if n > 0, let str = String(bytes: buf[0..<n], encoding: .utf8) {
         if let rRange = str.range(of: "\"result\":\""),
