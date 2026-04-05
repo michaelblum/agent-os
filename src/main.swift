@@ -20,6 +20,8 @@ struct AOS {
             handleShow(args: Array(args.dropFirst()))
         case "do":
             handleDo(args: Array(args.dropFirst()))
+        case "say":
+            handleSay(args: Array(args.dropFirst()))
         case "set":
             handleSet(args: Array(args.dropFirst()))
         case "serve":
@@ -42,6 +44,7 @@ func printUsage() {
       see <subcommand>     Perception — query what's on screen
       show <subcommand>    Display — manage overlays and render
       do <subcommand>      Action — execute mouse, keyboard, AX actions
+      say <text>           Voice — speak text aloud
       set <key> <value>    Configure autonomic settings
       serve                Start the unified daemon
 
@@ -77,6 +80,12 @@ func printUsage() {
       session                Interactive ndjson session mode
       profiles [name]        List or show behavior profiles
 
+    Voice (aos say):
+      <text>               Speak text aloud
+      --voice <id>         Use specific voice
+      --rate <wpm>         Speech rate (words per minute)
+      --list-voices        List available system voices
+
     Configuration (aos set):
       voice.enabled <bool>              Enable/disable voice output
       perception.default_depth <0-3>    Default perception depth
@@ -93,6 +102,8 @@ func printUsage() {
       aos do key "cmd+s"                # Key combo
       aos do session                    # Start interactive session
       aos see observe --depth 2         # Stream perception events
+      aos say "Hello, I'm your agent"    # Speak text
+      aos say --list-voices              # List available voices
       aos set voice.enabled true        # Turn on voice
     """
     print(usage)
@@ -181,6 +192,10 @@ func handleShow(args: [String]) {
     default:
         exitError("Unknown show subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+func handleSay(args: [String]) {
+    sayCommand(args: args)
 }
 
 func handleSet(args: [String]) {

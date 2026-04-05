@@ -14,6 +14,8 @@ struct AosConfig: Codable {
     struct VoiceConfig: Codable {
         var enabled: Bool
         var announce_actions: Bool
+        var voice: String?       // Voice identifier (nil = system default)
+        var rate: Float?         // Speech rate in words per minute (nil = default ~180)
     }
 
     struct PerceptionConfig: Codable {
@@ -27,7 +29,7 @@ struct AosConfig: Codable {
     }
 
     static let defaults = AosConfig(
-        voice: VoiceConfig(enabled: false, announce_actions: true),
+        voice: VoiceConfig(enabled: false, announce_actions: true, voice: nil, rate: nil),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false)
     )
@@ -60,6 +62,11 @@ func setConfigValue(key: String, value: String) {
         config.voice.enabled = (value == "true" || value == "1")
     case "voice.announce_actions":
         config.voice.announce_actions = (value == "true" || value == "1")
+    case "voice.voice":
+        config.voice.voice = value == "default" ? nil : value
+    case "voice.rate":
+        if let n = Float(value), n > 0 { config.voice.rate = n }
+        else { exitError("rate must be a positive number", code: "INVALID_VALUE") }
     case "perception.default_depth":
         if let n = Int(value), (0...3).contains(n) { config.perception.default_depth = n }
         else { exitError("depth must be 0-3", code: "INVALID_VALUE") }
@@ -71,7 +78,7 @@ func setConfigValue(key: String, value: String) {
     case "feedback.sound":
         config.feedback.sound = (value == "true" || value == "1")
     default:
-        exitError("Unknown config key: \(key). Valid: voice.enabled, voice.announce_actions, perception.default_depth, perception.settle_threshold_ms, feedback.visual, feedback.sound", code: "UNKNOWN_KEY")
+        exitError("Unknown config key: \(key). Valid: voice.enabled, voice.announce_actions, voice.voice, voice.rate, perception.default_depth, perception.settle_threshold_ms, feedback.visual, feedback.sound", code: "UNKNOWN_KEY")
     }
     saveConfig(config)
     print(jsonString(config))
