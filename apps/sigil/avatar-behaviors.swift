@@ -102,9 +102,9 @@ func behaviorFollowClick(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     pushEvent("Follow click \u{2192} (\(Int(clickX)), \(Int(clickY)))", level: "info")
 
     let sx = curX, sy = curY, ss = curSize
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
 
     let duration = 1.2
     let n = Int(animFPS * duration)
@@ -116,7 +116,7 @@ func behaviorFollowClick(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
         curX = sx + (tx - sx) * e
         curY = sy + (ty - sy) * e
         curSize = ss + (fullSize - ss) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
 
         if !hasSwitchedZ && !doesAvatarOverlapChat() {
             ensureChatOnTop()
@@ -228,20 +228,20 @@ func behaviorDock(_ mid: UInt64) {
     ensureAvatarOnTop()
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.015;\"}")
 
-    let fd = connectSock()
-    guard fd >= 0 else { avatarState = .roaming; isAnimating = false; return }
+    let session = DaemonSession()
+    guard session.connect() else { avatarState = .roaming; isAnimating = false; return }
 
     let surgeN = Int(animFPS * 0.35)
     var t0 = Date()
     for i in 0...surgeN {
-        guard moveID == mid else { close(fd); avatarState = .roaming; isAnimating = false; return }
+        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(surgeN)
         let e = easeOutBack(t)
         let s = ss + (surgeSize - ss) * e
         curX = sx - (s - ss) / 2
         curY = sy - (s - ss) / 2 - 20 * e
         curSize = s
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
         if want > got { Thread.sleep(forTimeInterval: want - got) }
@@ -254,13 +254,13 @@ func behaviorDock(_ mid: UInt64) {
     let flyN = Int(animFPS * 0.7)
     t0 = Date()
     for i in 0...flyN {
-        guard moveID == mid else { close(fd); avatarState = .roaming; isAnimating = false; return }
+        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(flyN)
         let e = easeInOutCubic(t)
         curX = p2sx + (titlebarCenterX - p2sx) * e
         curY = p2sy + (titlebarCenterY - p2sy) * e
         curSize = p2ss + (fullSize - p2ss) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
         if want > got { Thread.sleep(forTimeInterval: want - got) }
@@ -273,19 +273,19 @@ func behaviorDock(_ mid: UInt64) {
     let parkN = Int(animFPS * 0.5)
     t0 = Date()
     for i in 0...parkN {
-        guard moveID == mid else { close(fd); avatarState = .roaming; isAnimating = false; return }
+        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(parkN)
         let e = easeInOutCubic(t)
         curX = p3sx + (dotX - p3sx) * e
         curY = p3sy + (dotY - p3sy) * e
         curSize = p3ss + (dockedSize - p3ss) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
         if want > got { Thread.sleep(forTimeInterval: want - got) }
     }
 
-    close(fd)
+    session.disconnect()
 
     // DOM reparenting: activate mini-avatar in chat, remove external canvas
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"avatarDock()\"}")
@@ -326,24 +326,24 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
 
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.06; state.bobAmplitude = 0.15;\"}")
 
-    let fd = connectSock()
-    guard fd >= 0 else { avatarState = .docked; isAnimating = false; return }
+    let session = DaemonSession()
+    guard session.connect() else { avatarState = .docked; isAnimating = false; return }
 
     let expandN = Int(animFPS * 0.6)
     let t0 = Date()
     for i in 0...expandN {
-        guard moveID == mid else { close(fd); avatarState = .roaming; isAnimating = false; return }
+        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(expandN)
         let e = easeOutBack(t)
         curX = sx + (expandX - sx) * e
         curY = sy + (expandY - sy) * e
         curSize = dockedSize + (fullSize - dockedSize) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
         if want > got { Thread.sleep(forTimeInterval: want - got) }
     }
-    close(fd)
+    session.disconnect()
 
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.008;\"}")
 
@@ -367,23 +367,23 @@ func behaviorEscapeAndDock(_ mid: UInt64) {
     let escY = chatY - curSize - 20
     let sx = curX, sy = curY
 
-    let fd = connectSock()
-    guard fd >= 0 else { avatarState = .roaming; isAnimating = false; return }
+    let session = DaemonSession()
+    guard session.connect() else { avatarState = .roaming; isAnimating = false; return }
 
     let escN = Int(animFPS * 0.4)
     let t0 = Date()
     for i in 0...escN {
-        guard moveID == mid else { close(fd); avatarState = .roaming; isAnimating = false; return }
+        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(escN)
         let e = easeOutQuart(t)
         curX = sx + (escX - sx) * e
         curY = sy + (escY - sy) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
         if want > got { Thread.sleep(forTimeInterval: want - got) }
     }
-    close(fd)
+    session.disconnect()
 
     isAnimating = false
     behaviorDock(mid)

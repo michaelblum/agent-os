@@ -1,7 +1,7 @@
 // avatar-animate.swift -- Reusable animation primitives for avatar motion.
 //
-// Generalizes the frame-pump pattern from avatar-follower.swift into composable
-// building blocks: runAnimation, moveTo, scaleTo, moveAndScale, orbit, holdPosition.
+// Uses DaemonSession from shared/swift/ipc/ for persistent connections
+// during animation loops.
 
 import Foundation
 
@@ -16,8 +16,6 @@ let dockedSize: Double = 40
 let animFPS: Double    = 60.0
 
 // -- Generic frame pump --
-// Calls `body(t)` for t in [0,1] over `duration` seconds at `fps` frames/sec.
-// body returns false to abort early.
 func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -> Bool) {
     let n = Int(fps * duration)
     let t0 = Date()
@@ -30,18 +28,27 @@ func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -
     }
 }
 
+/// Helper: update avatar position on a persistent session.
+func sendAvatarUpdate(_ session: DaemonSession) {
+    session.sendOnly([
+        "action": "update",
+        "id": avatarID,
+        "at": [curX, curY, curSize, curSize]
+    ])
+}
+
 // -- Position animation --
 func moveTo(x: Double, y: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic, mid: UInt64? = nil) {
     let sx = curX, sy = curY
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
     runAnimation(duration: duration) { t in
         if let mid = mid, moveID != mid { return false }
         let e = easing(t)
         curX = sx + (x - sx) * e
         curY = sy + (y - sy) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         return true
     }
 }
@@ -49,13 +56,13 @@ func moveTo(x: Double, y: Double, duration: Double, easing: @escaping EasingFn =
 // -- Size animation --
 func scaleTo(size: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic) {
     let ss = curSize
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
     runAnimation(duration: duration) { t in
         let e = easing(t)
         curSize = ss + (size - ss) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         return true
     }
 }
@@ -63,16 +70,16 @@ func scaleTo(size: Double, duration: Double, easing: @escaping EasingFn = easeIn
 // -- Combined move + scale --
 func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: @escaping EasingFn = easeInOutCubic, mid: UInt64? = nil) {
     let sx = curX, sy = curY, ss = curSize
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
     runAnimation(duration: duration) { t in
         if let mid = mid, moveID != mid { return false }
         let e = easing(t)
         curX = sx + (x - sx) * e
         curY = sy + (y - sy) * e
         curSize = ss + (size - ss) * e
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         return true
     }
 }
@@ -80,9 +87,9 @@ func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: 
 // -- Orbit around a rectangle's perimeter --
 func orbit(bounds: (x: Double, y: Double, w: Double, h: Double), duration: Double, laps: Int = 1) {
     let perimeter = 2 * (bounds.w + bounds.h)
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
     runAnimation(duration: duration * Double(laps)) { t in
         let p = (t * Double(laps)).truncatingRemainder(dividingBy: 1.0) * perimeter
         var ox: Double, oy: Double
@@ -96,21 +103,21 @@ func orbit(bounds: (x: Double, y: Double, w: Double, h: Double), duration: Doubl
             ox = bounds.x - curSize / 2; oy = bounds.y + bounds.h - (p - 2 * bounds.w - bounds.h) - curSize / 2
         }
         curX = ox; curY = oy
-        sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(ox),\(oy),\(curSize),\(curSize)]}")
+        sendAvatarUpdate(session)
         return true
     }
 }
 
 // -- Smoothed follow: continuously track a moving target --
 func holdPosition(getTarget: @escaping () -> (Double, Double)?, smoothing: Double = 0.15, shouldContinue: @escaping () -> Bool) {
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    defer { close(fd) }
+    let session = DaemonSession()
+    guard session.connect() else { return }
+    defer { session.disconnect() }
     while shouldContinue() {
         if let (tx, ty) = getTarget() {
             curX += (tx - curSize / 2 - curX) * smoothing
             curY += (ty - curSize / 2 - curY) * smoothing
-            sendJSON(fd, "{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)]}")
+            sendAvatarUpdate(session)
         }
         Thread.sleep(forTimeInterval: 1.0 / 60.0)
     }

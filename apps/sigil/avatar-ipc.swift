@@ -1,96 +1,29 @@
-// avatar-ipc.swift -- Socket/IPC helpers for communicating with heads-up daemon.
+// avatar-ipc.swift -- IPC helpers for communicating with the aos daemon.
 //
-// Extracted from avatar-follower.swift.
-// All communication goes through a Unix domain socket at ~/.config/heads-up/sock.
+// Uses shared/swift/ipc/ for transport. Sigil-specific helpers
+// (canvas queries, telemetry, behavior messaging) are layered on top.
 
 import Foundation
 
-// -- Well-known IDs and paths --
-let socketPath = NSString(string: "~/.config/heads-up/sock").expandingTildeInPath
+// -- Well-known IDs --
 let avatarID   = "avatar"
 let chatID     = "agent-chat"
 let telemetryID = "telemetry"
 
-// -- Socket connection --
-func connectSock() -> Int32 {
-    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard fd >= 0 else { return -1 }
-
-    // Set non-blocking for connect timeout
-    let flags = fcntl(fd, F_GETFL)
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK)
-
-    var addr = sockaddr_un()
-    addr.sun_family = sa_family_t(AF_UNIX)
-    let pathBytes = socketPath.utf8CString
-    let maxLen = MemoryLayout.size(ofValue: addr.sun_path)
-    withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-        pathBytes.withUnsafeBufferPointer { src in
-            UnsafeMutableRawPointer(ptr).copyMemory(
-                from: src.baseAddress!, byteCount: min(pathBytes.count, maxLen))
-        }
-    }
-    let r = withUnsafePointer(to: &addr) { p in
-        p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-            connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-        }
-    }
-    if r != 0 {
-        if errno == EINPROGRESS {
-            // Wait for connect to complete (1s timeout)
-            var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-            let ready = poll(&pfd, 1, 1000)
-            if ready <= 0 { close(fd); return -1 }
-            // Check for connect error
-            var optErr: Int32 = 0
-            var optLen = socklen_t(MemoryLayout<Int32>.size)
-            getsockopt(fd, SOL_SOCKET, SO_ERROR, &optErr, &optLen)
-            if optErr != 0 { close(fd); return -1 }
-        } else {
-            close(fd); return -1
-        }
-    }
-
-    // Restore blocking mode for subsequent reads/writes
-    fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
-    return fd
-}
-
-/// Read with poll-based timeout. Returns bytes read, or -1 on timeout/error.
-func readWithTimeout(_ fd: Int32, _ buf: inout [UInt8], _ count: Int, timeoutMs: Int32 = 2000) -> Int {
-    var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-    let ready = poll(&pfd, 1, timeoutMs)
-    guard ready > 0 else { return -1 }  // timeout or poll error
-    return read(fd, &buf, count)
-}
-
-// -- Send JSON + read response on an open fd --
-func sendJSON(_ fd: Int32, _ json: String) {
-    let line = json + "\n"
-    line.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
-    var buf = [UInt8](repeating: 0, count: 4096)
-    _ = readWithTimeout(fd, &buf, buf.count)
-}
-
-// -- Fire-and-forget: connect, send, close --
+// -- Fire-and-forget: connect, send, read response, close --
 func sendOneShot(_ json: String) {
-    let fd = connectSock()
-    guard fd >= 0 else { return }
-    sendJSON(fd, json)
-    close(fd)
+    daemonOneShotRaw(json)
 }
 
 // -- Query all canvases --
 func getCanvasList() -> String {
-    let fd = connectSock()
-    guard fd >= 0 else { return "" }
-    let req = "{\"action\":\"list\"}\n"
-    req.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
-    var buf = [UInt8](repeating: 0, count: 8192)
-    let n = readWithTimeout(fd, &buf, buf.count)
-    close(fd)
-    guard n > 0 else { return "" }
-    return String(bytes: buf[0..<n], encoding: .utf8) ?? ""
+    let session = DaemonSession()
+    guard session.connect() else { return "" }
+    defer { session.disconnect() }
+    guard let response = session.sendAndReceive(["action": "list"]) else { return "" }
+    guard let data = try? JSONSerialization.data(withJSONObject: response),
+          let str = String(data: data, encoding: .utf8) else { return "" }
+    return str
 }
 
 // -- Extract position from list JSON for a given canvas ID --
@@ -110,22 +43,17 @@ func parseCanvasPosition(_ listStr: String, _ canvasID: String) -> (Double, Doub
 // -- Query chat DOM for pip (dot) position --
 func queryDotPosition() -> (Double, Double) {
     var dotCX = 25.0, dotCY = 21.5  // fallback
-    let fd = connectSock()
-    guard fd >= 0 else { return (dotCX, dotCY) }
+    let session = DaemonSession()
+    guard session.connect() else { return (dotCX, dotCY) }
+    defer { session.disconnect() }
     let js = "var r=document.getElementById('dot').getBoundingClientRect();r.left+r.width/2+','+(r.top+r.height/2)"
-    let req = "{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"\(js)\"}\n"
-    req.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
-    var buf = [UInt8](repeating: 0, count: 4096)
-    let n = readWithTimeout(fd, &buf, buf.count)
-    close(fd)
-    if n > 0, let str = String(bytes: buf[0..<n], encoding: .utf8) {
-        if let rRange = str.range(of: "\"result\":\""),
-           let rEnd = str[rRange.upperBound...].firstIndex(of: "\"") {
-            let coords = String(str[rRange.upperBound..<rEnd])
-            let parts = coords.split(separator: ",")
-            if parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) {
-                dotCX = x; dotCY = y
-            }
+    guard let response = session.sendAndReceive([
+        "action": "eval", "id": chatID, "js": js
+    ]) else { return (dotCX, dotCY) }
+    if let result = response["result"] as? String {
+        let parts = result.split(separator: ",")
+        if parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]) {
+            dotCX = x; dotCY = y
         }
     }
     return (dotCX, dotCY)
@@ -133,7 +61,7 @@ func queryDotPosition() -> (Double, Double) {
 
 // -- Z-ordering --
 func bringToFront(_ canvasID: String) {
-    sendOneShot("{\"action\":\"to-front\",\"id\":\"\(canvasID)\"}")
+    daemonOneShot(["action": "to-front", "id": canvasID])
 }
 
 // -- Telemetry --
@@ -142,7 +70,7 @@ func pushTelemetry(channel: String, data: [String: Any]) {
           let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
     let b64 = Data(jsonStr.utf8).base64EncodedString()
     let escaped = b64.replacingOccurrences(of: "'", with: "\\'")
-    sendOneShot("{\"action\":\"eval\",\"id\":\"\(telemetryID)\",\"js\":\"headsup.receive('\(escaped)')\"}")
+    daemonOneShot(["action": "eval", "id": telemetryID, "js": "headsup.receive('\(escaped)')"])
 }
 
 func pushEvent(_ text: String, level: String = "") {
@@ -163,5 +91,5 @@ func sendBehavior(_ slot: String, data: [String: Any] = [:]) {
     guard let jsonData = try? JSONSerialization.data(withJSONObject: msg),
           let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
     let b64 = Data(jsonStr.utf8).base64EncodedString()
-    sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"headsup.receive('\(b64)')\"}")
+    daemonOneShot(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
 }

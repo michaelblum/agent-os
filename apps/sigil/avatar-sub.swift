@@ -52,7 +52,7 @@ var interactionGeneration: UInt64 = 0
 // A background timer sends the actual IPC at a capped rate.
 var pendingCursorDecorPos: (x: Double, y: Double)? = nil
 var pendingRadialTrackPos: (x: Double, y: Double)? = nil
-var coalescingWorkerFD: Int32 = -1  // persistent socket for high-freq updates
+var coalescingWorkerSession: DaemonSession? = nil  // persistent session for high-freq updates
 let coalescingLock = NSLock()
 var coalescingTimer: DispatchSourceTimer? = nil  // retained globally to prevent dealloc
 
@@ -71,14 +71,17 @@ func startCoalescingWorker() {
 
         guard decorPos != nil || trackPos != nil else { return }
 
-        // Ensure persistent socket
-        if coalescingWorkerFD < 0 {
-            coalescingWorkerFD = connectSock()
+        // Ensure persistent session
+        if coalescingWorkerSession == nil || !coalescingWorkerSession!.isConnected {
+            let session = DaemonSession()
+            if session.connect() {
+                coalescingWorkerSession = session
+            }
         }
-        guard coalescingWorkerFD >= 0 else { return }
+        guard let session = coalescingWorkerSession, session.isConnected else { return }
 
         if let pos = decorPos {
-            sendJSON(coalescingWorkerFD, "{\"action\":\"update\",\"id\":\"cursor-decor\",\"at\":[\(pos.x),\(pos.y),40,40]}")
+            session.sendOnly(["action": "update", "id": "cursor-decor", "at": [pos.x, pos.y, 40, 40]])
         }
         if let pos = trackPos, let expanded = expandedCanvasRect {
             let canvasRelX = pos.x - expanded.x
@@ -86,7 +89,7 @@ func startCoalescingWorker() {
             // Build radial_track message inline to avoid JSONSerialization overhead
             let msg = "{\"type\":\"radial_track\",\"x\":\(canvasRelX),\"y\":\(canvasRelY)}"
             let b64 = Data(msg.utf8).base64EncodedString()
-            sendJSON(coalescingWorkerFD, "{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"headsup.receive('\(b64)')\"}")
+            session.sendOnly(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
         }
     }
     timer.resume()
@@ -94,10 +97,8 @@ func startCoalescingWorker() {
 
 func closeCoalescingSocket() {
     coalescingLock.lock()
-    if coalescingWorkerFD >= 0 {
-        close(coalescingWorkerFD)
-        coalescingWorkerFD = -1
-    }
+    coalescingWorkerSession?.disconnect()
+    coalescingWorkerSession = nil
     pendingCursorDecorPos = nil
     pendingRadialTrackPos = nil
     coalescingLock.unlock()
@@ -669,112 +670,60 @@ func resetInteractionState() {
     fputs("avatar-sub: interaction state reset.\n", stderr)
 }
 
-/// Connect to heads-up daemon, subscribe, and read events.
-/// Reconnects automatically on disconnect with exponential backoff (1s → 2s, capped).
+var subscriberStream: DaemonEventStream? = nil
+
 func startSubscriber() {
-    DispatchQueue.global(qos: .userInitiated).async {
-        var retryDelay: UInt32 = 1_000_000  // 1s initial, in microseconds
-        let maxRetryDelay: UInt32 = 4_000_000  // 4s cap
+    let stream = DaemonEventStream()
+    subscriberStream = stream  // retain
 
-        while true {
-            let fd = connectSock()
-            guard fd >= 0 else {
-                fputs("avatar-sub: daemon unavailable, retrying in \(retryDelay / 1_000_000)s...\n", stderr)
-                usleep(retryDelay)
-                retryDelay = min(retryDelay * 2, maxRetryDelay)
-                continue
+    stream.onReconnect = {
+        queryAvatar()
+        fputs("avatar-sub: connected to daemon.\n", stderr)
+    }
+
+    stream.onDisconnect = {
+        resetInteractionState()
+    }
+
+    stream.onMessage = { json in
+        guard let type = json["type"] as? String else { return }
+
+        // Channel events
+        if type == "channel",
+           let channel = json["channel"] as? String,
+           let data = json["data"] as? [String: Any] {
+            handleChannelEvent(channel: channel, data: data)
+        }
+
+        // Avatar canvas JS events (from postMessage relay)
+        if type == "event",
+           let id = json["id"] as? String, id == avatarID,
+           let payload = json["payload"] as? [String: Any] {
+            DispatchQueue.global(qos: .userInteractive).async {
+                handleAvatarEvent(payload: payload)
             }
+        }
 
-            // Reset retry delay on successful connect
-            retryDelay = 1_000_000
+        // Canvas lifecycle events — resync avatar position
+        if type == "event",
+           let id = json["id"] as? String, id == "__lifecycle__",
+           let payload = json["payload"] as? [String: Any],
+           let lifecycleType = payload["type"] as? String, lifecycleType == "canvas_lifecycle",
+           let canvasID = payload["id"] as? String, canvasID == avatarID {
 
-            // Subscribe to receive events
-            let req = "{\"action\":\"subscribe\"}\n"
-            req.withCString { ptr in _ = write(fd, ptr, strlen(ptr)) }
-
-            // Read and discard the subscribe response
-            var responseBuf = [UInt8](repeating: 0, count: 4096)
-            let subN = readWithTimeout(fd, &responseBuf, responseBuf.count, timeoutMs: 5000)
-            guard subN > 0 else {
-                fputs("avatar-sub: subscribe failed, retrying...\n", stderr)
-                close(fd)
-                usleep(retryDelay)
-                continue
+            let action = payload["action"] as? String ?? ""
+            if action == "created" || action == "updated",
+               let at = payload["at"] as? [Double], at.count >= 3 {
+                curX = at[0]; curY = at[1]; curSize = at[2]
+                fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
+            } else if action == "removed" {
+                curX = 0; curY = 0; curSize = 0
+                fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
             }
-
-            // Re-query avatar canvas position (may not exist yet — that's OK)
-            queryAvatar()
-
-            fputs("avatar-sub: connected to heads-up daemon.\n", stderr)
-
-            // Event loop: read newline-delimited JSON
-            var buffer = Data()
-            var chunk = [UInt8](repeating: 0, count: 4096)
-
-            while true {
-                let n = read(fd, &chunk, chunk.count)
-                guard n > 0 else {
-                    fputs("avatar-sub: daemon connection lost, reconnecting...\n", stderr)
-                    break
-                }
-                buffer.append(contentsOf: chunk[0..<n])
-
-                while let newlineIndex = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                    let lineData = Data(buffer[buffer.startIndex..<newlineIndex])
-                    buffer = Data(buffer[buffer.index(after: newlineIndex)...])
-
-                    guard !lineData.isEmpty else { continue }
-                    if let rawStr = String(data: lineData, encoding: .utf8) {
-                        fputs("SUB: \(rawStr.prefix(200))\n", stderr)
-                    }
-                    guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                          let type = json["type"] as? String else { continue }
-
-                    // Channel events
-                    if type == "channel",
-                       let channel = json["channel"] as? String,
-                       let data = json["data"] as? [String: Any] {
-                        handleChannelEvent(channel: channel, data: data)
-                    }
-
-                    // Avatar canvas JS events (from postMessage relay)
-                    if type == "event",
-                       let id = json["id"] as? String, id == avatarID,
-                       let payload = json["payload"] as? [String: Any] {
-                        DispatchQueue.global(qos: .userInteractive).async {
-                            handleAvatarEvent(payload: payload)
-                        }
-                    }
-
-                    // Canvas lifecycle events — resync avatar position
-                    if type == "event",
-                       let id = json["id"] as? String, id == "__lifecycle__",
-                       let payload = json["payload"] as? [String: Any],
-                       let lifecycleType = payload["type"] as? String, lifecycleType == "canvas_lifecycle",
-                       let canvasID = payload["id"] as? String, canvasID == avatarID {
-
-                        let action = payload["action"] as? String ?? ""
-                        if action == "created" || action == "updated",
-                           let at = payload["at"] as? [Double], at.count >= 3 {
-                            curX = at[0]; curY = at[1]; curSize = at[2]
-                            fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
-                        } else if action == "removed" {
-                            curX = 0; curY = 0; curSize = 0
-                            fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
-                        }
-                    }
-                }
-            }
-
-            close(fd)
-
-            // Connection lost — reset everything
-            resetInteractionState()
-
-            // Brief pause before reconnect
-            usleep(retryDelay)
         }
     }
+
+    stream.start()
 }
 
 // ============================================================================
