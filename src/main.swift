@@ -18,6 +18,8 @@ struct AOS {
             handleSee(args: Array(args.dropFirst()))
         case "show":
             handleShow(args: Array(args.dropFirst()))
+        case "do":
+            handleDo(args: Array(args.dropFirst()))
         case "set":
             handleSet(args: Array(args.dropFirst()))
         case "serve":
@@ -39,6 +41,7 @@ func printUsage() {
     Commands:
       see <subcommand>     Perception — query what's on screen
       show <subcommand>    Display — manage overlays and render
+      do <subcommand>      Action — execute mouse, keyboard, AX actions
       set <key> <value>    Configure autonomic settings
       serve                Start the unified daemon
 
@@ -57,6 +60,23 @@ func printUsage() {
       listen               Subscribe to events + forward commands
       ping                 Check daemon status
 
+    Action (aos do):
+      click <x,y>           Click at coordinates (--right, --double)
+      hover <x,y>           Move cursor to coordinates
+      drag <x1,y1> <x2,y2>  Drag between coordinates
+      scroll <x,y>          Scroll (--dx, --dy)
+      type <text>            Type text with natural cadence
+      key <combo>            Key combo (e.g. cmd+s, ctrl+shift+tab)
+      press                  Press AX element (--pid, --role, --title)
+      set-value              Set AX element value (--pid, --role, --value)
+      focus                  Focus AX element (--pid, --role)
+      raise                  Activate and raise app window (--pid)
+      move                   Move window (--pid, --to x,y)
+      resize                 Resize window (--pid, --to w,h)
+      tell <app> <script>    Execute AppleScript
+      session                Interactive ndjson session mode
+      profiles [name]        List or show behavior profiles
+
     Configuration (aos set):
       voice.enabled <bool>              Enable/disable voice output
       perception.default_depth <0-3>    Default perception depth
@@ -68,10 +88,50 @@ func printUsage() {
       aos serve                         # Start daemon
       aos show create --id ball --at 100,100,200,200 --html "<div>hello</div>"
       aos show render --width 800 --height 600 --html "<h1>Hi</h1>" --out /tmp/test.png
+      aos do click 500,300              # Click at coordinates
+      aos do type "hello world"         # Type text
+      aos do key "cmd+s"                # Key combo
+      aos do session                    # Start interactive session
       aos see observe --depth 2         # Stream perception events
       aos set voice.enabled true        # Turn on voice
     """
     print(usage)
+}
+
+func handleDo(args: [String]) {
+    guard let sub = args.first else {
+        exitError("Usage: aos do <click|type|key|drag|scroll|hover|press|set-value|focus|raise|move|resize|tell|session|profiles>", code: "MISSING_SUBCOMMAND")
+    }
+    let subArgs = Array(args.dropFirst())
+    switch sub {
+    // CGEvent commands
+    case "click":       cliClick(args: subArgs)
+    case "hover":       cliHover(args: subArgs)
+    case "drag":        cliDrag(args: subArgs)
+    case "scroll":      cliScroll(args: subArgs)
+    case "type":        cliType(args: subArgs)
+    case "key":         cliKey(args: subArgs)
+    // AX commands
+    case "press":       cliPress(args: subArgs)
+    case "set-value":   cliSetValue(args: subArgs)
+    case "focus":       cliFocusElement(args: subArgs)
+    case "raise":       cliRaise(args: subArgs)
+    case "move":        cliMove(args: subArgs)
+    case "resize":      cliResize(args: subArgs)
+    // AppleScript
+    case "tell":        cliTell(args: subArgs)
+    // Session mode
+    case "session":     runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
+    // Profiles
+    case "profiles":
+        if let name = subArgs.first, name != "list" {
+            profilesShowCommand(name: name)
+        } else {
+            profilesListCommand()
+        }
+    default:
+        exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+    }
 }
 
 func handleSee(args: [String]) {
