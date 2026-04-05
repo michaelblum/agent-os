@@ -312,7 +312,7 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     curY = chatY + dotRelY - dockedSize / 2
     curSize = dockedSize
 
-    let avatarPath = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/avatar.html").expandingTildeInPath
+    let avatarPath = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
     sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)],\"url\":\"file://\(avatarPath)\"}")
     Thread.sleep(forTimeInterval: 0.4) // let WKWebView initialize
 

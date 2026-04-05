@@ -123,19 +123,24 @@ All ecosystem tools live in `michaelblum/agent-os` as a monorepo. Each tool is a
 
 ```
 agent-os/
-  packages/
-    side-eye/          ← Swift CLI, builds independently
-    hand-off/          ← (planned) Swift CLI
-    heads-up/          ← (planned) Swift CLI
-    speak-up/          ← (planned) Swift CLI
-    tear-sheet/        ← (planned) Node.js CLI
+  packages/              ← Track 1: unopinionated primitives
+    side-eye/            ← Swift CLI — OS perception
+    hand-off/            ← Swift CLI — OS action
+    heads-up/            ← Swift CLI — OS projection (display server)
+    speak-up/            ← (planned) Swift CLI — Audio I/O
+    tear-sheet/          ← (planned) Node.js CLI — Web extraction
+    toolkit/             ← Reusable components built on primitives (components/, patterns/)
+  apps/                  ← Track 2: opinionated consumers
+    sigil/               ← Avatar presence system (consumer of heads-up)
   shared/
-    schemas/           ← Cross-tool JSON contracts
-      spatial-topology.schema.json   ← Display→Window topology (v0.1.0)
-      spatial-topology.md            ← Companion docs + coordinate system spec
-      annotation.schema.json         ← Labeled regions for annotations (v0.1.0)
-      annotation.md                  ← Companion docs
-  ARCHITECTURE.md      ← This file
+    schemas/             ← Cross-tool JSON contracts
+      spatial-topology.schema.json
+      spatial-topology.md
+      annotation.schema.json
+      annotation.md
+  tools/
+    dogfood/             ← Development/testing scripts
+  ARCHITECTURE.md        ← This file
 ```
 
 **Syborg Studio** (`Findly-Inc/syborg`) remains a separate repo — it's proprietary business IP. `chrome-harness` and `pw-bridge` live inside it for now; they may be extracted to agent-os when decoupled from the extension build.

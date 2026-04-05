@@ -421,6 +421,42 @@ class DaemonServer {
         }
     }
 
+    // MARK: - Event Envelope
+
+    /// Build a standard daemon event envelope per shared/schemas/daemon-event.schema.json.
+    /// All pushed events to subscribers use this wrapper.
+    private func buildEnvelope(event: String, data: [String: Any]) -> [String: Any] {
+        return [
+            "v": 1,
+            "service": "heads-up",
+            "event": event,
+            "ts": Date().timeIntervalSince1970,
+            "data": data
+        ]
+    }
+
+    /// Serialize an envelope to newline-terminated bytes and write to all subscriber FDs.
+    private func broadcastEnvelope(_ envelope: [String: Any]) {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]) else { return }
+        var data = jsonData
+        data.append(contentsOf: "\n".utf8)
+
+        subscriberLock.lock()
+        let fds = Array(subscribers.values)
+        subscriberLock.unlock()
+
+        guard !fds.isEmpty else { return }
+
+        let bytes = [UInt8](data)
+        eventWriteQueue.async {
+            for fd in fds {
+                bytes.withUnsafeBufferPointer { ptr in
+                    _ = write(fd, ptr.baseAddress!, ptr.count)
+                }
+            }
+        }
+    }
+
     var hasSubscribers: Bool {
         subscriberLock.lock()
         let result = !subscribers.isEmpty
@@ -445,55 +481,31 @@ class DaemonServer {
     /// Relay a canvas JS event to all subscriber connections.
     /// Called on the main thread from CanvasManager.onEvent.
     func relayEvent(canvasID: String, payload: Any) {
-        let event: [String: Any] = ["type": "event", "id": canvasID, "payload": payload]
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: event, options: [.sortedKeys]) else { return }
-        var data = jsonData
-        data.append(contentsOf: "\n".utf8)
-
-        subscriberLock.lock()
-        let fds = Array(subscribers.values)
-        subscriberLock.unlock()
-
-        guard !fds.isEmpty else { return }
-
-        // Write on background queue to avoid blocking main thread
-        let bytes = [UInt8](data)
-        eventWriteQueue.async {
-            for fd in fds {
-                bytes.withUnsafeBufferPointer { ptr in
-                    _ = write(fd, ptr.baseAddress!, ptr.count)
-                }
-            }
-        }
+        let data: [String: Any] = ["id": canvasID, "payload": payload]
+        let envelope = buildEnvelope(event: "canvas_message", data: data)
+        broadcastEnvelope(envelope)
     }
 
     /// Relay a channel post to all subscriber connections.
-    /// Format: {"type":"channel","channel":"...","data":{...}}
     func relayChannelPost(channel: String, dataStr: String?) {
-        var envelope: [String: Any] = ["type": "channel", "channel": channel]
+        var innerData: [String: Any] = ["channel": channel]
         if let ds = dataStr,
            let raw = ds.data(using: .utf8),
            let parsed = try? JSONSerialization.jsonObject(with: raw) {
-            envelope["data"] = parsed
+            innerData["payload"] = parsed
         }
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: envelope, options: [.sortedKeys]) else { return }
-        var data = jsonData
-        data.append(contentsOf: "\n".utf8)
+        let envelope = buildEnvelope(event: "channel_post", data: innerData)
+        broadcastEnvelope(envelope)
+    }
 
-        subscriberLock.lock()
-        let fds = Array(subscribers.values)
-        subscriberLock.unlock()
-
-        guard !fds.isEmpty else { return }
-
-        let bytes = [UInt8](data)
-        eventWriteQueue.async {
-            for fd in fds {
-                bytes.withUnsafeBufferPointer { ptr in
-                    _ = write(fd, ptr.baseAddress!, ptr.count)
-                }
-            }
+    /// Relay a canvas lifecycle event to all subscriber connections.
+    func relayLifecycle(canvasID: String, action: String, at: [CGFloat]?) {
+        var data: [String: Any] = ["canvas_id": canvasID, "action": action]
+        if let at = at {
+            data["at"] = at.map { Double($0) }
         }
+        let envelope = buildEnvelope(event: "canvas_lifecycle", data: data)
+        broadcastEnvelope(envelope)
     }
 
     private func startIdleTimer() {
@@ -607,11 +619,7 @@ func serveCommand(args: [String]) {
     }
 
     canvasManager.onCanvasLifecycle = { [weak server] canvasID, action, at in
-        var payload: [String: Any] = ["type": "canvas_lifecycle", "id": canvasID, "action": action]
-        if let at = at {
-            payload["at"] = at.map { Double($0) }
-        }
-        server?.relayEvent(canvasID: "__lifecycle__", payload: payload)
+        server?.relayLifecycle(canvasID: canvasID, action: action, at: at)
     }
 
     server.start()

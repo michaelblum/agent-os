@@ -227,7 +227,7 @@ func handleAvatarEvent(payload: [String: Any]) {
         guard gen == interactionGeneration else { return }
 
         // Create cursor decoration canvas
-        let decorPath = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/cursor-decor.html").expandingTildeInPath
+        let decorPath = NSString(string: "~/Documents/GitHub/agent-os/packages/toolkit/components/cursor-decor.html").expandingTildeInPath
         let (cx, cy) = getCursorCG()
         sendOneShot("{\"action\":\"create\",\"id\":\"cursor-decor\",\"at\":[\(cx + 15),\(cy - 25),40,40],\"url\":\"file://\(decorPath)\"}")
         Thread.sleep(forTimeInterval: 0.2)  // WKWebView init — minimal, unavoidable
@@ -793,7 +793,7 @@ extension Array {
 
 /// Load radial menu config from JSON file
 func loadRadialMenuConfig() {
-    let path = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/radial-menu-config.json").expandingTildeInPath
+    let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/radial-menu-config.json").expandingTildeInPath
     guard let data = FileManager.default.contents(atPath: path),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let items = json["items"] as? [[String: Any]] else {
@@ -811,7 +811,7 @@ struct AvatarSub {
         loadRadialMenuConfig()
 
         // Auto-create avatar canvas if it doesn't exist
-        let path = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/avatar.html").expandingTildeInPath
+        let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
         sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"file://\(path)\"}")
         Thread.sleep(forTimeInterval: 0.5)
 

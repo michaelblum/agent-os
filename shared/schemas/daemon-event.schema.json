@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/daemon-event.schema.json",
+  "title": "Daemon Event Envelope",
+  "description": "Standard envelope for all events pushed by agent-os daemons to subscribers. Newline-delimited JSON (ndjson) over Unix socket.",
+  "type": "object",
+  "required": ["v", "service", "event", "ts", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "v": {
+      "const": 1,
+      "description": "Envelope version. Integer, not semver. Bump only on breaking wire changes."
+    },
+    "service": {
+      "type": "string",
+      "enum": ["side-eye", "heads-up", "hand-off"],
+      "description": "Which daemon emitted this event."
+    },
+    "event": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Event name. Snake_case, service-specific. Examples: cursor_moved, canvas_message, channel_post."
+    },
+    "ts": {
+      "type": "number",
+      "description": "Unix timestamp with millisecond precision (e.g. 1712345678.123)."
+    },
+    "data": {
+      "type": "object",
+      "description": "Event-specific payload. Structure depends on service + event name. Always an object, never null."
+    },
+    "ref": {
+      "type": "string",
+      "description": "Optional correlation ID. Links an event to a prior request (e.g. a perception channel open)."
+    }
+  },
+  "$defs": {
+    "Bounds": {
+      "$ref": "annotation.schema.json#/$defs/Bounds",
+      "description": "Reuse shared Bounds type (x, y, width, height)."
+    }
+  }
+}
