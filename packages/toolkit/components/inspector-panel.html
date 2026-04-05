@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html style="background:transparent">
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+  background: transparent !important;
+  font-family: -apple-system, "SF Mono", "Menlo", monospace;
+  font-size: 11px;
+  color: #e0e0e0;
+  overflow: hidden;
+  width: 100%; height: 100%;
+}
+
+#panel {
+  background: rgba(20, 20, 30, 0.92);
+  border: 1px solid rgba(100, 100, 140, 0.4);
+  border-radius: 8px;
+  padding: 10px 12px;
+  width: 100%; height: 100%;
+  overflow-y: auto;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.row { display: flex; margin-bottom: 4px; line-height: 1.4; }
+.label {
+  color: #888;
+  min-width: 52px;
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.value {
+  color: #e8e8f0;
+  word-break: break-word;
+  flex: 1;
+}
+.role-badge {
+  display: inline-block;
+  background: rgba(80, 120, 255, 0.25);
+  color: #8ab4ff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 11px;
+}
+.path {
+  color: #999;
+  font-size: 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(100, 100, 140, 0.2);
+}
+.path span { color: #bbb; }
+.path .sep { color: #555; margin: 0 3px; }
+.bounds {
+  color: #7a9; font-size: 10px; font-family: "SF Mono", monospace;
+}
+#empty {
+  color: #666;
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+}
+.header {
+  font-size: 9px;
+  color: #556;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+</style>
+</head>
+<body>
+<div id="panel">
+  <div class="header">AOS Inspector</div>
+  <div id="content">
+    <div id="empty">Move cursor to inspect elements</div>
+  </div>
+</div>
+
+<script>
+// Bridge: receives data from aos daemon via evaluateJavaScript
+// Called as: updateElement({role, title, label, value, bounds, context_path})
+function updateElement(data) {
+  var c = document.getElementById('content');
+  if (!data || !data.role) {
+    c.innerHTML = '<div id="empty">No element under cursor</div>';
+    return;
+  }
+
+  var html = '';
+
+  // Role
+  html += '<div class="row"><span class="label">Role</span><span class="value"><span class="role-badge">' +
+    esc(data.role) + '</span></span></div>';
+
+  // Title
+  if (data.title) {
+    html += '<div class="row"><span class="label">Title</span><span class="value">' + esc(data.title) + '</span></div>';
+  }
+
+  // Label
+  if (data.label) {
+    html += '<div class="row"><span class="label">Label</span><span class="value">' + esc(data.label) + '</span></div>';
+  }
+
+  // Value
+  if (data.value) {
+    html += '<div class="row"><span class="label">Value</span><span class="value">' + esc(data.value) + '</span></div>';
+  }
+
+  // Bounds
+  if (data.bounds) {
+    var b = data.bounds;
+    html += '<div class="row"><span class="label">Bounds</span><span class="value bounds">' +
+      Math.round(b.x) + ', ' + Math.round(b.y) + '  ' +
+      Math.round(b.width) + ' × ' + Math.round(b.height) + '</span></div>';
+  }
+
+  // Context path
+  if (data.context_path && data.context_path.length > 0) {
+    html += '<div class="path">';
+    for (var i = 0; i < data.context_path.length; i++) {
+      if (i > 0) html += '<span class="sep">›</span>';
+      html += '<span>' + esc(data.context_path[i]) + '</span>';
+    }
+    html += '</div>';
+  }
+
+  c.innerHTML = html;
+}
+
+// Called with cursor position for the header
+function updateCursor(x, y, display) {
+  var h = document.querySelector('.header');
+  h.textContent = 'AOS Inspector — ' + Math.round(x) + ', ' + Math.round(y) + '  Display ' + display;
+}
+
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// headsup bridge
+if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+  window.headsup = {
+    receive: function(b64) {
+      try {
+        var msg = JSON.parse(atob(b64));
+        if (msg.type === 'element') updateElement(msg.data);
+        if (msg.type === 'cursor') updateCursor(msg.x, msg.y, msg.display);
+      } catch(e) {}
+    }
+  };
+}
+</script>
+</body>
+</html>

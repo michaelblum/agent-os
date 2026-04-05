@@ -22,6 +22,8 @@ Components are self-contained HTML files designed for `heads-up create --url fil
 | Component | What it does |
 |-----------|-------------|
 | `cursor-decor.html` | Three.js shape that follows cursor position, configurable geometry and color |
+| `inspector-panel.html` | AX element metadata display — role, title, label, value, bounds, context path |
+| `log-console.html` | Scrolling timestamped log with severity levels (info, warn, error, debug) |
 
 ## When to put something here vs. in an app
 

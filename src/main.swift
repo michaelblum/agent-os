@@ -26,6 +26,10 @@ struct AOS {
             handleSet(args: Array(args.dropFirst()))
         case "serve":
             handleServe(args: Array(args.dropFirst()))
+        case "inspect":
+            inspectCommand(args: Array(args.dropFirst()))
+        case "log":
+            logCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             printUsage()
         default:
@@ -47,6 +51,8 @@ func printUsage() {
       say <text>           Voice — speak text aloud
       set <key> <value>    Configure autonomic settings
       serve                Start the unified daemon
+      inspect              Live AX element inspector overlay
+      log                  Display log console panel
 
     Perception (aos see):
       cursor               What's under the cursor (display, window, AX element)
@@ -92,6 +98,10 @@ func printUsage() {
       perception.settle_threshold_ms <ms>  Cursor settle threshold
       feedback.visual <bool>            Enable/disable visual feedback
 
+    Tools:
+      inspect [--at x,y,w,h]  Live AX inspector — shows element under cursor
+      log [--at x,y,w,h]      Log console — scrolling output panel
+
     Examples:
       aos see cursor                    # What's under the cursor
       aos serve                         # Start daemon
@@ -105,6 +115,9 @@ func printUsage() {
       aos say "Hello, I'm your agent"    # Speak text
       aos say --list-voices              # List available voices
       aos set voice.enabled true        # Turn on voice
+      aos inspect                        # Live AX element inspector
+      echo "hello" | aos log             # Stream to log overlay
+      aos log push "test message"        # One-shot log entry
     """
     print(usage)
 }

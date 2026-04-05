@@ -22,6 +22,8 @@ aos do type "hello world"         # Type with natural cadence
 aos say "Hello, I'm your agent"   # Speak text aloud
 aos say --list-voices             # List available voices
 aos set voice.enabled true        # Configure settings
+aos inspect                       # Live AX element inspector overlay
+aos log push "message"            # Push to log console
 ```
 
 ### Daemon Mode
@@ -31,6 +33,7 @@ aos serve                         # Start unified daemon
 aos see observe --depth 2         # Stream perception events
 aos show create --id x --at 100,100,200,200 --html "<div>overlay</div>"
 aos do session                    # Interactive action session
+echo "lines" | aos log            # Stream stdin to log overlay
 ```
 
 ### Autonomic Configuration
@@ -60,6 +63,13 @@ and other significant actions without the agent needing to call `aos say`.
 | feedback.visual | bool | true | Visual feedback overlays |
 | feedback.sound | bool | false | Sound feedback |
 
+### Tools
+
+High-level commands that combine modules:
+
+- `aos inspect` — perception + display. Shows AX element details under cursor.
+- `aos log` — display + stdin. Scrolling log console overlay.
+
 ## Architecture
 
 ```
@@ -71,7 +81,7 @@ src/
   act/                # Action: click, type, press, session, profiles
   voice/              # Voice: TTS engine, say command
   daemon/             # UnifiedDaemon: socket, routing, autonomic
-  commands/           # serve, set
+  commands/           # serve, set, inspect, log
 ```
 
 ### Spec
