@@ -83,4 +83,3 @@ func handleServe(args: [String]) {
 // Temporary stubs — replaced by subsequent tasks
 func observeCommand(args: [String]) { print("{\"status\":\"stub\",\"command\":\"observe\"}") }
 func setCommand(args: [String]) { print("{\"status\":\"stub\",\"command\":\"set\"}") }
-func serveCommand(args: [String]) { print("{\"status\":\"stub\",\"command\":\"serve\"}") }
