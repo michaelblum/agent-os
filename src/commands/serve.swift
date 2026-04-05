@@ -4,10 +4,8 @@ import AppKit
 import Foundation
 
 func serveCommand(args: [String]) {
-    let config = loadConfig()
-    let daemon = PerceptionDaemon(config: config)
-    daemon.start()
-
-    // Run the main loop (needed for CGEventTap and NSApplication)
-    NSApplication.shared.run()
+    // Temporary: PerceptionEngine doesn't own a socket anymore.
+    // UnifiedDaemon (Task 5) will replace this.
+    fputs("Error: serve requires UnifiedDaemon (not yet implemented)\n", stderr)
+    exit(1)
 }
