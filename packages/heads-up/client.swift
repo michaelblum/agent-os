@@ -37,15 +37,50 @@ class DaemonClient {
     }
 
     func ensureDaemon() -> Bool {
+        // Fast path: daemon already running
         if let fd = connect() { close(fd); return true }
 
+        let plistPath = launchAgentPlistPath()
+
+        if FileManager.default.fileExists(atPath: plistPath) {
+            // INSTALLED MODE: launchd manages the daemon. Never self-spawn.
+            // Wait for launchd to start it (up to 10s).
+            // Optionally kick launchd to hurry.
+            let kickProc = Process()
+            kickProc.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+            kickProc.arguments = ["kickstart", "gui/\(getuid())/\(kPlistLabel)"]
+            kickProc.standardOutput = FileHandle.nullDevice
+            kickProc.standardError = FileHandle.nullDevice
+            try? kickProc.run()
+            kickProc.waitUntilExit()
+
+            for _ in 0..<100 {  // up to 10s
+                usleep(100_000)
+                if let fd = connect() { close(fd); return true }
+            }
+            // launchd failed to start daemon — surface the failure
+            return false
+        }
+
+        // UNMANAGED MODE: spawn child process (legacy fallback)
         let selfPath = ProcessInfo.processInfo.arguments[0]
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: selfPath)
         proc.arguments = ["serve"]
         proc.standardInput = FileHandle.nullDevice
         proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
+
+        // Log to file instead of /dev/null
+        let logPath = kSocketDir + "/daemon.log"
+        try? FileManager.default.createDirectory(atPath: kSocketDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+        if let logHandle = FileHandle(forWritingAtPath: logPath) {
+            logHandle.seekToEndOfFile()
+            proc.standardError = logHandle
+        } else {
+            proc.standardError = FileHandle.nullDevice
+        }
+
         do { try proc.run() } catch { return false }
 
         for _ in 0..<50 {
