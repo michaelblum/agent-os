@@ -97,7 +97,7 @@ class UnifiedDaemon {
         guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
 
         subscriberLock.lock()
-        let fds = subscribers.values.map(\.fd)
+        let fds = subscribers.values.filter(\.isSubscribed).map(\.fd)
         subscriberLock.unlock()
 
         guard !fds.isEmpty else { return }
