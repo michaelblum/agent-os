@@ -21,6 +21,8 @@ class UnifiedDaemon {
     private var subscribers: [UUID: SubscriberConnection] = [:]
     private var activeConnections = Set<UUID>()
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
+    private let sigilInputLock = NSLock()
+    private var sigilInputState = SigilInputState()
 
     // Idle management
     var idleTimeout: TimeInterval
@@ -30,6 +32,13 @@ class UnifiedDaemon {
         let fd: Int32
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
+        var wantsInputEvents: Bool
+    }
+
+    private struct SigilInputState {
+        var mode: String = "idle"
+        var avatarRect: CGRect?
+        var chatRect: CGRect?
     }
 
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
@@ -63,6 +72,9 @@ class UnifiedDaemon {
         perception.onEvent = { [weak self] event, data in
             self?.broadcastEvent(service: "perceive", event: event, data: data)
         }
+        perception.onInputEvent = { [weak self] event, data in
+            self?.handleInputEvent(event: event, data: data) ?? false
+        }
 
         // Wire canvas events -> broadcast
         canvasManager.onEvent = { [weak self] canvasID, payload in
@@ -73,6 +85,7 @@ class UnifiedDaemon {
 
         canvasManager.onCanvasLifecycle = { [weak self] canvasID, action, at in
             guard let self = self else { return }
+            self.updateSigilCanvasState(canvasID: canvasID, action: action, at: at)
             var data: [String: Any] = ["canvas_id": canvasID, "action": action]
             if let at = at { data["at"] = at }
             self.broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
@@ -147,7 +160,7 @@ class UnifiedDaemon {
 
         subscriberLock.lock()
         activeConnections.insert(connectionID)
-        subscribers[connectionID] = SubscriberConnection(fd: clientFD, perceptionChannelIDs: [], isSubscribed: false)
+        subscribers[connectionID] = SubscriberConnection(fd: clientFD, perceptionChannelIDs: [], isSubscribed: false, wantsInputEvents: false)
         subscriberLock.unlock()
 
         defer {
@@ -204,9 +217,11 @@ class UnifiedDaemon {
             let scope = json["scope"] as? String ?? "cursor"
             let rate = json["rate"] as? String ?? "on-settle"
             let channelID = perception.attention.addChannel(depth: depth, scope: scope, rate: rate)
+            let wantsInputEvents = requestedInputEvents(json)
             subscriberLock.lock()
             subscribers[connectionID]?.perceptionChannelIDs.insert(channelID)
             subscribers[connectionID]?.isSubscribed = true
+            subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
 
@@ -215,11 +230,21 @@ class UnifiedDaemon {
             let scope = json["scope"] as? String ?? "cursor"
             let rate = json["rate"] as? String ?? "on-settle"
             let channelID = perception.attention.addChannel(depth: depth, scope: scope, rate: rate)
+            let wantsInputEvents = requestedInputEvents(json)
             subscriberLock.lock()
             subscribers[connectionID]?.perceptionChannelIDs.insert(channelID)
             subscribers[connectionID]?.isSubscribed = true
+            subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+
+        case "sigil_input_mode":
+            guard let mode = json["mode"] as? String, !mode.isEmpty else {
+                sendResponseJSON(to: clientFD, ["error": "sigil_input_mode requires mode", "code": "INVALID_ARG"])
+                return
+            }
+            setSigilInputMode(mode)
+            sendResponseJSON(to: clientFD, ["status": "ok", "mode": mode])
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
@@ -371,6 +396,98 @@ class UnifiedDaemon {
         }
         let eventData: [String: Any] = ["channel": channel, "payload": payload]
         broadcastEvent(service: "display", event: "channel_post", data: eventData)
+    }
+
+    private func requestedInputEvents(_ json: [String: Any]) -> Bool {
+        guard let events = json["events"] as? [String] else { return false }
+        return events.contains("input_event")
+    }
+
+    private func handleInputEvent(event: String, data: [String: Any]) -> Bool {
+        let shouldConsume = shouldConsumeSigilInputEvent(event: event, data: data)
+        broadcastInputEvent(service: "input", event: "input_event", data: data)
+        return shouldConsume
+    }
+
+    private func broadcastInputEvent(service: String, event: String, data: [String: Any]) {
+        guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
+
+        subscriberLock.lock()
+        let fds = subscribers.values.filter { $0.isSubscribed && $0.wantsInputEvents }.map(\.fd)
+        subscriberLock.unlock()
+
+        guard !fds.isEmpty else { return }
+
+        let byteArray = [UInt8](bytes)
+        eventWriteQueue.async {
+            for fd in fds {
+                byteArray.withUnsafeBufferPointer { ptr in
+                    _ = write(fd, ptr.baseAddress!, ptr.count)
+                }
+            }
+        }
+    }
+
+    private func updateSigilCanvasState(canvasID: String, action: String, at: [CGFloat]?) {
+        sigilInputLock.lock()
+        defer { sigilInputLock.unlock() }
+
+        switch canvasID {
+        case "avatar":
+            sigilInputState.avatarRect = rectForSigilCanvasAction(action: action, at: at)
+        case "agent-chat":
+            sigilInputState.chatRect = rectForSigilCanvasAction(action: action, at: at)
+        default:
+            break
+        }
+    }
+
+    private func rectForSigilCanvasAction(action: String, at: [CGFloat]?) -> CGRect? {
+        guard action == "created" || action == "updated" else { return nil }
+        guard let at, at.count >= 4 else { return nil }
+        return CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
+    }
+
+    private func setSigilInputMode(_ mode: String) {
+        sigilInputLock.lock()
+        sigilInputState.mode = mode
+        sigilInputLock.unlock()
+    }
+
+    private func shouldConsumeSigilInputEvent(event: String, data: [String: Any]) -> Bool {
+        sigilInputLock.lock()
+        let state = sigilInputState
+        sigilInputLock.unlock()
+
+        switch event {
+        case "left_mouse_down":
+            guard let point = sigilPoint(from: data) else { return false }
+            let onAvatar = isPointOnSigilAvatar(point, avatarRect: state.avatarRect)
+            switch state.mode {
+            case "idle", "roaming", "followMe", "cursorDecorated":
+                return onAvatar
+            default:
+                return false
+            }
+        case "left_mouse_dragged", "left_mouse_up":
+            return state.mode == "stellating" || state.mode == "radialMenuOpen"
+        default:
+            return false
+        }
+    }
+
+    private func sigilPoint(from data: [String: Any]) -> CGPoint? {
+        guard let x = data["x"] as? Double, let y = data["y"] as? Double else { return nil }
+        return CGPoint(x: x, y: y)
+    }
+
+    private func isPointOnSigilAvatar(_ point: CGPoint, avatarRect: CGRect?) -> Bool {
+        guard let avatarRect else { return false }
+        let center = CGPoint(x: avatarRect.midX, y: avatarRect.midY)
+        let radius = avatarRect.width * 0.35
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        return sqrt(dx * dx + dy * dy) <= radius
     }
 
     // MARK: - Idle Management

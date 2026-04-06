@@ -1,0 +1,122 @@
+#!/bin/bash
+set -euo pipefail
+
+TARGET_APP="${1:-${AOS_SIGN_TARGET:-$PWD/dist/AOS.app}}"
+IDENTITY_INPUT="${AOS_SIGN_IDENTITY:-auto}"
+ENTITLEMENTS="${AOS_SIGN_ENTITLEMENTS:-}"
+STRICT_MODE="${AOS_SIGN_STRICT:-false}"
+
+if [[ ! -d "$TARGET_APP" ]]; then
+  echo "Runtime app not found: $TARGET_APP" >&2
+  exit 1
+fi
+
+find_signing_identity() {
+  local requested="${1:-auto}"
+  local identities
+
+  if [[ "$requested" != "auto" ]]; then
+    printf '%s|%s\n' "$requested" "$requested"
+    return 0
+  fi
+
+  identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  python3 - <<'PY' "$identities"
+import re
+import sys
+import subprocess
+import tempfile
+from datetime import datetime, timezone
+
+lines = sys.argv[1].splitlines()
+matches = []
+for line in lines:
+    m = re.search(r'\)\s*([0-9A-F]{40})\s+"([^"]+)"', line)
+    if m:
+        matches.append((m.group(1), m.group(2)))
+
+def certificate_expired(name: str) -> bool:
+    try:
+        pem = subprocess.check_output(
+            ["security", "find-certificate", "-c", name, "-p"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+        proc = subprocess.run(
+            ["openssl", "x509", "-noout", "-enddate"],
+            input=pem,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+    except Exception:
+        return False
+
+    line = proc.stdout.strip()
+    if not line.startswith("notAfter="):
+        return False
+
+    try:
+        expiry = datetime.strptime(line[len("notAfter="):], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return expiry <= datetime.now(timezone.utc)
+
+usable = [(digest, name) for digest, name in matches if not certificate_expired(name)]
+
+preferred = None
+for needle in ("Apple Development", "Developer ID Application"):
+    for digest, name in usable:
+        if name.startswith(needle):
+            preferred = (digest, name)
+            break
+    if preferred:
+        break
+
+if preferred is None and usable:
+    preferred = usable[0]
+
+if preferred is None:
+    print("-|adhoc")
+else:
+    print(f"{preferred[0]}|{preferred[1]}")
+PY
+}
+
+IDENTITY_RECORD="$(find_signing_identity "$IDENTITY_INPUT")"
+IDENTITY="${IDENTITY_RECORD%%|*}"
+IDENTITY_LABEL="${IDENTITY_RECORD#*|}"
+ACTUAL_IDENTITY="$IDENTITY"
+ACTUAL_LABEL="$IDENTITY_LABEL"
+
+run_codesign() {
+  local identity="$1"
+  local -a args=(--force --deep --sign "$identity" --timestamp=none)
+  if [[ -n "$ENTITLEMENTS" ]]; then
+    args+=(--entitlements "$ENTITLEMENTS")
+  fi
+  args+=("$TARGET_APP")
+  codesign "${args[@]}"
+}
+
+if ! run_codesign "$IDENTITY"; then
+  if [[ "$IDENTITY" != "-" ]]; then
+    if [[ "$STRICT_MODE" == "true" ]]; then
+      echo "Signing failed with identity: $IDENTITY_LABEL" >&2
+      exit 1
+    fi
+    echo "Warning: signing failed with identity '$IDENTITY_LABEL'; falling back to ad hoc." >&2
+    run_codesign "-"
+    ACTUAL_IDENTITY="-"
+    ACTUAL_LABEL="adhoc"
+  else
+    exit 1
+  fi
+fi
+
+cat <<EOF
+Signed: $TARGET_APP
+Identity: $ACTUAL_LABEL
+IdentityRef: $ACTUAL_IDENTITY
+Entitlements: ${ENTITLEMENTS:-none}
+EOF

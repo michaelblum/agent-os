@@ -7,8 +7,72 @@ import Foundation
 
 // -- Well-known IDs --
 let avatarID   = "avatar"
+let avatarHitTargetID = "avatar-hit-target"
 let chatID     = "agent-chat"
 let telemetryID = "telemetry"
+
+// -- Path resolution --
+
+private func sigilExecutableDir() -> String {
+    URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent().path
+}
+
+private func sigilBundledRoot() -> String? {
+    let sentinel = "apps/sigil/avatar.html"
+    let environment = ProcessInfo.processInfo.environment
+    let candidates = [
+        environment["AOS_SIGIL_ROOT"],
+        Bundle.main.resourceURL?.appendingPathComponent("agent-os").path,
+        NSString(string: (sigilExecutableDir() as NSString).appendingPathComponent("../Resources/agent-os")).standardizingPath,
+        NSString(string: (sigilExecutableDir() as NSString).appendingPathComponent("../../Resources/agent-os")).standardizingPath
+    ]
+
+    for candidate in candidates.compactMap({ $0 }) {
+        let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
+        if FileManager.default.fileExists(atPath: sentinelPath) {
+            return candidate
+        }
+    }
+
+    return nil
+}
+
+private func sigilRepoRoot() -> String {
+    if let bundledRoot = sigilBundledRoot() {
+        return bundledRoot
+    }
+
+    let sentinel = "apps/sigil/avatar.html"
+    let bases = [
+        sigilExecutableDir(),
+        FileManager.default.currentDirectoryPath
+    ]
+    let suffixes = ["", "..", "../..", "../../.."]
+
+    for base in bases {
+        for suffix in suffixes {
+            let candidate = NSString(string: (base as NSString).appendingPathComponent(suffix)).standardizingPath
+            let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
+            if FileManager.default.fileExists(atPath: sentinelPath) {
+                return candidate
+            }
+        }
+    }
+
+    return NSString(string: (sigilExecutableDir() as NSString).appendingPathComponent("../..")).standardizingPath
+}
+
+func sigilRepoPath(_ relativePath: String) -> String {
+    NSString(string: (sigilRepoRoot() as NSString).appendingPathComponent(relativePath)).standardizingPath
+}
+
+func sigilFileURL(_ relativePath: String) -> String {
+    URL(fileURLWithPath: sigilRepoPath(relativePath)).absoluteString
+}
+
+func setSigilRuntimeInputMode(_ mode: String) {
+    _ = daemonOneShot(["action": "sigil_input_mode", "mode": mode])
+}
 
 // -- Fire-and-forget: connect, send, read response, close --
 func sendOneShot(_ json: String) {

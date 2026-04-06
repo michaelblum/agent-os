@@ -16,6 +16,9 @@ class PerceptionEngine {
     /// Called when a perception event should be broadcast.
     /// Parameters: (event name, data dictionary)
     var onEvent: ((String, [String: Any]) -> Void)?
+    /// Called for raw input events captured by the daemon's event tap.
+    /// Returns true when the event should be consumed.
+    var onInputEvent: ((String, [String: Any]) -> Bool)?
 
     // Cursor state
     private var lastCursorPoint: CGPoint = .zero
@@ -30,6 +33,7 @@ class PerceptionEngine {
     // App lookup cache
     private var appLookup: [pid_t: (name: String, bundleID: String?)] = [:]
     private var _appRefreshTimer: DispatchSourceTimer?
+    private var eventTap: CFMachPort?
 
     init(config: AosConfig) {
         self.config = config
@@ -46,22 +50,36 @@ class PerceptionEngine {
     // MARK: - CGEventTap (Depth 0)
 
     private func startEventTap() {
-        let eventMask: CGEventMask = (1 << CGEventType.mouseMoved.rawValue)
-            | (1 << CGEventType.leftMouseDragged.rawValue)
-            | (1 << CGEventType.rightMouseDragged.rawValue)
-            | (1 << CGEventType.otherMouseDragged.rawValue)
+        let eventTypes: [CGEventType] = [
+            .mouseMoved,
+            .leftMouseDown,
+            .leftMouseUp,
+            .leftMouseDragged,
+            .rightMouseDown,
+            .rightMouseDragged,
+            .otherMouseDragged,
+            .keyDown,
+            .tapDisabledByTimeout,
+            .tapDisabledByUserInput,
+        ]
+        let eventMask = eventTypes.reduce(CGEventMask(0)) { mask, type in
+            mask | CGEventMask(1 << type.rawValue)
+        }
 
         let refcon = Unmanaged.passUnretained(self).toOpaque()
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .listenOnly,
+            options: .defaultTap,
             eventsOfInterest: eventMask,
             callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
                 guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
                 let engine = Unmanaged<PerceptionEngine>.fromOpaque(refcon).takeUnretainedValue()
-                engine.handleMouseEvent(event)
+                let shouldConsume = engine.handleTapEvent(event)
+                if shouldConsume {
+                    return nil
+                }
                 return Unmanaged.passUnretained(event)
             },
             userInfo: refcon
@@ -70,9 +88,64 @@ class PerceptionEngine {
             return
         }
 
+        eventTap = tap
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    private func handleTapEvent(_ event: CGEvent) -> Bool {
+        let type = event.type
+
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            return false
+        }
+
+        if type == .mouseMoved ||
+            type == .leftMouseDragged ||
+            type == .rightMouseDragged ||
+            type == .otherMouseDragged {
+            handleMouseEvent(event)
+        }
+
+        guard let eventName = inputEventName(for: type) else { return false }
+        let data = inputEventPayload(for: type, event: event, eventName: eventName)
+        return onInputEvent?(eventName, data) ?? false
+    }
+
+    private func inputEventName(for type: CGEventType) -> String? {
+        switch type {
+        case .leftMouseDown:
+            return "left_mouse_down"
+        case .leftMouseUp:
+            return "left_mouse_up"
+        case .leftMouseDragged:
+            return "left_mouse_dragged"
+        case .mouseMoved:
+            return "mouse_moved"
+        case .rightMouseDown:
+            return "right_mouse_down"
+        case .rightMouseDragged:
+            return "right_mouse_dragged"
+        case .otherMouseDragged:
+            return "other_mouse_dragged"
+        case .keyDown:
+            return "key_down"
+        default:
+            return nil
+        }
+    }
+
+    private func inputEventPayload(for type: CGEventType, event: CGEvent, eventName: String) -> [String: Any] {
+        switch type {
+        case .keyDown:
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            return inputEventData(type: eventName, keyCode: keyCode)
+        default:
+            let point = event.location
+            return inputEventData(type: eventName, x: point.x, y: point.y)
+        }
     }
 
     private func handleMouseEvent(_ event: CGEvent) {

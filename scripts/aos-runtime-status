@@ -1,0 +1,123 @@
+#!/bin/bash
+set -euo pipefail
+
+TARGET_APP="${AOS_INSTALL_PATH:-$HOME/Applications/AOS.app}"
+INFO_PLIST="$TARGET_APP/Contents/Info.plist"
+EXECUTABLE="$TARGET_APP/Contents/MacOS/aos"
+JSON=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=true ;;
+    *) echo "Usage: scripts/aos-runtime-status [--json]" >&2; exit 1 ;;
+  esac
+done
+
+installed=false
+bundle_id=""
+version=""
+build_version=""
+signed=false
+signing_identity=""
+team_identifier=""
+notes=()
+
+if [[ -d "$TARGET_APP" ]]; then
+  installed=true
+else
+  notes+=("Runtime app is not installed.")
+fi
+
+if [[ -f "$INFO_PLIST" ]]; then
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST" 2>/dev/null || true)"
+  version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST" 2>/dev/null || true)"
+  build_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST" 2>/dev/null || true)"
+else
+  notes+=("Info.plist is missing.")
+fi
+
+if [[ ! -x "$EXECUTABLE" ]]; then
+  notes+=("Bundled executable is missing or not executable.")
+fi
+
+if [[ -x "$EXECUTABLE" ]]; then
+  if /usr/bin/codesign -d --verbose=4 "$TARGET_APP" >/dev/null 2>&1; then
+    codesign_meta="$(/usr/bin/codesign -d --verbose=4 "$TARGET_APP" 2>&1)"
+    signed=true
+    signing_identity="$(printf '%s\n' "$codesign_meta" | awk -F= '/^Authority=/{print $2; exit}')"
+    if [[ -z "$signing_identity" ]]; then
+      signing_identity="$(printf '%s\n' "$codesign_meta" | awk -F= '/^Signature=/{print $2; exit}')"
+    fi
+    team_identifier="$(printf '%s\n' "$codesign_meta" | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+    if [[ "$signing_identity" == "adhoc" ]]; then
+      notes+=("Runtime is signed ad hoc; use a stable certificate when available.")
+    fi
+  else
+    notes+=("Runtime is not signed or signature is invalid.")
+  fi
+fi
+
+status="ok"
+if ((${#notes[@]})); then
+  status="degraded"
+fi
+
+if [[ "$JSON" == true ]]; then
+  if ((${#notes[@]})); then
+    python3 - <<'PY' "$status" "$installed" "$TARGET_APP" "$bundle_id" "$version" "$build_version" "$signed" "$signing_identity" "$team_identifier" "${notes[@]}"
+import json, sys
+status = sys.argv[1]
+installed = sys.argv[2] == "true"
+path = sys.argv[3]
+bundle_id = sys.argv[4]
+version = sys.argv[5]
+build_version = sys.argv[6]
+signed = sys.argv[7] == "true"
+signing_identity = sys.argv[8]
+team_identifier = sys.argv[9]
+notes = sys.argv[10:]
+print(json.dumps({
+    "status": status,
+    "installed": installed,
+    "path": path,
+    "bundle_id": bundle_id or None,
+    "version": version or None,
+    "build_version": build_version or None,
+    "signed": signed,
+    "signing_identity": signing_identity or None,
+    "team_identifier": team_identifier or None,
+    "notes": notes,
+}, indent=2))
+PY
+  else
+    python3 - <<'PY' "$status" "$installed" "$TARGET_APP" "$bundle_id" "$version" "$build_version" "$signed" "$signing_identity" "$team_identifier"
+import json, sys
+status = sys.argv[1]
+installed = sys.argv[2] == "true"
+path = sys.argv[3]
+bundle_id = sys.argv[4]
+version = sys.argv[5]
+build_version = sys.argv[6]
+signed = sys.argv[7] == "true"
+signing_identity = sys.argv[8]
+team_identifier = sys.argv[9]
+print(json.dumps({
+    "status": status,
+    "installed": installed,
+    "path": path,
+    "bundle_id": bundle_id or None,
+    "version": version or None,
+    "build_version": build_version or None,
+    "signed": signed,
+    "signing_identity": signing_identity or None,
+    "team_identifier": team_identifier or None,
+    "notes": [],
+}, indent=2))
+PY
+  fi
+else
+  echo "installed=$installed path=$TARGET_APP bundle_id=${bundle_id:-none} version=${version:-none} signed=$signed identity=${signing_identity:-none} team=${team_identifier:-none}"
+  if ((${#notes[@]})); then
+    printf '%s\n' "${notes[@]}"
+  fi
+fi

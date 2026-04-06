@@ -552,7 +552,7 @@ function renderMarkdown(text) {
 // headsup message convention
 // ============================================================
 window.headsup = {
-  manifest: { name: 'chat', accepts: ['assistant', 'user', 'status', 'clear'], emits: ['response', 'tts', 'ready'] },
+  manifest: { name: 'chat', accepts: ['assistant', 'user', 'status', 'clear'], emits: ['response', 'tts', 'ready', 'avatar_toggle'] },
   receive: function(b64) {
     try {
       // atob() returns Latin-1, not UTF-8. Decode properly for emoji/accented text.
@@ -975,10 +975,17 @@ function escapeAttr(s) {
 // ============================================================
 (function() {
   var handle = document.getElementById('dragHandle');
+  var dot = document.getElementById('dot');
   var dragging = false;
   var lastX = 0, lastY = 0;
   var dragOffsetX = 0, dragOffsetY = 0;
+  dot.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('avatar_toggle');
+  });
   handle.addEventListener('mousedown', function(e) {
+    if (e.target.closest && e.target.closest('#dot')) return;
     if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     dragging = true;
     // Record the offset between mouse and the element's position at drag start.

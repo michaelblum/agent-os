@@ -1,0 +1,26 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TARGET_DIR="${AOS_INSTALL_DIR:-$HOME/Applications}"
+APP_NAME="AOS.app"
+SOURCE_APP="${AOS_SOURCE_APP:-$REPO_ROOT/dist/$APP_NAME}"
+TARGET_APP="$TARGET_DIR/$APP_NAME"
+
+bash "$SCRIPT_DIR/package-aos-runtime"
+
+mkdir -p "$TARGET_DIR"
+rm -rf "$TARGET_APP"
+cp -R "$SOURCE_APP" "$TARGET_APP"
+
+cat <<EOF
+Installed: $TARGET_APP
+
+Next steps:
+1. Launch the bundled executable directly or via launchd service targeting this path.
+2. Grant macOS permissions to AOS when prompted.
+3. Use \`scripts/aos-runtime-status --json\` to inspect the installed runtime.
+4. Reinstall the launchd service if it is still targeting the repo binary.
+5. Reinstall the Sigil launch agent if it is still targeting the repo-local \`avatar-sub\`.
+EOF

@@ -292,6 +292,7 @@ func behaviorDock(_ mid: UInt64) {
 
     // DOM reparenting: activate mini-avatar in chat, remove external canvas
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"avatarDock()\"}")
+    removeAvatarHitTarget()
     sendOneShot("{\"action\":\"remove\",\"id\":\"\(avatarID)\"}")
 
     isAnimating = false
@@ -315,9 +316,10 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     curY = chatY + dotRelY - dockedSize / 2
     curSize = dockedSize
 
-    let avatarPath = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
-    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)],\"url\":\"file://\(avatarPath)\"}")
+    let avatarURL = sigilFileURL("apps/sigil/avatar.html")
+    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)],\"url\":\"\(avatarURL)\"}")
     Thread.sleep(forTimeInterval: 0.4) // let WKWebView initialize
+    syncAvatarHitTarget()
 
     // Deactivate mini-avatar in chat DOM
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"avatarUndock()\"}")

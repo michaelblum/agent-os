@@ -1,13 +1,13 @@
 // avatar-sub.swift -- Effect subscriber for the agent presence system.
 //
 // Connects to heads-up via `listen`, subscribes to channel events, and
-// dispatches to behaviors in avatar-behaviors.swift.  Also handles
-// click-following via CGEventTap (ported from avatar-follower.swift).
+// dispatches to behaviors in avatar-behaviors.swift. Also handles
+// click-following via daemon-delivered runtime input events.
 //
 // This is NOT a daemon — it's a persistent client of the heads-up daemon.
 //
 // Build:  bash build-avatar.sh
-// Run:    ./avatar-sub   (after heads-up daemon is running)
+// Run:    ./build/avatar-sub   (after heads-up daemon is running)
 
 import Foundation
 import CoreGraphics
@@ -26,10 +26,37 @@ enum AvatarState {
     case docking, docked, undocking, transitioning
 }
 
-var avatarState: AvatarState = .idle
+extension AvatarState {
+    var runtimeInputMode: String {
+        switch self {
+        case .idle:
+            return "idle"
+        case .roaming:
+            return "roaming"
+        case .followMe:
+            return "followMe"
+        case .stellating:
+            return "stellating"
+        case .radialMenuOpen:
+            return "radialMenuOpen"
+        case .cursorDecorated:
+            return "cursorDecorated"
+        default:
+            return "passive"
+        }
+    }
+}
+
+var avatarState: AvatarState = .idle {
+    didSet {
+        let previousMode = oldValue.runtimeInputMode
+        let currentMode = avatarState.runtimeInputMode
+        guard previousMode != currentMode else { return }
+        setSigilRuntimeInputMode(currentMode)
+    }
+}
 var isAnimating: Bool = false
 var occlusionGraceUntil: Date = .distantPast
-var eventTap: CFMachPort? = nil
 
 // -- Click-vs-drag detection --
 var mouseDownPoint: CGPoint? = nil
@@ -43,6 +70,8 @@ var pressHoldTimer: DispatchWorkItem? = nil
 var radialMenuConfig: [[String: Any]] = []
 var expandedCanvasRect: (x: Double, y: Double, w: Double, h: Double)? = nil
 var originalCanvasRect: (x: Double, y: Double, w: Double, h: Double)? = nil
+var avatarHitTargetActive: Bool = false
+var avatarHitTargetFrame: (x: Double, y: Double, w: Double, h: Double)? = nil
 
 // -- Generation token for cancellation --
 var interactionGeneration: UInt64 = 0
@@ -200,6 +229,12 @@ func handleAvatarEvent(payload: [String: Any]) {
     let inner = payload["payload"] as? [String: Any] ?? [:]
 
     switch eventType {
+    case "local_input":
+        let inputType = inner["type"] as? String ?? ""
+        let point = avatarPointFromCanvasPayload(inner)
+        let keyCode = payloadInt64(inner["keyCode"]) ?? payloadInt64(inner["key_code"])
+        handleRuntimeInputEvent(type: inputType, point: point, keyCode: keyCode)
+
     case "selection_complete":
         // JS animation finished — restore canvas + create cursor decoration
         let gen = (inner["generation"] as? Int).map(UInt64.init) ?? 0
@@ -228,9 +263,10 @@ func handleAvatarEvent(payload: [String: Any]) {
         guard gen == interactionGeneration else { return }
 
         // Create cursor decoration canvas
-        let decorPath = NSString(string: "~/Documents/GitHub/agent-os/packages/toolkit/components/cursor-decor.html").expandingTildeInPath
+        let decorPath = sigilRepoPath("packages/toolkit/components/cursor-decor.html")
         let (cx, cy) = getCursorCG()
-        sendOneShot("{\"action\":\"create\",\"id\":\"cursor-decor\",\"at\":[\(cx + 15),\(cy - 25),40,40],\"url\":\"file://\(decorPath)\"}")
+        let decorURL = URL(fileURLWithPath: decorPath).absoluteString
+        sendOneShot("{\"action\":\"create\",\"id\":\"cursor-decor\",\"at\":[\(cx + 15),\(cy - 25),40,40],\"url\":\"\(decorURL)\"}")
         Thread.sleep(forTimeInterval: 0.2)  // WKWebView init — minimal, unavoidable
 
         guard gen == interactionGeneration else { return }
@@ -271,11 +307,44 @@ func handleAvatarEvent(payload: [String: Any]) {
     }
 }
 
+func handleChatCanvasEvent(payload: [String: Any]) {
+    guard let eventType = payload["type"] as? String else { return }
+
+    switch eventType {
+    case "avatar_toggle":
+        moveID &+= 1
+        let mid = moveID
+        queryChat()
+
+        switch avatarState {
+        case .docked:
+            let targetX = max(chatX - fullSize * 0.75, 40)
+            let targetY = max(chatY - fullSize * 0.10, 40)
+            DispatchQueue.global(qos: .userInteractive).async {
+                behaviorUndock(targetX, targetY, mid)
+            }
+        case .idle, .roaming, .followMe, .cursorDecorated:
+            DispatchQueue.global(qos: .userInteractive).async {
+                behaviorDock(mid)
+            }
+        default:
+            break
+        }
+
+    default:
+        break
+    }
+}
+
 // ============================================================================
-// MARK: - CGEventTap (Click Following)
+// MARK: - Runtime Input Bridge
 // ============================================================================
 
 // (Press-and-hold now uses pressHoldTimer DispatchWorkItem in the state section above)
+
+func logTap(_ msg: String) {
+    fputs("TAP: \(msg)\n", stderr)
+}
 
 /// Send a stellate message to the avatar skin
 func evalStellate(target: Double, freezeIdle: Bool) {
@@ -305,24 +374,92 @@ func expandCanvasForMenu() -> (x: Double, y: Double, w: Double, h: Double) {
     return (newX, newY, newSize, newSize)
 }
 
-/// Event tap callback — handles click-vs-drag, radial menu, follow-me, dock/undock.
-func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
-           _ refcon: UnsafeMutableRawPointer?) -> Unmanaged<CGEvent>? {
-    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
-        return Unmanaged.passUnretained(event)
+func payloadInt64(_ value: Any?) -> Int64? {
+    if let number = value as? NSNumber {
+        return number.int64Value
+    }
+    if let value = value as? Int {
+        return Int64(value)
+    }
+    if let value = value as? Int64 {
+        return value
+    }
+    return nil
+}
+
+func avatarPointFromCanvasPayload(_ payload: [String: Any]) -> CGPoint? {
+    guard let frame = avatarHitTargetFrame,
+          let x = payload["x"] as? Double,
+          let y = payload["y"] as? Double else {
+        return nil
+    }
+    return CGPoint(x: frame.x + x, y: frame.y + y)
+}
+
+func compactAvatarHitTargetFrame() -> (x: Double, y: Double, w: Double, h: Double)? {
+    guard curSize > 0 else { return nil }
+    return (
+        x: curX,
+        y: curY,
+        w: curSize,
+        h: curSize
+    )
+}
+
+func desiredAvatarHitTargetFrame() -> (x: Double, y: Double, w: Double, h: Double)? {
+    if let expandedCanvasRect {
+        return expandedCanvasRect
+    }
+    return compactAvatarHitTargetFrame()
+}
+
+func sameHitTargetFrame(_ lhs: (x: Double, y: Double, w: Double, h: Double)?,
+                        _ rhs: (x: Double, y: Double, w: Double, h: Double)?) -> Bool {
+    guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+    let epsilon = 0.5
+    return abs(lhs.x - rhs.x) < epsilon &&
+        abs(lhs.y - rhs.y) < epsilon &&
+        abs(lhs.w - rhs.w) < epsilon &&
+        abs(lhs.h - rhs.h) < epsilon
+}
+
+func syncAvatarHitTarget() {
+    guard avatarState != .docked, let frame = desiredAvatarHitTargetFrame() else {
+        removeAvatarHitTarget()
+        return
     }
 
-    func log(_ msg: String) {
-        fputs("TAP: \(msg)\n", stderr)
+    guard !sameHitTargetFrame(avatarHitTargetFrame, frame) || !avatarHitTargetActive else {
+        return
     }
 
-    // -- ESC key: cancel radial menu or cursor decoration --
-    if type == .keyDown {
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        if keyCode == 53 {  // 53 = Escape
+    let payload: [String: Any] = [
+        "action": avatarHitTargetActive ? "update" : "create",
+        "id": avatarHitTargetID,
+        "at": [frame.x, frame.y, frame.w, frame.h],
+        "url": sigilFileURL("apps/sigil/avatar-hit-target.html"),
+        "interactive": true
+    ]
+    _ = daemonOneShot(payload)
+    avatarHitTargetActive = true
+    avatarHitTargetFrame = frame
+}
+
+func removeAvatarHitTarget() {
+    guard avatarHitTargetActive else {
+        avatarHitTargetFrame = nil
+        return
+    }
+    _ = daemonOneShot(["action": "remove", "id": avatarHitTargetID])
+    avatarHitTargetActive = false
+    avatarHitTargetFrame = nil
+}
+
+func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64? = nil) {
+    if type == "key_down" {
+        if keyCode == 53 {  // Escape
             if avatarState == .radialMenuOpen || avatarState == .stellating {
-                log("ESC → cancel radial menu")
+                logTap("ESC → cancel radial menu")
                 pressHoldTimer?.cancel()
                 pressHoldTimer = nil
                 closeCoalescingSocket()
@@ -339,7 +476,7 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                     sendBehavior("idle")
                 }
             } else if avatarState == .cursorDecorated {
-                log("ESC → clear cursor decoration")
+                logTap("ESC → clear cursor decoration")
                 cursorDecorationActive = false
                 DispatchQueue.global(qos: .userInteractive).async {
                     sendOneShot("{\"action\":\"remove\",\"id\":\"cursor-decor\"}")
@@ -347,69 +484,60 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                 }
             }
         }
-        return Unmanaged.passUnretained(event)
+        return
     }
 
-    // -- Right click on avatar: stub (future: context menu / radial menu) --
-    if type == .rightMouseDown {
-        let p = event.location
-        let onAvatar = isClickOnAvatar(p.x, p.y)
-        log("RIGHT click (\(Int(p.x)),\(Int(p.y))) onAvatar=\(onAvatar)")
+    if type == "mouse_moved" {
+        if cursorDecorationActive, let point {
+            coalescingLock.lock()
+            pendingCursorDecorPos = (point.x + 15, point.y - 25)
+            coalescingLock.unlock()
+        }
+        return
+    }
+
+    if type == "right_mouse_down", let point {
+        let onAvatar = isClickOnAvatar(point.x, point.y)
+        logTap("RIGHT click (\(Int(point.x)),\(Int(point.y))) onAvatar=\(onAvatar)")
         if onAvatar {
             DispatchQueue.global(qos: .userInteractive).async {
                 sendBehavior("thinking")
                 pushEvent("Right-click (stub)", level: "info")
             }
         }
-        return Unmanaged.passUnretained(event)
+        return
     }
 
-    // -- Mouse dragged: detect drag from stellating state, track radial menu --
-    if type == .leftMouseDragged {
-        let p = event.location
-
-        // Consume all drags during avatar interaction
-        if avatarState == .stellating || avatarState == .radialMenuOpen {
-            // Fall through to handling below, but we'll return nil at the end
-        } else {
-            return Unmanaged.passUnretained(event)
-        }
+    if type == "left_mouse_dragged", let point {
+        guard avatarState == .stellating || avatarState == .radialMenuOpen else { return }
 
         if avatarState == .stellating, let downPt = mouseDownPoint {
-            let dist = sqrt(pow(p.x - downPt.x, 2) + pow(p.y - downPt.y, 2))
+            let dist = sqrt(pow(point.x - downPt.x, 2) + pow(point.y - downPt.y, 2))
             if dist > dragThreshold {
-                // Cancel press-and-hold timer
                 pressHoldTimer?.cancel()
                 pressHoldTimer = nil
 
                 avatarState = .radialMenuOpen
                 radialMenuActive = true
 
-                // Compute drag angle from avatar center to current mouse position.
-                // Must use the same reference frame as trackRadialMenu (avatarCenter→mouse)
-                // so the beam aligns with the items on open.
                 let avatarCX = curX + curSize / 2
                 let avatarCY = curY + curSize / 2
-                // CG coords: Y down. Scene coords: Y up. Negate Y for angle.
-                let angle = atan2(-(p.y - avatarCY), p.x - avatarCX)
-                log("→ DRAG detected (dist=\(String(format: "%.1f", dist))px, angle=\(String(format: "%.1f", angle * 180 / .pi))°) → RADIAL MENU")
+                let angle = atan2(-(point.y - avatarCY), point.x - avatarCX)
+                logTap("→ DRAG detected (dist=\(String(format: "%.1f", dist))px, angle=\(String(format: "%.1f", angle * 180 / .pi))°) → RADIAL MENU")
 
-                // Push debug telemetry
                 pushTelemetry(channel: "radial", data: [
                     "state": "OPEN",
                     "mouseDown": "(\(Int(downPt.x)),\(Int(downPt.y)))",
-                    "mouseCur": "(\(Int(p.x)),\(Int(p.y)))",
+                    "mouseCur": "(\(Int(point.x)),\(Int(point.y)))",
                     "avatarCenter": "(\(Int(curX + curSize/2)),\(Int(curY + curSize/2)))",
                     "angleDeg": String(format: "%.1f", angle * 180 / .pi),
                     "dist": String(format: "%.1f", dist)
                 ])
 
-                // Save original canvas rect and expand
                 originalCanvasRect = (curX, curY, curSize, curSize)
                 let expanded = expandCanvasForMenu()
                 expandedCanvasRect = expanded
 
-                // Canvas expand + menu open dispatched off tap thread
                 DispatchQueue.global(qos: .userInteractive).async {
                     sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(expanded.x),\(expanded.y),\(expanded.w),\(expanded.h)]}")
                     let offsetX = (curX + curSize / 2) - expanded.x
@@ -424,59 +552,40 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                 }
             }
         } else if avatarState == .radialMenuOpen {
-            // Coalesce drag tracking — worker sends at 30Hz
             coalescingLock.lock()
-            pendingRadialTrackPos = (Double(p.x), Double(p.y))
+            pendingRadialTrackPos = (Double(point.x), Double(point.y))
             coalescingLock.unlock()
 
-            // Push tracking telemetry (low frequency — only on drag events)
-            let trackAngle = atan2(-(p.y - (curY + curSize/2)), p.x - (curX + curSize/2))
+            let trackAngle = atan2(-(point.y - (curY + curSize/2)), point.x - (curX + curSize/2))
             pushTelemetry(channel: "radial", data: [
                 "state": "TRACKING",
-                "mouse": "(\(Int(p.x)),\(Int(p.y)))",
+                "mouse": "(\(Int(point.x)),\(Int(point.y)))",
                 "beamAngle": String(format: "%.1f°", trackAngle * 180 / .pi)
             ])
         }
-
-        return nil  // consume — don't pass drag to apps below
+        return
     }
 
-    // -- Mouse moved: coalesce cursor decoration updates --
-    if type == .mouseMoved {
-        if cursorDecorationActive {
-            let p = event.location
-            coalescingLock.lock()
-            pendingCursorDecorPos = (p.x + 15, p.y - 25)
-            coalescingLock.unlock()
-        }
-        return Unmanaged.passUnretained(event)
-    }
-
-    // -- Left mouse up --
-    if type == .leftMouseUp {
+    if type == "left_mouse_up" {
         switch avatarState {
         case .stellating:
-            // Mouse up without drag → this is a click (≤2px)
             pressHoldTimer?.cancel()
             pressHoldTimer = nil
-            log("LEFT UP in STELLATING → click (toggle follow-me)")
-            // Revert stellation
+            logTap("LEFT UP in STELLATING → click (toggle follow-me)")
             DispatchQueue.global(qos: .userInteractive).async {
                 evalStellate(target: 0, freezeIdle: false)
             }
 
-            // mouseDownOnAvatar == true means we came from idle/roaming → enter followMe
-            // mouseDownOnAvatar == false means we came from followMe → return to idle
             if mouseDownOnAvatar {
                 avatarState = .followMe
-                log("→ FOLLOW-ME mode")
+                logTap("→ FOLLOW-ME mode")
                 DispatchQueue.global(qos: .userInteractive).async {
                     sendBehavior("look_at_me")
                     pushEvent("Follow-me mode", level: "info")
                 }
             } else {
                 avatarState = .idle
-                log("→ EXIT follow-me, IDLE")
+                logTap("→ EXIT follow-me, IDLE")
                 DispatchQueue.global(qos: .userInteractive).async {
                     sendBehavior("idle")
                     pushEvent("Idle", level: "info")
@@ -484,23 +593,18 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
             }
 
         case .radialMenuOpen:
-            let p = event.location
-            log("LEFT UP in RADIAL MENU at (\(Int(p.x)),\(Int(p.y))) expanded=\(expandedCanvasRect.map { "(\(Int($0.x)),\(Int($0.y)),\(Int($0.w)),\(Int($0.h)))" } ?? "nil")")
+            guard let point else { break }
+            logTap("LEFT UP in RADIAL MENU at (\(Int(point.x)),\(Int(point.y))) expanded=\(expandedCanvasRect.map { "(\(Int($0.x)),\(Int($0.y)),\(Int($0.w)),\(Int($0.h)))" } ?? "nil")")
             radialMenuActive = false
             closeCoalescingSocket()
 
-            // Stamp this interaction so completion handler can check for staleness
             interactionGeneration &+= 1
             let gen = interactionGeneration
 
-            // Send atomic select-at with final mouse position — JS resolves
-            // highlight from these coords and either selects or closes.
-            // Completion comes back as a subscriber event (selection_complete or
-            // menu_closed), handled in handleAvatarEvent().
             if let expanded = expandedCanvasRect {
-                let canvasRelX = Double(p.x) - expanded.x
-                let canvasRelY = Double(p.y) - expanded.y
-                log("  canvasRel=(\(Int(canvasRelX)),\(Int(canvasRelY))) gen=\(gen)")
+                let canvasRelX = Double(point.x) - expanded.x
+                let canvasRelY = Double(point.y) - expanded.y
+                logTap("  canvasRel=(\(Int(canvasRelX)),\(Int(canvasRelY))) gen=\(gen)")
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalRadialMsg([
                         "type": "radial_select_at",
@@ -510,8 +614,6 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                     ])
                 }
 
-                // Safety net: if JS doesn't respond within 1s, force-close.
-                // Prevents permanent input block if the event round-trip fails.
                 DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + 1.0) {
                     guard gen == interactionGeneration, avatarState == .radialMenuOpen else { return }
                     fputs("TAP: radial menu timeout — force closing (gen=\(gen))\n", stderr)
@@ -527,8 +629,7 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                     sendBehavior("idle")
                 }
             } else {
-                // No expanded canvas — shouldn't happen, but recover gracefully
-                log("  no expanded canvas — closing")
+                logTap("  no expanded canvas — closing")
                 avatarState = .idle
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalRadialMsg(["type": "radial_close"])
@@ -537,38 +638,33 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
             }
 
         default:
-            // Not in an avatar interaction — pass through
-            return Unmanaged.passUnretained(event)
+            break
         }
 
         mouseDownPoint = nil
         mouseDownOnAvatar = false
-        return nil  // consume — was stellating or radialMenu mouseUp
+        return
     }
 
-    // -- Left mouse down --
-    if type == .leftMouseDown {
-        let p = event.location
-        let onAvatar = isClickOnAvatar(p.x, p.y)
+    if type == "left_mouse_down", let point {
+        let onAvatar = isClickOnAvatar(point.x, point.y)
         moveID &+= 1
         let mid = moveID
 
-        log("LEFT click (\(Int(p.x)),\(Int(p.y))) onAvatar=\(onAvatar) state=\(avatarState) avatar=(\(Int(curX)),\(Int(curY)),\(Int(curSize)))")
+        logTap("LEFT click (\(Int(point.x)),\(Int(point.y))) onAvatar=\(onAvatar) state=\(avatarState) avatar=(\(Int(curX)),\(Int(curY)),\(Int(curSize)))")
 
         switch avatarState {
         case .idle, .roaming:
             if onAvatar {
-                // Enter stellating state — wait to see if it's a click or drag
-                mouseDownPoint = p
+                mouseDownPoint = point
                 mouseDownOnAvatar = true
                 avatarState = .stellating
-                log("→ STELLATING (waiting for click/drag)")
+                logTap("→ STELLATING (waiting for click/drag)")
 
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalStellate(target: 0.5, freezeIdle: true)
                 }
 
-                // Press-and-hold timer (0.5s)
                 let timer = DispatchWorkItem {
                     guard avatarState == .stellating else { return }
                     fputs("TAP: PRESS-AND-HOLD triggered\n", stderr)
@@ -580,88 +676,55 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                 pressHoldTimer = timer
                 DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + 0.5, execute: timer)
 
-                return nil  // consume — don't pass to apps below
-
-            } else if isClickOnChat(p.x, p.y) {
+            } else if isClickOnChat(point.x, point.y) {
                 DispatchQueue.global(qos: .userInteractive).async { behaviorDock(mid) }
             }
 
         case .followMe:
             if onAvatar {
-                // Enter stellating from follow-me — on release will toggle back to idle
-                mouseDownPoint = p
-                mouseDownOnAvatar = false  // flag: came from followMe
+                mouseDownPoint = point
+                mouseDownOnAvatar = false
                 avatarState = .stellating
-                log("→ STELLATING (from followMe)")
+                logTap("→ STELLATING (from followMe)")
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalStellate(target: 0.5, freezeIdle: true)
                 }
-                return nil  // consume
             } else {
-                log("→ fast-travel to (\(Int(p.x)),\(Int(p.y)))")
+                logTap("→ fast-travel to (\(Int(point.x)),\(Int(point.y)))")
                 DispatchQueue.global(qos: .userInteractive).async {
-                    behaviorFastTravel(toX: p.x - curSize / 2, toY: p.y - curSize / 2, mid: mid)
+                    behaviorFastTravel(toX: point.x - curSize / 2, toY: point.y - curSize / 2, mid: mid)
                 }
             }
 
         case .cursorDecorated:
-            // Any click clears cursor decoration
-            log("→ clearing cursor decoration")
+            logTap("→ clearing cursor decoration")
             cursorDecorationActive = false
             sendOneShot("{\"action\":\"remove\",\"id\":\"cursor-decor\"}")
             avatarState = .idle
 
-            // If clicked on avatar, also enter stellating
             if onAvatar {
-                mouseDownPoint = p
+                mouseDownPoint = point
                 mouseDownOnAvatar = true
                 avatarState = .stellating
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalStellate(target: 0.5, freezeIdle: true)
                 }
-                return nil  // consume
             }
 
         case .docked:
-            if !isClickOnChat(p.x, p.y) {
-                DispatchQueue.global(qos: .userInteractive).async { behaviorUndock(p.x, p.y, mid) }
+            if !isClickOnChat(point.x, point.y) {
+                DispatchQueue.global(qos: .userInteractive).async { behaviorUndock(point.x, point.y, mid) }
             }
 
         case .stellating, .radialMenuOpen:
-            break  // already handling
+            break
 
         case .docking, .undocking, .transitioning:
-            break  // ignore clicks during transitions
+            break
         case .possessingCursor, .possessingKeyboard, .following, .tracing:
-            break  // ignore clicks during agent-driven behaviors
+            break
         }
     }
-    return Unmanaged.passUnretained(event)
-}
-
-func startEventTap() {
-    let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
-               | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
-               | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
-               | CGEventMask(1 << CGEventType.mouseMoved.rawValue)
-               | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
-               | CGEventMask(1 << CGEventType.keyDown.rawValue)
-               | CGEventMask(1 << CGEventType.tapDisabledByTimeout.rawValue)
-               | CGEventMask(1 << CGEventType.tapDisabledByUserInput.rawValue)
-
-    guard let tap = CGEvent.tapCreate(
-        tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-        eventsOfInterest: mask,
-        callback: tapCB, userInfo: nil
-    ) else {
-        fputs("EVENT TAP FAILED — grant Accessibility permission to this binary.\n", stderr)
-        return  // subscriber + channel events still work without click-follow
-    }
-    eventTap = tap
-    fputs("EVENT TAP OK — click-follow active.\n", stderr)
-    let src = CFMachPortCreateRunLoopSource(nil, tap, 0)!
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
-    CGEvent.tapEnable(tap: tap, enable: true)
 }
 
 // ============================================================================
@@ -681,6 +744,8 @@ func resetInteractionState() {
     interactionGeneration &+= 1  // invalidate any in-flight interactions
     // Zero out avatar geometry — prevents stale hit-testing
     curX = 0; curY = 0; curSize = 0
+    avatarHitTargetActive = false
+    avatarHitTargetFrame = nil
     // Close coalescing worker socket (will be re-opened if needed)
     closeCoalescingSocket()
     fputs("avatar-sub: interaction state reset.\n", stderr)
@@ -689,13 +754,14 @@ func resetInteractionState() {
 var subscriberStream: DaemonEventStream? = nil
 
 func startSubscriber() {
-    let stream = DaemonEventStream()
+    let stream = DaemonEventStream(subscribeMessage: ["action": "subscribe", "events": ["input_event"]])
     subscriberStream = stream  // retain
 
     stream.onConnected = { _ in
         // Ensure avatar canvas exists (creates if missing after daemon restart).
         // Also hydrates curX/curY/curSize for hit-testing.
         ensureAvatarCanvas()
+        setSigilRuntimeInputMode(avatarState.runtimeInputMode)
         fputs("avatar-sub: connected to daemon.\n", stderr)
     }
 
@@ -712,6 +778,21 @@ func startSubscriber() {
         guard let envelope = decodeEnvelope(json) else { return }
 
         switch envelope.event {
+        case "input_event":
+            let data = envelope.data
+            let point: CGPoint?
+            if let x = data["x"] as? Double, let y = data["y"] as? Double {
+                point = CGPoint(x: x, y: y)
+            } else {
+                point = nil
+            }
+            let keyCode = data["key_code"] as? Int64
+            if let type = data["type"] as? String {
+                DispatchQueue.global(qos: .userInteractive).async {
+                    handleRuntimeInputEvent(type: type, point: point, keyCode: keyCode)
+                }
+            }
+
         // Channel events (relayed posts from agent_helpers.sh)
         case "channel_post":
             if let channel = envelope.data["channel"] as? String,
@@ -721,24 +802,38 @@ func startSubscriber() {
 
         // Canvas JS events (postMessage relay from avatar.html)
         case "canvas_message":
-            if let id = envelope.data["id"] as? String, id == avatarID,
+            if let id = envelope.data["id"] as? String,
                let payload = envelope.data["payload"] as? [String: Any] {
                 DispatchQueue.global(qos: .userInteractive).async {
-                    handleAvatarEvent(payload: payload)
+                    switch id {
+                    case avatarID, avatarHitTargetID:
+                        handleAvatarEvent(payload: payload)
+                    case chatID:
+                        handleChatCanvasEvent(payload: payload)
+                    default:
+                        break
+                    }
                 }
             }
 
         // Canvas lifecycle events — resync avatar position
         case "canvas_lifecycle":
-            if let canvasID = envelope.data["canvas_id"] as? String, canvasID == avatarID {
+            if let canvasID = envelope.data["canvas_id"] as? String {
                 let action = envelope.data["action"] as? String ?? ""
-                if action == "created" || action == "updated",
-                   let at = envelope.data["at"] as? [Double], at.count >= 3 {
-                    curX = at[0]; curY = at[1]; curSize = at[2]
-                    fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
-                } else if action == "removed" {
-                    curX = 0; curY = 0; curSize = 0
-                    fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
+                if canvasID == avatarID {
+                    if action == "created" || action == "updated",
+                       let at = envelope.data["at"] as? [Double], at.count >= 3 {
+                        curX = at[0]; curY = at[1]; curSize = at[2]
+                        syncAvatarHitTarget()
+                        fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
+                    } else if action == "removed" {
+                        curX = 0; curY = 0; curSize = 0
+                        removeAvatarHitTarget()
+                        fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
+                    }
+                } else if canvasID == avatarHitTargetID, action == "removed" {
+                    avatarHitTargetActive = false
+                    avatarHitTargetFrame = nil
                 }
             }
 
@@ -768,18 +863,22 @@ extension Array {
 /// Called on every daemon connect (first and reconnect) so the avatar
 /// reappears after a daemon restart without duplicating an existing canvas.
 func ensureAvatarCanvas() {
-    if queryAvatar() { return }  // canvas already exists
+    if queryAvatar() {
+        syncAvatarHitTarget()
+        return
+    }
 
-    let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
-    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"file://\(path)\"}")
+    let url = sigilFileURL("apps/sigil/avatar.html")
+    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"\(url)\"}")
     Thread.sleep(forTimeInterval: 0.5)
     _ = queryAvatar()
+    syncAvatarHitTarget()
     fputs("avatar-sub: recreated avatar canvas.\n", stderr)
 }
 
 /// Load radial menu config from JSON file
 func loadRadialMenuConfig() {
-    let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/radial-menu-config.json").expandingTildeInPath
+    let path = sigilRepoPath("apps/sigil/radial-menu-config.json")
     guard let data = FileManager.default.contents(atPath: path),
           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let items = json["items"] as? [[String: Any]] else {
@@ -805,7 +904,7 @@ struct AvatarSub {
         startBackgroundMonitor()    // occlusion detection (from avatar-behaviors.swift)
         startSubscriber()           // heads-up channel events
         startCoalescingWorker()     // 30Hz position update worker (cursor-decor, radial tracking)
-        startEventTap()             // click following (non-fatal if it fails)
+        setSigilRuntimeInputMode(avatarState.runtimeInputMode)
 
         FileHandle.standardError.write("""
             avatar-sub running.
