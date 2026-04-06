@@ -31,12 +31,15 @@ func queryChat() {
 }
 
 // -- Query/sync avatar position from canvas list --
-func queryAvatar() {
+@discardableResult
+func queryAvatar() -> Bool {
     let list = getCanvasList()
     if let pos = parseCanvasPosition(list, avatarID) {
         curX = pos.0; curY = pos.1; curSize = pos.2
         FileHandle.standardError.write("Avatar synced: (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n".data(using: .utf8)!)
+        return true
     }
+    return false
 }
 
 // -- Hit tests --

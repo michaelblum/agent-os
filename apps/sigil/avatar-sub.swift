@@ -326,7 +326,6 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                 pressHoldTimer?.cancel()
                 pressHoldTimer = nil
                 closeCoalescingSocket()
-                let gen = interactionGeneration
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalRadialMsg(["type": "radial_close"])
                     evalStellate(target: 0, freezeIdle: false)
@@ -510,6 +509,23 @@ func tapCB(_ proxy: CGEventTapProxy, _ type: CGEventType, _ event: CGEvent,
                         "generation": gen
                     ])
                 }
+
+                // Safety net: if JS doesn't respond within 1s, force-close.
+                // Prevents permanent input block if the event round-trip fails.
+                DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + 1.0) {
+                    guard gen == interactionGeneration, avatarState == .radialMenuOpen else { return }
+                    fputs("TAP: radial menu timeout — force closing (gen=\(gen))\n", stderr)
+                    evalRadialMsg(["type": "radial_close"])
+                    evalStellate(target: 0, freezeIdle: false)
+                    if let orig = originalCanvasRect {
+                        sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
+                        curX = orig.x; curY = orig.y; curSize = orig.w
+                    }
+                    expandedCanvasRect = nil
+                    originalCanvasRect = nil
+                    avatarState = .idle
+                    sendBehavior("idle")
+                }
             } else {
                 // No expanded canvas — shouldn't happen, but recover gracefully
                 log("  no expanded canvas — closing")
@@ -677,9 +693,9 @@ func startSubscriber() {
     subscriberStream = stream  // retain
 
     stream.onConnected = { _ in
-        // Re-query avatar geometry on every connect (first and reconnect).
-        // Critical: hydrates curX/curY/curSize for hit-testing.
-        queryAvatar()
+        // Ensure avatar canvas exists (creates if missing after daemon restart).
+        // Also hydrates curX/curY/curSize for hit-testing.
+        ensureAvatarCanvas()
         fputs("avatar-sub: connected to daemon.\n", stderr)
     }
 
@@ -692,40 +708,42 @@ func startSubscriber() {
     }
 
     stream.onMessage = { json in
-        guard let type = json["type"] as? String else { return }
+        // All daemon broadcasts use the envelope schema: {v:1, service, event, ts, data}
+        guard let envelope = decodeEnvelope(json) else { return }
 
-        // Channel events
-        if type == "channel",
-           let channel = json["channel"] as? String,
-           let data = json["data"] as? [String: Any] {
-            handleChannelEvent(channel: channel, data: data)
-        }
-
-        // Avatar canvas JS events (from postMessage relay)
-        if type == "event",
-           let id = json["id"] as? String, id == avatarID,
-           let payload = json["payload"] as? [String: Any] {
-            DispatchQueue.global(qos: .userInteractive).async {
-                handleAvatarEvent(payload: payload)
+        switch envelope.event {
+        // Channel events (relayed posts from agent_helpers.sh)
+        case "channel_post":
+            if let channel = envelope.data["channel"] as? String,
+               let payload = envelope.data["payload"] as? [String: Any] {
+                handleChannelEvent(channel: channel, data: payload)
             }
-        }
+
+        // Canvas JS events (postMessage relay from avatar.html)
+        case "canvas_message":
+            if let id = envelope.data["id"] as? String, id == avatarID,
+               let payload = envelope.data["payload"] as? [String: Any] {
+                DispatchQueue.global(qos: .userInteractive).async {
+                    handleAvatarEvent(payload: payload)
+                }
+            }
 
         // Canvas lifecycle events — resync avatar position
-        if type == "event",
-           let id = json["id"] as? String, id == "__lifecycle__",
-           let payload = json["payload"] as? [String: Any],
-           let lifecycleType = payload["type"] as? String, lifecycleType == "canvas_lifecycle",
-           let canvasID = payload["id"] as? String, canvasID == avatarID {
-
-            let action = payload["action"] as? String ?? ""
-            if action == "created" || action == "updated",
-               let at = payload["at"] as? [Double], at.count >= 3 {
-                curX = at[0]; curY = at[1]; curSize = at[2]
-                fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
-            } else if action == "removed" {
-                curX = 0; curY = 0; curSize = 0
-                fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
+        case "canvas_lifecycle":
+            if let canvasID = envelope.data["canvas_id"] as? String, canvasID == avatarID {
+                let action = envelope.data["action"] as? String ?? ""
+                if action == "created" || action == "updated",
+                   let at = envelope.data["at"] as? [Double], at.count >= 3 {
+                    curX = at[0]; curY = at[1]; curSize = at[2]
+                    fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
+                } else if action == "removed" {
+                    curX = 0; curY = 0; curSize = 0
+                    fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
+                }
             }
+
+        default:
+            break
         }
     }
 
@@ -746,6 +764,19 @@ extension Array {
 // MARK: - Entry Point
 // ============================================================================
 
+/// Ensure the avatar canvas exists. Queries first; only creates if missing.
+/// Called on every daemon connect (first and reconnect) so the avatar
+/// reappears after a daemon restart without duplicating an existing canvas.
+func ensureAvatarCanvas() {
+    if queryAvatar() { return }  // canvas already exists
+
+    let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
+    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"file://\(path)\"}")
+    Thread.sleep(forTimeInterval: 0.5)
+    _ = queryAvatar()
+    fputs("avatar-sub: recreated avatar canvas.\n", stderr)
+}
+
 /// Load radial menu config from JSON file
 func loadRadialMenuConfig() {
     let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/radial-menu-config.json").expandingTildeInPath
@@ -765,13 +796,8 @@ struct AvatarSub {
         // Load radial menu config
         loadRadialMenuConfig()
 
-        // Auto-create avatar canvas if it doesn't exist
-        let path = NSString(string: "~/Documents/GitHub/agent-os/apps/sigil/avatar.html").expandingTildeInPath
-        sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"file://\(path)\"}")
-        Thread.sleep(forTimeInterval: 0.5)
-
-        // Sync position with actual canvas
-        queryAvatar()
+        // Ensure avatar canvas exists (creates if missing)
+        ensureAvatarCanvas()
         queryChat()
         ensureChatOnTop()
 
