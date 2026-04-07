@@ -54,6 +54,8 @@ const TOOL_DEFS = [
     inputSchema: { type: 'object' as const, properties: {
       channel: { type: 'string' }, since: { type: 'string' }, limit: { type: 'number' },
     }, required: ['channel'] } },
+  { name: 'who_is_online', description: 'List all sessions currently registered and online on the coordination bus.',
+    inputSchema: { type: 'object' as const, properties: {} } },
   { name: 'run_os_script', description: 'Execute a TS/JS script against the aos SDK. Runs off-stage.',
     inputSchema: { type: 'object' as const, properties: {
       script: { type: 'string' }, script_id: { type: 'string' }, params: { type: 'object' },

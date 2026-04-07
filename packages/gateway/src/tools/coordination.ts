@@ -22,5 +22,8 @@ export function registerCoordinationTools(db: CoordinationDB) {
 
     read_stream: (args: any) =>
       db.readStream(args.channel, { since: args.since, limit: args.limit }),
+
+    who_is_online: () =>
+      db.whoIsOnline(),
   };
 }
