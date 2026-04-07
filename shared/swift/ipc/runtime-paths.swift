@@ -123,7 +123,7 @@ func aosAllServiceLabels() -> [String] {
 }
 
 /// Legacy labels that may still be loaded from before the mode split.
-let aosLegacyServiceLabels = ["com.agent-os.aos", "com.agent-os.sigil"]
+let aosLegacyServiceLabels = ["com.agent-os.aos", "com.agent-os.sigil", "com.agent-os.heads-up"]
 
 func aosInstalledBinaryPath(_ executableName: String) -> String {
     "\(aosInstallAppPath())/Contents/MacOS/\(executableName)"
