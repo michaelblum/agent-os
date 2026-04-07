@@ -2708,16 +2708,15 @@ function animate() {
 // === IPC ===
 
 function setupIPC() {
-    if (!window.headsup) return;
-
-    window.headsup.receive((msg) => {
+    window.headsup = window.headsup || {};
+    window.headsup.receive = function(b64) {
         try {
-            const data = typeof msg === 'string' ? JSON.parse(msg) : msg;
-            handleMessage(data);
+            const msg = JSON.parse(atob(b64));
+            handleMessage(msg);
         } catch (e) {
             console.error('[live] IPC parse error:', e);
         }
-    });
+    };
 }
 
 function handleMessage(msg) {
