@@ -7,6 +7,8 @@
 - **side-eye decision**: Absorb into aos (true single binary) or keep as bundled sub-binary? Blocks packaging fixes.
 - **Packaging gaps**: Bundle side-eye + toolkit HTML into AOS.app so installed-mode commands are self-contained.
 - **StatusItemManager ↔ Sigil coordination**: Menu bar toggle creates/removes avatar canvas independently of Sigil. Need to reconcile so Sigil detects externally-created canvas or the toggle starts/stops Sigil.
+- **Radial menu reimplementation**: Port radial menu from old avatar.html to celestial live renderer. Concepts and logic preserved in old file.
+- **Studio WKWebView bundling**: Studio mode uses ES modules — needs same single-file bundling as live if it ever runs inside a canvas instead of a browser.
 
 ## Done
 
@@ -42,3 +44,20 @@ Re-orientation, code audit, animation fix, DRY cleanup, and launchd label isolat
 **Docs updated:** CLAUDE.md (root, src, sigil) aligned to runtime model.
 
 **Known gaps:** side-eye not bundled in AOS.app, toolkit HTML not staged, StatusItemManager and Sigil not coordinated.
+
+### celestial-graft (2026-04-07)
+Grafted celestial legacy into Sigil. Replaced small moving NSWindow avatar with full-screen transparent canvases running celestial's Three.js renderer.
+
+**Commits:** `91f5951` → `fba4cd1` (7 commits)
+
+**What changed:**
+- Copied celestial legacy JS/CSS/HTML into `apps/sigil/celestial/` (shared modules, studio, live)
+- Live renderer bundled into single HTML for WKWebView compatibility (ES modules blocked by file:// CORS)
+- Swift animation layer rewired: `sendAvatarUpdate()` sends scene-position IPC instead of window-position
+- Full-screen canvas creation per display at startup, multi-display handoff on boundary crossing
+- Dock/undock behaviors updated: show/hide instead of create/destroy canvases
+- All old small-window canvas patterns removed from radial menu, dock, undock paths
+- Ghost trails verified working across full-screen canvas
+- Config `toggle_url` updated to new live renderer, `toggle_at` to full display bounds
+
+**Known gaps:** Radial menu not yet reimplemented on celestial renderer. Studio mode needs bundling if used in WKWebView. `state.idleSpinSpeed` eval calls in dock behavior reference old JS model.
