@@ -10,6 +10,7 @@ struct AosConfig: Codable {
     var voice: VoiceConfig
     var perception: PerceptionConfig
     var feedback: FeedbackConfig
+    var status_item: StatusItemConfig?
 
     struct VoiceConfig: Codable {
         var enabled: Bool
@@ -28,10 +29,18 @@ struct AosConfig: Codable {
         var sound: Bool
     }
 
+    struct StatusItemConfig: Codable {
+        var enabled: Bool?          // false by default — headless daemon is the default
+        var toggle_id: String?      // canvas ID to toggle (default: "avatar")
+        var toggle_url: String?     // URL to load when creating the toggle canvas
+        var toggle_at: [Double]?    // [x, y, w, h] position for the toggle canvas
+    }
+
     static let defaults = AosConfig(
         voice: VoiceConfig(enabled: false, announce_actions: true, voice: nil, rate: nil),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
-        feedback: FeedbackConfig(visual: true, sound: false)
+        feedback: FeedbackConfig(visual: true, sound: false),
+        status_item: nil
     )
 }
 
@@ -77,8 +86,22 @@ func setConfigValue(key: String, value: String) {
         config.feedback.visual = (value == "true" || value == "1")
     case "feedback.sound":
         config.feedback.sound = (value == "true" || value == "1")
+    case "status_item.enabled":
+        if config.status_item == nil { config.status_item = .init() }
+        config.status_item?.enabled = (value == "true" || value == "1")
+    case "status_item.toggle_id":
+        if config.status_item == nil { config.status_item = .init() }
+        config.status_item?.toggle_id = value
+    case "status_item.toggle_url":
+        if config.status_item == nil { config.status_item = .init() }
+        config.status_item?.toggle_url = value
+    case "status_item.toggle_at":
+        if config.status_item == nil { config.status_item = .init() }
+        let parts = value.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+        guard parts.count == 4 else { exitError("toggle_at must be x,y,w,h", code: "INVALID_VALUE") }
+        config.status_item?.toggle_at = parts
     default:
-        exitError("Unknown config key: \(key). Valid: voice.enabled, voice.announce_actions, voice.voice, voice.rate, perception.default_depth, perception.settle_threshold_ms, feedback.visual, feedback.sound", code: "UNKNOWN_KEY")
+        exitError("Unknown config key: \(key)", code: "UNKNOWN_KEY")
     }
     saveConfig(config)
     print(jsonString(config))

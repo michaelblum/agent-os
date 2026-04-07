@@ -19,6 +19,21 @@ func serveCommand(args: [String]) {
     let daemon = UnifiedDaemon(config: config, idleTimeout: idleTimeout)
     daemon.start()
 
+    // Status item (menu bar icon) — configured via config file
+    var statusItemManager: StatusItemManager?
+    if config.status_item?.enabled == true {
+        let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: config.status_item!)
+        mgr.setup()
+        statusItemManager = mgr
+        // Chain onto the existing onCanvasCountChanged (which handles idle checking)
+        let existingHandler = daemon.canvasManager.onCanvasCountChanged
+        daemon.canvasManager.onCanvasCountChanged = { [weak statusItemManager] in
+            existingHandler?()
+            statusItemManager?.updateIcon()
+        }
+    }
+    _ = statusItemManager  // retain
+
     // Run the main loop (needed for CGEventTap, NSWindow, WKWebView)
     NSApplication.shared.run()
 }
