@@ -33,7 +33,7 @@ struct AosConfig: Codable {
         var enabled: Bool?          // false by default — headless daemon is the default
         var toggle_id: String?      // canvas ID to toggle (default: "avatar")
         var toggle_url: String?     // URL to load when creating the toggle canvas
-        var toggle_at: [Double]?    // [x, y, w, h] position for the toggle canvas
+        var toggle_at: [Double]?    // [x, y, w, h] target position for the toggle canvas
     }
 
     static let defaults = AosConfig(
