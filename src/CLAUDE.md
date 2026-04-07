@@ -109,6 +109,10 @@ and other significant actions without the agent needing to call `aos say`.
 | perception.settle_threshold_ms | int | 200 | Cursor settle threshold |
 | feedback.visual | bool | true | Visual feedback overlays |
 | feedback.sound | bool | false | Sound feedback |
+| status_item.enabled | bool | false | Show menu bar icon |
+| status_item.toggle_id | string | "avatar" | Canvas ID to toggle on click |
+| status_item.toggle_url | string | — | URL to load when creating canvas |
+| status_item.toggle_at | array | [200,200,300,300] | [x,y,w,h] position for canvas |
 
 ### Tools
 
@@ -124,7 +128,7 @@ src/
   main.swift          # Entry point, subcommand routing, preflight gating
   shared/             # Helpers, envelope, config (+watcher), types
   perceive/           # Perception: cursor, capture (→ side-eye), AX, events, attention
-  display/            # Display: canvas, render, auto-projection
+  display/            # Display: canvas, render, auto-projection, status-item (menu bar)
   act/                # Action: click, type, press, session, profiles
   voice/              # Voice: TTS engine, say command
   daemon/             # UnifiedDaemon: socket, routing, autonomic

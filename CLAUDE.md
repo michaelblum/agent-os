@@ -40,6 +40,12 @@ Detection is automatic (executable path containing `.app/Contents/MacOS/` → in
 
 This prevents cross-mode contamination between repo builds and the installed app.
 
+**Launchd labels are also mode-scoped:**
+- `com.agent-os.aos.repo` / `com.agent-os.aos.installed`
+- `com.agent-os.sigil.repo` / `com.agent-os.sigil.installed`
+
+Legacy labels (`com.agent-os.aos`, `com.agent-os.sigil`, `com.agent-os.heads-up`) are cleaned up by `aos reset`.
+
 ### First-Time Setup
 
 Before interactive commands work, run the permission onboarding flow:
