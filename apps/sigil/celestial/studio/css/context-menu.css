@@ -1,0 +1,356 @@
+/* ============================================================
+   Context Menu — Card-Based Navigation
+   Colors: bg rgba(20,10,30,0.95), border rgba(209,135,255,0.6),
+           accent #bc13fe, text white, label #d187ff,
+           input-bg rgba(30,15,50,0.9)
+   ============================================================ */
+
+/* ---- Position anchor — invisible, just holds cards ---- */
+.ctx-anchor {
+    position: absolute;
+    display: none;
+    z-index: 100;
+}
+.ctx-anchor.visible {
+    display: block;
+}
+
+/* ---- Menu card — the styled panel (both root and subs) ---- */
+.ctx-menu-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: none;
+    flex-direction: column;
+    min-width: 260px;
+    background: rgba(20, 10, 30, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(209, 135, 255, 0.6);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    color: white;
+    max-height: 420px;
+    overflow-y: auto;
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity  0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        filter   0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Active card — the one the user is interacting with */
+.ctx-menu-card.active {
+    display: flex;
+    position: relative;  /* in flow, gives anchor its size */
+    z-index: 20;
+    animation: cardSlideIn 0.25s ease-out;
+}
+
+/* Sub-menu cards need the same gap as root panels */
+.ctx-menu-card.ctx-sub {
+    gap: 6px;
+}
+
+/* Pushed card — visible behind active card, shrunken deck-of-cards */
+.ctx-menu-card.pushed {
+    display: flex;
+    cursor: pointer;
+    /* transform, opacity, filter, z-index set by JS based on depth */
+    overflow-y: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    border-color: rgba(209, 135, 255, 0.35);
+    pointer-events: auto;
+}
+
+/* Slide-in keyframes for the incoming card */
+@keyframes cardSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* ---- Tab row ---- */
+.ctx-tabs {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(188, 19, 254, 0.4);
+    cursor: grab;
+}
+.ctx-tab {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    transition: background 0.15s;
+    stroke: currentColor;
+    color: rgba(209, 135, 255, 0.7);
+    fill: none;
+    stroke-width: 1.5;
+}
+.ctx-tab:hover {
+    background: rgba(188, 19, 254, 0.2);
+    color: #d187ff;
+}
+.ctx-tab.active {
+    background: #bc13fe;
+    color: #fff;
+}
+.ctx-tab svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ---- Tab panels ---- */
+.ctx-panel {
+    display: none;
+}
+.ctx-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* ---- Panel headings ---- */
+.ctx-menu-card h3 {
+    margin: 0 0 4px 0;
+    font-size: 0.9rem;
+    color: #fff;
+    border-bottom: 1px solid #bc13fe;
+    padding-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ---- Labels ---- */
+.ctx-menu-card label {
+    font-size: 0.65rem;
+    color: #d187ff;
+    margin-bottom: -4px;
+}
+
+/* ---- Form controls ---- */
+.ctx-menu-card select,
+.ctx-menu-card input[type="color"] {
+    padding: 4px;
+    height: 28px;
+}
+.ctx-menu-card select {
+    background: rgba(30, 15, 50, 0.9);
+    color: #fff;
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+.ctx-menu-card input[type="range"] {
+    width: 100%;
+    accent-color: #bc13fe;
+}
+.ctx-menu-card input[type="color"] {
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+}
+
+/* ---- Checkbox labels ---- */
+.ctx-menu-card .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #d187ff;
+    cursor: pointer;
+    margin-bottom: 0;
+}
+.ctx-menu-card .checkbox-label input[type="checkbox"] {
+    accent-color: #bc13fe;
+}
+
+/* ---- Horizontal row (checkbox + label pairs side-by-side) ---- */
+.ctx-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ---- Sub-menu trigger buttons ---- */
+.ctx-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #d187ff;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    transition: background 0.15s;
+}
+.ctx-trigger:hover {
+    background: rgba(188, 19, 254, 0.15);
+}
+.ctx-trigger::after {
+    content: "\203A";           /* single right-pointing angle */
+    font-size: 1rem;
+    line-height: 1;
+    opacity: 0.6;
+    margin-left: auto;
+    padding-left: 8px;
+}
+
+/* ---- Divider ---- */
+.ctx-divider {
+    height: 1px;
+    background: rgba(188, 19, 254, 0.3);
+    margin: 4px 0;
+    border: none;
+}
+
+/* ---- Action buttons row ---- */
+.ctx-actions {
+    display: flex;
+    gap: 6px;
+    padding-top: 6px;
+    margin-top: 2px;
+    border-top: 1px solid rgba(188, 19, 254, 0.25);
+}
+.ctx-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    background: rgba(30, 15, 50, 0.6);
+    color: #d187ff;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.ctx-actions button:hover {
+    background: rgba(188, 19, 254, 0.25);
+    border-color: #bc13fe;
+    color: #fff;
+}
+.ctx-actions button svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ---- Scrollbar ---- */
+.ctx-menu-card::-webkit-scrollbar {
+    width: 5px;
+}
+.ctx-menu-card::-webkit-scrollbar-track {
+    background: transparent;
+}
+.ctx-menu-card::-webkit-scrollbar-thumb {
+    background: rgba(188, 19, 254, 0.4);
+    border-radius: 3px;
+}
+.ctx-menu-card::-webkit-scrollbar-thumb:hover {
+    background: rgba(188, 19, 254, 0.6);
+}
+
+/* ── FX Tile Grid ── */
+.fx-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.fx-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 10px 4px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(209, 135, 255, 0.15);
+    background: rgba(30, 15, 50, 0.6);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.fx-tile:hover {
+    border-color: rgba(209, 135, 255, 0.4);
+    background: rgba(40, 20, 65, 0.8);
+}
+
+.fx-tile.active {
+    border-color: rgba(188, 19, 254, 0.8);
+    background: rgba(188, 19, 254, 0.15);
+    box-shadow: 0 0 12px rgba(188, 19, 254, 0.3),
+                inset 0 0 8px rgba(188, 19, 254, 0.1);
+}
+.fx-tile.active .fx-tile-emoji {
+    filter: drop-shadow(0 0 6px rgba(188, 19, 254, 0.6));
+}
+.fx-tile.active .fx-tile-label {
+    color: #fff;
+}
+
+.fx-tile-emoji {
+    font-size: 20px;
+    line-height: 1;
+    transition: filter 0.2s;
+}
+.fx-tile-label {
+    font-size: 0.6rem;
+    color: rgba(209, 135, 255, 0.7);
+    text-align: center;
+    line-height: 1.1;
+    transition: color 0.2s;
+}
+
+.fx-tile-gear {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: rgba(209, 135, 255, 0.4);
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+    z-index: 2;
+}
+.fx-tile-gear:hover {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.4);
+}
+.fx-tile.active .fx-tile-gear {
+    color: rgba(209, 135, 255, 0.7);
+}

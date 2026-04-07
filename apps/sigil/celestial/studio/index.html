@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatar Studio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/controls.css">
+    <link rel="stylesheet" href="css/context-menu.css">
+</head>
+<body>
+    <!-- Hidden file input for load function -->
+    <input type="file" id="file-loader" style="display:none;" accept=".json">
+
+    <!-- Context Menus -->
+    <div id="ctx-object" class="context-menu">
+        <h3>Object Properties</h3>
+        <label>Geometry</label>
+        <select id="ctx-shape">
+            <option value="4">Tetrahedron</option>
+            <option value="6">Hexahedron (Cube)</option>
+            <option value="8">Octahedron</option>
+            <option value="12">Dodecahedron</option>
+            <option value="20">Icosahedron</option>
+            <option value="90">Tetartoid (Pseudo)</option>
+            <option value="91">Torus Knot</option>
+            <option value="100">Sphere</option>
+        </select>
+        <label>Primary Color</label>
+        <input type="color" id="ctx-color">
+        <label>Face Opacity</label>
+        <input type="range" id="ctx-opacity" min="0" max="1" step="0.01">
+        <label>Edge Opacity</label>
+        <input type="range" id="ctx-edge-opacity" min="0" max="1" step="0.01">
+        <label>Aura Reach</label>
+        <input type="range" id="ctx-reach" min="0" max="3" step="0.01">
+        <label>Aura Intensity</label>
+        <input type="range" id="ctx-intensity" min="0" max="3" step="0.01">
+        <label>Base Spin Speed</label>
+        <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
+    </div>
+
+    <div id="ctx-env" class="context-menu">
+        <h3>Environment</h3>
+        <label class="checkbox-label" style="margin-top: 0;"><input type="checkbox" id="ctx-grid"> Show Grid</label>
+        <label>Primary Grid Color</label>
+        <input type="color" id="ctx-grid-color">
+        <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Grid</label>
+        <label>Grid Mass</label>
+        <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
+        <label class="checkbox-label"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
+        <label>Perspective FOV</label>
+        <input type="range" id="ctx-fov" min="10" max="120" step="1">
+    </div>
+
+    <div id="sidebar" class="expanded">
+        <div id="nav-rail">
+            <!-- Toggle Sidebar Icon at Top -->
+            <div class="nav-icon" id="toggle-sidebar" title="Toggle Sidebar" style="stroke:currentColor; margin-top: 20px; margin-bottom: 40px;">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </div>
+
+            <div class="nav-icon active" data-target="panel-geom" title="Geometry">
+                <svg viewBox="0 0 24 24">
+                   <rect x="3" y="3" width="12" height="12"></rect>
+                   <rect x="9" y="9" width="12" height="12"></rect>
+                   <line x1="3" y1="3" x2="9" y2="9"></line>
+                   <line x1="15" y1="3" x2="21" y2="9"></line>
+                   <line x1="3" y1="15" x2="9" y2="21"></line>
+                   <line x1="15" y1="15" x2="21" y2="21"></line>
+                </svg>
+            </div>
+            <div class="nav-icon" data-target="panel-colors" title="Colors & Appearance">
+                <svg viewBox="0 0 24 24">
+                   <circle cx="12" cy="12" r="10"></circle>
+                   <path d="M12 2v10l8.5-5.5"></path>
+                   <path d="M12 12l-8.5 5.5"></path>
+                   <path d="M12 12l-8.5-5.5"></path>
+                   <path d="M12 12v10"></path>
+                   <path d="M12 12l8.5 5.5"></path>
+                </svg>
+            </div>
+            <div class="nav-icon" data-target="panel-anim" title="Animation and Effects">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </div>
+            <div class="nav-icon" data-target="panel-env" title="Environment & Camera">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+            </div>
+
+            <!-- Save & Load Buttons -->
+            <div class="nav-icon" id="btn-save" title="Save Configuration" style="stroke:currentColor; margin-top: auto; margin-bottom: 5px;">
+                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            </div>
+            <div class="nav-icon" id="btn-load" title="Load Configuration" style="stroke:currentColor; margin-bottom: 15px;">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2-2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            </div>
+
+            <!-- Randomize Button (Die) -->
+            <div class="nav-icon" id="btn-randomize" title="Randomize Parameters" style="stroke:currentColor; margin-bottom: 20px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
+                    <circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none"></circle>
+                </svg>
+            </div>
+        </div>
+
+        <div id="content-area">
+            <!-- Neon Title animation wrapper -->
+            <div id="sidebar-title-wrapper">
+                <div class="title-text">CELESTIAL</div>
+                <div class="crosshair-x"></div>
+                <div class="crosshair-y"></div>
+                <div class="anim-dot"></div>
+            </div>
+
+            <!-- Geometry Panel -->
+            <div id="panel-geom" class="panel active">
+                <h2>Geometry</h2>
+                <div class="control-group">
+                    <label>Base Shape</label>
+                    <select id="shapeSelect">
+                        <option value="4">Tetrahedron</option>
+                        <option value="6" selected>Hexahedron (Cube)</option>
+                        <option value="8">Octahedron</option>
+                        <option value="12">Dodecahedron</option>
+                        <option value="20">Icosahedron</option>
+                        <option value="90">Tetartoid (Pseudo)</option>
+                        <option value="91">Torus Knot</option>
+                        <option value="100">Sphere</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Stellation (Pull/Push)</label>
+                        <div class="val-display"><span id="stellationVal">0.00</span></div>
+                    </div>
+                    <input type="range" id="stellationSlider" min="-1" max="2" step="0.05" value="0">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Face Opacity</label>
+                        <div class="val-display"><span id="opacityVal">0.25</span></div>
+                    </div>
+                    <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Edge Opacity</label>
+                        <div class="val-display"><span id="edgeOpacityVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="edgeOpacitySlider" min="0" max="1" step="0.01" value="1.00">
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="maskToggle" checked> Hollow Core View</label>
+                    <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
+                    <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
+                </div>
+            </div>
+
+            <!-- Colors Panel -->
+            <div id="panel-colors" class="panel">
+                <h2>Appearance</h2>
+                <div class="control-group">
+                    <select id="presetSelect">
+                        <option value="default">Presets: Default Theme</option>
+                        <option value="blackhole">Presets: Black Hole</option>
+                        <option value="crystal">Presets: Pure Crystal</option>
+                        <option value="neon">Presets: Neon Ghost</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Master Gradient</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="masterColor1" value="#bc13fe" title="Color 1">
+                            <input type="color" id="masterColor2" value="#4a2b6e" title="Color 2">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Component Gradients</label>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Faces</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="faceColor1" value="#bc13fe"><input type="color" id="faceColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Edges</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="edgeColor1" value="#bc13fe"><input type="color" id="edgeColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Aura</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="auraColor1" value="#bc13fe"><input type="color" id="auraColor2" value="#2a1b3d">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Phenomena Gradients</label>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Pulsar</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="pulsarColor1" value="#ffffff"><input type="color" id="pulsarColor2" value="#bc13fe">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Gamma Rays</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="gammaColor1" value="#ffffff"><input type="color" id="gammaColor2" value="#00ffff">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Accretion</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="accretionColor1" value="#bc13fe"><input type="color" id="accretionColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label style="font-size:0.6rem;">Neutrinos</label>
+                        <div class="color-picker-group">
+                            <input type="color" id="neutrinoColor1" value="#bc13fe"><input type="color" id="neutrinoColor2" value="#4a2b6e">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Animation Panel -->
+            <div id="panel-anim" class="panel">
+                <h2>Cosmic Phenomena</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="pulsarToggle"> Pulsar Beams</label>
+                    <label class="checkbox-label"><input type="checkbox" id="accretionToggle"> Accretion Disk</label>
+                    <label class="checkbox-label"><input type="checkbox" id="gammaToggle"> Gamma Rays</label>
+                    <label class="checkbox-label"><input type="checkbox" id="neutrinoToggle"> Neutrino Jets</label>
+                </div>
+
+                <h2>Animation & Path</h2>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Base Spin Speed</label>
+                        <div class="val-display"><span id="idleSpinVal">0.010</span></div>
+                    </div>
+                    <input type="range" id="idleSpinSlider" min="0.00" max="0.1" step="0.001" value="0.01">
+                    <button class="btn-action" id="btn-quick-spin" style="margin-top: 5px;">Quick Spin Burst</button>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label class="checkbox-label"><input type="checkbox" id="pathToggle"> Auto-Path</label>
+                        <button class="btn-action" id="btn-pause" style="padding: 4px 8px;">Pause</button>
+                    </div>
+
+                    <div id="pathSettings" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;">
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="centeredViewToggle"> Keep Centered</label>
+                        </div>
+                        <div class="control-row">
+                            <label>Path Type</label>
+                            <select id="pathTypeSelect" style="width: auto; padding: 4px;">
+                                <option value="direct">Direct (Eased)</option>
+                                <option value="curve">Smooth Arcs</option>
+                            </select>
+                        </div>
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="showPathToggle"> Show Path Line</label>
+                        </div>
+                        <div class="control-row">
+                            <label class="checkbox-label"><input type="checkbox" id="trailToggle"> Leave Trail</label>
+                        </div>
+                        <div id="trailSettings" style="display: none; flex-direction: column; gap: 4px; padding-left: 20px;">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Tail Length</label>
+                                <div class="val-display"><span id="trailLengthVal">50</span></div>
+                            </div>
+                            <input type="range" id="trailLengthSlider" min="10" max="200" step="1" value="50">
+                        </div>
+                        <div class="control-row" style="margin-top: 6px;">
+                            <label>Speed</label>
+                            <div class="val-display"><span id="speedVal">1.0</span>&nbsp;pc/s</div>
+                        </div>
+                        <input type="range" id="speedSlider" min="0.1" max="10.0" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <h2>Aura Effects</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="auraToggle" checked> Enable Aura Glow</label>
+                    <div id="auraIntensityWrapper">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Reach</label>
+                            <div class="val-display"><span id="auraReachVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="auraReachSlider" min="0" max="3" step="0.01" value="1.0">
+
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Intensity</label>
+                            <div class="val-display"><span id="auraIntensityVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="auraIntensitySlider" min="0" max="3" step="0.01" value="1.0">
+
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Pulse Rate</label>
+                            <div class="val-display"><span id="pulseRateVal">0.005</span></div>
+                        </div>
+                        <input type="range" id="pulseRateSlider" min="0.001" max="0.02" step="0.001" value="0.005">
+
+                        <div class="control-row" style="margin-top: 10px;">
+                            <button class="btn-action" id="btn-spike" style="flex-grow: 1;">Spike Amplitude</button>
+                            <input type="number" id="spikeMultiplier" value="1.5" min="1.1" max="50" step="0.1" class="edit-input" style="width: 50px; margin-left: 8px;" title="Spike Size Multiplier">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h2 style="font-size:0.8rem; margin:0; border:none;">Particle Effects</h2>
+                    <div id="btn-supercharge" class="btn-action" style="position: relative; overflow: hidden; user-select: none; margin-top: 5px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                        <div id="charge-fill" style="position: absolute; top:0; left:0; height:100%; width:0%; background: rgba(255,255,255,0.3); pointer-events:none; transition: width 0.1s linear;"></div>
+                        <span style="position:relative; z-index:2; pointer-events:none;">HOLD TO SUPER NOVA</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Environment Panel -->
+            <div id="panel-env" class="panel">
+                <h2>Environment</h2>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="gridToggle" checked> Show Background Grid</label>
+                    <div id="gridSettings">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label style="font-size:0.6rem;">Grid Colors</label>
+                            <div class="color-picker-group">
+                                <input type="color" id="gridColor1" value="#442266"><input type="color" id="gridColor2" value="#110022">
+                            </div>
+                        </div>
+                        <div class="control-row" style="margin-top: 10px;">
+                            <label>Granularity</label>
+                            <div class="val-display"><span id="gridDivsVal">30</span></div>
+                        </div>
+                        <input type="range" id="gridDivsSlider" min="5" max="100" step="1" value="30">
+
+                        <label class="checkbox-label" style="margin-top: 10px;"><input type="checkbox" id="gridBendToggle"> Space-Time Grid</label>
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Mass</label>
+                            <div class="val-display"><span id="gridMassVal">0.0</span></div>
+                        </div>
+                        <input type="range" id="gridMassSlider" min="0" max="3" step="0.1" value="0.0">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="orthoToggle"> Orthographic</label>
+                    <div id="fovGroup" style="margin-top: 5px;">
+                        <div class="control-row">
+                            <label>Perspective FOV</label>
+                            <div class="val-display"><span id="fovVal">45</span>&deg;</div>
+                        </div>
+                        <input type="range" id="fovSlider" min="10" max="120" step="1" value="45">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Scale Bounds</label>
+                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
+                    </div>
+                    <div class="dual-slider-container">
+                        <div class="dual-slider-track"></div>
+                        <div class="dual-slider-fill" id="dualSliderFill"></div>
+                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
+                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Z-Depth Scale</label>
+                        <div class="val-display"><span id="zDepthVal">1.10</span></div>
+                    </div>
+                    <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Depth Stops</label>
+                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
+                    </div>
+                    <div class="stepper-ui">
+                        <button class="bookend" id="btn-step-minus">-</button>
+                        <div id="step-buttons-container"></div>
+                        <button class="bookend" id="btn-step-plus">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
