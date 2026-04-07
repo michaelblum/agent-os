@@ -75,6 +75,12 @@ func ensureAvatarOnTop() { bringToFront(avatarID) }
 
 // -- Fast Travel: bullet-speed movement with ghost trail --
 func behaviorFastTravel(toX: Double, toY: Double, mid: UInt64) {
+    // Signal transit start to JS (enables ghost trails)
+    sendToCanvas(activeDisplayIndex, [
+        "type": "transit_start",
+        "position": [curX, curY]
+    ])
+
     sendBehavior("fast_travel", data: [
         "from": [curX, curY], "to": [toX, toY]
     ])
@@ -83,6 +89,9 @@ func behaviorFastTravel(toX: Double, toY: Double, mid: UInt64) {
     let duration = max(0.12, min(0.3, dist / 5000))
 
     moveTo(x: toX, y: toY, duration: duration, easing: easeOutQuart, mid: mid)
+
+    // Signal transit end — ghosts fade, JS reports effects_settled
+    sendToCanvas(activeDisplayIndex, ["type": "transit_end"])
 
     sendBehavior("standby", data: ["near": [toX, toY]])
 }
@@ -119,6 +128,7 @@ func behaviorFollowClick(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
         curX = sx + (tx - sx) * e
         curY = sy + (ty - sy) * e
         curSize = ss + (fullSize - ss) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
 
         if !hasSwitchedZ && !doesAvatarOverlapChat() {
@@ -244,6 +254,7 @@ func behaviorDock(_ mid: UInt64) {
         curX = sx - (s - ss) / 2
         curY = sy - (s - ss) / 2 - 20 * e
         curSize = s
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
@@ -263,6 +274,7 @@ func behaviorDock(_ mid: UInt64) {
         curX = p2sx + (titlebarCenterX - p2sx) * e
         curY = p2sy + (titlebarCenterY - p2sy) * e
         curSize = p2ss + (fullSize - p2ss) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
@@ -282,6 +294,7 @@ func behaviorDock(_ mid: UInt64) {
         curX = p3sx + (dotX - p3sx) * e
         curY = p3sy + (dotY - p3sy) * e
         curSize = p3ss + (dockedSize - p3ss) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)
@@ -290,10 +303,10 @@ func behaviorDock(_ mid: UInt64) {
 
     session.disconnect()
 
-    // DOM reparenting: activate mini-avatar in chat, remove external canvas
+    // DOM reparenting: activate mini-avatar in chat, hide avatar canvas (don't remove)
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"avatarDock()\"}")
     removeAvatarHitTarget()
-    sendOneShot("{\"action\":\"remove\",\"id\":\"\(avatarID)\"}")
+    sendToCanvas(activeDisplayIndex, ["type": "hide"])
 
     isAnimating = false
     avatarState = .docked
@@ -302,7 +315,9 @@ func behaviorDock(_ mid: UInt64) {
     FileHandle.standardError.write("Docked \u{2014} avatar reparented to chat DOM.\n".data(using: .utf8)!)
 }
 
-// -- Undock: recreate canvas at pip, expand, fly to target --
+// -- Undock: show avatar on canvas, fly to target --
+// With full-screen canvases, the canvas already exists. We just show it,
+// set position at the pip location, and animate to the click target.
 func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     isAnimating = true
     avatarState = .undocking
@@ -310,47 +325,30 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     pushEvent("Undock \u{2192} (\(Int(clickX)), \(Int(clickY)))", level: "info")
     queryChat()
 
-    // Recreate avatar canvas at the pip position
+    // Position at the pip location
     let (dotRelX, dotRelY) = queryDotPosition()
     curX = chatX + dotRelX - dockedSize / 2
     curY = chatY + dotRelY - dockedSize / 2
-    curSize = dockedSize
+    curSize = fullSize  // scene-position model: curSize stays full for hit-testing
 
-    let avatarURL = sigilFileURL("apps/sigil/avatar.html")
-    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[\(curX),\(curY),\(curSize),\(curSize)],\"url\":\"\(avatarURL)\"}")
-    Thread.sleep(forTimeInterval: 0.4) // let WKWebView initialize
+    // Show the avatar on the active display's canvas and set initial position
+    sendToCanvas(activeDisplayIndex, ["type": "show"])
+    let session = DaemonSession()
+    guard session.connect() else { avatarState = .docked; isAnimating = false; return }
+    sendScenePosition(session, x: curX, y: curY)
+    session.drainResponses()
+    session.disconnect()
+
     syncAvatarHitTarget()
 
     // Deactivate mini-avatar in chat DOM
     sendOneShot("{\"action\":\"eval\",\"id\":\"\(chatID)\",\"js\":\"avatarUndock()\"}")
 
-    // Phase 1: Expand from pip to full size (0.6s)
-    let sx = curX, sy = curY
-    let expandX = chatX + chatW / 2 - fullSize / 2
-    let expandY = chatY - fullSize * 0.3
-
-    sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.06; state.bobAmplitude = 0.15;\"}")
-
-    let session = DaemonSession()
-    guard session.connect() else { avatarState = .docked; isAnimating = false; return }
-
-    let expandN = Int(animFPS * 0.6)
-    let t0 = Date()
-    for i in 0...expandN {
-        guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
-        let t = Double(i) / Double(expandN)
-        let e = easeOutBack(t)
-        curX = sx + (expandX - sx) * e
-        curY = sy + (expandY - sy) * e
-        curSize = dockedSize + (fullSize - dockedSize) * e
-        sendAvatarUpdate(session)
-        let want = Double(i + 1) / animFPS
-        let got = Date().timeIntervalSince(t0)
-        if want > got { Thread.sleep(forTimeInterval: want - got) }
-    }
-    session.disconnect()
-
-    sendOneShot("{\"action\":\"eval\",\"id\":\"\(avatarID)\",\"js\":\"state.idleSpinSpeed = 0.008;\"}")
+    // Send expand-from-pip behavior preset to JS (visual effect only)
+    sendBehavior("expand_from_pip", data: [
+        "from": [curX, curY],
+        "to": [clickX, clickY]
+    ])
 
     // Grace period: suppress occlusion for 3s
     occlusionGraceUntil = Date().addingTimeInterval(3.0)
@@ -358,7 +356,7 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     isAnimating = false
     avatarState = .roaming
 
-    // Phase 2: Fly to click target
+    // Fly to click target
     behaviorFollowClick(clickX, clickY, mid)
 }
 
@@ -383,6 +381,7 @@ func behaviorEscapeAndDock(_ mid: UInt64) {
         let e = easeOutQuart(t)
         curX = sx + (escX - sx) * e
         curY = sy + (escY - sy) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
         let got = Date().timeIntervalSince(t0)

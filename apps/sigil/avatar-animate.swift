@@ -28,16 +28,25 @@ func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -
     }
 }
 
-/// Helper: update avatar position on a persistent session.
+/// Helper: update avatar scene position on a persistent session.
+/// Sends scene-position to the active display's full-screen canvas.
 /// Uses sendOnly for zero-latency writes in 60fps animation loops.
 /// Callers should call session.drainResponses() after the animation completes
 /// to prevent socket buffer backlog.
 func sendAvatarUpdate(_ session: DaemonSession) {
-    session.sendOnly([
-        "action": "update",
-        "id": avatarID,
-        "at": [curX, curY, curSize, curSize]
-    ])
+    sendScenePosition(session, x: curX, y: curY)
+}
+
+// -- Display handoff: detect when avatar crosses display boundaries --
+func checkDisplayHandoff() {
+    let newDisplay = displayIndexForPoint(curX, curY)
+    if newDisplay != activeDisplayIndex {
+        sendToCanvas(activeDisplayIndex, ["type": "transit_end"])
+        sendToCanvas(activeDisplayIndex, ["type": "hide"])
+        sendToCanvas(newDisplay, ["type": "show"])
+        sendToCanvas(newDisplay, ["type": "transit_start", "position": [curX, curY]])
+        activeDisplayIndex = newDisplay
+    }
 }
 
 // -- Position animation --
@@ -51,6 +60,7 @@ func moveTo(x: Double, y: Double, duration: Double, easing: @escaping EasingFn =
         let e = easing(t)
         curX = sx + (x - sx) * e
         curY = sy + (y - sy) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         return true
     }
@@ -82,6 +92,7 @@ func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: 
         curX = sx + (x - sx) * e
         curY = sy + (y - sy) * e
         curSize = ss + (size - ss) * e
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         return true
     }
@@ -106,6 +117,7 @@ func orbit(bounds: (x: Double, y: Double, w: Double, h: Double), duration: Doubl
             ox = bounds.x - curSize / 2; oy = bounds.y + bounds.h - (p - 2 * bounds.w - bounds.h) - curSize / 2
         }
         curX = ox; curY = oy
+        checkDisplayHandoff()
         sendAvatarUpdate(session)
         return true
     }
@@ -121,6 +133,7 @@ func holdPosition(getTarget: @escaping () -> (Double, Double)?, smoothing: Doubl
         if let (tx, ty) = getTarget() {
             curX += (tx - curSize / 2 - curX) * smoothing
             curY += (ty - curSize / 2 - curY) * smoothing
+            checkDisplayHandoff()
             sendAvatarUpdate(session)
         }
         frameCount += 1

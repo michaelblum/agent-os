@@ -256,9 +256,8 @@ func handleAvatarEvent(payload: [String: Any]) {
         radialMenuActive = false
         avatarState = .transitioning
 
-        // Restore canvas to original size
+        // Full-screen canvas: no resize needed, just restore position tracking
         if let orig = originalCanvasRect {
-            sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
             curX = orig.x; curY = orig.y; curSize = orig.w
         }
         expandedCanvasRect = nil
@@ -301,8 +300,8 @@ func handleAvatarEvent(payload: [String: Any]) {
         radialMenuActive = false
         avatarState = .transitioning
 
+        // Full-screen canvas: no resize needed, just restore position tracking
         if let orig = originalCanvasRect {
-            sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
             curX = orig.x; curY = orig.y; curSize = orig.w
         }
         expandedCanvasRect = nil
@@ -475,8 +474,8 @@ func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64
                 DispatchQueue.global(qos: .userInteractive).async {
                     evalRadialMsg(["type": "radial_close"])
                     evalStellate(target: 0, freezeIdle: false)
+                    // Full-screen canvas: no resize needed, just restore position tracking
                     if let orig = originalCanvasRect {
-                        sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
                         curX = orig.x; curY = orig.y; curSize = orig.w
                     }
                     expandedCanvasRect = nil
@@ -543,19 +542,22 @@ func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64
                     "dist": String(format: "%.1f", dist)
                 ])
 
+                // Full-screen canvas: no resize needed. Track original position for restore.
                 originalCanvasRect = (curX, curY, curSize, curSize)
-                let expanded = expandCanvasForMenu()
-                expandedCanvasRect = expanded
+                // expandedCanvasRect covers the full display for coordinate conversion
+                let display = getAllDisplaysCG().first(where: { $0.id == activeDisplayIndex })
+                    ?? (id: 0, x: 0.0, y: 0.0, w: 1920.0, h: 1080.0)
+                expandedCanvasRect = (display.x, display.y, display.w, display.h)
 
                 DispatchQueue.global(qos: .userInteractive).async {
-                    sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(expanded.x),\(expanded.y),\(expanded.w),\(expanded.h)]}")
-                    let offsetX = (curX + curSize / 2) - expanded.x
-                    let offsetY = (curY + curSize / 2) - expanded.y
+                    // Avatar center in canvas-relative coordinates
+                    let offsetX = (curX + curSize / 2) - display.x
+                    let offsetY = (curY + curSize / 2) - display.y
                     evalRadialMsg([
                         "type": "radial_open",
                         "angle": angle,
                         "items": radialMenuConfig,
-                        "canvasSize": [expanded.w, expanded.h],
+                        "canvasSize": [display.w, display.h],
                         "avatarOffset": [offsetX, offsetY]
                     ])
                 }
@@ -630,8 +632,8 @@ func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64
                     avatarState = .transitioning
                     evalRadialMsg(["type": "radial_close"])
                     evalStellate(target: 0, freezeIdle: false)
+                    // Full-screen canvas: no resize needed, just restore position tracking
                     if let orig = originalCanvasRect {
-                        sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
                         curX = orig.x; curY = orig.y; curSize = orig.w
                     }
                     expandedCanvasRect = nil
