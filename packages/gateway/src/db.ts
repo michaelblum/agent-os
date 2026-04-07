@@ -5,7 +5,9 @@
  */
 
 import Database from 'better-sqlite3';
-import { ulid } from 'ulid';
+import { monotonicFactory } from 'ulid';
+
+const ulid = monotonicFactory();
 
 // ---------------------------------------------------------------------------
 // Types
