@@ -39,7 +39,7 @@ async function handleRequest(conn: Socket, line: string, db: CoordinationDB) {
   let result: unknown;
   try {
     if (req.domain === 'coordination') {
-      result = handleCoordination(req.method, req.params, db);
+      result = await handleCoordination(req.method, req.params, db);
     } else if (req.domain === 'system') {
       result = await handleSystem(req.method, req.params);
     } else {
@@ -52,7 +52,7 @@ async function handleRequest(conn: Socket, line: string, db: CoordinationDB) {
   conn.write(JSON.stringify({ id: req.id, result }) + '\n');
 }
 
-function handleCoordination(method: string, params: any, db: CoordinationDB): unknown {
+async function handleCoordination(method: string, params: any, db: CoordinationDB): Promise<unknown> {
   switch (method) {
     case 'register': return db.registerSession(params.name, params.role, params.harness, params.capabilities);
     case 'whoIsOnline': return db.whoIsOnline();
