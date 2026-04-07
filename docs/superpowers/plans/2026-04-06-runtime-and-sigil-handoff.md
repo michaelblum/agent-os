@@ -3,6 +3,23 @@
 **Date:** 2026-04-06  
 **Purpose:** fast handoff for the next session after stable runtime packaging/signing work
 
+## Status
+
+This document is now historical context, not the current primary orientation brief.
+
+Use [claude_realign_brief_2026-04-06.md](/Users/Michael/Code/agent-os/memory/scratchpad/claude_realign_brief_2026-04-06.md) as the current entry point for Claude re-orientation.
+
+The main blocker described later in this document was resolved in follow-on work:
+
+- installed/runtime mode separation was made explicit
+- runtime state was split by mode instead of sharing one bucket
+- installed launch-agent targets and log paths were realigned
+- permission onboarding now records a runtime-specific marker
+- installed `aos permissions preflight --json` now reports `ready_for_testing: true`
+- installed `aos doctor --json` now reports `status: ok`
+
+Read this document for chronology and original debugging context, not as the latest statement of repo/runtime status.
+
 ## Current Verified State
 
 ### Stable AOS Runtime
@@ -110,7 +127,7 @@ Sigil now has a canvas-local fallback path so direct interactions do not rely en
 - packaged runtime now bundles the hit-target resource:
   - `scripts/package-aos-runtime`
 
-## Current Blocker
+## Historical Blocker
 
 The system is now in a contradictory runtime state after install and the guided permission flow:
 
@@ -141,7 +158,7 @@ The system is now in a contradictory runtime state after install and the guided 
      - `event-stream: connection lost, reconnecting...`
      - `event-stream: daemon unavailable, retrying ...`
 
-This means the remaining blocker is no longer packaging/install/launchd retargeting. It is now:
+At the time of this handoff, the remaining blocker appeared to be:
 
 - permission identity reporting inconsistency between the interactive setup flow and fresh CLI invocations
 - packaged `aos serve` runtime/socket instability after restart
@@ -225,8 +242,10 @@ and decide whether to:
 - isolate work on a branch
 - or checkpoint current changes first
 
-## Suggested New-Session Prompt
+## Superseded New-Session Prompt
 
 ```text
 Read docs/superpowers/plans/2026-04-06-runtime-and-sigil-handoff.md first, then inspect git status and debug the packaged AOS.app runtime inconsistency: `aos permissions setup --json` reports permissions granted, but fresh `aos permissions check --json` and `aos doctor --json` still report missing permissions and an unreachable daemon socket, which is keeping Sigil disconnected.
 ```
+
+That prompt is no longer current because the runtime inconsistency it describes was resolved later.

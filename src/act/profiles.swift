@@ -5,14 +5,13 @@ import Foundation
 // MARK: - Profile Directory
 
 let profileDirectory: String = {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    return home + "/.config/aos/profiles"
+    aosProfilesDir()
 }()
 
 // MARK: - Profile Loading
 
 /// Load a profile by name.
-/// 1. Check user directory (~/.config/aos/profiles/<name>.json)
+/// 1. Check user directory (~/.config/aos/<mode>/profiles/<name>.json)
 /// 2. Fall back to built-in ("natural" → BehaviorProfile.natural)
 /// 3. Return nil if not found
 func loadProfile(name: String) -> BehaviorProfile? {

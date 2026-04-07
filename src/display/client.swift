@@ -6,39 +6,19 @@ import Foundation
 
 class DaemonClient {
     func connect() -> Int32? {
-        let sock = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard sock >= 0 else { return nil }
-
-        // Non-blocking connect with 1s timeout
-        let flags = fcntl(sock, F_GETFL)
-        fcntl(sock, F_SETFL, flags | O_NONBLOCK)
-
-        let result = withSocketAddress(kDefaultSocketPath) { addr, len in
-            Foundation.connect(sock, addr, len)
-        }
-
-        if result != 0 {
-            if errno == EINPROGRESS {
-                var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-                let ready = poll(&pfd, 1, 1000)
-                if ready <= 0 { close(sock); return nil }
-                var optErr: Int32 = 0
-                var optLen = socklen_t(MemoryLayout<Int32>.size)
-                getsockopt(sock, SOL_SOCKET, SO_ERROR, &optErr, &optLen)
-                if optErr != 0 { close(sock); return nil }
-            } else {
-                close(sock); return nil
-            }
-        }
-
-        // Restore blocking mode
-        fcntl(sock, F_SETFL, flags & ~O_NONBLOCK)
-        return sock
+        let fd = connectSocket(kDefaultSocketPath, timeoutMs: 1000)
+        return fd >= 0 ? fd : nil
     }
 
     func ensureDaemon() -> Bool {
         // Fast path: daemon already running
         if let fd = connect() { close(fd); return true }
+
+        let currentMode = aosCurrentRuntimeMode()
+        let otherSocketPath = aosSocketPath(for: currentMode.other)
+        if socketIsReachable(otherSocketPath, timeoutMs: 250) {
+            return false
+        }
 
         // Spawn child process
         let selfPath = ProcessInfo.processInfo.arguments[0]
@@ -49,7 +29,7 @@ class DaemonClient {
         proc.standardOutput = FileHandle.nullDevice
 
         // Log to file instead of /dev/null
-        let logPath = kDefaultSocketDir + "/daemon.log"
+        let logPath = aosDaemonLogPath()
         try? FileManager.default.createDirectory(atPath: kDefaultSocketDir, withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: logPath, contents: nil)
         if let logHandle = FileHandle(forWritingAtPath: logPath) {
@@ -368,6 +348,17 @@ func removeAllCommand(args: [String]) {
 // MARK: - CLI Command: list
 
 func listCommand(args: [String]) {
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--json":
+            break
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+
     let request = CanvasRequest(action: "list")
     let client = DaemonClient()
     guard let fd = client.connect() else {

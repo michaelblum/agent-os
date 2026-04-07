@@ -136,8 +136,7 @@ private func firstCodesignField(_ key: String, in output: String) -> String? {
 }
 
 private func preferredRuntimeAppPath() -> String {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    return ProcessInfo.processInfo.environment["AOS_INSTALL_PATH"] ?? "\(home)/Applications/AOS.app"
+    aosInstallAppPath()
 }
 
 private func parseRuntimeJSONFlag(_ args: [String], usage: String) -> Bool {

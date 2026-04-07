@@ -145,9 +145,8 @@ private func logClearConsole() {
 
 private func findLogHTML() -> String {
     let candidates = [
-        (CommandLine.arguments[0] as NSString).deletingLastPathComponent + "/../packages/toolkit/components/log-console.html",
+        aosRepoPath("packages/toolkit/components/log-console.html"),
         "packages/toolkit/components/log-console.html",
-        NSString(string: "~/Documents/GitHub/agent-os/packages/toolkit/components/log-console.html").expandingTildeInPath
     ]
     for path in candidates {
         let resolved = (path as NSString).standardizingPath

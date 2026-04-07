@@ -110,16 +110,16 @@ func startCoalescingWorker() {
         guard let session = coalescingWorkerSession, session.isConnected else { return }
 
         if let pos = decorPos {
-            session.sendAndReceive(["action": "update", "id": "cursor-decor", "at": [pos.x, pos.y, 40, 40]])
+            session.sendOnly(["action": "update", "id": "cursor-decor", "at": [pos.x, pos.y, 40, 40]])
         }
         if let pos = trackPos, let expanded = expandedCanvasRect {
             let canvasRelX = pos.x - expanded.x
             let canvasRelY = pos.y - expanded.y
-            // Build radial_track message inline to avoid JSONSerialization overhead
             let msg = "{\"type\":\"radial_track\",\"x\":\(canvasRelX),\"y\":\(canvasRelY)}"
             let b64 = Data(msg.utf8).base64EncodedString()
-            session.sendAndReceive(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
+            session.sendOnly(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
         }
+        session.drainResponses()
     }
     timer.resume()
 }
@@ -251,6 +251,11 @@ func handleAvatarEvent(payload: [String: Any]) {
         let decorName = (selectedItem?["name"] as? String) ?? "item"
         fputs("TAP: selection_complete — \(decorName) (gen=\(gen))\n", stderr)
 
+        // Leave radial-menu mode immediately so the timeout closure and event
+        // tap stop treating input as menu-captured while cleanup runs.
+        radialMenuActive = false
+        avatarState = .transitioning
+
         // Restore canvas to original size
         if let orig = originalCanvasRect {
             sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
@@ -258,6 +263,7 @@ func handleAvatarEvent(payload: [String: Any]) {
         }
         expandedCanvasRect = nil
         originalCanvasRect = nil
+        syncAvatarHitTarget()
 
         // Generation check again after IPC
         guard gen == interactionGeneration else { return }
@@ -266,7 +272,7 @@ func handleAvatarEvent(payload: [String: Any]) {
         let decorPath = sigilRepoPath("packages/toolkit/components/cursor-decor.html")
         let (cx, cy) = getCursorCG()
         let decorURL = URL(fileURLWithPath: decorPath).absoluteString
-        sendOneShot("{\"action\":\"create\",\"id\":\"cursor-decor\",\"at\":[\(cx + 15),\(cy - 25),40,40],\"url\":\"\(decorURL)\"}")
+        sendOneShot("{\"action\":\"create\",\"id\":\"cursor-decor\",\"at\":[\(cx + 15),\(cy - 25),40,40],\"url\":\"\(decorURL)\",\"interactive\":false}")
         Thread.sleep(forTimeInterval: 0.2)  // WKWebView init — minimal, unavoidable
 
         guard gen == interactionGeneration else { return }
@@ -292,6 +298,8 @@ func handleAvatarEvent(payload: [String: Any]) {
         guard gen == interactionGeneration, avatarState == .radialMenuOpen else { return }
 
         fputs("TAP: menu_closed (gen=\(gen))\n", stderr)
+        radialMenuActive = false
+        avatarState = .transitioning
 
         if let orig = originalCanvasRect {
             sendOneShot("{\"action\":\"update\",\"id\":\"\(avatarID)\",\"at\":[\(orig.x),\(orig.y),\(orig.w),\(orig.h)]}")
@@ -299,6 +307,7 @@ func handleAvatarEvent(payload: [String: Any]) {
         }
         expandedCanvasRect = nil
         originalCanvasRect = nil
+        syncAvatarHitTarget()
         avatarState = .idle
         sendBehavior("idle")
 
@@ -617,6 +626,8 @@ func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64
                 DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + 1.0) {
                     guard gen == interactionGeneration, avatarState == .radialMenuOpen else { return }
                     fputs("TAP: radial menu timeout — force closing (gen=\(gen))\n", stderr)
+                    radialMenuActive = false
+                    avatarState = .transitioning
                     evalRadialMsg(["type": "radial_close"])
                     evalStellate(target: 0, freezeIdle: false)
                     if let orig = originalCanvasRect {
@@ -625,6 +636,7 @@ func handleRuntimeInputEvent(type: String, point: CGPoint? = nil, keyCode: Int64
                     }
                     expandedCanvasRect = nil
                     originalCanvasRect = nil
+                    syncAvatarHitTarget()
                     avatarState = .idle
                     sendBehavior("idle")
                 }
@@ -892,6 +904,8 @@ func loadRadialMenuConfig() {
 @main
 struct AvatarSub {
     static func main() {
+        fputs("\(aosIdentityLogLine(program: "avatar-sub"))\n", stderr)
+
         // Load radial menu config
         loadRadialMenuConfig()
 

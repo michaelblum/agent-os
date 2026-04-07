@@ -8,23 +8,38 @@ Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system t
 cd apps/sigil && bash build-avatar.sh
 ```
 
-Compiles all Swift files into `./avatar-sub`.
+Compiles all Swift files into `./build/avatar-sub`.
+
+To remove local Sigil build outputs:
+
+```bash
+cd apps/sigil && bash clean.sh
+```
 
 ## Run
 
-```bash
-# Start the heads-up daemon first
-packages/heads-up/heads-up serve
+Sigil is a client of the AOS daemon — it connects via the mode-scoped socket.
 
-# Then start Sigil
-apps/sigil/avatar-sub
+```bash
+# Repo mode — use explicit paths so both come from the same mode
+./aos serve                              # repo daemon
+apps/sigil/build/avatar-sub              # repo avatar
+
+# Or use sigilctl for service lifecycle
+apps/sigil/sigilctl --mode repo install
+apps/sigil/sigilctl status
+apps/sigil/sigilctl logs
 ```
+
+**Important:** `aos` and `avatar-sub` must come from the same runtime mode. Do not mix an installed `aos serve` with a repo-built `avatar-sub` — they connect to different mode-scoped sockets and will appear disconnected.
+
+Sigil resolves the daemon socket from the current runtime mode (`~/.config/aos/{mode}/sock`). Logs go to `~/.config/aos/{mode}/sigil.log`.
 
 ## Architecture
 
 | File | Role |
 |------|------|
-| `avatar-sub.swift` | Entry point, state machine, CGEventTap, event dispatch, reconnection |
+| `avatar-sub.swift` | Entry point, state machine, runtime input bridge, event dispatch, reconnection |
 | `avatar-behaviors.swift` | Choreographer — maps channel events to animation sequences |
 | `avatar-animate.swift` | Animation primitives (moveTo, scaleTo, orbit, holdPosition) |
 | `avatar-spatial.swift` | Spatial helpers (display geometry, element resolution via xray_target.py) |
@@ -36,6 +51,6 @@ apps/sigil/avatar-sub
 
 ## Dependencies
 
-- **heads-up daemon** (`packages/heads-up/`) — canvas management, IPC, pub/sub
+- **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub (subsumes heads-up)
 - **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
 - **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — channel events that drive avatar behaviors

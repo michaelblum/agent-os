@@ -14,11 +14,13 @@ Usage:
 """
 
 import json
+import os
 import subprocess
 import sys
 import argparse
 
-SIDE_EYE = "/Users/Michael/Documents/GitHub/agent-os/packages/side-eye/side-eye"
+AGENT_OS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SIDE_EYE = os.path.join(AGENT_OS_ROOT, "packages", "side-eye", "side-eye")
 
 
 def run_cmd(args):

@@ -61,3 +61,51 @@ func sendResponseJSON(to fd: Int32, _ dict: [String: Any]) {
     guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]) else { return }
     sendResponse(to: fd, data)
 }
+
+// MARK: - Repo Paths
+
+func aosExecutableDir() -> String {
+    URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent().path
+}
+
+func findAgentOSRepoRoot() -> String {
+    aosCurrentRepoRoot(executablePath: aosExecutablePath()) ?? FileManager.default.currentDirectoryPath
+}
+
+func aosRepoPath(_ relativePath: String) -> String {
+    NSString(string: (findAgentOSRepoRoot() as NSString).appendingPathComponent(relativePath)).standardizingPath
+}
+
+// MARK: - Process Helpers
+
+struct ProcessOutput {
+    let exitCode: Int32
+    let stdout: String
+    let stderr: String
+}
+
+@discardableResult
+func runProcess(_ executable: String, arguments: [String]) -> ProcessOutput {
+    let process = Process()
+    let stdout = Pipe()
+    let stderr = Pipe()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+    process.standardOutput = stdout
+    process.standardError = stderr
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+    } catch {
+        return ProcessOutput(exitCode: 1, stdout: "", stderr: "\(error)")
+    }
+
+    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
+    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
+    return ProcessOutput(
+        exitCode: process.terminationStatus,
+        stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+        stderr: String(data: stderrData, encoding: .utf8) ?? ""
+    )
+}

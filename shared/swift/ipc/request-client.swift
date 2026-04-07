@@ -46,6 +46,13 @@ class DaemonSession {
     func connectWithAutoStart(binaryPath: String, timeoutMs: Int32 = 1000) -> Bool {
         if connect(timeoutMs: timeoutMs) { return true }
 
+        let currentMode = aosCurrentRuntimeMode(executablePath: binaryPath)
+        let otherSocketPath = aosSocketPath(for: currentMode.other)
+        if socketIsReachable(otherSocketPath, timeoutMs: 250) {
+            fputs("ipc: refusing to auto-start \(currentMode.rawValue) daemon while \(currentMode.other.rawValue) daemon is reachable at \(otherSocketPath)\n", stderr)
+            return false
+        }
+
         // Try to start daemon
         fputs("ipc: starting daemon...\n", stderr)
         let proc = Process()
@@ -93,6 +100,22 @@ class DaemonSession {
         guard n > 0 else { return nil }
         reader.append(buf, count: n)
         return reader.nextJSON()
+    }
+
+    /// Drain any buffered responses without blocking.
+    /// Call periodically (e.g. end of animation) to prevent socket buffer backlog
+    /// without adding per-frame latency.
+    func drainResponses() {
+        guard fd >= 0 else { return }
+        while true {
+            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            guard poll(&pfd, 1, 0) > 0, pfd.revents & Int16(POLLIN) != 0 else { break }
+            var buf = [UInt8](repeating: 0, count: 4096)
+            let n = read(fd, &buf, buf.count)
+            if n <= 0 { break }
+            // Discard — we don't need the responses
+        }
+        reader = NDJSONReader()
     }
 
     /// Whether the session has an open connection.

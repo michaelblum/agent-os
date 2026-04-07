@@ -3,7 +3,7 @@
 import Foundation
 
 let kAosConfigPath: String = {
-    NSString(string: "~/.config/aos/config.json").expandingTildeInPath
+    aosConfigPath()
 }()
 
 struct AosConfig: Codable {

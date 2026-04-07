@@ -2,7 +2,7 @@
 # agent_helpers.sh — Shell helpers for agent-os dogfood sessions
 # Source this: source tools/dogfood/agent_helpers.sh
 
-AGENT_OS_ROOT="/Users/Michael/Documents/GitHub/agent-os"
+AGENT_OS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HEADS_UP="$AGENT_OS_ROOT/packages/heads-up/heads-up"
 SIDE_EYE="$AGENT_OS_ROOT/packages/side-eye/side-eye"
 HAND_OFF="$AGENT_OS_ROOT/packages/hand-off/hand-off"

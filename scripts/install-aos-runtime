@@ -7,12 +7,21 @@ TARGET_DIR="${AOS_INSTALL_DIR:-$HOME/Applications}"
 APP_NAME="AOS.app"
 SOURCE_APP="${AOS_SOURCE_APP:-$REPO_ROOT/dist/$APP_NAME}"
 TARGET_APP="$TARGET_DIR/$APP_NAME"
+TMP_APP="$TARGET_DIR/.${APP_NAME}.tmp.$$"
+BACKUP_APP="$TARGET_DIR/.${APP_NAME}.bak.$$"
 
 bash "$SCRIPT_DIR/package-aos-runtime"
 
 mkdir -p "$TARGET_DIR"
-rm -rf "$TARGET_APP"
-cp -R "$SOURCE_APP" "$TARGET_APP"
+rm -rf "$TMP_APP" "$BACKUP_APP"
+/usr/bin/ditto "$SOURCE_APP" "$TMP_APP"
+
+if [[ -e "$TARGET_APP" ]]; then
+  mv "$TARGET_APP" "$BACKUP_APP"
+fi
+
+mv "$TMP_APP" "$TARGET_APP"
+rm -rf "$BACKUP_APP"
 
 cat <<EOF
 Installed: $TARGET_APP

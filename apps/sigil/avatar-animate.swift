@@ -29,10 +29,11 @@ func runAnimation(duration: Double, fps: Double = 60, body: @escaping (Double) -
 }
 
 /// Helper: update avatar position on a persistent session.
-/// Uses sendAndReceive (not sendOnly) to drain the daemon's response and
-/// prevent socket buffer backlog during sustained 60fps animation loops.
+/// Uses sendOnly for zero-latency writes in 60fps animation loops.
+/// Callers should call session.drainResponses() after the animation completes
+/// to prevent socket buffer backlog.
 func sendAvatarUpdate(_ session: DaemonSession) {
-    session.sendAndReceive([
+    session.sendOnly([
         "action": "update",
         "id": avatarID,
         "at": [curX, curY, curSize, curSize]
@@ -44,7 +45,7 @@ func moveTo(x: Double, y: Double, duration: Double, easing: @escaping EasingFn =
     let sx = curX, sy = curY
     let session = DaemonSession()
     guard session.connect() else { return }
-    defer { session.disconnect() }
+    defer { session.drainResponses(); session.disconnect() }
     runAnimation(duration: duration) { t in
         if let mid = mid, moveID != mid { return false }
         let e = easing(t)
@@ -60,7 +61,7 @@ func scaleTo(size: Double, duration: Double, easing: @escaping EasingFn = easeIn
     let ss = curSize
     let session = DaemonSession()
     guard session.connect() else { return }
-    defer { session.disconnect() }
+    defer { session.drainResponses(); session.disconnect() }
     runAnimation(duration: duration) { t in
         let e = easing(t)
         curSize = ss + (size - ss) * e
@@ -74,7 +75,7 @@ func moveAndScale(x: Double, y: Double, size: Double, duration: Double, easing: 
     let sx = curX, sy = curY, ss = curSize
     let session = DaemonSession()
     guard session.connect() else { return }
-    defer { session.disconnect() }
+    defer { session.drainResponses(); session.disconnect() }
     runAnimation(duration: duration) { t in
         if let mid = mid, moveID != mid { return false }
         let e = easing(t)
@@ -91,7 +92,7 @@ func orbit(bounds: (x: Double, y: Double, w: Double, h: Double), duration: Doubl
     let perimeter = 2 * (bounds.w + bounds.h)
     let session = DaemonSession()
     guard session.connect() else { return }
-    defer { session.disconnect() }
+    defer { session.drainResponses(); session.disconnect() }
     runAnimation(duration: duration * Double(laps)) { t in
         let p = (t * Double(laps)).truncatingRemainder(dividingBy: 1.0) * perimeter
         var ox: Double, oy: Double
@@ -114,13 +115,16 @@ func orbit(bounds: (x: Double, y: Double, w: Double, h: Double), duration: Doubl
 func holdPosition(getTarget: @escaping () -> (Double, Double)?, smoothing: Double = 0.15, shouldContinue: @escaping () -> Bool) {
     let session = DaemonSession()
     guard session.connect() else { return }
-    defer { session.disconnect() }
+    defer { session.drainResponses(); session.disconnect() }
+    var frameCount = 0
     while shouldContinue() {
         if let (tx, ty) = getTarget() {
             curX += (tx - curSize / 2 - curX) * smoothing
             curY += (ty - curSize / 2 - curY) * smoothing
             sendAvatarUpdate(session)
         }
+        frameCount += 1
+        if frameCount % 60 == 0 { session.drainResponses() }
         Thread.sleep(forTimeInterval: 1.0 / 60.0)
     }
 }

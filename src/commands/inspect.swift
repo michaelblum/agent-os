@@ -8,6 +8,8 @@ import Foundation
 import CoreGraphics
 
 func inspectCommand(args: [String]) {
+    ensureInteractivePreflight(command: "aos inspect")
+
     // Parse position (default: bottom-right corner of main display)
     var panelWidth: Double = 320
     var panelHeight: Double = 250
@@ -133,9 +135,8 @@ func inspectCommand(args: [String]) {
 
 private func findInspectorHTML() -> String {
     let candidates = [
-        (CommandLine.arguments[0] as NSString).deletingLastPathComponent + "/../packages/toolkit/components/inspector-panel.html",
+        aosRepoPath("packages/toolkit/components/inspector-panel.html"),
         "packages/toolkit/components/inspector-panel.html",
-        NSString(string: "~/Documents/GitHub/agent-os/packages/toolkit/components/inspector-panel.html").expandingTildeInPath
     ]
     for path in candidates {
         let resolved = (path as NSString).standardizingPath

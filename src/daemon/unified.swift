@@ -52,6 +52,15 @@ class UnifiedDaemon {
     // MARK: - Start
 
     func start() {
+        let mode = aosCurrentRuntimeMode()
+        let otherSocketPath = aosSocketPath(for: mode.other)
+        if socketIsReachable(otherSocketPath, timeoutMs: 250) {
+            exitError(
+                "Mixed runtime state detected: \(mode.other.rawValue) daemon is reachable at \(otherSocketPath). Stop it before starting the \(mode.rawValue) daemon.",
+                code: "MIXED_RUNTIME_STATE"
+            )
+        }
+
         // Ensure directory
         try? FileManager.default.createDirectory(
             atPath: (socketPath as NSString).deletingLastPathComponent,
@@ -61,12 +70,14 @@ class UnifiedDaemon {
 
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else { exitError("socket() failed: \(errno)", code: "SOCKET_ERROR") }
+        _ = disableSigPipe(serverFD)
 
         let bindResult = withSocketAddress(socketPath) { addr, len in bind(serverFD, addr, len) }
         guard bindResult == 0 else { exitError("bind() failed: \(errno)", code: "BIND_ERROR") }
         guard listen(serverFD, 10) == 0 else { exitError("listen() failed: \(errno)", code: "LISTEN_ERROR") }
 
         fputs("aos daemon started on \(socketPath)\n", stderr)
+        fputs("\(aosIdentityLogLine(program: "aos"))\n", stderr)
 
         // Wire perception events -> broadcast
         perception.onEvent = { [weak self] event, data in
@@ -149,6 +160,7 @@ class UnifiedDaemon {
         while true {
             let clientFD = accept(serverFD, nil, nil)
             guard clientFD >= 0 else { continue }
+            _ = disableSigPipe(clientFD)
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 self?.handleConnection(clientFD)
             }
@@ -464,7 +476,7 @@ class UnifiedDaemon {
             guard let point = sigilPoint(from: data) else { return false }
             let onAvatar = isPointOnSigilAvatar(point, avatarRect: state.avatarRect)
             switch state.mode {
-            case "idle", "roaming", "followMe", "cursorDecorated":
+            case "idle", "roaming", "followMe":
                 return onAvatar
             default:
                 return false
@@ -538,6 +550,7 @@ class UnifiedDaemon {
             unlink(kDefaultSocketPath)
             exit(0)
         }
+        signal(SIGPIPE, SIG_IGN)
         signal(SIGINT, handler)
         signal(SIGTERM, handler)
     }

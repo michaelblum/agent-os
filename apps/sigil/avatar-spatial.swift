@@ -18,7 +18,7 @@ func getCursorCG() -> (Double, Double) {
 // -- Resolve an accessibility element's bounds via xray_target.py --
 // Returns (x, y, w, h) in global CG coordinates, or nil if not found.
 func resolveElement(role: String?, title: String?, pid: Int? = nil) -> (x: Double, y: Double, w: Double, h: Double)? {
-    let scriptPath = NSString(string: "~/Documents/GitHub/agent-os/tools/dogfood/xray_target.py").expandingTildeInPath
+    let scriptPath = sigilRepoPath("tools/dogfood/xray_target.py")
     var args = ["python3", scriptPath, "--no-image"]
     if let role = role { args += ["--role", role] }
     if let title = title { args += ["--title", title] }

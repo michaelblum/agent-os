@@ -15,4 +15,5 @@ swiftc -parse-as-library -O -o "$OUTPUT_PATH" \
     avatar-behaviors.swift \
     avatar-sub.swift \
     "$REPO_ROOT"/shared/swift/ipc/*.swift
+codesign -s - -f "$OUTPUT_PATH" 2>/dev/null && echo "Ad-hoc signed."
 echo "Done: $OUTPUT_PATH ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"

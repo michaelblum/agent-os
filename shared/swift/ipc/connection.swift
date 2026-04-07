@@ -9,12 +9,24 @@ import Foundation
 
 /// Default daemon socket path. Consumers can override per-call.
 let kDefaultSocketPath: String = {
-    NSString(string: "~/.config/aos/sock").expandingTildeInPath
+    aosSocketPath()
 }()
 
 let kDefaultSocketDir: String = {
-    NSString(string: "~/.config/aos").expandingTildeInPath
+    aosStateDir()
 }()
+
+// MARK: - Socket Configuration
+
+/// Prevent writes on a disconnected Unix socket from terminating the process.
+/// On macOS this lets callers handle EPIPE/ECONNRESET as normal I/O failures.
+@discardableResult
+func disableSigPipe(_ fd: Int32) -> Bool {
+    var value: Int32 = 1
+    return withUnsafePointer(to: &value) { ptr in
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, ptr, socklen_t(MemoryLayout<Int32>.size)) == 0
+    }
+}
 
 // MARK: - Socket Address
 
@@ -45,6 +57,7 @@ func withSocketAddress(_ path: String, _ body: (UnsafePointer<sockaddr>, socklen
 func connectSocket(_ path: String = kDefaultSocketPath, timeoutMs: Int32 = 1000) -> Int32 {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { return -1 }
+    _ = disableSigPipe(fd)
 
     let flags = fcntl(fd, F_GETFL)
     _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
@@ -67,6 +80,13 @@ func connectSocket(_ path: String = kDefaultSocketPath, timeoutMs: Int32 = 1000)
     // Restore blocking mode for subsequent reads/writes
     _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
     return fd
+}
+
+func socketIsReachable(_ path: String, timeoutMs: Int32 = 250) -> Bool {
+    let fd = connectSocket(path, timeoutMs: timeoutMs)
+    guard fd >= 0 else { return false }
+    close(fd)
+    return true
 }
 
 // MARK: - Read with Timeout

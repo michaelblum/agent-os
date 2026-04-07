@@ -9,6 +9,7 @@ enum PerceptionEvent: String {
     // Depth 0
     case cursor_moved = "cursor_moved"
     case cursor_settled = "cursor_settled"
+    case input_event = "input_event"
     // Depth 1
     case window_entered = "window_entered"
     case app_entered = "app_entered"
@@ -24,6 +25,14 @@ func cursorMovedData(x: Double, y: Double, display: Int, velocity: Double) -> [S
 
 func cursorSettledData(x: Double, y: Double, display: Int, idle_ms: Int) -> [String: Any] {
     ["x": x, "y": y, "display": display, "idle_ms": idle_ms]
+}
+
+func inputEventData(type: String, x: Double? = nil, y: Double? = nil, keyCode: Int64? = nil) -> [String: Any] {
+    var data: [String: Any] = ["type": type]
+    if let x { data["x"] = x }
+    if let y { data["y"] = y }
+    if let keyCode { data["key_code"] = keyCode }
+    return data
 }
 
 func windowEnteredData(window_id: Int, app: String, pid: Int, bundle_id: String?, bounds: Bounds) -> [String: Any] {

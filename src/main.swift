@@ -32,6 +32,8 @@ struct AOS {
             runtimeCommand(args: Array(args.dropFirst()))
         case "doctor":
             doctorCommand(args: Array(args.dropFirst()))
+        case "reset":
+            resetCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "inspect":
@@ -62,7 +64,8 @@ func printUsage() {
       service              Manage the daemon as a launchd service
       runtime              Package/sign/install the stable AOS.app runtime
       doctor               Runtime and permission health checks
-      permissions          Permission status checks
+      reset                Deterministic cleanup for repo/installed runtime state
+      permissions          Permission preflight and one-time onboarding
       inspect              Live AX element inspector overlay
       log                  Display log console panel
 
@@ -160,8 +163,9 @@ func printUsage() {
       aos runtime path                 # Installed AOS.app path
       aos runtime install              # Package + install stable runtime
       aos doctor --json                # Runtime + permission health
-      aos permissions check --json     # Permission status only
-      aos permissions setup            # Guided one-time permission onboarding
+      aos reset --mode current --json  # Stop matching services + clear state/artifacts
+      aos permissions preflight --json # Safe upfront readiness check before testing
+      aos permissions setup --once     # Guided one-time permission onboarding
       aos show create --id ball --at 100,100,200,200 --html "<div>hello</div>"
       aos show exists --id avatar --json
       aos show get --id avatar --json
@@ -188,23 +192,51 @@ func handleDo(args: [String]) {
     let subArgs = Array(args.dropFirst())
     switch sub {
     // CGEvent commands
-    case "click":       cliClick(args: subArgs)
-    case "hover":       cliHover(args: subArgs)
-    case "drag":        cliDrag(args: subArgs)
-    case "scroll":      cliScroll(args: subArgs)
-    case "type":        cliType(args: subArgs)
-    case "key":         cliKey(args: subArgs)
+    case "click":
+        ensureInteractivePreflight(command: "aos do click")
+        cliClick(args: subArgs)
+    case "hover":
+        ensureInteractivePreflight(command: "aos do hover")
+        cliHover(args: subArgs)
+    case "drag":
+        ensureInteractivePreflight(command: "aos do drag")
+        cliDrag(args: subArgs)
+    case "scroll":
+        ensureInteractivePreflight(command: "aos do scroll")
+        cliScroll(args: subArgs)
+    case "type":
+        ensureInteractivePreflight(command: "aos do type")
+        cliType(args: subArgs)
+    case "key":
+        ensureInteractivePreflight(command: "aos do key")
+        cliKey(args: subArgs)
     // AX commands
-    case "press":       cliPress(args: subArgs)
-    case "set-value":   cliSetValue(args: subArgs)
-    case "focus":       cliFocusElement(args: subArgs)
-    case "raise":       cliRaise(args: subArgs)
-    case "move":        cliMove(args: subArgs)
-    case "resize":      cliResize(args: subArgs)
+    case "press":
+        ensureInteractivePreflight(command: "aos do press")
+        cliPress(args: subArgs)
+    case "set-value":
+        ensureInteractivePreflight(command: "aos do set-value")
+        cliSetValue(args: subArgs)
+    case "focus":
+        ensureInteractivePreflight(command: "aos do focus")
+        cliFocusElement(args: subArgs)
+    case "raise":
+        ensureInteractivePreflight(command: "aos do raise")
+        cliRaise(args: subArgs)
+    case "move":
+        ensureInteractivePreflight(command: "aos do move")
+        cliMove(args: subArgs)
+    case "resize":
+        ensureInteractivePreflight(command: "aos do resize")
+        cliResize(args: subArgs)
     // AppleScript
-    case "tell":        cliTell(args: subArgs)
+    case "tell":
+        ensureInteractivePreflight(command: "aos do tell")
+        cliTell(args: subArgs)
     // Session mode
-    case "session":     runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
+    case "session":
+        ensureInteractivePreflight(command: "aos do session")
+        runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
     // Profiles
     case "profiles":
         if let name = subArgs.first, name != "list" {
@@ -223,16 +255,20 @@ func handleSee(args: [String]) {
     }
     switch sub {
     case "cursor":
+        ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()
     case "observe":
+        ensureInteractivePreflight(command: "aos see observe")
         observeCommand(args: Array(args.dropFirst()))
     case "capture":
+        ensureInteractivePreflight(command: "aos see capture")
         seeCaptureCommand(args: Array(args.dropFirst()))
     case "--help", "-h", "help":
         printUsage()
     default:
         // Bare target shorthand: "aos see main" → "aos see capture main"
         // Also forwards unknown names (zone names, "external N") to side-eye for resolution.
+        ensureInteractivePreflight(command: "aos see \(sub)")
         seeCaptureCommand(args: args)
     }
 }
