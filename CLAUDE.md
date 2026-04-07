@@ -13,6 +13,7 @@ packages/
   speak-up/       (planned) Swift CLI — Audio I/O (TTS, STT)
   tear-sheet/     (planned) Node.js CLI — Web artifact extraction
   toolkit/        Reusable components built on agent-os primitives (components/, patterns/)
+  gateway/        Node.js MCP server — typed script execution + cross-harness coordination
 apps/
   sigil/          Avatar presence system (Track 2 consumer of heads-up)
 shared/
