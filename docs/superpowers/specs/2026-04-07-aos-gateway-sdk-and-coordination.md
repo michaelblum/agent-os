@@ -198,10 +198,19 @@ Returns:
         "type": "object",
         "description": "JSON Schema describing the `params` the script expects"
       },
+      "portable": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether the script uses only the aos SDK and ECMAScript built-ins (true) or depends on Node.js APIs (false). Saved scripts should be portable by default."
+      },
       "overwrite": {
         "type": "boolean",
         "default": false,
-        "description": "If true, overwrite an existing script with the same name (previous version is backed up). If false, error on name collision."
+        "description": "If true, overwrite an existing script (bumps version, backs up previous). If false, error on name collision."
+      },
+      "note": {
+        "type": "string",
+        "description": "Changelog note for this version. Used when overwrite is true."
       }
     },
     "required": ["name", "script", "description", "intent"]
@@ -354,16 +363,20 @@ The SDK exists as two artifacts:
 - **`aos-sdk.d.ts`**: Type definitions. Used by `discover_capabilities` to generate agent-facing documentation and by saved scripts for self-documentation.
 - **`aos-sdk.js`**: Runtime implementation. A single file with zero npm dependencies. Injected into every script execution context by the engine.
 
-### Script Sandboxing
+### Script Portability Contract
 
-Scripts should treat the SDK as their **primary affordance for interacting with the world**. The SDK is the desktop API.
+The SDK is the **only portable API**. Scripts that use only `aos.*` and standard ECMAScript built-ins (`Array`, `Map`, `JSON`, `Promise`, `Math`, `Date`, etc.) are **portable** — they will work on any engine, now and in the future (Node subprocess, daemon-JSC, V8 isolates, Deno).
 
-In the v1 Node subprocess engine, scripts technically have access to the full Node.js runtime (`fs`, `net`, `child_process`, etc.). However:
+Scripts that use Node.js APIs (`fs`, `net`, `child_process`, `Buffer`, `process`, `require`, etc.) are **engine-pinned** to `node-subprocess`. They will not run on `daemon-jsc` or any future sandboxed engine.
 
-- The SDK documentation and `discover_capabilities` output should frame the SDK as the standard way to interact with the desktop and coordination bus.
-- Direct Node API usage is treated as **advanced/opt-in** — not forbidden, but not the norm. The `discover_capabilities` output does not advertise Node APIs.
-- This constraint exists for **portability**: scripts that stick to the SDK surface will work identically on the future `daemon-jsc` engine (which has no Node APIs). Scripts that use Node APIs are implicitly pinned to `node-subprocess`.
-- The gateway does not attempt to restrict Node APIs at the runtime level in v1. Sandboxing is by convention and documentation, not enforcement. Enforcement can be added later if needed (via V8 isolates, Deno permissions, or a restricted Node loader).
+This distinction is enforced at the **convention and tooling level**, not the runtime level:
+
+- **`discover_capabilities`** and **`search_tools`** never advertise Node APIs. The SDK is the only discoverable surface.
+- **Saved scripts** (`save_script`) are expected to be portable. The metadata includes a `portable` field (default: `true`). A script saved with `portable: true` that uses Node APIs is a bug in the script, not a bug in the gateway — the gateway does not validate this in v1, but the field establishes the contract so tooling can enforce it later.
+- **Inline scripts** (`run_os_script` with `script`) may use Node APIs when running on `node-subprocess`. This is the "advanced/opt-in" escape hatch. The agent should be aware this pins the script to the Node engine.
+- **The gateway does not sandbox at the runtime level in v1.** Enforcement (restricted loaders, V8 isolates, Deno permissions) can be added behind the same `SDKTransport` abstraction without changing the SDK or MCP surface.
+
+**Rule of thumb for agents:** if you might want to save a script or reuse it later, stick to `aos.*` and ECMAScript built-ins. If you need Node APIs for a one-off, use an inline script and set `engine: "node-subprocess"` explicitly.
 
 ### The `aos` Global Object
 
@@ -502,6 +515,8 @@ interface SavedScript {
   name: string;
   description: string;
   intent: Intent;
+  portable: boolean;
+  version: number;
   parameters?: Record<string, unknown>;  // JSON Schema
   createdBy?: string;
   createdAt?: string;
@@ -510,7 +525,9 @@ interface SavedScript {
 interface ScriptMeta {
   description: string;
   intent: Intent;
+  portable?: boolean;                    // default true
   parameters?: Record<string, unknown>;
+  note?: string;                         // changelog note (used on overwrite)
 }
 ```
 
@@ -576,21 +593,28 @@ interface SDKTransport {
 }
 ```
 
-**Node subprocess engine**: The gateway starts a lightweight HTTP server on a per-execution Unix socket. The SDK connects via `AOS_GATEWAY_SOCK` environment variable. The subprocess's stdout is reserved for capturing `console.log` output; the script's return value is sent back via the transport.
+**v1 transport (Node subprocess)**: The gateway runs a **single persistent Unix socket** (`~/.config/aos-gateway/sdk.sock`) that handles all SDK calls from all script executions. The SDK connects to this socket on first use. This is deliberately the simplest possible transport:
 
-**JSC engine (future)**: System-domain calls (`getWindows`, `click`, etc.) become bridged Swift functions — in-process, zero overhead. Coordination-domain calls go to the gateway via socket.
+- No per-execution socket setup or teardown
+- All SDK calls (system and coordination) go through one path: SDK → gateway socket → gateway routes to daemon or coordination store
+- The subprocess's stdout is reserved for `console.log` capture
+- The script's return value is serialized and sent as a final message on the transport before the subprocess exits
+- Debuggable: you can connect to the same socket with a test client to inspect behavior
+
+The gateway proxies system-domain calls (`getWindows`, `click`, etc.) to the aos daemon over its existing NDJSON connection. Coordination-domain calls are handled directly by the gateway's SQLite store.
+
+**JSC engine (future)**: System-domain calls become bridged Swift functions — in-process, zero overhead. Coordination-domain calls go to the gateway socket. The SDK transport abstraction hides this difference.
 
 The engine sets a single config global before script execution:
 
 ```javascript
 globalThis.__aos_config = {
-  daemonSocket: "/Users/Michael/.config/aos/repo/sock",
-  gatewaySocket: "/tmp/aos-gateway-exec-<id>.sock",
+  gatewaySocket: "/Users/Michael/.config/aos-gateway/sdk.sock",
   sessionId: "lead-dev"
 };
 ```
 
-The SDK reads this on first use. This is the **only** thing that varies between engines.
+The SDK reads this on first use. In v1, all calls go through `gatewaySocket`. In the JSC engine, system calls bypass the socket entirely (they're in-process), but the config shape stays the same — unused fields are simply ignored.
 
 ---
 
@@ -665,8 +689,7 @@ interface ScriptRequest {
   intent: Intent;
   timeout: number;
   context: {
-    daemonSocket: string;               // path to aos daemon Unix socket
-    gatewaySocket: string;              // per-execution socket for SDK ↔ gateway calls
+    gatewaySocket: string;              // persistent gateway SDK socket (all calls route here)
     sessionId: string;                  // calling session's ID
   };
 }
@@ -721,19 +744,19 @@ class NodeSubprocessEngine implements ScriptEngine {
   readonly name = 'node-subprocess';
 
   async execute(request: ScriptRequest): Promise<ScriptResult> {
-    // 1. Create a per-execution Unix socket for SDK ↔ gateway communication
-    // 2. Start a mini HTTP-like server on that socket to handle SDK calls
-    // 3. Assemble the execution script:
-    //    a. Set __aos_config global (daemonSocket, gatewaySocket, sessionId)
-    //    b. Load aos-sdk.js
+    // 1. Assemble the execution script:
+    //    a. Set __aos_config global (gatewaySocket, sessionId)
+    //    b. Inline aos-sdk.js (the runtime)
     //    c. Set `const params = <serialized params>`
     //    d. Wrap user script in async IIFE, capture return value
-    //    e. Write JSON result to a known fd or temp file
-    // 4. Spawn: node --no-warnings <assembled-script-path>
-    // 5. Capture stdout → logs array
-    // 6. Read result from fd/temp file
-    // 7. Enforce timeout via AbortController on the child process
-    // 8. Clean up per-execution socket
+    //    e. Send result back to gateway via the SDK transport, then exit
+    // 2. Write assembled script to a temp file
+    // 3. Spawn: node --no-warnings <temp-script-path>
+    //    (the persistent gateway socket at sdk.sock is already running)
+    // 4. Capture stdout → logs array
+    // 5. Receive result via the SDK transport (gateway listens for it)
+    // 6. Enforce timeout via AbortController on the child process
+    // 7. Clean up temp file
   }
 }
 ```
@@ -811,14 +834,14 @@ CREATE INDEX idx_sessions_status ON sessions(status);
 
 ### Lock Semantics
 
-| Mode | SQL behavior | Succeeds when | Fails when |
-|------|-------------|---------------|------------|
-| `set` | `INSERT OR REPLACE`, bump version | Always | Never |
-| `cas` | `UPDATE ... WHERE version = expected` | Version matches | Version mismatch |
-| `acquire_lock` | `INSERT ... WHERE NOT EXISTS` or `UPDATE ... WHERE owner = caller OR expires_at < now` | Key doesn't exist, is expired, or is already owned by caller | Key is owned by a different session and not expired |
-| `release_lock` | `UPDATE SET owner = NULL WHERE owner = caller` | Caller is the owner | Caller is not the owner |
+| Mode | Behavior | Succeeds when | Fails when | On success |
+|------|----------|---------------|------------|------------|
+| `set` | Unconditional write. Creates or overwrites. | Always | Never | Version incremented, value + owner updated |
+| `cas` | Conditional write. Only applies if the key's current version matches `expected_version`. | Current version = `expected_version` | Version mismatch (returns current version in error) | Version incremented, value updated |
+| `acquire_lock` | Set value + owner, but only if the key is available. A key is "available" if it doesn't exist, has no owner, is owned by the caller, or is past its `expires_at`. | Key is available | Key is owned by a different active session | Version incremented, owner set to caller |
+| `release_lock` | Clear the owner field. Value is preserved. | Caller matches current owner | Caller is not the current owner | Owner cleared, version incremented |
 
-Expired keys (past `expires_at`) are treated as unowned for all lock operations. A periodic sweep (every 60s) deletes keys past `expires_at` + a grace period.
+**Expiration semantics:** A key past its `expires_at` is treated as unowned (available for `acquire_lock`) and invisible to `get_state` (not returned in results). A background sweep periodically removes expired keys from storage. The sweep interval and grace period are implementation details — the contract is that expired keys behave as if they don't exist for all operations.
 
 ### Staleness and Heartbeats
 
@@ -848,6 +871,8 @@ Messages are retained for 24 hours by default (configurable in `config.json`). A
   "name": "close-mail-drafts",
   "description": "Closes all draft windows in Mail.app",
   "intent": "action",
+  "portable": true,
+  "version": 2,
   "parameters": {
     "type": "object",
     "properties": {
@@ -856,14 +881,35 @@ Messages are retained for 24 hours by default (configurable in `config.json`). A
   },
   "createdBy": "lead-dev",
   "createdAt": "2026-04-07T12:00:00Z",
-  "updatedAt": "2026-04-07T14:30:00Z"
+  "updatedBy": "lead-dev",
+  "updatedAt": "2026-04-07T14:30:00Z",
+  "changelog": [
+    { "version": 1, "at": "2026-04-07T12:00:00Z", "by": "lead-dev", "note": "Initial version" },
+    { "version": 2, "at": "2026-04-07T14:30:00Z", "by": "lead-dev", "note": "Handle minimized windows" }
+  ]
 }
 ```
 
+**Field semantics:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | yes | Unique identifier. Matches filename stem. |
+| `description` | yes | What the script does. Surfaced by `discover_capabilities` and `search_tools`. |
+| `intent` | yes | `perception`, `action`, `coordination`, or `mixed`. Used for discovery filtering and engine hints. |
+| `portable` | yes | Default `true`. Set to `false` if the script uses Node-specific APIs. Scripts with `portable: false` are only offered to `node-subprocess`-capable contexts. |
+| `version` | yes | Integer, starts at 1, incremented on each `save_script` with `overwrite: true`. |
+| `parameters` | no | JSON Schema for the `params` the script accepts. |
+| `createdBy` | no | Session name that first saved this script. |
+| `createdAt` | yes | ISO 8601 timestamp of initial creation. |
+| `updatedBy` | no | Session name that last updated this script. |
+| `updatedAt` | yes | ISO 8601 timestamp of last update. Equals `createdAt` for version 1. |
+| `changelog` | yes | Append-only array of version entries. Each entry records version number, timestamp, author, and a short note. Capped at the last 20 entries. |
+
 ### Save/Overwrite Rules
 
-- **New script**: `save_script` with `overwrite: false` (default). Writes `.ts` and `.meta.json`. Errors if name already exists.
-- **Update**: `save_script` with `overwrite: true`. Moves existing `.ts` to `.prev.ts` (one-deep backup). Writes new `.ts` and updates `.meta.json`.
+- **New script**: `save_script` with `overwrite: false` (default). Writes `.ts` and `.meta.json` with `version: 1`. Errors if name already exists.
+- **Update**: `save_script` with `overwrite: true`. Moves existing `.ts` to `.prev.ts` (one-deep backup). Increments `version`, appends to `changelog`, updates `updatedBy`/`updatedAt`. The `save_script` tool accepts an optional `note` field (string) for the changelog entry; if omitted, defaults to `"Updated by <session>"`.
 - **Name format**: lowercase alphanumeric + hyphens (`^[a-z0-9][a-z0-9-]*$`). No namespacing in v1.
 
 ### Future: Namespaced Scripts
