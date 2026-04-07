@@ -871,6 +871,53 @@ extension Array {
 // MARK: - Entry Point
 // ============================================================================
 
+/// Create full-screen avatar canvases — one per display.
+/// Each canvas covers an entire display. The avatar moves in Three.js scene space
+/// rather than by repositioning the window.
+func createAvatarCanvases() {
+    let displays = getAllDisplaysCG()
+    let liveURL = sigilFileURL("apps/sigil/celestial/live/index.html")
+
+    for display in displays {
+        let canvasID = avatarCanvasID(display.id)
+        let payload: [String: Any] = [
+            "action": "create",
+            "id": canvasID,
+            "at": [display.x, display.y, display.w, display.h],
+            "url": liveURL,
+            "interactive": false
+        ]
+        _ = daemonOneShot(payload)
+    }
+
+    // Wait for WKWebViews to initialize
+    Thread.sleep(forTimeInterval: 0.5)
+
+    // Send config to all canvases
+    if let config = loadAvatarConfig() {
+        for display in displays {
+            sendToCanvas(display.id, ["type": "config", "data": config])
+        }
+    }
+
+    // Hide all except primary
+    for display in displays where display.id != 0 {
+        sendToCanvas(display.id, ["type": "hide"])
+    }
+    activeDisplayIndex = 0
+
+    // Set initial position to cursor location
+    let (cx, cy) = getCursorCG()
+    curX = cx; curY = cy
+    let session = DaemonSession()
+    if session.connect() {
+        sendScenePosition(session, x: curX, y: curY)
+        session.disconnect()
+    }
+
+    fputs("avatar-sub: created \(displays.count) full-screen canvas(es).\n", stderr)
+}
+
 /// Ensure the avatar canvas exists. Queries first; only creates if missing.
 /// Called on every daemon connect (first and reconnect) so the avatar
 /// reappears after a daemon restart without duplicating an existing canvas.
@@ -880,9 +927,7 @@ func ensureAvatarCanvas() {
         return
     }
 
-    let url = sigilFileURL("apps/sigil/avatar.html")
-    sendOneShot("{\"action\":\"create\",\"id\":\"\(avatarID)\",\"at\":[200,200,\(fullSize),\(fullSize)],\"url\":\"\(url)\"}")
-    Thread.sleep(forTimeInterval: 0.5)
+    createAvatarCanvases()
     _ = queryAvatar()
     syncAvatarHitTarget()
     fputs("avatar-sub: recreated avatar canvas.\n", stderr)
@@ -909,8 +954,8 @@ struct AvatarSub {
         // Load radial menu config
         loadRadialMenuConfig()
 
-        // Ensure avatar canvas exists (creates if missing)
-        ensureAvatarCanvas()
+        // Create full-screen avatar canvases (one per display)
+        createAvatarCanvases()
         queryChat()
         ensureChatOnTop()
 

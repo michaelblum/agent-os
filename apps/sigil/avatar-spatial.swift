@@ -37,3 +37,29 @@ func resolveElement(role: String?, title: String?, pid: Int? = nil) -> (x: Doubl
           let bounds = target["global_bounds"] as? [String: Double] else { return nil }
     return (bounds["x"] ?? 0, bounds["y"] ?? 0, bounds["w"] ?? 0, bounds["h"] ?? 0)
 }
+
+// -- All display frames in CG coordinates (top-left origin, Y-down) --
+func getAllDisplaysCG() -> [(id: Int, x: Double, y: Double, w: Double, h: Double)] {
+    let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+    return NSScreen.screens.enumerated().map { (i, screen) in
+        let f = screen.frame
+        return (
+            id: i,
+            x: f.origin.x,
+            y: primaryHeight - f.origin.y - f.height,
+            w: f.width,
+            h: f.height
+        )
+    }
+}
+
+// -- Which display contains a CG point? Returns display index or 0 (primary) --
+func displayIndexForPoint(_ x: Double, _ y: Double) -> Int {
+    let displays = getAllDisplaysCG()
+    for d in displays {
+        if x >= d.x && x < d.x + d.w && y >= d.y && y < d.y + d.h {
+            return d.id
+        }
+    }
+    return 0
+}

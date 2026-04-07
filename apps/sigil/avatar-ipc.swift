@@ -17,8 +17,12 @@ private func sigilExecutableDir() -> String {
     URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.deletingLastPathComponent().path
 }
 
+private let sigilSentinels = [
+    "apps/sigil/celestial/live/index.html",
+    "apps/sigil/avatar.html"
+]
+
 private func sigilBundledRoot() -> String? {
-    let sentinel = "apps/sigil/avatar.html"
     let environment = ProcessInfo.processInfo.environment
     let candidates = [
         environment["AOS_SIGIL_ROOT"],
@@ -28,9 +32,11 @@ private func sigilBundledRoot() -> String? {
     ]
 
     for candidate in candidates.compactMap({ $0 }) {
-        let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
-        if FileManager.default.fileExists(atPath: sentinelPath) {
-            return candidate
+        for sentinel in sigilSentinels {
+            let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
+            if FileManager.default.fileExists(atPath: sentinelPath) {
+                return candidate
+            }
         }
     }
 
@@ -42,7 +48,6 @@ private func sigilRepoRoot() -> String {
         return bundledRoot
     }
 
-    let sentinel = "apps/sigil/avatar.html"
     let bases = [
         sigilExecutableDir(),
         FileManager.default.currentDirectoryPath
@@ -52,9 +57,11 @@ private func sigilRepoRoot() -> String {
     for base in bases {
         for suffix in suffixes {
             let candidate = NSString(string: (base as NSString).appendingPathComponent(suffix)).standardizingPath
-            let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
-            if FileManager.default.fileExists(atPath: sentinelPath) {
-                return candidate
+            for sentinel in sigilSentinels {
+                let sentinelPath = (candidate as NSString).appendingPathComponent(sentinel)
+                if FileManager.default.fileExists(atPath: sentinelPath) {
+                    return candidate
+                }
             }
         }
     }
@@ -156,4 +163,43 @@ func sendBehavior(_ slot: String, data: [String: Any] = [:]) {
           let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
     let b64 = Data(jsonStr.utf8).base64EncodedString()
     daemonOneShot(["action": "eval", "id": avatarID, "js": "headsup.receive('\(b64)')"])
+}
+
+// -- Canvas IDs for multi-display --
+func avatarCanvasID(_ displayIndex: Int) -> String {
+    displayIndex == 0 ? avatarID : "avatar-display-\(displayIndex)"
+}
+
+var activeDisplayIndex: Int = 0
+
+// -- Send scene position to the active display's canvas --
+func sendScenePosition(_ session: DaemonSession, x: Double, y: Double) {
+    let msg: [String: Any] = ["type": "scene_position", "position": [x, y]]
+    guard let jsonData = try? JSONSerialization.data(withJSONObject: msg),
+          let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
+    let b64 = Data(jsonStr.utf8).base64EncodedString()
+    session.sendOnly(["action": "eval", "id": avatarCanvasID(activeDisplayIndex), "js": "headsup.receive('\(b64)')"])
+}
+
+// -- Send a message to a specific display's canvas --
+func sendToCanvas(_ displayIndex: Int, _ msg: [String: Any]) {
+    guard let jsonData = try? JSONSerialization.data(withJSONObject: msg),
+          let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
+    let b64 = Data(jsonStr.utf8).base64EncodedString()
+    daemonOneShot(["action": "eval", "id": avatarCanvasID(displayIndex), "js": "headsup.receive('\(b64)')"])
+}
+
+// -- Load avatar config from disk --
+func loadAvatarConfig() -> [String: Any]? {
+    let path = "\(aosStateDir())/avatar-config.json"
+    guard let data = FileManager.default.contents(atPath: path),
+          let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+    return config
+}
+
+// -- Save avatar config to disk --
+func saveAvatarConfig(_ config: [String: Any]) {
+    let path = "\(aosStateDir())/avatar-config.json"
+    guard let data = try? JSONSerialization.data(withJSONObject: config, options: .prettyPrinted) else { return }
+    FileManager.default.createFile(atPath: path, contents: data)
 }
