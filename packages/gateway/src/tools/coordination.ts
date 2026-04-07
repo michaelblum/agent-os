@@ -15,8 +15,10 @@ export function registerCoordinationTools(db: CoordinationDB) {
     get_state: (args: any) =>
       db.getState(args.key),
 
-    post_message: (args: any) =>
-      ({ id: db.postMessage(args.channel, args.payload, args.from) }),
+    post_message: async (args: any) => {
+      const id = await db.postMessage(args.channel, args.payload, args.from);
+      return { id };
+    },
 
     read_stream: (args: any) =>
       db.readStream(args.channel, { since: args.since, limit: args.limit }),
