@@ -45,18 +45,17 @@ Sigil resolves the daemon socket from the current runtime mode (`~/.config/aos/{
 | `avatar-spatial.swift` | Spatial helpers (display geometry, multi-display handoff, element resolution) |
 | `avatar-easing.swift` | Easing functions |
 | `avatar-ipc.swift` | Socket/IPC helpers for daemon communication + scene-position messaging |
-| `celestial/js/` | Shared Three.js modules (geometry, colors, aura, effects, ghost trails) from celestial legacy |
-| `celestial/live/` | Live avatar renderer — full-screen transparent canvas, IPC-driven movement |
-| `celestial/studio/` | Avatar Studio — customization UI (celestial legacy with Sigil integration) |
-| `avatar.html` | **Legacy** — replaced by `celestial/live/index.html`, kept for reference |
-| `radial-menu-config.json` | Menu items (geometry, name, color, action) — deferred, to be reimplemented on celestial renderer |
+| `renderer/` | Shared Three.js modules (geometry, colors, aura, effects, ghost trails) + bundled live renderer |
+| `studio/` | Avatar Studio — customization UI for designing the avatar's appearance |
+| `avatar.html` | **Legacy** — replaced by `renderer/index.html`, kept for reference |
+| `radial-menu-config.json` | Menu items (geometry, name, color, action) — deferred, to be reimplemented |
 
 ## Canvas Model
 
 The avatar runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
 
-- **Live mode**: `celestial/live/index.html` — bundled renderer, IPC-driven position via `headsup.receive()`
-- **Studio mode**: `celestial/studio/index.html` — full customization UI (celestial legacy)
+- **Live mode**: `renderer/index.html` — bundled renderer, IPC-driven position via `headsup.receive()`
+- **Studio mode**: `studio/index.html` — full customization UI for avatar design
 - **Config**: `~/.config/aos/{mode}/avatar-config.json` — saved from Studio, loaded by Live
 
 Multi-display: canvases on all displays at launch. Avatar hands off between displays when crossing boundaries.

@@ -1,22 +1,22 @@
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 import { initScene } from './scene.js';
-import { updateGeometry } from '../../js/geometry.js';
-import { updateAllColors } from '../../js/colors.js';
-import { createAuraObjects, animateAura } from '../../js/aura.js';
-import { createPhenomena, animatePhenomena } from '../../js/phenomena.js';
-import { createParticleObjects, animateParticles, animateTrails, fireExplosion, fireSuperNova } from '../../js/particles.js';
+import { updateGeometry } from '../../renderer/geometry.js';
+import { updateAllColors } from '../../renderer/colors.js';
+import { createAuraObjects, animateAura } from '../../renderer/aura.js';
+import { createPhenomena, animatePhenomena } from '../../renderer/phenomena.js';
+import { createParticleObjects, animateParticles, animateTrails, fireExplosion, fireSuperNova } from '../../renderer/particles.js';
 // grid.js removed — unified into grid3d.js
 import { setupInteraction, updateCameraTransition } from './interaction.js';
 import { animatePathing } from './pathing.js';
 import { setupUI, setupEditableLabels } from './ui.js';
-import { createLightning, animateLightning } from '../../js/lightning.js';
-import { createMagneticField, animateMagneticField } from '../../js/magnetic.js';
-import { createOmega, animateOmega } from '../../js/omega.js';
+import { createLightning, animateLightning } from '../../renderer/lightning.js';
+import { createMagneticField, animateMagneticField } from '../../renderer/magnetic.js';
+import { createOmega, animateOmega } from '../../renderer/omega.js';
 import { createGrid3d, animateGrid3d } from './grid3d.js';
 import { createSwarm, animateSwarm } from './swarm.js';
 import { animateSkybox } from './skybox.js';
-import { animateSkins } from '../../js/skins.js';
-import Stats from '../../js/lib/stats.module.js';
+import { animateSkins } from '../../renderer/skins.js';
+import Stats from '../../renderer/lib/stats.module.js';
 
 function init() {
     initScene();

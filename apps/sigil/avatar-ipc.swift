@@ -18,7 +18,7 @@ private func sigilExecutableDir() -> String {
 }
 
 private let sigilSentinels = [
-    "apps/sigil/celestial/live/index.html",
+    "apps/sigil/renderer/index.html",
     "apps/sigil/avatar.html"
 ]
 

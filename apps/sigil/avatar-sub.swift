@@ -219,12 +219,12 @@ func handleChannelEvent(channel: String, data: [String: Any]) {
 // MARK: - Avatar Event Handling (from JS postMessage)
 // ============================================================================
 
-/// Handle events emitted by celestial/live/index.html via postMessage → subscriber relay.
+/// Handle events emitted by renderer/index.html via postMessage → subscriber relay.
 /// These arrive as {"type":"event","id":"avatar","payload":{...}} on the subscriber connection.
 func handleAvatarEvent(payload: [String: Any]) {
     guard let eventType = payload["type"] as? String else { return }
 
-    // emit() in celestial/live/index.html wraps data as {type, payload}, so the actual data
+    // emit() in renderer/index.html wraps data as {type, payload}, so the actual data
     // is nested under payload["payload"]. Extract the inner payload.
     let inner = payload["payload"] as? [String: Any] ?? [:]
 
@@ -814,7 +814,7 @@ func startSubscriber() {
                 handleChannelEvent(channel: channel, data: payload)
             }
 
-        // Canvas JS events (postMessage relay from celestial/live/index.html)
+        // Canvas JS events (postMessage relay from renderer/index.html)
         case "canvas_message":
             if let id = envelope.data["id"] as? String,
                let payload = envelope.data["payload"] as? [String: Any] {
@@ -878,7 +878,7 @@ extension Array {
 /// rather than by repositioning the window.
 func createAvatarCanvases() {
     let displays = getAllDisplaysCG()
-    let liveURL = sigilFileURL("apps/sigil/celestial/live/index.html")
+    let liveURL = sigilFileURL("apps/sigil/renderer/index.html")
 
     for display in displays {
         let canvasID = avatarCanvasID(display.id)

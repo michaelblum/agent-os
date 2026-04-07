@@ -2,7 +2,8 @@
 name: hybrid-canvas-fast-travel
 description: Expanding canvas approach for avatar transit effects, plus screen-warp fast travel concept
 type: project
-status: validated-deferred
+status: superseded
+superseded_by: docs/superpowers/specs/2026-04-07-sigil-celestial-graft-and-fullscreen-avatar.md
 ---
 
 # Hybrid Expanding Canvas + Fast Travel Effects

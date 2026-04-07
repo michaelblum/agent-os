@@ -1,4 +1,4 @@
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 
 // Fixed spin axis — avoids gimbal lock from Euler accumulation
 const _spinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();

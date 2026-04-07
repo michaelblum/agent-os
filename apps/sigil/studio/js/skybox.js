@@ -1,5 +1,5 @@
 // Procedural Milky Way skybox — 3 layers, zero external assets
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

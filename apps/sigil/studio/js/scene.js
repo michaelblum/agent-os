@@ -1,4 +1,4 @@
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 import { createSkybox } from './skybox.js';
 
 export function initScene() {

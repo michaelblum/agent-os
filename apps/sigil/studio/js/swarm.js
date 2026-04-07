@@ -1,6 +1,6 @@
 // Particle Swarm + Black Hole Accretion Disk Module
 // Standalone cosmic phenomenon — independent of the 3D grid
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const MAX_SWARM = 5000;

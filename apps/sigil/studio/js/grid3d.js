@@ -1,6 +1,6 @@
 // 3D Volumetric Spacetime Grid Module
 // CPU-warped voxel grid (3D), multi-segment flat grid (2D), probe, and snow globe
-import state from '../../js/state.js';
+import state from '../../renderer/state.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const UNIVERSE_SIZE = 24.0;

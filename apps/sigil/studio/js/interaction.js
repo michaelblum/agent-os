@@ -1,5 +1,5 @@
-import state from '../../js/state.js';
-import { EFFECTS } from '../../js/fx-registry.js';
+import state from '../../renderer/state.js';
+import { EFFECTS } from '../../renderer/fx-registry.js';
 
 // Camera orbit state (used when 3D grid is active)
 let cameraOrbitTheta = 0;       // horizontal angle

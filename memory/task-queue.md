@@ -46,12 +46,12 @@ Re-orientation, code audit, animation fix, DRY cleanup, and launchd label isolat
 **Known gaps:** side-eye not bundled in AOS.app, toolkit HTML not staged, StatusItemManager and Sigil not coordinated.
 
 ### celestial-graft (2026-04-07)
-Grafted celestial legacy into Sigil. Replaced small moving NSWindow avatar with full-screen transparent canvases running celestial's Three.js renderer.
+Grafted celestial legacy (now `renderer/` + `studio/`) into Sigil. Replaced small moving NSWindow avatar with full-screen transparent canvases running celestial's Three.js renderer.
 
 **Commits:** `91f5951` → `fba4cd1` (7 commits)
 
 **What changed:**
-- Copied celestial legacy JS/CSS/HTML into `apps/sigil/celestial/` (shared modules, studio, live)
+- Copied celestial legacy (now `renderer/` + `studio/`) JS/CSS/HTML into `apps/sigil/celestial/` (shared modules, studio, live)
 - Live renderer bundled into single HTML for WKWebView compatibility (ES modules blocked by file:// CORS)
 - Swift animation layer rewired: `sendAvatarUpdate()` sends scene-position IPC instead of window-position
 - Full-screen canvas creation per display at startup, multi-display handoff on boundary crossing

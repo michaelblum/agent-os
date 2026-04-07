@@ -1,16 +1,16 @@
-import state from '../../js/state.js';
-import { updateGeometry } from '../../js/geometry.js';
-import { updateAllColors } from '../../js/colors.js';
+import state from '../../renderer/state.js';
+import { updateGeometry } from '../../renderer/geometry.js';
+import { updateAllColors } from '../../renderer/colors.js';
 // grid.js removed — unified into grid3d.js
 import { updatePathVisual } from './pathing.js';
-import { applyPreset } from '../../js/presets.js';
-import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../js/phenomena.js';
+import { applyPreset } from '../../renderer/presets.js';
+import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { updateSwarmColors } from './swarm.js';
-import { applySkin } from '../../js/skins.js';
-import { updateOmegaGeometry } from '../../js/geometry.js';
+import { applySkin } from '../../renderer/skins.js';
+import { updateOmegaGeometry } from '../../renderer/geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
 import { resetCameraOrbit, transitionToFlatView, _openSub } from './interaction.js';
-import { EFFECTS } from '../../js/fx-registry.js';
+import { EFFECTS } from '../../renderer/fx-registry.js';
 
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
