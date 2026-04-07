@@ -95,6 +95,36 @@ func aosSigilStdoutLogPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/sigil.stdout.log"
 }
 
+// MARK: - Launchd Labels (mode-scoped)
+
+func aosServiceLabel(for mode: AOSRuntimeMode? = nil) -> String {
+    let resolved = mode ?? aosCurrentRuntimeMode()
+    return "com.agent-os.aos.\(resolved.rawValue)"
+}
+
+func aosSigilServiceLabel(for mode: AOSRuntimeMode? = nil) -> String {
+    let resolved = mode ?? aosCurrentRuntimeMode()
+    return "com.agent-os.sigil.\(resolved.rawValue)"
+}
+
+func aosServicePlistPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosHomeDir())/Library/LaunchAgents/\(aosServiceLabel(for: mode)).plist"
+}
+
+func aosSigilPlistPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosHomeDir())/Library/LaunchAgents/\(aosSigilServiceLabel(for: mode)).plist"
+}
+
+/// All known launchd labels (both modes, both services) for cleanup/doctor.
+func aosAllServiceLabels() -> [String] {
+    AOSRuntimeMode.allCases.flatMap { mode in
+        [aosServiceLabel(for: mode), aosSigilServiceLabel(for: mode)]
+    }
+}
+
+/// Legacy labels that may still be loaded from before the mode split.
+let aosLegacyServiceLabels = ["com.agent-os.aos", "com.agent-os.sigil"]
+
 func aosInstalledBinaryPath(_ executableName: String) -> String {
     "\(aosInstallAppPath())/Contents/MacOS/\(executableName)"
 }

@@ -87,8 +87,17 @@ private func runReset(mode: ResetMode) -> ResetResponse {
     var removedPaths: [String] = []
     var notes: [String] = []
 
-    for label in ["com.agent-os.sigil", "com.agent-os.aos"] {
-        if stopLaunchAgentIfTargeted(label: label, targetModes: targetModes) {
+    // Stop mode-scoped services for targeted modes
+    for mode in targetModes {
+        for label in [aosSigilServiceLabel(for: mode), aosServiceLabel(for: mode)] {
+            if stopLaunchAgent(label: label) {
+                stoppedServices.append(label)
+            }
+        }
+    }
+    // Also stop any legacy (pre-mode-split) services
+    for label in aosLegacyServiceLabels {
+        if stopLaunchAgent(label: label) {
             stoppedServices.append(label)
         }
     }
@@ -127,11 +136,11 @@ private func runReset(mode: ResetMode) -> ResetResponse {
         }
     }
 
-    let remainingPaths = [
-        aosInstallAppPath(),
-        "\(aosHomeDir())/Library/LaunchAgents/com.agent-os.aos.plist",
-        "\(aosHomeDir())/Library/LaunchAgents/com.agent-os.sigil.plist"
-    ].filter { FileManager.default.fileExists(atPath: $0) }
+    let allPlistPaths = AOSRuntimeMode.allCases.flatMap { mode in
+        [aosServicePlistPath(for: mode), aosSigilPlistPath(for: mode)]
+    } + aosLegacyServiceLabels.map { "\(aosHomeDir())/Library/LaunchAgents/\($0).plist" }
+    let remainingPaths = ([aosInstallAppPath()] + allPlistPaths)
+        .filter { FileManager.default.fileExists(atPath: $0) }
 
     if !FileManager.default.fileExists(atPath: aosInstallAppPath()) {
         notes.append("Installed runtime app is not present.")
@@ -152,29 +161,14 @@ private func runReset(mode: ResetMode) -> ResetResponse {
     )
 }
 
-private func stopLaunchAgentIfTargeted(label: String, targetModes: [AOSRuntimeMode]) -> Bool {
+private func stopLaunchAgent(label: String) -> Bool {
+    let domain = "gui/\(getuid())"
+    guard runProcess("/bin/launchctl", arguments: ["print", "\(domain)/\(label)"]).exitCode == 0 else {
+        return false
+    }
     let plistPath = "\(aosHomeDir())/Library/LaunchAgents/\(label).plist"
-    guard FileManager.default.fileExists(atPath: plistPath) else { return false }
-    let binaryPath = plistProgramPathForReset(plistPath)
-    guard let binaryPath else { return false }
-
-    let binaryMode = aosCurrentRuntimeMode(executablePath: binaryPath)
-    guard targetModes.contains(binaryMode) else { return false }
-    guard launchAgentLoadedForReset(label: label) else { return false }
-
-    let output = runProcess("/bin/launchctl", arguments: ["bootout", "gui/\(getuid())", plistPath])
+    let output = runProcess("/bin/launchctl", arguments: ["bootout", domain, plistPath])
     return output.exitCode == 0 ||
         output.stderr.contains("No such process") ||
         output.stderr.contains("service could not be found")
-}
-
-private func launchAgentLoadedForReset(label: String) -> Bool {
-    runProcess("/bin/launchctl", arguments: ["print", "gui/\(getuid())/\(label)"]).exitCode == 0
-}
-
-private func plistProgramPathForReset(_ plistPath: String) -> String? {
-    let output = runProcess("/usr/libexec/PlistBuddy", arguments: ["-c", "Print :ProgramArguments:0", plistPath])
-    guard output.exitCode == 0 else { return nil }
-    let value = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-    return value.isEmpty ? nil : value
 }

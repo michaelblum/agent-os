@@ -2,7 +2,9 @@
 
 import Foundation
 
-private let kAOSServiceLabel = "com.agent-os.aos"
+private func serviceLabel(for mode: AOSRuntimeMode) -> String {
+    aosServiceLabel(for: mode)
+}
 
 private struct ServiceStatusResponse: Encodable {
     let status: String
@@ -120,7 +122,7 @@ private func installAOSService(asJSON: Bool, mode: AOSRuntimeMode) {
         exitError("Failed to write launch agent plist: \(error)", code: "WRITE_ERROR")
     }
     launchctlBootstrap(paths.plistPath, tolerateAlreadyBootstrapped: true)
-    launchctlKickstart(kAOSServiceLabel)
+    launchctlKickstart(serviceLabel(for: mode))
     emitAOSServiceStatus(asJSON: asJSON, mode: mode)
 }
 
@@ -131,16 +133,16 @@ private func startAOSService(asJSON: Bool, mode: AOSRuntimeMode) {
         installAOSService(asJSON: asJSON, mode: mode)
         return
     }
-    if !isServiceLoaded(label: kAOSServiceLabel) {
+    if !isServiceLoaded(label: serviceLabel(for: mode)) {
         launchctlBootstrap(paths.plistPath)
     }
-    launchctlKickstart(kAOSServiceLabel)
+    launchctlKickstart(serviceLabel(for: mode))
     emitAOSServiceStatus(asJSON: asJSON, mode: mode)
 }
 
 private func stopAOSService(asJSON: Bool, mode: AOSRuntimeMode, emitStatus: Bool) {
     let paths = aosServicePaths(mode: mode)
-    if FileManager.default.fileExists(atPath: paths.plistPath) && isServiceLoaded(label: kAOSServiceLabel) {
+    if FileManager.default.fileExists(atPath: paths.plistPath) && isServiceLoaded(label: serviceLabel(for: mode)) {
         launchctlBootout(paths.plistPath)
     }
     if emitStatus {
@@ -172,7 +174,7 @@ private func serviceLogsCommand(args: [String]) {
 private func currentAOSServiceStatus(mode: AOSRuntimeMode) -> ServiceStatusResponse {
     let paths = aosServicePaths(mode: mode)
     let installed = FileManager.default.fileExists(atPath: paths.plistPath)
-    let pid = servicePID(label: kAOSServiceLabel)
+    let pid = servicePID(label: serviceLabel(for: mode))
     let running = pid != nil
     let actualBinaryPath = installed ? plistValue(paths.plistPath, keyPath: ":ProgramArguments:0") : nil
     let actualLogPath = installed ? plistValue(paths.plistPath, keyPath: ":StandardErrorPath") : nil
@@ -181,7 +183,7 @@ private func currentAOSServiceStatus(mode: AOSRuntimeMode) -> ServiceStatusRespo
     if !installed {
         notes.append("Launch agent plist is not installed.")
     }
-    if installed && !isServiceLoaded(label: kAOSServiceLabel) {
+    if installed && !isServiceLoaded(label: serviceLabel(for: mode)) {
         notes.append("Launch agent is installed but not loaded in launchd.")
     }
     if installed && !running {
@@ -203,7 +205,7 @@ private func currentAOSServiceStatus(mode: AOSRuntimeMode) -> ServiceStatusRespo
         installed: installed,
         running: running,
         pid: pid,
-        launchd_label: kAOSServiceLabel,
+        launchd_label: serviceLabel(for: mode),
         actual_binary_path: actualBinaryPath,
         expected_binary_path: paths.binaryPath,
         actual_log_path: actualLogPath,
@@ -233,7 +235,7 @@ private func aosServicePaths(mode: AOSRuntimeMode) -> AOSServicePaths {
     return AOSServicePaths(
         mode: mode,
         launchAgentsDir: launchAgentsDir,
-        plistPath: "\(launchAgentsDir)/\(kAOSServiceLabel).plist",
+        plistPath: "\(launchAgentsDir)/\(serviceLabel(for: mode)).plist",
         stdoutLogPath: aosDaemonStdoutLogPath(for: mode),
         stderrLogPath: aosDaemonLogPath(for: mode),
         logDir: logDir,
@@ -250,7 +252,7 @@ private func aosServiceBinaryPath(mode: AOSRuntimeMode) -> String {
 
 private func aosServicePlist(paths: AOSServicePaths) -> [String: Any] {
     [
-        "Label": kAOSServiceLabel,
+        "Label": serviceLabel(for: paths.mode),
         "ProgramArguments": [paths.binaryPath, "serve", "--idle-timeout", "none"],
         "RunAtLoad": true,
         "KeepAlive": true,

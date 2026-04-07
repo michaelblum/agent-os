@@ -141,12 +141,12 @@ func doctorCommand(args: [String]) {
     let runtime = currentRuntimeState()
     let mode = aosCurrentRuntimeMode()
     let aosService = launchAgentState(
-        label: "com.agent-os.aos",
+        label: aosServiceLabel(for: mode),
         expectedBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode),
         logPath: aosDaemonLogPath(for: mode)
     )
     let sigilService = launchAgentState(
-        label: "com.agent-os.sigil",
+        label: aosSigilServiceLabel(for: mode),
         expectedBinaryPath: aosExpectedBinaryPath(program: "avatar-sub", mode: mode),
         logPath: aosSigilLogPath(for: mode)
     )
@@ -492,7 +492,7 @@ private func fetchCanvasSnapshot() -> CanvasSnapshot {
 }
 
 private func daemonProcessID() -> Int? {
-    if let pid = launchdProcessID(label: "com.agent-os.aos") {
+    if let pid = launchdProcessID(label: aosServiceLabel()) {
         return pid
     }
 
@@ -877,7 +877,7 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
 }
 
 private func restartPermissionsDependentServices() -> [String] {
-    let labels = ["com.agent-os.aos", "com.agent-os.sigil"]
+    let labels = [aosServiceLabel(), aosSigilServiceLabel()]
     return labels.filter(restartManagedLaunchAgent)
 }
 
