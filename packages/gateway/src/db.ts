@@ -235,27 +235,23 @@ export class CoordinationDB {
       return { ok: true, key };
     }
 
-    const existing = this.db
-      .prepare(`SELECT version FROM state WHERE key = ?`)
-      .get(key) as { version: number } | undefined;
-
-    const nextVersion = existing ? existing.version + 1 : 1;
     const valueJson = JSON.stringify(value);
 
-    this.db
+    const row = this.db
       .prepare(
         `INSERT INTO state (key, value, version, owner, updated_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, 1, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET
            value      = excluded.value,
-           version    = excluded.version,
+           version    = state.version + 1,
            owner      = excluded.owner,
            updated_at = excluded.updated_at,
-           expires_at = excluded.expires_at`,
+           expires_at = excluded.expires_at
+         RETURNING version`,
       )
-      .run(key, valueJson, nextVersion, owner ?? null, now, expiresAt);
+      .get(key, valueJson, owner ?? null, now, expiresAt) as { version: number };
 
-    return { ok: true, version: nextVersion, key };
+    return { ok: true, version: row.version, key };
   }
 
   private _modeCas(
@@ -285,23 +281,23 @@ export class CoordinationDB {
       return { ok: true, key };
     }
 
-    const nextVersion = currentVersion + 1;
     const valueJson = JSON.stringify(value);
 
-    this.db
+    const row = this.db
       .prepare(
         `INSERT INTO state (key, value, version, owner, updated_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, 1, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET
            value      = excluded.value,
-           version    = excluded.version,
+           version    = state.version + 1,
            owner      = excluded.owner,
            updated_at = excluded.updated_at,
-           expires_at = excluded.expires_at`,
+           expires_at = excluded.expires_at
+         RETURNING version`,
       )
-      .run(key, valueJson, nextVersion, owner ?? null, now, expiresAt);
+      .get(key, valueJson, owner ?? null, now, expiresAt) as { version: number };
 
-    return { ok: true, version: nextVersion, key };
+    return { ok: true, version: row.version, key };
   }
 
   private _modeAcquireLock(
@@ -311,13 +307,17 @@ export class CoordinationDB {
     now: number,
     expiresAt: number | null,
   ): StateResult {
+    if (!owner) {
+      return { ok: false, reason: 'owner_required' };
+    }
+
     const existing = this.db
       .prepare(`SELECT version, owner, expires_at FROM state WHERE key = ?`)
       .get(key) as Pick<StateRow, 'version' | 'owner' | 'expires_at'> | undefined;
 
     if (existing) {
       const isExpired = existing.expires_at != null && existing.expires_at < now;
-      const isSameOwner = existing.owner === (owner ?? null);
+      const isSameOwner = existing.owner === owner;
 
       if (!isExpired && existing.owner != null && !isSameOwner) {
         return {
@@ -328,24 +328,23 @@ export class CoordinationDB {
       }
     }
 
-    const currentVersion = existing?.version ?? 0;
-    const nextVersion = currentVersion + 1;
     const valueJson = JSON.stringify(value);
 
-    this.db
+    const row = this.db
       .prepare(
         `INSERT INTO state (key, value, version, owner, updated_at, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, 1, ?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET
            value      = excluded.value,
-           version    = excluded.version,
+           version    = state.version + 1,
            owner      = excluded.owner,
            updated_at = excluded.updated_at,
-           expires_at = excluded.expires_at`,
+           expires_at = excluded.expires_at
+         RETURNING version`,
       )
-      .run(key, valueJson, nextVersion, owner ?? null, now, expiresAt);
+      .get(key, valueJson, owner, now, expiresAt) as { version: number };
 
-    return { ok: true, version: nextVersion, key };
+    return { ok: true, version: row.version, key };
   }
 
   private _modeReleaseLock(
@@ -353,6 +352,10 @@ export class CoordinationDB {
     owner: string | undefined,
     now: number,
   ): StateResult {
+    if (!owner) {
+      return { ok: false, reason: 'owner_required' };
+    }
+
     const existing = this.db
       .prepare(`SELECT version, owner FROM state WHERE key = ?`)
       .get(key) as Pick<StateRow, 'version' | 'owner'> | undefined;
@@ -362,7 +365,7 @@ export class CoordinationDB {
       return { ok: true, key };
     }
 
-    if (existing.owner !== (owner ?? null)) {
+    if (existing.owner !== owner) {
       return {
         ok: false,
         reason: 'not_owner',
@@ -370,12 +373,16 @@ export class CoordinationDB {
       };
     }
 
-    // Clear ownership; keep the key and value in place, just null the owner
-    this.db
-      .prepare(`UPDATE state SET owner = NULL, updated_at = ? WHERE key = ?`)
-      .run(now, key);
+    // Clear ownership; bump version so CAS can detect lock/release cycles
+    const row = this.db
+      .prepare(
+        `UPDATE state SET owner = NULL, version = version + 1, updated_at = ?
+         WHERE key = ?
+         RETURNING version`,
+      )
+      .get(now, key) as { version: number };
 
-    return { ok: true, key };
+    return { ok: true, version: row.version, key };
   }
 
   async getState(keyOrPattern: string): Promise<StateEntry[]> {
@@ -383,11 +390,13 @@ export class CoordinationDB {
     let rows: StateRow[];
 
     if (keyOrPattern.includes('*')) {
-      const likePattern = keyOrPattern.replace(/\*/g, '%');
+      const likePattern = keyOrPattern
+        .replace(/[%_\\]/g, '\\$&')  // escape LIKE metacharacters first
+        .replace(/\*/g, '%');          // then convert glob * to SQL %
       rows = this.db
         .prepare(
           `SELECT * FROM state
-           WHERE key LIKE ?
+           WHERE key LIKE ? ESCAPE '\\'
              AND (expires_at IS NULL OR expires_at > ?)`,
         )
         .all(likePattern, now) as StateRow[];

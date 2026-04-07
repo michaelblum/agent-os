@@ -181,6 +181,140 @@ describe('State — getState', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Edge-case tests (new)
+// ---------------------------------------------------------------------------
+
+describe('State — expired lock takeover', () => {
+  test('allows acquire by different owner after lock expires', async () => {
+    // Acquire with TTL=0 so it expires immediately (ttl=0 → expiresAt = now+0 = now, which is <= now on next call)
+    await db.setState('edge:expired-lock', 'locked', {
+      mode: 'acquire_lock',
+      owner: 'agent-alpha',
+      ttl: 0,
+    });
+
+    // Small delay to ensure expires_at < now
+    await new Promise(r => setTimeout(r, 5));
+
+    const result = await db.setState('edge:expired-lock', 'mine', {
+      mode: 'acquire_lock',
+      owner: 'agent-beta',
+    });
+    assert.equal(result.ok, true, 'should be able to take over expired lock');
+  });
+});
+
+describe('State — release_lock on never-locked key', () => {
+  test('returns ok:true when key does not exist', async () => {
+    const result = await db.setState('edge:nonexistent-lock', null, {
+      mode: 'release_lock',
+      owner: 'agent-alpha',
+    });
+    assert.equal(result.ok, true);
+  });
+});
+
+describe('State — release_lock bumps version', () => {
+  test('version increments on release', async () => {
+    await db.setState('edge:release-version', 'locked', {
+      mode: 'acquire_lock',
+      owner: 'agent-alpha',
+    });
+
+    const entries = await db.getState('edge:release-version');
+    const versionAfterAcquire = entries[0].version;
+
+    const result = await db.setState('edge:release-version', null, {
+      mode: 'release_lock',
+      owner: 'agent-alpha',
+    });
+    assert.equal(result.ok, true);
+    assert.ok(
+      typeof result.version === 'number' && result.version > versionAfterAcquire,
+      'version should increment on release',
+    );
+  });
+});
+
+describe('State — acquire_lock requires owner', () => {
+  test('fails with owner_required when no owner provided', async () => {
+    const result = await db.setState('edge:lock-no-owner', 'data', {
+      mode: 'acquire_lock',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'owner_required');
+  });
+});
+
+describe('State — release_lock requires owner', () => {
+  test('fails with owner_required when no owner provided', async () => {
+    // First acquire a lock so there's something to release
+    await db.setState('edge:release-no-owner', 'locked', {
+      mode: 'acquire_lock',
+      owner: 'agent-alpha',
+    });
+
+    const result = await db.setState('edge:release-no-owner', null, {
+      mode: 'release_lock',
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'owner_required');
+  });
+});
+
+describe('Sessions — registerSession preserves registeredAt', () => {
+  test('re-registration does not change registeredAt', async () => {
+    const first = await db.registerSession('agent-delta', 'worker', 'node');
+    const firstRegisteredAt = first.registeredAt;
+
+    await new Promise(r => setTimeout(r, 10));
+
+    const second = await db.registerSession('agent-delta', 'worker', 'node');
+    assert.equal(
+      second.registeredAt,
+      firstRegisteredAt,
+      'registeredAt should be preserved across re-registrations',
+    );
+  });
+});
+
+describe('State — getState with LIKE metacharacter in key', () => {
+  test('key containing % does not over-match', async () => {
+    // Set two keys: one containing literal % and one that would be matched if % is treated as wildcard
+    await db.setState('meta:100%done', 'target', { mode: 'set' });
+    await db.setState('meta:100Xdone', 'decoy', { mode: 'set' });
+
+    // Query with a glob that only matches the exact key containing %
+    // We use 'meta:*' which should match both — then verify we can get exact key
+    const exact = await db.getState('meta:100%done');
+    assert.equal(exact.length, 1, 'exact lookup of key with % should return exactly 1 entry');
+    assert.equal(exact[0].value, 'target');
+
+    // Now set a key with underscore and verify exact lookup works
+    await db.setState('meta:under_score', 'target2', { mode: 'set' });
+    await db.setState('meta:underXscore', 'decoy2', { mode: 'set' });
+
+    // Glob pattern 'meta:under_score' — no *, so it's an exact lookup, should return 1
+    const exactUnderscore = await db.getState('meta:under_score');
+    assert.equal(exactUnderscore.length, 1, 'exact lookup of key with _ should return exactly 1 entry');
+    assert.equal(exactUnderscore[0].value, 'target2');
+
+    // Glob pattern with * but key contains % — should match only keys literally containing %
+    await db.setState('pct:100%match', 'pct-target', { mode: 'set' });
+    await db.setState('pct:100Xmatch', 'pct-decoy', { mode: 'set' });
+    const globPct = await db.getState('pct:*');
+    // Both should match since * is the glob
+    const keys = globPct.map(e => e.key);
+    assert.ok(keys.includes('pct:100%match'), 'glob should include key with literal %');
+    assert.ok(keys.includes('pct:100Xmatch'), 'glob should include other key');
+    // Extra check: a pattern like 'pct:100%match' (no glob *) should be exact
+    const exactPct = await db.getState('pct:100%match');
+    assert.equal(exactPct.length, 1, 'exact lookup should not treat % as wildcard');
+    assert.equal(exactPct[0].value, 'pct-target');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
 
