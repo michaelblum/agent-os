@@ -3,17 +3,2881 @@
 <head>
 <meta charset="UTF-8">
 <style>
-    html, body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: transparent;
-    }
+    html, body { margin: 0; padding: 0; overflow: hidden; background: transparent; }
     canvas { display: block; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-<script type="module" src="js/main.js"></script>
+<script>
+// ============================================================
+// BUNDLED LIVE RENDERER — single-file WKWebView compatible
+// Generated from apps/sigil/celestial/{js,live/js}/*.js
+// ES module imports/exports removed; everything in global scope.
+// ============================================================
+
+// === STATE ===
+// (from js/state.js)
+
+const state = {
+    // Three.js object references (set during init)
+    scene: null,
+    perspCamera: null,
+    orthoCamera: null,
+    camera: null,  // active camera reference
+    renderer: null,
+    polyGroup: null,
+    glowSprite: null,
+    coreSprite: null,
+    coreMesh: null,
+    wireframeMesh: null,
+    depthMesh: null,
+    pointLight: null,
+    gridHelper: null,
+    chargeSpheroid: null,
+    whiteDwarfSprite: null,
+    shockwaveSphere: null,
+    shockwaveDisk: null,
+    flashVoxel: null,
+    pathLine: null,
+
+    // Phenomena groups
+    pulsarGroup: null,
+    accretionGroup: null,
+    gammaRaysGroup: null,
+    neutrinoGroup: null,
+
+    // Materials (shared references for color updates)
+    beamMat: null,
+    diskMat: null,
+    gammaBeamMat: null,
+    neutrinoMat: null,
+
+    // Collections
+    accretionRings: [],
+    neutrinoParticles: [],
+    particles: [],
+    coloredParticles: [],
+    inwardParticles: [],
+    chargeFlares: [],
+    trailSprites: [],
+    trailPositions: [],
+
+    // Constants
+    frustumSize: 8,
+
+    // Gradient Color System
+    colors: {
+        face: ['#bc13fe', '#4a2b6e'],
+        edge: ['#bc13fe', '#4a2b6e'],
+        aura: ['#bc13fe', '#2a1b3d'],
+        pulsar: ['#ffffff', '#bc13fe'],
+        accretion: ['#bc13fe', '#4a2b6e'],
+        gamma: ['#ffffff', '#00ffff'],
+        neutrino: ['#bc13fe', '#4a2b6e'],
+        lightning: ['#ffffff', '#00ffff'],
+        magnetic: ['#bc13fe', '#4a2b6e'],
+        swarm: ['#ff00aa', '#4a2b6e'],
+        omegaFace: ['#4a2b6e', '#1a0b2e'],
+        omegaEdge: ['#bc13fe', '#4a2b6e'],
+        grid: ['#442266', '#110022']
+    },
+
+    // Geometry
+    currentOpacity: 0.25,
+    currentEdgeOpacity: 1.0,
+    idleSpinSpeed: 0.01,
+    currentGeometryType: 6,
+    stellationFactor: 0.0,
+    // Tetartoid parameters (0 <= a <= b <= c)
+    tetartoidA: 1.0,
+    tetartoidB: 1.5,
+    tetartoidC: 2.0,
+    // Torus parameters
+    torusRadius: 1.0,
+    torusTube: 0.3,
+    torusArc: 1.0,
+    // Cylinder parameters
+    cylinderTopRadius: 1.0,
+    cylinderBottomRadius: 1.0,
+    cylinderHeight: 1.0,
+    cylinderSides: 32,
+    // Box parameters
+    boxWidth: 1.0,
+    boxHeight: 1.0,
+    boxDepth: 1.0,
+    isMaskEnabled: true,
+    isInteriorEdgesEnabled: true,
+    isSpecularEnabled: true,
+    // Skin system
+    currentSkin: 'none',
+    omegaSkin: 'none',
+    skinMaterial: null,
+    omegaSkinMaterial: null,
+    skinColorRamp: null,
+    omegaSkinColorRamp: null,
+
+    // Aura
+    isAuraEnabled: true,
+    auraReach: 1.0,
+    auraIntensity: 1.0,
+    auraPulseRate: 0.005,
+    auraSpike: 0.0,
+    spikeMultiplier: 1.5,
+
+    // Cosmic Phenomena Toggles
+    isPulsarEnabled: false,
+    isAccretionEnabled: false,
+    isGammaEnabled: false,
+    isNeutrinosEnabled: false,
+
+    // Multi-instance counts
+    pulsarRayCount: 1,
+    accretionDiskCount: 1,
+    gammaRayCount: 1,
+    neutrinoJetCount: 1,
+
+    // Shared geometry refs (for multi-instance cloning)
+    pulsarGeo: null,
+    gammaGeo: null,
+
+    // Turbulence system
+    globalTime: 0,
+    turbState: {
+        p: { val: 0, spd: 1.0, mod: 'uniform' },
+        a: { val: 0, spd: 1.0, mod: 'uniform' },
+        g: { val: 0, spd: 1.0, mod: 'uniform' },
+        n: { val: 0, spd: 1.0, mod: 'uniform' }
+    },
+
+    // Lightning Arcs
+    isLightningEnabled: false,
+    lightningOriginCenter: true,
+    lightningSolidBlock: false,
+    lightningBoltLength: 100,
+    lightningFrequency: 2.0,
+    lightningDuration: 0.8,
+    lightningBranching: 0.08,
+    lightningBrightness: 1.0,
+    lightningTimer: 0,
+    lightningStrikes: [],
+
+    // Magnetic Field
+    isMagneticEnabled: false,
+    magneticTentacleSpeed: 1.0,
+    magneticTentacleCount: 10,
+    magneticWander: 3.0,
+    magneticTentacleGroup: null,
+    magneticTentacles: [],
+
+    // Omega Shape
+    isOmegaEnabled: false,
+    omegaGroup: null,
+    omegaCoreMesh: null,
+    omegaWireframeMesh: null,
+    omegaDepthMesh: null,
+    omegaGeometryType: 6,
+    omegaStellationFactor: 0.0,
+    omegaOpacity: 0.15,
+    omegaEdgeOpacity: 0.8,
+    omegaScale: 1.5,
+    omegaIsMaskEnabled: true,
+    omegaIsInteriorEdgesEnabled: true,
+    omegaIsSpecularEnabled: false,
+    omegaCounterSpin: false,
+    omegaLockPosition: false,
+    omegaInterDimensional: false,
+    omegaGhostCount: 10,
+    omegaGhostMode: 'fade',
+    omegaGhostDuration: 2.0,
+    omegaGhosts: [],
+    omegaGhostMeshPool: [],
+    omegaLagFactor: 0.05,
+    omegaGhostTimer: 0,
+
+    // Voxel flash
+    voxelFlashTimer: 0,
+
+    // Super Charge/Nova
+    isCharging: false,
+    chargeLevel: 0,
+    chargeTime: 0,
+    chargeReleaseTimer: 0,
+    wasFullCharge: false,
+    collapseTime: 0,
+
+    // Super Nova
+    isDestroyed: false,
+    superNovaTimer: 5.0,
+    isRespawning: false,
+    respawnTimer: 0,
+    novaScale: 1.0,
+
+    // Shockwave
+    isShockwaveActive: false,
+    shockwaveTime: 0,
+
+    // Quick Spin
+    quickSpinActive: false,
+    quickSpinAxis: null,
+    quickSpinSpeed: 0,
+    quickSpinEndTime: 0,
+
+    // Grid (unified — off / flat / 3d)
+    gridMode: 'flat',
+
+    // Particle Swarm (standalone phenomenon)
+    isSwarmEnabled: false,
+    swarmCount: 2000,
+    swarmGravity: 60,
+    swarmTimeScale: 1.0,
+    swarmEventHorizon: 2.0,
+    swarmAbsorbed: 0,
+    swarmMesh: null,
+
+    // Black Hole Mode (standalone — affects swarm gravity + shows disk)
+    isBlackHoleMode: false,
+    blackHoleDiskMesh: null,
+    blackHoleHaloMesh: null,
+
+    // Grid 3D settings (shared by flat and 3d modes)
+    grid3dRenderMode: 'wireframe',
+    grid3dDensity: 16,
+    grid3dRenderRadius: 30.0,
+    grid3dSnowGlobe: false,
+    grid3dShowProbe: false,
+    grid3dTimeScale: 1.0,
+    grid3dRelativeMotion: false,
+    grid3dTime: 0,
+    // 3D Grid object refs (set during init)
+    grid3dMesh: null,
+    grid3dPointCloud: null,
+    grid3dProbeMesh: null,
+    grid3dGlobeMesh: null,
+
+    // Skybox refs
+    skyboxVisible: true,
+    skyboxNebula: null,
+    skyboxStars: null,
+    skyboxHeroStars: null,
+
+    // Performance stats
+    statsVisible: false,
+    stats: null,
+
+    // Scale / Depth
+    depth_range: { min: 0.25, max: 3.0 },
+    z_depth: 1.1,
+    scale_anim_active: false,
+    target_z_depth: 1.1,
+    scale_anim_start_val: 1.1,
+    scale_anim_start_time: 0,
+    steps: 3,
+    active_step: -1,
+
+    // Drag & Momentum
+    isDraggingObject: false,
+    isPanningCamera: false,
+    isPanningObject: false,
+    previousMouse: { x: 0, y: 0 },
+    dragVelocity: { x: 0, y: 0 },
+    lastMoveTime: 0,
+    dragMomentumAxis: null,
+    dragMomentumSpeed: 0,
+    isMenuOpen: false,
+
+    // Movement / Pathing
+    targetPosition: null,
+    moveRotationAxis: null,
+    moveRotationSpeed: 0,
+    isPathEnabled: false,
+    isCenteredView: false,
+    pathType: 'direct',
+    isPaused: false,
+    pathSpeed: 1.0,
+
+    // Path Visuals
+    isShowPathEnabled: false,
+    isTrailEnabled: false,
+    trailLength: 50,
+
+    // Path coordinates (set during init)
+    pathPoints: null,
+    smoothCurve: null,
+    pathProgress: 0,
+    currentPathIndex: 0,
+    segmentProgress: 0,
+
+    // Force aura visible flag (used during charge)
+    forceAuraVisible: false,
+
+    // Charge beam sequence state (saved/restored during supernova charge)
+    chargeSequence: null
+};
+
+// === SHADERS ===
+// (from js/shaders/noise.js)
+
+const simplex3D = /* glsl */ `
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+float snoise(vec3 v) {
+  const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+
+  i = mod289(i);
+  vec4 p = permute(permute(permute(
+              i.z + vec4(0.0, i1.z, i2.z, 1.0))
+            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+            + i.x + vec4(0.0, i1.x, i2.x, 1.0)));
+
+  float n_ = 0.142857142857;
+  vec3 ns = n_ * D.wyz - D.xzx;
+
+  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+  vec4 x_ = floor(j * ns.z);
+  vec4 y_ = floor(j - 7.0 * x_);
+
+  vec4 x = x_ * ns.x + ns.yyyy;
+  vec4 y = y_ * ns.x + ns.yyyy;
+  vec4 h = 1.0 - abs(x) - abs(y);
+
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+
+  vec4 s0 = floor(b0) * 2.0 + 1.0;
+  vec4 s1 = floor(b1) * 2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+
+  vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+
+  vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+
+  vec4 m = max(0.5 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+  m = m * m;
+  return 105.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+}
+`;
+
+const fbm = /* glsl */ `
+float fbm(vec3 p, int octaves) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  float frequency = 1.0;
+
+  for (int i = 0; i < 6; i++) {
+    if (i >= octaves) break;
+    value += amplitude * snoise(p * frequency);
+    frequency *= 2.0;
+    amplitude *= 0.5;
+  }
+
+  return value;
+}
+`;
+
+// (from js/shaders/fresnel.js)
+
+const fresnel = /* glsl */ `
+float fresnelEdge(vec3 normal, vec3 viewDir, float power) {
+  float f = abs(dot(normalize(normal), normalize(viewDir)));
+  return pow(1.0 - clamp(f, 0.0, 1.0), power);
+}
+
+float limbDarkening(vec3 normal, vec3 viewDir, float power) {
+  float cosAngle = max(dot(normalize(normal), normalize(viewDir)), 0.0);
+  return pow(cosAngle, power);
+}
+`;
+
+// (from js/shaders/skin-shaders.js)
+
+const skinVertexShader = /* glsl */ `
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+varying vec2 vUv;
+
+void main() {
+  vPosition = position;
+  vNormal = normalize(mat3(modelMatrix) * normal);
+  vUv = uv;
+
+  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+  vWorldPosition = worldPosition.xyz;
+
+  gl_Position = projectionMatrix * viewMatrix * worldPosition;
+}
+`;
+
+const skinFragmentShader = /* glsl */ `
+${simplex3D}
+${fbm}
+${fresnel}
+
+uniform float time;
+uniform float noiseScale;
+uniform int noiseOctaves;
+uniform float roughness;
+uniform sampler2D colorRamp;
+uniform int skinType;        // 0=rocky, 1=gas-giant, 2=ice, 3=volcanic, 4=solar
+uniform vec3 lightPosition;
+uniform float uOpacity;
+uniform float uSpecular;
+
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying vec3 vWorldPosition;
+varying vec2 vUv;
+
+void main() {
+  vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+
+  // -- Solar (type 4): self-luminous, no external lighting --
+  if (skinType == 4) {
+    vec3 noisePos = vPosition * noiseScale + vec3(time * 0.03, time * 0.021, 0.0);
+    float noise = fbm(noisePos, 4);
+    float largeCells = snoise(vPosition * noiseScale * 0.3 + vec3(time * 0.006));
+    float surfaceBrightness = 0.7 + noise * 0.25 + largeCells * 0.15;
+    float hotSpots = smoothstep(0.3, 0.6, noise) * 0.4;
+    surfaceBrightness += hotSpots;
+
+    vec3 baseColor = texture2D(colorRamp, vec2(0.5, 0.5)).rgb;
+    vec3 hotColor = mix(baseColor, vec3(1.0), 0.5);
+    vec3 coolColor = baseColor * 0.6;
+    vec3 surfaceColor = mix(coolColor, hotColor, surfaceBrightness);
+
+    float limb = limbDarkening(vNormal, viewDir, 0.6);
+    surfaceColor *= (0.4 + 0.6 * limb);
+
+    float edgeGlow = fresnelEdge(vNormal, viewDir, 3.0);
+    surfaceColor += baseColor * edgeGlow * 0.3;
+
+    gl_FragColor = vec4(surfaceColor, uOpacity);
+    return;
+  }
+
+  // -- Planet types (0-3): externally lit --
+  float noise = 0.0;
+
+  if (skinType == 1) {
+    float latitude = vPosition.y * 3.0;
+    float bands = sin(latitude * 8.0 + snoise(vPosition * 2.0) * 0.5) * 0.5 + 0.5;
+    float storms = smoothstep(0.4, 0.6, snoise(vPosition * noiseScale * 0.5 + vec3(time * 0.02, 0.0, 0.0)));
+    noise = bands * 0.7 + storms * 0.3;
+  } else if (skinType == 3) {
+    float terrain = fbm(vPosition * noiseScale, 4);
+    float cracks = 1.0 - smoothstep(0.0, 0.1, abs(terrain));
+    noise = terrain * 0.5 + 0.5;
+    if (cracks > 0.3) {
+      noise = 0.95;
+    }
+  } else {
+    noise = fbm(vPosition * noiseScale, noiseOctaves);
+    noise = noise * 0.5 + 0.5;
+    noise += snoise(vPosition * noiseScale * 8.0) * roughness * 0.1;
+  }
+
+  if (skinType == 2) {
+    float polar = abs(vPosition.y) / max(length(vPosition), 0.001);
+    float iceCap = smoothstep(0.5, 0.8, polar);
+    noise = mix(noise, 1.0, iceCap);
+  }
+
+  noise = clamp(noise, 0.0, 1.0);
+  vec3 surfaceColor = texture2D(colorRamp, vec2(noise, 0.5)).rgb;
+
+  vec3 lightDir = normalize(lightPosition - vWorldPosition);
+  float diffuse = max(dot(vNormal, lightDir), 0.0);
+
+  vec3 halfDir = normalize(lightDir + viewDir);
+  float spec = pow(max(dot(vNormal, halfDir), 0.0), 32.0) * 0.4 * uSpecular;
+
+  float lighting = diffuse * 1.4 + spec;
+
+  if (skinType == 3) {
+    float terrain = fbm(vPosition * noiseScale, 4);
+    float cracks = 1.0 - smoothstep(0.0, 0.08, abs(terrain));
+    surfaceColor += vec3(1.0, 0.3, 0.0) * cracks * 2.0;
+  }
+
+  gl_FragColor = vec4(surfaceColor * lighting, uOpacity);
+}
+`;
+
+// === FX REGISTRY ===
+// (from js/fx-registry.js)
+
+const EFFECTS = [
+    { id: 'pulsar',    emoji: '\uD83D\uDCA0', label: 'Pulsar',     sidebarId: 'pulsarToggle', subMenuId: 'ctx-sub-pulsar' },
+    { id: 'accretion', emoji: '\uD83C\uDF00', label: 'Accretion',  sidebarId: 'accretionToggle', subMenuId: 'ctx-sub-accretion' },
+    { id: 'gamma',     emoji: '\u2622\uFE0F',  label: 'Gamma',      sidebarId: 'gammaToggle', subMenuId: 'ctx-sub-gamma' },
+    { id: 'neutrino',  emoji: '\uD83D\uDD35', label: 'Neutrino',   sidebarId: 'neutrinoToggle', subMenuId: 'ctx-sub-neutrino' },
+    { id: 'lightning', emoji: '\u26A1',        label: 'Lightning',  sidebarId: 'lightningToggle',  subMenuId: 'ctx-sub-lightning' },
+    { id: 'magnetic',  emoji: '\uD83E\uDDF2', label: 'Magnetic',   sidebarId: 'magneticToggle',   subMenuId: 'ctx-sub-magnetic' },
+    { id: 'swarm',     emoji: '\u2728',        label: 'Swarm',      sidebarId: 'swarmToggle',      subMenuId: 'ctx-sub-swarm' },
+    { id: 'aura',      emoji: '\uD83D\uDD2E', label: 'Aura',       sidebarId: 'auraToggle',       subMenuId: 'ctx-sub-aura' },
+];
+
+// === COLORS ===
+// (from js/colors.js)
+
+function hexToRgba(hex, alpha) {
+    let c;
+    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+        c = hex.substring(1).split('');
+        if (c.length === 3) {
+            c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+        }
+        c = '0x' + c.join('');
+        return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + alpha + ')';
+    }
+    return `rgba(255,255,255,${alpha})`;
+}
+
+function updateMaterialTexture(material, canvasDrawer) {
+    const canvas = document.createElement('canvas');
+    canvasDrawer(canvas, canvas.getContext('2d'));
+    const newTexture = new THREE.CanvasTexture(canvas);
+    if (material.map) material.map.dispose();
+    material.map = newTexture;
+    material.color.setHex(0xffffff);
+    material.needsUpdate = true;
+    return newTexture;
+}
+
+function drawAuraTexture(canvas, ctx, c1, c2, isCore) {
+    canvas.width = 128; canvas.height = 128;
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    if (isCore) {
+        grad.addColorStop(0, hexToRgba(c1, 1.0));
+        grad.addColorStop(0.5, hexToRgba(c2, 0.4));
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+    } else {
+        grad.addColorStop(0, hexToRgba(c1, 0.8));
+        grad.addColorStop(0.5, hexToRgba(c2, 0.2));
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+}
+
+function drawPulsarTexture(canvas, ctx, c1, c2) {
+    canvas.width = 16; canvas.height = 256;
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, hexToRgba(c2, 0));
+    grad.addColorStop(0.5, hexToRgba(c1, 1));
+    grad.addColorStop(1, hexToRgba(c2, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 16, 256);
+}
+
+function drawGammaTexture(canvas, ctx, c1, c2) {
+    canvas.width = 16; canvas.height = 256;
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, hexToRgba(c2, 0));
+    grad.addColorStop(0.3, hexToRgba(c2, 0.05));
+    grad.addColorStop(0.5, hexToRgba(c1, 1));
+    grad.addColorStop(0.7, hexToRgba(c2, 0.05));
+    grad.addColorStop(1, hexToRgba(c2, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 16, 256);
+}
+
+function drawAccretionTexture(canvas, ctx, c1, c2) {
+    canvas.width = 512; canvas.height = 512;
+    const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+    grad.addColorStop(0, hexToRgba(c1, 1));
+    grad.addColorStop(0.75, hexToRgba(c2, 1));
+    grad.addColorStop(1, hexToRgba(c2, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+}
+
+function drawWhiteDwarf(canvas, ctx) {
+    canvas.width = 128; canvas.height = 128;
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.2, 'rgba(255, 255, 255, 1.0)');
+    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+}
+
+function updateFaceVertexColors() {
+    if (!state.coreMesh) return;
+    if (state.currentSkin !== 'none' && state.skinMaterial) { updateSkinColorRamp(false); return; }
+    const geo = state.coreMesh.geometry;
+    const count = geo.attributes.position.count;
+    if (!geo.attributes.color || geo.attributes.color.count !== count) {
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    }
+    const col = geo.attributes.color;
+    geo.computeBoundingBox();
+    const min = geo.boundingBox.min.y;
+    const range = (geo.boundingBox.max.y - min) || 1;
+    const c1 = new THREE.Color(state.colors.face[0]);
+    const c2 = new THREE.Color(state.colors.face[1]);
+    const tC = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+        col.setXYZ(i, tC.r, tC.g, tC.b);
+    }
+    col.needsUpdate = true;
+    state.coreMesh.material.vertexColors = true;
+    state.coreMesh.material.color.setHex(0xffffff);
+    if (state.coreMesh.material.map) { state.coreMesh.material.map.dispose(); state.coreMesh.material.map = null; }
+    state.coreMesh.material.needsUpdate = true;
+}
+
+function updateEdgeVertexColors() {
+    if (!state.wireframeMesh) return;
+    const geo = state.wireframeMesh.geometry;
+    const count = geo.attributes.position.count;
+    if (!geo.attributes.color || geo.attributes.color.count !== count) {
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    }
+    const col = geo.attributes.color;
+    geo.computeBoundingBox();
+    const min = geo.boundingBox.min.y;
+    const range = (geo.boundingBox.max.y - min) || 1;
+    const c1 = new THREE.Color(state.colors.edge[0]);
+    const c2 = new THREE.Color(state.colors.edge[1]);
+    const tC = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+        col.setXYZ(i, tC.r, tC.g, tC.b);
+    }
+    col.needsUpdate = true;
+    state.wireframeMesh.material.vertexColors = true;
+    state.wireframeMesh.material.color.setHex(0xffffff);
+    state.wireframeMesh.material.needsUpdate = true;
+}
+
+function updateAllColors() {
+    updateFaceVertexColors();
+    updateEdgeVertexColors();
+
+    // Update grid colors (grid not used in live mode, skip if missing)
+    if (state.gridHelper && state.gridHelper.visible) {
+        const pos = state.gridHelper.geometry.attributes.basePosition;
+        const col = state.gridHelper.geometry.attributes.color;
+        const c1 = new THREE.Color(state.colors.grid[0]);
+        const c2 = new THREE.Color(state.colors.grid[1]);
+        const tC = new THREE.Color();
+        for (let i = 0; i < pos.count; i++) {
+            let dist = Math.sqrt(Math.pow(pos.getX(i), 2) + Math.pow(pos.getY(i), 2));
+            tC.copy(c1).lerp(c2, Math.min(dist / 50.0, 1.0));
+            col.setXYZ(i, tC.r, tC.g, tC.b);
+        }
+        col.needsUpdate = true;
+    }
+
+    // Point light
+    state.pointLight.color.copy(
+        new THREE.Color(state.colors.face[0]).lerp(new THREE.Color(state.colors.face[1]), 0.5)
+    );
+
+    // Path line
+    if (state.pathLine) state.pathLine.material.color.copy(new THREE.Color(state.colors.edge[0]));
+
+    // Aura textures
+    updateMaterialTexture(state.glowSprite.material, (canv, ctx) =>
+        drawAuraTexture(canv, ctx, state.colors.aura[0], state.colors.aura[1], false));
+    let coreTex = updateMaterialTexture(state.coreSprite.material, (canv, ctx) =>
+        drawAuraTexture(canv, ctx, state.colors.aura[0], state.colors.aura[1], true));
+    updateMaterialTexture(state.chargeSpheroid.material, (canv, ctx) =>
+        drawAuraTexture(canv, ctx, '#ffffff', state.colors.aura[0], true));
+
+    // Trail sprites share the core texture
+    state.trailSprites.forEach(s => s.material.map = coreTex);
+
+    // Phenomena textures
+    updateMaterialTexture(state.beamMat, (canv, ctx) =>
+        drawPulsarTexture(canv, ctx, state.colors.pulsar[0], state.colors.pulsar[1]));
+    updateMaterialTexture(state.gammaBeamMat, (canv, ctx) =>
+        drawGammaTexture(canv, ctx, state.colors.gamma[0], state.colors.gamma[1]));
+    updateMaterialTexture(state.diskMat, (canv, ctx) =>
+        drawAccretionTexture(canv, ctx, state.colors.accretion[0], state.colors.accretion[1]));
+    updateMaterialTexture(state.neutrinoMat, (canv, ctx) =>
+        drawAuraTexture(canv, ctx, state.colors.neutrino[0], state.colors.neutrino[1], true));
+
+    // Lightning, magnetic, omega colors
+    updateLightningColors();
+    updateMagneticColors();
+    updateOmegaColors();
+}
+
+// === SKINS ===
+// (from js/skins.js)
+
+const SKIN_TYPE_MAP = {
+    'rocky': 0,
+    'gas-giant': 1,
+    'ice': 2,
+    'volcanic': 3,
+    'solar': 4
+};
+
+function createColorRampTexture(hex1, hex2) {
+    const data = new Uint8Array(256 * 4);
+    const c1 = new THREE.Color(hex1);
+    const c2 = new THREE.Color(hex2);
+    const tmp = new THREE.Color();
+
+    for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        tmp.copy(c1).lerp(c2, t);
+        data[i * 4 + 0] = Math.round(tmp.r * 255);
+        data[i * 4 + 1] = Math.round(tmp.g * 255);
+        data[i * 4 + 2] = Math.round(tmp.b * 255);
+        data[i * 4 + 3] = 255;
+    }
+
+    const tex = new THREE.DataTexture(data, 256, 1, THREE.RGBAFormat);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    return tex;
+}
+
+function updateSkinColorRamp(isOmega) {
+    const ramp = isOmega ? state.omegaSkinColorRamp : state.skinColorRamp;
+    if (!ramp) return;
+
+    const colors = isOmega ? state.colors.omegaFace : state.colors.face;
+    const c1 = new THREE.Color(colors[0]);
+    const c2 = new THREE.Color(colors[1]);
+    const tmp = new THREE.Color();
+    const data = ramp.image.data;
+
+    for (let i = 0; i < 256; i++) {
+        const t = i / 255;
+        tmp.copy(c1).lerp(c2, t);
+        data[i * 4 + 0] = Math.round(tmp.r * 255);
+        data[i * 4 + 1] = Math.round(tmp.g * 255);
+        data[i * 4 + 2] = Math.round(tmp.b * 255);
+    }
+    ramp.needsUpdate = true;
+}
+
+function createSkinMaterial(skinName, faceColors, opacity, isSpecular) {
+    const skinType = SKIN_TYPE_MAP[skinName];
+    if (skinType === undefined) return null;
+
+    const colorRamp = createColorRampTexture(faceColors[0], faceColors[1]);
+
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0.0 },
+            noiseScale: { value: 3.0 },
+            noiseOctaves: { value: 4 },
+            roughness: { value: 0.3 },
+            colorRamp: { value: colorRamp },
+            skinType: { value: skinType },
+            lightPosition: { value: new THREE.Vector3(5, 5, 5) },
+            uOpacity: { value: opacity },
+            uSpecular: { value: isSpecular ? 1.0 : 0.0 }
+        },
+        vertexShader: skinVertexShader,
+        fragmentShader: skinFragmentShader,
+        transparent: opacity < 0.99,
+        depthWrite: opacity >= 0.99,
+        side: opacity >= 0.99 ? THREE.FrontSide : THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 1,
+        polygonOffsetUnits: 1
+    });
+
+    return { material, colorRamp };
+}
+
+function applySkin(skinName, isOmega) {
+    const mesh = isOmega ? state.omegaCoreMesh : state.coreMesh;
+    if (!mesh) return;
+
+    if (isOmega) {
+        state.omegaSkin = skinName;
+    } else {
+        state.currentSkin = skinName;
+    }
+
+    if (skinName === 'none') {
+        const oldMat = isOmega ? state.omegaSkinMaterial : state.skinMaterial;
+        const oldRamp = isOmega ? state.omegaSkinColorRamp : state.skinColorRamp;
+        if (oldMat) oldMat.dispose();
+        if (oldRamp) oldRamp.dispose();
+
+        if (isOmega) {
+            state.omegaSkinMaterial = null;
+            state.omegaSkinColorRamp = null;
+        } else {
+            state.skinMaterial = null;
+            state.skinColorRamp = null;
+        }
+
+        const opacity = isOmega ? state.omegaOpacity : state.currentOpacity;
+        const specEnabled = isOmega ? state.omegaIsSpecularEnabled : state.isSpecularEnabled;
+        const isSolid = opacity >= 0.99;
+        const newMat = new THREE.MeshPhongMaterial({
+            transparent: !isSolid,
+            opacity: opacity,
+            shininess: specEnabled ? 80 : 0,
+            specular: specEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+            side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
+            depthWrite: isSolid,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        });
+        mesh.material = newMat;
+        return;
+    }
+
+    const opacity = isOmega ? state.omegaOpacity : state.currentOpacity;
+    const specEnabled = isOmega ? state.omegaIsSpecularEnabled : state.isSpecularEnabled;
+    const faceColors = isOmega ? state.colors.omegaFace : state.colors.face;
+
+    const result = createSkinMaterial(skinName, faceColors, opacity, specEnabled);
+    if (!result) return;
+
+    const oldMat = mesh.material;
+    if (oldMat) oldMat.dispose();
+    const oldRamp = isOmega ? state.omegaSkinColorRamp : state.skinColorRamp;
+    if (oldRamp) oldRamp.dispose();
+
+    mesh.material = result.material;
+
+    if (isOmega) {
+        state.omegaSkinMaterial = result.material;
+        state.omegaSkinColorRamp = result.colorRamp;
+    } else {
+        state.skinMaterial = result.material;
+        state.skinColorRamp = result.colorRamp;
+    }
+}
+
+function animateSkins(dt) {
+    [state.skinMaterial, state.omegaSkinMaterial].forEach(mat => {
+        if (!mat) return;
+        mat.uniforms.time.value += dt;
+        mat.uniforms.lightPosition.value.set(5, 5, 5);
+    });
+}
+
+// === GEOMETRY ===
+// (from js/geometry.js)
+
+function createStellatedGeometry(baseGeometry, factor) {
+    const nonIndexed = baseGeometry.toNonIndexed();
+    if (Math.abs(factor) < 0.01) { nonIndexed.computeVertexNormals(); return nonIndexed; }
+    const positionAttribute = nonIndexed.getAttribute('position');
+    const count = positionAttribute.count;
+    const newVertices = [];
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+    const centroid = new THREE.Vector3(), normal = new THREE.Vector3();
+    const cb = new THREE.Vector3(), ab = new THREE.Vector3();
+
+    for (let i = 0; i < count; i += 3) {
+        vA.fromBufferAttribute(positionAttribute, i);
+        vB.fromBufferAttribute(positionAttribute, i + 1);
+        vC.fromBufferAttribute(positionAttribute, i + 2);
+        centroid.copy(vA).add(vB).add(vC).divideScalar(3);
+        cb.subVectors(vC, vB); ab.subVectors(vA, vB);
+        normal.crossVectors(cb, ab).normalize();
+        const peak = new THREE.Vector3().copy(centroid).add(normal.multiplyScalar(factor));
+
+        newVertices.push(vA.x, vA.y, vA.z, vB.x, vB.y, vB.z, peak.x, peak.y, peak.z);
+        newVertices.push(vB.x, vB.y, vB.z, vC.x, vC.y, vC.z, peak.x, peak.y, peak.z);
+        newVertices.push(vC.x, vC.y, vC.z, vA.x, vA.y, vA.z, peak.x, peak.y, peak.z);
+    }
+    const stellatedGeometry = new THREE.BufferGeometry();
+    stellatedGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newVertices, 3));
+    stellatedGeometry.computeVertexNormals();
+    return stellatedGeometry;
+}
+
+function createTetartoid(size, a, b, c) {
+    const params = [Math.abs(a), Math.abs(b), Math.abs(c)].sort((x, y) => x - y);
+    const pa = params[0], pb = params[1], pc = params[2];
+
+    const n  = pa * pa * pc - pb * pc * pc;
+    const d1 = pa * pa - pa * pb + pb * pb + pa * pc - 2 * pb * pc;
+    const d2 = pa * pa + pa * pb + pb * pb - pa * pc - 2 * pb * pc;
+
+    if (Math.abs(n * d1 * d2) < 1e-10) {
+        return new THREE.DodecahedronGeometry(size, 0);
+    }
+
+    const r2 = n / d1;
+    const r3 = n / d2;
+
+    const seed = [
+        [pa, pb, pc],
+        [-pa, -pb, pc],
+        [-r2, -r2, r2],
+        [-pc, -pa, pb],
+        [-r3, r3, r3],
+    ];
+
+    const rotations = [
+        ([x, y, z]) => [ x,  y,  z],
+        ([x, y, z]) => [-x, -y,  z],
+        ([x, y, z]) => [-x,  y, -z],
+        ([x, y, z]) => [ x, -y, -z],
+        ([x, y, z]) => [ z,  x,  y],
+        ([x, y, z]) => [-z, -x,  y],
+        ([x, y, z]) => [-z,  x, -y],
+        ([x, y, z]) => [ z, -x, -y],
+        ([x, y, z]) => [ y,  z,  x],
+        ([x, y, z]) => [-y,  z, -x],
+        ([x, y, z]) => [ y, -z, -x],
+        ([x, y, z]) => [-y, -z,  x],
+    ];
+
+    const faces = [];
+    for (const rot of rotations) {
+        faces.push(seed.map(v => rot(v)));
+    }
+
+    const EPS = 1e-8;
+    const uniqueVerts = [];
+    const vertIndex = new Map();
+
+    function getVertIndex(v) {
+        const key = v.map(c => Math.round(c / EPS) * EPS).join(',');
+        if (vertIndex.has(key)) return vertIndex.get(key);
+        const idx = uniqueVerts.length;
+        uniqueVerts.push(v);
+        vertIndex.set(key, idx);
+        return idx;
+    }
+
+    const faceIndices = [];
+    for (const face of faces) {
+        faceIndices.push(face.map(v => getVertIndex(v)));
+    }
+
+    const positions = [];
+    for (const fi of faceIndices) {
+        for (let t = 1; t < 4; t++) {
+            const v0 = uniqueVerts[fi[0]];
+            const v1 = uniqueVerts[fi[t]];
+            const v2 = uniqueVerts[fi[t + 1]];
+            positions.push(v0[0], v0[1], v0[2]);
+            positions.push(v1[0], v1[1], v1[2]);
+            positions.push(v2[0], v2[1], v2[2]);
+        }
+    }
+
+    let maxR = 0;
+    for (const v of uniqueVerts) {
+        const r = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (r > maxR) maxR = r;
+    }
+    const scale = maxR > 0 ? size / maxR : size;
+    for (let i = 0; i < positions.length; i++) {
+        positions[i] *= scale;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.computeVertexNormals();
+    return geo;
+}
+
+function updateGeometry(type) {
+    if (state.coreMesh) state.polyGroup.remove(state.coreMesh);
+    if (state.wireframeMesh) state.polyGroup.remove(state.wireframeMesh);
+    if (state.depthMesh) state.polyGroup.remove(state.depthMesh);
+
+    let baseGeometry;
+    const size = 1.0;
+    switch (type) {
+        case 4: baseGeometry = new THREE.TetrahedronGeometry(size); break;
+        case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
+        case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
+        case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
+        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
+        case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
+        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
+        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides); break;
+        case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
+        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
+    }
+
+    const finalGeometry = createStellatedGeometry(baseGeometry, state.stellationFactor);
+
+    const depthMat = new THREE.MeshBasicMaterial({
+        colorWrite: false, side: THREE.FrontSide, depthWrite: true,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+    state.depthMesh = new THREE.Mesh(finalGeometry, depthMat);
+    state.depthMesh.renderOrder = 2;
+    state.depthMesh.visible = !state.isInteriorEdgesEnabled;
+    state.polyGroup.add(state.depthMesh);
+
+    const isSolid = state.currentOpacity >= 0.99;
+    const coreMat = new THREE.MeshPhongMaterial({
+        transparent: !isSolid, opacity: state.currentOpacity,
+        shininess: state.isSpecularEnabled ? 80 : 0,
+        specular: state.isSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+        side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
+        depthWrite: isSolid,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+    state.coreMesh = new THREE.Mesh(finalGeometry, coreMat);
+    state.coreMesh.renderOrder = 3;
+    state.coreMesh.visible = !state.isMaskEnabled;
+    state.polyGroup.add(state.coreMesh);
+
+    const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
+    const edgeMat = new THREE.LineBasicMaterial({
+        linewidth: 2, depthTest: true, transparent: true, opacity: state.currentEdgeOpacity
+    });
+    state.wireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+    state.wireframeMesh.renderOrder = 4;
+    state.polyGroup.add(state.wireframeMesh);
+
+    updateFaceVertexColors();
+    updateEdgeVertexColors();
+    if (state.currentSkin !== 'none') applySkin(state.currentSkin, false);
+}
+
+function updateOmegaGeometry(type) {
+    if (state.omegaCoreMesh) state.omegaGroup.remove(state.omegaCoreMesh);
+    if (state.omegaWireframeMesh) state.omegaGroup.remove(state.omegaWireframeMesh);
+    if (state.omegaDepthMesh) state.omegaGroup.remove(state.omegaDepthMesh);
+
+    let baseGeometry;
+    const size = 1.0;
+    switch (type) {
+        case 4: baseGeometry = new THREE.TetrahedronGeometry(size); break;
+        case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
+        case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
+        case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
+        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
+        case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
+        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
+        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides); break;
+        case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
+        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
+    }
+
+    const finalGeometry = createStellatedGeometry(baseGeometry, state.omegaStellationFactor);
+
+    const depthMat = new THREE.MeshBasicMaterial({
+        colorWrite: false, side: THREE.FrontSide, depthWrite: true,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+    state.omegaDepthMesh = new THREE.Mesh(finalGeometry, depthMat);
+    state.omegaDepthMesh.renderOrder = 2;
+    state.omegaDepthMesh.visible = !state.omegaIsInteriorEdgesEnabled;
+    state.omegaGroup.add(state.omegaDepthMesh);
+
+    const isSolid = state.omegaOpacity >= 0.99;
+    const coreMat = new THREE.MeshPhongMaterial({
+        transparent: !isSolid, opacity: state.omegaOpacity,
+        shininess: state.omegaIsSpecularEnabled ? 80 : 0,
+        specular: state.omegaIsSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+        side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
+        depthWrite: isSolid,
+        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    });
+    state.omegaCoreMesh = new THREE.Mesh(finalGeometry, coreMat);
+    state.omegaCoreMesh.renderOrder = 3;
+    state.omegaCoreMesh.visible = !state.omegaIsMaskEnabled;
+    state.omegaGroup.add(state.omegaCoreMesh);
+
+    const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
+    const edgeMat = new THREE.LineBasicMaterial({
+        linewidth: 2, depthTest: true, transparent: true, opacity: state.omegaEdgeOpacity
+    });
+    state.omegaWireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
+    state.omegaWireframeMesh.renderOrder = 4;
+    state.omegaGroup.add(state.omegaWireframeMesh);
+
+    _updateOmegaFaceVertexColors();
+    _updateOmegaEdgeVertexColors();
+    if (state.omegaSkin !== 'none') applySkin(state.omegaSkin, true);
+}
+
+function _updateOmegaFaceVertexColors() {
+    if (!state.omegaCoreMesh) return;
+    if (state.omegaSkin !== 'none' && state.omegaSkinMaterial) { updateSkinColorRamp(true); return; }
+    const geo = state.omegaCoreMesh.geometry;
+    const count = geo.attributes.position.count;
+    if (!geo.attributes.color || geo.attributes.color.count !== count) {
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    }
+    const col = geo.attributes.color;
+    geo.computeBoundingBox();
+    const min = geo.boundingBox.min.y;
+    const range = (geo.boundingBox.max.y - min) || 1;
+    const c1 = new THREE.Color(state.colors.omegaFace[0]);
+    const c2 = new THREE.Color(state.colors.omegaFace[1]);
+    const tC = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+        col.setXYZ(i, tC.r, tC.g, tC.b);
+    }
+    col.needsUpdate = true;
+    state.omegaCoreMesh.material.vertexColors = true;
+    state.omegaCoreMesh.material.color.setHex(0xffffff);
+    if (state.omegaCoreMesh.material.map) { state.omegaCoreMesh.material.map.dispose(); state.omegaCoreMesh.material.map = null; }
+    state.omegaCoreMesh.material.needsUpdate = true;
+}
+
+function _updateOmegaEdgeVertexColors() {
+    if (!state.omegaWireframeMesh) return;
+    const geo = state.omegaWireframeMesh.geometry;
+    const count = geo.attributes.position.count;
+    if (!geo.attributes.color || geo.attributes.color.count !== count) {
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    }
+    const col = geo.attributes.color;
+    geo.computeBoundingBox();
+    const min = geo.boundingBox.min.y;
+    const range = (geo.boundingBox.max.y - min) || 1;
+    const c1 = new THREE.Color(state.colors.omegaEdge[0]);
+    const c2 = new THREE.Color(state.colors.omegaEdge[1]);
+    const tC = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+        col.setXYZ(i, tC.r, tC.g, tC.b);
+    }
+    col.needsUpdate = true;
+    state.omegaWireframeMesh.material.vertexColors = true;
+    state.omegaWireframeMesh.material.color.setHex(0xffffff);
+    state.omegaWireframeMesh.material.needsUpdate = true;
+}
+
+// === PHENOMENA ===
+// (from js/phenomena.js)
+
+function getTurbulence(time, speed, mode, index, count, seed) {
+    let t = time * speed;
+    let phase = 0;
+    if (mode === 'staggered') {
+        phase = count > 1 ? index * (Math.PI * 2 / count) : 0;
+    } else if (mode === 'random') {
+        phase = seed * Math.PI * 2;
+    }
+    return (Math.sin(t + phase) + Math.sin(1.72 * t + phase * 1.5 + 1.2) + Math.sin(2.31 * t + phase * 0.7 + 2.5)) / 3.0;
+}
+
+function distributeGroupChildren(group, count) {
+    if (!group) return;
+    const phi = Math.PI * (3.0 - Math.sqrt(5.0));
+    for (let i = 0; i < group.children.length; i++) {
+        let child = group.children[i];
+        if (i < count) {
+            child.visible = true;
+            let y = 1.0 - (i / count);
+            let radius = Math.sqrt(1 - y * y);
+            let theta = phi * i;
+            let dir = new THREE.Vector3(radius * Math.cos(theta), y, radius * Math.sin(theta)).normalize();
+            child.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        } else {
+            child.visible = false;
+        }
+    }
+}
+
+function updatePulsars(count) {
+    if (!state.pulsarGroup || !state.pulsarGeo || !state.beamMat) return;
+    while (state.pulsarGroup.children.length < count) {
+        let m = new THREE.Mesh(state.pulsarGeo, state.beamMat);
+        m.userData.seed = Math.random();
+        state.pulsarGroup.add(m);
+    }
+    distributeGroupChildren(state.pulsarGroup, count);
+}
+
+function updateGammaRays(count) {
+    if (!state.gammaRaysGroup || !state.gammaGeo || !state.gammaBeamMat) return;
+    while (state.gammaRaysGroup.children.length < count) {
+        let m = new THREE.Mesh(state.gammaGeo, state.gammaBeamMat);
+        m.userData.seed = Math.random();
+        state.gammaRaysGroup.add(m);
+    }
+    distributeGroupChildren(state.gammaRaysGroup, count);
+}
+
+function updateAccretion(count) {
+    if (!state.accretionGroup || !state.diskMat) return;
+    while (state.accretionGroup.children.length < count) {
+        let singleDiskGroup = new THREE.Group();
+        singleDiskGroup.userData.seed = Math.random();
+        let diskMesh = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.0, 128), state.diskMat);
+        diskMesh.rotation.x = Math.PI / 2;
+        singleDiskGroup.add(diskMesh);
+
+        for (let i = 0; i < 10; i++) {
+            let rMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({
+                transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+            }));
+            rMesh.rotation.x = Math.PI / 2;
+            rMesh.position.y = 0.01 + (i * 0.002);
+            singleDiskGroup.add(rMesh);
+            state.accretionRings.push({
+                mesh: rMesh,
+                radius: 4.0 * (i / 10),
+                targetW: 4.0 * (0.1 + Math.random() * 0.2),
+                targetOp: 0.5 + Math.random() * 0.25
+            });
+        }
+        state.accretionGroup.add(singleDiskGroup);
+    }
+    distributeGroupChildren(state.accretionGroup, count);
+}
+
+function updateNeutrinos(count) {
+    if (!state.neutrinoGroup || !state.neutrinoMat) return;
+    while (state.neutrinoGroup.children.length < count) {
+        let jetGroup = new THREE.Group();
+        jetGroup.userData.seed = Math.random();
+        for (let i = 0; i < 30; i++) {
+            let p = new THREE.Sprite(state.neutrinoMat);
+            p.scale.set(0.12, 0.12, 1);
+            jetGroup.add(p);
+            state.neutrinoParticles.push({
+                mesh: p,
+                parentJet: jetGroup,
+                seed: Math.random(),
+                yPos: (Math.random() - 0.5) * 8.0,
+                speed: Math.random() * 2.5 + 1.5,
+                dir: Math.random() > 0.5 ? 1 : -1,
+                xOffset: (Math.random() - 0.5) * 0.075,
+                zOffset: (Math.random() - 0.5) * 0.075
+            });
+        }
+        state.neutrinoGroup.add(jetGroup);
+    }
+    distributeGroupChildren(state.neutrinoGroup, count);
+}
+
+function createPhenomena() {
+    // Pulsar Beams
+    state.pulsarGroup = new THREE.Group();
+    state.pulsarGroup.visible = false;
+
+    state.pulsarGeo = new THREE.CylinderGeometry(0.15, 0.15, 4.0, 16, 16, true);
+    const beamPos = state.pulsarGeo.attributes.position;
+    for (let i = 0; i < beamPos.count; i++) {
+        let scale = 1.0 - 0.5 * (Math.abs(beamPos.getY(i)) / 2.0);
+        beamPos.setX(i, beamPos.getX(i) * scale);
+        beamPos.setZ(i, beamPos.getZ(i) * scale);
+    }
+    state.pulsarGeo.computeVertexNormals();
+
+    state.beamMat = new THREE.MeshBasicMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    });
+    state.polyGroup.add(state.pulsarGroup);
+    updatePulsars(state.pulsarRayCount);
+
+    // Gamma Rays
+    state.gammaRaysGroup = new THREE.Group();
+    state.gammaRaysGroup.visible = false;
+
+    state.gammaBeamMat = new THREE.MeshBasicMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    });
+    state.gammaGeo = new THREE.CylinderGeometry(0.02, 0.02, 15.0, 16, 1, true);
+    state.polyGroup.add(state.gammaRaysGroup);
+    updateGammaRays(state.gammaRayCount);
+
+    // Accretion Disk
+    state.accretionGroup = new THREE.Group();
+    state.accretionGroup.visible = false;
+
+    state.diskMat = new THREE.MeshBasicMaterial({
+        transparent: true, opacity: 0.15, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    state.polyGroup.add(state.accretionGroup);
+    updateAccretion(state.accretionDiskCount);
+
+    // True Point Flash
+    let ptGeo = new THREE.BufferGeometry();
+    ptGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+    state.flashVoxel = new THREE.Points(ptGeo, new THREE.PointsMaterial({
+        color: 0xffffff, size: 3, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false
+    }));
+    state.polyGroup.add(state.flashVoxel);
+
+    // Neutrinos
+    state.neutrinoGroup = new THREE.Group();
+    state.neutrinoGroup.visible = false;
+    state.neutrinoMat = new THREE.SpriteMaterial({ blending: THREE.AdditiveBlending, depthWrite: false });
+    state.polyGroup.add(state.neutrinoGroup);
+    updateNeutrinos(state.neutrinoJetCount);
+}
+
+function animatePhenomena(dt) {
+    const turb = state.turbState;
+    const gt = state.globalTime;
+
+    // --- Pulsar turbulence ---
+    if (state.isPulsarEnabled && state.pulsarGroup && state.pulsarGroup.visible && !state.isDestroyed) {
+        let c = state.pulsarRayCount;
+        for (let i = 0; i < state.pulsarGroup.children.length; i++) {
+            let m = state.pulsarGroup.children[i];
+            if (!m.visible) continue;
+            let noise = getTurbulence(gt, turb.p.spd, turb.p.mod, i, c, m.userData.seed);
+            let stretch = 1.0 + noise * turb.p.val * 3.0;
+            let bulge = 1.0 + noise * turb.p.val * 0.5;
+            m.scale.set(bulge, stretch, bulge);
+        }
+    }
+
+    // --- Gamma ray turbulence ---
+    if (state.isGammaEnabled && state.gammaRaysGroup && state.gammaRaysGroup.visible && !state.isDestroyed) {
+        let c = state.gammaRayCount;
+        for (let i = 0; i < state.gammaRaysGroup.children.length; i++) {
+            let m = state.gammaRaysGroup.children[i];
+            if (!m.visible) continue;
+            let noise = getTurbulence(gt, turb.g.spd, turb.g.mod, i, c, m.userData.seed);
+            let stretch = 1.0 + noise * turb.g.val * 5.0;
+            m.scale.set(1.0, stretch, 1.0);
+        }
+    }
+
+    // --- Accretion disk turbulence + ring animation ---
+    if (state.isAccretionEnabled && state.accretionRings && !state.isDestroyed) {
+        let triggeredFlash = false;
+        let c = state.accretionDiskCount;
+        const c1 = new THREE.Color(state.colors.accretion[0]);
+        const c2 = new THREE.Color(state.colors.accretion[1]);
+
+        for (let i = 0; i < state.accretionGroup.children.length; i++) {
+            let diskGrp = state.accretionGroup.children[i];
+            if (!diskGrp.visible) continue;
+            let nX = getTurbulence(gt, turb.a.spd, turb.a.mod, i, c, diskGrp.userData.seed);
+            let nY = getTurbulence(gt, turb.a.spd, turb.a.mod, i, c, diskGrp.userData.seed * 1.5);
+            let scaleXY = 1.0 + nX * turb.a.val * 0.8;
+            diskGrp.scale.set(scaleXY, 1.0 + Math.abs(nY) * turb.a.val * 2.0, scaleXY);
+            diskGrp.children.forEach(mesh => {
+                mesh.rotation.x = Math.PI / 2 + nX * turb.a.val * 0.4;
+                mesh.rotation.y = nY * turb.a.val * 0.4;
+            });
+        }
+
+        state.accretionRings.forEach(ring => {
+            let speed = 0.2 + (1.5 / Math.max(ring.radius, 0.4));
+            ring.radius -= speed * dt;
+
+            if (ring.radius <= 0) {
+                ring.radius = 4.0;
+                ring.targetW = 4.0 * (0.1 + Math.random() * 0.2);
+                ring.targetOp = 0.5 + Math.random() * 0.25;
+                triggeredFlash = true;
+            }
+
+            let currentR = ring.radius;
+            let currentW = 0.01;
+            let currentOp = 0;
+
+            if (currentR > 3.0) {
+                let t = (4.0 - currentR) / 1.0;
+                currentW = 0.01 + (ring.targetW - 0.01) * t;
+                currentOp = ring.targetOp * t;
+            } else if (currentR > 1.0) {
+                currentW = ring.targetW;
+                currentOp = ring.targetOp;
+            } else {
+                let t = currentR / 1.0;
+                currentW = ring.targetW * Math.max(t, 0.001);
+                currentOp = ring.targetOp;
+            }
+
+            if (currentR > 0.001) {
+                ring.mesh.visible = true;
+                if (ring.mesh.geometry) ring.mesh.geometry.dispose();
+                let innerR = Math.max(0.0001, currentR - currentW / 2);
+                let outerR = Math.max(innerR + 0.0001, currentR + currentW / 2);
+                ring.mesh.geometry = new THREE.RingGeometry(innerR, outerR, 128);
+                ring.mesh.material.opacity = currentOp;
+                ring.mesh.material.color.copy(c1).lerp(c2, currentR / 4.0);
+            } else {
+                ring.mesh.visible = false;
+            }
+        });
+
+        if (triggeredFlash) state.voxelFlashTimer = 1.0;
+    } else {
+        state.voxelFlashTimer = 0;
+        if (state.isDestroyed && state.accretionRings) {
+            state.accretionRings.forEach(ring => ring.mesh.visible = false);
+        }
+    }
+
+    // Voxel Flash
+    if (state.voxelFlashTimer > 0 && !state.isDestroyed) {
+        state.voxelFlashTimer -= dt * 6.0;
+        if (state.flashVoxel) state.flashVoxel.material.opacity = Math.max(0, state.voxelFlashTimer);
+    } else if (state.flashVoxel) {
+        state.flashVoxel.material.opacity = 0;
+    }
+
+    // --- Neutrino turbulence ---
+    if (state.isNeutrinosEnabled && state.neutrinoParticles && !state.isDestroyed) {
+        let c = state.neutrinoJetCount;
+        for (let i = 0; i < state.neutrinoGroup.children.length; i++) {
+            let grp = state.neutrinoGroup.children[i];
+            if (!grp.visible) continue;
+            grp.userData.currentNoise = getTurbulence(gt, turb.n.spd, turb.n.mod, i, c, grp.userData.seed);
+        }
+
+        state.neutrinoParticles.forEach(p => {
+            let noise = (p.parentJet && p.parentJet.userData.currentNoise) || 0;
+            let spdMult = 1.0 + noise * turb.n.val * 3.0;
+
+            p.yPos += p.speed * p.dir * dt * 3.0 * spdMult;
+
+            p.xOffset += Math.cos(gt * 10 + p.seed) * turb.n.val * 0.01;
+            p.zOffset += Math.sin(gt * 10 + p.seed) * turb.n.val * 0.01;
+
+            if (Math.abs(p.yPos) > 3.5) {
+                p.yPos = 0;
+                let r = Math.random() * 0.075 + Math.abs(noise) * turb.n.val * 0.2;
+                let th = Math.random() * Math.PI * 2;
+                p.xOffset = r * Math.cos(th);
+                p.zOffset = r * Math.sin(th);
+            }
+            p.mesh.position.set(p.xOffset, p.yPos, p.zOffset);
+            p.mesh.material.opacity = 1.0 - (Math.abs(p.yPos) / 3.5);
+        });
+    }
+}
+
+// === AURA ===
+// (from js/aura.js)
+
+function createAuraObjects() {
+    state.glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    state.scene.add(state.glowSprite);
+
+    state.coreSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    state.scene.add(state.coreSprite);
+
+    state.chargeSpheroid = new THREE.Sprite(new THREE.SpriteMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    state.chargeSpheroid.visible = false;
+    state.scene.add(state.chargeSpheroid);
+
+    state.whiteDwarfSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    updateMaterialTexture(state.whiteDwarfSprite.material, drawWhiteDwarf);
+    state.whiteDwarfSprite.visible = false;
+    state.scene.add(state.whiteDwarfSprite);
+}
+
+function computeAuraPosition() {
+    let auraPos = state.polyGroup.position.clone();
+    let auraScaleMult = 1.0;
+
+    if (state.isMaskEnabled) {
+        const pushBackDist = 5.0;
+        if (state.camera.isPerspectiveCamera) {
+            const sightLine = new THREE.Vector3().subVectors(state.polyGroup.position, state.camera.position).normalize();
+            auraPos.addScaledVector(sightLine, pushBackDist);
+            const distToObject = state.camera.position.distanceTo(state.polyGroup.position);
+            const distToAura = state.camera.position.distanceTo(auraPos);
+            auraScaleMult = (distToAura / distToObject);
+        } else {
+            let camDir = new THREE.Vector3();
+            state.camera.getWorldDirection(camDir);
+            auraPos.addScaledVector(camDir, pushBackDist);
+        }
+    }
+
+    return { auraPos, auraScaleMult };
+}
+
+function animateAura(dt) {
+    const { auraPos, auraScaleMult } = computeAuraPosition();
+
+    state.auraSpike *= 0.92;
+    const baseScale = 4.0 * state.auraReach * state.z_depth;
+    const pulseOffset = Math.sin(Date.now() * state.auraPulseRate) * (0.4 * state.auraReach) * state.z_depth;
+    const spikeBonus = baseScale * (state.spikeMultiplier - 1.0) * state.auraSpike;
+
+    let reachScale = baseScale + pulseOffset + spikeBonus;
+    state.forceAuraVisible = false;
+
+    if (state.isCharging) {
+        state.chargeTime += dt;
+        state.chargeLevel = Math.min(state.chargeTime / 3.0, 1.0);
+
+        // Guard: DOM elements may not exist in live mode
+        const btnSupercharge = document.getElementById('btn-supercharge');
+        if (btnSupercharge && state.chargeLevel >= 1.0) {
+            btnSupercharge.classList.add('vibrate');
+        }
+
+        if (state.chargeLevel >= 0.7) {
+            let spawnRate = 0.4 + state.chargeLevel * 0.3 + Math.min(state.chargeTime * 0.1, 2.0);
+            let spawnCount = Math.floor(spawnRate);
+            if (Math.random() < (spawnRate - spawnCount)) spawnCount++;
+            for (let j = 0; j < spawnCount; j++) {
+                let p = new THREE.Sprite(new THREE.SpriteMaterial({
+                    map: state.glowSprite.material.map, color: 0xffffff,
+                    blending: THREE.AdditiveBlending, depthWrite: false
+                }));
+                let dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+                let dist = 3 + Math.random() * 4;
+                let spawnPos = state.polyGroup.position.clone().add(dir.multiplyScalar(dist * state.z_depth));
+                p.position.copy(spawnPos);
+                let s = (0.3 + Math.random() * 0.4) * state.z_depth;
+                p.scale.set(s, s, 1);
+                state.scene.add(p);
+                state.inwardParticles.push({ mesh: p, start: spawnPos, life: 1.0 });
+            }
+        }
+
+        // Guard: charge-fill element may not exist in live mode
+        const chargeFill = document.getElementById('charge-fill');
+        if (chargeFill) {
+            chargeFill.style.width = (state.chargeLevel * 100) + '%';
+        }
+
+        state.forceAuraVisible = true;
+        let shrinkFactor = 1.0 - (0.5 * state.chargeLevel);
+        reachScale = baseScale * shrinkFactor;
+
+        if (state.chargeLevel >= 1.0) reachScale += Math.random() * 0.3;
+
+        state.chargeSpheroid.visible = true;
+        state.chargeSpheroid.position.copy(auraPos);
+        let maxSpheroidScale = state.z_depth * 1.5;
+        let sScale = maxSpheroidScale * state.chargeLevel;
+        state.chargeSpheroid.userData.currentScale = sScale;
+        state.chargeSpheroid.scale.set(sScale * auraScaleMult, sScale * auraScaleMult, 1);
+
+        for (let i = 0; i < 6; i++) {
+            let startTime = i * 0.4;
+            if (state.chargeTime > startTime) {
+                state.chargeFlares[i].visible = true;
+                let activeTime = state.chargeTime - startTime;
+                let s = 0;
+
+                if (activeTime < 1.5) {
+                    let progress = activeTime / 1.5;
+                    s = Math.floor(progress * 10) / 10 * 2.0;
+                } else {
+                    if (Math.random() < 0.2) state.chargeFlares[i].userData.targetS = 1.0 + Math.random() * 1.0;
+                    let currentS = state.chargeFlares[i].scale.x;
+                    s = currentS + (state.chargeFlares[i].userData.targetS - currentS) * 0.3;
+                }
+
+                state.chargeFlares[i].userData.lastScale = s;
+                state.chargeFlares[i].scale.setScalar(s);
+
+                let rTime = Math.min(activeTime, 3.0);
+                let speed = 0.08 * Math.pow(2, rTime);
+                state.chargeFlares[i].userData.lastSpeed = speed;
+
+                if (i % 2 === 0) state.chargeFlares[i].rotateZ(speed * dt * 50);
+                else state.chargeFlares[i].rotateZ(-speed * dt * 50);
+            } else {
+                state.chargeFlares[i].visible = false;
+            }
+        }
+
+        if (!state.chargeSequence) {
+            state.chargeSequence = {
+                prePulsarEnabled: state.isPulsarEnabled,
+                prePulsarCount: state.pulsarRayCount,
+                preGammaEnabled: state.isGammaEnabled,
+                preGammaCount: state.gammaRayCount,
+                prePulsarTurb: { ...state.turbState.p },
+                preGammaTurb: { ...state.turbState.g },
+                beamCount: 0
+            };
+            state.isPulsarEnabled = true;
+            state.pulsarRayCount = 0;
+            if (state.pulsarGroup) state.pulsarGroup.visible = true;
+            updatePulsars(0);
+            state.turbState.p.val = 0.6;
+            state.turbState.p.spd = 1.0;
+            state.turbState.p.mod = 'uniform';
+        }
+
+        let targetBeams = Math.floor(state.chargeTime / 0.5);
+        let seq = state.chargeSequence;
+
+        if (targetBeams > seq.beamCount) {
+            seq.beamCount = targetBeams;
+
+            if (seq.beamCount <= 10) {
+                state.pulsarRayCount = seq.beamCount;
+                updatePulsars(seq.beamCount);
+                state.turbState.p.spd = 1.0 + seq.beamCount * 0.5;
+            } else if (seq.beamCount <= 15) {
+                if (seq.beamCount === 11) state.turbState.p.mod = 'random';
+                state.pulsarRayCount = seq.beamCount;
+                updatePulsars(seq.beamCount);
+                state.turbState.p.spd = 1.0 + seq.beamCount * 0.5;
+            } else if (seq.beamCount <= 25) {
+                let gammaCount = seq.beamCount - 15;
+                if (gammaCount === 1) {
+                    state.isGammaEnabled = true;
+                    state.gammaRayCount = 0;
+                    if (state.gammaRaysGroup) state.gammaRaysGroup.visible = true;
+                    state.turbState.g.val = 0.6;
+                    state.turbState.g.spd = 1.0;
+                    state.turbState.g.mod = 'uniform';
+                }
+                state.gammaRayCount = gammaCount;
+                updateGammaRays(gammaCount);
+                state.turbState.g.spd = 1.0 + gammaCount * 0.5;
+            } else if (seq.beamCount <= 30) {
+                let gammaCount = seq.beamCount - 15;
+                if (seq.beamCount === 26) state.turbState.g.mod = 'random';
+                state.gammaRayCount = gammaCount;
+                updateGammaRays(gammaCount);
+                state.turbState.g.spd = 1.0 + gammaCount * 0.5;
+            }
+        }
+
+    } else if (state.chargeReleaseTimer > 0) {
+        state.forceAuraVisible = true;
+        state.chargeReleaseTimer -= dt;
+        let expandProgress = 1.0 - (Math.max(0, state.chargeReleaseTimer) / 0.5);
+        reachScale = baseScale * (1.0 + expandProgress * 40.0);
+    }
+
+    if ((state.isAuraEnabled || state.forceAuraVisible) && state.glowSprite && !state.isDestroyed) {
+        state.glowSprite.visible = true;
+        state.glowSprite.position.copy(auraPos);
+        let sr = reachScale * auraScaleMult * state.novaScale;
+        state.glowSprite.scale.set(sr, sr, 1);
+    } else if (state.glowSprite) {
+        state.glowSprite.visible = false;
+    }
+
+    if (state.isAuraEnabled && state.coreSprite && !state.isDestroyed) {
+        state.coreSprite.visible = true;
+        state.coreSprite.position.copy(auraPos);
+
+        let iFactor = state.auraIntensity / 3.0;
+        let ciScale = (0.2 + 1.8 * iFactor) * state.z_depth * auraScaleMult * state.novaScale;
+        state.coreSprite.scale.set(ciScale, ciScale, 1);
+        state.coreSprite.material.opacity = 1.0 - 0.6 * iFactor;
+    } else if (state.coreSprite) {
+        state.coreSprite.visible = false;
+    }
+
+    if (state.collapseTime > 0) {
+        state.collapseTime -= dt;
+        let t = Math.max(0, state.collapseTime) / 0.75;
+        let ease = t * t * t;
+
+        if (state.chargeSpheroid.visible) {
+            let s = state.chargeSpheroid.userData.currentScale * ease * auraScaleMult;
+            state.chargeSpheroid.scale.set(s, s, 1);
+        }
+
+        for (let i = 0; i < 6; i++) {
+            if (state.chargeFlares[i].visible) {
+                let fs = state.chargeFlares[i].userData.lastScale * ease;
+                state.chargeFlares[i].scale.setScalar(fs);
+                if (i % 2 === 0) state.chargeFlares[i].rotateZ(state.chargeFlares[i].userData.lastSpeed * dt * 50);
+                else state.chargeFlares[i].rotateZ(-state.chargeFlares[i].userData.lastSpeed * dt * 50);
+            }
+        }
+
+        if (state.collapseTime <= 0) {
+            state.chargeSpheroid.visible = false;
+            state.chargeFlares.forEach(f => {
+                f.visible = false;
+                f.rotation.set(f.userData.baseX, f.userData.baseY, f.userData.baseZ);
+            });
+
+            if (state.chargeSequence) {
+                let seq = state.chargeSequence;
+                state.isPulsarEnabled = seq.prePulsarEnabled;
+                state.pulsarRayCount = seq.prePulsarCount;
+                if (state.pulsarGroup) state.pulsarGroup.visible = seq.prePulsarEnabled;
+                updatePulsars(seq.prePulsarCount);
+                state.turbState.p = { ...seq.prePulsarTurb };
+
+                state.isGammaEnabled = seq.preGammaEnabled;
+                state.gammaRayCount = seq.preGammaCount;
+                if (state.gammaRaysGroup) state.gammaRaysGroup.visible = seq.preGammaEnabled;
+                updateGammaRays(seq.preGammaCount);
+                state.turbState.g = { ...seq.preGammaTurb };
+
+                state.chargeSequence = null;
+            }
+
+            if (state.wasFullCharge) {
+                state.isShockwaveActive = true;
+                state.shockwaveTime = 0;
+                state.shockwaveSphere.visible = true;
+                state.shockwaveSphere.position.copy(state.polyGroup.position);
+                state.shockwaveDisk.visible = true;
+                state.shockwaveDisk.position.copy(state.polyGroup.position);
+                state.shockwaveDisk.rotation.x = Math.PI / 2;
+
+                state._fireSuperNova = true;
+                state.wasFullCharge = false;
+            } else {
+                state._fireExplosion = true;
+            }
+            state.chargeReleaseTimer = 0.5;
+        }
+    }
+}
+
+// === PARTICLES ===
+// (from js/particles.js)
+
+function createParticleObjects() {
+    state.shockwaveSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(1, 32, 32),
+        new THREE.MeshBasicMaterial({
+            color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+        })
+    );
+    state.shockwaveSphere.visible = false;
+    state.scene.add(state.shockwaveSphere);
+
+    state.shockwaveDisk = new THREE.Mesh(
+        new THREE.RingGeometry(0.01, 1, 64),
+        new THREE.MeshBasicMaterial({
+            color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide,
+            depthWrite: false, blending: THREE.AdditiveBlending
+        })
+    );
+    state.shockwaveDisk.visible = false;
+    state.scene.add(state.shockwaveDisk);
+
+    for (let i = 0; i < 200; i++) {
+        let s = new THREE.Sprite(new THREE.SpriteMaterial({
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        s.visible = false;
+        state.scene.add(s);
+        state.trailSprites.push(s);
+    }
+
+    for (let i = 0; i < 6; i++) {
+        let flare = new THREE.Group();
+        let gm = new THREE.MeshBasicMaterial({
+            color: 0xffffff, transparent: true, opacity: 0.6,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        let m1 = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), gm);
+        m1.scale.set(1, 0.1, 0.1);
+        let m2 = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), gm);
+        m2.scale.set(0.1, 1, 0.1);
+        flare.add(m1);
+        flare.add(m2);
+        flare.visible = false;
+
+        let rx = 0, ry = 0, rz = 0;
+        if (i === 1) ry = Math.PI / 2;
+        else if (i === 2) rx = Math.PI / 2;
+        else if (i === 3) rz = Math.PI / 4;
+        else if (i === 4) { ry = Math.PI / 2; rx = Math.PI / 4; }
+        else if (i === 5) { rx = Math.PI / 2; ry = Math.PI / 4; }
+
+        flare.userData = { baseX: rx, baseY: ry, baseZ: rz, targetS: 2.0, lastScale: 0, lastSpeed: 0 };
+        flare.rotation.set(rx, ry, rz);
+        state.polyGroup.add(flare);
+        state.chargeFlares.push(flare);
+    }
+}
+
+function fireExplosion() {
+    for (let i = 0; i < 150; i++) {
+        let p = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: state.glowSprite.material.map, color: 0xffffff,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        p.position.copy(state.polyGroup.position);
+        let phi = Math.acos(-1 + (2 * Math.random()));
+        let theta = Math.sqrt(100 * Math.PI) * phi;
+        let v = new THREE.Vector3(
+            Math.cos(theta) * Math.sin(phi),
+            Math.sin(theta) * Math.sin(phi),
+            Math.cos(phi)
+        ).normalize().multiplyScalar(Math.random() * 0.4 + 0.1);
+
+        p.scale.set(0.5, 0.5, 1);
+        state.scene.add(p);
+        state.particles.push({ mesh: p, vel: v, life: 1.0 });
+    }
+}
+
+function fireSuperNova() {
+    state.isDestroyed = true;
+    state.superNovaTimer = 5.0;
+
+    for (let i = 0; i < 150; i++) {
+        let p = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: state.glowSprite.material.map,
+            color: new THREE.Color(state.colors.edge[0]),
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        p.position.copy(state.polyGroup.position);
+        let phi = Math.acos(-1 + (2 * Math.random()));
+        let theta = Math.sqrt(100 * Math.PI) * phi;
+
+        let speed = 0.5 + Math.random() * 2.0;
+        let v = new THREE.Vector3(
+            Math.cos(theta) * Math.sin(phi),
+            Math.sin(theta) * Math.sin(phi),
+            Math.cos(phi)
+        ).normalize().multiplyScalar(speed);
+
+        p.scale.set(0.6, 0.6, 1);
+        state.scene.add(p);
+        state.coloredParticles.push({ mesh: p, vel: v, friction: 0.90 + Math.random() * 0.08 });
+    }
+
+    fireExplosion();
+
+    state.whiteDwarfSprite.position.copy(state.polyGroup.position);
+    state.whiteDwarfSprite.material.opacity = 1.0;
+    state.whiteDwarfSprite.scale.set(4.0, 4.0, 1.0);
+    state.whiteDwarfSprite.visible = true;
+}
+
+function animateParticles(dt) {
+    for (let i = state.particles.length - 1; i >= 0; i--) {
+        let p = state.particles[i];
+        p.mesh.position.add(p.vel);
+        p.life -= dt;
+        p.mesh.material.opacity = p.life;
+        if (p.life <= 0) {
+            state.scene.remove(p.mesh);
+            p.mesh.material.dispose();
+            state.particles.splice(i, 1);
+        }
+    }
+
+    for (let i = state.inwardParticles.length - 1; i >= 0; i--) {
+        let p = state.inwardParticles[i];
+        p.life -= dt * (0.4 + (1.0 - p.life) * 1.5);
+        if (p.life <= 0) {
+            state.scene.remove(p.mesh);
+            p.mesh.material.dispose();
+            state.inwardParticles.splice(i, 1);
+        } else {
+            p.mesh.position.lerpVectors(state.polyGroup.position, p.start, p.life);
+            p.mesh.material.opacity = Math.min(1.0, p.life * 1.5);
+        }
+    }
+
+    if (state.isShockwaveActive) {
+        state.shockwaveTime += dt;
+
+        let tSph = Math.min(state.shockwaveTime / 0.4, 1.0);
+        let sphScale = tSph * 400;
+        state.shockwaveSphere.scale.set(sphScale, sphScale, sphScale);
+        state.shockwaveSphere.material.opacity = 0.5 * (1.0 - Math.pow(tSph, 2));
+
+        let tDsk = Math.min(state.shockwaveTime / 0.4, 1.0);
+        let dskScale = tDsk * 200;
+        state.shockwaveDisk.scale.set(dskScale, dskScale, 1);
+        state.shockwaveDisk.material.opacity = 0.8 * (1.0 - Math.pow(tDsk, 2));
+
+        if (tSph >= 1.0 && tDsk >= 1.0) {
+            state.isShockwaveActive = false;
+        }
+    }
+
+    if (state.isDestroyed) {
+        state.superNovaTimer -= dt;
+
+        for (let i = state.coloredParticles.length - 1; i >= 0; i--) {
+            let cp = state.coloredParticles[i];
+            cp.mesh.position.add(cp.vel);
+            cp.vel.multiplyScalar(cp.friction);
+
+            if (state.superNovaTimer < 3.0) {
+                cp.mesh.material.opacity = Math.max(0, state.superNovaTimer / 3.0);
+            }
+
+            if (state.superNovaTimer <= 0) {
+                state.scene.remove(cp.mesh);
+                cp.mesh.material.dispose();
+                state.coloredParticles.splice(i, 1);
+            }
+        }
+
+        if (state.superNovaTimer < 2.5) {
+            state.whiteDwarfSprite.material.opacity = Math.max(0, state.superNovaTimer / 2.5);
+            let ws = (state.superNovaTimer / 2.5) * 4.0 + 0.1;
+            state.whiteDwarfSprite.scale.set(ws, ws, 1.0);
+        }
+
+        if (state.superNovaTimer <= 0) {
+            state.isDestroyed = false;
+            state.whiteDwarfSprite.visible = false;
+            state.isRespawning = true;
+            state.respawnTimer = 0;
+        }
+    }
+}
+
+function animateTrails(dt) {
+    const isMotionPaused = state.isPaused || state.isMenuOpen || state.isDraggingObject;
+
+    if (state.isTrailEnabled && !isMotionPaused && !state.isDestroyed) {
+        state.trailPositions.unshift(state.polyGroup.position.clone());
+        if (state.trailPositions.length > state.trailLength) state.trailPositions.length = state.trailLength;
+    } else if (!state.isTrailEnabled || state.isDestroyed) {
+        state.trailPositions = [];
+    }
+
+    for (let i = 0; i < state.trailSprites.length; i++) {
+        if (i < state.trailPositions.length) {
+            state.trailSprites[i].visible = true;
+            state.trailSprites[i].position.copy(state.trailPositions[i]);
+            let progress = i / state.trailPositions.length;
+            state.trailSprites[i].material.opacity = state.currentOpacity * (1.0 - progress);
+            let tScale = state.z_depth * 0.5 * (1.0 - progress * 0.5);
+            state.trailSprites[i].scale.set(tScale, tScale, 1);
+        } else {
+            state.trailSprites[i].visible = false;
+        }
+    }
+}
+
+// === OMEGA ===
+// (from js/omega.js)
+
+const _omegaLastPos = new THREE.Vector3();
+const _omegaCounterSpinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+let _omegaLastPosInitialized = false;
+let _omegaWasCounterSpin = false;
+let _omegaCounterSpinAngle = 0;
+
+function createOmega() {
+    state.omegaGroup = new THREE.Group();
+    state.omegaGroup.visible = false;
+    state.scene.add(state.omegaGroup);
+
+    updateOmegaGeometry(state.omegaGeometryType);
+
+    state.omegaGhosts = [];
+}
+
+function animateOmega(dt) {
+    if (!state.omegaGroup) return;
+
+    if (!state.isOmegaEnabled) {
+        state.omegaGroup.visible = false;
+        _cleanupAllGhosts();
+        _omegaLastPosInitialized = false;
+        return;
+    }
+    state.omegaGroup.visible = true;
+
+    state.omegaGroup.scale.setScalar(state.omegaScale * state.z_depth * state.novaScale);
+
+    if (state.omegaInterDimensional) {
+        state.omegaGroup.position.lerp(state.polyGroup.position, state.omegaLagFactor);
+    } else {
+        state.omegaGroup.position.copy(state.polyGroup.position);
+    }
+
+    if (state.omegaLockPosition) {
+        _omegaWasCounterSpin = false;
+    } else if (state.omegaCounterSpin) {
+        if (!_omegaWasCounterSpin) {
+            _omegaCounterSpinAngle = 0;
+            _omegaWasCounterSpin = true;
+        }
+        _omegaCounterSpinAngle -= state.idleSpinSpeed;
+        state.omegaGroup.quaternion.setFromAxisAngle(_omegaCounterSpinAxis, _omegaCounterSpinAngle);
+    } else {
+        state.omegaGroup.quaternion.copy(state.polyGroup.quaternion);
+        _omegaWasCounterSpin = false;
+    }
+
+    if (state.omegaInterDimensional) {
+        _animateGhosts(dt);
+    } else {
+        _cleanupAllGhosts();
+    }
+}
+
+function _animateGhosts(dt) {
+    if (!_omegaLastPosInitialized) {
+        _omegaLastPos.copy(state.omegaGroup.position);
+        _omegaLastPosInitialized = true;
+    }
+    const delta = state.omegaGroup.position.distanceTo(_omegaLastPos);
+    _omegaLastPos.copy(state.omegaGroup.position);
+
+    if (delta > 0.01) {
+        state.omegaGhostTimer -= dt;
+        if (state.omegaGhostTimer <= 0) {
+            _spawnGhost();
+            const interval = state.omegaGhostDuration / Math.max(state.omegaGhostCount, 1);
+            state.omegaGhostTimer = interval;
+        }
+    }
+
+    for (let i = state.omegaGhosts.length - 1; i >= 0; i--) {
+        const ghost = state.omegaGhosts[i];
+        ghost.life -= dt;
+
+        if (ghost.life <= 0) {
+            state.scene.remove(ghost.mesh);
+            ghost.mesh.geometry.dispose();
+            ghost.mesh.material.dispose();
+            state.omegaGhosts.splice(i, 1);
+            continue;
+        }
+
+        const progress = ghost.life / ghost.maxLife;
+
+        switch (state.omegaGhostMode) {
+            case 'fade':
+                ghost.mesh.material.opacity = progress;
+                break;
+
+            case 'shrink':
+                ghost.mesh.scale.setScalar(ghost.startScale * progress);
+                break;
+
+            case 'edgeScatter': {
+                ghost.mesh.material.opacity = progress;
+                const positions = ghost.mesh.geometry.attributes.position.array;
+                const orig = ghost.originalPositions;
+                const scatterAmount = 2.0;
+                const t = 1 - progress;
+                for (let v = 0; v < positions.length; v += 3) {
+                    positions[v]     = orig[v]     + (orig[v]     - ghost.centroid.x) * t * scatterAmount;
+                    positions[v + 1] = orig[v + 1] + (orig[v + 1] - ghost.centroid.y) * t * scatterAmount;
+                    positions[v + 2] = orig[v + 2] + (orig[v + 2] - ghost.centroid.z) * t * scatterAmount;
+                }
+                ghost.mesh.geometry.attributes.position.needsUpdate = true;
+                break;
+            }
+
+            case 'vertexDissolve': {
+                ghost.mesh.material.opacity = progress;
+                const positions = ghost.mesh.geometry.attributes.position.array;
+                const orig = ghost.originalPositions;
+                const jitterAmount = 0.5;
+                const t = 1 - progress;
+                for (let v = 0; v < positions.length; v += 3) {
+                    positions[v]     = orig[v]     + (Math.random() - 0.5) * jitterAmount * t;
+                    positions[v + 1] = orig[v + 1] + (Math.random() - 0.5) * jitterAmount * t;
+                    positions[v + 2] = orig[v + 2] + (Math.random() - 0.5) * jitterAmount * t;
+                }
+                ghost.mesh.geometry.attributes.position.needsUpdate = true;
+                break;
+            }
+
+            case 'scaleWarp': {
+                ghost.mesh.material.opacity = progress;
+                const t = 1 - progress;
+                const stretchFactor = 1 + t * 2;
+                const compressFactor = 1 / Math.sqrt(stretchFactor);
+                const axis = ghost.randomAxis;
+                const sx = 1 + Math.abs(axis.x) * (stretchFactor - 1) + (1 - Math.abs(axis.x)) * (compressFactor - 1);
+                const sy = 1 + Math.abs(axis.y) * (stretchFactor - 1) + (1 - Math.abs(axis.y)) * (compressFactor - 1);
+                const sz = 1 + Math.abs(axis.z) * (stretchFactor - 1) + (1 - Math.abs(axis.z)) * (compressFactor - 1);
+                ghost.mesh.scale.set(
+                    ghost.startScale * sx,
+                    ghost.startScale * sy,
+                    ghost.startScale * sz
+                );
+                break;
+            }
+
+            default:
+                ghost.mesh.material.opacity = progress;
+                break;
+        }
+    }
+
+    while (state.omegaGhosts.length > state.omegaGhostCount) {
+        const oldest = state.omegaGhosts.shift();
+        state.scene.remove(oldest.mesh);
+        oldest.mesh.geometry.dispose();
+        oldest.mesh.material.dispose();
+    }
+}
+
+function _spawnGhost() {
+    if (!state.omegaWireframeMesh) return;
+
+    const ghostGeo = state.omegaWireframeMesh.geometry.clone();
+    const originalPositions = new Float32Array(ghostGeo.attributes.position.array);
+
+    let cx = 0, cy = 0, cz = 0;
+    const posCount = originalPositions.length / 3;
+    for (let i = 0; i < originalPositions.length; i += 3) {
+        cx += originalPositions[i];
+        cy += originalPositions[i + 1];
+        cz += originalPositions[i + 2];
+    }
+    cx /= posCount;
+    cy /= posCount;
+    cz /= posCount;
+
+    const ghostMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(state.colors.omegaEdge[0]),
+        transparent: true,
+        opacity: 1.0,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+    });
+
+    if (state.omegaWireframeMesh.geometry.attributes.color) {
+        ghostGeo.setAttribute('color', state.omegaWireframeMesh.geometry.attributes.color.clone());
+        ghostMat.vertexColors = true;
+        ghostMat.color.setHex(0xffffff);
+    }
+
+    const ghostMesh = new THREE.LineSegments(ghostGeo, ghostMat);
+
+    ghostMesh.position.copy(state.omegaGroup.position);
+    ghostMesh.quaternion.copy(state.omegaGroup.quaternion);
+
+    const currentScale = state.omegaScale * state.z_depth * state.novaScale;
+    ghostMesh.scale.setScalar(currentScale);
+
+    state.scene.add(ghostMesh);
+
+    state.omegaGhosts.push({
+        mesh: ghostMesh,
+        life: state.omegaGhostDuration,
+        maxLife: state.omegaGhostDuration,
+        startScale: currentScale,
+        randomAxis: new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+        ).normalize(),
+        originalPositions: originalPositions,
+        centroid: new THREE.Vector3(cx, cy, cz)
+    });
+}
+
+function _cleanupAllGhosts() {
+    for (const ghost of state.omegaGhosts) {
+        state.scene.remove(ghost.mesh);
+        ghost.mesh.geometry.dispose();
+        ghost.mesh.material.dispose();
+    }
+    state.omegaGhosts.length = 0;
+    state.omegaGhostTimer = 0;
+}
+
+function updateOmegaColors() {
+    if (state.omegaCoreMesh) {
+        const geo = state.omegaCoreMesh.geometry;
+        const count = geo.attributes.position.count;
+        if (!geo.attributes.color || geo.attributes.color.count !== count) {
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+        }
+        const col = geo.attributes.color;
+        geo.computeBoundingBox();
+        const min = geo.boundingBox.min.y;
+        const range = (geo.boundingBox.max.y - min) || 1;
+        const c1 = new THREE.Color(state.colors.omegaFace[0]);
+        const c2 = new THREE.Color(state.colors.omegaFace[1]);
+        const tC = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+            tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+            col.setXYZ(i, tC.r, tC.g, tC.b);
+        }
+        col.needsUpdate = true;
+        state.omegaCoreMesh.material.vertexColors = true;
+        state.omegaCoreMesh.material.color.setHex(0xffffff);
+        if (state.omegaCoreMesh.material.map) { state.omegaCoreMesh.material.map.dispose(); state.omegaCoreMesh.material.map = null; }
+        state.omegaCoreMesh.material.needsUpdate = true;
+    }
+
+    if (state.omegaWireframeMesh) {
+        const geo = state.omegaWireframeMesh.geometry;
+        const count = geo.attributes.position.count;
+        if (!geo.attributes.color || geo.attributes.color.count !== count) {
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+        }
+        const col = geo.attributes.color;
+        geo.computeBoundingBox();
+        const min = geo.boundingBox.min.y;
+        const range = (geo.boundingBox.max.y - min) || 1;
+        const c1 = new THREE.Color(state.colors.omegaEdge[0]);
+        const c2 = new THREE.Color(state.colors.omegaEdge[1]);
+        const tC = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+            tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+            col.setXYZ(i, tC.r, tC.g, tC.b);
+        }
+        col.needsUpdate = true;
+        state.omegaWireframeMesh.material.vertexColors = true;
+        state.omegaWireframeMesh.material.color.setHex(0xffffff);
+        state.omegaWireframeMesh.material.needsUpdate = true;
+    }
+}
+
+// === LIGHTNING ===
+// (from js/lightning.js)
+
+class Lightning {
+    constructor(start, end, isBranch = false) {
+        this.start = start.clone();
+        this.end = end.clone();
+        this.isBranch = isBranch;
+        this.maxLife = state.lightningDuration * (isBranch ? 0.5 : 1.0);
+        this.life = this.maxLife;
+        this.branches = [];
+        this.points = [];
+
+        this.generate();
+
+        const coreColor = new THREE.Color(0xffffff).lerp(
+            new THREE.Color(state.colors.lightning[0]),
+            1 - Math.min(state.lightningBrightness, 1.0)
+        );
+        this.material = new THREE.LineBasicMaterial({
+            color: coreColor,
+            transparent: true,
+            opacity: 1,
+            blending: THREE.AdditiveBlending,
+            linewidth: 1 + Math.random() * 0.5
+        });
+        this.mesh = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(this.points),
+            this.material
+        );
+        state.scene.add(this.mesh);
+    }
+
+    generate() {
+        this.points = [];
+        let subPoints = [this.start, this.end];
+        let iterations = this.isBranch ? 3 : 6;
+
+        for (let i = 0; i < iterations; i++) {
+            let next = [];
+            for (let j = 0; j < subPoints.length - 1; j++) {
+                let p1 = subPoints[j];
+                let p2 = subPoints[j + 1];
+                let mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+                let jitter = p1.distanceTo(p2) * 0.25;
+                mid.x += (Math.random() - 0.5) * jitter;
+                mid.y += (Math.random() - 0.5) * jitter;
+                mid.z += (Math.random() - 0.5) * jitter;
+                next.push(p1);
+                next.push(mid);
+            }
+            next.push(subPoints[subPoints.length - 1]);
+            subPoints = next;
+        }
+        this.points = subPoints;
+
+        if (!this.isBranch) {
+            let boundingRadius = state.z_depth * state.novaScale;
+            let origin = state.polyGroup.position;
+            for (let i = 1; i < this.points.length - 1; i++) {
+                if (Math.random() < state.lightningBranching) {
+                    let p = this.points[i];
+                    let branchDir = new THREE.Vector3(
+                        Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
+                    ).normalize();
+                    let branchLen = 0.3 + Math.random() * 0.8;
+                    let branchEnd = p.clone().add(branchDir.multiplyScalar(branchLen));
+
+                    if (state.lightningSolidBlock) {
+                        let distFromCenter = branchEnd.clone().sub(origin).length();
+                        if (distFromCenter < boundingRadius) {
+                            branchEnd.sub(origin).normalize().multiplyScalar(boundingRadius).add(origin);
+                        }
+                    }
+
+                    this.branches.push(new Lightning(p, branchEnd, true));
+                }
+            }
+        }
+    }
+
+    update(dt) {
+        this.life -= dt;
+        const alpha = Math.max(0, this.life / this.maxLife);
+
+        const flicker = Math.random() > 0.15 ? 1 : 0.4;
+        this.material.opacity = alpha * flicker * state.lightningBrightness;
+
+        const corona = state.colors.lightning[1] ? 0.5 : 0;
+        if (corona > 0) {
+            this.material.opacity += Math.random() * corona * alpha * 0.5;
+        }
+
+        if (Math.random() > 0.8 && this.life > 0.1) {
+            this.branches.forEach(b => {
+                state.scene.remove(b.mesh);
+                b.mesh.geometry.dispose();
+                b.mesh.material.dispose();
+            });
+            this.branches = [];
+            this.generate();
+            this.mesh.geometry.setFromPoints(this.points);
+        } else {
+            this.branches.forEach(b => b.update(dt));
+        }
+
+        if (this.life <= 0) {
+            this.dispose();
+            return false;
+        }
+        return true;
+    }
+
+    dispose() {
+        state.scene.remove(this.mesh);
+        this.mesh.geometry.dispose();
+        this.mesh.material.dispose();
+        this.branches.forEach(b => {
+            state.scene.remove(b.mesh);
+            b.mesh.geometry.dispose();
+            b.mesh.material.dispose();
+        });
+        this.branches = [];
+    }
+}
+
+function spawnBolt() {
+    const origin = state.polyGroup.position.clone();
+    const boundingRadius = state.z_depth * state.novaScale;
+    const actualLength = state.lightningBoltLength / 25;
+
+    const dir = new THREE.Vector3(
+        Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
+    ).normalize();
+
+    let start, end;
+
+    if (state.lightningOriginCenter) {
+        if (state.lightningSolidBlock) {
+            start = origin.clone().add(dir.clone().multiplyScalar(boundingRadius));
+            end = origin.clone().add(dir.clone().multiplyScalar(boundingRadius + actualLength));
+        } else {
+            start = origin.clone().add(
+                new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2)
+            );
+            end = origin.clone().add(dir.clone().multiplyScalar(actualLength));
+        }
+    } else {
+        if (state.lightningSolidBlock) {
+            start = origin.clone().add(dir.clone().multiplyScalar(boundingRadius + actualLength));
+            end = origin.clone().add(dir.clone().multiplyScalar(boundingRadius));
+        } else {
+            start = origin.clone().add(dir.clone().multiplyScalar(actualLength + boundingRadius));
+            end = origin.clone().add(
+                new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2)
+            );
+        }
+    }
+
+    state.lightningStrikes.push(new Lightning(start, end));
+}
+
+function createLightning() {
+    // No setup needed — bolts are spawned dynamically in animateLightning
+}
+
+function animateLightning(dt) {
+    if (!state.isLightningEnabled || state.isDestroyed) {
+        if (state.lightningStrikes.length > 0) {
+            state.lightningStrikes.forEach(b => b.dispose());
+            state.lightningStrikes = [];
+        }
+        return;
+    }
+
+    state.lightningTimer -= dt;
+    if (state.lightningTimer <= 0) {
+        spawnBolt();
+        state.lightningTimer = (6.0 - state.lightningFrequency) + Math.random() * 2;
+    }
+
+    for (let i = state.lightningStrikes.length - 1; i >= 0; i--) {
+        if (!state.lightningStrikes[i].update(dt)) {
+            state.lightningStrikes.splice(i, 1);
+        }
+    }
+}
+
+function updateLightningColors() {
+    // Bolts are short-lived and pick up colors at spawn time; nothing to update.
+}
+
+// === MAGNETIC FIELD ===
+// (from js/magnetic.js)
+
+const MAGNETIC_SEGMENTS = 25;
+const _magDir = new THREE.Vector3();
+const _magTarget = new THREE.Vector3();
+
+class Tentacle {
+    constructor(basePos, length) {
+        this.basePos = basePos.clone();
+        this.length = length;
+        this.points = [];
+        for (let i = 0; i < MAGNETIC_SEGMENTS; i++) {
+            this.points.push(new THREE.Vector3().copy(basePos));
+        }
+
+        this.material = new THREE.LineBasicMaterial({
+            color: new THREE.Color(state.colors.magnetic[0]),
+            transparent: true,
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending
+        });
+        this.mesh = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(this.points),
+            this.material
+        );
+        this.phase = Math.random() * Math.PI * 2;
+        this.localSpeed = 0.4 + Math.random() * 0.6;
+    }
+
+    update(time) {
+        const totalSpeed = this.localSpeed * state.magneticTentacleSpeed;
+        const head = this.points[0];
+        const wander = state.magneticWander;
+
+        head.x = this.basePos.x + Math.sin(time * totalSpeed + this.phase) * wander;
+        head.y = this.basePos.y + Math.cos(time * totalSpeed * 0.8 + this.phase) * wander;
+        head.z = this.basePos.z + Math.sin(time * totalSpeed * 1.2 + this.phase) * wander;
+
+        const segLen = this.length / MAGNETIC_SEGMENTS;
+        for (let i = 1; i < MAGNETIC_SEGMENTS; i++) {
+            const prev = this.points[i - 1];
+            const curr = this.points[i];
+            _magDir.subVectors(curr, prev).normalize();
+            _magTarget.copy(prev).addScaledVector(_magDir, segLen);
+            curr.lerp(_magTarget, 0.15);
+        }
+
+        const posAttr = this.mesh.geometry.attributes.position;
+        for (let i = 0; i < MAGNETIC_SEGMENTS; i++) {
+            posAttr.setXYZ(i, this.points[i].x, this.points[i].y, this.points[i].z);
+        }
+        posAttr.needsUpdate = true;
+        this.material.opacity = (0.4 + Math.sin(time * 2 + this.phase) * 0.2);
+    }
+}
+
+function createMagneticField() {
+    state.magneticTentacleGroup = new THREE.Group();
+    state.magneticTentacleGroup.visible = false;
+    state.polyGroup.add(state.magneticTentacleGroup);
+
+    const count = state.magneticTentacleCount;
+    const phi = Math.PI * (3.0 - Math.sqrt(5.0));
+    for (let i = 0; i < count; i++) {
+        const y = 1.0 - (i / (count - 1)) * 2.0;
+        const radius = Math.sqrt(1 - y * y);
+        const theta = phi * i;
+        const base = new THREE.Vector3(
+            radius * Math.cos(theta),
+            y,
+            radius * Math.sin(theta)
+        );
+
+        const t = new Tentacle(base, 2.5);
+        state.magneticTentacles.push(t);
+        state.magneticTentacleGroup.add(t.mesh);
+    }
+}
+
+function animateMagneticField(dt) {
+    if (!state.isMagneticEnabled || state.isDestroyed) {
+        if (state.magneticTentacleGroup) state.magneticTentacleGroup.visible = false;
+        return;
+    }
+
+    state.magneticTentacleGroup.visible = true;
+    state.magneticTentacles.forEach(t => t.update(state.globalTime));
+}
+
+function updateMagneticColors() {
+    const c1 = new THREE.Color(state.colors.magnetic[0]);
+    state.magneticTentacles.forEach(t => t.material.color.copy(c1));
+}
+
+// === LIVE SCENE ===
+// (from live/js/scene.js)
+
+function initScene() {
+    state.scene = new THREE.Scene();
+    const aspect = window.innerWidth / window.innerHeight;
+
+    state.perspCamera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
+    state.perspCamera.position.z = 7.5;
+    state.camera = state.perspCamera;
+
+    state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    state.renderer.setSize(window.innerWidth, window.innerHeight);
+    state.renderer.setPixelRatio(window.devicePixelRatio);
+    state.renderer.setClearColor(0x000000, 0);
+    document.body.appendChild(state.renderer.domElement);
+
+    // No skybox — transparent background
+
+    state.polyGroup = new THREE.Group();
+    state.scene.add(state.polyGroup);
+
+    // Lighting
+    state.pointLight = new THREE.PointLight(0xffffff, 1.5, 10);
+    state.polyGroup.add(state.pointLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    dirLight.position.set(5, 5, 5);
+    state.scene.add(dirLight);
+    state.scene.add(new THREE.AmbientLight(0x444444));
+
+    // Initialize THREE.Vector3 state fields
+    state.quickSpinAxis = new THREE.Vector3();
+    state.dragMomentumAxis = new THREE.Vector3();
+    state.targetPosition = new THREE.Vector3(0, 0, 0);
+    state.moveRotationAxis = new THREE.Vector3(0, 1, 0);
+
+    window.addEventListener('resize', onWindowResize);
+}
+
+function onWindowResize() {
+    const aspect = window.innerWidth / window.innerHeight;
+    state.perspCamera.aspect = aspect;
+    state.perspCamera.updateProjectionMatrix();
+    state.renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function screenToScene(px, py) {
+    const vFov = state.perspCamera.fov * Math.PI / 180;
+    const dist = state.perspCamera.position.z;
+    const visibleHeight = 2 * Math.tan(vFov / 2) * dist;
+    const visibleWidth = visibleHeight * state.perspCamera.aspect;
+
+    const sx = (px / window.innerWidth - 0.5) * visibleWidth;
+    const sy = -(py / window.innerHeight - 0.5) * visibleHeight;
+    return { x: sx, y: sy };
+}
+
+// === LIVE PATHING ===
+// (from live/js/pathing.js)
+
+const _pathingSpinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+
+function animatePathing(dt) {
+    if (state.isPaused) return;
+
+    if (!state.isDestroyed) {
+        let activeRotationSpeed = state.idleSpinSpeed;
+
+        if (state.quickSpinActive) {
+            let timeRemaining = state.quickSpinEndTime - performance.now();
+            if (timeRemaining > 0) {
+                let t = timeRemaining / 2000;
+                activeRotationSpeed += state.quickSpinSpeed * t * t;
+                state.polyGroup.rotateOnWorldAxis(state.quickSpinAxis, state.quickSpinSpeed * t * t);
+            } else {
+                state.quickSpinActive = false;
+            }
+        }
+
+        state.polyGroup.rotateOnWorldAxis(_pathingSpinAxis, activeRotationSpeed);
+    }
+
+    state.polyGroup.quaternion.normalize();
+}
+
+function setScenePosition(sx, sy) {
+    state.polyGroup.position.x = sx;
+    state.polyGroup.position.y = sy;
+}
+
+// === LIVE MAIN ===
+// (from live/js/main.js)
+
+function init() {
+    initScene();
+    createAuraObjects();
+    createParticleObjects();
+    createPhenomena();
+    createLightning();
+    createMagneticField();
+    createOmega();
+
+    updateGeometry(state.currentGeometryType);
+    updateAllColors();
+
+    state.polyGroup.scale.set(state.z_depth, state.z_depth, state.z_depth);
+
+    setupIPC();
+    animate();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = 0.016;
+
+    state.globalTime += dt;
+
+    // Nova scale calculation
+    if (state.collapseTime > 0 && state.wasFullCharge) {
+        let t = Math.max(0, state.collapseTime) / 0.75;
+        state.novaScale = t * t * t;
+    } else if (state.isDestroyed) {
+        state.novaScale = 0.0;
+    } else if (state.isRespawning) {
+        state.respawnTimer += dt;
+        let progress = Math.min(state.respawnTimer / 2.0, 1.0);
+        let c4 = (2.0 * Math.PI) / 3;
+        state.novaScale = progress === 0 ? 0 : progress === 1 ? 1 :
+            Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
+        if (progress >= 1.0) state.isRespawning = false;
+    } else {
+        state.novaScale = 1.0;
+    }
+
+    // Module animations (no skybox, grid, swarm, or camera transition in live mode)
+    animatePathing(dt);
+    animateParticles(dt);
+    animatePhenomena(dt);
+    animateAura(dt);
+    animateLightning(dt);
+    animateMagneticField(dt);
+    animateOmega(dt);
+    animateSkins(dt);
+    animateTrails(dt);
+
+    // Check for deferred fire signals from aura collapse
+    if (state._fireSuperNova) {
+        state._fireSuperNova = false;
+        fireSuperNova();
+    }
+    if (state._fireExplosion) {
+        state._fireExplosion = false;
+        fireExplosion();
+    }
+
+    // Apply unified scale
+    state.polyGroup.scale.setScalar(state.z_depth * state.novaScale);
+
+    state.renderer.render(state.scene, state.camera);
+}
+
+// === IPC ===
+
+function setupIPC() {
+    if (!window.headsup) return;
+
+    window.headsup.receive((msg) => {
+        try {
+            const data = typeof msg === 'string' ? JSON.parse(msg) : msg;
+            handleMessage(data);
+        } catch (e) {
+            console.error('[live] IPC parse error:', e);
+        }
+    });
+}
+
+function handleMessage(msg) {
+    switch (msg.type) {
+        case 'scene_position': {
+            const [px, py] = msg.position;
+            const { x, y } = screenToScene(px, py);
+            setScenePosition(x, y);
+            break;
+        }
+
+        case 'transit_start': {
+            const [px, py] = msg.position;
+            const { x, y } = screenToScene(px, py);
+            setScenePosition(x, y);
+            state.omegaInterDimensional = true;
+            break;
+        }
+
+        case 'transit_end': {
+            _waitForEffectsSettled().then(() => {
+                window.postMessage({ type: 'effects_settled' }, '*');
+            });
+            break;
+        }
+
+        case 'config': {
+            applyConfig(msg.data);
+            break;
+        }
+
+        case 'show': {
+            document.body.style.visibility = 'visible';
+            break;
+        }
+
+        case 'hide': {
+            document.body.style.visibility = 'hidden';
+            break;
+        }
+
+        case 'behavior': {
+            applyBehaviorPreset(msg.slot, msg.data);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+function applyConfig(config) {
+    if (config == null) return;
+
+    // Geometry
+    if (config.shape != null) {
+        state.currentGeometryType = config.shape;
+        updateGeometry(state.currentGeometryType);
+    }
+    if (config.stellationFactor != null) {
+        state.stellationFactor = config.stellationFactor;
+        updateGeometry(state.currentGeometryType);
+    }
+    if (config.opacity != null) {
+        state.currentOpacity = config.opacity;
+    }
+    if (config.edgeOpacity != null) {
+        state.currentEdgeOpacity = config.edgeOpacity;
+    }
+    if (config.isMaskEnabled != null) {
+        state.isMaskEnabled = config.isMaskEnabled;
+    }
+    if (config.isInteriorEdgesEnabled != null) {
+        state.isInteriorEdgesEnabled = config.isInteriorEdgesEnabled;
+    }
+    if (config.isSpecularEnabled != null) {
+        state.isSpecularEnabled = config.isSpecularEnabled;
+    }
+
+    // Colors
+    if (config.colors != null) {
+        Object.assign(state.colors, config.colors);
+    }
+
+    // Aura
+    if (config.isAuraEnabled != null) {
+        state.isAuraEnabled = config.isAuraEnabled;
+    }
+    if (config.auraReach != null) {
+        state.auraReach = config.auraReach;
+    }
+    if (config.auraIntensity != null) {
+        state.auraIntensity = config.auraIntensity;
+    }
+    if (config.auraPulseRate != null) {
+        state.auraPulseRate = config.auraPulseRate;
+    }
+
+    // Effects toggles
+    if (config.isPulsarEnabled != null) state.isPulsarEnabled = config.isPulsarEnabled;
+    if (config.isAccretionEnabled != null) state.isAccretionEnabled = config.isAccretionEnabled;
+    if (config.isGammaEnabled != null) state.isGammaEnabled = config.isGammaEnabled;
+    if (config.isNeutrinosEnabled != null) state.isNeutrinosEnabled = config.isNeutrinosEnabled;
+    if (config.isLightningEnabled != null) state.isLightningEnabled = config.isLightningEnabled;
+    if (config.isMagneticEnabled != null) state.isMagneticEnabled = config.isMagneticEnabled;
+
+    // Omega / ghost settings
+    if (config.isOmegaEnabled != null) state.isOmegaEnabled = config.isOmegaEnabled;
+    if (config.omegaInterDimensional != null) state.omegaInterDimensional = config.omegaInterDimensional;
+    if (config.omegaGhostCount != null) state.omegaGhostCount = config.omegaGhostCount;
+    if (config.omegaGhostMode != null) state.omegaGhostMode = config.omegaGhostMode;
+    if (config.omegaGhostDuration != null) state.omegaGhostDuration = config.omegaGhostDuration;
+    if (config.omegaLagFactor != null) state.omegaLagFactor = config.omegaLagFactor;
+    if (config.omegaScale != null) state.omegaScale = config.omegaScale;
+    if (config.omegaOpacity != null) state.omegaOpacity = config.omegaOpacity;
+    if (config.omegaEdgeOpacity != null) state.omegaEdgeOpacity = config.omegaEdgeOpacity;
+    if (config.omegaCounterSpin != null) state.omegaCounterSpin = config.omegaCounterSpin;
+
+    // Spin speed
+    if (config.idleSpinSpeed != null) state.idleSpinSpeed = config.idleSpinSpeed;
+
+    // Rebuild colors after any changes
+    updateAllColors();
+}
+
+function applyBehaviorPreset(slot, data) {
+    switch (slot) {
+        case 'fast_travel':
+            state.omegaInterDimensional = true;
+            state.isOmegaEnabled = true;
+            break;
+
+        case 'standby':
+        case 'idle':
+            state.omegaInterDimensional = false;
+            break;
+
+        default:
+            break;
+    }
+
+    if (data) {
+        applyConfig(data);
+    }
+}
+
+function _waitForEffectsSettled() {
+    return new Promise((resolve) => {
+        const check = () => {
+            if (!state.omegaGhosts || state.omegaGhosts.length === 0) {
+                resolve();
+            } else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+}
+
+window.onload = init;
+</script>
 </body>
 </html>
