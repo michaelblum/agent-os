@@ -41,16 +41,29 @@ Sigil resolves the daemon socket from the current runtime mode (`~/.config/aos/{
 |------|------|
 | `avatar-sub.swift` | Entry point, state machine, runtime input bridge, event dispatch, reconnection |
 | `avatar-behaviors.swift` | Choreographer — maps channel events to animation sequences |
-| `avatar-animate.swift` | Animation primitives (moveTo, scaleTo, orbit, holdPosition) |
-| `avatar-spatial.swift` | Spatial helpers (display geometry, element resolution via xray_target.py) |
+| `avatar-animate.swift` | Animation primitives (moveTo, scaleTo, orbit, holdPosition) — sends scene-position updates |
+| `avatar-spatial.swift` | Spatial helpers (display geometry, multi-display handoff, element resolution) |
 | `avatar-easing.swift` | Easing functions |
-| `avatar-ipc.swift` | Socket/IPC helpers for heads-up daemon communication |
-| `avatar.html` | Avatar skin — Three.js stellation, ghost trail, behavior presets, radial menu |
-| `cursor-decor.html` | **Moved to `packages/toolkit/components/cursor-decor.html`** — reusable cursor decoration, not sigil-specific |
-| `radial-menu-config.json` | Menu items (geometry, name, color, action) |
+| `avatar-ipc.swift` | Socket/IPC helpers for daemon communication + scene-position messaging |
+| `celestial/js/` | Shared Three.js modules (geometry, colors, aura, effects, ghost trails) from celestial legacy |
+| `celestial/live/` | Live avatar renderer — full-screen transparent canvas, IPC-driven movement |
+| `celestial/studio/` | Avatar Studio — customization UI (celestial legacy with Sigil integration) |
+| `avatar.html` | **Legacy** — replaced by `celestial/live/index.html`, kept for reference |
+| `radial-menu-config.json` | Menu items (geometry, name, color, action) — deferred, to be reimplemented on celestial renderer |
+
+## Canvas Model
+
+The avatar runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
+
+- **Live mode**: `celestial/live/index.html` — bundled renderer, IPC-driven position via `headsup.receive()`
+- **Studio mode**: `celestial/studio/index.html` — full customization UI (celestial legacy)
+- **Config**: `~/.config/aos/{mode}/avatar-config.json` — saved from Studio, loaded by Live
+
+Multi-display: canvases on all displays at launch. Avatar hands off between displays when crossing boundaries.
 
 ## Dependencies
 
 - **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub (subsumes heads-up)
+- **Three.js r128** — 3D rendering engine (loaded from CDN)
 - **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
 - **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — channel events that drive avatar behaviors
