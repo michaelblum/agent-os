@@ -14,6 +14,7 @@ class UnifiedDaemon {
     let perception: PerceptionEngine
     let canvasManager = CanvasManager()
     private var speechEngine: SpeechEngine?
+    private var contentServer: ContentServer?
 
     // Socket server
     var serverFD: Int32 = -1
@@ -108,6 +109,13 @@ class UnifiedDaemon {
 
         // Start modules
         perception.start()
+
+        // Start content server
+        if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
+            let repoRoot = aosCurrentRepoRoot()
+            contentServer = ContentServer(config: contentConfig, repoRoot: repoRoot)
+            contentServer?.start()
+        }
 
         // Accept connections
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -313,12 +321,25 @@ class UnifiedDaemon {
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
-            sendResponseJSON(to: clientFD, [
+            var response: [String: Any] = [
                 "status": "ok",
                 "uptime": uptime,
                 "perception_channels": perceptionChannels,
                 "subscribers": subscriberCount
-            ])
+            ]
+            if let port = contentServer?.assignedPort, port > 0 {
+                response["content_port"] = Int(port)
+            }
+            sendResponseJSON(to: clientFD, response)
+
+        case "content_status":
+            if let server = contentServer {
+                var result = server.statusDict()
+                result["status"] = "ok"
+                sendResponseJSON(to: clientFD, result)
+            } else {
+                sendResponseJSON(to: clientFD, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any])
+            }
 
         default:
             sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
@@ -336,6 +357,9 @@ class UnifiedDaemon {
         }
         if old.perception.settle_threshold_ms != new.perception.settle_threshold_ms {
             fputs("Config: perception.settle_threshold_ms = \(new.perception.settle_threshold_ms)\n", stderr)
+        }
+        if old.content?.roots != new.content?.roots {
+            fputs("Config: content.roots changed — restart daemon to apply\n", stderr)
         }
         // Broadcast config change event to subscribers
         let data: [String: Any] = [
