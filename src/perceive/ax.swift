@@ -129,7 +129,8 @@ let xrayWhitelistRoles: Set<String> = [
     "AXRadioButton", "AXPopUpButton", "AXComboBox", "AXMenuItem",
     "AXMenuBarItem", "AXLink", "AXSlider", "AXIncrementor",
     "AXColorWell", "AXDisclosureTriangle", "AXTab", "AXStaticText",
-    "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField"
+    "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField",
+    "AXScrollArea", "AXTable", "AXOutline", "AXGroup"
 ]
 
 // MARK: - AX Traversal (--xray)

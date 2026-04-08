@@ -2,17 +2,20 @@
 // Reads side-eye channel files from ~/.config/agent-os/channels/<id>.json
 // Used by anchorChannel and auto-projection modes.
 
+import CoreGraphics
 import Foundation
 
 // MARK: - Channel File Types (mirrors side-eye ChannelFile schema)
 
 struct ChannelData: Codable {
     let channel_id: String
+    var created_by: String?
+    var created_at: String?
+    var updated_at: String
     let target: ChannelTarget
     let focus: ChannelFocus
-    let window_bounds: ChannelBounds
-    let elements: [ChannelElement]
-    let updated_at: String
+    var window_bounds: ChannelBounds
+    var elements: [ChannelElement]
 }
 
 struct ChannelTarget: Codable {
@@ -25,14 +28,14 @@ struct ChannelTarget: Codable {
 }
 
 struct ChannelFocus: Codable {
-    let subtree: ChannelSubtree?
-    let depth: Int
+    var subtree: ChannelSubtree?
+    var depth: Int
 }
 
 struct ChannelSubtree: Codable {
-    let role: String?
-    let title: String?
-    let identifier: String?
+    var role: String?
+    var title: String?
+    var identifier: String?
 }
 
 struct ChannelBounds: Codable {
@@ -40,6 +43,17 @@ struct ChannelBounds: Codable {
     let y: Double
     let w: Double
     let h: Double
+
+    init(x: Double, y: Double, w: Double, h: Double) {
+        self.x = x; self.y = y; self.w = w; self.h = h
+    }
+
+    init(from rect: CGRect) {
+        self.x = Double(rect.origin.x)
+        self.y = Double(rect.origin.y)
+        self.w = Double(rect.size.width)
+        self.h = Double(rect.size.height)
+    }
 }
 
 struct ChannelElement: Codable {
