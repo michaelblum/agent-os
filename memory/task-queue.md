@@ -4,11 +4,7 @@
 (none)
 
 ## Queued
-- **SDK Layer 3 — saved workflows**: Write the "what's on screen" and "show and clean up" scripts from sdk-first-scripts.md using the new Layer 2 ops. Save to registry. These are the first real consumers beyond self-check.
-- **SDK tests**: Write tests for Layer 2 smart ops (perceive, clickElement error paths, waitFor timeout, showOverlay positioning). Currently only manual verification.
 - **Chat surface integration**: Chat canvas (`apps/sigil/chat/`) is wired to studio "Open Chat" button via daemon IPC. Next: connect to actual Claude API or agent session for real conversations. Now writable as a gateway script using `aos.coordination.*`.
-- **Settings panel**: Stub UI in Avatar panel. Next: read config from daemon on load via `aos.getConfig()`, write changes back via `aos.setConfig()`. SDK methods exist, just need UI wiring.
-- **Test suite for display behaviors**: Canvas close handler, click-through levels (.floating vs .statusBar), single menu bar icon per mode. Now writable as gateway scripts using `aos.createCanvas()` / `aos.listCanvases()`.
 - **side-eye decision**: Absorb into aos (true single binary) or keep as bundled sub-binary? Blocks packaging fixes.
 - **Packaging gaps**: Bundle side-eye + toolkit HTML into AOS.app so installed-mode commands are self-contained.
 - **StatusItemManager ↔ Sigil coordination**: Menu bar toggle creates/removes avatar canvas independently of Sigil. Need to reconcile so Sigil detects externally-created canvas or the toggle starts/stops Sigil.
@@ -16,6 +12,44 @@
 - **Studio WKWebView bundling**: Low priority — content server mostly solves this.
 
 ## Done
+
+### sdk-tests-and-settings (2026-04-08)
+SDK proxy tests, settings panel wiring, display behavior tests.
+
+**Commits:** `9796c98` → `e8b6b92` (2 commits)
+
+**Tests:**
+- 15 proxy unit tests: normalizeWindow (6 cases), overlay positioning (3), clickElement error paths (5), waitFor timeout (1)
+- `test-display-behaviors` saved script: 8 integration tests (canvas CRUD, duplicate rejection, showOverlay idempotency, updateOverlay speed, near positioning)
+- Total: 53 passing gateway tests
+
+**Settings panel wired:**
+- Swift: `get_config` / `set_config` IPC handlers in canvas onMessage (safe — uses loadConfig/saveConfig, not exitError)
+- JS: studio loads config on open, sends changes on toggle. Voice + Visual Feedback controls live.
+- Requires daemon restart to pick up new binary.
+
+**Gateway infra:** dist watcher changed from auto-exit to log-only (was killing MCP during test builds)
+
+### sdk-layer-3-and-proxy-fixes (2026-04-08)
+Layer 3 saved workflows, proxy normalization, and updateOverlay.
+
+**Commits:** `8061d61` → `9796c98` (1 commit)
+
+**Scripts saved to registry (4 total):**
+- `whats-on-screen` — perceive + format + post to coordination (274ms)
+- `show-and-clean-up` — overlay lifecycle: create → work → updateOverlay → auto-dismiss (5.4s)
+- `self-check` — (existing) runtime health check
+- `list-windows` — (existing) window enumeration
+
+**Proxy fixes:**
+- Normalized raw CLI data to match SDK types (window.app_name → app, window.bounds → frame)
+- perceive() reduced from 4 CLI calls to 1
+- showOverlay handles DUPLICATE_ID idempotently (remove + retry)
+- findWindow/showOverlay positioning fixed (was accessing wrong properties)
+
+**New SDK method:** `updateOverlay(id, { content, style, ttl })` — 288ms vs 3-8s for remove+recreate
+
+**Gateway infra:** dist/ watcher auto-exits on rebuild so Claude Code restarts with new code
 
 ### sdk-layer-1-2-and-infra (2026-04-08)
 SDK expansion, project hooks, and codebase cleanup.
