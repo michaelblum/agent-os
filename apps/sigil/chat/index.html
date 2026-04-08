@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+.card {
+  background: rgba(22, 22, 26, 0.96);
+  color: #e8e8ed;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  height: 100vh;
+}
+.card.dismissed {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  pointer-events: none;
+}
+
+/* --- Header (drag handle) --- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #86868b;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+.header:active { cursor: grabbing; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #86868b; position: relative; }
+.dot.active { background: #30d158; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* --- Mini-avatar (docked state) --- */
+.mini-avatar {
+  display: none;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.dot.avatar-docked { background: transparent; }
+.dot.avatar-docked .mini-avatar { display: block; }
+
+.mini-avatar-core {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%,
+    rgba(188,100,255,0.95) 0%,
+    rgba(100,40,255,0.8) 60%,
+    rgba(60,20,255,0.6) 100%);
+  animation: miniSpin 3s linear infinite, miniHue 8s linear infinite;
+  box-shadow: 0 0 3px rgba(180,100,255,0.8);
+}
+.mini-avatar-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(188,100,255,0.5) 0%,
+    rgba(140,70,255,0.2) 40%,
+    rgba(100,50,255,0.05) 70%,
+    transparent 100%);
+  animation: miniPulse 2s ease-in-out infinite, miniHue 8s linear infinite;
+}
+.mini-avatar-ring {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px solid rgba(188,130,255,0.4);
+  animation: miniSpin 4s linear infinite reverse, miniHue 8s linear infinite;
+}
+
+@keyframes miniSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes miniPulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 1; }
+}
+@keyframes miniHue {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+/* --- Tab bar --- */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 20px 0;
+  flex-shrink: 0;
+}
+.tab {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #86868b;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover { color: #b0b0b5; }
+.tab.active { color: #f5f5f7; border-bottom-color: #64d2ff; }
+.tab-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ff453a;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* --- Tab panels --- */
+.panel { display: none; padding: 0 20px 16px; flex: 1; overflow: hidden; }
+.panel.active { display: flex; flex-direction: column; }
+
+/* --- Chat panel --- */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+.msg {
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 92%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.5;
+  animation: msgIn 0.2s ease;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.msg.assistant {
+  align-self: flex-start;
+  background: rgba(100, 210, 255, 0.06);
+  border: 1px solid rgba(100, 210, 255, 0.12);
+}
+.msg.user {
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d0d0d5;
+}
+.msg.status {
+  align-self: center;
+  background: transparent;
+  border: none;
+  color: #86868b;
+  font-style: italic;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+/* --- Markdown rendering --- */
+.msg p { margin: 0 0 8px; }
+.msg p:last-child { margin-bottom: 0; }
+.msg strong { color: #64d2ff; }
+.msg em { color: #b0b0b5; }
+.msg code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+}
+.msg pre {
+  background: rgba(0,0,0,0.3);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.msg pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.msg a { color: #64d2ff; text-decoration: underline; }
+.msg ul, .msg ol { padding-left: 20px; margin: 6px 0; }
+.msg li { margin: 2px 0; }
+.msg blockquote {
+  border-left: 3px solid rgba(100,210,255,0.3);
+  padding-left: 12px;
+  color: #a0a0a5;
+  margin: 8px 0;
+}
+
+/* --- Numbered options (for AskUserQuestion) --- */
+.options { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: #f5f5f7;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  text-align: left;
+  width: 100%;
+}
+.opt-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(100,210,255,0.4); }
+.opt-btn:active { transform: scale(0.98); }
+.opt-num {
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  background: rgba(100,210,255,0.15);
+  color: #64d2ff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.opt-label { flex: 1; }
+.opt-desc { font-size: 12px; color: #86868b; margin-top: 2px; }
+
+/* --- Todo list (for TodoWrite) --- */
+.todo-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.todo-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  font-size: 13px;
+}
+.todo-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+.todo-item.pending .todo-icon { border: 2px solid rgba(255,255,255,0.25); }
+.todo-item.in_progress .todo-icon { border: 2px solid #64d2ff; background: rgba(100,210,255,0.15); color: #64d2ff; animation: pulse 2s infinite; }
+.todo-item.completed .todo-icon { border: 2px solid #30d158; background: rgba(48,209,88,0.15); color: #30d158; }
+.todo-item.completed .todo-text { color: #86868b; text-decoration: line-through; }
+
+/* --- Thinking (collapsible) --- */
+.thinking-block {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.thinking-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: #86868b;
+  font-size: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.thinking-header:hover { color: #b0b0b5; }
+.thinking-arrow { transition: transform 0.15s; font-size: 10px; }
+.thinking-block.open .thinking-arrow { transform: rotate(90deg); }
+.thinking-body {
+  display: none;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a0a0a5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.thinking-block.open .thinking-body { display: block; }
+
+/* --- Tool use card (generic) --- */
+.tool-card {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  background: rgba(255,255,255,0.02);
+}
+.tool-card-header {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #86868b;
+  margin-bottom: 6px;
+}
+.tool-card-icon { color: #64d2ff; }
+.tool-card-name { font-weight: 600; color: #b0b0b5; }
+.tool-card-input {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  color: #a0a0a5;
+  background: rgba(0,0,0,0.2);
+  padding: 6px 8px;
+  border-radius: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* --- Tool result --- */
+.tool-result {
+  border-left: 3px solid rgba(48,209,88,0.4);
+  padding: 8px 12px;
+  margin-top: 6px;
+  background: rgba(48,209,88,0.04);
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+}
+.tool-result.error {
+  border-left-color: rgba(255,69,58,0.4);
+  background: rgba(255,69,58,0.04);
+}
+.tool-result-label {
+  font-size: 11px;
+  color: #86868b;
+  margin-bottom: 4px;
+}
+
+/* --- Image --- */
+.msg-image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+
+/* --- Plan (ExitPlanMode) --- */
+.plan-block {
+  border: 1px solid rgba(100,210,255,0.15);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  background: rgba(100,210,255,0.03);
+}
+.plan-label {
+  font-size: 11px;
+  color: #64d2ff;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+/* --- Redacted thinking --- */
+.redacted-block {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  color: #555;
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 6px;
+}
+
+/* --- Input bar (always visible) --- */
+.input-bar {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.text-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: #f5f5f7;
+  font-size: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  outline: none;
+}
+.text-input::placeholder { color: rgba(255,255,255,0.3); }
+.text-input:focus { border-color: rgba(100,210,255,0.5); background: rgba(255,255,255,0.12); }
+.text-input:disabled { opacity: 0.4; cursor: not-allowed; }
+.text-input { resize: none; }
+.btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-send {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(100,210,255,0.2);
+  color: #64d2ff;
+  border: 1px solid rgba(100,210,255,0.3);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.15s ease;
+}
+.btn-send:hover { background: rgba(100,210,255,0.3); }
+.btn-send:active { transform: scale(0.96); }
+
+/* --- Log panel --- */
+.log-viewer {
+  flex: 1;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #a0a0a5;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.log-viewer::-webkit-scrollbar { width: 4px; }
+.log-viewer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.log-entry { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.log-entry .ts { color: #555; margin-right: 8px; }
+.log-entry.error { color: #ff453a; }
+.log-entry.warn { color: #ffd60a; }
+.log-entry.success { color: #30d158; }
+.log-empty { color: #555; font-style: italic; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="card dismissed" id="card">
+  <div class="header" id="dragHandle">
+    <div class="dot" id="dot">
+      <div class="mini-avatar">
+        <div class="mini-avatar-glow"></div>
+        <div class="mini-avatar-core"></div>
+        <div class="mini-avatar-ring"></div>
+      </div>
+    </div>
+    <span id="header-text">AGENT</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="chat" onclick="switchTab('chat')">Chat</button>
+    <button class="tab" data-tab="log" onclick="switchTab('log')">
+      Log
+      <span class="tab-badge" id="logBadge">0</span>
+    </button>
+  </div>
+
+  <div class="panel active" id="panel-chat">
+    <div class="messages" id="messages"></div>
+    <div class="input-bar">
+      <textarea class="text-input" id="userInput" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendUserInput()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'" disabled></textarea>
+      <button class="btn-send" onclick="sendUserInput()" disabled>Send</button>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-log">
+    <div class="log-viewer" id="logViewer">
+      <div class="log-empty">No log entries yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var dismissed = true;
+var activeTab = 'chat';
+var unreadLogs = 0;
+var pendingToolUseId = null;
+
+// ============================================================
+// Minimal markdown renderer (no external dependencies)
+// Handles: **bold**, *italic*, `code`, ```blocks```, links,
+//          headers, lists, blockquotes, paragraphs
+// ============================================================
+function renderMarkdown(text) {
+  if (!text) return '';
+  var html = escapeHtml(text);
+
+  // Fenced code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+    return '<pre><code>' + code.replace(/\n$/, '') + '</code></pre>';
+  });
+
+  // Inline code (before other inline formatting)
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<strong style="font-size:14px">$1</strong>');
+  html = html.replace(/^## (.+)$/gm, '<strong style="font-size:15px">$1</strong>');
+  html = html.replace(/^# (.+)$/gm, '<strong style="font-size:16px">$1</strong>');
+
+  // Bold + italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Links (sanitize: only http, https, mailto schemes)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url) {
+    if (/^(https?:|mailto:)/i.test(url)) {
+      return '<a href="' + url + '" target="_blank">' + text + '</a>';
+    }
+    return text;
+  });
+
+  // Blockquotes
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // Unordered lists
+  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, function(m) { return '<ul>' + m + '</ul>'; });
+
+  // Ordered lists
+  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+  // Paragraphs (double newlines)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  // Single newlines to <br> (within paragraphs)
+  html = html.replace(/\n/g, '<br>');
+
+  return '<p>' + html + '</p>';
+}
+
+// ============================================================
+// headsup message convention
+// ============================================================
+window.headsup = {
+  manifest: { name: 'chat', accepts: ['assistant', 'user', 'status', 'clear'], emits: ['response', 'tts', 'ready', 'avatar_toggle'] },
+  receive: function(b64) {
+    try {
+      // atob() returns Latin-1, not UTF-8. Decode properly for emoji/accented text.
+      var bytes = Uint8Array.from(atob(b64), function(c) { return c.charCodeAt(0); });
+      var text = new TextDecoder().decode(bytes);
+      var msg = JSON.parse(text);
+      dispatch(msg);
+    } catch (e) {
+      addLog('receive error: ' + e.message, 'error');
+    }
+  }
+};
+
+function emit(type, payload) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+    window.webkit.messageHandlers.headsup.postMessage(
+      payload !== undefined ? { type: type, payload: payload } : { type: type }
+    );
+  }
+}
+
+// ============================================================
+// Message dispatch
+// ============================================================
+function dispatch(msg) {
+  showCard();
+
+  if (msg.type === 'clear') {
+    document.getElementById('messages').innerHTML = '';
+    pendingToolUseId = null;
+    setIdle();
+    return;
+  }
+
+  if (msg.type === 'status') {
+    addStatusMessage(msg.text || '');
+    return;
+  }
+
+  if (msg.type === 'user') {
+    addUserMessage(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content));
+    return;
+  }
+
+  if (msg.type === 'assistant' && Array.isArray(msg.content)) {
+    for (var i = 0; i < msg.content.length; i++) {
+      var block = msg.content[i];
+      if (block.type === 'text') {
+        addAssistantText(block.text);
+      } else if (block.type === 'thinking') {
+        addThinking(block.thinking);
+      } else if (block.type === 'redacted_thinking') {
+        addRedactedThinking();
+      } else if (block.type === 'tool_use' && block.name === 'AskUserQuestion') {
+        addAskUserQuestion(block.id, block.input);
+      } else if (block.type === 'tool_use' && block.name === 'TodoWrite') {
+        addTodoList(block.input);
+      } else if (block.type === 'tool_use' && block.name === 'ExitPlanMode') {
+        addPlan(block.input);
+      } else if (block.type === 'tool_use') {
+        addToolUseCard(block.name, block.input);
+      } else if (block.type === 'tool_result') {
+        addToolResult(block.content, block.is_error);
+      } else if (block.type === 'image') {
+        addImage(block.source);
+      } else if (block.type === 'server_tool_use') {
+        addToolUseCard(block.name, block.input);
+      } else if (block.type === 'web_search_tool_result' || block.type === 'web_fetch_tool_result') {
+        addToolResult(block.content, false);
+      } else if (block.type === 'code_execution_tool_result' || block.type === 'bash_code_execution_tool_result') {
+        addCodeExecutionResult(block.content);
+      }
+    }
+    return;
+  }
+
+  // Fallback: treat as text
+  if (typeof msg === 'string') {
+    addAssistantText(msg);
+  }
+}
+
+// ============================================================
+// Message rendering
+// ============================================================
+function addAssistantText(text) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = renderMarkdown(text);
+  appendMessage(div);
+  setIdle();
+}
+
+function addUserMessage(text) {
+  var div = document.createElement('div');
+  div.className = 'msg user';
+  div.textContent = text;
+  appendMessage(div);
+}
+
+function addStatusMessage(text) {
+  // Replace previous status message if exists
+  var prev = document.querySelector('.msg.status');
+  if (prev) prev.remove();
+
+  if (!text) return;
+  var div = document.createElement('div');
+  div.className = 'msg status';
+  div.textContent = text;
+  appendMessage(div);
+}
+
+function addAskUserQuestion(toolUseId, input) {
+  pendingToolUseId = toolUseId;
+  setActive();
+
+  if (!input || !input.questions || input.questions.length === 0) return;
+
+  for (var qi = 0; qi < input.questions.length; qi++) {
+    var q = input.questions[qi];
+    var div = document.createElement('div');
+    div.className = 'msg assistant';
+
+    // Question text
+    var qHtml = renderMarkdown(q.question || '');
+
+    // Options as numbered buttons
+    var optsHtml = '';
+    if (q.options && q.options.length > 0) {
+      optsHtml = '<div class="options">';
+      for (var oi = 0; oi < q.options.length; oi++) {
+        var opt = q.options[oi];
+        var label = typeof opt === 'string' ? opt : (opt.label || '');
+        var desc = (typeof opt === 'object' && opt.description) ? '<div class="opt-desc">' + escapeHtml(opt.description) + '</div>' : '';
+        optsHtml += '<button class="opt-btn" data-value="' + escapeAttr(label) + '" onclick="respondOption(this)">'
+          + '<span class="opt-num">' + (oi + 1) + '</span>'
+          + '<span class="opt-label">' + escapeHtml(label) + desc + '</span>'
+          + '</button>';
+      }
+      optsHtml += '</div>';
+    }
+
+    div.innerHTML = qHtml + optsHtml;
+    appendMessage(div);
+  }
+
+  switchTab('chat');
+}
+
+function addThinking(text) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = '<div class="thinking-block">'
+    + '<div class="thinking-header" onclick="this.parentElement.classList.toggle(\'open\')">'
+    + '<span class="thinking-arrow">\u25B6</span> Thinking\u2026'
+    + '</div>'
+    + '<div class="thinking-body">' + renderMarkdown(text) + '</div>'
+    + '</div>';
+  appendMessage(div);
+  setIdle();
+}
+
+function addRedactedThinking() {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = '<div class="redacted-block">\uD83D\uDD12 Thinking (redacted)</div>';
+  appendMessage(div);
+  setIdle();
+}
+
+function addToolUseCard(name, input) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  var inputStr = '';
+  try { inputStr = JSON.stringify(input, null, 2); } catch(e) { inputStr = String(input); }
+  div.innerHTML = '<div class="tool-card">'
+    + '<div class="tool-card-header">'
+    + '<span class="tool-card-icon">\u2699</span>'
+    + '<span class="tool-card-name">' + escapeHtml(name) + '</span>'
+    + '</div>'
+    + '<div class="tool-card-input">' + escapeHtml(inputStr) + '</div>'
+    + '</div>';
+  appendMessage(div);
+  setIdle();
+}
+
+function addToolResult(content, isError) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  var text = '';
+  if (typeof content === 'string') {
+    text = content;
+  } else if (Array.isArray(content)) {
+    for (var i = 0; i < content.length; i++) {
+      if (content[i].type === 'text') text += content[i].text + '\n';
+    }
+  } else if (content && typeof content === 'object') {
+    try { text = JSON.stringify(content, null, 2); } catch(e) { text = String(content); }
+  }
+  div.innerHTML = '<div class="tool-result' + (isError ? ' error' : '') + '">'
+    + '<div class="tool-result-label">' + (isError ? '\u274C Error' : '\u2705 Result') + '</div>'
+    + renderMarkdown(text.trim())
+    + '</div>';
+  appendMessage(div);
+  setIdle();
+}
+
+function addImage(source) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  if (source && source.type === 'base64') {
+    div.innerHTML = '<img class="msg-image" src="data:' + (source.media_type || 'image/png') + ';base64,' + source.data + '">';
+  } else if (source && source.type === 'url') {
+    div.innerHTML = '<img class="msg-image" src="' + escapeAttr(source.url) + '">';
+  } else {
+    div.innerHTML = '<em>Image (unsupported source)</em>';
+  }
+  appendMessage(div);
+  setIdle();
+}
+
+function addPlan(input) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  var planText = '';
+  if (input && input.plan) planText = input.plan;
+  else if (input && input.allowedPrompts) planText = 'Plan ready for approval.';
+  div.innerHTML = '<div class="plan-block">'
+    + '<div class="plan-label">\uD83D\uDCCB Plan</div>'
+    + renderMarkdown(planText)
+    + '</div>';
+  appendMessage(div);
+  setIdle();
+}
+
+function addCodeExecutionResult(content) {
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+  var html = '<div class="tool-result">';
+  if (content && content.stdout) {
+    html += '<div class="tool-result-label">stdout</div><pre><code>' + escapeHtml(content.stdout) + '</code></pre>';
+  }
+  if (content && content.stderr) {
+    html += '<div class="tool-result-label" style="color:#ff453a">stderr</div><pre><code>' + escapeHtml(content.stderr) + '</code></pre>';
+  }
+  if (content && content.return_code !== undefined) {
+    var rc = content.return_code;
+    html += '<div style="font-size:11px;color:' + (rc === 0 ? '#30d158' : '#ff453a') + ';margin-top:4px">exit ' + rc + '</div>';
+  }
+  html += '</div>';
+  div.innerHTML = html;
+  appendMessage(div);
+  setIdle();
+}
+
+function addTodoList(input) {
+  if (!input || !input.todos) return;
+  var div = document.createElement('div');
+  div.className = 'msg assistant';
+
+  var html = '<div class="todo-list">';
+  for (var i = 0; i < input.todos.length; i++) {
+    var t = input.todos[i];
+    var status = t.status || 'pending';
+    var icon = status === 'completed' ? '\u2713' : status === 'in_progress' ? '\u25B6' : '';
+    var text = status === 'in_progress' ? (t.activeForm || t.content) : t.content;
+    html += '<div class="todo-item ' + status + '">'
+      + '<span class="todo-icon">' + icon + '</span>'
+      + '<span class="todo-text">' + escapeHtml(text) + '</span>'
+      + '</div>';
+  }
+  html += '</div>';
+  div.innerHTML = html;
+  appendMessage(div);
+  setIdle();
+}
+
+function appendMessage(el) {
+  var container = document.getElementById('messages');
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+// ============================================================
+// Response handling
+// ============================================================
+function respondOption(btn) {
+  var value = btn.getAttribute('data-value');
+  respond(value);
+}
+
+function respond(value) {
+  if (!value || value.trim() === '') return;
+  value = value.trim();
+
+  addUserMessage(value);
+
+  var payload = { type: 'response', value: value };
+  if (pendingToolUseId) {
+    payload.tool_use_id = pendingToolUseId;
+    pendingToolUseId = null;
+  }
+  emit('response', payload);
+
+  // Disable option buttons in the last assistant message
+  var btns = document.querySelectorAll('.opt-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].style.pointerEvents = 'none';
+    btns[i].style.opacity = '0.5';
+  }
+
+  setIdle();
+  document.getElementById('userInput').value = '';
+}
+
+function sendUserInput() {
+  var input = document.getElementById('userInput');
+  respond(input.value);
+}
+
+// ============================================================
+// State indicators
+// ============================================================
+function setActive() {
+  var dot = document.getElementById('dot');
+  dot.classList.add('active');
+  // Enable input when agent is asking a question
+  document.getElementById('userInput').disabled = false;
+  document.querySelector('.btn-send').disabled = false;
+}
+
+function setIdle() {
+  var dot = document.getElementById('dot');
+  dot.classList.remove('active');
+  // Disable input when no pending question — events would be lost
+  if (!pendingToolUseId) {
+    document.getElementById('userInput').disabled = true;
+    document.querySelector('.btn-send').disabled = true;
+  }
+}
+
+// -- Avatar dock/undock (called from avatar-follower via eval) --
+function avatarDock() {
+  var dot = document.getElementById('dot');
+  dot.classList.add('avatar-docked');
+}
+function avatarUndock() {
+  var dot = document.getElementById('dot');
+  dot.classList.remove('avatar-docked');
+}
+
+function showCard() {
+  if (dismissed) {
+    document.getElementById('card').classList.remove('dismissed');
+    dismissed = false;
+  }
+}
+
+function dismiss() {
+  document.getElementById('card').classList.add('dismissed');
+  dismissed = true;
+}
+
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'panel-' + name);
+  });
+  if (name === 'log') {
+    unreadLogs = 0;
+    var badge = document.getElementById('logBadge');
+    badge.style.display = 'none';
+    badge.textContent = '0';
+  }
+}
+
+// ============================================================
+// Log
+// ============================================================
+function addLog(message, level) {
+  var viewer = document.getElementById('logViewer');
+  var empty = viewer.querySelector('.log-empty');
+  if (empty) empty.remove();
+  var entry = document.createElement('div');
+  entry.className = 'log-entry' + (level ? ' ' + level : '');
+  var now = new Date();
+  var ts = now.toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  entry.innerHTML = '<span class="ts">' + ts + '</span>' + escapeHtml(message);
+  viewer.appendChild(entry);
+  viewer.scrollTop = viewer.scrollHeight;
+  if (activeTab !== 'log') {
+    unreadLogs++;
+    var badge = document.getElementById('logBadge');
+    badge.textContent = unreadLogs > 99 ? '99+' : unreadLogs;
+    badge.style.display = 'flex';
+  }
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escapeAttr(s) {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+}
+
+// ============================================================
+// Drag handling
+// ============================================================
+(function() {
+  var handle = document.getElementById('dragHandle');
+  var dot = document.getElementById('dot');
+  var dragging = false;
+  var lastX = 0, lastY = 0;
+  var dragOffsetX = 0, dragOffsetY = 0;
+  dot.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    emit('avatar_toggle');
+  });
+  handle.addEventListener('mousedown', function(e) {
+    if (e.target.closest && e.target.closest('#dot')) return;
+    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    dragging = true;
+    // Record the offset between mouse and the element's position at drag start.
+    // e.clientX/Y = mouse position within the viewport (WKWebView).
+    // This offset stays constant throughout the drag.
+    dragOffsetX = e.clientX;
+    dragOffsetY = e.clientY;
+    window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_start', offsetX: dragOffsetX, offsetY: dragOffsetY });
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    // Send absolute screen position + the drag offset.
+    // The Swift side computes: canvasX = screenX - offsetX, canvasY = screenY - offsetY
+    window.webkit.messageHandlers.headsup.postMessage({
+      type: 'move_abs',
+      screenX: e.screenX,
+      screenY: e.screenY,
+      offsetX: dragOffsetX,
+      offsetY: dragOffsetY
+    });
+  });
+  document.addEventListener('mouseup', function() {
+    if (dragging) {
+      window.webkit.messageHandlers.headsup.postMessage({ type: 'drag_end' });
+      dragging = false;
+    }
+  });
+})();
+
+// ============================================================
+// Keyboard shortcuts for numbered options
+// ============================================================
+document.addEventListener('keydown', function(e) {
+  if (dismissed || !pendingToolUseId) return;
+  if (e.target.tagName === 'INPUT') return;
+  var num = parseInt(e.key);
+  if (num >= 1 && num <= 9) {
+    var btns = document.querySelectorAll('.opt-btn');
+    if (num <= btns.length) {
+      btns[num - 1].click();
+    }
+  }
+});
+
+// Start dismissed -- overlay appears when first message arrives
+emit('ready', window.headsup.manifest);
+</script>
+</body>
+</html>

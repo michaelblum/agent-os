@@ -642,6 +642,32 @@
 
                 <h2 style="font-size:0.9rem;">Saved Avatars</h2>
                 <div id="avatar-roster" class="control-group" style="display:flex; flex-direction:column; gap:6px;"></div>
+
+                <h2 style="font-size:0.9rem;">Surfaces</h2>
+                <div class="control-group" style="display:flex; flex-direction:column; gap:6px;">
+                    <button class="btn-action" id="btn-open-chat">Open Chat</button>
+                </div>
+
+                <h2 style="font-size:0.9rem;">Settings</h2>
+                <div class="control-group" style="display:flex; flex-direction:column; gap:8px;">
+                    <div class="control-row">
+                        <label>Voice</label>
+                        <select id="settingsVoiceEnabled" style="width:auto;">
+                            <option value="off">Off</option>
+                            <option value="on">On</option>
+                        </select>
+                    </div>
+                    <div class="control-row">
+                        <label>Visual Feedback</label>
+                        <select id="settingsVisualFeedback" style="width:auto;">
+                            <option value="on">On</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                    <div style="font-size: 0.6rem; color: rgba(209,135,255,0.4); font-style: italic; margin-top: 4px;">
+                        Config: ~/.config/aos/{mode}/config.json
+                    </div>
+                </div>
             </div>
         </div>
     </div>

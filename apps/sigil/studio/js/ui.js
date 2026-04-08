@@ -629,6 +629,24 @@ export function setupUI() {
         }
     });
 
+    // Open Chat surface — ask daemon to create a chat canvas
+    const btnChat = document.getElementById('btn-open-chat');
+    if (btnChat) {
+        btnChat.addEventListener('click', () => {
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+                window.webkit.messageHandlers.headsup.postMessage({
+                    type: 'create_canvas',
+                    id: 'chat',
+                    url: 'aos://sigil/chat/index.html',
+                    interactive: true,
+                    at: [100, 100, 380, 600]
+                });
+            } else {
+                window.open('../chat/index.html', '_blank', 'width=380,height=600');
+            }
+        });
+    }
+
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
 
