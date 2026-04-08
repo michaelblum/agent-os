@@ -870,12 +870,24 @@ export function setupUI() {
         });
     };
 
+    // Update avatar card labels when shape or preset changes
+    function updateAvatarCard() {
+        const shapeSelect = document.getElementById('shapeSelect');
+        const presetSelect = document.getElementById('presetSelect');
+        const shapeLabel = document.getElementById('avatar-shape-label');
+        const presetLabel = document.getElementById('avatar-preset-label');
+        if (shapeLabel && shapeSelect) shapeLabel.textContent = shapeSelect.options[shapeSelect.selectedIndex].text;
+        if (presetLabel && presetSelect) presetLabel.textContent = presetSelect.options[presetSelect.selectedIndex].text;
+    }
+
     // Shape
     document.getElementById('shapeSelect').addEventListener('change', (e) => {
         state.currentGeometryType = parseInt(e.target.value);
         updateGeometry(state.currentGeometryType);
         showShapeSettings(state.currentGeometryType);
     });
+    document.getElementById('shapeSelect').addEventListener('change', updateAvatarCard);
+    document.getElementById('presetSelect').addEventListener('change', updateAvatarCard);
     // Show shape-specific params for initial shape
     showShapeSettings(state.currentGeometryType);
     document.getElementById('skinSelect').addEventListener('change', (e) => {
