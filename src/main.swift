@@ -26,6 +26,14 @@ struct AOS {
             handleSet(args: Array(args.dropFirst()))
         case "serve":
             handleServe(args: Array(args.dropFirst()))
+        case "content":
+            guard args.count > 1 else { exitError("Usage: aos content status [--json]", code: "MISSING_SUBCOMMAND") }
+            switch args[1] {
+            case "status":
+                runContentStatus(Array(args.dropFirst(2)))
+            default:
+                exitError("Unknown content command: \(args[1])", code: "UNKNOWN_COMMAND")
+            }
         case "service":
             serviceCommand(args: Array(args.dropFirst()))
         case "runtime":
