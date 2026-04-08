@@ -30,14 +30,14 @@ function parseJSON(raw: string): unknown {
 
 // --- Normalization helpers ---
 
-type NormalizedWindow = {
+export type NormalizedWindow = {
   id: string; app: string; title: string;
   frame: { x: number; y: number; width: number; height: number };
   focused: boolean;
 };
 
 /** Normalize raw CLI window data to match the SDK type contract. */
-function normalizeWindow(raw: any, isFocused = false): NormalizedWindow {
+export function normalizeWindow(raw: any, isFocused = false): NormalizedWindow {
   const win = raw.window ?? raw;
   const bounds = win.bounds ?? win.frame ?? {};
   return {
