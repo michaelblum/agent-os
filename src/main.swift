@@ -44,6 +44,30 @@ struct AOS {
             resetCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
+        case "focus":
+            guard args.count >= 2 else {
+                exitError("Usage: aos focus <create|update|list|remove>", code: "MISSING_SUBCOMMAND")
+            }
+            switch args[1] {
+            case "create":  focusCreateCommand(args: Array(args.dropFirst(2)))
+            case "update":  focusUpdateCommand(args: Array(args.dropFirst(2)))
+            case "list":    focusListCommand()
+            case "remove":  focusRemoveCommand(args: Array(args.dropFirst(2)))
+            default: exitError("Unknown focus subcommand: \(args[1])", code: "UNKNOWN_COMMAND")
+            }
+        case "graph":
+            guard args.count >= 2 else {
+                exitError("Usage: aos graph <displays|windows|deepen|collapse>", code: "MISSING_SUBCOMMAND")
+            }
+            switch args[1] {
+            case "displays":  graphDisplaysCommand()
+            case "windows":   graphWindowsCommand(args: Array(args.dropFirst(2)))
+            case "deepen":    graphDeepenCommand(args: Array(args.dropFirst(2)))
+            case "collapse":  graphCollapseCommand(args: Array(args.dropFirst(2)))
+            default: exitError("Unknown graph subcommand: \(args[1])", code: "UNKNOWN_COMMAND")
+            }
+        case "daemon-snapshot":
+            daemonSnapshotCommand()
         case "inspect":
             inspectCommand(args: Array(args.dropFirst()))
         case "log":
@@ -68,6 +92,9 @@ func printUsage() {
       do <subcommand>      Action — execute mouse, keyboard, AX actions
       say <text>           Voice — speak text aloud
       set <key> <value>    Configure autonomic settings
+      focus <subcommand>   Focus channels — track window AX trees
+      graph <subcommand>   Graph navigation — display/window/depth control
+      daemon-snapshot      Daemon state snapshot
       serve                Start the unified daemon
       service              Manage the daemon as a launchd service
       runtime              Package/sign/install the stable AOS.app runtime
@@ -152,6 +179,21 @@ func printUsage() {
       perception.default_depth <0-3>    Default perception depth
       perception.settle_threshold_ms <ms>  Cursor settle threshold
       feedback.visual <bool>            Enable/disable visual feedback
+
+    Focus Channels (aos focus):
+      create                 Create a channel tracking a window's AX tree
+      update                 Update channel focus/depth
+      list                   List active channels
+      remove                 Remove a channel
+
+    Graph Navigation (aos graph):
+      displays               Enumerate connected displays
+      windows                Enumerate on-screen windows
+      deepen                 Increase AX traversal depth on a channel
+      collapse               Decrease AX traversal depth on a channel
+
+    Daemon:
+      daemon-snapshot        Display/window/channel snapshot from daemon
 
     Tools:
       inspect [--at x,y,w,h]  Live AX inspector — shows element under cursor

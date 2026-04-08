@@ -12,6 +12,7 @@ class UnifiedDaemon {
 
     // Modules
     let perception: PerceptionEngine
+    let spatial = SpatialModel()
     let canvasManager = CanvasManager()
     private var speechEngine: SpeechEngine?
     private var contentServer: ContentServer?
@@ -109,6 +110,22 @@ class UnifiedDaemon {
 
         // Start modules
         perception.start()
+
+        // Wire spatial model events -> broadcast
+        spatial.onChannelUpdated = { [weak self] id in
+            self?.broadcastEvent(service: "perceive", event: "channel_updated", data: ["id": id])
+        }
+        spatial.onWindowMoved = { [weak self] windowID, bounds in
+            guard let data = try? JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(bounds)) as? [String: Any] else { return }
+            self?.broadcastEvent(service: "perceive", event: "window_moved",
+                                data: ["window_id": windowID, "bounds": data])
+        }
+        spatial.onFocusChanged = { [weak self] pid, app in
+            self?.broadcastEvent(service: "perceive", event: "focus_changed",
+                                data: ["pid": pid, "app": app])
+        }
+        spatial.startPolling()
 
         // Start content server
         if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
@@ -346,6 +363,13 @@ class UnifiedDaemon {
                 sendResponseJSON(to: clientFD, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any])
             }
 
+        // -- Spatial / focus / graph actions --
+        case "focus-create", "focus-update", "focus-remove", "focus-list",
+             "graph-displays", "graph-windows", "graph-deepen", "graph-collapse",
+             "snapshot":
+            let response = spatial.handleAction(action, json: json)
+            sendResponseJSON(to: clientFD, response)
+
         default:
             sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
         }
@@ -552,7 +576,7 @@ class UnifiedDaemon {
     }
 
     func checkIdle() {
-        if !canvasManager.isEmpty || hasSubscribers {
+        if !canvasManager.isEmpty || hasSubscribers || !spatial.isEmpty {
             cancelIdleTimer()
         } else {
             startIdleTimer()
@@ -581,6 +605,7 @@ class UnifiedDaemon {
 
     func shutdown() {
         fputs("aos daemon shutting down (idle)\n", stderr)
+        spatial.stopPolling()
         unlink(socketPath)
         exit(0)
     }

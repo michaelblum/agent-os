@@ -579,6 +579,101 @@ class SpatialModel {
         guard let data = try? enc.encode(file) else { return }
         try? data.write(to: URL(fileURLWithPath: path))
     }
+
+    // MARK: - Daemon Action Dispatch
+
+    /// Route an incoming daemon action to the appropriate spatial model method.
+    /// Returns a dictionary suitable for sendResponseJSON(). Mirrors side-eye's
+    /// daemon.swift dispatchRequest but uses dictionary I/O for the unified daemon.
+    func handleAction(_ action: String, json: [String: Any]) -> [String: Any] {
+        switch action {
+        case "focus-create":
+            guard let id = json["id"] as? String else {
+                return ["error": "id required", "code": "MISSING_ARG"]
+            }
+            guard let wid = json["window_id"] as? Int else {
+                return ["error": "window_id required", "code": "MISSING_ARG"]
+            }
+            let pid = json["pid"] as? Int
+            let subtree = parseSubtreeFromJSON(json["subtree"])
+            let depth = json["depth"] as? Int
+            return spatialResponseToDict(createChannel(id: id, windowID: wid, pid: pid,
+                                                        subtree: subtree, depth: depth))
+
+        case "focus-update":
+            guard let id = json["id"] as? String else {
+                return ["error": "id required", "code": "MISSING_ARG"]
+            }
+            let subtree = parseSubtreeFromJSON(json["subtree"])
+            let depth = json["depth"] as? Int
+            return spatialResponseToDict(updateChannel(id: id, subtree: subtree, depth: depth))
+
+        case "focus-remove":
+            guard let id = json["id"] as? String else {
+                return ["error": "id required", "code": "MISSING_ARG"]
+            }
+            return spatialResponseToDict(removeChannel(id: id))
+
+        case "focus-list":
+            return spatialResponseToDict(listChannels())
+
+        case "snapshot":
+            return spatialResponseToDict(snapshot())
+
+        case "graph-displays":
+            let displays = enumerateDisplays()
+            var resp = SpatialResponse.ok
+            resp.displays = displays
+            return spatialResponseToDict(resp)
+
+        case "graph-windows":
+            let display = json["display"] as? Int
+            let windows = enumerateWindows(display: display)
+            var resp = SpatialResponse.ok
+            resp.windows = windows
+            return spatialResponseToDict(resp)
+
+        case "graph-deepen":
+            guard let id = json["id"] as? String else {
+                return ["error": "id required", "code": "MISSING_ARG"]
+            }
+            let subtree = parseSubtreeFromJSON(json["subtree"])
+            let depth = json["depth"] as? Int
+            return spatialResponseToDict(deepenChannel(id: id, subtree: subtree, depth: depth))
+
+        case "graph-collapse":
+            guard let id = json["id"] as? String else {
+                return ["error": "id required", "code": "MISSING_ARG"]
+            }
+            let depth = json["depth"] as? Int
+            return spatialResponseToDict(collapseChannel(id: id, depth: depth))
+
+        default:
+            return ["error": "Unknown spatial action: \(action)", "code": "UNKNOWN_ACTION"]
+        }
+    }
+
+    /// Parse a ChannelSubtree from a JSON dictionary (or nil).
+    private func parseSubtreeFromJSON(_ value: Any?) -> ChannelSubtree? {
+        guard let dict = value as? [String: Any] else { return nil }
+        let role = dict["role"] as? String
+        let title = dict["title"] as? String
+        let identifier = dict["identifier"] as? String
+        guard role != nil || title != nil || identifier != nil else { return nil }
+        return ChannelSubtree(role: role, title: title, identifier: identifier)
+    }
+
+    /// Convert a SpatialResponse (Codable) into a [String: Any] dictionary
+    /// for the unified daemon's sendResponseJSON.
+    private func spatialResponseToDict(_ resp: SpatialResponse) -> [String: Any] {
+        guard let data = resp.toData(),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return resp.error != nil
+                ? ["error": resp.error ?? "Unknown", "code": resp.code ?? "INTERNAL"]
+                : ["status": "ok"]
+        }
+        return dict
+    }
 }
 
 // MARK: - Internal State Types
@@ -611,8 +706,8 @@ struct SpatialWindowEntry {
 
 // MARK: - Spatial Model Response Types
 //
-// These are the response types used by SpatialModel's CRUD methods.
-// They'll be wired into the daemon's routing in Task 4.
+// Response types used by SpatialModel's CRUD and graph methods.
+// Wired into the unified daemon via handleAction().
 
 struct SpatialResponse: Codable {
     var status: String?
