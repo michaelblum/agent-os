@@ -876,6 +876,8 @@ export function setupUI() {
         updateGeometry(state.currentGeometryType);
         showShapeSettings(state.currentGeometryType);
     });
+    // Show shape-specific params for initial shape
+    showShapeSettings(state.currentGeometryType);
     document.getElementById('skinSelect').addEventListener('change', (e) => {
         applySkin(e.target.value, false);
     });

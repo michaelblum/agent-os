@@ -152,6 +152,140 @@
                     <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
                     <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
                 </div>
+
+                <!-- Shape-Specific Parameters (conditional visibility) -->
+                <div id="tetartoidSettings" class="control-group" style="display:none;">
+                    <label>Tetartoid Parameters</label>
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">A</label>
+                        <div class="val-display"><span id="tetAVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="tetASlider" min="0.01" max="2" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">B</label>
+                        <div class="val-display"><span id="tetBVal">1.50</span></div>
+                    </div>
+                    <input type="range" id="tetBSlider" min="0.01" max="2" step="0.01" value="1.5">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">C</label>
+                        <div class="val-display"><span id="tetCVal">2.00</span></div>
+                    </div>
+                    <input type="range" id="tetCSlider" min="0.01" max="2" step="0.01" value="2.0">
+                </div>
+
+                <div id="torusSettings" class="control-group" style="display:none;">
+                    <label>Torus Parameters</label>
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Radius</label>
+                        <div class="val-display"><span id="torusRadiusVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="torusRadiusSlider" min="0.1" max="1.5" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Tube</label>
+                        <div class="val-display"><span id="torusTubeVal">0.30</span></div>
+                    </div>
+                    <input type="range" id="torusTubeSlider" min="0.05" max="0.8" step="0.01" value="0.3">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Arc</label>
+                        <div class="val-display"><span id="torusArcVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="torusArcSlider" min="0.1" max="1" step="0.01" value="1.0">
+                </div>
+
+                <div id="cylinderSettings" class="control-group" style="display:none;">
+                    <label>Prism Parameters</label>
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Top Radius</label>
+                        <div class="val-display"><span id="cylinderTopVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="cylinderTopSlider" min="0" max="2" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Bottom Radius</label>
+                        <div class="val-display"><span id="cylinderBottomVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="cylinderBottomSlider" min="0.1" max="2" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Height</label>
+                        <div class="val-display"><span id="cylinderHeightVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="cylinderHeightSlider" min="0.2" max="4" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Sides</label>
+                        <div class="val-display"><span id="cylinderSidesVal">32</span></div>
+                    </div>
+                    <input type="range" id="cylinderSidesSlider" min="3" max="24" step="1" value="32">
+                </div>
+
+                <div id="boxSettings" class="control-group" style="display:none;">
+                    <label>Box Parameters</label>
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Width</label>
+                        <div class="val-display"><span id="boxWidthVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="boxWidthSlider" min="0.1" max="4" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Height</label>
+                        <div class="val-display"><span id="boxHeightVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="boxHeightSlider" min="0.1" max="4" step="0.01" value="1.0">
+                    <div class="control-row">
+                        <label style="font-size:0.6rem;">Depth</label>
+                        <div class="val-display"><span id="boxDepthVal">1.00</span></div>
+                    </div>
+                    <input type="range" id="boxDepthSlider" min="0.1" max="4" step="0.01" value="1.0">
+                </div>
+
+                <div class="control-group">
+                    <label>Procedural Skin</label>
+                    <select id="skinSelect">
+                        <option value="none">None (Default)</option>
+                        <option value="rocky">Rocky</option>
+                        <option value="gas-giant">Gas Giant</option>
+                        <option value="ice">Ice</option>
+                        <option value="volcanic">Volcanic</option>
+                        <option value="solar">Solar</option>
+                        <option value="portal">Portal</option>
+                        <option value="tech">Tech</option>
+                        <option value="circuit">Circuit</option>
+                        <option value="alien">Alien</option>
+                        <option value="ancient">Ancient</option>
+                    </select>
+                </div>
+
+                <h2 style="font-size:0.9rem;">Scale</h2>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Scale Bounds</label>
+                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
+                    </div>
+                    <div class="dual-slider-container">
+                        <div class="dual-slider-track"></div>
+                        <div class="dual-slider-fill" id="dualSliderFill"></div>
+                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
+                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Z-Depth Scale</label>
+                        <div class="val-display"><span id="zDepthVal">1.10</span></div>
+                    </div>
+                    <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
+                </div>
+
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Depth Stops</label>
+                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
+                    </div>
+                    <div class="stepper-ui">
+                        <button class="bookend" id="btn-step-minus">-</button>
+                        <div id="step-buttons-container"></div>
+                        <button class="bookend" id="btn-step-plus">+</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Colors Panel -->
@@ -290,39 +424,6 @@
             <!-- Environment Panel -->
             <div id="panel-env" class="panel">
                 <h2>Avatar</h2>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Scale Bounds</label>
-                        <div class="val-display">[<span id="rangeMinVal">0.25</span> - <span id="rangeMaxVal">3.00</span>]</div>
-                    </div>
-                    <div class="dual-slider-container">
-                        <div class="dual-slider-track"></div>
-                        <div class="dual-slider-fill" id="dualSliderFill"></div>
-                        <input type="range" id="rangeMin" min="0.25" max="3" value="0.25" step="0.01">
-                        <input type="range" id="rangeMax" min="0.25" max="3" value="3.0" step="0.01">
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Z-Depth Scale</label>
-                        <div class="val-display"><span id="zDepthVal">1.10</span></div>
-                    </div>
-                    <input type="range" id="zDepthSlider" min="0.25" max="3" step="0.01" value="1.1">
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Depth Stops</label>
-                        <div class="val-display"><span id="stepsVal">3</span> Steps</div>
-                    </div>
-                    <div class="stepper-ui">
-                        <button class="bookend" id="btn-step-minus">-</button>
-                        <div id="step-buttons-container"></div>
-                        <button class="bookend" id="btn-step-plus">+</button>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
