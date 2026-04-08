@@ -116,3 +116,17 @@ func axElementAtPoint(pid: pid_t, point: CGPoint) -> AXHitResult? {
         contextPath: axContextPath(el)
     )
 }
+
+// MARK: - Shared AX Utilities for Capture Pipeline
+
+/// Alias for axBounds — used by capture pipeline code that calls it axFrame.
+func axFrame(_ element: AXUIElement) -> CGRect? { axBounds(element) }
+
+/// Roles considered actionable for agent consumption (--xray, channel traversal).
+let xrayWhitelistRoles: Set<String> = [
+    "AXButton", "AXTextField", "AXTextArea", "AXCheckBox",
+    "AXRadioButton", "AXPopUpButton", "AXComboBox", "AXMenuItem",
+    "AXMenuBarItem", "AXLink", "AXSlider", "AXIncrementor",
+    "AXColorWell", "AXDisclosureTriangle", "AXTab", "AXStaticText",
+    "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField"
+]

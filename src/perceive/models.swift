@@ -1,5 +1,6 @@
 // models.swift — Output types for perception commands
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -59,4 +60,31 @@ func getDisplays() -> [DisplayEntry] {
         let scale = mode.map { Double($0.pixelWidth) / Double($0.width) } ?? 2.0
         return DisplayEntry(id: id, ordinal: i + 1, bounds: bounds, isMain: id == mainID, scaleFactor: scale)
     }.sorted(by: { $0.bounds.origin.x < $1.bounds.origin.x })
+}
+
+// MARK: - Shared Window Utilities
+
+/// Filter predicate for visible, user-facing windows from CGWindowList.
+/// Excludes Window Server, hidden windows, and non-layer-0 windows.
+func isVisibleWindow(_ info: [String: Any]) -> Bool {
+    let layer = info[kCGWindowLayer as String] as? Int ?? -1
+    guard layer == 0 else { return false }
+    let alpha = info[kCGWindowAlpha as String] as? Double ?? 1.0
+    guard alpha > 0 else { return false }
+    let owner = info[kCGWindowOwnerName as String] as? String ?? ""
+    guard owner != "Window Server" else { return false }
+    return true
+}
+
+/// Build a PID-indexed lookup of running GUI applications.
+func buildAppLookup() -> [pid_t: (name: String, bundleID: String?, isHidden: Bool)] {
+    var lookup: [pid_t: (name: String, bundleID: String?, isHidden: Bool)] = [:]
+    for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        lookup[app.processIdentifier] = (
+            name: app.localizedName ?? "Unknown",
+            bundleID: app.bundleIdentifier,
+            isHidden: app.isHidden
+        )
+    }
+    return lookup
 }
