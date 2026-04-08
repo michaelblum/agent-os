@@ -269,9 +269,14 @@ class UnifiedDaemon {
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
-            guard let request = CanvasRequest.from(requestData) else {
+            guard var request = CanvasRequest.from(requestData) else {
                 sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
                 return
+            }
+
+            // Rewrite aos:// URLs
+            if let url = request.url {
+                request.url = resolveContentURL(url)
             }
 
             let semaphore = DispatchSemaphore(value: 0)
@@ -418,6 +423,17 @@ class UnifiedDaemon {
     }
 
     // MARK: - Helpers
+
+    /// Rewrite `aos://` URLs to the content server's localhost address.
+    func resolveContentURL(_ urlString: String) -> String {
+        guard urlString.hasPrefix("aos://"),
+              let server = contentServer,
+              server.assignedPort > 0 else {
+            return urlString
+        }
+        let path = String(urlString.dropFirst("aos://".count))
+        return "http://127.0.0.1:\(server.assignedPort)/\(path)"
+    }
 
     /// Convert a dictionary back to Data for CanvasRequest parsing.
     private func lineData(from json: [String: Any]) -> Data {

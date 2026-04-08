@@ -24,6 +24,9 @@ func serveCommand(args: [String]) {
     if config.status_item?.enabled == true {
         let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: config.status_item!)
         mgr.setup()
+        mgr.urlResolver = { [weak daemon] url in
+            daemon?.resolveContentURL(url) ?? url
+        }
         statusItemManager = mgr
         // Chain onto the existing onCanvasCountChanged (which handles idle checking)
         let existingHandler = daemon.canvasManager.onCanvasCountChanged

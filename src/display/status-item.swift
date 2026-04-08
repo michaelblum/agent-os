@@ -16,6 +16,7 @@ class StatusItemManager: NSObject {
     let toggleId: String
     let toggleUrl: String
     let toggleAt: [Double]
+    var urlResolver: ((String) -> String)?
     private var sigilProcess: Process?
     private var isDismissing = false
 
@@ -64,7 +65,7 @@ class StatusItemManager: NSObject {
         // Create canvas at icon position — invisible until WKWebView loads
         var req = CanvasRequest(action: "create")
         req.id = toggleId
-        req.url = toggleUrl
+        req.url = urlResolver?(toggleUrl) ?? toggleUrl
         req.at = [fromX, fromY, startSize, startSize]
         _ = canvasManager.handle(req)
         canvasManager.setCanvasAlpha(toggleId, 0)
