@@ -531,7 +531,25 @@ function buildFxGrid() {
     });
 }
 
+// Update range input background to show filled track
+function updateSliderFill(el) {
+    if (!el || el.type !== 'range') return;
+    const min = parseFloat(el.min) || 0;
+    const max = parseFloat(el.max) || 1;
+    const val = parseFloat(el.value) || 0;
+    const pct = ((val - min) / (max - min)) * 100;
+    el.style.background = `linear-gradient(to right, #bc13fe 0%, #bc13fe ${pct}%, #2a1b3d ${pct}%, #2a1b3d 100%)`;
+}
+
 export function setupUI() {
+    // Slider fill tracks — apply to all range inputs and update on input
+    document.querySelectorAll('input[type="range"]').forEach(el => {
+        // Skip dual-slider container sliders (they have their own fill)
+        if (el.closest('.dual-slider-container')) return;
+        updateSliderFill(el);
+        el.addEventListener('input', () => updateSliderFill(el));
+    });
+
     // Sidebar Navigation
     const navIcons = document.querySelectorAll('.nav-icon[data-target]');
     const panels = document.querySelectorAll('.panel');
