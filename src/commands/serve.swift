@@ -37,6 +37,10 @@ func serveCommand(args: [String]) {
     }
     _ = statusItemManager  // retain
 
+    // Accessory policy: no dock icon, no menu bar, but can own key windows
+    // and receive mouse/keyboard events. Required for interactive canvases.
+    NSApp.setActivationPolicy(.accessory)
+
     // Run the main loop (needed for CGEventTap, NSWindow, WKWebView)
     NSApplication.shared.run()
 }

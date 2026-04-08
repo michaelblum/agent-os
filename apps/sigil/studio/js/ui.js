@@ -634,6 +634,21 @@ export function setupUI() {
         }
     });
 
+    // Close studio — tell daemon to remove this canvas, fall back to window.close()
+    function closeStudio() {
+        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+            window.webkit.messageHandlers.headsup.postMessage({ action: 'close' });
+        } else {
+            window.close();
+        }
+    }
+    document.getElementById('btn-close').addEventListener('click', closeStudio);
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+            closeStudio();
+        }
+    });
+
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
 

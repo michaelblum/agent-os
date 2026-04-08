@@ -153,7 +153,10 @@ class Canvas {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
-        window.level = .statusBar
+        // Interactive canvases (studio, menus) use .floating so other apps
+        // can be brought in front. Non-interactive canvases (avatar overlay)
+        // use .statusBar to stay above everything while passing clicks through.
+        window.level = interactive ? .floating : .statusBar
         window.ignoresMouseEvents = !interactive
         window.isInteractiveCanvas = interactive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -402,6 +405,15 @@ class CanvasManager {
         // mouse offset within the canvas at drag start. We convert the
         // absolute mouse position to CG coords and subtract the offset.
         canvas.onMessage = { [weak self] body in
+            // Handle close before the type guard — close uses {action: "close"}
+            if let dict = body as? [String: Any],
+               (dict["action"] as? String) == "close" || (dict["type"] as? String) == "close" {
+                DispatchQueue.main.async { [weak self] in
+                    _ = self?.handleRemove(CanvasRequest(action: "remove", id: id))
+                }
+                return
+            }
+
             if let dict = body as? [String: Any],
                let type = dict["type"] as? String {
 
