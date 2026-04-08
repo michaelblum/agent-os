@@ -1,6 +1,7 @@
 // ax.swift — Accessibility API utility functions
 
 import ApplicationServices
+import Cocoa
 import Foundation
 
 // MARK: - AX Attribute Helpers
@@ -130,3 +131,92 @@ let xrayWhitelistRoles: Set<String> = [
     "AXColorWell", "AXDisclosureTriangle", "AXTab", "AXStaticText",
     "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField"
 ]
+
+// MARK: - AX Traversal (--xray)
+
+/// Recursively traverse AX tree, emitting whitelisted elements as a flat array.
+func traverseAXElements(
+    _ element: AXUIElement,
+    mapper: CoordinateMapper,
+    imageSize: CGSize,
+    contextPath: [String],
+    depth: Int,
+    maxDepth: Int,
+    results: inout [AXElementJSON]
+) {
+    guard depth < maxDepth else { return }
+
+    let role = axString(element, kAXRoleAttribute) ?? ""
+    let title = axString(element, kAXTitleAttribute)
+    let label = axString(element, kAXDescriptionAttribute)
+    let hidden = axBool(element, kAXHiddenAttribute) ?? false
+
+    // Get value — truncate if excessively long
+    var valueStr: String? = nil
+    var valRef: AnyObject?
+    if AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valRef) == .success {
+        if let s = valRef as? String {
+            valueStr = s.count > 200 ? String(s.prefix(200)) + "..." : s
+        } else if let n = valRef as? NSNumber {
+            valueStr = n.stringValue
+        }
+    }
+
+    let enabled = axBool(element, kAXEnabledAttribute) ?? true
+
+    // Spatial check + emit if whitelisted
+    if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
+        if xrayWhitelistRoles.contains(role) {
+            if let lcsRect = mapper.toLCS(globalRect: frame, imageSize: imageSize) {
+                results.append(AXElementJSON(
+                    role: role,
+                    title: title,
+                    label: label,
+                    value: valueStr,
+                    enabled: enabled,
+                    context_path: contextPath,
+                    bounds: BoundsJSON(
+                        x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
+                        width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
+                    )
+                ))
+            }
+        }
+    }
+
+    // Build context path for children
+    var childPath = contextPath
+    if let t = title, !t.isEmpty { childPath.append(t) }
+    else if let l = label, !l.isEmpty { childPath.append(l) }
+    else if !role.isEmpty && role != "AXGroup" && role != "AXUnknown" && role != "AXSplitGroup"
+            && role != "AXScrollArea" && role != "AXLayoutArea" {
+        childPath.append(role)
+    }
+
+    // Recurse into children
+    var childrenRef: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+          let children = childrenRef as? [AXUIElement] else { return }
+    for child in children {
+        traverseAXElements(child, mapper: mapper, imageSize: imageSize,
+                          contextPath: childPath, depth: depth + 1,
+                          maxDepth: maxDepth, results: &results)
+    }
+}
+
+/// Run --xray on a specific app by PID, returning elements in LCS coordinates.
+func xrayApp(pid: pid_t, appName: String, mapper: CoordinateMapper, imageSize: CGSize) -> [AXElementJSON] {
+    let axApp = AXUIElementCreateApplication(pid)
+    var results: [AXElementJSON] = []
+    traverseAXElements(axApp, mapper: mapper, imageSize: imageSize,
+                      contextPath: [appName], depth: 0, maxDepth: 15,
+                      results: &results)
+    return results
+}
+
+/// Run --xray on the frontmost app, returning elements in LCS coordinates.
+func xrayFrontmostApp(mapper: CoordinateMapper, imageSize: CGSize) -> [AXElementJSON] {
+    guard let frontApp = NSWorkspace.shared.frontmostApplication else { return [] }
+    return xrayApp(pid: frontApp.processIdentifier, appName: frontApp.localizedName ?? "App",
+                   mapper: mapper, imageSize: imageSize)
+}

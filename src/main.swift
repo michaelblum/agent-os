@@ -259,7 +259,7 @@ func handleDo(args: [String]) {
 
 func handleSee(args: [String]) {
     guard let sub = args.first else {
-        exitError("Usage: aos see <cursor|capture|observe> or aos see <target>", code: "MISSING_SUBCOMMAND")
+        exitError("Usage: aos see <cursor|capture|list|selection|observe|zone> or aos see <target>", code: "MISSING_SUBCOMMAND")
     }
     switch sub {
     case "cursor":
@@ -270,14 +270,37 @@ func handleSee(args: [String]) {
         observeCommand(args: Array(args.dropFirst()))
     case "capture":
         ensureInteractivePreflight(command: "aos see capture")
-        seeCaptureCommand(args: Array(args.dropFirst()))
+        runCaptureAsync(args: Array(args.dropFirst()))
+    case "list":
+        ensureInteractivePreflight(command: "aos see list")
+        seeListCommand()
+    case "selection":
+        ensureInteractivePreflight(command: "aos see selection")
+        selectionCommand()
+    case "zone":
+        zoneCommand(args: Array(args.dropFirst()))
     case "--help", "-h", "help":
         printUsage()
     default:
         // Bare target shorthand: "aos see main" → "aos see capture main"
-        // Also forwards unknown names (zone names, "external N") to side-eye for resolution.
+        // Also forwards zone names and "external N" directly to capture pipeline.
         ensureInteractivePreflight(command: "aos see \(sub)")
-        seeCaptureCommand(args: args)
+        runCaptureAsync(args: args)
+    }
+}
+
+/// Bridge from synchronous main thread to async captureCommand.
+/// The main thread must stay free for AppKit (NSWindow, NSEvent monitors, RunLoop pumping).
+/// Async work (ScreenCaptureKit) runs on a detached Task.
+private func runCaptureAsync(args: [String]) {
+    let done = DispatchSemaphore(value: 0)
+    Task.detached {
+        await captureCommand(args: args)
+        done.signal()
+    }
+    // Keep main thread alive for AppKit work while async task runs
+    while done.wait(timeout: .now()) == .timedOut {
+        RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
     }
 }
 

@@ -88,3 +88,192 @@ func buildAppLookup() -> [pid_t: (name: String, bundleID: String?, isHidden: Boo
     }
     return lookup
 }
+
+// MARK: - Spatial Topology Output Models (spatial-topology.schema.json v0.1.0)
+
+struct STBounds: Encodable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+struct STFocusedApp: Encodable {
+    let pid: Int
+    let name: String
+    let bundle_id: String?
+}
+
+struct STWindow: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_pid: Int
+    let app_name: String
+    let bundle_id: String?
+    let bounds: STBounds
+    let is_focused: Bool
+    let is_on_screen: Bool
+    let layer: Int
+    let alpha: Double
+}
+
+struct STDisplay: Encodable {
+    let display_id: Int
+    let display_uuid: String?
+    let ordinal: Int
+    let label: String
+    let is_main: Bool
+    let bounds: STBounds
+    let visible_bounds: STBounds
+    let scale_factor: Double
+    let rotation: Double
+    let windows: [STWindow]
+}
+
+struct STApp: Encodable {
+    let pid: Int
+    let name: String
+    let bundle_id: String?
+    let is_active: Bool
+    let is_hidden: Bool
+    let window_ids: [Int]
+}
+
+struct STCursor: Encodable {
+    let x: Double
+    let y: Double
+    let display: Int
+}
+
+struct SpatialTopology: Encodable {
+    let schema: String
+    let version: String
+    let timestamp: String
+    let screens_have_separate_spaces: Bool
+    let cursor: STCursor
+    let focused_window_id: Int?
+    let focused_app: STFocusedApp?
+    let displays: [STDisplay]
+    let apps: [STApp]
+}
+
+// MARK: - Capture Pipeline Cursor Output Models
+// These use different struct names to avoid collision with the aos cursor command models.
+
+struct CursorJSON: Encodable {
+    let x: Int
+    let y: Int
+}
+
+struct CursorPointJSON: Encodable {
+    let x: Double
+    let y: Double
+}
+
+struct CursorWindowJSON: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_name: String
+    let app_pid: Int
+    let bundle_id: String?
+    let bounds: STBounds
+}
+
+struct CursorElementJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let enabled: Bool
+}
+
+/// Capture pipeline's cursor response (distinct from the aos cursorCommand response).
+struct CaptureCursorResponse: Encodable {
+    let cursor: CursorPointJSON
+    let display: Int
+    let window: CursorWindowJSON?
+    let element: CursorElementJSON?
+}
+
+// MARK: - Selection Command Output Models
+
+struct SelectionResponse: Encodable {
+    let selected_text: String
+    let app_name: String
+    let app_pid: Int
+    let bundle_id: String?
+    let role: String
+}
+
+// MARK: - Capture Pipeline AX Output Models
+
+struct BoundsJSON: Encodable {
+    let x: Int
+    let y: Int
+    let width: Int
+    let height: Int
+}
+
+struct AXElementJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let enabled: Bool
+    let context_path: [String]
+    let bounds: BoundsJSON
+}
+
+// MARK: - Annotation Output Model (annotation.schema.json v0.1.0)
+
+struct AnnotationBoundsJSON: Encodable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+}
+
+struct AnnotationJSON: Encodable {
+    let bounds: AnnotationBoundsJSON
+    let label: String?
+}
+
+struct CaptureWindowJSON: Encodable {
+    let window_id: Int
+    let title: String?
+    let app_name: String
+    let app_pid: Int
+    let bounds: STBounds
+    let scale_factor: Double
+}
+
+struct SuccessResponse: Encodable {
+    let status = "success"
+    var files: [String]?
+    var base64: [String]?
+    var cursor: CursorJSON?
+    var bounds: BoundsJSON?
+    var click_x: Int?
+    var click_y: Int?
+    var warning: String?
+    var elements: [AXElementJSON]?
+    var annotations: [AnnotationJSON]?
+    var window: CaptureWindowJSON?
+
+    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations, window }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        if let f = files { try c.encode(f, forKey: .files) }
+        if let b = base64 { try c.encode(b, forKey: .base64) }
+        if let cur = cursor { try c.encode(cur, forKey: .cursor) }
+        if let bnd = bounds { try c.encode(bnd, forKey: .bounds) }
+        if let cx = click_x { try c.encode(cx, forKey: .click_x) }
+        if let cy = click_y { try c.encode(cy, forKey: .click_y) }
+        if let w = warning { try c.encode(w, forKey: .warning) }
+        if let e = elements { try c.encode(e, forKey: .elements) }
+        if let a = annotations { try c.encode(a, forKey: .annotations) }
+        if let win = window { try c.encode(win, forKey: .window) }
+    }
+}
