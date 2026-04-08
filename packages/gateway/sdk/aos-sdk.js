@@ -39,10 +39,30 @@ function call(domain, method, params) {
 }
 
 const aos = {
+  // --- Perception ---
   getWindows: (filter) => call('system', 'getWindows', { filter }),
+  getCursor: () => call('system', 'getCursor', {}),
+  capture: (opts) => call('system', 'capture', opts ?? {}),
+  getDisplays: () => call('system', 'getDisplays', {}),
+
+  // --- Action ---
   click: (target) => call('system', 'click', { target }),
+  type: (text) => call('system', 'type', { text }),
   say: (text) => call('system', 'say', { text }),
 
+  // --- Display ---
+  createCanvas: (opts) => call('system', 'createCanvas', opts),
+  removeCanvas: (id) => call('system', 'removeCanvas', { id }),
+  evalCanvas: (id, js) => call('system', 'evalCanvas', { id, js }),
+  updateCanvas: (id, opts) => call('system', 'updateCanvas', { id, ...opts }),
+  listCanvases: () => call('system', 'listCanvases', {}),
+
+  // --- Config & Health ---
+  doctor: () => call('system', 'doctor', {}),
+  getConfig: () => call('system', 'getConfig', {}),
+  setConfig: (key, value) => call('system', 'setConfig', { key, value }),
+
+  // --- Coordination ---
   coordination: {
     register: (name, role, harness, capabilities) =>
       call('coordination', 'register', { name, role, harness, capabilities }),

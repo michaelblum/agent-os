@@ -66,9 +66,25 @@ async function handleCoordination(method: string, params: any, db: CoordinationD
 
 async function handleSystem(method: string, params: any): Promise<unknown> {
   switch (method) {
+    // Perception
     case 'getWindows': return aosProxy.getWindows(params?.filter);
+    case 'getCursor': return aosProxy.getCursor();
+    case 'capture': return aosProxy.capture(params);
+    case 'getDisplays': return aosProxy.getDisplays();
+    // Action
     case 'click': return aosProxy.click(params.target);
+    case 'type': return aosProxy.type(params.text);
     case 'say': return aosProxy.say(params.text);
+    // Display
+    case 'createCanvas': return aosProxy.createCanvas(params);
+    case 'removeCanvas': return aosProxy.removeCanvas(params.id);
+    case 'evalCanvas': return aosProxy.evalCanvas(params.id, params.js);
+    case 'updateCanvas': return aosProxy.updateCanvas(params.id, params);
+    case 'listCanvases': return aosProxy.listCanvases();
+    // Config & Health
+    case 'doctor': return aosProxy.doctor();
+    case 'getConfig': return aosProxy.getConfig();
+    case 'setConfig': return aosProxy.setConfig(params.key, params.value);
     default: return { error: `Unknown system method: ${method}` };
   }
 }
