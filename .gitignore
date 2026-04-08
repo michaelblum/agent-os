@@ -4,12 +4,16 @@
 # Build artifacts
 aos
 dist/
-packages/heads-up/heads-up
 packages/hand-off/hand-off
 apps/sigil/build/
 apps/sigil/avatar-sub
 tools/dogfood/avatar-sub
 tools/dogfood/__pycache__/
+node_modules/
+
+# Editor / workspace files
+*.code-workspace
+*.code-workspace.*
 
 # Local scratch outputs
 clipboard.txt
