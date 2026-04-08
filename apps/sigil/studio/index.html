@@ -20,12 +20,14 @@
         <label>Geometry</label>
         <select id="ctx-shape">
             <option value="4">Tetrahedron</option>
-            <option value="6">Hexahedron (Cube)</option>
+            <option value="6">Box</option>
             <option value="8">Octahedron</option>
             <option value="12">Dodecahedron</option>
             <option value="20">Icosahedron</option>
-            <option value="90">Tetartoid (Pseudo)</option>
+            <option value="90">Tetartoid</option>
             <option value="91">Torus Knot</option>
+            <option value="92">Torus</option>
+            <option value="93">Prism</option>
             <option value="100">Sphere</option>
         </select>
         <label>Primary Color</label>
@@ -113,12 +115,14 @@
                     <label>Base Shape</label>
                     <select id="shapeSelect">
                         <option value="4">Tetrahedron</option>
-                        <option value="6" selected>Hexahedron (Cube)</option>
+                        <option value="6" selected>Box</option>
                         <option value="8">Octahedron</option>
                         <option value="12">Dodecahedron</option>
                         <option value="20">Icosahedron</option>
-                        <option value="90">Tetartoid (Pseudo)</option>
+                        <option value="90">Tetartoid</option>
                         <option value="91">Torus Knot</option>
+                        <option value="92">Torus</option>
+                        <option value="93">Prism</option>
                         <option value="100">Sphere</option>
                     </select>
                 </div>
@@ -213,7 +217,7 @@
                         <label style="font-size:0.6rem;">Sides</label>
                         <div class="val-display"><span id="cylinderSidesVal">32</span></div>
                     </div>
-                    <input type="range" id="cylinderSidesSlider" min="3" max="24" step="1" value="32">
+                    <input type="range" id="cylinderSidesSlider" min="3" max="64" step="1" value="32">
                 </div>
 
                 <div id="boxSettings" class="control-group" style="display:none;">
@@ -295,12 +299,14 @@
                         <label>Shape</label>
                         <select id="omegaShapeSelect">
                             <option value="4">Tetrahedron</option>
-                            <option value="6" selected>Hexahedron (Cube)</option>
+                            <option value="6" selected>Box</option>
                             <option value="8">Octahedron</option>
                             <option value="12">Dodecahedron</option>
                             <option value="20">Icosahedron</option>
                             <option value="90">Tetartoid</option>
                             <option value="91">Torus Knot</option>
+                            <option value="92">Torus</option>
+                            <option value="93">Prism</option>
                             <option value="100">Sphere</option>
                         </select>
 
