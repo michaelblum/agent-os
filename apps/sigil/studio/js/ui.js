@@ -1,14 +1,9 @@
 import state from '../../renderer/state.js';
-import { updateGeometry } from '../../renderer/geometry.js';
+import { updateGeometry, updateOmegaGeometry } from '../../renderer/geometry.js';
 import { updateAllColors } from '../../renderer/colors.js';
-// grid.js removed — unified into grid3d.js
-import { updatePathVisual } from './pathing.js';
 import { applyPreset } from '../../renderer/presets.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
-import { updateSwarmColors } from './swarm.js';
 import { applySkin } from '../../renderer/skins.js';
-import { updateOmegaGeometry } from '../../renderer/geometry.js';
-import { rebuildGrid3d } from './grid3d.js';
 import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 
@@ -400,10 +395,6 @@ function randomizeAll(seed) {
     let pulse = (rng() * 0.019 + 0.001).toFixed(3); setUI('pulseRateSlider', pulse, pulse);
     // Old gridMass randomization removed — unified grid
 
-    setUI('pathToggle', rng() > 0.5);
-    setUI('centeredViewToggle', rng() > 0.5);
-    setUI('pathTypeSelect', rng() > 0.5 ? 'curve' : 'direct');
-    setUI('trailToggle', rng() > 0.5);
     setUI('pulsarToggle', rng() > 0.7);
     setUI('accretionToggle', rng() > 0.7);
     setUI('gammaToggle', rng() > 0.7);
@@ -455,20 +446,9 @@ function randomizeAll(seed) {
         state.turbState[k].mod = tMod;
     });
 
-    let tailLen = Math.floor(rng() * 190 + 10); setUI('trailLengthSlider', tailLen, tailLen);
-    let spd = (rng() * 9.9 + 0.1).toFixed(1); setUI('speedSlider', spd, spd);
-
     setUI('maskToggle', rng() > 0.5);
     setUI('interiorEdgesToggle', rng() > 0.5);
     setUI('specularToggle', rng() > 0.5);
-    setUI('gridModeSelect', rng() > 0.5 ? '3d' : 'flat');
-
-    if (state.camera.isPerspectiveCamera) {
-        state.perspCamera.position.z = rng() * 20 + 5;
-    } else {
-        state.orthoCamera.zoom = rng() * 4 + 0.5;
-        state.orthoCamera.updateProjectionMatrix();
-    }
 
     if (rng() > 0.5) {
         let c1 = '#' + Math.floor(rng() * 16777215).toString(16).padStart(6, '0');
@@ -885,12 +865,6 @@ export function setupUI() {
     proxyInput('ctx-reach', 'auraReachSlider');
     proxyInput('ctx-intensity', 'auraIntensitySlider');
     proxyInput('ctx-spin', 'idleSpinSlider');
-    proxyInput('ctx-swarm-count', 'swarmCountSlider');
-    proxyInput('ctx-swarm-gravity', 'swarmGravitySlider');
-    proxyInput('ctx-swarm-horizon', 'swarmHorizonSlider');
-    proxyInput('ctx-swarm-time', 'swarmTimeSlider');
-    proxyInput('ctx-swarm-c1', 'swarmColor1');
-    proxyInput('ctx-swarm-c2', 'swarmColor2');
     proxyInput('ctx-lightning-center', 'lightningOriginCenter');
     proxyInput('ctx-lightning-solid', 'lightningSolidBlock');
     proxyInput('ctx-lightning-length', 'lightningLengthSlider');
@@ -903,13 +877,6 @@ export function setupUI() {
     proxyInput('ctx-magnetic-wander', 'magneticWanderSlider');
     proxyInput('ctx-pulse-rate', 'pulseRateSlider');
     proxyInput('ctx-spike-mult', 'spikeMultiplier');
-    proxyInput('ctx-path-toggle', 'pathToggle');
-    proxyInput('ctx-path-centered', 'centeredViewToggle');
-    proxyInput('ctx-path-type', 'pathTypeSelect');
-    proxyInput('ctx-path-speed', 'speedSlider');
-    proxyInput('ctx-show-path', 'showPathToggle');
-    proxyInput('ctx-trail-toggle', 'trailToggle');
-    proxyInput('ctx-trail-length', 'trailLengthSlider');
     // Pulsar sub-menu
     proxyInput('ctx-pulsar-count', 'pulsarCount');
     proxyInput('ctx-pulsar-turb', 'pTurbSlider');
@@ -934,18 +901,6 @@ export function setupUI() {
     proxyInput('ctx-neutrino-turb-spd', 'nTurbSpdSlider');
     proxyInput('ctx-neutrino-phase', 'nTurbMod');
 
-    // World tab
-    proxyInput('ctx-grid-mode', 'gridModeSelect');
-    proxyInput('ctx-grid3d-mode', 'grid3dRenderMode');
-    proxyInput('ctx-grid3d-density', 'grid3dDensitySlider');
-    proxyInput('ctx-grid3d-radius', 'grid3dRadiusSlider');
-    proxyInput('ctx-grid3d-gravity', 'grid3dGravitySlider');
-    proxyInput('ctx-grid3d-time', 'grid3dTimeSlider');
-    proxyInput('ctx-grid3d-snowglobe', 'grid3dSnowGlobeToggle');
-    proxyInput('ctx-grid3d-probe', 'grid3dProbeToggle');
-    proxyInput('ctx-grid3d-relative', 'grid3dRelativeToggle');
-    proxyInput('ctx-ortho', 'orthoToggle');
-    proxyInput('ctx-fov', 'fovSlider');
     proxyInput('ctx-zdepth', 'zDepthSlider');
 
     // Preset select
