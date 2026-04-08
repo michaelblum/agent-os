@@ -58,7 +58,7 @@ The ecosystem draws hard lines between three categories of capability:
 |----------|-------------|---------|
 | **Sensor** | Reads state, emits structured data | `side-eye` captures pixels + AX tree |
 | **Actuator** | Changes state, synthesizes events | `hand-off` fires CGEvent clicks |
-| **Projection** | Renders visual feedback for humans | `heads-up` draws floating overlays |
+| **Projection** | Renders visual feedback for humans | The display subsystem (`src/display/`) draws floating overlays |
 
 No tool crosses these boundaries. A sensor never mutates. An actuator never renders UI. A projection never captures.
 
@@ -80,7 +80,7 @@ Pure Swift binaries using only Apple frameworks. Zero external dependencies. Eac
 |------|------|------------|--------|
 | `side-eye` | **Perception** — screenshots, AX tree traversal, spatial metadata | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (v3.0) |
 | `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
-| `heads-up` | **Projection** — display server: renders HTML/CSS/SVG to OS overlays, transparent bitmaps, or browser injection | WebKit (WKWebView), AppKit (NSWindow) | Render mode production, serve mode planned |
+| `aos` display subsystem | **Projection** — display server: renders HTML/CSS/SVG to OS overlays, transparent bitmaps, or browser injection | WebKit (WKWebView), AppKit (NSWindow) | Render mode production, serve mode planned |
 | `speak-up` | **Audio** — text-to-speech output, speech-to-text dictation | AVFoundation, Speech | Planned |
 
 All four share the LCS convention. All four emit JSON. All four are stateless — the orchestrator holds state, not the tools.
@@ -126,12 +126,11 @@ agent-os/
   packages/              ← Track 1: unopinionated primitives
     side-eye/            ← Swift CLI — OS perception
     hand-off/            ← Swift CLI — OS action
-    heads-up/            ← Swift CLI — OS projection (display server)
     speak-up/            ← (planned) Swift CLI — Audio I/O
     tear-sheet/          ← (planned) Node.js CLI — Web extraction
     toolkit/             ← Reusable components built on primitives (components/, patterns/)
   apps/                  ← Track 2: opinionated consumers
-    sigil/               ← Avatar presence system (consumer of heads-up)
+    sigil/               ← Avatar presence system (consumer of display subsystem)
   shared/
     schemas/             ← Cross-tool JSON contracts
       spatial-topology.schema.json
@@ -149,7 +148,7 @@ agent-os/
 |-----------|-------|----------|----------|--------|-----------------|
 | `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, grids, overlays, zones, LCS |
 | `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize |
-| `heads-up` | OS | Swift | `packages/heads-up/` | Render mode production | Display server: HTML→bitmap (render mode), persistent canvases (serve mode planned), browser injection (planned) |
+| `aos` display subsystem | OS | Swift | `src/display/` | Render mode production | Display server: HTML→bitmap (render mode), persistent canvases (serve mode planned), browser injection (planned) |
 | `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
 | `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
 | `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
@@ -163,7 +162,7 @@ agent-os/
 | `michaelblum/side-eye` | Original standalone repo | Migrated to `agent-os/packages/side-eye/`. Pending deletion. |
 | `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only. |
 | `Findly-Inc/DRAW` | Historical web scraping/capture codebase (1.5 GB) | Curated extraction in local scrapyard bundle at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/` |
-| `michaelblum/bridgehand` | Slippy orb prototype | May inform `heads-up` skin system |
+| `michaelblum/bridgehand` | Slippy orb prototype | May inform display subsystem skin system |
 
 ---
 
@@ -231,7 +230,7 @@ The orchestrator (whatever it is — Codex, Claude Code, a custom daemon) calls 
 Orchestrator
   |-- side-eye main --xray --base64    --> JSON { status, base64, elements }
   |-- hand-off click 450,320            --> JSON { status: "success" }
-  |-- heads-up cast --skin orb --at ... --> JSON { id: "avatar" }
+  |-- aos display cast --skin orb --at ... --> JSON { id: "avatar" }
   |-- speak-up say "Hello"              --> JSON { status: "success" }
 ```
 
@@ -276,7 +275,7 @@ The ecosystem has two parallel ways for the agent to show the human what it's do
 
 For non-browser contexts (Xcode, Terminal, Finder):
 1. `side-eye --xray` perceives the screen
-2. `heads-up` draws a spotlight or laser pointer on the native desktop
+2. The display subsystem (`aos display`) draws a spotlight or laser pointer on the native desktop
 3. `hand-off` clicks at the identified coordinates
 4. `speak-up` narrates what happened
 
@@ -393,9 +392,9 @@ The "casting" protocol between runtime and control surface (Section 4) needs a c
 - Deciding whether `pw-bridge` stays bundled with chrome-harness or becomes independent
 - Publishing connection info in a discoverable way (so any tool can find the CDP endpoint)
 
-### The `heads-up` Skin System
+### The Display Subsystem Skin System
 
-The floating overlay tool needs design work:
+The display subsystem (`src/display/`) needs design work:
 - How are custom skins defined and loaded?
 - How does the orb "fly into" Chrome when summoned? (Animation + state handoff to extension)
 - How does click-through vs. interactive mode toggle?

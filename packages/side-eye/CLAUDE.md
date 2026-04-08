@@ -52,7 +52,7 @@ Requires macOS 14+ and Screen Recording permission for the calling terminal.
 # Delay + clipboard
 ./side-eye main --delay 2 --clipboard --out /tmp/delayed.png
 
-# Annotated screenshots (requires heads-up)
+# Annotated screenshots (requires AOS daemon)
 ./side-eye main --label --out /tmp/labeled.png
 ./side-eye user_active --window --label --base64
 ```
@@ -124,7 +124,7 @@ Parse → Resolve zone → Delay → Resolve target → Interactive select
   → Capture → Cursor highlight → Crop → Draw overlays → Encode → Output + Clipboard
 ```
 
-**--label pipeline:** `--label` implies `--xray`. After capturing elements, side-eye generates SVG badge HTML, shells out to `heads-up render` to rasterize it as a transparent PNG, and composites the result onto the screenshot. The `annotations` array in JSON output follows `shared/schemas/annotation.schema.json`. Requires `heads-up` binary in the same directory or in PATH.
+**--label pipeline:** `--label` implies `--xray`. After capturing elements, side-eye generates SVG badge HTML, shells out to `aos show render` to rasterize it as a transparent PNG, and composites the result onto the screenshot. The `annotations` array in JSON output follows `shared/schemas/annotation.schema.json`. Requires the AOS daemon to be running.
 
 **Local Coordinate System (LCS):** All user-facing coordinates are relative to the target, never global macOS screen space. `(0,0)` = top-left of whatever you're capturing. Overlays (`--draw-rect`, `--grid`) operate in post-crop pixel space.
 

@@ -1,6 +1,6 @@
 # Sigil — Avatar Presence System
 
-Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system that uses heads-up (Track 1) as its display server. It does not belong in `packages/` — it's an application, not a toolkit component.
+Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system that uses the AOS daemon's canvas system for display. It does not belong in `packages/` — it's an application, not a toolkit component.
 
 ## Build
 
@@ -72,7 +72,7 @@ Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index
 
 ## Dependencies
 
-- **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub (subsumes heads-up)
+- **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub
 - **Three.js r128** — 3D rendering engine (loaded from CDN)
 - **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
 - **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — channel events that drive avatar behaviors

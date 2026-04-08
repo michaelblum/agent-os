@@ -3,7 +3,7 @@
 Reusable components built on agent-os primitives. The middle layer between Track 1 packages and Track 2 apps.
 
 ```
-agent-os primitives (side-eye, heads-up, hand-off)
+agent-os primitives (side-eye, display (via AOS daemon), hand-off)
   -> toolkit (shared components, patterns)
     -> apps (sigil, etc.)
 ```
@@ -18,7 +18,7 @@ components/
 
 ## Components
 
-Components are self-contained HTML files designed for `heads-up create --url file://...`. They use the `headsup.receive()` bridge for configuration and communicate state via the manifest/messaging protocol.
+Components are self-contained HTML files designed for `aos show create --url file://...`. They use the `headsup.receive()` bridge for configuration and communicate state via the manifest/messaging protocol.
 
 | Component | What it does |
 |-----------|-------------|

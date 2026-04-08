@@ -26,9 +26,9 @@ Add to `.claude/settings.json`:
 }
 ```
 
-## Tools (9)
+## Tools (10)
 
-**Coordination:** register_session, set_state, get_state, post_message, read_stream
+**Coordination:** register_session, set_state, get_state, post_message, read_stream, who_is_online
 **Execution:** run_os_script, save_script, list_scripts, discover_capabilities
 
 ## State
