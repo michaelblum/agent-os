@@ -51,6 +51,32 @@ export function applyPreset(preset) {
         setUI('edgeColor1', '#00ffcc'); setUI('edgeColor2', '#0044aa');
         setUI('auraColor1', '#ff00ff'); setUI('auraColor2', '#440044');
         setUI('pulsarColor1', '#00ffcc'); setUI('pulsarColor2', '#ff00ff');
+    } else if (preset === 'higgs') {
+        setUI('shapeSelect', 6);
+        setUI('stellationSlider', -1);
+        setUI('maskToggle', true); setUI('interiorEdgesToggle', true); setUI('specularToggle', true);
+        setUI('opacitySlider', 0.25); setUI('edgeOpacitySlider', 0.4);
+        setUI('skinSelect', 'none');
+        setUI('idleSpinSlider', 0.01);
+        setUI('auraToggle', true); setUI('auraReachSlider', 0.64); setUI('auraIntensitySlider', 0.48); setUI('pulseRateSlider', 0.001);
+        setUI('pulsarToggle', true); setUI('accretionToggle', false); setUI('gammaToggle', true); setUI('neutrinoToggle', true);
+        setUI('lightningToggle', true); setUI('magneticToggle', true);
+        setUI('zDepthSlider', 0.89);
+        setUI('faceColor1', '#bc13fe'); setUI('faceColor2', '#4a2b6e');
+        setUI('edgeColor1', '#bc13fe'); setUI('edgeColor2', '#4a2b6e');
+        setUI('auraColor1', '#bc13fe'); setUI('auraColor2', '#2a1b3d');
+        setUI('pulsarColor1', '#ffffff'); setUI('pulsarColor2', '#bc13fe');
+        setUI('gammaColor1', '#ffffff'); setUI('gammaColor2', '#00ffff');
+        setUI('neutrinoColor1', '#bc13fe'); setUI('neutrinoColor2', '#4a2b6e');
+        setUI('lightningColor1', '#ffffff'); setUI('lightningColor2', '#bc13fe');
+        setUI('magneticColor1', '#bc13fe'); setUI('magneticColor2', '#4a2b6e');
+        // Secondary shape — omega with vertex dissolve ghosts
+        setUI('omegaToggle', true);
+        setUI('omegaShapeSelect', 6); setUI('omegaStellationSlider', 0);
+        setUI('omegaOpacitySlider', 0.15); setUI('omegaEdgeOpacitySlider', 0.8);
+        setUI('omegaMaskToggle', false); setUI('omegaInteriorEdgesToggle', true); setUI('omegaSpecularToggle', false);
+        setUI('omegaScaleSlider', 1.5);
+        setUI('omegaInterDimensional', true); setUI('omegaGhostCountSlider', 23); setUI('omegaGhostDurSlider', 2); setUI('omegaGhostMode', 'vertexDissolve');
     } else {
         // Default
         setUI('shapeSelect', 6);
