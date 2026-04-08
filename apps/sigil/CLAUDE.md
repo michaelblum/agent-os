@@ -60,6 +60,16 @@ The avatar runs on full-screen transparent canvases (`ignoresMouseEvents = true`
 
 Multi-display: canvases on all displays at launch. Avatar hands off between displays when crossing boundaries.
 
+### Content Server
+
+The AOS daemon serves Sigil's HTML surfaces (renderer, studio) over localhost. Configure in `~/.config/aos/{mode}/config.json`:
+
+```json
+{ "content": { "roots": { "sigil": "apps/sigil" } } }
+```
+
+Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index.html`. No bundling required — ES modules work over HTTP.
+
 ## Dependencies
 
 - **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub (subsumes heads-up)

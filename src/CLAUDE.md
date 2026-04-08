@@ -113,6 +113,19 @@ and other significant actions without the agent needing to call `aos say`.
 | status_item.toggle_id | string | "avatar" | Canvas ID to toggle on click |
 | status_item.toggle_url | string | — | URL to load when creating canvas |
 | status_item.toggle_at | array | [200,200,300,300] | [x,y,w,h] position for canvas |
+| content.port | int | 0 | Content server port (0 = OS-assigned) |
+| content.roots.{name} | string | — | Content root: URL prefix → directory path |
+
+### Content Server
+
+The daemon runs a local HTTP file server for serving HTML surfaces to WKWebView canvases. This eliminates the need to bundle multi-file web apps (ES modules, CSS imports) into single HTML files.
+
+```bash
+aos set content.roots.sigil apps/sigil    # Register a content root
+aos content status [--json]               # Show server address and roots
+```
+
+Canvases load via URL: `aos://sigil/studio/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 
 ### Tools
 
@@ -131,6 +144,7 @@ src/
   display/            # Display: canvas, render, auto-projection, status-item (menu bar)
   act/                # Action: click, type, press, session, profiles
   voice/              # Voice: TTS engine, say command
+  content/            # Content server: HTTP file serving for WKWebView canvases
   daemon/             # UnifiedDaemon: socket, routing, autonomic
   commands/           # serve, set, inspect, log, service, runtime, operator, reset
 shared/swift/ipc/
