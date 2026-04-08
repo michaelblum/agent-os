@@ -42,19 +42,6 @@
         <input type="range" id="ctx-spin" min="0" max="0.1" step="0.001">
     </div>
 
-    <div id="ctx-env" class="context-menu">
-        <h3>Environment</h3>
-        <label class="checkbox-label" style="margin-top: 0;"><input type="checkbox" id="ctx-grid"> Show Grid</label>
-        <label>Primary Grid Color</label>
-        <input type="color" id="ctx-grid-color">
-        <label class="checkbox-label"><input type="checkbox" id="ctx-grid-bend"> Space-Time Grid</label>
-        <label>Grid Mass</label>
-        <input type="range" id="ctx-grid-mass" min="0" max="3" step="0.1">
-        <label class="checkbox-label"><input type="checkbox" id="ctx-ortho"> Orthographic</label>
-        <label>Perspective FOV</label>
-        <input type="range" id="ctx-fov" min="10" max="120" step="1">
-    </div>
-
     <div id="sidebar" class="expanded">
         <div id="nav-rail">
             <!-- Toggle Sidebar Icon at Top -->
@@ -243,14 +230,15 @@
             <!-- Animation Panel -->
             <div id="panel-anim" class="panel">
                 <h2>Effects</h2>
-                <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="pulsarToggle"> Pulsar Beams</label>
-                    <label class="checkbox-label"><input type="checkbox" id="accretionToggle"> Accretion Disk</label>
-                    <label class="checkbox-label"><input type="checkbox" id="gammaToggle"> Gamma Rays</label>
-                    <label class="checkbox-label"><input type="checkbox" id="neutrinoToggle"> Neutrino Jets</label>
+                <!-- Hidden toggles — FX tile grid will drive these in Task 5 -->
+                <div id="fx-hidden-toggles" style="display:none;">
+                    <input type="checkbox" id="pulsarToggle">
+                    <input type="checkbox" id="accretionToggle">
+                    <input type="checkbox" id="gammaToggle">
+                    <input type="checkbox" id="neutrinoToggle">
+                    <input type="checkbox" id="lightningToggle">
+                    <input type="checkbox" id="magneticToggle">
                 </div>
-
-                <h2>Animation & Path</h2>
 
                 <div class="control-group">
                     <div class="control-row">
@@ -259,44 +247,6 @@
                     </div>
                     <input type="range" id="idleSpinSlider" min="0.00" max="0.1" step="0.001" value="0.01">
                     <button class="btn-action" id="btn-quick-spin" style="margin-top: 5px;">Quick Spin Burst</button>
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label class="checkbox-label"><input type="checkbox" id="pathToggle"> Auto-Path</label>
-                        <button class="btn-action" id="btn-pause" style="padding: 4px 8px;">Pause</button>
-                    </div>
-
-                    <div id="pathSettings" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;">
-                        <div class="control-row">
-                            <label class="checkbox-label"><input type="checkbox" id="centeredViewToggle"> Keep Centered</label>
-                        </div>
-                        <div class="control-row">
-                            <label>Path Type</label>
-                            <select id="pathTypeSelect" style="width: auto; padding: 4px;">
-                                <option value="direct">Direct (Eased)</option>
-                                <option value="curve">Smooth Arcs</option>
-                            </select>
-                        </div>
-                        <div class="control-row">
-                            <label class="checkbox-label"><input type="checkbox" id="showPathToggle"> Show Path Line</label>
-                        </div>
-                        <div class="control-row">
-                            <label class="checkbox-label"><input type="checkbox" id="trailToggle"> Leave Trail</label>
-                        </div>
-                        <div id="trailSettings" style="display: none; flex-direction: column; gap: 4px; padding-left: 20px;">
-                            <div class="control-row">
-                                <label style="font-size:0.6rem;">Tail Length</label>
-                                <div class="val-display"><span id="trailLengthVal">50</span></div>
-                            </div>
-                            <input type="range" id="trailLengthSlider" min="10" max="200" step="1" value="50">
-                        </div>
-                        <div class="control-row" style="margin-top: 6px;">
-                            <label>Speed</label>
-                            <div class="val-display"><span id="speedVal">1.0</span>&nbsp;pc/s</div>
-                        </div>
-                        <input type="range" id="speedSlider" min="0.1" max="10.0" step="0.1" value="1.0">
-                    </div>
                 </div>
 
                 <h2>Aura Effects</h2>
@@ -340,41 +290,6 @@
             <!-- Environment Panel -->
             <div id="panel-env" class="panel">
                 <h2>Avatar</h2>
-
-                <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="gridToggle" checked> Show Background Grid</label>
-                    <div id="gridSettings">
-                        <div class="control-row" style="margin-top: 5px;">
-                            <label style="font-size:0.6rem;">Grid Colors</label>
-                            <div class="color-picker-group">
-                                <input type="color" id="gridColor1" value="#442266"><input type="color" id="gridColor2" value="#110022">
-                            </div>
-                        </div>
-                        <div class="control-row" style="margin-top: 10px;">
-                            <label>Granularity</label>
-                            <div class="val-display"><span id="gridDivsVal">30</span></div>
-                        </div>
-                        <input type="range" id="gridDivsSlider" min="5" max="100" step="1" value="30">
-
-                        <label class="checkbox-label" style="margin-top: 10px;"><input type="checkbox" id="gridBendToggle"> Space-Time Grid</label>
-                        <div class="control-row" style="margin-top: 5px;">
-                            <label>Mass</label>
-                            <div class="val-display"><span id="gridMassVal">0.0</span></div>
-                        </div>
-                        <input type="range" id="gridMassSlider" min="0" max="3" step="0.1" value="0.0">
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="orthoToggle"> Orthographic</label>
-                    <div id="fovGroup" style="margin-top: 5px;">
-                        <div class="control-row">
-                            <label>Perspective FOV</label>
-                            <div class="val-display"><span id="fovVal">45</span>&deg;</div>
-                        </div>
-                        <input type="range" id="fovSlider" min="10" max="120" step="1" value="45">
-                    </div>
-                </div>
 
                 <div class="control-group">
                     <div class="control-row">
