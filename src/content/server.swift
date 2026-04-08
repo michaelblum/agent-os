@@ -10,10 +10,12 @@ import Network
 class ContentServer {
     private var listener: NWListener?
     private let roots: [String: String]  // URL prefix -> absolute directory path
+    private let stateDir: String?        // writable directory for POST (state persistence)
     let port: NWEndpoint.Port
     var assignedPort: UInt16 = 0
 
-    init(config: AosConfig.ContentConfig?, repoRoot: String?) {
+    init(config: AosConfig.ContentConfig?, repoRoot: String?, stateDir: String? = nil) {
+        self.stateDir = stateDir
         let cfg = config ?? AosConfig.ContentConfig(port: 0, roots: [:])
         self.port = cfg.port == 0 ? .any : NWEndpoint.Port(rawValue: UInt16(cfg.port))!
 
@@ -82,7 +84,7 @@ class ContentServer {
     private func handleConnection(_ connection: NWConnection) {
         connection.start(queue: DispatchQueue(label: "aos.content-conn"))
 
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, _, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, error in
             guard let self = self, let data = data, error == nil else {
                 connection.cancel()
                 return
@@ -111,7 +113,7 @@ class ContentServer {
         }
 
         let method = String(parts[0])
-        guard method == "GET" || method == "HEAD" else {
+        guard method == "GET" || method == "HEAD" || method == "POST" else {
             return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method Not Allowed")
         }
 
@@ -133,6 +135,52 @@ class ContentServer {
 
         let segments = trimmed.split(separator: "/", maxSplits: 1)
         let prefix = String(segments[0])
+
+        // _state prefix: writable state directory for persistence
+        if prefix == "_state" {
+            guard let dir = stateDir else {
+                return httpResponse(status: 404, statusText: "Not Found", body: "State directory not configured")
+            }
+            let relativePath = segments.count > 1 ? String(segments[1]) : ""
+            guard !relativePath.isEmpty else {
+                return httpResponse(status: 400, statusText: "Bad Request", body: "Missing file path")
+            }
+            let filePath = (dir as NSString).appendingPathComponent(relativePath)
+            let resolvedPath = (filePath as NSString).standardizingPath
+            let resolvedDir = (dir as NSString).standardizingPath
+            guard resolvedPath.hasPrefix(resolvedDir) else {
+                return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
+            }
+
+            if method == "POST" {
+                // Extract body after blank line
+                guard let bodyData = extractBody(raw) else {
+                    return httpResponse(status: 400, statusText: "Bad Request", body: "No body")
+                }
+                // Ensure parent directory exists
+                let parentDir = (resolvedPath as NSString).deletingLastPathComponent
+                try? FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
+                do {
+                    try bodyData.write(to: URL(fileURLWithPath: resolvedPath))
+                    return httpResponse(status: 200, statusText: "OK", body: "OK")
+                } catch {
+                    return httpResponse(status: 500, statusText: "Internal Server Error", body: "Write failed: \(error.localizedDescription)")
+                }
+            }
+
+            // GET/HEAD on state file
+            guard FileManager.default.fileExists(atPath: resolvedPath),
+                  let fileData = FileManager.default.contents(atPath: resolvedPath) else {
+                return httpResponse(status: 404, statusText: "Not Found", body: "Not Found")
+            }
+            let mimeType = mimeTypeForExtension((resolvedPath as NSString).pathExtension)
+            return httpResponse(status: 200, statusText: "OK", contentType: mimeType, body: method == "HEAD" ? nil : fileData)
+        }
+
+        // POST only allowed on _state
+        guard method == "GET" || method == "HEAD" else {
+            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "POST only allowed on /_state/")
+        }
 
         guard let rootDir = roots[prefix] else {
             return httpResponse(status: 404, statusText: "Not Found", body: "Unknown content root: \(prefix)")
@@ -178,6 +226,16 @@ class ContentServer {
             response.append(body)
         }
         return response
+    }
+
+    // MARK: - Body Extraction
+
+    private func extractBody(_ raw: String) -> Data? {
+        // HTTP body starts after the first blank line (\r\n\r\n)
+        guard let range = raw.range(of: "\r\n\r\n") else { return nil }
+        let body = String(raw[range.upperBound...])
+        guard !body.isEmpty else { return nil }
+        return body.data(using: .utf8)
     }
 
     // MARK: - MIME Types

@@ -956,16 +956,42 @@ export function setupUI() {
         if (presetLabel && presetSelect) presetLabel.textContent = presetSelect.options[presetSelect.selectedIndex].text;
     }
 
-    // Avatar roster — saved configs persisted in localStorage
+    // Avatar roster — persisted via content server state endpoint, localStorage fallback
     const ROSTER_KEY = 'sigil-avatar-roster';
+    const ROSTER_URL = '/_state/avatar-roster.json';
     const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 100: 'Sphere' };
 
+    // In-memory cache — loaded async at startup, sync reads thereafter
+    let _rosterCache = [];
+    let _rosterLoaded = false;
+
     function loadRoster() {
-        try { return JSON.parse(localStorage.getItem(ROSTER_KEY) || '[]'); }
-        catch(e) { return []; }
+        return _rosterCache;
     }
     function saveRosterData(roster) {
-        localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
+        _rosterCache = roster;
+        // Try content server state endpoint, fall back to localStorage
+        fetch(ROSTER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(roster)
+        }).catch(() => {
+            try { localStorage.setItem(ROSTER_KEY, JSON.stringify(roster)); } catch(e) {}
+        });
+    }
+    // Async initial load — tries fetch first, falls back to localStorage
+    function initRoster() {
+        return fetch(ROSTER_URL).then(r => {
+            if (!r.ok) throw new Error(r.status);
+            return r.json();
+        }).then(data => {
+            _rosterCache = Array.isArray(data) ? data : [];
+        }).catch(() => {
+            try { _rosterCache = JSON.parse(localStorage.getItem(ROSTER_KEY) || '[]'); } catch(e) { _rosterCache = []; }
+        }).then(() => {
+            _rosterLoaded = true;
+            renderRoster();
+        });
     }
 
     function renderRoster() {
@@ -1114,7 +1140,7 @@ export function setupUI() {
 
         container.appendChild(actions);
     }
-    renderRoster();
+    initRoster();
 
     // Shape
     document.getElementById('shapeSelect').addEventListener('change', (e) => {

@@ -113,7 +113,7 @@ class UnifiedDaemon {
         // Start content server
         if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
             let repoRoot = aosCurrentRepoRoot()
-            contentServer = ContentServer(config: contentConfig, repoRoot: repoRoot)
+            contentServer = ContentServer(config: contentConfig, repoRoot: repoRoot, stateDir: aosStateDir())
             contentServer?.start()
         }
 
