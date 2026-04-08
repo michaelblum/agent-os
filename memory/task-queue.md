@@ -4,6 +4,9 @@
 (none)
 
 ## Queued
+- **Chat surface integration**: Chat canvas (`apps/sigil/chat/`) is wired to studio "Open Chat" button via daemon IPC. Next: connect to actual Claude API or agent session for real conversations. The chat.html supports full message rendering (markdown, tool cards, thinking blocks) but needs a backend.
+- **Settings panel**: Stub UI in Avatar panel. Next: read config from daemon on load, write changes back via `aos set` commands. Needs daemon support for config read via IPC.
+- **Test suite for display behaviors**: Canvas close handler, click-through levels (.floating vs .statusBar), single menu bar icon per mode. Currently only manual verification.
 - **side-eye decision**: Absorb into aos (true single binary) or keep as bundled sub-binary? Blocks packaging fixes.
 - **Packaging gaps**: Bundle side-eye + toolkit HTML into AOS.app so installed-mode commands are self-contained.
 - **StatusItemManager ↔ Sigil coordination**: Menu bar toggle creates/removes avatar canvas independently of Sigil. Need to reconcile so Sigil detects externally-created canvas or the toggle starts/stops Sigil.
@@ -11,6 +14,32 @@
 - **Studio WKWebView bundling**: Studio mode uses ES modules — needs same single-file bundling as live if it ever runs inside a canvas instead of a browser.
 
 ## Done
+
+### stabilize-and-wire-ui (2026-04-08)
+Runtime stabilization, studio cleanup, and chat surface wiring.
+
+**Commits:** `69425e6` → `bfa0565` (3 commits)
+
+**Fixed:**
+- Killed duplicate repo-mode `aos serve` processes (cause of two menu bar icons)
+- Installed repo-mode launch agent via `aos service install --mode repo`
+- Canvas close handler catches `{action: "close"}` from JS — studio X button and ESC now work
+- Interactive canvases use `.floating` level; overlays use `.statusBar` (proper click-through)
+- `NSApp.setActivationPolicy(.accessory)` for key window ownership
+
+**Studio cleanup:**
+- Removed dead imports (pathing, swarm, grid3d) from ui.js
+- Removed dead context menu proxy bindings (swarm, path, grid, ortho, fov)
+- Removed dead randomization for removed controls
+- Confirmed HTML reorganization (Tasks 1-7) was already done in prior session
+
+**New:**
+- Chat surface copied to `apps/sigil/chat/index.html` (served via content server)
+- "Open Chat" button in Avatar panel creates chat canvas via daemon IPC
+- Settings stub in Avatar panel (voice, visual feedback toggles)
+- "Surfaces" section in Avatar panel for launching companion canvases
+
+**Gateway status:** Running via MCP (`.mcp.json` → `dist/index.js`). 10 tools, tests passing, SDK complete.
 
 ### shared-ipc-runtime-testing (2026-04-05)
 Runtime verification of shared IPC library migration (15 commits, `3310f0c` → `9028c3b`).
