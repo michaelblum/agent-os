@@ -111,143 +111,257 @@
             <!-- Geometry Panel -->
             <div id="panel-geom" class="panel active">
                 <h2>Shape</h2>
-                <div class="control-group">
-                    <label>Base Shape</label>
-                    <select id="shapeSelect">
-                        <option value="4">Tetrahedron</option>
-                        <option value="6" selected>Box</option>
-                        <option value="8">Octahedron</option>
-                        <option value="12">Dodecahedron</option>
-                        <option value="20">Icosahedron</option>
-                        <option value="90">Tetartoid</option>
-                        <option value="91">Torus Knot</option>
-                        <option value="92">Torus</option>
-                        <option value="93">Prism</option>
-                        <option value="100">Sphere</option>
-                    </select>
+
+                <!-- Tab Bar -->
+                <div class="shape-tabs">
+                    <button class="shape-tab active" data-shape-tab="primary">Primary</button>
+                    <button class="shape-tab" data-shape-tab="secondary">
+                        <input type="checkbox" id="omegaToggle" title="Enable secondary shape">
+                        Secondary
+                    </button>
                 </div>
 
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Stellation (Pull/Push)</label>
-                        <div class="val-display"><span id="stellationVal">0.00</span></div>
-                    </div>
-                    <input type="range" id="stellationSlider" min="-1" max="2" step="0.05" value="0">
-                </div>
-
-                <div class="control-group">
-                    <div class="control-row">
-                        <label class="checkbox-label" style="margin:0;"><input type="checkbox" id="maskToggle"> Show Faces</label>
-                        <div class="val-display"><span id="opacityVal">0.25</span></div>
-                    </div>
-                    <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
-                    <div id="faceSubControls" style="display:none; flex-direction:column; gap:6px; margin-top:4px;">
-                        <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
-                        <label>Procedural Skin</label>
-                        <select id="skinSelect">
-                            <option value="none">None (Default)</option>
-                            <option value="rocky">Rocky</option>
-                            <option value="gas-giant">Gas Giant</option>
-                            <option value="ice">Ice</option>
-                            <option value="volcanic">Volcanic</option>
-                            <option value="solar">Solar</option>
+                <!-- Primary Tab Content -->
+                <div id="primary-shape-content" class="shape-tab-content active">
+                    <div class="control-group">
+                        <label>Base Shape</label>
+                        <select id="shapeSelect">
+                            <option value="4">Tetrahedron</option>
+                            <option value="6" selected>Box</option>
+                            <option value="8">Octahedron</option>
+                            <option value="12">Dodecahedron</option>
+                            <option value="20">Icosahedron</option>
+                            <option value="90">Tetartoid</option>
+                            <option value="91">Torus Knot</option>
+                            <option value="92">Torus</option>
+                            <option value="93">Prism</option>
+                            <option value="100">Sphere</option>
                         </select>
                     </div>
+
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Stellation (Pull/Push)</label>
+                            <div class="val-display"><span id="stellationVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="stellationSlider" min="-1" max="2" step="0.05" value="0">
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label class="checkbox-label" style="margin:0;"><input type="checkbox" id="maskToggle"> Show Faces</label>
+                            <div class="val-display"><span id="opacityVal">0.25</span></div>
+                        </div>
+                        <input type="range" id="opacitySlider" min="0" max="1" step="0.01" value="0.25">
+                        <div id="faceSubControls" style="display:none; flex-direction:column; gap:6px; margin-top:4px;">
+                            <label class="checkbox-label"><input type="checkbox" id="specularToggle" checked> Specular Highlights</label>
+                            <label>Procedural Skin</label>
+                            <select id="skinSelect">
+                                <option value="none">None (Default)</option>
+                                <option value="rocky">Rocky</option>
+                                <option value="gas-giant">Gas Giant</option>
+                                <option value="ice">Ice</option>
+                                <option value="volcanic">Volcanic</option>
+                                <option value="solar">Solar</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Edge Opacity</label>
+                            <div class="val-display"><span id="edgeOpacityVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="edgeOpacitySlider" min="0" max="1" step="0.01" value="1.00">
+                        <div id="edgeSubControls" style="margin-top:4px;">
+                            <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
+                        </div>
+                    </div>
+
+                    <!-- Shape-Specific Parameters (conditional visibility) -->
+                    <div id="tetartoidSettings" class="control-group" style="display:none;">
+                        <label>Tetartoid Parameters</label>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">A</label>
+                            <div class="val-display"><span id="tetAVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="tetASlider" min="0.01" max="2" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">B</label>
+                            <div class="val-display"><span id="tetBVal">1.50</span></div>
+                        </div>
+                        <input type="range" id="tetBSlider" min="0.01" max="2" step="0.01" value="1.5">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">C</label>
+                            <div class="val-display"><span id="tetCVal">2.00</span></div>
+                        </div>
+                        <input type="range" id="tetCSlider" min="0.01" max="2" step="0.01" value="2.0">
+                    </div>
+
+                    <div id="torusSettings" class="control-group" style="display:none;">
+                        <label>Torus Parameters</label>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Radius</label>
+                            <div class="val-display"><span id="torusRadiusVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="torusRadiusSlider" min="0.1" max="1.5" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Tube</label>
+                            <div class="val-display"><span id="torusTubeVal">0.30</span></div>
+                        </div>
+                        <input type="range" id="torusTubeSlider" min="0.05" max="0.8" step="0.01" value="0.3">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Arc</label>
+                            <div class="val-display"><span id="torusArcVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="torusArcSlider" min="0.1" max="1" step="0.01" value="1.0">
+                    </div>
+
+                    <div id="cylinderSettings" class="control-group" style="display:none;">
+                        <label>Prism Parameters</label>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Top Radius</label>
+                            <div class="val-display"><span id="cylinderTopVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="cylinderTopSlider" min="0" max="2" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Bottom Radius</label>
+                            <div class="val-display"><span id="cylinderBottomVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="cylinderBottomSlider" min="0.1" max="2" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Height</label>
+                            <div class="val-display"><span id="cylinderHeightVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="cylinderHeightSlider" min="0.2" max="4" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Sides</label>
+                            <div class="val-display"><span id="cylinderSidesVal">32</span></div>
+                        </div>
+                        <input type="range" id="cylinderSidesSlider" min="3" max="64" step="1" value="32">
+                    </div>
+
+                    <div id="boxSettings" class="control-group" style="display:none;">
+                        <label>Box Parameters</label>
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Width</label>
+                            <div class="val-display"><span id="boxWidthVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="boxWidthSlider" min="0.1" max="4" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Height</label>
+                            <div class="val-display"><span id="boxHeightVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="boxHeightSlider" min="0.1" max="4" step="0.01" value="1.0">
+                        <div class="control-row">
+                            <label style="font-size:0.6rem;">Depth</label>
+                            <div class="val-display"><span id="boxDepthVal">1.00</span></div>
+                        </div>
+                        <input type="range" id="boxDepthSlider" min="0.1" max="4" step="0.01" value="1.0">
+                    </div>
                 </div>
 
-                <div class="control-group">
-                    <div class="control-row">
-                        <label>Edge Opacity</label>
-                        <div class="val-display"><span id="edgeOpacityVal">1.00</span></div>
+                <!-- Secondary Tab Content -->
+                <div id="secondary-shape-content" class="shape-tab-content dimmed">
+                    <div class="control-group">
+                        <label>Shape</label>
+                        <select id="omegaShapeSelect">
+                            <option value="4">Tetrahedron</option>
+                            <option value="6" selected>Box</option>
+                            <option value="8">Octahedron</option>
+                            <option value="12">Dodecahedron</option>
+                            <option value="20">Icosahedron</option>
+                            <option value="90">Tetartoid</option>
+                            <option value="91">Torus Knot</option>
+                            <option value="92">Torus</option>
+                            <option value="93">Prism</option>
+                            <option value="100">Sphere</option>
+                        </select>
                     </div>
-                    <input type="range" id="edgeOpacitySlider" min="0" max="1" step="0.01" value="1.00">
-                    <div id="edgeSubControls" style="margin-top:4px;">
-                        <label class="checkbox-label"><input type="checkbox" id="interiorEdgesToggle" checked> Show Interior Edges</label>
+
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Stellation</label>
+                            <div class="val-display"><span id="omegaStellationVal">0.00</span></div>
+                        </div>
+                        <input type="range" id="omegaStellationSlider" min="-1" max="2" step="0.05" value="0">
+                    </div>
+
+                    <!-- Faces group (matching primary) -->
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label class="checkbox-label" style="margin:0;"><input type="checkbox" id="omegaMaskToggle"> Show Faces</label>
+                            <div class="val-display"><span id="omegaOpacityVal">0.15</span></div>
+                        </div>
+                        <input type="range" id="omegaOpacitySlider" min="0" max="1" step="0.01" value="0.15">
+                        <div id="omegaFaceSubControls" style="display:none; flex-direction:column; gap:6px; margin-top:4px;">
+                            <label class="checkbox-label"><input type="checkbox" id="omegaSpecularToggle"> Specular Highlights</label>
+                            <label>Procedural Skin</label>
+                            <select id="omegaSkinSelect">
+                                <option value="none">None (Default)</option>
+                                <option value="rocky">Rocky</option>
+                                <option value="gas-giant">Gas Giant</option>
+                                <option value="ice">Ice</option>
+                                <option value="volcanic">Volcanic</option>
+                                <option value="solar">Solar</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Edges group (matching primary) -->
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Edge Opacity</label>
+                            <div class="val-display"><span id="omegaEdgeOpacityVal">0.80</span></div>
+                        </div>
+                        <input type="range" id="omegaEdgeOpacitySlider" min="0" max="1" step="0.01" value="0.8">
+                        <div id="omegaEdgeSubControls" style="margin-top:4px;">
+                            <label class="checkbox-label"><input type="checkbox" id="omegaInteriorEdgesToggle" checked> Show Interior Edges</label>
+                        </div>
+                    </div>
+
+                    <!-- Scale -->
+                    <div class="control-group">
+                        <div class="control-row">
+                            <label>Scale</label>
+                            <div class="val-display"><span id="omegaScaleVal">1.50</span></div>
+                        </div>
+                        <input type="range" id="omegaScaleSlider" min="0.1" max="5" step="0.01" value="1.5">
+                    </div>
+
+                    <!-- Motion -->
+                    <div class="control-group">
+                        <label style="font-size:0.7rem; margin-bottom:2px;">Motion</label>
+                        <label class="checkbox-label"><input type="checkbox" id="omegaCounterSpin"> Counter-Spin</label>
+                        <label class="checkbox-label"><input type="checkbox" id="omegaLockPosition"> Lock Position</label>
+                    </div>
+
+                    <!-- Ghost Trails -->
+                    <div class="control-group">
+                        <label style="font-size:0.7rem; margin-bottom:2px;">Ghost Trails</label>
+                        <label class="checkbox-label"><input type="checkbox" id="omegaInterDimensional"> Inter-Dimensional</label>
+                        <div id="omegaGhostSettings" style="display:none; flex-direction:column; gap:4px; padding-left:20px;">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Ghost Count</label>
+                                <div class="val-display"><span id="omegaGhostCountVal">10</span></div>
+                            </div>
+                            <input type="range" id="omegaGhostCountSlider" min="1" max="30" step="1" value="10">
+                            <div class="control-row">
+                                <label style="font-size:0.6rem;">Duration</label>
+                                <div class="val-display"><span id="omegaGhostDurVal">2.0</span></div>
+                            </div>
+                            <input type="range" id="omegaGhostDurSlider" min="0.5" max="10" step="0.1" value="2.0">
+                            <label style="font-size:0.6rem;">Mode</label>
+                            <select id="omegaGhostMode">
+                                <option value="fade">Fade</option>
+                                <option value="solid">Solid</option>
+                                <option value="wireframe">Wireframe</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Shape-Specific Parameters (conditional visibility) -->
-                <div id="tetartoidSettings" class="control-group" style="display:none;">
-                    <label>Tetartoid Parameters</label>
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">A</label>
-                        <div class="val-display"><span id="tetAVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="tetASlider" min="0.01" max="2" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">B</label>
-                        <div class="val-display"><span id="tetBVal">1.50</span></div>
-                    </div>
-                    <input type="range" id="tetBSlider" min="0.01" max="2" step="0.01" value="1.5">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">C</label>
-                        <div class="val-display"><span id="tetCVal">2.00</span></div>
-                    </div>
-                    <input type="range" id="tetCSlider" min="0.01" max="2" step="0.01" value="2.0">
-                </div>
-
-                <div id="torusSettings" class="control-group" style="display:none;">
-                    <label>Torus Parameters</label>
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Radius</label>
-                        <div class="val-display"><span id="torusRadiusVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="torusRadiusSlider" min="0.1" max="1.5" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Tube</label>
-                        <div class="val-display"><span id="torusTubeVal">0.30</span></div>
-                    </div>
-                    <input type="range" id="torusTubeSlider" min="0.05" max="0.8" step="0.01" value="0.3">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Arc</label>
-                        <div class="val-display"><span id="torusArcVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="torusArcSlider" min="0.1" max="1" step="0.01" value="1.0">
-                </div>
-
-                <div id="cylinderSettings" class="control-group" style="display:none;">
-                    <label>Prism Parameters</label>
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Top Radius</label>
-                        <div class="val-display"><span id="cylinderTopVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="cylinderTopSlider" min="0" max="2" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Bottom Radius</label>
-                        <div class="val-display"><span id="cylinderBottomVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="cylinderBottomSlider" min="0.1" max="2" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Height</label>
-                        <div class="val-display"><span id="cylinderHeightVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="cylinderHeightSlider" min="0.2" max="4" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Sides</label>
-                        <div class="val-display"><span id="cylinderSidesVal">32</span></div>
-                    </div>
-                    <input type="range" id="cylinderSidesSlider" min="3" max="64" step="1" value="32">
-                </div>
-
-                <div id="boxSettings" class="control-group" style="display:none;">
-                    <label>Box Parameters</label>
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Width</label>
-                        <div class="val-display"><span id="boxWidthVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="boxWidthSlider" min="0.1" max="4" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Height</label>
-                        <div class="val-display"><span id="boxHeightVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="boxHeightSlider" min="0.1" max="4" step="0.01" value="1.0">
-                    <div class="control-row">
-                        <label style="font-size:0.6rem;">Depth</label>
-                        <div class="val-display"><span id="boxDepthVal">1.00</span></div>
-                    </div>
-                    <input type="range" id="boxDepthSlider" min="0.1" max="4" step="0.01" value="1.0">
-                </div>
-
+                <!-- Scale section (shared, always visible below tabs) -->
                 <h2 style="font-size:0.9rem;">Scale</h2>
 
                 <div class="control-group">
@@ -280,95 +394,6 @@
                         <button class="bookend" id="btn-step-minus">-</button>
                         <div id="step-buttons-container"></div>
                         <button class="bookend" id="btn-step-plus">+</button>
-                    </div>
-                </div>
-
-                <h2 style="font-size:0.9rem;">Secondary Shape</h2>
-
-                <div class="control-group">
-                    <label class="checkbox-label"><input type="checkbox" id="omegaToggle"> Enable Secondary Shape</label>
-                    <div id="omegaSettings" style="display:none; flex-direction:column; gap:8px; margin-top:8px;">
-                        <label>Shape</label>
-                        <select id="omegaShapeSelect">
-                            <option value="4">Tetrahedron</option>
-                            <option value="6" selected>Box</option>
-                            <option value="8">Octahedron</option>
-                            <option value="12">Dodecahedron</option>
-                            <option value="20">Icosahedron</option>
-                            <option value="90">Tetartoid</option>
-                            <option value="91">Torus Knot</option>
-                            <option value="92">Torus</option>
-                            <option value="93">Prism</option>
-                            <option value="100">Sphere</option>
-                        </select>
-
-                        <div class="control-row">
-                            <label>Stellation</label>
-                            <div class="val-display"><span id="omegaStellationVal">0.00</span></div>
-                        </div>
-                        <input type="range" id="omegaStellationSlider" min="-1" max="2" step="0.05" value="0">
-
-                        <div class="control-row">
-                            <label>Scale</label>
-                            <div class="val-display"><span id="omegaScaleVal">1.50</span></div>
-                        </div>
-                        <input type="range" id="omegaScaleSlider" min="0.1" max="5" step="0.01" value="1.5">
-
-                        <div class="control-row">
-                            <label>Face Opacity</label>
-                            <div class="val-display"><span id="omegaOpacityVal">0.15</span></div>
-                        </div>
-                        <input type="range" id="omegaOpacitySlider" min="0" max="1" step="0.01" value="0.15">
-
-                        <div class="control-row">
-                            <label>Edge Opacity</label>
-                            <div class="val-display"><span id="omegaEdgeOpacityVal">0.80</span></div>
-                        </div>
-                        <input type="range" id="omegaEdgeOpacitySlider" min="0" max="1" step="0.01" value="0.8">
-
-                        <label class="checkbox-label"><input type="checkbox" id="omegaMaskToggle" checked> Hollow Core</label>
-                        <label class="checkbox-label"><input type="checkbox" id="omegaInteriorEdgesToggle" checked> Interior Edges</label>
-                        <label class="checkbox-label"><input type="checkbox" id="omegaSpecularToggle"> Specular</label>
-
-                        <label>Skin</label>
-                        <select id="omegaSkinSelect">
-                            <option value="none">None (Default)</option>
-                            <option value="rocky">Rocky</option>
-                            <option value="gas-giant">Gas Giant</option>
-                            <option value="ice">Ice</option>
-                            <option value="volcanic">Volcanic</option>
-                            <option value="solar">Solar</option>
-                            <option value="portal">Portal</option>
-                            <option value="tech">Tech</option>
-                            <option value="circuit">Circuit</option>
-                            <option value="alien">Alien</option>
-                            <option value="ancient">Ancient</option>
-                        </select>
-
-                        <label style="margin-top:6px;">Motion</label>
-                        <label class="checkbox-label"><input type="checkbox" id="omegaCounterSpin"> Counter-Spin</label>
-                        <label class="checkbox-label"><input type="checkbox" id="omegaLockPosition"> Lock Position</label>
-
-                        <label style="margin-top:6px;">Ghost Trails</label>
-                        <label class="checkbox-label"><input type="checkbox" id="omegaInterDimensional"> Inter-Dimensional</label>
-                        <div id="omegaGhostSettings" style="display:none; flex-direction:column; gap:4px; padding-left:20px;">
-                            <div class="control-row">
-                                <label style="font-size:0.6rem;">Ghost Count</label>
-                                <div class="val-display"><span id="omegaGhostCountVal">10</span></div>
-                            </div>
-                            <input type="range" id="omegaGhostCountSlider" min="1" max="30" step="1" value="10">
-                            <div class="control-row">
-                                <label style="font-size:0.6rem;">Duration</label>
-                                <div class="val-display"><span id="omegaGhostDurVal">2.0</span></div>
-                            </div>
-                            <input type="range" id="omegaGhostDurSlider" min="0.5" max="10" step="0.1" value="2.0">
-                            <label style="font-size:0.6rem;">Mode</label>
-                            <select id="omegaGhostMode">
-                                <option value="fade">Fade</option>
-                                <option value="solid">Solid</option>
-                                <option value="wireframe">Wireframe</option>
-                            </select>
-                        </div>
                     </div>
                 </div>
             </div>

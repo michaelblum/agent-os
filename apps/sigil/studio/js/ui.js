@@ -316,7 +316,7 @@ function applyConfig(c) {
     if (c.omegaScale !== undefined) setUI('omegaScaleSlider', c.omegaScale, c.omegaScale.toFixed(2));
     if (c.omegaOpacity !== undefined) setUI('omegaOpacitySlider', c.omegaOpacity, c.omegaOpacity.toFixed(2));
     if (c.omegaEdgeOpacity !== undefined) setUI('omegaEdgeOpacitySlider', c.omegaEdgeOpacity, c.omegaEdgeOpacity.toFixed(2));
-    if (c.omegaIsMaskEnabled !== undefined) setUI('omegaMaskToggle', c.omegaIsMaskEnabled);
+    if (c.omegaIsMaskEnabled !== undefined) setUI('omegaMaskToggle', !c.omegaIsMaskEnabled);
     if (c.omegaIsInteriorEdgesEnabled !== undefined) setUI('omegaInteriorEdgesToggle', c.omegaIsInteriorEdgesEnabled);
     if (c.omegaIsSpecularEnabled !== undefined) setUI('omegaSpecularToggle', c.omegaIsSpecularEnabled);
     if (c.omegaSkin !== undefined) setUI('omegaSkinSelect', c.omegaSkin);
@@ -410,7 +410,18 @@ function randomizeAll(seed) {
     setUI('neutrinoToggle', rng() > 0.7);
     setUI('lightningToggle', rng() > 0.7);
     setUI('magneticToggle', rng() > 0.7);
-    setUI('omegaToggle', rng() > 0.5);
+    // Only randomize omega params if user has secondary shape enabled — don't toggle it
+    if (state.isOmegaEnabled) {
+        // Randomize omega appearance
+        setUI('omegaShapeSelect', [4, 6, 8, 12, 20, 90, 100][Math.floor(rng() * 7)]);
+        setUI('omegaStellationSlider', (rng() * 3 - 1), (rng() * 3 - 1).toFixed(2));
+        setUI('omegaOpacitySlider', rng(), rng().toFixed(2));
+        setUI('omegaEdgeOpacitySlider', rng(), rng().toFixed(2));
+        setUI('omegaScaleSlider', 0.5 + rng() * 3, (0.5 + rng() * 3).toFixed(2));
+        setUI('omegaMaskToggle', rng() > 0.5);
+        setUI('omegaCounterSpin', rng() > 0.5);
+        setUI('omegaInterDimensional', rng() > 0.7);
+    }
 
     // Randomize counts (reset to 1)
     ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
@@ -553,6 +564,23 @@ export function setupUI() {
         if (el.closest('.dual-slider-container')) return;
         updateSliderFill(el);
         el.addEventListener('input', () => updateSliderFill(el));
+    });
+
+    // Shape tab switching
+    document.querySelectorAll('.shape-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            // Don't switch if clicking the checkbox
+            if (e.target.type === 'checkbox') return;
+            const target = tab.dataset.shapeTab;
+            document.querySelectorAll('.shape-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('primary-shape-content').classList.remove('active');
+            document.getElementById('secondary-shape-content').classList.remove('active');
+            document.getElementById(target === 'primary' ? 'primary-shape-content' : 'secondary-shape-content').classList.add('active');
+            // Update slider fills for newly visible tab
+            const activeContent = document.getElementById(target === 'primary' ? 'primary-shape-content' : 'secondary-shape-content');
+            activeContent.querySelectorAll('input[type="range"]').forEach(updateSliderFill);
+        });
     });
 
     // Sidebar Navigation
@@ -1131,7 +1159,10 @@ export function setupUI() {
     // Omega Shape
     document.getElementById('omegaToggle').addEventListener('change', (e) => {
         state.isOmegaEnabled = e.target.checked;
-        document.getElementById('omegaSettings').style.display = e.target.checked ? 'block' : 'none';
+        // Toggle dimmed state on secondary content
+        const secondaryContent = document.getElementById('secondary-shape-content');
+        if (secondaryContent) secondaryContent.classList.toggle('dimmed', !e.target.checked);
+        // Toggle omega colors in Colors panel
         const omegaColors = document.getElementById('omegaColorGroup');
         if (omegaColors) omegaColors.style.display = e.target.checked ? '' : 'none';
     });
@@ -1167,10 +1198,14 @@ export function setupUI() {
             state.omegaWireframeMesh.material.opacity = state.omegaEdgeOpacity;
             state.omegaWireframeMesh.material.needsUpdate = true;
         }
+        const omegaEdgeSub = document.getElementById('omegaEdgeSubControls');
+        if (omegaEdgeSub) omegaEdgeSub.style.display = state.omegaEdgeOpacity > 0 ? '' : 'none';
     });
     document.getElementById('omegaMaskToggle').addEventListener('change', (e) => {
-        state.omegaIsMaskEnabled = e.target.checked;
-        if (state.omegaCoreMesh) state.omegaCoreMesh.visible = !e.target.checked;
+        state.omegaIsMaskEnabled = !e.target.checked; // inverted: Show Faces checked = mask disabled
+        if (state.omegaCoreMesh) state.omegaCoreMesh.visible = e.target.checked;
+        const omegaFaceSub = document.getElementById('omegaFaceSubControls');
+        if (omegaFaceSub) omegaFaceSub.style.display = e.target.checked ? 'flex' : 'none';
     });
     document.getElementById('omegaInteriorEdgesToggle').addEventListener('change', (e) => {
         state.omegaIsInteriorEdgesEnabled = e.target.checked;

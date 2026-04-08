@@ -126,3 +126,55 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
     font-size: 0.7rem; color: #d187ff; text-transform: uppercase;
     letter-spacing: 0.5px; margin-bottom: 2px; font-weight: bold;
 }
+
+/* Shape Tab Bar */
+.shape-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 10px;
+    background: rgba(26, 11, 46, 0.6);
+    border-radius: 6px;
+    padding: 3px;
+    border: 1px solid rgba(74, 43, 110, 0.5);
+}
+.shape-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: rgba(209, 135, 255, 0.6);
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.shape-tab:hover {
+    color: #d187ff;
+    background: rgba(188, 19, 254, 0.1);
+}
+.shape-tab.active {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.25);
+    box-shadow: 0 0 8px rgba(188, 19, 254, 0.2);
+}
+.shape-tab input[type="checkbox"] {
+    accent-color: #bc13fe;
+    margin: 0;
+}
+.shape-tab-content {
+    display: none;
+}
+.shape-tab-content.active {
+    display: block;
+}
+.shape-tab-content.dimmed {
+    opacity: 0.4;
+    pointer-events: none;
+}
