@@ -1017,6 +1017,63 @@ export function setupUI() {
         });
     });
 
+    // FX Tile Grid — data-driven from fx-registry
+    const fxGrid = document.getElementById('fxGrid');
+    if (fxGrid) {
+        // Filter out swarm (removed from UI)
+        const studioEffects = EFFECTS.filter(fx => fx.id !== 'swarm');
+        let openSubId = null;
+
+        studioEffects.forEach(fx => {
+            const tile = document.createElement('div');
+            tile.className = 'fx-tile';
+            tile.dataset.effect = fx.id;
+
+            // Sync initial active state from hidden toggle
+            const srcToggle = document.getElementById(fx.sidebarId);
+            if (srcToggle && srcToggle.checked) tile.classList.add('active');
+
+            tile.innerHTML = '<span class="fx-tile-emoji">' + fx.emoji + '</span>'
+                + '<span class="fx-tile-label">' + fx.label + '</span>'
+                + '<span class="fx-tile-gear" data-gear="' + fx.id + '" title="' + fx.label + ' Settings">&#9881;</span>';
+
+            // Click tile = toggle effect
+            tile.addEventListener('click', function(e) {
+                if (e.target.closest('.fx-tile-gear')) return;
+                var toggle = document.getElementById(fx.sidebarId);
+                if (toggle) {
+                    toggle.checked = !toggle.checked;
+                    toggle.dispatchEvent(new Event('change'));
+                }
+                tile.classList.toggle('active');
+            });
+
+            // Click gear = open/close sub-settings
+            var gear = tile.querySelector('.fx-tile-gear');
+            if (gear) {
+                gear.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var settingsId = fx.id + 'Settings';
+                    var panel = document.getElementById(settingsId);
+                    if (!panel) return;
+                    if (openSubId === settingsId) {
+                        panel.classList.remove('open');
+                        openSubId = null;
+                    } else {
+                        if (openSubId) {
+                            var prev = document.getElementById(openSubId);
+                            if (prev) prev.classList.remove('open');
+                        }
+                        panel.classList.add('open');
+                        openSubId = settingsId;
+                    }
+                });
+            }
+
+            fxGrid.appendChild(tile);
+        });
+    }
+
     // Lightning Arcs
     document.getElementById('lightningToggle').addEventListener('change', (e) => {
         state.isLightningEnabled = e.target.checked;

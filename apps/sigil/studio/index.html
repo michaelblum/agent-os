@@ -448,10 +448,11 @@
                 </div>
             </div>
 
-            <!-- Animation Panel -->
+            <!-- Effects Panel -->
             <div id="panel-anim" class="panel">
                 <h2>Effects</h2>
-                <!-- Hidden toggles — FX tile grid will drive these in Task 5 -->
+
+                <!-- Hidden toggles — FX tile grid drives these -->
                 <div id="fx-hidden-toggles" style="display:none;">
                     <input type="checkbox" id="pulsarToggle">
                     <input type="checkbox" id="accretionToggle">
@@ -461,6 +462,7 @@
                     <input type="checkbox" id="magneticToggle">
                 </div>
 
+                <h2 style="font-size:0.9rem;">Motion</h2>
                 <div class="control-group">
                     <div class="control-row">
                         <label>Base Spin Speed</label>
@@ -470,7 +472,7 @@
                     <button class="btn-action" id="btn-quick-spin" style="margin-top: 5px;">Quick Spin Burst</button>
                 </div>
 
-                <h2>Aura Effects</h2>
+                <h2 style="font-size:0.9rem;">Aura</h2>
                 <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="auraToggle" checked> Enable Aura Glow</label>
                     <div id="auraIntensityWrapper">
@@ -479,19 +481,16 @@
                             <div class="val-display"><span id="auraReachVal">1.00</span></div>
                         </div>
                         <input type="range" id="auraReachSlider" min="0" max="3" step="0.01" value="1.0">
-
                         <div class="control-row" style="margin-top: 5px;">
                             <label>Intensity</label>
                             <div class="val-display"><span id="auraIntensityVal">1.00</span></div>
                         </div>
                         <input type="range" id="auraIntensitySlider" min="0" max="3" step="0.01" value="1.0">
-
                         <div class="control-row" style="margin-top: 5px;">
                             <label>Pulse Rate</label>
                             <div class="val-display"><span id="pulseRateVal">0.005</span></div>
                         </div>
                         <input type="range" id="pulseRateSlider" min="0.001" max="0.02" step="0.001" value="0.005">
-
                         <div class="control-row" style="margin-top: 10px;">
                             <button class="btn-action" id="btn-spike" style="flex-grow: 1;">Spike Amplitude</button>
                             <input type="number" id="spikeMultiplier" value="1.5" min="1.1" max="50" step="0.1" class="edit-input" style="width: 50px; margin-left: 8px;" title="Spike Size Multiplier">
@@ -499,9 +498,76 @@
                     </div>
                 </div>
 
+                <h2 style="font-size:0.9rem;">Phenomena</h2>
                 <div class="control-group">
-                    <h2 style="font-size:0.8rem; margin:0; border:none;">Particle Effects</h2>
-                    <div id="btn-supercharge" class="btn-action" style="position: relative; overflow: hidden; user-select: none; margin-top: 5px; height: 28px; display: flex; align-items: center; justify-content: center;">
+                    <div class="fx-grid" id="fxGrid"></div>
+                </div>
+
+                <!-- Per-effect sub-settings panels (toggled by gear icon click) -->
+                <div id="pulsarSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Pulsar Settings</div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Count</label><input type="number" id="pulsarCount" value="1" min="1" max="150" class="edit-input" style="width:50px;"></div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Turbulence</label><div class="val-display"><span id="pTurbVal">0.00</span></div></div>
+                    <input type="range" id="pTurbSlider" min="0" max="1" step="0.01" value="0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Turb Speed</label><div class="val-display"><span id="pTurbSpdVal">1.0</span></div></div>
+                    <input type="range" id="pTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Phase Mode</label><select id="pTurbMod" style="width:auto;padding:2px 6px;font-size:0.65rem;"><option value="uniform">Uniform</option><option value="wave">Wave</option><option value="random">Random</option></select></div>
+                </div>
+                <div id="accretionSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Accretion Settings</div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Count</label><input type="number" id="accretionCount" value="1" min="1" max="150" class="edit-input" style="width:50px;"></div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Turbulence</label><div class="val-display"><span id="aTurbVal">0.00</span></div></div>
+                    <input type="range" id="aTurbSlider" min="0" max="1" step="0.01" value="0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Turb Speed</label><div class="val-display"><span id="aTurbSpdVal">1.0</span></div></div>
+                    <input type="range" id="aTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Phase Mode</label><select id="aTurbMod" style="width:auto;padding:2px 6px;font-size:0.65rem;"><option value="uniform">Uniform</option><option value="wave">Wave</option><option value="random">Random</option></select></div>
+                </div>
+                <div id="gammaSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Gamma Settings</div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Count</label><input type="number" id="gammaCount" value="1" min="1" max="150" class="edit-input" style="width:50px;"></div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Turbulence</label><div class="val-display"><span id="gTurbVal">0.00</span></div></div>
+                    <input type="range" id="gTurbSlider" min="0" max="1" step="0.01" value="0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Turb Speed</label><div class="val-display"><span id="gTurbSpdVal">1.0</span></div></div>
+                    <input type="range" id="gTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Phase Mode</label><select id="gTurbMod" style="width:auto;padding:2px 6px;font-size:0.65rem;"><option value="uniform">Uniform</option><option value="wave">Wave</option><option value="random">Random</option></select></div>
+                </div>
+                <div id="neutrinoSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Neutrino Settings</div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Count</label><input type="number" id="neutrinoCount" value="1" min="1" max="150" class="edit-input" style="width:50px;"></div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Turbulence</label><div class="val-display"><span id="nTurbVal">0.00</span></div></div>
+                    <input type="range" id="nTurbSlider" min="0" max="1" step="0.01" value="0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Turb Speed</label><div class="val-display"><span id="nTurbSpdVal">1.0</span></div></div>
+                    <input type="range" id="nTurbSpdSlider" min="0.1" max="10" step="0.1" value="1.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Phase Mode</label><select id="nTurbMod" style="width:auto;padding:2px 6px;font-size:0.65rem;"><option value="uniform">Uniform</option><option value="wave">Wave</option><option value="random">Random</option></select></div>
+                </div>
+                <div id="lightningSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Lightning Settings</div>
+                    <label class="checkbox-label"><input type="checkbox" id="lightningOriginCenter" checked> Origin at Center</label>
+                    <label class="checkbox-label"><input type="checkbox" id="lightningSolidBlock"> Solid Block</label>
+                    <div class="control-row"><label style="font-size:0.6rem;">Bolt Length</label><div class="val-display"><span id="lightningLengthVal">100</span></div></div>
+                    <input type="range" id="lightningLengthSlider" min="10" max="300" step="1" value="100">
+                    <div class="control-row"><label style="font-size:0.6rem;">Frequency</label><div class="val-display"><span id="lightningFreqVal">2.0</span></div></div>
+                    <input type="range" id="lightningFreqSlider" min="0.1" max="10" step="0.1" value="2.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Duration</label><div class="val-display"><span id="lightningDurVal">0.8</span></div></div>
+                    <input type="range" id="lightningDurSlider" min="0.1" max="5" step="0.1" value="0.8">
+                    <div class="control-row"><label style="font-size:0.6rem;">Branching</label><div class="val-display"><span id="lightningBranchVal">0.08</span></div></div>
+                    <input type="range" id="lightningBranchSlider" min="0" max="0.5" step="0.01" value="0.08">
+                    <div class="control-row"><label style="font-size:0.6rem;">Brightness</label><div class="val-display"><span id="lightningBrightVal">1.0</span></div></div>
+                    <input type="range" id="lightningBrightSlider" min="0.1" max="5" step="0.1" value="1.0">
+                </div>
+                <div id="magneticSettings" class="fx-sub-settings">
+                    <div class="sub-heading">Magnetic Settings</div>
+                    <div class="control-row"><label style="font-size:0.6rem;">Tentacle Count</label><div class="val-display"><span id="magneticCountVal">10</span></div></div>
+                    <input type="range" id="magneticCountSlider" min="1" max="30" step="1" value="10">
+                    <div class="control-row"><label style="font-size:0.6rem;">Speed</label><div class="val-display"><span id="magneticSpeedVal">1.0</span></div></div>
+                    <input type="range" id="magneticSpeedSlider" min="0.1" max="5" step="0.1" value="1.0">
+                    <div class="control-row"><label style="font-size:0.6rem;">Wander</label><div class="val-display"><span id="magneticWanderVal">3.0</span></div></div>
+                    <input type="range" id="magneticWanderSlider" min="0" max="10" step="0.1" value="3.0">
+                </div>
+
+                <h2 style="font-size:0.9rem;">Particles</h2>
+                <div class="control-group">
+                    <div id="btn-supercharge" class="btn-action" style="position: relative; overflow: hidden; user-select: none; height: 28px; display: flex; align-items: center; justify-content: center;">
                         <div id="charge-fill" style="position: absolute; top:0; left:0; height:100%; width:0%; background: rgba(255,255,255,0.3); pointer-events:none; transition: width 0.1s linear;"></div>
                         <span style="position:relative; z-index:2; pointer-events:none;">HOLD TO SUPER NOVA</span>
                     </div>
