@@ -146,7 +146,7 @@ function getConfig() {
         gamma: state.isGammaEnabled,
         neutrinos: state.isNeutrinosEnabled,
         // Old 2D grid fields removed — unified into gridMode
-        ortho: document.getElementById('orthoToggle').checked,
+        ortho: document.getElementById('orthoToggle')?.checked || false,
         fov: state.perspCamera.fov,
         zDepth: state.z_depth,
         pulsarCount: state.pulsarRayCount,
@@ -998,7 +998,6 @@ export function setupUI() {
             // Overwrite = save current config into this slot
             card.querySelector('.roster-overwrite').addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!confirm('Overwrite "' + entry.name + '" with current config?')) return;
                 const r = loadRoster();
                 r[idx].config = getConfig();
                 saveRosterData(r);
@@ -1008,7 +1007,6 @@ export function setupUI() {
             // Delete
             card.querySelector('.roster-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!confirm('Delete "' + entry.name + '"?')) return;
                 const r = loadRoster();
                 r.splice(idx, 1);
                 saveRosterData(r);
@@ -1028,12 +1026,44 @@ export function setupUI() {
         saveBtn.style.cssText = 'flex:1; font-size:0.65rem; padding:6px 8px;';
         saveBtn.textContent = '+ Save As New';
         saveBtn.addEventListener('click', () => {
-            const name = prompt('Avatar name:');
-            if (!name) return;
-            const roster = loadRoster();
-            roster.push({ name: name, config: getConfig() });
-            saveRosterData(roster);
-            renderRoster();
+            // Show inline name input instead of prompt()
+            const inputRow = document.createElement('div');
+            inputRow.style.cssText = 'display:flex; gap:4px; margin-top:6px;';
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.placeholder = 'Avatar name...';
+            nameInput.style.cssText = 'flex:1; background:#1a0b2e; border:1px solid #bc13fe; color:white; padding:6px 8px; border-radius:4px; font-size:0.7rem; outline:none;';
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn-action';
+            confirmBtn.style.cssText = 'font-size:0.65rem; padding:6px 10px;';
+            confirmBtn.textContent = 'Save';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn-action';
+            cancelBtn.style.cssText = 'font-size:0.65rem; padding:6px 8px; opacity:0.6;';
+            cancelBtn.textContent = 'Cancel';
+
+            function doSave() {
+                try {
+                    const name = nameInput.value.trim();
+                    if (!name) return;
+                    const config = getConfig();
+                    const roster = loadRoster();
+                    roster.push({ name: name, config: config });
+                    saveRosterData(roster);
+                    renderRoster();
+                } catch(err) {
+                    console.error('Roster save failed:', err);
+                }
+            }
+            confirmBtn.addEventListener('click', doSave);
+            nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSave(); if (e.key === 'Escape') inputRow.remove(); });
+            cancelBtn.addEventListener('click', () => inputRow.remove());
+
+            inputRow.appendChild(nameInput);
+            inputRow.appendChild(confirmBtn);
+            inputRow.appendChild(cancelBtn);
+            container.appendChild(inputRow);
+            nameInput.focus();
         });
         actions.appendChild(saveBtn);
 
