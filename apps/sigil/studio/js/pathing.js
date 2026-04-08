@@ -7,6 +7,7 @@ let _driftTimer = 0;
 const _DRIFT_INTERVAL = 4.0; // seconds between new drift targets
 const _DRIFT_BLEND = 0.005;  // how fast axis blends toward target
 const _MOMENTUM_CUTOFF = 0.0005; // below this, kill residual rotation
+const _angularVelocity = new THREE.Vector3(); // reusable vector for consolidated rotation
 
 export function updatePathVisual() {
     if (state.pathLine) {
@@ -120,32 +121,38 @@ export function animatePathing(dt) {
         }
         _spinAxis.lerp(_driftTarget, _DRIFT_BLEND).normalize();
 
-        // Rotations
-        let activeRotationSpeed = state.idleSpinSpeed;
+        // Consolidate all rotation sources into a single angular velocity vector.
+        // Multiple rotateOnWorldAxis calls on different axes compound into twisting;
+        // summing into one vector and rotating once avoids this.
+        _angularVelocity.copy(_spinAxis).multiplyScalar(state.idleSpinSpeed);
 
         if (state.quickSpinActive) {
             let timeRemaining = state.quickSpinEndTime - performance.now();
             if (timeRemaining > 0) {
                 let t = timeRemaining / 2000;
-                activeRotationSpeed += state.quickSpinSpeed * t * t;
-                state.polyGroup.rotateOnWorldAxis(state.quickSpinAxis, state.quickSpinSpeed * t * t);
+                _angularVelocity.addScaledVector(state.quickSpinAxis, state.quickSpinSpeed * t * t);
             } else {
                 state.quickSpinActive = false;
             }
         }
 
-        // Move rotation with hard cutoff to prevent lingering wobble
+        // Move rotation (from click-to-follow) — blend into spin axis over time
         if (state.moveRotationSpeed > _MOMENTUM_CUTOFF) {
-            state.polyGroup.rotateOnWorldAxis(state.moveRotationAxis, state.moveRotationSpeed);
+            _angularVelocity.addScaledVector(state.moveRotationAxis, state.moveRotationSpeed);
             if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
         } else {
             state.moveRotationSpeed = 0;
         }
 
-        state.polyGroup.rotateOnWorldAxis(_spinAxis, activeRotationSpeed);
+        // Apply single consolidated rotation
+        const totalSpeed = _angularVelocity.length();
+        if (totalSpeed > 0.00001) {
+            _angularVelocity.normalize();
+            state.polyGroup.rotateOnWorldAxis(_angularVelocity, totalSpeed);
+        }
     }
 
-    // Residual drag momentum with hard cutoff
+    // Residual drag momentum — also consolidated as single rotation
     if (!isMotionPaused && !state.isPathEnabled && !state.isDestroyed && state.dragMomentumSpeed > _MOMENTUM_CUTOFF) {
         state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
         state.dragMomentumSpeed *= 0.95;
