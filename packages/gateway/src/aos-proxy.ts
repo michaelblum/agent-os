@@ -28,25 +28,60 @@ function parseJSON(raw: string): unknown {
   catch { return { raw }; }
 }
 
+// --- Normalization helpers ---
+
+type NormalizedWindow = {
+  id: string; app: string; title: string;
+  frame: { x: number; y: number; width: number; height: number };
+  focused: boolean;
+};
+
+/** Normalize raw CLI window data to match the SDK type contract. */
+function normalizeWindow(raw: any, isFocused = false): NormalizedWindow {
+  const win = raw.window ?? raw;
+  const bounds = win.bounds ?? win.frame ?? {};
+  return {
+    id: String(win.window_id ?? win.id ?? ''),
+    app: win.app_name ?? win.app ?? '',
+    title: win.title ?? '',
+    frame: {
+      x: bounds.x ?? 0, y: bounds.y ?? 0,
+      width: bounds.width ?? 0, height: bounds.height ?? 0,
+    },
+    focused: isFocused || !!raw.focused,
+  };
+}
+
+/** Single CLI call that powers getWindows, getCursor, getDisplays, and perceive. */
+async function getCursorSnapshot(): Promise<any> {
+  const raw = await runAos(['see', 'cursor']);
+  return parseJSON(raw) as any;
+}
+
 // --- Layer 1 Primitives: Perception ---
 
-export async function getWindows(filter?: { app?: string; title?: string }): Promise<unknown[]> {
-  const raw = await runAos(['see', 'cursor']);
-  const data = parseJSON(raw) as any;
-  let windows = data.windows ?? [data];
-  if (filter?.app) windows = windows.filter((w: any) => w.app?.includes(filter.app));
-  if (filter?.title) windows = windows.filter((w: any) => w.title?.includes(filter.title));
+export async function getWindows(filter?: { app?: string; title?: string }): Promise<NormalizedWindow[]> {
+  const data = await getCursorSnapshot();
+  const rawWindows = data.windows ?? [data];
+  let windows: NormalizedWindow[] = rawWindows.map((w: any, i: number) => normalizeWindow(w, i === 0 && rawWindows.length === 1));
+  if (filter?.app) {
+    const q = filter.app.toLowerCase();
+    windows = windows.filter((w: NormalizedWindow) => w.app.toLowerCase().includes(q));
+  }
+  if (filter?.title) {
+    const q = filter.title.toLowerCase();
+    windows = windows.filter((w: NormalizedWindow) => w.title.toLowerCase().includes(q));
+  }
   return windows;
 }
 
 export async function getCursor(): Promise<{ x: number; y: number; app?: string; title?: string }> {
-  const raw = await runAos(['see', 'cursor']);
-  const data = parseJSON(raw) as any;
+  const data = await getCursorSnapshot();
   return {
     x: data.cursor?.x ?? data.x ?? 0,
     y: data.cursor?.y ?? data.y ?? 0,
-    app: data.app,
-    title: data.title,
+    app: data.focused?.window?.app_name ?? data.app,
+    title: data.focused?.window?.title ?? data.title,
   };
 }
 
@@ -69,11 +104,7 @@ export async function capture(opts?: {
 }
 
 export async function getDisplays(): Promise<Array<{ id: string; width: number; height: number; primary?: boolean }>> {
-  // aos see cursor returns display info; we can also use the daemon's canvas list
-  // to infer display topology. For now, use a simple approach.
-  const raw = await runAos(['see', 'cursor']);
-  const data = parseJSON(raw) as any;
-  // If the daemon returns display info, use it; otherwise provide main display
+  const data = await getCursorSnapshot();
   if (data.displays) return data.displays;
   return [{ id: 'main', width: 1512, height: 982, primary: true }];
 }
@@ -163,49 +194,63 @@ export async function setConfig(key: string, value: string): Promise<{ status: s
 
 /** Combined situational awareness — windows, cursor, displays in one call. */
 export async function perceive(): Promise<{
-  focused: unknown | null;
-  windows: unknown[];
+  focused: NormalizedWindow | null;
+  windows: NormalizedWindow[];
   cursor: { x: number; y: number };
-  displays: unknown[];
+  displays: Array<{ id: string; width: number; height: number; primary?: boolean }>;
 }> {
-  // Run perception calls in parallel
-  const [cursorData, displaysData] = await Promise.all([
-    getCursor(),
-    getDisplays(),
-  ]);
+  // Single CLI call extracts everything
+  const data = await getCursorSnapshot();
 
-  // getWindows already comes from see cursor, which we also use for getCursor
-  // To avoid double-calling, get windows from a fresh cursor call
-  const raw = await runAos(['see', 'cursor']);
-  const data = parseJSON(raw) as any;
-  const windows = data.windows ?? [data];
-  const focused = windows.find((w: any) => w.focused) ?? windows[0] ?? null;
+  const rawWindows = data.windows ?? [data];
+  const windows = rawWindows.map((w: any) => normalizeWindow(w));
 
-  return { focused, windows, cursor: cursorData, displays: displaysData };
+  // Mark the focused window — use data.focused or first window
+  const focusedApp = data.focused?.window?.app_name;
+  const focusedTitle = data.focused?.window?.title;
+  let focused: NormalizedWindow | null = null;
+  if (focusedApp || focusedTitle) {
+    focused = normalizeWindow(data.focused, true);
+    // Also mark it in the windows array
+    const match = windows.find((w: NormalizedWindow) => w.app === focused!.app && w.title === focused!.title);
+    if (match) match.focused = true;
+  } else if (windows.length > 0) {
+    windows[0].focused = true;
+    focused = windows[0];
+  }
+
+  const cursor = {
+    x: data.cursor?.x ?? data.x ?? 0,
+    y: data.cursor?.y ?? data.y ?? 0,
+  };
+
+  const displays = data.displays ?? [{ id: 'main', width: 1512, height: 982, primary: true }];
+
+  return { focused, windows, cursor, displays };
 }
 
 /** Find a window by app name, title substring, or both. Returns the best match. */
 export async function findWindow(query: { app?: string; title?: string }): Promise<{
   found: boolean;
-  window: unknown | null;
+  window: NormalizedWindow | null;
   candidates: string[];
 }> {
   const windows = await getWindows();
-  let matches = windows as any[];
+  let matches = windows;
 
   if (query.app) {
     const q = query.app.toLowerCase();
-    matches = matches.filter((w: any) => w.app?.toLowerCase().includes(q));
+    matches = matches.filter(w => w.app.toLowerCase().includes(q));
   }
   if (query.title) {
     const q = query.title.toLowerCase();
-    matches = matches.filter((w: any) => w.title?.toLowerCase().includes(q));
+    matches = matches.filter(w => w.title.toLowerCase().includes(q));
   }
 
   return {
     found: matches.length > 0,
     window: matches[0] ?? null,
-    candidates: (windows as any[]).map((w: any) => `${w.app}: ${w.title}`).slice(0, 10),
+    candidates: windows.map(w => `${w.app}: ${w.title}`).slice(0, 10),
   };
 }
 
@@ -336,19 +381,61 @@ export async function showOverlay(opts: {
   if (!at && opts.near) {
     const found = await findWindow(opts.near);
     if (found.found && found.window) {
-      const frame = (found.window as any).frame ?? {};
+      const { frame } = found.window;
       // Position above the target window, centered
       const w = 280;
       const h = 44;
-      const x = (frame.x ?? 200) + ((frame.width ?? 400) - w) / 2;
-      const y = (frame.y ?? 200) - h - 8;
+      const x = frame.x + (frame.width - w) / 2;
+      const y = frame.y - h - 8;
       at = [Math.round(x), Math.max(0, Math.round(y)), w, h];
     }
   }
   at = at ?? [200, 40, 280, 44];
 
   const id = opts.id ?? `overlay-${Date.now().toString(36)}`;
-  await createCanvas({ id, html, at, interactive: false, ttl: opts.ttl });
+  try {
+    await createCanvas({ id, html, at, interactive: false, ttl: opts.ttl });
+  } catch (err: any) {
+    // If canvas already exists, remove and retry (makes showOverlay idempotent)
+    if (err.message?.includes('DUPLICATE_ID')) {
+      await removeCanvas(id);
+      await createCanvas({ id, html, at, interactive: false, ttl: opts.ttl });
+    } else {
+      throw err;
+    }
+  }
 
   return { id, at };
+}
+
+/** Update an existing overlay's content and/or style. Uses updateCanvas (fast) instead of recreating. */
+export async function updateOverlay(id: string, opts: {
+  content?: string;
+  style?: 'status' | 'success' | 'error' | 'warning' | 'info';
+  ttl?: number;
+}): Promise<{ id: string }> {
+  const colors: Record<string, { bg: string; border: string; text: string }> = {
+    status:  { bg: 'rgba(22,22,26,0.92)', border: 'rgba(188,19,254,0.4)', text: '#d187ff' },
+    success: { bg: 'rgba(22,26,22,0.92)', border: 'rgba(48,209,88,0.4)',  text: '#30d158' },
+    error:   { bg: 'rgba(26,22,22,0.92)', border: 'rgba(255,69,58,0.4)',  text: '#ff453a' },
+    warning: { bg: 'rgba(26,24,22,0.92)', border: 'rgba(255,214,10,0.4)', text: '#ffd60a' },
+    info:    { bg: 'rgba(22,22,26,0.92)', border: 'rgba(100,210,255,0.4)', text: '#64d2ff' },
+  };
+  const s = colors[opts.style ?? 'status'] ?? colors.status;
+  const html = `<div style="
+    font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
+    color: ${s.text}; background: ${s.bg};
+    border: 1px solid ${s.border}; border-radius: 8px;
+    padding: 8px 14px; backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  ">${opts.content ?? ''}</div>`;
+
+  await updateCanvas(id, { html });
+
+  // TTL: schedule removal if requested
+  if (opts.ttl) {
+    setTimeout(async () => { try { await removeCanvas(id); } catch {} }, opts.ttl);
+  }
+
+  return { id };
 }

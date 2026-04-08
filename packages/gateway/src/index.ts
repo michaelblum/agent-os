@@ -9,9 +9,10 @@ import { ScriptRegistry } from './scripts.js';
 import { startSDKSocket } from './sdk-socket.js';
 import { registerCoordinationTools } from './tools/coordination.js';
 import { registerExecutionTools } from './tools/execution.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const STATE_DIR = join(homedir(), '.config', 'aos-gateway');
 mkdirSync(STATE_DIR, { recursive: true });
@@ -100,6 +101,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error('aos-gateway started');
+
+// Auto-restart on rebuild: watch dist/ for changes, exit cleanly so Claude Code restarts us
+const distDir = dirname(fileURLToPath(import.meta.url));
+let restarting = false;
+watch(distDir, { recursive: true }, (_event, filename) => {
+  if (restarting || !filename?.endsWith('.js')) return;
+  restarting = true;
+  console.error(`aos-gateway: dist changed (${filename}), exiting for restart`);
+  process.exit(0);
+});
 
 // Keep a reference to prevent GC
 void sdkServer;

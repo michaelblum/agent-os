@@ -129,6 +129,13 @@ declare const aos: {
     id?: string;
   }): Promise<{ id: string; at: number[] }>;
 
+  /** Update an existing overlay's content and/or style. Fast — reuses the existing canvas window. */
+  updateOverlay(id: string, opts: {
+    content?: string;
+    style?: 'status' | 'success' | 'error' | 'warning' | 'info';
+    ttl?: number;
+  }): Promise<{ id: string }>;
+
   // --- Config & Health ---
   /** Full runtime health check (permissions, daemon, services). */
   doctor(): Promise<{

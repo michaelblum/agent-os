@@ -68,6 +68,7 @@ const aos = {
   clickElement: (label, opts) => call('system', 'clickElement', { label, ...opts }),
   waitFor: (pattern, opts) => call('system', 'waitFor', { pattern, ...opts }),
   showOverlay: (opts) => call('system', 'showOverlay', opts),
+  updateOverlay: (id, opts) => call('system', 'updateOverlay', { id, ...opts }),
 
   // --- Coordination ---
   coordination: {

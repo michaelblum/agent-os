@@ -91,6 +91,7 @@ async function handleSystem(method: string, params: any): Promise<unknown> {
     case 'clickElement': return aosProxy.clickElement(params.label, params);
     case 'waitFor': return aosProxy.waitFor(params.pattern ?? params, params);
     case 'showOverlay': return aosProxy.showOverlay(params);
+    case 'updateOverlay': return aosProxy.updateOverlay(params.id, params);
     default: return { error: `Unknown system method: ${method}` };
   }
 }
