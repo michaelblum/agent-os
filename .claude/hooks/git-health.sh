@@ -2,7 +2,7 @@
 # Git health check — runs on SessionStart alongside session-start.sh
 # Surfaces real problems, not noise.
 
-set -euo pipefail
+set -uo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || exit 0)"
 cd "$ROOT"
 
