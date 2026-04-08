@@ -1,7 +1,12 @@
 import state from '../../renderer/state.js';
 
-// Fixed spin axis — avoids gimbal lock from Euler accumulation
+// Drifting spin axis — slowly wanders for organic rotation feel
 const _spinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+const _driftTarget = new THREE.Vector3(0.5, 1.0, 0).normalize();
+let _driftTimer = 0;
+const _DRIFT_INTERVAL = 4.0; // seconds between new drift targets
+const _DRIFT_BLEND = 0.005;  // how fast axis blends toward target
+const _MOMENTUM_CUTOFF = 0.0005; // below this, kill residual rotation
 
 export function updatePathVisual() {
     if (state.pathLine) {
@@ -107,6 +112,14 @@ export function animatePathing(dt) {
             state.polyGroup.position.lerp(state.targetPosition, 0.08);
         }
 
+        // Drift the spin axis slowly for organic rotation feel
+        _driftTimer += dt;
+        if (_driftTimer >= _DRIFT_INTERVAL) {
+            _driftTimer = 0;
+            _driftTarget.set(Math.random() - 0.5, Math.random() - 0.5 + 0.5, Math.random() - 0.5).normalize();
+        }
+        _spinAxis.lerp(_driftTarget, _DRIFT_BLEND).normalize();
+
         // Rotations
         let activeRotationSpeed = state.idleSpinSpeed;
 
@@ -121,18 +134,23 @@ export function animatePathing(dt) {
             }
         }
 
-        if (state.moveRotationSpeed > 0.001) {
+        // Move rotation with hard cutoff to prevent lingering wobble
+        if (state.moveRotationSpeed > _MOMENTUM_CUTOFF) {
             state.polyGroup.rotateOnWorldAxis(state.moveRotationAxis, state.moveRotationSpeed);
             if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
+        } else {
+            state.moveRotationSpeed = 0;
         }
 
         state.polyGroup.rotateOnWorldAxis(_spinAxis, activeRotationSpeed);
     }
 
-    // Residual momentum
-    if (!isMotionPaused && !state.isPathEnabled && !state.isDestroyed && state.dragMomentumSpeed > 0.0001) {
+    // Residual drag momentum with hard cutoff
+    if (!isMotionPaused && !state.isPathEnabled && !state.isDestroyed && state.dragMomentumSpeed > _MOMENTUM_CUTOFF) {
         state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
         state.dragMomentumSpeed *= 0.95;
+    } else if (state.dragMomentumSpeed > 0) {
+        state.dragMomentumSpeed = 0;
     }
 
     // Normalize quaternion to prevent floating-point drift
