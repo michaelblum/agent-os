@@ -102,14 +102,13 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 console.error('aos-gateway started');
 
-// Auto-restart on rebuild: watch dist/ for changes, exit cleanly so Claude Code restarts us
+// Notify on rebuild: watch dist/ for changes so the developer knows to restart
 const distDir = dirname(fileURLToPath(import.meta.url));
-let restarting = false;
+let notified = false;
 watch(distDir, { recursive: true }, (_event, filename) => {
-  if (restarting || !filename?.endsWith('.js')) return;
-  restarting = true;
-  console.error(`aos-gateway: dist changed (${filename}), exiting for restart`);
-  process.exit(0);
+  if (notified || !filename?.endsWith('.js')) return;
+  notified = true;
+  console.error(`aos-gateway: dist changed (${filename}) — restart session to load new code`);
 });
 
 // Keep a reference to prevent GC

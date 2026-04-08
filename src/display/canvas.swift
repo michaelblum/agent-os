@@ -457,6 +457,50 @@ class CanvasManager {
                     return
                 }
 
+                // Config IPC: read/write daemon config from canvas JS
+                if type == "get_config" {
+                    DispatchQueue.main.async {
+                        let config = loadConfig()
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.sortedKeys]
+                        if let data = try? encoder.encode(config),
+                           let jsonStr = String(data: data, encoding: .utf8) {
+                            canvas.webView.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completionHandler: nil)
+                        }
+                    }
+                    return
+                }
+
+                if type == "set_config",
+                   let key = dict["key"] as? String,
+                   let value = dict["value"] as? String {
+                    DispatchQueue.main.async {
+                        var config = loadConfig()
+                        switch key {
+                        case "voice.enabled":
+                            config.voice.enabled = (value == "true" || value == "1")
+                        case "voice.announce_actions":
+                            config.voice.announce_actions = (value == "true" || value == "1")
+                        case "feedback.visual":
+                            config.feedback.visual = (value == "true" || value == "1")
+                        case "feedback.sound":
+                            config.feedback.sound = (value == "true" || value == "1")
+                        default:
+                            canvas.webView.evaluateJavaScript(
+                                "window.__aosConfigError?.('Unknown config key: \(key)')", completionHandler: nil)
+                            return
+                        }
+                        saveConfig(config)
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.sortedKeys]
+                        if let data = try? encoder.encode(config),
+                           let jsonStr = String(data: data, encoding: .utf8) {
+                            canvas.webView.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completionHandler: nil)
+                        }
+                    }
+                    return
+                }
+
                 // Skin-requested resize: expand/shrink canvas from center.
                 // The skin declares how much space it needs (e.g. for aura spread).
                 // { type: "request_resize", width: 450, height: 450 }

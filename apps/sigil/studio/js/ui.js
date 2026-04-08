@@ -647,6 +647,34 @@ export function setupUI() {
         });
     }
 
+    // --- Settings: wire to daemon config via IPC ---
+    const headsup = window.webkit?.messageHandlers?.headsup;
+
+    // Callback for config responses from daemon
+    window.__aosConfigLoaded = (config) => {
+        const voiceEl = document.getElementById('settingsVoiceEnabled');
+        const visualEl = document.getElementById('settingsVisualFeedback');
+        if (voiceEl) voiceEl.value = config.voice?.enabled ? 'on' : 'off';
+        if (visualEl) visualEl.value = config.feedback?.visual !== false ? 'on' : 'off';
+    };
+
+    // Load config on startup
+    if (headsup) {
+        headsup.postMessage({ type: 'get_config' });
+    }
+
+    // Wire change handlers
+    document.getElementById('settingsVoiceEnabled')?.addEventListener('change', (e) => {
+        if (headsup) {
+            headsup.postMessage({ type: 'set_config', key: 'voice.enabled', value: e.target.value === 'on' ? 'true' : 'false' });
+        }
+    });
+    document.getElementById('settingsVisualFeedback')?.addEventListener('change', (e) => {
+        if (headsup) {
+            headsup.postMessage({ type: 'set_config', key: 'feedback.visual', value: e.target.value === 'on' ? 'true' : 'false' });
+        }
+    });
+
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
 
