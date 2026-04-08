@@ -982,11 +982,10 @@ export function setupUI() {
     ];
 
     phenomenonConfig.forEach(cfg => {
-        // Toggle on/off + expand settings
+        // Toggle on/off (sub-settings visibility handled by gear icon)
         document.getElementById(cfg.toggleId).addEventListener('change', (e) => {
             state[cfg.stateKey] = e.target.checked;
             if (state[cfg.groupKey]) state[cfg.groupKey].visible = state[cfg.stateKey];
-            document.getElementById(cfg.settingsId).style.display = e.target.checked ? 'flex' : 'none';
         });
 
         // Count input
@@ -1077,7 +1076,6 @@ export function setupUI() {
     // Lightning Arcs
     document.getElementById('lightningToggle').addEventListener('change', (e) => {
         state.isLightningEnabled = e.target.checked;
-        document.getElementById('lightningSettings').style.display = e.target.checked ? 'flex' : 'none';
     });
     document.getElementById('lightningOriginCenter').addEventListener('change', (e) => { state.lightningOriginCenter = e.target.checked; });
     document.getElementById('lightningSolidBlock').addEventListener('change', (e) => { state.lightningSolidBlock = e.target.checked; });
@@ -1104,7 +1102,6 @@ export function setupUI() {
     // Magnetic Field
     document.getElementById('magneticToggle').addEventListener('change', (e) => {
         state.isMagneticEnabled = e.target.checked;
-        document.getElementById('magneticSettings').style.display = e.target.checked ? 'flex' : 'none';
     });
     document.getElementById('magneticCountSlider').addEventListener('input', (e) => {
         state.magneticTentacleCount = parseInt(e.target.value);
