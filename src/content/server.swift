@@ -1,0 +1,212 @@
+// content/server.swift — Lightweight HTTP file server for local content
+//
+// Serves static files from named content roots over localhost.
+// Used by WKWebView canvases to load multi-file HTML surfaces
+// (ES modules, CSS imports, etc.) without bundling.
+
+import Foundation
+import Network
+
+class ContentServer {
+    private var listener: NWListener?
+    private let roots: [String: String]  // URL prefix -> absolute directory path
+    let port: NWEndpoint.Port
+    var assignedPort: UInt16 = 0
+
+    init(config: AosConfig.ContentConfig?, repoRoot: String?) {
+        let cfg = config ?? AosConfig.ContentConfig(port: 0, roots: [:])
+        self.port = cfg.port == 0 ? .any : NWEndpoint.Port(rawValue: UInt16(cfg.port))!
+
+        // Resolve root paths: relative paths resolve against repo root
+        var resolved: [String: String] = [:]
+        for (prefix, path) in cfg.roots {
+            if path.hasPrefix("/") {
+                resolved[prefix] = path
+            } else if let root = repoRoot {
+                resolved[prefix] = (root as NSString).appendingPathComponent(path)
+            } else {
+                fputs("Warning: content root '\(prefix)' has relative path '\(path)' but no repo root found — skipping\n", stderr)
+            }
+        }
+        self.roots = resolved
+    }
+
+    func start() {
+        guard !roots.isEmpty else {
+            fputs("Content server: no roots configured, skipping\n", stderr)
+            return
+        }
+
+        let params = NWParameters.tcp
+        params.requiredLocalEndpoint = NWEndpoint.hostPort(host: .ipv4(.loopback), port: port)
+
+        do {
+            listener = try NWListener(using: params)
+        } catch {
+            fputs("Content server: failed to create listener: \(error)\n", stderr)
+            return
+        }
+
+        listener?.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                if let port = self?.listener?.port?.rawValue {
+                    self?.assignedPort = port
+                    fputs("Content server listening on http://127.0.0.1:\(port)/\n", stderr)
+                    for (prefix, dir) in self?.roots ?? [:] {
+                        fputs("  /\(prefix)/ → \(dir)\n", stderr)
+                    }
+                }
+            case .failed(let error):
+                fputs("Content server failed: \(error)\n", stderr)
+                self?.listener?.cancel()
+            default:
+                break
+            }
+        }
+
+        listener?.newConnectionHandler = { [weak self] connection in
+            self?.handleConnection(connection)
+        }
+
+        listener?.start(queue: DispatchQueue(label: "aos.content-server"))
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+    }
+
+    // MARK: - Connection Handling
+
+    private func handleConnection(_ connection: NWConnection) {
+        connection.start(queue: DispatchQueue(label: "aos.content-conn"))
+
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, _, error in
+            guard let self = self, let data = data, error == nil else {
+                connection.cancel()
+                return
+            }
+
+            let request = String(data: data, encoding: .utf8) ?? ""
+            let response = self.handleHTTPRequest(request)
+
+            connection.send(content: response, completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
+    }
+
+    // MARK: - HTTP Request Processing
+
+    private func handleHTTPRequest(_ raw: String) -> Data {
+        let lines = raw.components(separatedBy: "\r\n")
+        guard let requestLine = lines.first else {
+            return httpResponse(status: 400, statusText: "Bad Request", body: "Bad Request")
+        }
+
+        let parts = requestLine.split(separator: " ", maxSplits: 2)
+        guard parts.count >= 2 else {
+            return httpResponse(status: 400, statusText: "Bad Request", body: "Bad Request")
+        }
+
+        let method = String(parts[0])
+        guard method == "GET" || method == "HEAD" else {
+            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method Not Allowed")
+        }
+
+        let rawPath = String(parts[1])
+        let path = rawPath.components(separatedBy: "?").first ?? rawPath
+
+        guard let decoded = path.removingPercentEncoding else {
+            return httpResponse(status: 400, statusText: "Bad Request", body: "Bad path encoding")
+        }
+
+        if decoded.contains("..") {
+            return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
+        }
+
+        let trimmed = decoded.hasPrefix("/") ? String(decoded.dropFirst()) : decoded
+        guard !trimmed.isEmpty else {
+            return httpResponse(status: 404, statusText: "Not Found", body: "Not Found")
+        }
+
+        let segments = trimmed.split(separator: "/", maxSplits: 1)
+        let prefix = String(segments[0])
+
+        guard let rootDir = roots[prefix] else {
+            return httpResponse(status: 404, statusText: "Not Found", body: "Unknown content root: \(prefix)")
+        }
+
+        let relativePath = segments.count > 1 ? String(segments[1]) : "index.html"
+        let filePath = (rootDir as NSString).appendingPathComponent(relativePath)
+
+        let resolvedPath = (filePath as NSString).standardizingPath
+        let resolvedRoot = (rootDir as NSString).standardizingPath
+        guard resolvedPath.hasPrefix(resolvedRoot) else {
+            return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
+        }
+
+        guard FileManager.default.fileExists(atPath: resolvedPath),
+              let fileData = FileManager.default.contents(atPath: resolvedPath) else {
+            return httpResponse(status: 404, statusText: "Not Found", body: "Not Found: \(decoded)")
+        }
+
+        let mimeType = mimeTypeForExtension((resolvedPath as NSString).pathExtension)
+        let isHead = method == "HEAD"
+
+        return httpResponse(status: 200, statusText: "OK", contentType: mimeType, body: isHead ? nil : fileData)
+    }
+
+    // MARK: - HTTP Response Building
+
+    private func httpResponse(status: Int, statusText: String, body: String) -> Data {
+        httpResponse(status: status, statusText: statusText, contentType: "text/plain; charset=utf-8", body: body.data(using: .utf8))
+    }
+
+    private func httpResponse(status: Int, statusText: String, contentType: String, body: Data?) -> Data {
+        let bodyLen = body?.count ?? 0
+        var header = "HTTP/1.1 \(status) \(statusText)\r\n"
+        header += "Content-Type: \(contentType)\r\n"
+        header += "Content-Length: \(bodyLen)\r\n"
+        header += "Connection: close\r\n"
+        header += "Access-Control-Allow-Origin: *\r\n"
+        header += "\r\n"
+
+        var response = header.data(using: .utf8)!
+        if let body = body {
+            response.append(body)
+        }
+        return response
+    }
+
+    // MARK: - MIME Types
+
+    private func mimeTypeForExtension(_ ext: String) -> String {
+        switch ext.lowercased() {
+        case "html", "htm":  return "text/html; charset=utf-8"
+        case "js", "mjs":    return "application/javascript; charset=utf-8"
+        case "css":          return "text/css; charset=utf-8"
+        case "json":         return "application/json; charset=utf-8"
+        case "svg":          return "image/svg+xml"
+        case "png":          return "image/png"
+        case "jpg", "jpeg":  return "image/jpeg"
+        case "gif":          return "image/gif"
+        case "woff2":        return "font/woff2"
+        case "woff":         return "font/woff"
+        case "glsl":         return "text/plain; charset=utf-8"
+        case "wasm":         return "application/wasm"
+        default:             return "application/octet-stream"
+        }
+    }
+
+    // MARK: - Status
+
+    func statusDict() -> [String: Any] {
+        return [
+            "address": "127.0.0.1",
+            "port": Int(assignedPort),
+            "roots": roots
+        ]
+    }
+}
