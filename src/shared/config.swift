@@ -11,6 +11,7 @@ struct AosConfig: Codable {
     var perception: PerceptionConfig
     var feedback: FeedbackConfig
     var status_item: StatusItemConfig?
+    var content: ContentConfig?         // content server port and document roots
 
     struct VoiceConfig: Codable {
         var enabled: Bool
@@ -36,11 +37,17 @@ struct AosConfig: Codable {
         var toggle_at: [Double]?    // [x, y, w, h] target position for the toggle canvas
     }
 
+    struct ContentConfig: Codable {
+        var port: Int
+        var roots: [String: String]  // prefix -> directory path
+    }
+
     static let defaults = AosConfig(
         voice: VoiceConfig(enabled: false, announce_actions: true, voice: nil, rate: nil),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
-        status_item: nil
+        status_item: nil,
+        content: nil
     )
 }
 
@@ -100,6 +107,15 @@ func setConfigValue(key: String, value: String) {
         let parts = value.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
         guard parts.count == 4 else { exitError("toggle_at must be x,y,w,h", code: "INVALID_VALUE") }
         config.status_item?.toggle_at = parts
+    case "content.port":
+        if config.content == nil { config.content = AosConfig.ContentConfig(port: 0, roots: [:]) }
+        if let n = Int(value), n >= 0 { config.content?.port = n }
+        else { exitError("content.port must be a non-negative integer", code: "INVALID_VALUE") }
+    case _ where key.hasPrefix("content.roots."):
+        if config.content == nil { config.content = AosConfig.ContentConfig(port: 0, roots: [:]) }
+        let rootName = String(key.dropFirst("content.roots.".count))
+        guard !rootName.isEmpty else { exitError("content.roots requires a name", code: "INVALID_VALUE") }
+        config.content?.roots[rootName] = value
     default:
         exitError("Unknown config key: \(key)", code: "UNKNOWN_KEY")
     }
