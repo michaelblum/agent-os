@@ -113,48 +113,53 @@ export function animatePathing(dt) {
             state.polyGroup.position.lerp(state.targetPosition, 0.08);
         }
 
-        // Drift the spin axis slowly for organic rotation feel
+        // Drift the spin axis slowly for organic rotation feel.
+        // Movement and quick-spin STEER the axis instead of adding competing rotations.
         _driftTimer += dt;
         if (_driftTimer >= _DRIFT_INTERVAL) {
             _driftTimer = 0;
             _driftTarget.set(Math.random() - 0.5, Math.random() - 0.5 + 0.5, Math.random() - 0.5).normalize();
         }
-        _spinAxis.lerp(_driftTarget, _DRIFT_BLEND).normalize();
 
-        // Consolidate all rotation sources into a single angular velocity vector.
-        // Multiple rotateOnWorldAxis calls on different axes compound into twisting;
-        // summing into one vector and rotating once avoids this.
-        _angularVelocity.copy(_spinAxis).multiplyScalar(state.idleSpinSpeed);
-
-        if (state.quickSpinActive) {
-            let timeRemaining = state.quickSpinEndTime - performance.now();
-            if (timeRemaining > 0) {
-                let t = timeRemaining / 2000;
-                _angularVelocity.addScaledVector(state.quickSpinAxis, state.quickSpinSpeed * t * t);
-            } else {
-                state.quickSpinActive = false;
-            }
-        }
-
-        // Move rotation (from click-to-follow) — blend into spin axis over time
+        // Movement steers the spin axis toward travel-perpendicular direction
+        let speedBoost = 0;
         if (state.moveRotationSpeed > _MOMENTUM_CUTOFF) {
-            _angularVelocity.addScaledVector(state.moveRotationAxis, state.moveRotationSpeed);
+            // Steer drift target toward the move rotation axis
+            _driftTarget.copy(state.moveRotationAxis);
+            speedBoost = state.moveRotationSpeed;
             if (!state.isPathEnabled) state.moveRotationSpeed *= 0.96;
         } else {
             state.moveRotationSpeed = 0;
         }
 
-        // Apply single consolidated rotation
-        const totalSpeed = _angularVelocity.length();
+        // Quick spin also steers the axis
+        if (state.quickSpinActive) {
+            let timeRemaining = state.quickSpinEndTime - performance.now();
+            if (timeRemaining > 0) {
+                let t = timeRemaining / 2000;
+                _driftTarget.copy(state.quickSpinAxis);
+                speedBoost += state.quickSpinSpeed * t * t;
+            } else {
+                state.quickSpinActive = false;
+            }
+        }
+
+        // Blend spin axis toward drift target — faster when movement is active
+        const blendRate = speedBoost > 0 ? Math.min(0.08, speedBoost * 0.2) : _DRIFT_BLEND;
+        _spinAxis.lerp(_driftTarget, blendRate).normalize();
+
+        // Single rotation: spin axis * (idle speed + boost)
+        const totalSpeed = state.idleSpinSpeed + speedBoost;
         if (totalSpeed > 0.00001) {
-            _angularVelocity.normalize();
-            state.polyGroup.rotateOnWorldAxis(_angularVelocity, totalSpeed);
+            state.polyGroup.rotateOnWorldAxis(_spinAxis, totalSpeed);
         }
     }
 
-    // Residual drag momentum — also consolidated as single rotation
+    // Residual drag momentum — steers the spin axis too
     if (!isMotionPaused && !state.isPathEnabled && !state.isDestroyed && state.dragMomentumSpeed > _MOMENTUM_CUTOFF) {
-        state.polyGroup.rotateOnWorldAxis(state.dragMomentumAxis, state.dragMomentumSpeed);
+        _driftTarget.copy(state.dragMomentumAxis);
+        _spinAxis.lerp(_driftTarget, state.dragMomentumSpeed * 0.1).normalize();
+        state.polyGroup.rotateOnWorldAxis(_spinAxis, state.idleSpinSpeed + state.dragMomentumSpeed);
         state.dragMomentumSpeed *= 0.95;
     } else if (state.dragMomentumSpeed > 0) {
         state.dragMomentumSpeed = 0;
