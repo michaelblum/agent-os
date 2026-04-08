@@ -1120,6 +1120,8 @@ export function setupUI() {
     document.getElementById('omegaToggle').addEventListener('change', (e) => {
         state.isOmegaEnabled = e.target.checked;
         document.getElementById('omegaSettings').style.display = e.target.checked ? 'block' : 'none';
+        const omegaColors = document.getElementById('omegaColorGroup');
+        if (omegaColors) omegaColors.style.display = e.target.checked ? '' : 'none';
     });
     document.getElementById('omegaShapeSelect').addEventListener('change', (e) => {
         state.omegaGeometryType = parseInt(e.target.value);
