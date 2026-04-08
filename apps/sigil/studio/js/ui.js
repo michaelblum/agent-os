@@ -647,27 +647,32 @@ export function setupUI() {
     });
 
     // Master Gradient color pickers
+    const colorKeys = ['face', 'edge', 'aura', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'];
     document.getElementById('masterColor1').addEventListener('input', (e) => {
         const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
-            document.getElementById(k + 'Color1').value = v;
+        colorKeys.forEach(k => {
+            const el = document.getElementById(k + 'Color1');
+            if (el) el.value = v;
             state.colors[k][0] = v;
         });
         updateAllColors();
     });
     document.getElementById('masterColor2').addEventListener('input', (e) => {
         const v = e.target.value;
-        ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
-            document.getElementById(k + 'Color2').value = v;
+        colorKeys.forEach(k => {
+            const el = document.getElementById(k + 'Color2');
+            if (el) el.value = v;
             state.colors[k][1] = v;
         });
         updateAllColors();
     });
 
     // Component gradient pickers
-    ['face', 'edge', 'aura', 'grid', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'].forEach(k => {
-        document.getElementById(k + 'Color1').addEventListener('input', e => { state.colors[k][0] = e.target.value; updateAllColors(); });
-        document.getElementById(k + 'Color2').addEventListener('input', e => { state.colors[k][1] = e.target.value; updateAllColors(); });
+    colorKeys.forEach(k => {
+        const el1 = document.getElementById(k + 'Color1');
+        const el2 = document.getElementById(k + 'Color2');
+        if (el1) el1.addEventListener('input', e => { state.colors[k][0] = e.target.value; updateAllColors(); });
+        if (el2) el2.addEventListener('input', e => { state.colors[k][1] = e.target.value; updateAllColors(); });
     });
 
     // Unified context menu proxy inputs — safe version that skips missing elements
