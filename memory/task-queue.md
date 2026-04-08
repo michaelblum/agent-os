@@ -4,16 +4,43 @@
 (none)
 
 ## Queued
-- **Chat surface integration**: Chat canvas (`apps/sigil/chat/`) is wired to studio "Open Chat" button via daemon IPC. Next: connect to actual Claude API or agent session for real conversations. The chat.html supports full message rendering (markdown, tool cards, thinking blocks) but needs a backend.
-- **Settings panel**: Stub UI in Avatar panel. Next: read config from daemon on load, write changes back via `aos set` commands. Needs daemon support for config read via IPC.
-- **Test suite for display behaviors**: Canvas close handler, click-through levels (.floating vs .statusBar), single menu bar icon per mode. Currently only manual verification.
+- **SDK Layer 3 — saved workflows**: Write the "what's on screen" and "show and clean up" scripts from sdk-first-scripts.md using the new Layer 2 ops. Save to registry. These are the first real consumers beyond self-check.
+- **SDK tests**: Write tests for Layer 2 smart ops (perceive, clickElement error paths, waitFor timeout, showOverlay positioning). Currently only manual verification.
+- **Chat surface integration**: Chat canvas (`apps/sigil/chat/`) is wired to studio "Open Chat" button via daemon IPC. Next: connect to actual Claude API or agent session for real conversations. Now writable as a gateway script using `aos.coordination.*`.
+- **Settings panel**: Stub UI in Avatar panel. Next: read config from daemon on load via `aos.getConfig()`, write changes back via `aos.setConfig()`. SDK methods exist, just need UI wiring.
+- **Test suite for display behaviors**: Canvas close handler, click-through levels (.floating vs .statusBar), single menu bar icon per mode. Now writable as gateway scripts using `aos.createCanvas()` / `aos.listCanvases()`.
 - **side-eye decision**: Absorb into aos (true single binary) or keep as bundled sub-binary? Blocks packaging fixes.
 - **Packaging gaps**: Bundle side-eye + toolkit HTML into AOS.app so installed-mode commands are self-contained.
 - **StatusItemManager ↔ Sigil coordination**: Menu bar toggle creates/removes avatar canvas independently of Sigil. Need to reconcile so Sigil detects externally-created canvas or the toggle starts/stops Sigil.
 - **Radial menu reimplementation**: Port radial menu from old avatar.html to celestial live renderer. Concepts and logic preserved in old file.
-- **Studio WKWebView bundling**: Studio mode uses ES modules — needs same single-file bundling as live if it ever runs inside a canvas instead of a browser.
+- **Studio WKWebView bundling**: Low priority — content server mostly solves this.
 
 ## Done
+
+### sdk-layer-1-2-and-infra (2026-04-08)
+SDK expansion, project hooks, and codebase cleanup.
+
+**Commits:** `18eb160` → `6dbd4e6` (9 commits)
+
+**SDK (4 → 21 methods):**
+- Layer 1: getCursor, capture, getDisplays, type, createCanvas, removeCanvas, evalCanvas, updateCanvas, listCanvases, doctor, getConfig, setConfig
+- Layer 2: perceive, findWindow, clickElement, waitFor, showOverlay
+- Self-check script saved to registry and tested end-to-end
+- Philosophy doc + first-scripts design sketches at `docs/sdk-philosophy.md`, `docs/sdk-first-scripts.md`
+
+**Project hooks (.claude/settings.json):**
+- SessionStart: task queue + aos doctor + git state injected into every session
+- SessionStart: git health warnings (unpushed commits, stale worktrees, suspect untracked files)
+- PreToolUse: blocks destructive bash commands, blocks committing secrets/large files/artifacts
+
+**Cleanup:**
+- Deleted packages/heads-up/ (absorbed into unified binary)
+- Updated 6 CLAUDE.md files + ARCHITECTURE.md to remove stale heads-up references
+- Removed sspeak artifacts (command, hook, codex dir)
+- Updated 2 memory files (gateway test count, studio runtime model)
+- Pruned stale worktrees, gitignored workspace files
+- Unloaded installed-mode daemon (avoid confusion with repo-mode)
+- Ran `aos permissions setup --once` for repo mode
 
 ### stabilize-and-wire-ui (2026-04-08)
 Runtime stabilization, studio cleanup, and chat surface wiring.
