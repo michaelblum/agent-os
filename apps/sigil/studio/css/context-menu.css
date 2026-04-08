@@ -5,6 +5,13 @@
            input-bg rgba(30,15,50,0.9)
    ============================================================ */
 
+/* ---- Legacy context menus (v1 style) — hidden by default ---- */
+.context-menu {
+    display: none;
+    position: absolute;
+    z-index: 100;
+}
+
 /* ---- Position anchor — invisible, just holds cards ---- */
 .ctx-anchor {
     position: absolute;

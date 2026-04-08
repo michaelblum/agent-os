@@ -542,6 +542,11 @@ function updateSliderFill(el) {
 }
 
 export function setupUI() {
+    // Disable grid and swarm by default (removed from UI)
+    state.gridMode = 'off';
+    if (state.gridHelper) state.gridHelper.visible = false;
+    state.isSwarmEnabled = false;
+
     // Slider fill tracks — apply to all range inputs and update on input
     document.querySelectorAll('input[type="range"]').forEach(el => {
         // Skip dual-slider container sliders (they have their own fill)
