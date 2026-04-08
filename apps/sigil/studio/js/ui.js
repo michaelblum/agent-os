@@ -1263,125 +1263,6 @@ export function setupUI() {
     window.addEventListener('mouseup', endCharge);
     window.addEventListener('touchend', endCharge);
 
-    // Pathing
-    document.getElementById('pathToggle').addEventListener('change', (e) => {
-        state.isPathEnabled = e.target.checked;
-        document.getElementById('pathSettings').style.display = state.isPathEnabled ? 'flex' : 'none';
-        if (state.isPathEnabled) {
-            state.polyGroup.position.set(0, 0, 0);
-            state.targetPosition.copy(state.pathPoints[0]);
-            state.pathProgress = 0; state.currentPathIndex = 0; state.segmentProgress = 0;
-            updatePathVisual();
-        } else {
-            if (state.pathLine) { state.scene.remove(state.pathLine); state.pathLine = null; }
-        }
-    });
-    document.getElementById('centeredViewToggle').addEventListener('change', (e) => { state.isCenteredView = e.target.checked; });
-    document.getElementById('btn-pause').addEventListener('click', (e) => {
-        state.isPaused = !state.isPaused;
-        e.target.innerText = state.isPaused ? "Resume" : "Pause";
-        e.target.style.background = state.isPaused ? "#bc13fe" : "";
-    });
-    document.getElementById('pathTypeSelect').addEventListener('change', (e) => { state.pathType = e.target.value; updatePathVisual(); });
-    document.getElementById('speedSlider').addEventListener('input', (e) => {
-        state.pathSpeed = parseFloat(e.target.value);
-        document.getElementById('speedVal').innerText = state.pathSpeed.toFixed(1);
-    });
-    document.getElementById('showPathToggle').addEventListener('change', (e) => { state.isShowPathEnabled = e.target.checked; updatePathVisual(); });
-    document.getElementById('trailToggle').addEventListener('change', (e) => {
-        state.isTrailEnabled = e.target.checked;
-        document.getElementById('trailSettings').style.display = state.isTrailEnabled ? 'flex' : 'none';
-    });
-    document.getElementById('trailLengthSlider').addEventListener('input', (e) => {
-        state.trailLength = parseInt(e.target.value);
-        document.getElementById('trailLengthVal').innerText = state.trailLength;
-    });
-
-    // Unified Grid Mode
-    document.getElementById('gridModeSelect').addEventListener('change', (e) => {
-        const prev = state.gridMode;
-        state.gridMode = e.target.value;
-        document.getElementById('gridSettings').style.display = state.gridMode !== 'off' ? 'block' : 'none';
-        // Hide old 2D grid (no longer used)
-        if (state.gridHelper) state.gridHelper.visible = false;
-        if (state.gridMode === 'off') resetCameraOrbit();
-        // Smooth camera transition when switching from 3D to flat
-        if (prev === '3d' && state.gridMode === 'flat') transitionToFlatView();
-        rebuildGrid3d();
-    });
-    document.getElementById('grid3dRenderMode').addEventListener('change', (e) => { state.grid3dRenderMode = e.target.value; });
-    document.getElementById('grid3dDensitySlider').addEventListener('input', (e) => {
-        state.grid3dDensity = parseInt(e.target.value);
-        document.getElementById('grid3dDensityVal').innerText = state.grid3dDensity;
-        rebuildGrid3d();
-    });
-    document.getElementById('grid3dRadiusSlider').addEventListener('input', (e) => {
-        state.grid3dRenderRadius = parseFloat(e.target.value);
-        document.getElementById('grid3dRadiusVal').innerText = state.grid3dRenderRadius >= 30 ? 'Full' : state.grid3dRenderRadius.toFixed(1);
-    });
-    document.getElementById('grid3dGravitySlider').addEventListener('input', (e) => {
-        state.swarmGravity = parseInt(e.target.value);
-        document.getElementById('grid3dGravityVal').innerText = state.swarmGravity;
-        // Sync with swarm gravity slider if it exists
-        const swarmSlider = document.getElementById('swarmGravitySlider');
-        if (swarmSlider) { swarmSlider.value = state.swarmGravity; document.getElementById('swarmGravityVal').innerText = state.swarmGravity; }
-    });
-    document.getElementById('grid3dTimeSlider').addEventListener('input', (e) => {
-        state.grid3dTimeScale = parseFloat(e.target.value);
-        document.getElementById('grid3dTimeVal').innerText = state.grid3dTimeScale.toFixed(1);
-    });
-    document.getElementById('grid3dSnowGlobeToggle').addEventListener('change', (e) => { state.grid3dSnowGlobe = e.target.checked; });
-    document.getElementById('grid3dProbeToggle').addEventListener('change', (e) => { state.grid3dShowProbe = e.target.checked; });
-    document.getElementById('grid3dRelativeToggle').addEventListener('change', (e) => { state.grid3dRelativeMotion = e.target.checked; });
-    // Particle Swarm (standalone phenomenon)
-    document.getElementById('swarmToggle').addEventListener('change', (e) => {
-        state.isSwarmEnabled = e.target.checked;
-        document.getElementById('swarmSettings').style.display = e.target.checked ? 'flex' : 'none';
-    });
-    document.getElementById('swarmCountSlider').addEventListener('input', (e) => {
-        state.swarmCount = parseInt(e.target.value);
-        document.getElementById('swarmCountVal').innerText = state.swarmCount;
-    });
-    document.getElementById('swarmGravitySlider').addEventListener('input', (e) => {
-        state.swarmGravity = parseInt(e.target.value);
-        document.getElementById('swarmGravityVal').innerText = state.swarmGravity;
-        // Sync with grid gravity slider
-        const gridSlider = document.getElementById('grid3dGravitySlider');
-        if (gridSlider) { gridSlider.value = state.swarmGravity; document.getElementById('grid3dGravityVal').innerText = state.swarmGravity; }
-    });
-    document.getElementById('swarmHorizonSlider').addEventListener('input', (e) => {
-        state.swarmEventHorizon = parseFloat(e.target.value);
-        document.getElementById('swarmHorizonVal').innerText = state.swarmEventHorizon.toFixed(1);
-    });
-    document.getElementById('swarmTimeSlider').addEventListener('input', (e) => {
-        state.swarmTimeScale = parseFloat(e.target.value);
-        document.getElementById('swarmTimeVal').innerText = state.swarmTimeScale.toFixed(1);
-    });
-    ['swarmColor1', 'swarmColor2'].forEach((id, idx) => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.value = state.colors.swarm[idx];
-            el.addEventListener('input', (e) => {
-                state.colors.swarm[idx] = e.target.value;
-                updateSwarmColors();
-            });
-        }
-    });
-    const bhToggle = document.getElementById('blackHoleModeToggle');
-    if (bhToggle) bhToggle.addEventListener('change', (e) => { state.isBlackHoleMode = e.target.checked; });
-
-    // Camera
-    document.getElementById('orthoToggle').addEventListener('change', (e) => {
-        state.camera = e.target.checked ? state.orthoCamera : state.perspCamera;
-        document.getElementById('fovGroup').style.opacity = e.target.checked ? '0.3' : '1';
-        document.getElementById('fovSlider').disabled = e.target.checked;
-    });
-    document.getElementById('fovSlider').addEventListener('input', (e) => {
-        const val = parseInt(e.target.value);
-        document.getElementById('fovVal').innerText = val;
-        updateFOV(val);
-    });
-
     // Z-Depth scale
     document.getElementById('zDepthSlider').addEventListener('input', (e) => {
         state.z_depth = parseFloat(e.target.value);
@@ -1410,10 +1291,7 @@ export function setupEditableLabels() {
     makeEditable('auraIntensityVal', 0, 3, true, (val) => { document.getElementById('auraIntensitySlider').value = val; state.auraIntensity = val; });
     makeEditable('pulseRateVal', 0.001, 0.02, true, (val) => { document.getElementById('pulseRateSlider').value = val; state.auraPulseRate = val; });
     // Old 2D grid editables removed — unified into grid3d
-    makeEditable('fovVal', 10, 120, false, (val) => { document.getElementById('fovSlider').value = val; updateFOV(val); });
     makeEditable('zDepthVal', 0.25, 3.0, true, (val) => { document.getElementById('zDepthSlider').value = val; state.z_depth = val; });
-    makeEditable('speedVal', 0.1, 10.0, true, (val) => { document.getElementById('speedSlider').value = val; state.pathSpeed = val; });
-    makeEditable('trailLengthVal', 10, 200, false, (val) => { document.getElementById('trailLengthSlider').value = val; state.trailLength = val; });
 
     // Turbulence editable labels
     ['p', 'a', 'g', 'n'].forEach(k => {
