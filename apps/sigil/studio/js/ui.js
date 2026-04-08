@@ -956,6 +956,136 @@ export function setupUI() {
         if (presetLabel && presetSelect) presetLabel.textContent = presetSelect.options[presetSelect.selectedIndex].text;
     }
 
+    // Avatar roster — saved configs persisted in localStorage
+    const ROSTER_KEY = 'sigil-avatar-roster';
+    const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 100: 'Sphere' };
+
+    function loadRoster() {
+        try { return JSON.parse(localStorage.getItem(ROSTER_KEY) || '[]'); }
+        catch(e) { return []; }
+    }
+    function saveRosterData(roster) {
+        localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
+    }
+
+    function renderRoster() {
+        const container = document.getElementById('avatar-roster');
+        if (!container) return;
+        const roster = loadRoster();
+        container.innerHTML = '';
+
+        roster.forEach((entry, idx) => {
+            const card = document.createElement('div');
+            card.style.cssText = 'display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; border:1px solid rgba(188,19,254,0.3); background:rgba(30,15,50,0.6); cursor:pointer; transition:all 0.2s;';
+            card.innerHTML = '<div style="font-size:1.2rem; opacity:0.7;">&#9670;</div>'
+                + '<div style="flex:1; min-width:0;">'
+                + '<div style="font-size:0.75rem; color:#fff; font-weight:bold; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + entry.name + '</div>'
+                + '<div style="font-size:0.6rem; color:#aaa;">' + (shapeNames[entry.config.shape] || 'Shape') + (entry.config.omega ? ' + secondary' : '') + '</div>'
+                + '</div>'
+                + '<div class="roster-overwrite" style="font-size:0.55rem; color:rgba(209,135,255,0.5); cursor:pointer; padding:2px 4px;" title="Overwrite with current config">&#8635;</div>'
+                + '<div class="roster-delete" style="font-size:0.7rem; color:rgba(209,135,255,0.4); cursor:pointer; padding:2px 4px;" title="Delete">&#215;</div>';
+
+            card.addEventListener('mouseenter', () => { card.style.borderColor = 'rgba(188,19,254,0.8)'; card.style.background = 'rgba(188,19,254,0.15)'; });
+            card.addEventListener('mouseleave', () => { card.style.borderColor = 'rgba(188,19,254,0.3)'; card.style.background = 'rgba(30,15,50,0.6)'; });
+
+            // Click card = load this avatar
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('.roster-delete') || e.target.closest('.roster-overwrite')) return;
+                applyConfig(entry.config);
+                updateAvatarCard();
+            });
+
+            // Overwrite = save current config into this slot
+            card.querySelector('.roster-overwrite').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!confirm('Overwrite "' + entry.name + '" with current config?')) return;
+                const r = loadRoster();
+                r[idx].config = getConfig();
+                saveRosterData(r);
+                renderRoster();
+            });
+
+            // Delete
+            card.querySelector('.roster-delete').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!confirm('Delete "' + entry.name + '"?')) return;
+                const r = loadRoster();
+                r.splice(idx, 1);
+                saveRosterData(r);
+                renderRoster();
+            });
+
+            container.appendChild(card);
+        });
+
+        // Action buttons row
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex; gap:4px; margin-top:6px;';
+
+        // Save current as new
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-action';
+        saveBtn.style.cssText = 'flex:1; font-size:0.65rem; padding:6px 8px;';
+        saveBtn.textContent = '+ Save As New';
+        saveBtn.addEventListener('click', () => {
+            const name = prompt('Avatar name:');
+            if (!name) return;
+            const roster = loadRoster();
+            roster.push({ name: name, config: getConfig() });
+            saveRosterData(roster);
+            renderRoster();
+        });
+        actions.appendChild(saveBtn);
+
+        // Export roster to file
+        const exportBtn = document.createElement('button');
+        exportBtn.className = 'btn-action';
+        exportBtn.style.cssText = 'font-size:0.65rem; padding:6px 8px;';
+        exportBtn.textContent = 'Export';
+        exportBtn.title = 'Download roster as JSON file';
+        exportBtn.addEventListener('click', () => {
+            const roster = loadRoster();
+            const blob = new Blob([JSON.stringify(roster, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'sigil-roster.json'; a.click();
+            URL.revokeObjectURL(url);
+        });
+        actions.appendChild(exportBtn);
+
+        // Import roster from file
+        const importBtn = document.createElement('button');
+        importBtn.className = 'btn-action';
+        importBtn.style.cssText = 'font-size:0.65rem; padding:6px 8px;';
+        importBtn.textContent = 'Import';
+        importBtn.title = 'Load roster from JSON file';
+        importBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = '.json';
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const imported = JSON.parse(ev.target.result);
+                        if (!Array.isArray(imported)) throw new Error('Not an array');
+                        const existing = loadRoster();
+                        const merged = [...existing, ...imported];
+                        saveRosterData(merged);
+                        renderRoster();
+                    } catch(err) { alert('Invalid roster file: ' + err.message); }
+                };
+                reader.readAsText(file);
+            });
+            input.click();
+        });
+        actions.appendChild(importBtn);
+
+        container.appendChild(actions);
+    }
+    renderRoster();
+
     // Shape
     document.getElementById('shapeSelect').addEventListener('change', (e) => {
         state.currentGeometryType = parseInt(e.target.value);
