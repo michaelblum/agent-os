@@ -74,6 +74,61 @@ declare const aos: {
     id: string; at: number[]; interactive: boolean; scope: string;
   }>>;
 
+  // --- Layer 2: Smart Operations ---
+  // These compose multiple primitives into single calls.
+  // Use these first. Drop to primitives only when these don't cover your case.
+
+  /** Full situational awareness in one call — windows, cursor, displays, focused app. */
+  perceive(): Promise<{
+    focused: { app: string; title: string; frame: { x: number; y: number; width: number; height: number } } | null;
+    windows: Array<{ app: string; title: string; focused: boolean; frame: { x: number; y: number; width: number; height: number } }>;
+    cursor: { x: number; y: number };
+    displays: Array<{ id: string; width: number; height: number; primary?: boolean }>;
+  }>;
+
+  /** Find a window by app name or title. Returns the match and a list of candidates if not found. */
+  findWindow(query: { app?: string; title?: string }): Promise<{
+    found: boolean;
+    window: { app: string; title: string; frame: { x: number; y: number; width: number; height: number } } | null;
+    candidates: string[];
+  }>;
+
+  /** Find a UI element by its label and click it. Captures the screen, finds the element, clicks its center.
+   *  Returns what was clicked, or candidates if the element wasn't found. */
+  clickElement(label: string, opts?: {
+    app?: string;
+    role?: string;
+  }): Promise<{
+    clicked: boolean;
+    element?: { label: string; role: string; frame: unknown };
+    error?: string;
+    candidates?: string[];
+  }>;
+
+  /** Poll until a window title or canvas ID appears. Returns the match or times out. */
+  waitFor(pattern: {
+    window?: string;
+    canvas?: string;
+  }, opts?: {
+    timeout?: number;
+    interval?: number;
+  }): Promise<{
+    found: boolean;
+    match?: unknown;
+    elapsed: number;
+  }>;
+
+  /** Show a styled overlay near a target window. Auto-positions and auto-styles.
+   *  Use style: 'status' | 'success' | 'error' | 'warning' | 'info' */
+  showOverlay(opts: {
+    content: string;
+    near?: { app?: string; title?: string };
+    at?: [x: number, y: number, width: number, height: number];
+    style?: 'status' | 'success' | 'error' | 'warning' | 'info';
+    ttl?: number;
+    id?: string;
+  }): Promise<{ id: string; at: number[] }>;
+
   // --- Config & Health ---
   /** Full runtime health check (permissions, daemon, services). */
   doctor(): Promise<{

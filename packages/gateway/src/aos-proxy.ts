@@ -158,3 +158,197 @@ export async function setConfig(key: string, value: string): Promise<{ status: s
   const raw = await runAos(['set', key, value]);
   return parseJSON(raw) as any;
 }
+
+// --- Layer 2 Smart Operations ---
+
+/** Combined situational awareness — windows, cursor, displays in one call. */
+export async function perceive(): Promise<{
+  focused: unknown | null;
+  windows: unknown[];
+  cursor: { x: number; y: number };
+  displays: unknown[];
+}> {
+  // Run perception calls in parallel
+  const [cursorData, displaysData] = await Promise.all([
+    getCursor(),
+    getDisplays(),
+  ]);
+
+  // getWindows already comes from see cursor, which we also use for getCursor
+  // To avoid double-calling, get windows from a fresh cursor call
+  const raw = await runAos(['see', 'cursor']);
+  const data = parseJSON(raw) as any;
+  const windows = data.windows ?? [data];
+  const focused = windows.find((w: any) => w.focused) ?? windows[0] ?? null;
+
+  return { focused, windows, cursor: cursorData, displays: displaysData };
+}
+
+/** Find a window by app name, title substring, or both. Returns the best match. */
+export async function findWindow(query: { app?: string; title?: string }): Promise<{
+  found: boolean;
+  window: unknown | null;
+  candidates: string[];
+}> {
+  const windows = await getWindows();
+  let matches = windows as any[];
+
+  if (query.app) {
+    const q = query.app.toLowerCase();
+    matches = matches.filter((w: any) => w.app?.toLowerCase().includes(q));
+  }
+  if (query.title) {
+    const q = query.title.toLowerCase();
+    matches = matches.filter((w: any) => w.title?.toLowerCase().includes(q));
+  }
+
+  return {
+    found: matches.length > 0,
+    window: matches[0] ?? null,
+    candidates: (windows as any[]).map((w: any) => `${w.app}: ${w.title}`).slice(0, 10),
+  };
+}
+
+/** Capture the screen, find an element by label, and click it. One call. */
+export async function clickElement(label: string, opts?: {
+  app?: string;
+  role?: string;
+}): Promise<{
+  clicked: boolean;
+  element?: { label: string; role: string; frame: unknown };
+  error?: string;
+  candidates?: string[];
+}> {
+  // Capture with accessibility tree
+  const captureResult = await capture({ xray: true });
+  const elements = (captureResult as any).elements ?? [];
+
+  if (elements.length === 0) {
+    return { clicked: false, error: 'No accessibility elements found. Is the target app focused?' };
+  }
+
+  // Find matching element
+  const labelLower = label.toLowerCase();
+  let matches = elements.filter((el: any) => {
+    const elLabel = (el.label ?? el.title ?? el.value ?? '').toLowerCase();
+    return elLabel.includes(labelLower);
+  });
+
+  // Filter by app if specified (check window title)
+  if (opts?.role) {
+    matches = matches.filter((el: any) => el.role === opts.role);
+  }
+
+  if (matches.length === 0) {
+    const available = elements
+      .filter((el: any) => el.label || el.title)
+      .map((el: any) => `${el.role}: "${el.label ?? el.title}"`)
+      .slice(0, 15);
+    return {
+      clicked: false,
+      error: `No element matching "${label}" found.`,
+      candidates: available,
+    };
+  }
+
+  const target = matches[0];
+  const frame = target.frame ?? target.bounds;
+  if (!frame) {
+    return { clicked: false, error: `Element "${label}" found but has no frame/bounds.` };
+  }
+
+  // Click the center of the element
+  const cx = frame.x + (frame.width ?? frame.w ?? 0) / 2;
+  const cy = frame.y + (frame.height ?? frame.h ?? 0) / 2;
+  await click({ x: Math.round(cx), y: Math.round(cy) });
+
+  return {
+    clicked: true,
+    element: { label: target.label ?? target.title, role: target.role, frame },
+  };
+}
+
+/** Poll until a condition is met, then return the match. */
+export async function waitFor(pattern: {
+  window?: string;
+  canvas?: string;
+}, opts?: {
+  timeout?: number;
+  interval?: number;
+}): Promise<{
+  found: boolean;
+  match?: unknown;
+  elapsed: number;
+}> {
+  const timeout = opts?.timeout ?? 10000;
+  const interval = opts?.interval ?? 500;
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    if (pattern.window) {
+      const windows = await getWindows();
+      const regex = new RegExp(pattern.window, 'i');
+      const match = (windows as any[]).find((w: any) =>
+        regex.test(w.title ?? '') || regex.test(w.app ?? '')
+      );
+      if (match) return { found: true, match, elapsed: Date.now() - start };
+    }
+
+    if (pattern.canvas) {
+      const canvases = await listCanvases();
+      const match = canvases.find(c => c.id === pattern.canvas);
+      if (match) return { found: true, match, elapsed: Date.now() - start };
+    }
+
+    await new Promise(r => setTimeout(r, interval));
+  }
+
+  return { found: false, elapsed: Date.now() - start };
+}
+
+/** Show a positioned overlay near a target window. Auto-generates HTML from content string. */
+export async function showOverlay(opts: {
+  content: string;
+  near?: { app?: string; title?: string };
+  at?: [number, number, number, number];
+  style?: 'status' | 'success' | 'error' | 'warning' | 'info';
+  ttl?: number;
+  id?: string;
+}): Promise<{ id: string; at: number[] }> {
+  const colors: Record<string, { bg: string; border: string; text: string }> = {
+    status:  { bg: 'rgba(22,22,26,0.92)', border: 'rgba(188,19,254,0.4)', text: '#d187ff' },
+    success: { bg: 'rgba(22,26,22,0.92)', border: 'rgba(48,209,88,0.4)',  text: '#30d158' },
+    error:   { bg: 'rgba(26,22,22,0.92)', border: 'rgba(255,69,58,0.4)',  text: '#ff453a' },
+    warning: { bg: 'rgba(26,24,22,0.92)', border: 'rgba(255,214,10,0.4)', text: '#ffd60a' },
+    info:    { bg: 'rgba(22,22,26,0.92)', border: 'rgba(100,210,255,0.4)', text: '#64d2ff' },
+  };
+  const s = colors[opts.style ?? 'status'] ?? colors.status;
+  const html = `<div style="
+    font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
+    color: ${s.text}; background: ${s.bg};
+    border: 1px solid ${s.border}; border-radius: 8px;
+    padding: 8px 14px; backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  ">${opts.content}</div>`;
+
+  // Determine position
+  let at = opts.at;
+  if (!at && opts.near) {
+    const found = await findWindow(opts.near);
+    if (found.found && found.window) {
+      const frame = (found.window as any).frame ?? {};
+      // Position above the target window, centered
+      const w = 280;
+      const h = 44;
+      const x = (frame.x ?? 200) + ((frame.width ?? 400) - w) / 2;
+      const y = (frame.y ?? 200) - h - 8;
+      at = [Math.round(x), Math.max(0, Math.round(y)), w, h];
+    }
+  }
+  at = at ?? [200, 40, 280, 44];
+
+  const id = opts.id ?? `overlay-${Date.now().toString(36)}`;
+  await createCanvas({ id, html, at, interactive: false, ttl: opts.ttl });
+
+  return { id, at };
+}

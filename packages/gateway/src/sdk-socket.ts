@@ -85,6 +85,12 @@ async function handleSystem(method: string, params: any): Promise<unknown> {
     case 'doctor': return aosProxy.doctor();
     case 'getConfig': return aosProxy.getConfig();
     case 'setConfig': return aosProxy.setConfig(params.key, params.value);
+    // Layer 2 Smart Operations
+    case 'perceive': return aosProxy.perceive();
+    case 'findWindow': return aosProxy.findWindow(params);
+    case 'clickElement': return aosProxy.clickElement(params.label, params);
+    case 'waitFor': return aosProxy.waitFor(params.pattern ?? params, params);
+    case 'showOverlay': return aosProxy.showOverlay(params);
     default: return { error: `Unknown system method: ${method}` };
   }
 }

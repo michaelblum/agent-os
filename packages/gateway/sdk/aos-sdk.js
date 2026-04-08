@@ -62,6 +62,13 @@ const aos = {
   getConfig: () => call('system', 'getConfig', {}),
   setConfig: (key, value) => call('system', 'setConfig', { key, value }),
 
+  // --- Layer 2: Smart Operations ---
+  perceive: () => call('system', 'perceive', {}),
+  findWindow: (query) => call('system', 'findWindow', query),
+  clickElement: (label, opts) => call('system', 'clickElement', { label, ...opts }),
+  waitFor: (pattern, opts) => call('system', 'waitFor', { pattern, ...opts }),
+  showOverlay: (opts) => call('system', 'showOverlay', opts),
+
   // --- Coordination ---
   coordination: {
     register: (name, role, harness, capabilities) =>
