@@ -9,7 +9,7 @@ import { updateSwarmColors } from './swarm.js';
 import { applySkin } from '../../renderer/skins.js';
 import { updateOmegaGeometry } from '../../renderer/geometry.js';
 import { rebuildGrid3d } from './grid3d.js';
-import { resetCameraOrbit, transitionToFlatView, _openSub } from './interaction.js';
+import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 
 // --- Seeded PRNG (mulberry32) ---
@@ -471,10 +471,18 @@ function buildFxGrid() {
     const grid = document.getElementById('fxGrid');
     if (!grid) return;
 
-    EFFECTS.forEach(fx => {
+    // Filter out swarm (removed from UI)
+    const studioEffects = EFFECTS.filter(fx => fx.id !== 'swarm');
+    let openSubId = null;
+
+    studioEffects.forEach(fx => {
         const tile = document.createElement('div');
         tile.className = 'fx-tile';
         tile.dataset.effect = fx.id;
+
+        // Sync initial active state from hidden toggle
+        const srcToggle = document.getElementById(fx.sidebarId);
+        if (srcToggle && srcToggle.checked) tile.classList.add('active');
 
         const emoji = document.createElement('span');
         emoji.className = 'fx-tile-emoji';
@@ -486,16 +494,28 @@ function buildFxGrid() {
         label.textContent = fx.label;
         tile.appendChild(label);
 
-        if (fx.subMenuId) {
-            const gear = document.createElement('span');
-            gear.className = 'fx-tile-gear';
-            gear.textContent = '\u2699';
-            gear.addEventListener('click', (e) => {
-                e.stopPropagation();
-                _openSub(fx.subMenuId);
-            });
-            tile.appendChild(gear);
-        }
+        const gear = document.createElement('span');
+        gear.className = 'fx-tile-gear';
+        gear.textContent = '\u2699';
+        gear.title = fx.label + ' Settings';
+        gear.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const settingsId = fx.id + 'Settings';
+            const panel = document.getElementById(settingsId);
+            if (!panel) return;
+            if (openSubId === settingsId) {
+                panel.classList.remove('open');
+                openSubId = null;
+            } else {
+                if (openSubId) {
+                    const prev = document.getElementById(openSubId);
+                    if (prev) prev.classList.remove('open');
+                }
+                panel.classList.add('open');
+                openSubId = settingsId;
+            }
+        });
+        tile.appendChild(gear);
 
         // Click tile (not gear) = toggle effect via sidebar checkbox
         tile.addEventListener('click', (e) => {
@@ -504,7 +524,7 @@ function buildFxGrid() {
             if (!sideEl) return;
             sideEl.checked = !sideEl.checked;
             sideEl.dispatchEvent(new Event('change'));
-            sideEl.dispatchEvent(new Event('input'));
+            tile.classList.toggle('active');
         });
 
         grid.appendChild(tile);
@@ -566,40 +586,40 @@ export function setupUI() {
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
 
-    document.getElementById('btn-share').addEventListener('click', () => {
-        const config = getConfig();
-        const shareUrl = new URL(window.location.origin + window.location.pathname);
-        shareUrl.searchParams.set('config', btoa(JSON.stringify(config)));
-        navigator.clipboard.writeText(shareUrl.toString()).then(() => {
-            // Brief visual feedback
-            const icon = document.getElementById('btn-share');
-            icon.style.background = 'rgba(188, 19, 254, 0.4)';
-            setTimeout(() => { icon.style.background = ''; }, 600);
-        }).catch(() => {
-            // Fallback for older browsers
-            const ta = document.createElement('textarea');
-            ta.value = shareUrl.toString();
-            ta.style.position = 'fixed'; ta.style.left = '-9999px';
-            document.body.appendChild(ta);
-            ta.focus(); ta.select();
-            try { document.execCommand('copy'); } catch (e) {}
-            document.body.removeChild(ta);
+    const btnShare = document.getElementById('btn-share');
+    if (btnShare) {
+        btnShare.addEventListener('click', () => {
+            const config = getConfig();
+            const shareUrl = new URL(window.location.origin + window.location.pathname);
+            shareUrl.searchParams.set('config', btoa(JSON.stringify(config)));
+            navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+                btnShare.style.background = 'rgba(188, 19, 254, 0.4)';
+                setTimeout(() => { btnShare.style.background = ''; }, 600);
+            }).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = shareUrl.toString();
+                ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.focus(); ta.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(ta);
+            });
         });
-    });
+    }
 
-    document.getElementById('btn-snapshot').addEventListener('click', () => {
-        // Render a fresh frame then capture
-        state.renderer.render(state.scene, state.camera);
-        const dataUrl = state.renderer.domElement.toDataURL('image/png');
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = 'celestial_snapshot.png';
-        a.click();
-        // Brief visual feedback
-        const icon = document.getElementById('btn-snapshot');
-        icon.style.background = 'rgba(188, 19, 254, 0.4)';
-        setTimeout(() => { icon.style.background = ''; }, 600);
-    });
+    const btnSnapshot = document.getElementById('btn-snapshot');
+    if (btnSnapshot) {
+        btnSnapshot.addEventListener('click', () => {
+            state.renderer.render(state.scene, state.camera);
+            const dataUrl = state.renderer.domElement.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = 'celestial_snapshot.png';
+            a.click();
+            btnSnapshot.style.background = 'rgba(188, 19, 254, 0.4)';
+            setTimeout(() => { btnSnapshot.style.background = ''; }, 600);
+        });
+    }
 
     document.getElementById('btn-save').addEventListener('click', () => {
         const config = getConfig();
@@ -1027,63 +1047,6 @@ export function setupUI() {
             state.turbState[k].mod = e.target.value;
         });
     });
-
-    // FX Tile Grid — data-driven from fx-registry
-    const fxGrid = document.getElementById('fxGrid');
-    if (fxGrid) {
-        // Filter out swarm (removed from UI)
-        const studioEffects = EFFECTS.filter(fx => fx.id !== 'swarm');
-        let openSubId = null;
-
-        studioEffects.forEach(fx => {
-            const tile = document.createElement('div');
-            tile.className = 'fx-tile';
-            tile.dataset.effect = fx.id;
-
-            // Sync initial active state from hidden toggle
-            const srcToggle = document.getElementById(fx.sidebarId);
-            if (srcToggle && srcToggle.checked) tile.classList.add('active');
-
-            tile.innerHTML = '<span class="fx-tile-emoji">' + fx.emoji + '</span>'
-                + '<span class="fx-tile-label">' + fx.label + '</span>'
-                + '<span class="fx-tile-gear" data-gear="' + fx.id + '" title="' + fx.label + ' Settings">&#9881;</span>';
-
-            // Click tile = toggle effect
-            tile.addEventListener('click', function(e) {
-                if (e.target.closest('.fx-tile-gear')) return;
-                var toggle = document.getElementById(fx.sidebarId);
-                if (toggle) {
-                    toggle.checked = !toggle.checked;
-                    toggle.dispatchEvent(new Event('change'));
-                }
-                tile.classList.toggle('active');
-            });
-
-            // Click gear = open/close sub-settings
-            var gear = tile.querySelector('.fx-tile-gear');
-            if (gear) {
-                gear.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var settingsId = fx.id + 'Settings';
-                    var panel = document.getElementById(settingsId);
-                    if (!panel) return;
-                    if (openSubId === settingsId) {
-                        panel.classList.remove('open');
-                        openSubId = null;
-                    } else {
-                        if (openSubId) {
-                            var prev = document.getElementById(openSubId);
-                            if (prev) prev.classList.remove('open');
-                        }
-                        panel.classList.add('open');
-                        openSubId = settingsId;
-                    }
-                });
-            }
-
-            fxGrid.appendChild(tile);
-        });
-    }
 
     // Lightning Arcs
     document.getElementById('lightningToggle').addEventListener('change', (e) => {
