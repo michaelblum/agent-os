@@ -241,7 +241,7 @@ function applyConfig(c) {
     if (c.stellation !== undefined) setUI('stellationSlider', c.stellation, c.stellation.toFixed(2));
     if (c.opacity !== undefined) setUI('opacitySlider', c.opacity, c.opacity.toFixed(2));
     if (c.edgeOpacity !== undefined) setUI('edgeOpacitySlider', c.edgeOpacity, c.edgeOpacity.toFixed(2));
-    if (c.mask !== undefined) setUI('maskToggle', c.mask);
+    if (c.mask !== undefined) setUI('maskToggle', !c.mask); // inverted: mask=true → Show Faces unchecked
     if (c.interiorEdges !== undefined) setUI('interiorEdgesToggle', c.interiorEdges);
     if (c.specular !== undefined) setUI('specularToggle', c.specular);
     if (c.skin !== undefined) setUI('skinSelect', c.skin);
@@ -1016,8 +1016,17 @@ export function setupUI() {
         const val = parseFloat(e.target.value);
         document.getElementById('edgeOpacityVal').innerText = val.toFixed(2);
         updateEdgeOpacity(val);
+        // Show/hide interior edges checkbox based on edge visibility
+        const edgeControls = document.getElementById('edgeSubControls');
+        if (edgeControls) edgeControls.style.display = val > 0 ? '' : 'none';
     });
-    document.getElementById('maskToggle').addEventListener('change', (e) => { state.isMaskEnabled = e.target.checked; updateOpacity(state.currentOpacity); });
+    document.getElementById('maskToggle').addEventListener('change', (e) => {
+        state.isMaskEnabled = !e.target.checked; // inverted: "Show Faces" checked = mask disabled
+        updateOpacity(state.currentOpacity);
+        // Show/hide face-dependent controls
+        const faceControls = document.getElementById('faceSubControls');
+        if (faceControls) faceControls.style.display = e.target.checked ? 'flex' : 'none';
+    });
     document.getElementById('interiorEdgesToggle').addEventListener('change', (e) => {
         state.isInteriorEdgesEnabled = e.target.checked;
         if (state.depthMesh) state.depthMesh.visible = !state.isInteriorEdgesEnabled;
