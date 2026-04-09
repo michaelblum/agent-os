@@ -41,6 +41,8 @@ func wikiCommand(args: [String]) {
         wikiLintCommand(args: subArgs)
     case "invoke":
         wikiInvokeCommand(args: subArgs)
+    case "seed":
+        wikiSeedCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -851,6 +853,85 @@ func wikiInvokeCommand(args: [String]) {
         print(jsonString(response))
     } else {
         print(bundle)
+    }
+}
+
+// MARK: - Seed
+
+func wikiSeedCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let force = hasFlag(args, "--force")
+    let fromPath = getArg(args, "--from")
+
+    let wikiDir = aosWikiDir()
+
+    // Check if wiki already has content
+    let fm = FileManager.default
+    let hasContent = ["plugins", "entities", "concepts"].contains { dir in
+        let dirPath = "\(wikiDir)/\(dir)"
+        return (try? fm.contentsOfDirectory(atPath: dirPath))?.contains(where: { $0.hasSuffix(".md") || !$0.hasPrefix(".") }) ?? false
+    }
+
+    if hasContent && !force {
+        if asJSON {
+            print(jsonString(["status": "skipped", "reason": "Wiki already has content. Use --force to overwrite."]))
+        } else {
+            print("Wiki already has content. Use --force to seed anyway.")
+        }
+        return
+    }
+
+    // Determine source directory
+    let sourceDir: String
+    if let from = fromPath {
+        sourceDir = from
+    } else if let repoRoot = aosCurrentRepoRoot() {
+        sourceDir = "\(repoRoot)/wiki-seed"
+    } else {
+        exitError("No seed source found. Use --from <path> or run from the repo.", code: "WIKI_SEED_NOT_FOUND")
+    }
+
+    guard fm.fileExists(atPath: sourceDir) else {
+        exitError("Seed directory not found at \(sourceDir)", code: "WIKI_SEED_NOT_FOUND")
+    }
+
+    // Copy seed files without overwriting existing
+    var copied = 0
+    for subDir in ["plugins", "entities", "concepts"] {
+        let srcDir = "\(sourceDir)/\(subDir)"
+        let dstDir = "\(wikiDir)/\(subDir)"
+        guard let enumerator = fm.enumerator(atPath: srcDir) else { continue }
+        while let relativePath = enumerator.nextObject() as? String {
+            let srcPath = "\(srcDir)/\(relativePath)"
+            let dstPath = "\(dstDir)/\(relativePath)"
+
+            var isDir: ObjCBool = false
+            fm.fileExists(atPath: srcPath, isDirectory: &isDir)
+
+            if isDir.boolValue {
+                try? fm.createDirectory(atPath: dstPath, withIntermediateDirectories: true)
+            } else {
+                if !force && fm.fileExists(atPath: dstPath) { continue }
+                let dstParent = (dstPath as NSString).deletingLastPathComponent
+                try? fm.createDirectory(atPath: dstParent, withIntermediateDirectories: true)
+                try? fm.copyItem(atPath: srcPath, toPath: dstPath)
+                copied += 1
+            }
+        }
+    }
+
+    // Reindex after seeding
+    wikiReindexCommand(args: asJSON ? ["--json"] : [])
+
+    if asJSON {
+        let result: [String: Any] = [
+            "status": "ok",
+            "files_copied": copied
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) { print(s) }
+    } else {
+        print("Seeded \(copied) files. Wiki is ready.")
     }
 }
 
