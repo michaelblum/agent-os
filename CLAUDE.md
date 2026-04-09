@@ -7,7 +7,7 @@ Ecosystem of macOS and web automation CLIs. Each package builds independently. S
 ```
 src/              AOS unified binary source (perception, display, action, voice)
 packages/
-  side-eye/       Swift CLI — OS perception (screenshots, AX tree)
+  side-eye/       (merged into aos — see MOVED.md)
   hand-off/       Swift CLI — OS action (mouse, keyboard)
   speak-up/       (planned) Swift CLI — Audio I/O (TTS, STT)
   tear-sheet/     (planned) Node.js CLI — Web artifact extraction
@@ -74,9 +74,6 @@ Each package builds independently from its own directory:
 ```bash
 # Unified binary (from repo root)
 bash build.sh                    # Produces ./aos
-
-# Individual packages
-cd packages/side-eye && bash build.sh
 ```
 
 ## Key Files

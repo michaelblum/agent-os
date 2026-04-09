@@ -43,9 +43,7 @@ aos log push "message"            # Push to log console
 
 ### Capture (aos see capture)
 
-Delegates to `side-eye` for the full screenshot pipeline. Requires `side-eye` binary
-(build: `cd packages/side-eye && bash build.sh`). Resolved adjacent to `aos`, in
-`packages/side-eye/`, or via PATH.
+The capture pipeline runs in-process — no external binary dependency.
 
 **Targets:** `main`, `external [N]`, `user_active`, `selfie`, `mouse`, `all`, `<zone-name>`
 
@@ -57,7 +55,30 @@ Delegates to `side-eye` for the full screenshot pipeline. Requires `side-eye` bi
 - `--delay <sec>`, `--clipboard`, `--draw-rect <coords> <color>`
 - `--interactive`, `--wait-for-click`
 
-See `packages/side-eye/CLAUDE.md` for full capture documentation.
+### Topology (aos see list / aos see selection)
+
+```bash
+aos see list                      # Display/window topology (JSON)
+aos see selection                 # Selected text from frontmost app
+```
+
+### Focus Channels (aos focus)
+
+```bash
+aos focus create --name work --apps "Xcode,Terminal"  # Create a focus channel
+aos focus update --name work --apps "Xcode,Safari"    # Update channel filters
+aos focus list                                         # List all channels
+aos focus remove --name work                           # Remove a channel
+```
+
+### Graph Navigation (aos graph)
+
+```bash
+aos graph displays                # Display topology graph
+aos graph windows                 # Window topology graph
+aos graph deepen --node <id>      # Expand a graph node
+aos graph collapse --node <id>    # Collapse a graph node
+```
 
 ### Daemon Mode
 
@@ -140,7 +161,7 @@ High-level commands that combine modules:
 src/
   main.swift          # Entry point, subcommand routing, preflight gating
   shared/             # Helpers, envelope, config (+watcher), types
-  perceive/           # Perception: cursor, capture (→ side-eye), AX, events, attention
+  perceive/           # Perception: cursor, capture, AX, spatial, focus, graph, events, attention
   display/            # Display: canvas, render, auto-projection, status-item (menu bar)
   act/                # Action: click, type, press, session, profiles
   voice/              # Voice: TTS engine, say command

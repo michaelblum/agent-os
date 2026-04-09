@@ -78,7 +78,7 @@ Pure Swift binaries using only Apple frameworks. Zero external dependencies. Eac
 
 | Tool | Role | Frameworks | Status |
 |------|------|------------|--------|
-| `side-eye` | **Perception** — screenshots, AX tree traversal, spatial metadata | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (v3.0) |
+| `aos` perception subsystem | **Perception** — screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (merged from side-eye) |
 | `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
 | `aos` display subsystem | **Projection** — display server: renders HTML/CSS/SVG to OS overlays, transparent bitmaps, or browser injection | WebKit (WKWebView), AppKit (NSWindow) | Render mode production, serve mode planned |
 | `speak-up` | **Audio** — text-to-speech output, speech-to-text dictation | AVFoundation, Speech | Planned |
@@ -124,7 +124,7 @@ All ecosystem tools live in `michaelblum/agent-os` as a monorepo. Each tool is a
 ```
 agent-os/
   packages/              ← Track 1: unopinionated primitives
-    side-eye/            ← Swift CLI — OS perception
+    side-eye/            ← (merged into aos — see MOVED.md)
     hand-off/            ← Swift CLI — OS action
     speak-up/            ← (planned) Swift CLI — Audio I/O
     tear-sheet/          ← (planned) Node.js CLI — Web extraction
@@ -146,7 +146,7 @@ agent-os/
 
 | Component | Layer | Language | Location | Status | Key Capabilities |
 |-----------|-------|----------|----------|--------|-----------------|
-| `side-eye` | OS | Swift | `packages/side-eye/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, grids, overlays, zones, LCS |
+| `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS (merged from side-eye) |
 | `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize |
 | `aos` display subsystem | OS | Swift | `src/display/` | Render mode production | Display server: HTML→bitmap (render mode), persistent canvases (serve mode planned), browser injection (planned) |
 | `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
@@ -159,7 +159,7 @@ agent-os/
 
 | Repo | What's in it | Notes |
 |------|-------------|-------|
-| `michaelblum/side-eye` | Original standalone repo | Migrated to `agent-os/packages/side-eye/`. Pending deletion. |
+| `michaelblum/side-eye` | Original standalone repo | Fully merged into `aos` unified binary (`src/perceive/`). Package removed. |
 | `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only. |
 | `Findly-Inc/DRAW` | Historical web scraping/capture codebase (1.5 GB) | Curated extraction in local scrapyard bundle at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/` |
 | `michaelblum/bridgehand` | Slippy orb prototype | May inform display subsystem skin system |
