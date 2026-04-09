@@ -285,6 +285,8 @@ git commit -m "feat(wiki): add frontmatter parser for wiki markdown pages"
 **Files:**
 - Create: `src/commands/wiki-index.swift`
 
+> **Note (post-review):** The snippet below was updated after code review. The canonical form is the committed file at `src/commands/wiki-index.swift`. The review pass added: parameterized read-path queries via a new `queryBind<T>` helper (SQL injection / quote-break fix), `Int64`/`sqlite3_bind_int64` for `modified_at` (2038 trap fix), step-error handling in `query<T>`, a file-scope `SQLITE_TRANSIENT` constant, `ORDER BY` on `linksTo`/`linksFrom`, and `idx_links_source` / `idx_links_target` indices. Public method signatures on `WikiIndex` did not change, so Tasks 4-12 are unaffected.
+
 - [ ] **Step 1: Create the SQLite index module**
 
 Create `src/commands/wiki-index.swift`:
@@ -2421,7 +2423,7 @@ aos wiki create-plugin <name>
 Then write the SKILL.md and any reference files. Follow these guidelines:
 
 **SKILL.md structure:**
-- Frontmatter with name, description (pushy — include trigger phrases), version, tags
+- Frontmatter with name, description (assertive — include trigger phrases), version, tags
 - Clear purpose statement
 - Step-by-step instructions
 - Decision trees for branching logic
@@ -2434,7 +2436,7 @@ Then write the SKILL.md and any reference files. Follow these guidelines:
 - If all test runs would write a similar helper script, bundle it in `scripts/`
 
 **Description field:**
-The description is the primary trigger mechanism. Make it pushy:
+The description is the primary trigger mechanism. Make it clear and explicit:
 - Include what the skill does AND specific contexts for activation
 - List natural language phrases that should trigger it
 - Err on the side of over-matching — undertriggering is worse
@@ -2504,7 +2506,7 @@ plugin-name/
 
 Required fields:
 - `name` — plugin identifier (kebab-case)
-- `description` — when to trigger, what it does (be pushy)
+- `description` — when to trigger, what it does (be highly specific)
 
 Optional fields:
 - `version` — semver string
