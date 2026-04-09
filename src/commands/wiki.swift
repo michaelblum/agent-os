@@ -23,6 +23,12 @@ func wikiCommand(args: [String]) {
     switch sub {
     case "reindex":
         wikiReindexCommand(args: subArgs)
+    case "create-plugin":
+        wikiCreatePluginCommand(args: subArgs)
+    case "add":
+        wikiAddCommand(args: subArgs)
+    case "rm":
+        wikiRmCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -176,6 +182,196 @@ func wikiReindexCommand(args: [String]) {
     }
 }
 
+// MARK: - Create Plugin
+
+func wikiCreatePluginCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    guard let name = args.first(where: { !$0.hasPrefix("-") }) else {
+        exitError("Usage: aos wiki create-plugin <name> [--json]", code: "MISSING_ARG")
+    }
+
+    let wikiDir = aosWikiDir()
+    let pluginDir = "\(wikiDir)/plugins/\(name)"
+    let skillPath = "\(pluginDir)/SKILL.md"
+
+    if FileManager.default.fileExists(atPath: skillPath) {
+        exitError("Plugin '\(name)' already exists at \(pluginDir)", code: "WIKI_PLUGIN_EXISTS")
+    }
+
+    // Create directory structure
+    try? FileManager.default.createDirectory(atPath: "\(pluginDir)/references", withIntermediateDirectories: true)
+
+    // Write SKILL.md template
+    let template = """
+    ---
+    name: \(name)
+    description: >
+      Describe when this plugin should be used. Include trigger phrases
+      and contexts where it should activate.
+    version: "0.1.0"
+    author: ""
+    tags: []
+    triggers: []
+    requires: []
+    ---
+
+    # \(name.replacingOccurrences(of: "-", with: " ").capitalized)
+
+    ## Purpose
+
+    Describe what this workflow does and why.
+
+    ## Steps
+
+    1. First step
+    2. Second step
+
+    ## Related
+
+    """
+    try? template.write(toFile: skillPath, atomically: true, encoding: .utf8)
+
+    // Update index
+    let index = openWikiIndex()
+    let page = parseWikiPage(content: template)
+    let relativePath = "plugins/\(name)/SKILL.md"
+    index.upsertPage(
+        path: relativePath, type: "workflow", name: name,
+        description: page.frontmatter.description, tags: [],
+        plugin: name, modifiedAt: Int(Date().timeIntervalSince1970)
+    )
+    index.upsertPlugin(
+        name: name, version: "0.1.0", author: nil, description: page.frontmatter.description,
+        triggers: [], requires: [], modifiedAt: Int(Date().timeIntervalSince1970)
+    )
+    index.close()
+
+    if asJSON {
+        let payload: [String: Any] = ["status": "ok", "plugin": name, "path": pluginDir]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) { print(s) }
+    } else {
+        print("Created plugin '\(name)' at \(pluginDir)")
+        print("Edit: \(skillPath)")
+    }
+}
+
+// MARK: - Add Page
+
+func wikiAddCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let nonFlags = args.filter { !$0.hasPrefix("-") }
+    guard nonFlags.count >= 2 else {
+        exitError("Usage: aos wiki add <entity|concept> <name> [--json]", code: "MISSING_ARG")
+    }
+    let typeArg = nonFlags[0]
+    let name = nonFlags[1]
+
+    guard typeArg == "entity" || typeArg == "concept" else {
+        exitError("Type must be 'entity' or 'concept', got '\(typeArg)'", code: "WIKI_INVALID_TYPE")
+    }
+
+    let wikiDir = aosWikiDir()
+    let dirName = typeArg == "entity" ? "entities" : "concepts"
+    let filePath = "\(wikiDir)/\(dirName)/\(name).md"
+
+    if FileManager.default.fileExists(atPath: filePath) {
+        exitError("Page '\(name)' already exists at \(filePath)", code: "WIKI_PAGE_EXISTS")
+    }
+
+    try? FileManager.default.createDirectory(
+        atPath: "\(wikiDir)/\(dirName)", withIntermediateDirectories: true
+    )
+
+    let displayName = name.replacingOccurrences(of: "-", with: " ").capitalized
+    let template = """
+    ---
+    type: \(typeArg)
+    name: \(displayName)
+    description: ""
+    tags: []
+    ---
+
+    # \(displayName)
+
+    ## Overview
+
+    ## Related
+
+    """
+    try? template.write(toFile: filePath, atomically: true, encoding: .utf8)
+
+    // Update index
+    let index = openWikiIndex()
+    let relativePath = "\(dirName)/\(name).md"
+    index.upsertPage(
+        path: relativePath, type: typeArg, name: displayName,
+        description: nil, tags: [], plugin: nil,
+        modifiedAt: Int(Date().timeIntervalSince1970)
+    )
+    index.close()
+
+    if asJSON {
+        let payload: [String: Any] = ["status": "ok", "type": typeArg, "name": name, "path": filePath]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) { print(s) }
+    } else {
+        print("Created \(typeArg) '\(name)' at \(filePath)")
+    }
+}
+
+// MARK: - Remove Page
+
+func wikiRmCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    guard let pathArg = args.first(where: { !$0.hasPrefix("-") }) else {
+        exitError("Usage: aos wiki rm <relative-path-or-name> [--json]", code: "MISSING_ARG")
+    }
+
+    let wikiDir = aosWikiDir()
+    let fullPath: String
+    let relativePath: String
+
+    // Resolve: could be a relative path or a bare name
+    if pathArg.contains("/") {
+        relativePath = pathArg
+        fullPath = "\(wikiDir)/\(pathArg)"
+    } else {
+        // Search for it
+        let candidates = ["entities/\(pathArg).md", "concepts/\(pathArg).md"]
+        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: "\(wikiDir)/\($0)") }) {
+            relativePath = found
+            fullPath = "\(wikiDir)/\(found)"
+        } else {
+            exitError("Page '\(pathArg)' not found", code: "WIKI_NOT_FOUND")
+        }
+    }
+
+    guard FileManager.default.fileExists(atPath: fullPath) else {
+        exitError("File not found: \(fullPath)", code: "WIKI_NOT_FOUND")
+    }
+
+    // Check for incoming links
+    let index = openWikiIndex()
+    let incoming = index.linksTo(path: relativePath)
+    if !incoming.isEmpty && !asJSON {
+        print("Warning: \(incoming.count) page(s) link to this page:")
+        for link in incoming { print("  \(link.source_path)") }
+    }
+
+    try? FileManager.default.removeItem(atPath: fullPath)
+    index.deletePage(path: relativePath)
+    index.close()
+
+    if asJSON {
+        let payload: [String: Any] = ["status": "ok", "removed": relativePath, "broken_links": incoming.count]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: data, encoding: .utf8) { print(s) }
+    } else {
+        print("Removed \(relativePath)")
+    }
+}
+
 // MARK: - Helpers
 
 /// Extract markdown links like [text](../path/to/file.md) and return resolved relative paths.
@@ -218,4 +414,16 @@ func fileModTime(_ path: String) -> Int {
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
           let date = attrs[.modificationDate] as? Date else { return 0 }
     return Int(date.timeIntervalSince1970)
+}
+
+// MARK: - Index Helper
+
+/// Open the wiki index, creating tables if needed
+func openWikiIndex() -> WikiIndex {
+    let wikiDir = aosWikiDir()
+    try? FileManager.default.createDirectory(atPath: wikiDir, withIntermediateDirectories: true)
+    let index = WikiIndex(dbPath: aosWikiDbPath())
+    index.open()
+    index.createTables()
+    return index
 }
