@@ -4,8 +4,8 @@
 // manages channel lifecycle: create, update, remove, refresh.
 // Channels are written as JSON files to ~/.config/agent-os/channels/.
 //
-// Ported from packages/side-eye/spatial.swift. Uses shared AX helpers
-// from ax.swift and channel types from display/channel.swift.
+// Uses shared AX helpers from ax.swift and channel types from
+// display/channel.swift.
 
 import ApplicationServices
 import Cocoa
@@ -583,8 +583,8 @@ class SpatialModel {
     // MARK: - Daemon Action Dispatch
 
     /// Route an incoming daemon action to the appropriate spatial model method.
-    /// Returns a dictionary suitable for sendResponseJSON(). Mirrors side-eye's
-    /// daemon.swift dispatchRequest but uses dictionary I/O for the unified daemon.
+    /// Returns a dictionary suitable for sendResponseJSON(). Uses dictionary I/O
+    /// for the unified daemon.
     func handleAction(_ action: String, json: [String: Any]) -> [String: Any] {
         switch action {
         case "focus-create":

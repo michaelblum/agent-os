@@ -1,7 +1,6 @@
 // focus-commands.swift — CLI commands for focus channels and graph navigation
 //
-// Ported from packages/side-eye/client.swift. These commands talk to the
-// aos unified daemon via daemonOneShot() instead of side-eye's standalone daemon.
+// These commands talk to the aos unified daemon via daemonOneShot().
 
 import Foundation
 

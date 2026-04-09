@@ -106,7 +106,7 @@ func printUsage() {
 
     Perception (aos see):
       cursor               What's under the cursor (display, window, AX element)
-      capture <target>     Screenshot capture (delegates to side-eye)
+      capture <target>     Screenshot capture
       <target>             Shorthand for capture (main, external, user_active, selfie, mouse, all)
       observe              Subscribe to perception stream (requires daemon)
 
@@ -117,7 +117,7 @@ func printUsage() {
       selfie               Display hosting the calling process
       mouse                Display under cursor (with --radius for area)
       all                  All connected displays
-      <zone-name>          Named zone (configured via side-eye zone)
+      <zone-name>          Named zone (configured via aos see zone)
 
     Capture options:
       --out <path>         Output file path (default: ./screenshot.png)

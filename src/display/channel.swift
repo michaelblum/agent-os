@@ -1,11 +1,11 @@
 // display — Focus channel integration
-// Reads side-eye channel files from ~/.config/agent-os/channels/<id>.json
+// Reads channel files from ~/.config/agent-os/channels/<id>.json
 // Used by anchorChannel and auto-projection modes.
 
 import CoreGraphics
 import Foundation
 
-// MARK: - Channel File Types (mirrors side-eye ChannelFile schema)
+// MARK: - Channel File Types
 
 struct ChannelData: Codable {
     let channel_id: String

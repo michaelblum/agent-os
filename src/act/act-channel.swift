@@ -1,5 +1,5 @@
 // act-channel.swift — Focus channel binding for action sessions.
-// Reads side-eye channel files, configures session context from channel targets,
+// Reads channel files, configures session context from channel targets,
 // and resolves AX elements from channel element data.
 
 import CoreGraphics

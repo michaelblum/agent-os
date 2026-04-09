@@ -1,8 +1,7 @@
-// capture-pipeline.swift — Full capture pipeline (ported from side-eye)
+// capture-pipeline.swift — Full capture pipeline
 //
-// This is the core screenshot pipeline: parse args → resolve target → capture →
-// crop → overlay → encode → output. Formerly lived in packages/side-eye/main.swift,
-// now compiled directly into the aos unified binary.
+// Core screenshot pipeline: parse args → resolve target → capture →
+// crop → overlay → encode → output.
 
 import Cocoa
 import ScreenCaptureKit
@@ -1155,11 +1154,7 @@ func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double =
 func seeListCommand() {
     let displays = getCaptureDisplays()
 
-    // Build the CaptureDisplayEntry → side-eye DisplayEntry bridge for enumerateWindows
-    // enumerateWindows expects the side-eye DisplayEntry type. For now we need to
-    // create a compatible call. The enumerateWindows function lives in packages/side-eye.
-    // Since it hasn't been ported yet (Task 3), we implement a simpler version here
-    // that uses CGWindowList directly.
+    // Build window list using CGWindowList directly.
 
     let windowInfoList = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
 

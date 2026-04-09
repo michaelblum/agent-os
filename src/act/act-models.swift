@@ -353,7 +353,7 @@ struct LegacyTargetInfo: Encodable {
     var keys: String?
 }
 
-// MARK: - Focus Channel File Types (read from side-eye channel files)
+// MARK: - Focus Channel File Types
 
 struct ChannelFileBounds: Codable {
     let x: Double
