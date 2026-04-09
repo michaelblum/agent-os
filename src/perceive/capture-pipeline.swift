@@ -872,9 +872,15 @@ let captureTargets: Set<String> = ["main", "center", "middle", "external", "user
 
 // MARK: - Named Zones
 
-let zonesFilePath = NSString("~/.config/side-eye/zones.json").expandingTildeInPath
+let zonesFilePath = (aosStateDir() as NSString).appendingPathComponent("zones.json")
+private let legacyZonesFilePath = NSString("~/.config/side-eye/zones.json").expandingTildeInPath
 
 func loadZones() -> [String: ZoneEntry] {
+    // Migrate from legacy side-eye path if needed
+    if !FileManager.default.fileExists(atPath: zonesFilePath),
+       FileManager.default.fileExists(atPath: legacyZonesFilePath) {
+        try? FileManager.default.copyItem(atPath: legacyZonesFilePath, toPath: zonesFilePath)
+    }
     guard let data = FileManager.default.contents(atPath: zonesFilePath),
           let zones = try? JSONDecoder().decode([String: ZoneEntry].self, from: data)
     else { return [:] }
