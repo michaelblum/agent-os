@@ -648,6 +648,19 @@ class CanvasManager {
         if let interactive = req.interactive {
             canvas.isInteractive = interactive
             canvas.window.ignoresMouseEvents = !interactive
+            // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
+            // and whether sendEvent should activate on first click. Without
+            // updating it, flipped-to-interactive canvases can receive mouse
+            // events but never become key window, so keyboard input bounces
+            // back to the previously-active app (system bonk on every keystroke).
+            (canvas.window as? CanvasWindow)?.isInteractiveCanvas = interactive
+            canvas.window.level = interactive ? .floating : .statusBar
+            // NOTE: the WKWebView subclass (CanvasWebView vs plain WKWebView)
+            // is chosen at construction time and cannot be swapped at runtime.
+            // The only behavioral difference is acceptsFirstMouse, which only
+            // affects the first-click-starts-drag ergonomic. A flipped canvas
+            // may require one extra click to activate; recreate the canvas with
+            // --interactive at creation time for full first-mouse behavior.
         }
 
         if let ttl = req.ttl {
