@@ -39,6 +39,8 @@ func wikiCommand(args: [String]) {
         wikiLinkCommand(args: subArgs)
     case "lint":
         wikiLintCommand(args: subArgs)
+    case "invoke":
+        wikiInvokeCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -796,6 +798,59 @@ func wikiLintCommand(args: [String]) {
             }
             print("\n\(errors.count) error(s), \(warnings.count) warning(s)")
         }
+    }
+}
+
+// MARK: - Invoke
+
+func wikiInvokeCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    guard let name = args.first(where: { !$0.hasPrefix("-") }) else {
+        exitError("Usage: aos wiki invoke <plugin-name> [--json]", code: "MISSING_ARG")
+    }
+
+    let wikiDir = aosWikiDir()
+    let pluginDir = "\(wikiDir)/plugins/\(name)"
+    let skillPath = "\(pluginDir)/SKILL.md"
+
+    guard let skillContent = try? String(contentsOfFile: skillPath, encoding: .utf8) else {
+        exitError("Plugin '\(name)' not found at \(pluginDir)", code: "WIKI_NOT_FOUND")
+    }
+
+    var bundle = skillContent
+
+    // Bundle references
+    let refsDir = "\(pluginDir)/references"
+    let refFiles = ((try? FileManager.default.contentsOfDirectory(atPath: refsDir))?.sorted()) ?? []
+    for refFile in refFiles where refFile.hasSuffix(".md") {
+        let refPath = "\(refsDir)/\(refFile)"
+        if let refContent = try? String(contentsOfFile: refPath, encoding: .utf8) {
+            bundle += "\n\n--- BEGIN reference: \(refFile) ---\n\n"
+            bundle += refContent
+            bundle += "\n\n--- END reference: \(refFile) ---"
+        }
+    }
+
+    // Bundle scripts (show content so agent knows what's available)
+    let scriptsDir = "\(pluginDir)/scripts"
+    let scriptFiles = ((try? FileManager.default.contentsOfDirectory(atPath: scriptsDir))?.sorted()) ?? []
+    for scriptFile in scriptFiles {
+        let scriptPath = "\(scriptsDir)/\(scriptFile)"
+        if let scriptContent = try? String(contentsOfFile: scriptPath, encoding: .utf8) {
+            bundle += "\n\n--- BEGIN script: \(scriptFile) ---\n\n"
+            bundle += scriptContent
+            bundle += "\n\n--- END script: \(scriptFile) ---"
+        }
+    }
+
+    if asJSON {
+        let response: [String: String] = [
+            "plugin": name,
+            "bundle": bundle
+        ]
+        print(jsonString(response))
+    } else {
+        print(bundle)
     }
 }
 
