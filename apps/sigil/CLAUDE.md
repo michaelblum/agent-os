@@ -76,3 +76,39 @@ Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index
 - **Three.js r128** — 3D rendering engine (loaded from CDN)
 - **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
 - **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — channel events that drive avatar behaviors
+
+## Chat Canvas Protocol
+
+The chat canvas (`chat/index.html`) is a bidirectional conversational surface. Agents project into it — the canvas does not run its own Claude API client.
+
+### Sending to canvas
+
+Push messages via `evalCanvas('chat', 'headsup.receive("' + btoa(json) + '")')` or the coordination channel. Payload must be base64-encoded JSON.
+
+| Message | Payload | Effect |
+|---------|---------|--------|
+| Assistant message | `{type: 'assistant', content: [<Anthropic content blocks>]}` | Renders text, thinking, tool use, images |
+| Echo user message | `{type: 'user', content: string}` | Shows user bubble |
+| Status line | `{type: 'status', text: string}` | Replaces status indicator |
+| Clear | `{type: 'clear'}` | Resets conversation display |
+
+Supported content block types: `text`, `thinking`, `redacted_thinking`, `tool_use`, `tool_result`, `image`, `server_tool_use`, `web_search_tool_result`, `web_fetch_tool_result`, `code_execution_tool_result`, `bash_code_execution_tool_result`.
+
+Special tool_use renderers: `AskUserQuestion` (option buttons), `TodoWrite` (checklist), `ExitPlanMode` (plan card).
+
+### Receiving from canvas
+
+Messages arrive via the canvas `onMessage` callback (Swift side). All messages have a `type` field:
+
+| Type | Payload | When |
+|------|---------|------|
+| `response` | `{type, value: string, tool_use_id: string}` | User answered an AskUserQuestion |
+| `user_message` | `{type, text: string}` | User sent a free-form message |
+| `stop` | `{type}` | User requested interrupt |
+| `ready` | `{type, ...manifest}` | Canvas loaded |
+| `avatar_toggle` | `{type}` | User clicked the avatar dot |
+| `drag_start` / `move_abs` / `drag_end` | position data | Window drag |
+
+### Active state
+
+Call `setActive()` (via eval) when the agent is generating. This pulses the status dot and shows the stop button. Call `setIdle()` when done. Input is always enabled regardless of state.
