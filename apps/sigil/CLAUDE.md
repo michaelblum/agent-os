@@ -98,16 +98,37 @@ Special tool_use renderers: `AskUserQuestion` (option buttons), `TodoWrite` (che
 
 ### Receiving from canvas
 
-Messages arrive via the canvas `onMessage` callback (Swift side). All messages have a `type` field:
+Messages arrive via the canvas `onMessage` callback (Swift side). Every emitted
+event is wrapped as `{type: '<name>', payload: <body>}` — the outer `type` is
+the event name, the `payload` carries only the event-specific fields (no
+redundant inner `type`).
 
-| Type | Payload | When |
-|------|---------|------|
-| `response` | `{type, value: string, tool_use_id: string}` | User answered an AskUserQuestion |
-| `user_message` | `{type, text: string}` | User sent a free-form message |
-| `stop` | `{type}` | User requested interrupt |
-| `ready` | `{type, ...manifest}` | Canvas loaded |
-| `avatar_toggle` | `{type}` | User clicked the avatar dot |
+| Type | `payload` | When |
+|------|-----------|------|
+| `response` | `{value: string, tool_use_id: string}` | User answered an AskUserQuestion |
+| `user_message` | `{text: string}` | User sent a free-form message |
+| `stop` | _(no payload)_ | User requested interrupt |
+| `ready` | `{name, accepts, emits}` (the canvas manifest) | Canvas loaded |
+| `avatar_toggle` | _(no payload)_ | User clicked the avatar dot |
 | `drag_start` / `move_abs` / `drag_end` | position data | Window drag |
+
+### Focus on show
+
+By default, clicking into an `.accessory` app's window to type is debounced by
+macOS and takes several seconds. Pass `--focus` to `aos show create` or
+`aos show update` to eliminate the delay:
+
+- The daemon activates the aos process (`NSApp.activate`) and marks the canvas
+  window key, so the next keystroke lands there.
+- On create, the daemon arms a one-shot that evals `focusInput()` when the page
+  emits `ready`. On update, it evals `focusInput()` immediately (the page is
+  already loaded).
+
+`--focus` is a no-op on non-interactive canvases.
+
+The chat page exposes `focusInput()` as a top-level function that focuses its
+`<input>`; other canvases can expose their own `focusInput()` if they want to
+opt into the same behavior.
 
 ### Active state
 

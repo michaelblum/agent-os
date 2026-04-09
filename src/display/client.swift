@@ -120,6 +120,7 @@ func createCommand(args: [String]) {
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive = false
+    var focus = false
     var ttlValue: String? = nil
     var scope: String? = nil
     var autoProject: String? = nil
@@ -153,6 +154,8 @@ func createCommand(args: [String]) {
             urlValue = args[i]
         case "--interactive":
             interactive = true
+        case "--focus":
+            focus = true
         case "--ttl":
             i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
             ttlValue = args[i]
@@ -176,6 +179,7 @@ func createCommand(args: [String]) {
     var request = CanvasRequest(action: "create")
     request.id = canvasID
     request.interactive = interactive
+    if focus { request.focus = true }
     request.scope = scope
 
     if let ttlStr = ttlValue {
@@ -222,6 +226,7 @@ func updateCommand(args: [String]) {
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive: Bool? = nil
+    var focus: Bool? = nil
     var ttlValue: String? = nil
 
     var i = 0
@@ -255,6 +260,10 @@ func updateCommand(args: [String]) {
             interactive = true
         case "--no-interactive":
             interactive = false
+        case "--focus":
+            focus = true
+        case "--no-focus":
+            focus = false
         case "--ttl":
             i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
             ttlValue = args[i]
@@ -269,6 +278,7 @@ func updateCommand(args: [String]) {
     var request = CanvasRequest(action: "update")
     request.id = canvasID
     request.interactive = interactive
+    request.focus = focus
 
     if let ttlStr = ttlValue {
         request.ttl = parseDuration(ttlStr)

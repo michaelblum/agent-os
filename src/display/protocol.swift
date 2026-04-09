@@ -64,6 +64,7 @@ struct CanvasRequest: Codable {
     var html: String?           // HTML content (resolved by client)
     var url: String?            // URL for WKWebView to load directly
     var interactive: Bool?      // override click-through (default: false)
+    var focus: Bool?            // activate app + make window key; on create, also eval focusInput() after page ready
     var ttl: Double?            // seconds until auto-remove (nil = no expiry)
     var js: String?             // JavaScript to evaluate (for "eval" action)
     var scope: String?          // "connection" or "global" (default: global)

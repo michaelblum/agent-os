@@ -106,6 +106,11 @@ class Canvas {
     var anchorChannelID: String?
     var offset: CGRect?
     var isInteractive: Bool
+    /// When true, the canvas should grab focus (app activation + key window)
+    /// and — if set via handleCreate — the next 'ready' event from the page
+    /// will trigger a focusInput() eval. Cleared after the ready handler fires
+    /// so the focus request is one-shot per set.
+    var focusOnReady: Bool = false
     var ttlTimer: DispatchSourceTimer?
     var ttlDeadline: Date?
     var onTTLExpired: (() -> Void)?
@@ -198,6 +203,16 @@ class Canvas {
         } else {
             window.orderFront(nil)
         }
+    }
+
+    /// Activate the aos process and make this window key so keystrokes route
+    /// here immediately, without the user needing to click into the canvas.
+    /// macOS debounces click-based activation for .accessory apps, so callers
+    /// that need instant keyboard focus must invoke this explicitly.
+    func grabFocus() {
+        guard isInteractive else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     func close() {
@@ -391,6 +406,13 @@ class CanvasManager {
 
         let interactive = req.interactive ?? false
         let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive)
+        // --focus on create: activate immediately and arm a one-shot
+        // focusInput() eval for when the page emits 'ready'. The OS-level
+        // activation avoids the click-to-focus delay macOS applies to
+        // .accessory apps; the JS call lands keystrokes in the right field.
+        if req.focus == true && interactive {
+            canvas.focusOnReady = true
+        }
 
         // Connection-scoped lifecycle
         let scope = req.scope ?? "global"
@@ -455,6 +477,21 @@ class CanvasManager {
                 // drag_start and drag_end — don't relay, just consume
                 if type == "drag_start" || type == "drag_end" {
                     return
+                }
+
+                // Page signaled it's loaded. If the canvas was created with
+                // --focus, tell the page to focus its input field. One-shot:
+                // clear the flag so we don't re-focus on subsequent ready
+                // emits (the page can re-emit after navigation).
+                if type == "ready" && canvas.focusOnReady {
+                    canvas.focusOnReady = false
+                    DispatchQueue.main.async {
+                        canvas.webView.evaluateJavaScript(
+                            "typeof focusInput === 'function' && focusInput()",
+                            completionHandler: nil
+                        )
+                    }
+                    // fall through to relay
                 }
 
                 // Config IPC: read/write daemon config from canvas JS
@@ -553,6 +590,9 @@ class CanvasManager {
         }
 
         canvas.show()
+        if req.focus == true && interactive {
+            canvas.grabFocus()
+        }
         canvases[id] = canvas
 
         if let ttl = req.ttl {
@@ -668,6 +708,18 @@ class CanvasManager {
                 self?.removeByTTL(id)
             }
             canvas.setTTL(ttl > 0 ? ttl : nil)  // ttl=0 clears the TTL
+        }
+
+        // --focus on update: the canvas is already loaded, so we can both
+        // activate at the OS level and eval focusInput() right away.
+        if req.focus == true && canvas.isInteractive {
+            canvas.grabFocus()
+            DispatchQueue.main.async {
+                canvas.webView.evaluateJavaScript(
+                    "typeof focusInput === 'function' && focusInput()",
+                    completionHandler: nil
+                )
+            }
         }
 
         return .ok()

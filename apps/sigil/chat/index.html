@@ -867,7 +867,7 @@ function respondToToolUse(value) {
 
   addUserMessage(value);
 
-  emit('response', { type: 'response', value: value, tool_use_id: pendingToolUseId });
+  emit('response', { value: value, tool_use_id: pendingToolUseId });
   pendingToolUseId = null;
 
   // Disable option buttons in the last assistant message
@@ -892,7 +892,7 @@ function sendUserInput() {
     respondToToolUse(value);
   } else {
     addUserMessage(value);
-    emit('user_message', { type: 'user_message', text: value });
+    emit('user_message', { text: value });
   }
 }
 
@@ -900,7 +900,7 @@ function sendUserInput() {
 // State indicators
 // ============================================================
 function emitStop() {
-  emit('stop', { type: 'stop' });
+  emit('stop');
   setIdle();
 }
 
@@ -1052,6 +1052,13 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+// Exposed to the host: called via evaluateJavaScript when the canvas was
+// created/updated with --focus, so keystrokes land in the input immediately.
+function focusInput() {
+  var el = document.getElementById('userInput');
+  if (el) el.focus();
+}
 
 // Start dismissed -- overlay appears when first message arrives
 emit('ready', window.headsup.manifest);
