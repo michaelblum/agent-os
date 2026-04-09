@@ -432,6 +432,22 @@ body {
 .btn-send:hover { background: rgba(100,210,255,0.3); }
 .btn-send:active { transform: scale(0.96); }
 
+.btn-stop {
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(255,69,58,0.2);
+  color: #ff453a;
+  border: 1px solid rgba(255,69,58,0.3);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  transition: all 0.15s ease;
+  display: none;
+}
+.btn-stop:hover { background: rgba(255,69,58,0.3); }
+.btn-stop:active { transform: scale(0.96); }
+
 /* --- Log panel --- */
 .log-viewer {
   flex: 1;
@@ -479,6 +495,7 @@ body {
     <div class="input-bar">
       <textarea class="text-input" id="userInput" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendUserInput()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
       <button class="btn-send" onclick="sendUserInput()">Send</button>
+      <button class="btn-stop" id="btnStop" onclick="emitStop()">Stop</button>
     </div>
   </div>
 
@@ -882,14 +899,21 @@ function sendUserInput() {
 // ============================================================
 // State indicators
 // ============================================================
+function emitStop() {
+  emit('stop', { type: 'stop' });
+  setIdle();
+}
+
 function setActive() {
   var dot = document.getElementById('dot');
   dot.classList.add('active');
+  document.getElementById('btnStop').style.display = '';
 }
 
 function setIdle() {
   var dot = document.getElementById('dot');
   dot.classList.remove('active');
+  document.getElementById('btnStop').style.display = 'none';
 }
 
 // -- Avatar dock/undock (called from avatar-follower via eval) --
