@@ -29,6 +29,12 @@ func wikiCommand(args: [String]) {
         wikiAddCommand(args: subArgs)
     case "rm":
         wikiRmCommand(args: subArgs)
+    case "list":
+        wikiListCommand(args: subArgs)
+    case "search":
+        wikiSearchCommand(args: subArgs)
+    case "show":
+        wikiShowCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -369,6 +375,208 @@ func wikiRmCommand(args: [String]) {
            let s = String(data: data, encoding: .utf8) { print(s) }
     } else {
         print("Removed \(relativePath)")
+    }
+}
+
+// MARK: - List
+
+func wikiListCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let typeFilter = getArg(args, "--type")
+    let pluginFilter = getArg(args, "--plugin")
+    let linksTo = getArg(args, "--links-to")
+    let linksFrom = getArg(args, "--links-from")
+    let orphans = hasFlag(args, "--orphans")
+
+    let index = openWikiIndex()
+
+    if orphans {
+        let pages = index.orphanPages()
+        index.close()
+        if asJSON {
+            print(jsonString(pages))
+        } else {
+            if pages.isEmpty { print("No orphan pages."); return }
+            for p in pages { print("\(p.type.padding(toLength: 10, withPad: " ", startingAt: 0)) \(p.path)  — \(p.name)") }
+        }
+        return
+    }
+
+    if let target = linksTo {
+        let links = index.linksTo(path: target)
+        index.close()
+        if asJSON {
+            print(jsonString(links))
+        } else {
+            if links.isEmpty { print("No pages link to \(target)."); return }
+            for l in links { print("  \(l.source_path)") }
+        }
+        return
+    }
+
+    if let source = linksFrom {
+        let links = index.linksFrom(path: source)
+        index.close()
+        if asJSON {
+            print(jsonString(links))
+        } else {
+            if links.isEmpty { print("No outgoing links from \(source)."); return }
+            for l in links { print("  \(l.target_path)") }
+        }
+        return
+    }
+
+    let pages = index.listPages(type: typeFilter, plugin: pluginFilter)
+    index.close()
+
+    if asJSON {
+        print(jsonString(pages))
+    } else {
+        if pages.isEmpty { print("Wiki is empty. Run 'aos wiki seed' to get started."); return }
+        for p in pages {
+            let desc = p.description.map { " — \($0.prefix(60))" } ?? ""
+            print("\(p.type.padding(toLength: 10, withPad: " ", startingAt: 0)) \(p.path)\(desc)")
+        }
+    }
+}
+
+// MARK: - Search
+
+func wikiSearchCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let typeFilter = getArg(args, "--type")
+    let nonFlags = args.filter { !$0.hasPrefix("-") && $0 != getArg(args, "--type") }
+
+    guard let query = nonFlags.first else {
+        exitError("Usage: aos wiki search <query> [--type <type>] [--json]", code: "MISSING_ARG")
+    }
+
+    let index = openWikiIndex()
+    var results = index.searchPages(query: query, type: typeFilter)
+
+    // Also search file content for matches not caught by index
+    let wikiDir = aosWikiDir()
+    let indexPaths = Set(results.map { $0.path })
+    let contentMatches = searchFileContent(wikiDir: wikiDir, query: query, excluding: indexPaths)
+    results.append(contentsOf: contentMatches)
+
+    index.close()
+
+    if asJSON {
+        print(jsonString(results))
+    } else {
+        if results.isEmpty { print("No results for '\(query)'."); return }
+        for r in results {
+            let desc = r.description.map { " — \($0.prefix(60))" } ?? ""
+            print("\(r.type.padding(toLength: 10, withPad: " ", startingAt: 0)) \(r.path)\(desc)")
+        }
+    }
+}
+
+/// Search file content for a query string, returning pages not already in index results
+func searchFileContent(wikiDir: String, query: String, excluding: Set<String>) -> [WikiIndex.PageRow] {
+    var results: [WikiIndex.PageRow] = []
+    let fm = FileManager.default
+    let lowerQuery = query.lowercased()
+
+    for dirType in ["plugins", "entities", "concepts"] {
+        let dirPath = "\(wikiDir)/\(dirType)"
+        guard let enumerator = fm.enumerator(atPath: dirPath) else { continue }
+        while let relativePath = enumerator.nextObject() as? String {
+            guard relativePath.hasSuffix(".md") else { continue }
+            let fullRelative = "\(dirType)/\(relativePath)"
+            guard !excluding.contains(fullRelative) else { continue }
+            let fullPath = "\(dirPath)/\(relativePath)"
+            guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else { continue }
+            if content.lowercased().contains(lowerQuery) {
+                let page = parseWikiPage(content: content)
+                let inferredType: String
+                switch dirType {
+                case "plugins":  inferredType = "workflow"
+                case "entities": inferredType = "entity"
+                case "concepts": inferredType = "concept"
+                default:         inferredType = dirType
+                }
+                results.append(WikiIndex.PageRow(
+                    path: fullRelative,
+                    type: page.frontmatter.type ?? inferredType,
+                    name: page.frontmatter.name ?? relativePath.replacingOccurrences(of: ".md", with: ""),
+                    description: page.frontmatter.description,
+                    tags: page.frontmatter.tags,
+                    plugin: nil,
+                    modified_at: fileModTime(fullPath)
+                ))
+            }
+        }
+    }
+    return results
+}
+
+// MARK: - Show
+
+struct WikiShowResponse: Encodable {
+    let path: String
+    let frontmatter: [String: String]
+    let body: String
+    let raw: String
+}
+
+func wikiShowCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let rawMode = hasFlag(args, "--raw")
+    guard let pathArg = args.first(where: { !$0.hasPrefix("-") }) else {
+        exitError("Usage: aos wiki show <path-or-name> [--raw] [--json]", code: "MISSING_ARG")
+    }
+
+    let wikiDir = aosWikiDir()
+    let fullPath: String
+    let relativePath: String
+
+    if pathArg.contains("/") || pathArg.contains(".md") {
+        relativePath = pathArg
+        fullPath = "\(wikiDir)/\(pathArg)"
+    } else {
+        // Search by name across all directories
+        let candidates = [
+            "entities/\(pathArg).md",
+            "concepts/\(pathArg).md",
+            "plugins/\(pathArg)/SKILL.md"
+        ]
+        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: "\(wikiDir)/\($0)") }) {
+            relativePath = found
+            fullPath = "\(wikiDir)/\(found)"
+        } else {
+            exitError("Page '\(pathArg)' not found. Try 'aos wiki list' to see available pages.", code: "WIKI_NOT_FOUND")
+        }
+    }
+
+    guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else {
+        exitError("Could not read \(fullPath)", code: "WIKI_READ_ERROR")
+    }
+
+    if rawMode {
+        print(content)
+        return
+    }
+
+    let page = parseWikiPage(content: content)
+
+    if asJSON {
+        let response = WikiShowResponse(
+            path: relativePath,
+            frontmatter: page.frontmatter.raw,
+            body: page.body,
+            raw: content
+        )
+        print(jsonString(response))
+    } else {
+        // Print formatted: metadata header then body
+        if let name = page.frontmatter.name { print("# \(name)") }
+        if let type = page.frontmatter.type { print("Type: \(type)") }
+        if let desc = page.frontmatter.description { print("Description: \(desc)") }
+        if !page.frontmatter.tags.isEmpty { print("Tags: \(page.frontmatter.tags.joined(separator: ", "))") }
+        print("---")
+        print(page.body)
     }
 }
 
