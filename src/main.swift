@@ -105,7 +105,7 @@ func printUsage() {
       permissions          Permission preflight and one-time onboarding
       inspect              Live AX element inspector overlay
       log                  Display log console panel
-      wiki <subcommand>  Knowledge base — browse, search, invoke workflow plugins
+      wiki <subcommand>    Knowledge base — browse, search, invoke workflow plugins
 
     Perception (aos see):
       cursor               What's under the cursor (display, window, AX element)
@@ -202,6 +202,19 @@ func printUsage() {
       inspect [--at x,y,w,h]  Live AX inspector — shows element under cursor
       log [--at x,y,w,h]      Log console — scrolling output panel
 
+    Wiki (aos wiki):
+      create-plugin <name>   Scaffold a new workflow plugin
+      add <type> <name>      Create an entity or concept page
+      rm <path>              Remove a page (warns about broken links)
+      link <from> <to>       Add a cross-reference between pages
+      list                   List pages (--type, --plugin, --links-to, --links-from, --orphans)
+      search <query>         Search pages (--type filter)
+      show <name>            Display a page (--raw for markdown, --json for structured)
+      invoke <plugin>        Bundle a plugin into a prompt payload
+      reindex                Rebuild the index from filesystem
+      lint                   Check for broken links, orphans, missing frontmatter
+      seed                   Populate wiki with starter content
+
     Examples:
       aos see cursor                    # What's under the cursor
       aos see capture main --out /tmp/screen.png   # Screenshot main display
@@ -234,6 +247,14 @@ func printUsage() {
       aos inspect                        # Live AX element inspector
       echo "hello" | aos log             # Stream to log overlay
       aos log push "test message"        # One-shot log entry
+      aos wiki seed                      # Populate with starter content
+      aos wiki list                      # List all wiki pages
+      aos wiki list --type workflow      # List workflow plugins
+      aos wiki show gateway --json       # View a page as JSON
+      aos wiki search "IPC protocol"     # Search the wiki
+      aos wiki create-plugin my-flow     # Create a new plugin
+      aos wiki invoke self-check         # Bundle a plugin for chat injection
+      aos wiki lint                      # Check wiki health
     """
     print(usage)
 }

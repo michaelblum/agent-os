@@ -81,6 +81,11 @@ func parseWikiPage(content: String) -> WikiPage {
         }
     }
 
+    // Strip the YAML block scalar `>` indicator from multi-line description
+    if let desc = raw["description"] {
+        raw["description"] = cleanDescription(desc)
+    }
+
     // Extract typed fields
     let fm = WikiFrontmatter(
         type: raw["type"],
