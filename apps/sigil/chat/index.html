@@ -477,8 +477,8 @@ body {
   <div class="panel active" id="panel-chat">
     <div class="messages" id="messages"></div>
     <div class="input-bar">
-      <textarea class="text-input" id="userInput" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendUserInput()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'" disabled></textarea>
-      <button class="btn-send" onclick="sendUserInput()" disabled>Send</button>
+      <textarea class="text-input" id="userInput" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendUserInput()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+      <button class="btn-send" onclick="sendUserInput()">Send</button>
     </div>
   </div>
 
@@ -879,19 +879,11 @@ function sendUserInput() {
 function setActive() {
   var dot = document.getElementById('dot');
   dot.classList.add('active');
-  // Enable input when agent is asking a question
-  document.getElementById('userInput').disabled = false;
-  document.querySelector('.btn-send').disabled = false;
 }
 
 function setIdle() {
   var dot = document.getElementById('dot');
   dot.classList.remove('active');
-  // Disable input when no pending question — events would be lost
-  if (!pendingToolUseId) {
-    document.getElementById('userInput').disabled = true;
-    document.querySelector('.btn-send').disabled = true;
-  }
 }
 
 // -- Avatar dock/undock (called from avatar-follower via eval) --
