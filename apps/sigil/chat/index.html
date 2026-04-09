@@ -552,7 +552,7 @@ function renderMarkdown(text) {
 // headsup message convention
 // ============================================================
 window.headsup = {
-  manifest: { name: 'chat', accepts: ['assistant', 'user', 'status', 'clear'], emits: ['response', 'tts', 'ready', 'avatar_toggle'] },
+  manifest: { name: 'chat', accepts: ['assistant', 'user', 'status', 'clear'], emits: ['response', 'user_message', 'stop', 'tts', 'ready', 'avatar_toggle'] },
   receive: function(b64) {
     try {
       // atob() returns Latin-1, not UTF-8. Decode properly for emoji/accented text.
@@ -841,21 +841,17 @@ function appendMessage(el) {
 // ============================================================
 function respondOption(btn) {
   var value = btn.getAttribute('data-value');
-  respond(value);
+  respondToToolUse(value);
 }
 
-function respond(value) {
+function respondToToolUse(value) {
   if (!value || value.trim() === '') return;
   value = value.trim();
 
   addUserMessage(value);
 
-  var payload = { type: 'response', value: value };
-  if (pendingToolUseId) {
-    payload.tool_use_id = pendingToolUseId;
-    pendingToolUseId = null;
-  }
-  emit('response', payload);
+  emit('response', { type: 'response', value: value, tool_use_id: pendingToolUseId });
+  pendingToolUseId = null;
 
   // Disable option buttons in the last assistant message
   var btns = document.querySelectorAll('.opt-btn');
@@ -865,12 +861,22 @@ function respond(value) {
   }
 
   setIdle();
-  document.getElementById('userInput').value = '';
 }
 
 function sendUserInput() {
   var input = document.getElementById('userInput');
-  respond(input.value);
+  var value = (input.value || '').trim();
+  if (!value) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (pendingToolUseId) {
+    respondToToolUse(value);
+  } else {
+    addUserMessage(value);
+    emit('user_message', { type: 'user_message', text: value });
+  }
 }
 
 // ============================================================
