@@ -4,14 +4,37 @@
 (none)
 
 ## Queued
-- **Chat surface integration**: Chat canvas (`apps/sigil/chat/`) is wired to studio "Open Chat" button via daemon IPC. Next: connect to actual Claude API or agent session for real conversations. Now writable as a gateway script using `aos.coordination.*`.
-- **side-eye decision**: Absorb into aos (true single binary) or keep as bundled sub-binary? Blocks packaging fixes.
-- **Packaging gaps**: Bundle side-eye + toolkit HTML into AOS.app so installed-mode commands are self-contained.
 - **StatusItemManager ↔ Sigil coordination**: Menu bar toggle creates/removes avatar canvas independently of Sigil. Need to reconcile so Sigil detects externally-created canvas or the toggle starts/stops Sigil.
 - **Radial menu reimplementation**: Port radial menu from old avatar.html to celestial live renderer. Concepts and logic preserved in old file.
 - **Studio WKWebView bundling**: Low priority — content server mostly solves this.
-
 ## Done
+
+### chat-integration (2026-04-08)
+Chat canvas bidirectional messaging.
+
+- Unlocked free-form input (always enabled, not gated on AskUserQuestion)
+- Split emit into `response` (tool use answer) and `user_message` (unprompted input)
+- Added stop button with `stop` emit for agent interruption
+- Documented chat canvas protocol in `apps/sigil/CLAUDE.md`
+
+### post-merge-cleanup (2026-04-08)
+Remove side-eye remnants after merge into aos.
+
+**Commits:** `b5f7d51` → `7c42a7b` (2 commits)
+
+- Migrated `zones.json` from `~/.config/side-eye/` to mode-scoped `~/.config/aos/{mode}/zones.json` with auto-migration on first load
+- Added `~/.config/side-eye/` removal to `aos reset`
+- Removed 12 stale side-eye references across 7 source files (comments, help text, MARK labels)
+- 4 remaining `side-eye` references are functional (migration path + reset cleanup)
+
+### packaging (2026-04-08)
+`package.sh` — self-contained AOS.app bundling.
+
+**Commits:** `c4229de` → `3fa2a98` (2 commits)
+
+- `package.sh` builds both binaries (aos + avatar-sub), assembles `.app` bundle with web assets (42 files: sigil renderer/studio/chat + toolkit components), writes Info.plist, ad-hoc codesigns (inside-out), installs to `~/Applications/AOS.app`
+- Trap cleanup on failure, rsync prune empty dirs, daemon stop before replace
+- Sentinel check + codesign verified passing
 
 ### sdk-tests-and-settings (2026-04-08)
 SDK proxy tests, settings panel wiring, display behavior tests.
