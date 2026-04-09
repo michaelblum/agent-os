@@ -39,7 +39,12 @@ func serveCommand(args: [String]) {
 
     // Accessory policy: no dock icon, no menu bar, but can own key windows
     // and receive mouse/keyboard events. Required for interactive canvases.
-    NSApp.setActivationPolicy(.accessory)
+    //
+    // Note: use NSApplication.shared (not the NSApp global) to force
+    // initialization of the singleton. Accessing NSApp before NSApplication.shared
+    // has been evaluated traps, because NSApp is an implicitly-unwrapped optional
+    // that is only assigned as a side effect of NSApplication.shared's first access.
+    NSApplication.shared.setActivationPolicy(.accessory)
 
     // Run the main loop (needed for CGEventTap, NSWindow, WKWebView)
     NSApplication.shared.run()
