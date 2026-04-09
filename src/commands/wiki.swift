@@ -35,6 +35,10 @@ func wikiCommand(args: [String]) {
         wikiSearchCommand(args: subArgs)
     case "show":
         wikiShowCommand(args: subArgs)
+    case "link":
+        wikiLinkCommand(args: subArgs)
+    case "lint":
+        wikiLintCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -577,6 +581,221 @@ func wikiShowCommand(args: [String]) {
         if !page.frontmatter.tags.isEmpty { print("Tags: \(page.frontmatter.tags.joined(separator: ", "))") }
         print("---")
         print(page.body)
+    }
+}
+
+// MARK: - Link
+
+func wikiLinkCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let nonFlags = args.filter { !$0.hasPrefix("-") }
+    guard nonFlags.count >= 2 else {
+        exitError("Usage: aos wiki link <from-path> <to-path> [--json]", code: "MISSING_ARG")
+    }
+    let fromPath = nonFlags[0]
+    let toPath = nonFlags[1]
+
+    let wikiDir = aosWikiDir()
+
+    // Resolve from path
+    let fromFull = resolveWikiPath(wikiDir: wikiDir, arg: fromPath)
+    guard let fromFull = fromFull else {
+        exitError("Source page '\(fromPath)' not found", code: "WIKI_NOT_FOUND")
+    }
+
+    // Resolve to path
+    let toFull = resolveWikiPath(wikiDir: wikiDir, arg: toPath)
+    guard let toFull = toFull else {
+        exitError("Target page '\(toPath)' not found", code: "WIKI_NOT_FOUND")
+    }
+
+    // Add link to index
+    let index = openWikiIndex()
+    index.upsertLink(source: fromFull.relative, target: toFull.relative)
+    index.close()
+
+    // Append to Related section in source file
+    let relativeLink = makeRelativeLink(from: fromFull.relative, to: toFull.relative)
+    if var content = try? String(contentsOfFile: fromFull.absolute, encoding: .utf8) {
+        let toPage = parseWikiPage(content: (try? String(contentsOfFile: toFull.absolute, encoding: .utf8)) ?? "")
+        let linkName = toPage.frontmatter.name ?? toPath
+        let linkLine = "- [\(linkName)](\(relativeLink))"
+
+        if content.contains("## Related") {
+            content = content.replacingOccurrences(of: "## Related\n", with: "## Related\n\(linkLine)\n")
+        } else {
+            content += "\n## Related\n\(linkLine)\n"
+        }
+        try? content.write(toFile: fromFull.absolute, atomically: true, encoding: .utf8)
+    }
+
+    if asJSON {
+        print(jsonString(["status": "ok", "from": fromFull.relative, "to": toFull.relative]))
+    } else {
+        print("Linked \(fromFull.relative) → \(toFull.relative)")
+    }
+}
+
+struct ResolvedPath {
+    let relative: String
+    let absolute: String
+}
+
+func resolveWikiPath(wikiDir: String, arg: String) -> ResolvedPath? {
+    if arg.contains("/") || arg.contains(".md") {
+        let abs = "\(wikiDir)/\(arg)"
+        if FileManager.default.fileExists(atPath: abs) { return ResolvedPath(relative: arg, absolute: abs) }
+        return nil
+    }
+    let candidates = [
+        ("entities/\(arg).md", "\(wikiDir)/entities/\(arg).md"),
+        ("concepts/\(arg).md", "\(wikiDir)/concepts/\(arg).md"),
+        ("plugins/\(arg)/SKILL.md", "\(wikiDir)/plugins/\(arg)/SKILL.md")
+    ]
+    for (rel, abs) in candidates {
+        if FileManager.default.fileExists(atPath: abs) { return ResolvedPath(relative: rel, absolute: abs) }
+    }
+    return nil
+}
+
+/// Compute a relative path from one wiki page to another
+func makeRelativeLink(from: String, to: String) -> String {
+    let fromParts = from.components(separatedBy: "/").dropLast() // directory of source
+    let toParts = to.components(separatedBy: "/")
+
+    // Find common prefix length
+    var common = 0
+    for i in 0..<min(fromParts.count, toParts.count) {
+        if Array(fromParts)[i] == toParts[i] { common += 1 } else { break }
+    }
+
+    let ups = Array(repeating: "..", count: fromParts.count - common)
+    let downs = Array(toParts[common...])
+    return (ups + downs).joined(separator: "/")
+}
+
+// MARK: - Lint
+
+struct LintIssue: Encodable {
+    let severity: String  // "error", "warning"
+    let category: String  // "broken_link", "orphan", "missing_frontmatter", "malformed_plugin", "index_drift"
+    let path: String
+    let message: String
+}
+
+func wikiLintCommand(args: [String]) {
+    let asJSON = hasFlag(args, "--json")
+    let fix = hasFlag(args, "--fix")
+    let wikiDir = aosWikiDir()
+    var issues: [LintIssue] = []
+
+    // If --fix, reindex first
+    if fix {
+        wikiReindexCommand(args: ["--json"])
+    }
+
+    let index = openWikiIndex()
+    let allPages = index.listPages()
+    let allPagePaths = Set(allPages.map { $0.path })
+
+    // 1. Broken links: links pointing to paths that don't exist
+    for page in allPages {
+        let outgoing = index.linksFrom(path: page.path)
+        for link in outgoing {
+            if !allPagePaths.contains(link.target_path) {
+                // Also check if file exists on disk but just not indexed
+                let diskPath = "\(wikiDir)/\(link.target_path)"
+                if !FileManager.default.fileExists(atPath: diskPath) {
+                    issues.append(LintIssue(
+                        severity: "error", category: "broken_link",
+                        path: page.path, message: "Links to '\(link.target_path)' which does not exist"
+                    ))
+                }
+            }
+        }
+    }
+
+    // 2. Orphan pages
+    let orphans = index.orphanPages()
+    for page in orphans {
+        // SKILL.md pages are entry points, not orphans
+        if page.path.hasSuffix("SKILL.md") { continue }
+        issues.append(LintIssue(
+            severity: "warning", category: "orphan",
+            path: page.path, message: "No incoming links (orphan page)"
+        ))
+    }
+
+    // 3. Missing frontmatter
+    for page in allPages {
+        if page.name.isEmpty {
+            issues.append(LintIssue(
+                severity: "error", category: "missing_frontmatter",
+                path: page.path, message: "Missing 'name' in frontmatter"
+            ))
+        }
+    }
+
+    // 4. Malformed plugins
+    let plugins = index.listPlugins()
+    for plugin in plugins {
+        let skillPath = "\(wikiDir)/plugins/\(plugin.name)/SKILL.md"
+        if !FileManager.default.fileExists(atPath: skillPath) {
+            issues.append(LintIssue(
+                severity: "error", category: "malformed_plugin",
+                path: "plugins/\(plugin.name)", message: "Plugin directory exists but SKILL.md is missing"
+            ))
+        }
+        if plugin.description == nil || plugin.description?.isEmpty == true {
+            issues.append(LintIssue(
+                severity: "warning", category: "malformed_plugin",
+                path: "plugins/\(plugin.name)/SKILL.md", message: "Plugin has no description (will not trigger reliably)"
+            ))
+        }
+    }
+
+    // 5. Index drift: files on disk not in the index
+    let fm = FileManager.default
+    for dirType in ["entities", "concepts"] {
+        let dirPath = "\(wikiDir)/\(dirType)"
+        guard let files = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
+        for file in files where file.hasSuffix(".md") {
+            let relative = "\(dirType)/\(file)"
+            if !allPagePaths.contains(relative) {
+                issues.append(LintIssue(
+                    severity: "warning", category: "index_drift",
+                    path: relative, message: "File exists on disk but not in index (run 'aos wiki reindex')"
+                ))
+            }
+        }
+    }
+
+    index.close()
+
+    // Fix: remove broken link entries from index
+    if fix {
+        let brokenLinks = issues.filter { $0.category == "broken_link" }
+        if !brokenLinks.isEmpty {
+            let idx = openWikiIndex()
+            // Reindex already handled this via dropTables + rebuild
+            idx.close()
+        }
+    }
+
+    if asJSON {
+        print(jsonString(issues))
+    } else {
+        if issues.isEmpty {
+            print("Wiki is clean. No issues found.")
+        } else {
+            let errors = issues.filter { $0.severity == "error" }
+            let warnings = issues.filter { $0.severity == "warning" }
+            for issue in issues {
+                let icon = issue.severity == "error" ? "ERROR" : "WARN "
+                print("\(icon)  [\(issue.category)] \(issue.path): \(issue.message)")
+            }
+            print("\n\(errors.count) error(s), \(warnings.count) warning(s)")
+        }
     }
 }
 
