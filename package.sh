@@ -10,6 +10,7 @@ BUILD_VERSION="$(date +%Y.%m.%d.%H%M%S)"
 INSTALL_DIR="$HOME/Applications"
 APP_PATH="$INSTALL_DIR/$APP_NAME.app"
 STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
 STAGED_APP="$STAGE_DIR/$APP_NAME.app"
 
 echo "=== AOS Packaging ==="
@@ -38,7 +39,7 @@ cp apps/sigil/build/avatar-sub "$STAGED_APP/Contents/MacOS/avatar-sub"
 # ── 3. Copy web assets ─────────────────────────────────────────────
 # apps/sigil — HTML surfaces (renderer, studio, chat) + config JSON
 # Exclude: Swift source, shell scripts, build dir, CLAUDE.md, sigilctl, DS_Store
-rsync -a \
+rsync -am \
     --include='*/' \
     --include='*.html' --include='*.js' --include='*.mjs' \
     --include='*.css' --include='*.json' --include='*.glsl' \
@@ -48,7 +49,7 @@ rsync -a \
     apps/sigil/ "$STAGED_APP/Contents/Resources/agent-os/apps/sigil/"
 
 # packages/toolkit — reusable HTML components
-rsync -a \
+rsync -am \
     --include='*/' \
     --include='*.html' --include='*.js' --include='*.mjs' \
     --include='*.css' --include='*.json' \
@@ -89,7 +90,9 @@ PLIST
 
 # ── 5. Codesign (ad-hoc) ──────────────────────────────────────────
 echo "Signing..."
-codesign -s - -f --deep "$STAGED_APP"
+codesign -s - -f "$STAGED_APP/Contents/MacOS/avatar-sub"
+codesign -s - -f "$STAGED_APP/Contents/MacOS/aos"
+codesign -s - -f "$STAGED_APP"
 
 # ── 6. Install ─────────────────────────────────────────────────────
 echo ""
@@ -99,13 +102,12 @@ mkdir -p "$INSTALL_DIR"
 # Stop installed-mode daemon if running
 if "$APP_PATH/Contents/MacOS/aos" service status --json 2>/dev/null | grep -q '"running"'; then
     echo "Stopping installed-mode daemon..."
-    "$APP_PATH/Contents/MacOS/aos" service stop 2>/dev/null || true
+    "$APP_PATH/Contents/MacOS/aos" service stop 2>/dev/null || echo "Warning: could not stop daemon"
 fi
 
 # Replace existing bundle
 rm -rf "$APP_PATH"
 mv "$STAGED_APP" "$APP_PATH"
-rm -rf "$STAGE_DIR"
 
 echo ""
 echo "=== Done ==="
