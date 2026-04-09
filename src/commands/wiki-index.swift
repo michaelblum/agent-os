@@ -3,8 +3,11 @@
 import Foundation
 import SQLite3
 
+private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
 // MARK: - Database Lifecycle
 
+/// SQLite wrapper for the wiki knowledge base. Not thread-safe; use one instance per caller.
 class WikiIndex {
     private var db: OpaquePointer?
     let dbPath: String
@@ -49,6 +52,8 @@ class WikiIndex {
                 UNIQUE(source_path, target_path)
             )
         """)
+        exec("CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_path)")
+        exec("CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_path)")
         exec("""
             CREATE TABLE IF NOT EXISTS plugins (
                 name        TEXT PRIMARY KEY,
@@ -82,29 +87,29 @@ class WikiIndex {
                 tags=excluded.tags, plugin=excluded.plugin, modified_at=excluded.modified_at
         """
         execBind(sql) { stmt in
-            sqlite3_bind_text(stmt, 1, path, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-            sqlite3_bind_text(stmt, 2, type, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-            sqlite3_bind_text(stmt, 3, name, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, type, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, name, -1, SQLITE_TRANSIENT)
             if let d = description {
-                sqlite3_bind_text(stmt, 4, d, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                sqlite3_bind_text(stmt, 4, d, -1, SQLITE_TRANSIENT)
             } else { sqlite3_bind_null(stmt, 4) }
             if let t = tagsJSON {
-                sqlite3_bind_text(stmt, 5, t, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                sqlite3_bind_text(stmt, 5, t, -1, SQLITE_TRANSIENT)
             } else { sqlite3_bind_null(stmt, 5) }
             if let p = plugin {
-                sqlite3_bind_text(stmt, 6, p, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+                sqlite3_bind_text(stmt, 6, p, -1, SQLITE_TRANSIENT)
             } else { sqlite3_bind_null(stmt, 6) }
-            sqlite3_bind_int(stmt, 7, Int32(modifiedAt))
+            sqlite3_bind_int64(stmt, 7, Int64(modifiedAt))
         }
     }
 
     func deletePage(path: String) {
         execBind("DELETE FROM pages WHERE path = ?") { stmt in
-            sqlite3_bind_text(stmt, 1, path, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
         }
         execBind("DELETE FROM links WHERE source_path = ? OR target_path = ?") { stmt in
-            sqlite3_bind_text(stmt, 1, path, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-            sqlite3_bind_text(stmt, 2, path, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, path, -1, SQLITE_TRANSIENT)
         }
     }
 
@@ -112,14 +117,14 @@ class WikiIndex {
 
     func upsertLink(source: String, target: String) {
         execBind("INSERT OR IGNORE INTO links (source_path, target_path) VALUES (?, ?)") { stmt in
-            sqlite3_bind_text(stmt, 1, source, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-            sqlite3_bind_text(stmt, 2, target, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(stmt, 1, source, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 2, target, -1, SQLITE_TRANSIENT)
         }
     }
 
     func deleteLinksFrom(source: String) {
         execBind("DELETE FROM links WHERE source_path = ?") { stmt in
-            sqlite3_bind_text(stmt, 1, source, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(stmt, 1, source, -1, SQLITE_TRANSIENT)
         }
     }
 
@@ -139,13 +144,13 @@ class WikiIndex {
                 triggers=excluded.triggers, requires=excluded.requires, modified_at=excluded.modified_at
         """
         execBind(sql) { stmt in
-            sqlite3_bind_text(stmt, 1, name, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
-            if let v = version { sqlite3_bind_text(stmt, 2, v, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) } else { sqlite3_bind_null(stmt, 2) }
-            if let a = author { sqlite3_bind_text(stmt, 3, a, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) } else { sqlite3_bind_null(stmt, 3) }
-            if let d = description { sqlite3_bind_text(stmt, 4, d, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) } else { sqlite3_bind_null(stmt, 4) }
-            if let t = triggersJSON { sqlite3_bind_text(stmt, 5, t, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) } else { sqlite3_bind_null(stmt, 5) }
-            if let r = requiresJSON { sqlite3_bind_text(stmt, 6, r, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) } else { sqlite3_bind_null(stmt, 6) }
-            sqlite3_bind_int(stmt, 7, Int32(modifiedAt))
+            sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT)
+            if let v = version { sqlite3_bind_text(stmt, 2, v, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 2) }
+            if let a = author { sqlite3_bind_text(stmt, 3, a, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 3) }
+            if let d = description { sqlite3_bind_text(stmt, 4, d, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 4) }
+            if let t = triggersJSON { sqlite3_bind_text(stmt, 5, t, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 5) }
+            if let r = requiresJSON { sqlite3_bind_text(stmt, 6, r, -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(stmt, 6) }
+            sqlite3_bind_int64(stmt, 7, Int64(modifiedAt))
         }
     }
 
@@ -179,11 +184,21 @@ class WikiIndex {
     func listPages(type: String? = nil, plugin: String? = nil) -> [PageRow] {
         var sql = "SELECT path, type, name, description, tags, plugin, modified_at FROM pages"
         var conditions: [String] = []
-        if let t = type { conditions.append("type = '\(t)'") }
-        if let p = plugin { conditions.append("plugin = '\(p)'") }
+        if type != nil { conditions.append("type = ?") }
+        if plugin != nil { conditions.append("plugin = ?") }
         if !conditions.isEmpty { sql += " WHERE " + conditions.joined(separator: " AND ") }
         sql += " ORDER BY name"
-        return query(sql) { stmt in
+        return queryBind(sql, bind: { stmt in
+            var idx: Int32 = 1
+            if let t = type {
+                sqlite3_bind_text(stmt, idx, t, -1, SQLITE_TRANSIENT)
+                idx += 1
+            }
+            if let p = plugin {
+                sqlite3_bind_text(stmt, idx, p, -1, SQLITE_TRANSIENT)
+                idx += 1
+            }
+        }, map: { stmt in
             PageRow(
                 path: col(stmt, 0),
                 type: col(stmt, 1),
@@ -191,21 +206,33 @@ class WikiIndex {
                 description: colOpt(stmt, 3),
                 tags: decodeJSONArray(colOpt(stmt, 4)),
                 plugin: colOpt(stmt, 5),
-                modified_at: Int(sqlite3_column_int(stmt, 6))
+                modified_at: Int(sqlite3_column_int64(stmt, 6))
             )
-        }
+        })
     }
 
     func linksTo(path: String) -> [LinkRow] {
-        query("SELECT source_path, target_path FROM links WHERE target_path = '\(path)'") { stmt in
-            LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
-        }
+        queryBind(
+            "SELECT source_path, target_path FROM links WHERE target_path = ? ORDER BY source_path",
+            bind: { stmt in
+                sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
+            },
+            map: { stmt in
+                LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
+            }
+        )
     }
 
     func linksFrom(path: String) -> [LinkRow] {
-        query("SELECT source_path, target_path FROM links WHERE source_path = '\(path)'") { stmt in
-            LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
-        }
+        queryBind(
+            "SELECT source_path, target_path FROM links WHERE source_path = ? ORDER BY target_path",
+            bind: { stmt in
+                sqlite3_bind_text(stmt, 1, path, -1, SQLITE_TRANSIENT)
+            },
+            map: { stmt in
+                LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
+            }
+        )
     }
 
     func orphanPages() -> [PageRow] {
@@ -219,7 +246,7 @@ class WikiIndex {
             PageRow(
                 path: col(stmt, 0), type: col(stmt, 1), name: col(stmt, 2),
                 description: colOpt(stmt, 3), tags: decodeJSONArray(colOpt(stmt, 4)),
-                plugin: colOpt(stmt, 5), modified_at: Int(sqlite3_column_int(stmt, 6))
+                plugin: colOpt(stmt, 5), modified_at: Int(sqlite3_column_int64(stmt, 6))
             )
         }
     }
@@ -229,17 +256,29 @@ class WikiIndex {
         let pattern = "%\(q)%"
         var sql = """
             SELECT path, type, name, description, tags, plugin, modified_at FROM pages
-            WHERE (name LIKE '\(pattern)' OR description LIKE '\(pattern)')
-        """
-        if let t = type { sql += " AND type = '\(t)'" }
-        sql += " ORDER BY CASE WHEN name LIKE '\(pattern)' THEN 0 ELSE 1 END, name"
-        return query(sql) { stmt in
+            WHERE (name LIKE ? OR description LIKE ?)
+            """
+        if type != nil { sql += " AND type = ?" }
+        sql += " ORDER BY CASE WHEN name LIKE ? THEN 0 ELSE 1 END, name"
+        return queryBind(sql, bind: { stmt in
+            var idx: Int32 = 1
+            sqlite3_bind_text(stmt, idx, pattern, -1, SQLITE_TRANSIENT)
+            idx += 1
+            sqlite3_bind_text(stmt, idx, pattern, -1, SQLITE_TRANSIENT)
+            idx += 1
+            if let t = type {
+                sqlite3_bind_text(stmt, idx, t, -1, SQLITE_TRANSIENT)
+                idx += 1
+            }
+            sqlite3_bind_text(stmt, idx, pattern, -1, SQLITE_TRANSIENT)
+            idx += 1
+        }, map: { stmt in
             PageRow(
                 path: col(stmt, 0), type: col(stmt, 1), name: col(stmt, 2),
                 description: colOpt(stmt, 3), tags: decodeJSONArray(colOpt(stmt, 4)),
-                plugin: colOpt(stmt, 5), modified_at: Int(sqlite3_column_int(stmt, 6))
+                plugin: colOpt(stmt, 5), modified_at: Int(sqlite3_column_int64(stmt, 6))
             )
-        }
+        })
     }
 
     func listPlugins() -> [PluginRow] {
@@ -247,23 +286,23 @@ class WikiIndex {
             PluginRow(
                 name: col(stmt, 0), version: colOpt(stmt, 1), author: colOpt(stmt, 2),
                 description: colOpt(stmt, 3), triggers: decodeJSONArray(colOpt(stmt, 4)),
-                requires: decodeJSONArray(colOpt(stmt, 5)), modified_at: Int(sqlite3_column_int(stmt, 6))
+                requires: decodeJSONArray(colOpt(stmt, 5)), modified_at: Int(sqlite3_column_int64(stmt, 6))
             )
         }
     }
 
     func pageCount() -> Int {
-        let rows: [Int] = query("SELECT COUNT(*) FROM pages") { stmt in Int(sqlite3_column_int(stmt, 0)) }
+        let rows: [Int] = query("SELECT COUNT(*) FROM pages") { stmt in Int(sqlite3_column_int64(stmt, 0)) }
         return rows.first ?? 0
     }
 
     func linkCount() -> Int {
-        let rows: [Int] = query("SELECT COUNT(*) FROM links") { stmt in Int(sqlite3_column_int(stmt, 0)) }
+        let rows: [Int] = query("SELECT COUNT(*) FROM links") { stmt in Int(sqlite3_column_int64(stmt, 0)) }
         return rows.first ?? 0
     }
 
     func pluginCount() -> Int {
-        let rows: [Int] = query("SELECT COUNT(*) FROM plugins") { stmt in Int(sqlite3_column_int(stmt, 0)) }
+        let rows: [Int] = query("SELECT COUNT(*) FROM plugins") { stmt in Int(sqlite3_column_int64(stmt, 0)) }
         return rows.first ?? 0
     }
 
@@ -287,7 +326,6 @@ class WikiIndex {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             exitError("SQLite prepare error: \(dbError())\nSQL: \(sql)", code: "WIKI_DB_ERROR")
-            return
         }
         bind(stmt!)
         let result = sqlite3_step(stmt)
@@ -303,11 +341,38 @@ class WikiIndex {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             exitError("SQLite query error: \(dbError())\nSQL: \(sql)", code: "WIKI_DB_ERROR")
-            return []
         }
         var results: [T] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
+        var stepResult = sqlite3_step(stmt)
+        while stepResult == SQLITE_ROW {
             results.append(map(stmt!))
+            stepResult = sqlite3_step(stmt)
+        }
+        if stepResult != SQLITE_DONE {
+            let msg = dbError()
+            sqlite3_finalize(stmt)
+            exitError("SQLite step error: \(msg)\nSQL: \(sql)", code: "WIKI_DB_ERROR")
+        }
+        sqlite3_finalize(stmt)
+        return results
+    }
+
+    private func queryBind<T>(_ sql: String, bind: (OpaquePointer) -> Void, map: (OpaquePointer) -> T) -> [T] {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            exitError("SQLite query error: \(dbError())\nSQL: \(sql)", code: "WIKI_DB_ERROR")
+        }
+        bind(stmt!)
+        var results: [T] = []
+        var stepResult = sqlite3_step(stmt)
+        while stepResult == SQLITE_ROW {
+            results.append(map(stmt!))
+            stepResult = sqlite3_step(stmt)
+        }
+        if stepResult != SQLITE_DONE {
+            let msg = dbError()
+            sqlite3_finalize(stmt)
+            exitError("SQLite step error: \(msg)\nSQL: \(sql)", code: "WIKI_DB_ERROR")
         }
         sqlite3_finalize(stmt)
         return results
