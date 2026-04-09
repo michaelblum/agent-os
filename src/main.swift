@@ -72,6 +72,8 @@ struct AOS {
             inspectCommand(args: Array(args.dropFirst()))
         case "log":
             logCommand(args: Array(args.dropFirst()))
+        case "wiki":
+            wikiCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             printUsage()
         default:
@@ -103,6 +105,7 @@ func printUsage() {
       permissions          Permission preflight and one-time onboarding
       inspect              Live AX element inspector overlay
       log                  Display log console panel
+      wiki <subcommand>  Knowledge base — browse, search, invoke workflow plugins
 
     Perception (aos see):
       cursor               What's under the cursor (display, window, AX element)

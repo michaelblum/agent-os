@@ -7,7 +7,7 @@ echo "Compiling aos..."
 SOURCES=$(find src -name '*.swift' -type f)
 SHARED_IPC=$(find shared/swift/ipc -name '*.swift' -type f 2>/dev/null)
 
-swiftc -parse-as-library -O -o aos $SOURCES $SHARED_IPC
+swiftc -parse-as-library -O -o aos -lsqlite3 $SOURCES $SHARED_IPC
 
 echo "Done: ./aos ($(du -h aos | cut -f1 | xargs))"
 
