@@ -117,8 +117,8 @@ function updateFOV(val) {
 function getConfig() {
     return {
         base: state.avatarBase,
-        min: state.avatarMin || 40,
-        max: state.avatarMax || 400,
+        min: state.avatarMin != null ? state.avatarMin : 40,
+        max: state.avatarMax != null ? state.avatarMax : 400,
         shape: state.currentGeometryType,
         colors: state.colors,
         stellation: state.stellationFactor,
