@@ -9,11 +9,15 @@ AOS="$ROOT/aos"
 
 echo "--- agent-os session context ---"
 
-# 1. Task queue (first 25 lines — Active + Queued sections)
-if [ -f "$ROOT/memory/task-queue.md" ]; then
-  echo ""
-  echo "## Task Queue"
-  head -25 "$ROOT/memory/task-queue.md"
+# 1. Open GitHub Issues (replaced task-queue.md as of 2026-04-11)
+if command -v gh &>/dev/null; then
+  ISSUES=$(gh issue list --repo michaelblum/agent-os --limit 10 --json number,title,labels --template '{{range .}}- #{{.number}} {{.title}}{{range .labels}} [{{.name}}]{{end}}
+{{end}}' 2>/dev/null)
+  if [ -n "$ISSUES" ]; then
+    echo ""
+    echo "## Open Issues"
+    echo "$ISSUES"
+  fi
 fi
 
 # 2. AOS daemon health (one-line summary)
