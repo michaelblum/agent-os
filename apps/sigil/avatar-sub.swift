@@ -1006,8 +1006,20 @@ func createAvatarCanvases() {
     // Wait for WKWebViews to initialize
     Thread.sleep(forTimeInterval: 0.5)
 
-    // Send config to all canvases
+    // Load and apply avatar config
     if let config = loadAvatarConfig() {
+        // Apply size properties (logical pixels / points)
+        if let base = config["base"] as? Double {
+            avatarBase = max(20, min(800, base))
+        }
+        if let minSize = config["min"] as? Double {
+            avatarMin = max(20, min(avatarBase - 1, minSize))
+        }
+        if let maxSize = config["max"] as? Double {
+            avatarMax = max(avatarBase + 1, min(800, maxSize))
+        }
+
+        // Send config to all canvases (renderer handles appearance + size)
         for display in displays {
             sendToCanvas(display.id, ["type": "config", "data": config])
         }
