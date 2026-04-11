@@ -1,5 +1,6 @@
 // packages/host/src/provider/anthropic.ts
 import { streamText, jsonSchema } from 'ai';
+import type { CoreMessage } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import type {
   ProviderAdapter, ProviderMessage, ProviderConfig,
@@ -20,7 +21,7 @@ export class AnthropicAdapter implements ProviderAdapter {
 
     // Convert our message format to Vercel AI SDK format
     const aiMessages = messages.map(msg => ({
-      role: msg.role as 'user' | 'assistant',
+      role: msg.role,
       content: msg.content.map(block => {
         if (block.type === 'text') return { type: 'text' as const, text: block.text };
         if (block.type === 'tool_use') return {
@@ -51,7 +52,7 @@ export class AnthropicAdapter implements ProviderAdapter {
 
     const result = streamText({
       model: this.provider(config.model),
-      messages: aiMessages,
+      messages: aiMessages as CoreMessage[],
       tools: Object.keys(aiTools).length > 0 ? aiTools : undefined,
       system,
       maxTokens: config.maxTokens,

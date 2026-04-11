@@ -24,7 +24,7 @@ const executor: ToolExecutor = async (input, _context) => {
       name: entry.name,
       type: entry.isDirectory() ? 'directory' : 'file',
     }));
-    return { content: result };
+    return { content: { items: result } };
   } catch (err: any) {
     return { content: err.message, isError: true };
   }
