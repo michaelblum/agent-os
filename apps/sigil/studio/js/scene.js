@@ -52,6 +52,16 @@ export function initScene() {
     state.smoothCurve = new THREE.CatmullRomCurve3(state.pathPoints, true);
 
     window.addEventListener('resize', onWindowResize);
+    state.baseScale = computeBaseScale(state.avatarBase);
+}
+
+// --- Base scale: maps avatarBase (logical pixels) to scene units ---
+const REF_BASE = 300;
+const REF_SCALE = 1.1;
+const REF_HEIGHT = 1080;
+
+export function computeBaseScale(base) {
+    return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
 }
 
 export function onWindowResize() {
@@ -64,4 +74,5 @@ export function onWindowResize() {
     state.orthoCamera.bottom = -state.frustumSize / 2;
     state.orthoCamera.updateProjectionMatrix();
     state.renderer.setSize(window.innerWidth, window.innerHeight);
+    state.baseScale = computeBaseScale(state.avatarBase);
 }

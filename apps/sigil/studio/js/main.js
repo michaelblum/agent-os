@@ -118,7 +118,7 @@ function animate() {
     }
 
     // Apply unified scale
-    state.polyGroup.scale.setScalar(state.z_depth * state.novaScale);
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.novaScale);
 
     state.renderer.render(state.scene, state.camera);
     if (state.stats) state.stats.update();
