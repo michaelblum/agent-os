@@ -43,6 +43,7 @@ export class AgentLoop {
       iterations++;
 
       if (signal?.aborted) {
+        // Persist any partial text accumulated from prior iterations
         yield { type: 'finish', reason: 'stop' };
         return;
       }
@@ -86,6 +87,11 @@ export class AgentLoop {
           }
         }
       } catch (err: any) {
+        // Persist any partial text before reporting error/stop
+        if (textParts.length > 0) {
+          this.store.appendMessage(sessionId, 'assistant',
+            [{ type: 'text', text: textParts.join('') }]);
+        }
         if (signal?.aborted) {
           yield { type: 'finish', reason: 'stop' };
           return;
