@@ -5,9 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/index.js",
+    "check": "tsc --noEmit",
+    "start": "node --experimental-strip-types src/index.ts",
     "test": "node --test --experimental-strip-types 'test/**/*.test.ts'"
   },
   "dependencies": {

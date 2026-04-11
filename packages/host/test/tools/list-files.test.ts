@@ -29,7 +29,7 @@ describe('list_files tool', () => {
 
   it('lists directory contents', async () => {
     const result = await listFilesTool.executor({ path: tmpDir }, ctx);
-    const entries = result.content as Array<{ name: string; type: string }>;
+    const { items: entries } = result.content as { items: Array<{ name: string; type: string }> };
     assert.equal(entries.length, 3);
     const names = entries.map(e => e.name).sort();
     assert.deepEqual(names, ['a.txt', 'b.ts', 'subdir']);
@@ -37,7 +37,7 @@ describe('list_files tool', () => {
 
   it('marks directories vs files', async () => {
     const result = await listFilesTool.executor({ path: tmpDir }, ctx);
-    const entries = result.content as Array<{ name: string; type: string }>;
+    const { items: entries } = result.content as { items: Array<{ name: string; type: string }> };
     const subdir = entries.find(e => e.name === 'subdir');
     assert.equal(subdir?.type, 'directory');
     const file = entries.find(e => e.name === 'a.txt');
