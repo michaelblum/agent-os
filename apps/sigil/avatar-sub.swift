@@ -339,9 +339,120 @@ func handleChatCanvasEvent(payload: [String: Any]) {
             break
         }
 
+    case "user_message":
+        if let payload = payload["payload"] as? [String: Any],
+           let text = payload["text"] as? String {
+            hostBridgeSend(["type": "user_message", "payload": ["text": text]])
+        }
+
+    case "stop":
+        hostBridgeSend(["type": "stop"])
+
+    case "response":
+        if let payload = payload["payload"] as? [String: Any] {
+            hostBridgeSend(["type": "response", "payload": payload])
+        }
+
     default:
         break
     }
+}
+
+// ============================================================================
+// MARK: - Host Bridge (Node.js agent host subprocess)
+// ============================================================================
+
+/// Long-running Node.js bridge process connecting chat canvas ↔ agent host.
+/// Spawned lazily on first user_message. Reads canvas events from stdin (JSON
+/// lines), writes canvas update messages to stdout (JSON lines) which we eval
+/// into the chat canvas.
+
+private var hostBridgeProcess: Process?
+private var hostBridgeStdin: FileHandle?
+private let hostBridgeLock = NSLock()
+
+func hostBridgeSend(_ msg: [String: Any]) {
+    hostBridgeLock.lock()
+    defer { hostBridgeLock.unlock() }
+
+    // Lazy-start bridge on first message
+    if hostBridgeProcess == nil || !(hostBridgeProcess?.isRunning ?? false) {
+        startHostBridge()
+    }
+
+    guard let stdin = hostBridgeStdin,
+          let data = try? JSONSerialization.data(withJSONObject: msg),
+          let line = String(data: data, encoding: .utf8) else { return }
+    stdin.write(Data((line + "\n").utf8))
+}
+
+private func startHostBridge() {
+    let mode = ProcessInfo.processInfo.environment["AOS_MODE"] ?? "repo"
+    let bridgePath = sigilRepoPath("packages/host/src/sigil-bridge.ts")
+
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    proc.arguments = ["node", "--experimental-strip-types", bridgePath]
+    proc.environment = ProcessInfo.processInfo.environment
+    proc.environment?["AOS_MODE"] = mode
+
+    let stdinPipe = Pipe()
+    let stdoutPipe = Pipe()
+    proc.standardInput = stdinPipe
+    proc.standardOutput = stdoutPipe
+    proc.standardError = FileHandle.nullDevice
+
+    do {
+        try proc.run()
+    } catch {
+        fputs("HOST-BRIDGE: failed to start: \(error)\n", stderr)
+        return
+    }
+
+    hostBridgeProcess = proc
+    hostBridgeStdin = stdinPipe.fileHandleForWriting
+
+    fputs("HOST-BRIDGE: started pid=\(proc.processIdentifier)\n", stderr)
+
+    // Read stdout in background — each line is a canvas message
+    DispatchQueue.global(qos: .userInitiated).async {
+        let handle = stdoutPipe.fileHandleForReading
+        var buffer = Data()
+
+        while proc.isRunning {
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                usleep(10_000) // 10ms
+                continue
+            }
+            buffer.append(chunk)
+
+            // Split on newlines
+            while let range = buffer.range(of: Data("\n".utf8)) {
+                let lineData = buffer[buffer.startIndex..<range.lowerBound]
+                buffer.removeSubrange(buffer.startIndex...range.lowerBound)
+
+                guard let lineStr = String(data: lineData, encoding: .utf8),
+                      !lineStr.isEmpty,
+                      let json = try? JSONSerialization.jsonObject(with: Data(lineStr.utf8)) as? [String: Any] else {
+                    continue
+                }
+
+                // Eval into chat canvas via daemon
+                evalChatCanvas(json)
+            }
+        }
+        fputs("HOST-BRIDGE: process exited\n", stderr)
+    }
+}
+
+/// Send a message to the chat canvas by eval'ing headsup.receive(base64)
+private func evalChatCanvas(_ msg: [String: Any]) {
+    guard let jsonData = try? JSONSerialization.data(withJSONObject: msg),
+          let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
+    let b64 = Data(jsonStr.utf8).base64EncodedString()
+    let js = "headsup.receive('\(b64)')"
+    daemonOneShot(["action": "eval", "id": chatID, "js": js])
 }
 
 // ============================================================================
