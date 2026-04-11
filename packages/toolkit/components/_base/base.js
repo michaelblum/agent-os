@@ -3,8 +3,7 @@
 // Provides shared plumbing for toolkit components:
 //   - Bridge wiring (headsup.receive → onMessage)
 //   - Panel chrome (header bar with title, drag handle)
-//   - Drag support (mousedown on header → move canvas via eval)
-//   - Minimize toggle
+//   - Drag support (mousedown on header → postToHost move_delta)
 //
 // Usage:
 //   import { AosComponent } from '../_base/base.js';
@@ -23,7 +22,6 @@ export class AosComponent {
   constructor({ title = 'AOS', id = 'aos-component' } = {}) {
     this.title = title;
     this.id = id;
-    this._minimized = false;
   }
 
   // Override in subclass — called for each headsup message
