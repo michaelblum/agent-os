@@ -9,10 +9,12 @@ import Foundation
 var curX: Double = 0, curY: Double = 0, curSize: Double = 300
 var moveID: UInt64 = 0
 
-// -- Size constants --
-let fullSize: Double   = 300
-let surgeSize: Double  = 400
-let dockedSize: Double = 40
+// -- Avatar size (logical pixels / points) --
+// Loaded from avatar-config.json at startup. Sigil maps these to behavioral
+// semantics: avatarBase = roaming size, avatarMin = docked pip, avatarMax = surge.
+var avatarBase: Double = 300
+var avatarMax: Double  = 400
+var avatarMin: Double  = 40
 let animFPS: Double    = 60.0
 
 // -- Generic frame pump --

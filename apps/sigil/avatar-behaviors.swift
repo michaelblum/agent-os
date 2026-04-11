@@ -30,13 +30,14 @@ func queryChat() {
     }
 }
 
-// -- Query/sync avatar position from canvas list --
+// -- Query whether avatar canvas exists (does NOT sync position) --
+// The avatar's logical position (curX/curY/curSize) is managed by the
+// animation system. The canvas "at" field is the full-screen window frame,
+// not the avatar's scene position within it.
 @discardableResult
 func queryAvatar() -> Bool {
     let list = getCanvasList()
-    if let pos = parseCanvasPosition(list, avatarID) {
-        curX = pos.0; curY = pos.1; curSize = pos.2
-        FileHandle.standardError.write("Avatar synced: (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n".data(using: .utf8)!)
+    if let _ = parseCanvasPosition(list, avatarID) {
         return true
     }
     return false
@@ -101,8 +102,8 @@ func behaviorFollowClick(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
     isAnimating = true
     defer { isAnimating = false }
 
-    let tx = clickX - fullSize / 2
-    let ty = clickY - fullSize / 2
+    let tx = clickX - avatarBase / 2
+    let ty = clickY - avatarBase / 2
 
     // Deferred z-swap: stay on top until we clear the chat footprint
     var hasSwitchedZ = false
@@ -127,7 +128,7 @@ func behaviorFollowClick(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
         let e = easeInOutCubic(t)
         curX = sx + (tx - sx) * e
         curY = sy + (ty - sy) * e
-        curSize = ss + (fullSize - ss) * e
+        curSize = ss + (avatarBase - ss) * e
         checkDisplayHandoff()
         sendAvatarUpdate(session)
 
@@ -213,7 +214,7 @@ func behaviorRelease(from: String) {
     sendOneShot("{\"action\":\"remove\",\"id\":\"highlight-trace\"}")
 
     // Restore avatar size
-    scaleTo(size: fullSize, duration: 0.3, easing: easeOutBack)
+    scaleTo(size: avatarBase, duration: 0.3, easing: easeOutBack)
     sendBehavior("idle")
 }
 
@@ -230,10 +231,10 @@ func behaviorDock(_ mid: UInt64) {
     queryChat()
 
     let (dotRelX, dotRelY) = queryDotPosition()
-    let dotX = chatX + dotRelX - dockedSize / 2
-    let dotY = chatY + dotRelY - dockedSize / 2
-    let titlebarCenterX = chatX + chatW / 2 - fullSize / 2
-    let titlebarCenterY = chatY - fullSize * 0.15
+    let dotX = chatX + dotRelX - avatarMin / 2
+    let dotY = chatY + dotRelY - avatarMin / 2
+    let titlebarCenterX = chatX + chatW / 2 - avatarBase / 2
+    let titlebarCenterY = chatY - avatarBase * 0.15
 
     let sx = curX, sy = curY, ss = curSize
 
@@ -250,7 +251,7 @@ func behaviorDock(_ mid: UInt64) {
         guard moveID == mid else { session.disconnect(); avatarState = .roaming; isAnimating = false; return }
         let t = Double(i) / Double(surgeN)
         let e = easeOutBack(t)
-        let s = ss + (surgeSize - ss) * e
+        let s = ss + (avatarMax - ss) * e
         curX = sx - (s - ss) / 2
         curY = sy - (s - ss) / 2 - 20 * e
         curSize = s
@@ -273,7 +274,7 @@ func behaviorDock(_ mid: UInt64) {
         let e = easeInOutCubic(t)
         curX = p2sx + (titlebarCenterX - p2sx) * e
         curY = p2sy + (titlebarCenterY - p2sy) * e
-        curSize = p2ss + (fullSize - p2ss) * e
+        curSize = p2ss + (avatarBase - p2ss) * e
         checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
@@ -293,7 +294,7 @@ func behaviorDock(_ mid: UInt64) {
         let e = easeInOutCubic(t)
         curX = p3sx + (dotX - p3sx) * e
         curY = p3sy + (dotY - p3sy) * e
-        curSize = p3ss + (dockedSize - p3ss) * e
+        curSize = p3ss + (avatarMin - p3ss) * e
         checkDisplayHandoff()
         sendAvatarUpdate(session)
         let want = Double(i + 1) / animFPS
@@ -327,9 +328,9 @@ func behaviorUndock(_ clickX: Double, _ clickY: Double, _ mid: UInt64) {
 
     // Position at the pip location
     let (dotRelX, dotRelY) = queryDotPosition()
-    curX = chatX + dotRelX - dockedSize / 2
-    curY = chatY + dotRelY - dockedSize / 2
-    curSize = fullSize  // scene-position model: curSize stays full for hit-testing
+    curX = chatX + dotRelX - avatarMin / 2
+    curY = chatY + dotRelY - avatarMin / 2
+    curSize = avatarBase  // scene-position model: curSize stays full for hit-testing
 
     // Show the avatar on the active display's canvas and set initial position
     sendToCanvas(activeDisplayIndex, ["type": "show"])

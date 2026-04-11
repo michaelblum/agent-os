@@ -326,8 +326,8 @@ func handleChatCanvasEvent(payload: [String: Any]) {
 
         switch avatarState {
         case .docked:
-            let targetX = max(chatX - fullSize * 0.75, 40)
-            let targetY = max(chatY - fullSize * 0.10, 40)
+            let targetX = max(chatX - avatarBase * 0.75, 40)
+            let targetY = max(chatY - avatarBase * 0.10, 40)
             DispatchQueue.global(qos: .userInteractive).async {
                 behaviorUndock(targetX, targetY, mid)
             }
@@ -485,7 +485,7 @@ func evalRadialMsg(_ msg: [String: Any]) {
 /// Expand the avatar canvas to fit the radial menu arc, returns the new canvas rect
 func expandCanvasForMenu() -> (x: Double, y: Double, w: Double, h: Double) {
     let padding: Double = 200  // extra space for menu items beyond avatar
-    let newSize = fullSize + padding * 2
+    let newSize = avatarBase + padding * 2
     let centerX = curX + curSize / 2
     let centerY = curY + curSize / 2
     let newX = centerX - newSize / 2
@@ -941,20 +941,20 @@ func startSubscriber() {
                 }
             }
 
-        // Canvas lifecycle events — resync avatar position
+        // Canvas lifecycle events — track canvas existence (not avatar position).
+        // The avatar's logical position (curX/curY/curSize) is managed by the
+        // animation system. The canvas_lifecycle "at" field is the canvas window
+        // frame (full-screen), not the avatar's scene position within it.
         case "canvas_lifecycle":
             if let canvasID = envelope.data["canvas_id"] as? String {
                 let action = envelope.data["action"] as? String ?? ""
                 if canvasID == avatarID {
-                    if action == "created" || action == "updated",
-                       let at = envelope.data["at"] as? [Double], at.count >= 3 {
-                        curX = at[0]; curY = at[1]; curSize = at[2]
+                    if action == "created" || action == "updated" {
                         syncAvatarHitTarget()
-                        fputs("avatar-sub: avatar \(action) at (\(Int(curX)), \(Int(curY)), \(Int(curSize)))\n", stderr)
+                        fputs("avatar-sub: avatar canvas \(action).\n", stderr)
                     } else if action == "removed" {
-                        curX = 0; curY = 0; curSize = 0
                         removeAvatarHitTarget()
-                        fputs("avatar-sub: avatar removed, zeroed position.\n", stderr)
+                        fputs("avatar-sub: avatar canvas removed.\n", stderr)
                     }
                 } else if canvasID == avatarHitTargetID, action == "removed" {
                     avatarHitTargetActive = false
@@ -1019,9 +1019,9 @@ func createAvatarCanvases() {
     }
     activeDisplayIndex = 0
 
-    // Set initial position to cursor location
+    // Set initial position to cursor location with default avatar size
     let (cx, cy) = getCursorCG()
-    curX = cx; curY = cy
+    curX = cx; curY = cy; curSize = avatarBase
     let session = DaemonSession()
     if session.connect() {
         sendScenePosition(session, x: curX, y: curY)
