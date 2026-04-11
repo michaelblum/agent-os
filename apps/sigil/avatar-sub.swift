@@ -884,7 +884,7 @@ func startSubscriber() {
 
     stream.onConnected = { _ in
         // Ensure avatar canvas exists (creates if missing after daemon restart).
-        // Also hydrates curX/curY/curSize for hit-testing.
+        // Also syncs the hit-target overlay.
         ensureAvatarCanvas()
         setSigilRuntimeInputMode(avatarState.runtimeInputMode)
         fputs("avatar-sub: connected to daemon.\n", stderr)
