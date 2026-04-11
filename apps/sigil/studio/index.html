@@ -640,6 +640,31 @@
                     <div style="font-size: 0.65rem; color: #aaa;" id="avatar-preset-label">Default Theme</div>
                 </div>
 
+                <h2 style="font-size:0.9rem;">Size</h2>
+                <div class="control-group">
+                    <div class="control-row">
+                        <label>Base Size</label>
+                        <div class="val-display"><span id="baseSizeVal">300</span>pt</div>
+                    </div>
+                    <input type="range" id="baseSizeSlider" min="100" max="600" step="10" value="300">
+                </div>
+                <div class="control-group" style="display:flex; gap:8px;">
+                    <div style="flex:1;">
+                        <div class="control-row">
+                            <label>Min</label>
+                            <div class="val-display"><span id="minSizeVal">40</span></div>
+                        </div>
+                        <input type="range" id="minSizeSlider" min="20" max="200" step="5" value="40">
+                    </div>
+                    <div style="flex:1;">
+                        <div class="control-row">
+                            <label>Max</label>
+                            <div class="val-display"><span id="maxSizeVal">400</span></div>
+                        </div>
+                        <input type="range" id="maxSizeSlider" min="200" max="800" step="10" value="400">
+                    </div>
+                </div>
+
                 <h2 style="font-size:0.9rem;">Saved Avatars</h2>
                 <div id="avatar-roster" class="control-group" style="display:flex; flex-direction:column; gap:6px;"></div>
 

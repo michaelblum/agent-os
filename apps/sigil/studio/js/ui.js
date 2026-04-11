@@ -1,4 +1,5 @@
 import state from '../../renderer/state.js';
+import { computeBaseScale } from './scene.js';
 import { updateGeometry, updateOmegaGeometry } from '../../renderer/geometry.js';
 import { updateAllColors } from '../../renderer/colors.js';
 import { applyPreset } from '../../renderer/presets.js';
@@ -115,6 +116,9 @@ function updateFOV(val) {
 
 function getConfig() {
     return {
+        base: state.avatarBase,
+        min: state.avatarMin || 40,
+        max: state.avatarMax || 400,
         shape: state.currentGeometryType,
         colors: state.colors,
         stellation: state.stellationFactor,
@@ -231,6 +235,30 @@ function applyConfig(c) {
             el.dispatchEvent(new Event('change'));
         }
     };
+
+    // Size
+    if (c.base != null) {
+        state.avatarBase = c.base;
+        state.baseScale = computeBaseScale(c.base);
+        const baseEl = document.getElementById('baseSizeSlider');
+        if (baseEl) { baseEl.value = c.base; }
+        const baseValEl = document.getElementById('baseSizeVal');
+        if (baseValEl) { baseValEl.innerText = Math.round(c.base); }
+    }
+    if (c.min != null) {
+        state.avatarMin = c.min;
+        const minEl = document.getElementById('minSizeSlider');
+        if (minEl) { minEl.value = c.min; }
+        const minValEl = document.getElementById('minSizeVal');
+        if (minValEl) { minValEl.innerText = Math.round(c.min); }
+    }
+    if (c.max != null) {
+        state.avatarMax = c.max;
+        const maxEl = document.getElementById('maxSizeSlider');
+        if (maxEl) { maxEl.value = c.max; }
+        const maxValEl = document.getElementById('maxSizeVal');
+        if (maxValEl) { maxValEl.innerText = Math.round(c.max); }
+    }
 
     if (c.shape !== undefined) setUI('shapeSelect', c.shape);
     if (c.stellation !== undefined) setUI('stellationSlider', c.stellation, c.stellation.toFixed(2));
@@ -674,6 +702,58 @@ export function setupUI() {
             headsup.postMessage({ type: 'set_config', key: 'feedback.visual', value: e.target.value === 'on' ? 'true' : 'false' });
         }
     });
+
+    // --- Size sliders ---
+    const CONFIG_URL = '/_state/avatar-config.json';
+
+    function persistConfig() {
+        const config = getConfig();
+        fetch(CONFIG_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config, null, 2)
+        }).catch(err => console.warn('Config persist failed:', err));
+    }
+
+    const baseSizeSlider = document.getElementById('baseSizeSlider');
+    const baseSizeVal = document.getElementById('baseSizeVal');
+    if (baseSizeSlider) {
+        baseSizeSlider.addEventListener('input', (e) => {
+            const v = parseFloat(e.target.value);
+            state.avatarBase = v;
+            state.baseScale = computeBaseScale(v);
+            if (baseSizeVal) baseSizeVal.innerText = Math.round(v);
+        });
+        baseSizeSlider.addEventListener('change', persistConfig);
+    }
+
+    const minSizeSlider = document.getElementById('minSizeSlider');
+    const minSizeVal = document.getElementById('minSizeVal');
+    if (minSizeSlider) {
+        minSizeSlider.addEventListener('input', (e) => {
+            state.avatarMin = parseFloat(e.target.value);
+            if (minSizeVal) minSizeVal.innerText = Math.round(state.avatarMin);
+        });
+        minSizeSlider.addEventListener('change', persistConfig);
+    }
+
+    const maxSizeSlider = document.getElementById('maxSizeSlider');
+    const maxSizeVal = document.getElementById('maxSizeVal');
+    if (maxSizeSlider) {
+        maxSizeSlider.addEventListener('input', (e) => {
+            state.avatarMax = parseFloat(e.target.value);
+            if (maxSizeVal) maxSizeVal.innerText = Math.round(state.avatarMax);
+        });
+        maxSizeSlider.addEventListener('change', persistConfig);
+    }
+
+    // Load persisted avatar config on startup
+    fetch(CONFIG_URL).then(r => {
+        if (!r.ok) return null;
+        return r.json();
+    }).then(config => {
+        if (config) applyConfig(config);
+    }).catch(() => {});
 
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
