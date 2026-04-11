@@ -1,27 +1,32 @@
-// bridge.js — Shared WKWebView ↔ component bridge.
+// bridge.js — WKWebView ↔ component bridge (ES module)
 //
-// Inline this into component HTML files. Provides:
-//   - headsup.receive(b64): base64 decode + JSON parse + dispatch to onHeadsupMessage(msg)
+// Provides:
 //   - esc(s): HTML-safe string escaping
-//
-// Components define: function onHeadsupMessage(msg) { ... }
+//   - initBridge(handler): wire headsup.receive → handler(msg)
+//   - postToHost(payload): send message to daemon via messageHandler
 
-function esc(s) {
+export function esc(s) {
   if (!s) return '';
-  var d = document.createElement('div');
+  const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
 
-if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
-  window.headsup = {
-    receive: function(b64) {
-      try {
-        var msg = JSON.parse(atob(b64));
-        if (typeof onHeadsupMessage === 'function') {
-          onHeadsupMessage(msg);
+export function initBridge(handler) {
+  if (window.webkit?.messageHandlers?.headsup) {
+    window.headsup = {
+      receive(b64) {
+        try {
+          const msg = JSON.parse(atob(b64));
+          if (typeof handler === 'function') handler(msg);
+        } catch (e) {
+          console.error('bridge: decode error', e);
         }
-      } catch(e) {}
-    }
-  };
+      }
+    };
+  }
+}
+
+export function postToHost(payload) {
+  window.webkit?.messageHandlers?.headsup?.postMessage(payload);
 }
