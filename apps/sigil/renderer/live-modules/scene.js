@@ -35,6 +35,7 @@ export function initScene() {
     state.moveRotationAxis = new THREE.Vector3(0, 1, 0);
 
     window.addEventListener('resize', onWindowResize);
+    state.baseScale = computeBaseScale(state.avatarBase);
 }
 
 export function onWindowResize() {
@@ -42,6 +43,19 @@ export function onWindowResize() {
     state.perspCamera.aspect = aspect;
     state.perspCamera.updateProjectionMatrix();
     state.renderer.setSize(window.innerWidth, window.innerHeight);
+    state.baseScale = computeBaseScale(state.avatarBase);
+}
+
+// --- Base scale: maps avatarBase (logical pixels) to scene units ---
+// Reference calibration: at base=300 on a 1080-logical-pixel display,
+// z_depth=1.1 produced the correct visual. baseScale absorbs that so
+// z_depth can default to 1.0 as a pure creative multiplier.
+const REF_BASE = 300;
+const REF_SCALE = 1.1;
+const REF_HEIGHT = 1080;
+
+export function computeBaseScale(base) {
+    return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
 }
 
 // --- Coordinate mapping: screen pixels → scene units ---

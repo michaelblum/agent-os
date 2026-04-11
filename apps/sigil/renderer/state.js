@@ -247,11 +247,18 @@ const state = {
     stats: null,
 
     // Scale / Depth
+    // All sizes in logical pixels (points). baseScale is derived from avatarBase
+    // and display geometry — it maps logical pixels to scene units.
+    // z_depth is a creative multiplier: 1.0 = render at exactly avatarBase size.
+    avatarBase: 300,
+    avatarMin: 40,
+    avatarMax: 400,
+    baseScale: 1.0,
     depth_range: { min: 0.25, max: 3.0 },
-    z_depth: 1.1,
+    z_depth: 1.0,
     scale_anim_active: false,
-    target_z_depth: 1.1,
-    scale_anim_start_val: 1.1,
+    target_z_depth: 1.0,
+    scale_anim_start_val: 1.0,
     scale_anim_start_time: 0,
     steps: 3,
     active_step: -1,

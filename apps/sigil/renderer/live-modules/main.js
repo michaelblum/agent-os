@@ -1,5 +1,5 @@
 import state from '../../js/state.js';
-import { initScene, screenToScene } from './scene.js';
+import { initScene, screenToScene, computeBaseScale } from './scene.js';
 import { updateGeometry } from '../../js/geometry.js';
 import { updateAllColors } from '../../js/colors.js';
 import { createAuraObjects, animateAura } from '../../js/aura.js';
@@ -75,7 +75,7 @@ function animate() {
     }
 
     // Apply unified scale
-    state.polyGroup.scale.setScalar(state.z_depth * state.novaScale);
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.novaScale);
 
     state.renderer.render(state.scene, state.camera);
 }
@@ -147,6 +147,14 @@ function handleMessage(msg) {
 
 function applyConfig(config) {
     if (config == null) return;
+
+    // Avatar size (logical pixels)
+    if (config.base != null) {
+        state.avatarBase = config.base;
+        state.baseScale = computeBaseScale(config.base);
+    }
+    if (config.min != null) state.avatarMin = config.min;
+    if (config.max != null) state.avatarMax = config.max;
 
     // Geometry
     if (config.shape != null) {
