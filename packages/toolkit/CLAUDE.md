@@ -12,30 +12,57 @@ agent-os primitives (side-eye, display (via AOS daemon), hand-off)
 
 ```
 components/
-  _base/          Shared bridge JS and theme CSS — inline into component HTML files
-  *.html          Self-contained HTML components for aos canvases
+  _base/
+    bridge.js       ES module — headsup bridge (esc, initBridge, postToHost)
+    base.js         ES module — AosComponent base class (panel chrome, drag, bridge wiring)
+    theme.css       Shared dark theme (CSS custom properties, panel/header classes)
+  canvas-inspector/ Multi-file component — display/canvas debug tool
+    index.html      Entry point (loads theme.css + inspector.js)
+    inspector.js    Component logic (extends AosComponent)
+    launch.sh       Bootstrap script (creates canvas, sends initial data, relays events)
+  cursor-decor.html   Legacy single-file component (Three.js cursor shape)
+  inspector-panel.html Legacy single-file component (AX inspector)
+  log-console.html    Legacy single-file component (scrolling log)
 ```
 
-## Components
+## Content Server
 
-Components are self-contained HTML files designed for `aos show create --url file://...`. They use the `headsup.receive()` bridge for configuration and communicate state via the manifest/messaging protocol.
+Components are served via the AOS content server over `aos://toolkit/...` URLs. This enables real ES module imports between files.
 
-| Component | What it does |
-|-----------|-------------|
-| `cursor-decor.html` | Three.js shape that follows cursor position, configurable geometry and color |
-| `inspector-panel.html` | AX element metadata display — role, title, label, value, bounds, context path |
-| `log-console.html` | Scrolling timestamped log with severity levels (info, warn, error, debug) |
+**Setup:** `aos set content.roots.toolkit packages/toolkit`
 
-## Shared Component Assets
+**Loading a component:** `aos show create --id my-component --url aos://toolkit/components/my-component/index.html`
 
-`components/_base/` contains the source-of-truth for shared JavaScript and CSS used by all canvas components:
+## Creating a New Component
 
-| File | What it provides |
-|------|-----------------|
-| `bridge.js` | `headsup.receive()` bridge, `esc()` helper, `onHeadsupMessage()` dispatch |
-| `theme.css` | Transparent background, dark theme CSS custom properties, typography, scrollbar |
+1. Create a directory under `components/` (e.g., `components/my-tool/`)
+2. Create `index.html` that links `../_base/theme.css` and imports from `../_base/base.js`
+3. Create your component JS as an ES module extending `AosComponent`
+4. Optionally create a `launch.sh` for bootstrap logic
 
-Components inline these assets directly (WKWebView `file://` loading doesn't support relative imports with the current canvas implementation). When creating a new component, copy the bridge and theme blocks from an existing component or from `_base/`.
+```js
+import { AosComponent, esc } from '../_base/base.js';
+
+class MyTool extends AosComponent {
+  constructor() {
+    super({ title: 'My Tool', id: 'my-tool' });
+  }
+
+  onMessage(msg) {
+    // Handle incoming headsup messages
+  }
+
+  renderContent() {
+    return '<div>Content here</div>';
+  }
+}
+
+new MyTool().mount(document.getElementById('app'));
+```
+
+## Legacy Components
+
+The single-file `.html` components (`cursor-decor`, `inspector-panel`, `log-console`) inline their bridge and theme code. They work via `file://` URLs and don't require the content server. New components should use the base class pattern instead.
 
 ## When to put something here vs. in an app
 
