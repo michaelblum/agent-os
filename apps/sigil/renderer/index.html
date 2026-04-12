@@ -2968,19 +2968,47 @@ function smHandleCancel(reason) {
     }
 }
 
-// Stub — T5 replaces with easing animation. For now, teleport so DRAG/GOTO
-// release behavior is observable end-to-end.
-function startFastTravel(x, y) {
+// Port of behaviorFastTravel from avatar-behaviors.swift:
+//   duration = clamp(dist / 5000, 0.12, 0.3) seconds
+//   easing: easeOutQuart
+// Triggers the existing ghost-trail visuals via applyBehaviorPreset.
+function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+function startFastTravel(toX, toY) {
+    const fromX = liveJs.avatarPos.valid ? liveJs.avatarPos.x : toX;
+    const fromY = liveJs.avatarPos.valid ? liveJs.avatarPos.y : toY;
+    const dist = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+    const durationMs = Math.max(120, Math.min(300, dist / 5000 * 1000));
+    liveJs.travel = {
+        fromX, fromY, toX, toY,
+        startMs: performance.now(),
+        durationMs,
+    };
+    // Kick off ghost trails (renderer already knows this preset).
+    applyBehaviorPreset('fast_travel', null);
+}
+
+function tickFastTravel() {
+    const t = liveJs.travel;
+    if (!t) return;
+    const elapsed = performance.now() - t.startMs;
+    const u = Math.max(0, Math.min(1, elapsed / t.durationMs));
+    const e = easeOutQuart(u);
+    const x = t.fromX + (t.toX - t.fromX) * e;
+    const y = t.fromY + (t.toY - t.fromY) * e;
     liveJs.avatarPos.x = x;
     liveJs.avatarPos.y = y;
     liveJs.avatarPos.valid = true;
-    // Nudge currentCursor too so the follow doesn't yank it back.
-    liveJs.currentCursor.x = x;
-    liveJs.currentCursor.y = y;
-    liveJs.cursorTarget.x = x;
-    liveJs.cursorTarget.y = y;
-    const p = screenToScene(x, y);
-    setScenePosition(p.x, p.y);
+
+    if (u >= 1) {
+        // Landed. Snap cursor tracking to target so IDLE resumes from here.
+        liveJs.currentCursor.x = t.toX;
+        liveJs.currentCursor.y = t.toY;
+        liveJs.cursorTarget.x = t.toX;
+        liveJs.cursorTarget.y = t.toY;
+        liveJs.travel = null;
+        applyBehaviorPreset('standby', null);
+    }
 }
 
 // Per-tick: in IDLE, avatar lerps toward cursor. In other states, avatar
@@ -2995,7 +3023,9 @@ function liveJsTick() {
     liveJs.currentCursor.x += (liveJs.cursorTarget.x - liveJs.currentCursor.x) * a;
     liveJs.currentCursor.y += (liveJs.cursorTarget.y - liveJs.currentCursor.y) * a;
 
-    if (liveJs.state === 'IDLE') {
+    if (liveJs.travel) {
+        tickFastTravel(); // overrides avatarPos during travel
+    } else if (liveJs.state === 'IDLE') {
         liveJs.avatarPos.x = liveJs.currentCursor.x;
         liveJs.avatarPos.y = liveJs.currentCursor.y;
         liveJs.avatarPos.valid = true;
