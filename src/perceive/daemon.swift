@@ -56,9 +56,13 @@ class PerceptionEngine {
             .leftMouseUp,
             .leftMouseDragged,
             .rightMouseDown,
+            .rightMouseUp,
             .rightMouseDragged,
+            .otherMouseDown,
+            .otherMouseUp,
             .otherMouseDragged,
             .keyDown,
+            .keyUp,
             .tapDisabledByTimeout,
             .tapDisabledByUserInput,
         ]
