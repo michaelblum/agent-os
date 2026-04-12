@@ -21,6 +21,11 @@ class UnifiedDaemon {
     var serverFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
+
+    // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
+    // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
+    var canvasEventSubscriptions: [String: Set<String>] = [:]
+    let canvasSubscriptionLock = NSLock()
     private var activeConnections = Set<UUID>()
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
     private let sigilInputLock = NSLock()
