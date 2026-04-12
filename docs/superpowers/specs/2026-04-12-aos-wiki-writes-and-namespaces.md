@@ -24,15 +24,17 @@ One wiki per AOS runtime mode (`~/.config/aos/{mode}/wiki/`), as today. Internal
 
 ```
 ~/.config/aos/{mode}/wiki/
-  platform/        # AOS platform knowledge (formerly entities/, concepts/, plugins/)
+  aos/             # AOS platform's own knowledge, mirrored substructure per owner
     entities/
     concepts/
     plugins/
-  sigil/           # Owned by Sigil application
-    ...
-  <app>/           # Owned by <app>
+  sigil/           # Sigil — adds subdirs as it grows (e.g. agents/, plugins/)
+    agents/
+  <app>/           # future apps — same pattern
     ...
 ```
+
+Subdirectory categories (`entities/`, `concepts/`, `plugins/`, …) are a per-owner structural convention, not a platform-enforced taxonomy. An agent's skill reference like `aos/plugins/self-check` or `sigil/plugins/foo` composes across owners by full path.
 
 Users may read or edit any namespace freely. The boundary is convention and is expected to be respected by applications.
 
@@ -40,9 +42,9 @@ Users may read or edit any namespace freely. The boundary is convention and is e
 
 ### 1. Namespace relocation (one-time migration)
 
-Existing `entities/`, `concepts/`, `plugins/` directories move to `platform/entities/`, `platform/concepts/`, `platform/plugins/`. The indexer's path resolution updates accordingly. Content server and existing read paths are unaffected if they address by full relative path.
+Existing `entities/`, `concepts/`, `plugins/` directories move to `aos/entities/`, `aos/concepts/`, `aos/plugins/`. The indexer's path resolution updates accordingly. Content server and existing read paths are unaffected if they address by full relative path.
 
-A small migration routine runs at daemon startup: if the legacy flat directories exist and `platform/` does not, move them. Idempotent.
+A migration routine runs at daemon startup: if the legacy flat directories exist and `aos/` does not, first copy the entire `wiki/` directory to `wiki.pre-namespace-bak/` (user-visible backup, safe to delete after verification), then move the three directories under `aos/`. Atomic per-directory rename. Idempotent — if `aos/` already exists, no-op.
 
 ### 2. Write API
 
@@ -94,7 +96,7 @@ Applications ship their starter files as bundled resources and call this helper 
 
 ## Acceptance criteria
 
-1. **Namespace migration.** Fresh daemon startup on an existing install relocates `entities/`, `concepts/`, `plugins/` to under `platform/`. Indexer reindexes. `aos://wiki/platform/entities/sigil.md` serves correctly; the old path returns 404.
+1. **Namespace migration.** Fresh daemon startup on an existing install relocates `entities/`, `concepts/`, `plugins/` to under `aos/`, after first writing `wiki.pre-namespace-bak/`. Indexer reindexes. `aos://wiki/aos/entities/sigil.md` serves correctly; the old path returns 404. Rerunning is a no-op.
 2. **Write API.** `PUT /wiki/test/hello.md` with markdown body creates the file, indexes it, and is readable via the content server immediately.
 3. **Change event fires on API write.** Subscriber to `wiki_page_changed` receives a payload with `path="test/hello.md"`, `op="created"` after the write in (2).
 4. **Change event fires on direct filesystem write.** Editing `~/.config/aos/{mode}/wiki/test/hello.md` in a text editor broadcasts `wiki_page_changed` with `op="updated"`. Debounce coalesces a save-on-every-keystroke editor into a single event.
