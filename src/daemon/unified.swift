@@ -411,8 +411,104 @@ class UnifiedDaemon {
     }
 
     private func handleCanvasRemove(callerID: String, payload: [String: Any]) {
-        // Implemented in Task 5.
-        fputs("[canvas-mut] remove stub caller=\(callerID)\n", stderr)
+        let requestID = payload["request_id"] as? String
+        let orphanChildren = (payload["orphan_children"] as? Bool) ?? false
+
+        guard let targetID = payload["id"] as? String, !targetID.isEmpty else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ID", message: "canvas.remove requires id")
+            return
+        }
+
+        // Permission check — identical rule to update.
+        let permitted: Bool = {
+            if targetID == callerID { return true }
+            canvasSubscriptionLock.lock()
+            defer { canvasSubscriptionLock.unlock() }
+            if let owner = canvasCreatedBy[targetID] { return owner == callerID }
+            return true
+        }()
+        guard permitted else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "FORBIDDEN",
+                message: "caller \(callerID) may not remove \(targetID)")
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.performCascadeRemove(targetID: targetID, orphanChildren: orphanChildren)
+
+            // Check whether the target still exists. If yes, the remove failed.
+            let targetExisted = self.canvasManager.handle(
+                CanvasRequest(action: "list", id: nil, at: nil,
+                              anchorWindow: nil, anchorChannel: nil, offset: nil,
+                              html: nil, url: nil, interactive: nil, focus: nil,
+                              ttl: nil, js: nil, scope: nil, autoProject: nil,
+                              channel: nil, data: nil)
+            ).canvases?.contains(where: { $0.id == targetID }) ?? false
+            if targetExisted {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "REMOVE_FAILED",
+                    message: "target \(targetID) still exists after remove")
+            } else {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
+            }
+        }
+    }
+
+    /// Must be called on the main thread. Removes children (recursively) before the target.
+    /// If orphanChildren is true, children are detached (createdBy[child] = nil) but not removed.
+    /// Updates ownership maps atomically under canvasSubscriptionLock.
+    private func performCascadeRemove(targetID: String, orphanChildren: Bool) {
+        canvasSubscriptionLock.lock()
+        let children = canvasChildren[targetID] ?? []
+        if orphanChildren {
+            for child in children {
+                canvasCreatedBy.removeValue(forKey: child)
+            }
+            canvasChildren.removeValue(forKey: targetID)
+        }
+        canvasSubscriptionLock.unlock()
+
+        if !orphanChildren {
+            for child in children {
+                performCascadeRemove(targetID: child, orphanChildren: false)
+            }
+        }
+
+        // Remove the target itself via the standard pipeline.
+        let req = CanvasRequest(
+            action: "remove",
+            id: targetID,
+            at: nil, anchorWindow: nil, anchorChannel: nil, offset: nil,
+            html: nil, url: nil, interactive: nil,
+            focus: nil, ttl: nil, js: nil, scope: nil,
+            autoProject: nil, channel: nil, data: nil
+        )
+        let response = canvasManager.handle(req)
+        if response.status != "success" {
+            fputs("[canvas-mut] remove fail target=\(targetID) code=\(response.code ?? "?") err=\(response.error ?? "?")\n", stderr)
+        } else {
+            fputs("[canvas-mut] remove ok target=\(targetID) orphan=\(orphanChildren)\n", stderr)
+        }
+
+        // Ownership cleanup for the target itself — parent's children set, target's own rows.
+        // (Note: the canvas_lifecycle "removed" handler in Task 6 also cleans these entries,
+        // but doing it here keeps the post-condition local to this function.)
+        canvasSubscriptionLock.lock()
+        if let parent = canvasCreatedBy.removeValue(forKey: targetID) {
+            if var peers = canvasChildren[parent] {
+                peers.remove(targetID)
+                if peers.isEmpty {
+                    canvasChildren.removeValue(forKey: parent)
+                } else {
+                    canvasChildren[parent] = peers
+                }
+            }
+        }
+        canvasChildren.removeValue(forKey: targetID)
+        canvasSubscriptionLock.unlock()
     }
 
     // MARK: - Connection Handling
