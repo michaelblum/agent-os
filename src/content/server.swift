@@ -190,7 +190,7 @@ class ContentServer {
             let filePath = (wikiRoot as NSString).appendingPathComponent(relativePath)
             let resolvedPath = (filePath as NSString).standardizingPath
             let resolvedRoot = (wikiRoot as NSString).standardizingPath
-            guard resolvedPath.hasPrefix(resolvedRoot) else {
+            guard resolvedPath == resolvedRoot || resolvedPath.hasPrefix(resolvedRoot + "/") else {
                 return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
             }
 
@@ -204,8 +204,8 @@ class ContentServer {
                 return httpResponse(status: 200, statusText: "OK", contentType: mimeType, body: method == "HEAD" ? nil : fileData)
 
             case "PUT":
-                guard let bodyData = extractBody(raw), !bodyData.isEmpty else {
-                    return httpResponse(status: 400, statusText: "Bad Request", body: "No body")
+                guard let bodyData = extractBodyAllowingEmpty(raw) else {
+                    return httpResponse(status: 400, statusText: "Bad Request", body: "Malformed request (no header/body separator)")
                 }
                 let parentDir = (resolvedPath as NSString).deletingLastPathComponent
                 try? FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
@@ -237,14 +237,10 @@ class ContentServer {
             }
         }
 
-        // PUT/DELETE only allowed on _state or wiki
-        guard method == "GET" || method == "HEAD" || method == "POST" else {
-            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "PUT/DELETE only allowed on /wiki/")
-        }
-
-        // POST only allowed on _state
+        // Only GET/HEAD allowed on content roots; POST is _state-only,
+        // PUT/DELETE is wiki-only (both already handled/returned above).
         guard method == "GET" || method == "HEAD" else {
-            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "POST only allowed on /_state/")
+            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method not allowed on this path")
         }
 
         guard let rootDir = roots[prefix] else {
@@ -301,6 +297,15 @@ class ContentServer {
         let body = String(raw[range.upperBound...])
         guard !body.isEmpty else { return nil }
         return body.data(using: .utf8)
+    }
+
+    /// Like `extractBody` but preserves the distinction between
+    /// "no header/body separator" (nil) and "empty body" (Data()).
+    /// PUT semantics allow writing zero-byte files.
+    private func extractBodyAllowingEmpty(_ raw: String) -> Data? {
+        guard let range = raw.range(of: "\r\n\r\n") else { return nil }
+        let body = String(raw[range.upperBound...])
+        return body.data(using: .utf8) ?? Data()
     }
 
     // MARK: - MIME Types

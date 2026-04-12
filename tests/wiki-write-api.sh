@@ -25,4 +25,18 @@ test -f "$HOME/.config/aos/repo/wiki/test/hello.md"
 curl -sf -X DELETE "$URL" >/dev/null
 test ! -f "$HOME/.config/aos/repo/wiki/test/hello.md"
 
+# Empty-body PUT: zero-byte stub file should succeed
+EMPTY_URL="http://127.0.0.1:$PORT/wiki/test/empty.md"
+curl -sf -X PUT "$EMPTY_URL" -H 'Content-Type: text/markdown' --data-binary '' >/dev/null
+# GET returns empty body (200 OK, zero bytes)
+RESP=$(curl -sf "$EMPTY_URL")
+test -z "$RESP"
+# File on disk, zero bytes
+EMPTY_PATH="$HOME/.config/aos/repo/wiki/test/empty.md"
+test -f "$EMPTY_PATH"
+test ! -s "$EMPTY_PATH"
+# Clean up
+curl -sf -X DELETE "$EMPTY_URL" >/dev/null
+test ! -f "$EMPTY_PATH"
+
 echo "PASS"
