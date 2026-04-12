@@ -296,6 +296,35 @@ class UnifiedDaemon {
         }
     }
 
+    /// Fan out the current display geometry snapshot to every canvas
+    /// subscribed to `display_geometry`. Invoked on subscribe (single
+    /// target) and on `NSApplication.didChangeScreenParametersNotification`
+    /// (all subscribers).
+    private func broadcastDisplayGeometry(to specificCanvas: String? = nil) {
+        canvasSubscriptionLock.lock()
+        let targets: [String]
+        if let one = specificCanvas {
+            targets = canvasEventSubscriptions[one]?.contains("display_geometry") == true ? [one] : []
+        } else {
+            targets = canvasEventSubscriptions
+                .filter { $0.value.contains("display_geometry") }
+                .map { $0.key }
+        }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        let snapshot = snapshotDisplayGeometry()
+        guard let json = try? JSONSerialization.data(withJSONObject: snapshot, options: []) else { return }
+        let b64 = json.base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+
+        for canvasID in targets {
+            canvasManager.evalAsync(canvasID: canvasID, js: js)
+        }
+        fputs("[canvas-sub] display_geometry broadcast to \(targets.count) canvas(es)\n", stderr)
+    }
+
     /// Send an async response to a canvas that made a mutation request with a request_id.
     /// Reuses the headsup.receive dispatch path — the canvas differentiates by msg.type.
     /// If requestID is nil, this is a no-op (fire-and-forget path).
