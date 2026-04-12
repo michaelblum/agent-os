@@ -2880,6 +2880,14 @@ function handleLiveJsMessage(msg) {
             liveJs.displays = msg.displays || [];
             console.log('[sigil-1] display_geometry snapshot:',
                 liveJs.displays.length, 'display(s)');
+            // First-broadcast hook for the live-js boot sequence (Task 6).
+            // awaitFirstDisplayGeometry() sets `_resolveFirstDisplayGeometry`
+            // before starting the subscription; we fire it once then clear.
+            if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
+                const resolver = liveJs._resolveFirstDisplayGeometry;
+                liveJs._resolveFirstDisplayGeometry = null;
+                resolver(liveJs.displays);
+            }
             break;
         default:
             // Unknown in live-js mode → try legacy handler for resilience.
@@ -3302,7 +3310,218 @@ function _waitForEffectsSettled() {
     });
 }
 
-window.onload = init;
+// Boot dispatch lives in the module script below so we can await the agent
+// loader + first display_geometry broadcast before the scene is fully staged.
+// See the `<script type="module">` block at the end of <body>.
+//
+// Expose the module-local `state` and `liveJs` bindings on `window` so the
+// boot module can read/write them. Classic inline <script> `const` bindings
+// do not hoist to the global object by default.
+window.state = state;
+window.liveJs = liveJs;
+</script>
+<script type="module">
+// ============================================================
+// LIVE-JS BOOT SEQUENCE (Task 6)
+// ============================================================
+// For ?mode=live-js: load the agent wiki doc, apply appearance, await the
+// first display_geometry snapshot from the AOS daemon, then compute the
+// resolved home position and stamp it onto liveJs.avatarPos.
+//
+// For the legacy swift-ipc boot (no mode= param): preserve the prior
+// behavior of just calling init() on DOMContentLoaded.
+//
+// The bundled inline <script> above has already defined init(), setupLiveJs,
+// handleLiveJsMessage, the `liveJs` namespace, and `state`. This module
+// script defers until the DOM + inline script have both loaded (that's the
+// default for `type="module"`), so those symbols are guaranteed available
+// via `window`.
+// ============================================================
+
+import { loadAgent } from './agent-loader.js';
+import { applyAppearance } from './appearance.js';
+import { resolveHome } from './home-resolver.js';
+import moduleState from './state.js';
+
+// The bundled inline <script> defines its own `state` singleton which owns
+// the live Three.js object references (polyGroup, scene, renderer, etc).
+// `appearance.js` imports the separate module-scope `state.js` singleton.
+// Bridge the two so applyAppearance's writes land on the object the inline
+// renderer actually reads from.
+//
+// Strategy:
+//   - Before applyAppearance: copy scalar state from the inline bundled
+//     `state` (window.state) into `moduleState` so applyAppearance's ??
+//     fallbacks see current values, not the state.js defaults.
+//   - After applyAppearance: copy every field applyAppearance wrote back
+//     to window.state so the inline render loop reads the agent's values.
+//   - Re-run the INLINE update hooks (updateAllColors, updateGeometry, ...)
+//     against the now-updated window.state to rebuild meshes/materials.
+//     The versions applyAppearance invoked internally run against moduleState
+//     (which lacks scene refs) and silently no-op via try/catch guards.
+function syncWindowStateToModule() {
+    for (const k of Object.keys(window.state)) {
+        if (k in moduleState) moduleState[k] = window.state[k];
+    }
+}
+function syncModuleStateToWindow() {
+    // Write back every field applyAppearance is known to touch. Using a
+    // property list rather than a blanket Object.assign avoids clobbering
+    // window.state keys that carry inline-only Three.js object refs.
+    const APPEARANCE_FIELDS = [
+        // Size
+        'avatarBase', 'avatarMin', 'avatarMax',
+        // Primary geometry
+        'currentGeometryType', 'stellationFactor', 'currentOpacity',
+        'currentEdgeOpacity', 'isMaskEnabled', 'isInteriorEdgesEnabled',
+        'isSpecularEnabled', 'currentSkin', 'idleSpinSpeed', 'z_depth',
+        // Shape params
+        'tetartoidA', 'tetartoidB', 'tetartoidC',
+        'torusRadius', 'torusTube', 'torusArc',
+        'cylinderTopRadius', 'cylinderBottomRadius', 'cylinderHeight', 'cylinderSides',
+        'boxWidth', 'boxHeight', 'boxDepth',
+        // Aura
+        'isAuraEnabled', 'auraReach', 'auraIntensity', 'auraPulseRate', 'spikeMultiplier',
+        // Colors (whole object replaced)
+        'colors',
+        // Phenomena
+        'isPulsarEnabled', 'pulsarRayCount',
+        'isAccretionEnabled', 'accretionDiskCount',
+        'isGammaEnabled', 'gammaRayCount',
+        'isNeutrinosEnabled', 'neutrinoJetCount',
+        // Turbulence (whole object replaced)
+        'turbState',
+        // Lightning
+        'isLightningEnabled', 'lightningOriginCenter', 'lightningSolidBlock',
+        'lightningBoltLength', 'lightningFrequency', 'lightningDuration',
+        'lightningBranching', 'lightningBrightness',
+        // Magnetic
+        'isMagneticEnabled', 'magneticTentacleCount', 'magneticTentacleSpeed', 'magneticWander',
+        // Omega
+        'isOmegaEnabled', 'omegaGeometryType', 'omegaStellationFactor', 'omegaScale',
+        'omegaOpacity', 'omegaEdgeOpacity', 'omegaIsMaskEnabled', 'omegaIsInteriorEdgesEnabled',
+        'omegaIsSpecularEnabled', 'omegaSkin', 'omegaCounterSpin', 'omegaLockPosition',
+        'omegaInterDimensional', 'omegaGhostCount', 'omegaGhostMode', 'omegaGhostDuration',
+        'omegaLagFactor',
+        // Swarm
+        'isSwarmEnabled', 'swarmCount', 'swarmGravity', 'swarmEventHorizon',
+        'swarmTimeScale', 'isBlackHoleMode',
+        // Grid
+        'gridMode', 'grid3dRenderMode', 'grid3dDensity', 'grid3dRenderRadius',
+        'grid3dSnowGlobe', 'grid3dShowProbe', 'grid3dRelativeMotion', 'grid3dTimeScale',
+        // Trails
+        'isTrailEnabled', 'trailLength', 'trailOpacity', 'trailFadeMs', 'trailStyle',
+    ];
+    for (const k of APPEARANCE_FIELDS) {
+        if (k in moduleState) window.state[k] = moduleState[k];
+    }
+}
+function rebuildInlineVisualsAfterAppearance() {
+    // All of these are the INLINE (bundled) versions exposed on window via
+    // function declarations in the classic <script>.
+    try { window.updateGeometry(window.state.currentGeometryType); }
+    catch (e) { console.debug('[sigil] inline updateGeometry skipped:', e); }
+    try { window.updateOmegaGeometry(window.state.omegaGeometryType); }
+    catch (e) { console.debug('[sigil] inline updateOmegaGeometry skipped:', e); }
+    try { window.applySkin(window.state.currentSkin, false); }
+    catch (e) { console.debug('[sigil] inline applySkin(primary) skipped:', e); }
+    try { window.applySkin(window.state.omegaSkin, true); }
+    catch (e) { console.debug('[sigil] inline applySkin(omega) skipped:', e); }
+    try { window.updateAllColors(); }
+    catch (e) { console.debug('[sigil] inline updateAllColors skipped:', e); }
+    try { window.updatePulsars(window.state.pulsarRayCount); }
+    catch (e) { console.debug('[sigil] inline updatePulsars skipped:', e); }
+    try { window.updateGammaRays(window.state.gammaRayCount); }
+    catch (e) { console.debug('[sigil] inline updateGammaRays skipped:', e); }
+    try { window.updateAccretion(window.state.accretionDiskCount); }
+    catch (e) { console.debug('[sigil] inline updateAccretion skipped:', e); }
+    try { window.updateNeutrinos(window.state.neutrinoJetCount); }
+    catch (e) { console.debug('[sigil] inline updateNeutrinos skipped:', e); }
+}
+
+function awaitFirstDisplayGeometry() {
+    // Promise resolves when the first `display_geometry` message lands in
+    // handleLiveJsMessage — which stashes the snapshot on liveJs.displays
+    // and, if this resolver is armed, fires it with the displays array.
+    // Handles the race where the broadcast arrives between subscribe and
+    // await: if `liveJs.displays` is already an array, resolve immediately.
+    const liveJs = window.liveJs;
+    if (!liveJs) return Promise.reject(new Error('liveJs namespace not initialized'));
+    if (Array.isArray(liveJs.displays)) {
+        return Promise.resolve(liveJs.displays);
+    }
+    return new Promise((resolve) => {
+        liveJs._resolveFirstDisplayGeometry = resolve;
+    });
+}
+
+async function boot() {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode') === 'live-js' ? 'live-js' : 'swift-ipc';
+
+    if (mode !== 'live-js') {
+        // Legacy swift-ipc boot: match prior behavior (plain init()).
+        window.init();
+        return;
+    }
+
+    const agentPath = params.get('agent') ?? 'sigil/agents/default';
+    const currentAgentId = agentPath.split('/').pop(); // e.g. 'default'
+
+    // 1. Start the scene. init() calls setupLiveJs() which opens the
+    //    display_geometry/input_event subscription. We need the scene
+    //    built before applyAppearance() can mutate meshes/materials,
+    //    and the subscription open before awaitFirstDisplayGeometry().
+    window.init();
+
+    // 2. Fetch + parse the agent wiki doc. loadAgent is robust: any
+    //    fetch/parse failure falls back to MINIMAL_DEFAULT.
+    let agent;
+    try {
+        agent = await loadAgent(agentPath);
+        console.log('[sigil] loaded agent:', agent.id, 'from', agentPath);
+    } catch (e) {
+        console.error('[sigil] loadAgent threw unexpectedly:', e);
+        // loadAgent is supposed to not throw, but belt-and-suspenders.
+        const mod = await import('./agent-loader.js');
+        agent = { ...mod.MINIMAL_DEFAULT };
+    }
+
+    // 3. Apply appearance. applyAppearance writes into the module-scope
+    //    state.js singleton (imported by appearance.js). Sync state in,
+    //    apply, sync state back, then rebuild inline visuals so the live
+    //    bundled renderer reflects the agent's appearance blob.
+    try {
+        syncWindowStateToModule();
+        applyAppearance(agent.appearance);
+        syncModuleStateToWindow();
+        rebuildInlineVisualsAfterAppearance();
+    } catch (e) {
+        console.error('[sigil] applyAppearance pipeline threw:', e);
+    }
+
+    // 4. Await the first display_geometry broadcast, then resolve home.
+    //    Subscription was opened inside init() → setupLiveJs().
+    try {
+        const displays = await awaitFirstDisplayGeometry();
+        const home = resolveHome(agent.instance.home, displays);
+        const liveJs = window.liveJs;
+        liveJs.avatarPos = { x: home.x, y: home.y, valid: true };
+        liveJs.avatarSize = agent.instance.size;
+        liveJs.currentAgentId = currentAgentId;
+        console.log('[sigil] home resolved:',
+            'pos=(' + home.x.toFixed(1) + ',' + home.y.toFixed(1) + ')',
+            'size=' + agent.instance.size,
+            'agent=' + currentAgentId);
+    } catch (e) {
+        console.error('[sigil] home resolution failed:', e);
+    }
+}
+
+// Module scripts are deferred by default (run after DOMContentLoaded and
+// after any preceding classic inline scripts). init() and liveJs will
+// both be defined at this point.
+boot();
 </script>
 </body>
 </html>
