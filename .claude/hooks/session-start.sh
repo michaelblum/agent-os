@@ -55,4 +55,17 @@ if [ "$WT_COUNT" -gt 1 ]; then
 fi
 
 echo ""
+echo "## Start-of-Session Preamble (REQUIRED)"
+echo "Your FIRST response in this session MUST begin with a one-block status preamble summarizing the context above: session name (ask if unknown), branch + ahead/dirty counts, AOS daemon status, and the top 2-3 open issues relevant to the user's likely intent. Keep it tight — 3-6 lines, no headers. Then proceed with the user's request (or ask for it if none given)."
+echo ""
+echo "## End-of-Session Handoff Protocol"
+echo "When this session ends with a handoff to a follow-up session, you MUST:"
+echo "1. Post the full brief + pointer to the gateway 'handoff' channel (post_message, from=<this-session-name>)."
+echo "2. Pick or confirm the next session's name."
+echo "3. pbcopy a ready-to-paste launch command so Michael can start the next session with zero friction:"
+echo "   - New session:    claude -n \"<name>\" \"<lead-in referencing the handoff pointer id>\""
+echo "   - Resume session: claude --resume \"<name>\" \"<continuation prompt>\""
+echo "4. Echo the copied command back in plaintext so Michael can see what's on the clipboard."
+echo "This is non-negotiable SOP for cross-session continuity."
+echo ""
 echo "--- end session context ---"
