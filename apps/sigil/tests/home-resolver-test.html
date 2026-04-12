@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>RUNNING</title>
+<style>
+  body { background: #111; color: #eee; font-family: ui-monospace, monospace;
+         font-size: 12px; margin: 0; padding: 12px; white-space: pre-wrap; }
+  .pass { color: #7f7; }
+  .fail { color: #f77; }
+</style>
+</head>
+<body>
+<div id="out">running…</div>
+<script>
+window.addEventListener('error', (e) => {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (script error)\n' + (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || ''); }
+});
+window.addEventListener('unhandledrejection', (e) => {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (unhandled rejection)\n' + ((e.reason && (e.reason.stack || e.reason.message)) || String(e.reason)); }
+});
+// Guard: if neither PASS nor FAIL is set shortly after load (e.g. module failed to resolve),
+// mark FAIL so callers can rely on the title.
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        if (document.title === 'RUNNING') {
+            document.title = 'FAIL';
+            const o = document.getElementById('out');
+            if (o) { o.className = 'fail'; o.textContent = 'FAIL (module did not run; likely import error)\n' + (o.textContent || ''); }
+        }
+    }, 250);
+});
+</script>
+<script type="module">
+import { resolveHome } from '../renderer/home-resolver.js';
+try {
+
+const displays = [
+  { uuid: 'A', is_main: true, visible_bounds: { x: 0, y: 25, w: 1512, h: 957 } },
+  { uuid: 'B', is_main: false, visible_bounds: { x: 1512, y: 0, w: 1920, h: 1080 } },
+];
+
+// nonant bottom-right of main
+let p = resolveHome({ anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, displays);
+const ok1 = Math.round(p.x) === Math.round(0 + 1512*5/6) && Math.round(p.y) === Math.round(25 + 957*5/6);
+const p1 = { x: p.x, y: p.y };
+
+// coords
+p = resolveHome({ anchor: 'coords', coords: { x: 400, y: 200 } }, displays);
+const ok2 = p.x === 400 && p.y === 200;
+const p2 = { x: p.x, y: p.y };
+
+// bogus display UUID -> fallback to main bottom-right
+p = resolveHome({ anchor: 'nonant', nonant: 'top-left', display: 'NOT-REAL' }, displays);
+const ok3 = Math.round(p.x) === Math.round(1512/6) && Math.round(p.y) === Math.round(25 + 957/6);
+const p3 = { x: p.x, y: p.y };
+
+const ok = ok1 && ok2 && ok3;
+document.title = ok ? 'PASS' : `FAIL ${ok1} ${ok2} ${ok3}`;
+
+const out = document.getElementById('out');
+if (ok) {
+    out.className = 'pass';
+    out.textContent = 'PASS\n\n' +
+      'nonant bottom-right/main → ' + JSON.stringify(p1) + '\n' +
+      'coords 400,200         → ' + JSON.stringify(p2) + '\n' +
+      'bogus UUID fallback    → ' + JSON.stringify(p3);
+} else {
+    out.className = 'fail';
+    out.textContent = 'FAIL\n\nok1=' + ok1 + ' ok2=' + ok2 + ' ok3=' + ok3 +
+        '\n\nnonant bottom-right/main → ' + JSON.stringify(p1) +
+        '\ncoords 400,200         → ' + JSON.stringify(p2) +
+        '\nbogus UUID fallback    → ' + JSON.stringify(p3);
+}
+} catch (err) {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (exception)\n' + (err && err.stack || String(err)); }
+}
+</script>
+</body>
+</html>
