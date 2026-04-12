@@ -26,6 +26,16 @@ class UnifiedDaemon {
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
     var canvasEventSubscriptions: [String: Set<String>] = [:]
     let canvasSubscriptionLock = NSLock()
+
+    // Canvas ownership: child canvas ID → parent canvas ID.
+    // Populated when a canvas creates another canvas via postMessage(canvas.create).
+    // CLI-originated canvases have no entry here (nil parent), which the permission
+    // check treats as "mutable by anyone" for debugging predictability.
+    var canvasCreatedBy: [String: String] = [:]
+
+    // Inverse of canvasCreatedBy: parent canvas ID → set of direct child IDs.
+    // Maintained alongside canvasCreatedBy so cascade-remove doesn't need a scan.
+    var canvasChildren: [String: Set<String>] = [:]
     private var activeConnections = Set<UUID>()
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
     private let sigilInputLock = NSLock()
