@@ -35,6 +35,19 @@ sleep 1   # let daemon come up
 
 Each task that needs a restarted daemon will reference this cycle.
 
+### Positioning the test canvas
+
+`aos show create` requires an `--at x,y,w,h` rectangle. For the PoC we want the canvas to cover the primary display so screen pixels map 1:1 to canvas pixels (the architectural invariant the spec relies on).
+
+Use this helper snippet wherever a task creates the `test-cursor` canvas — it queries the primary display and assembles the rect:
+
+```bash
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
+```
+
+A tiny arbitrary rect works for the baseline delivery check in Task 1 because cursor coordinates aren't involved there. From Task 5 onward, use the full-display `$AT` snippet above.
+
 ---
 
 ### Task 1: Baseline — create a stub test page and verify delivery
@@ -93,10 +106,12 @@ sleep 1
 - [ ] **Step 3: Create the canvas**
 
 ```bash
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at 0,0,800,600
 ```
 
 Expected: a transparent overlay appears on the primary display showing "hello, canvas" near the upper-left. Clicks should pass through to whatever is underneath.
+
+(Full-display sizing is not needed here — this task only proves content delivery. Tasks 5+ use the `$AT` full-display snippet from Pre-flight.)
 
 - [ ] **Step 4: Clean up the canvas**
 
@@ -396,7 +411,8 @@ sleep 1
 - [ ] **Step 3: Create the canvas and verify the subscription was registered**
 
 ```bash
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
 sleep 1
 grep '\[canvas-sub\]' /tmp/aos.log
 ```
@@ -520,7 +536,8 @@ sleep 1
 - [ ] **Step 5: Create the canvas and verify events arrive**
 
 ```bash
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
 ```
 
 Move the mouse. The status banner should now show `events=N rate=R/s` with `R` climbing to tens per second while the mouse is moving.
@@ -685,7 +702,8 @@ sleep 1
 - [ ] **Step 3: Run the PoC and observe**
 
 ```bash
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
 ```
 
 Move the mouse. Expected behavior:
@@ -775,7 +793,8 @@ sleep 1
 - [ ] **Step 4: Verify cleanup**
 
 ```bash
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
 sleep 1
 ./aos show remove --id test-cursor
 sleep 1
@@ -805,7 +824,8 @@ Final verification pass against the spec's success criteria. No new code — jus
 pkill -f "aos serve" 2>/dev/null; sleep 1
 ./aos serve > /tmp/aos.log 2>&1 &
 sleep 1
-./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html
+AT=$(./aos graph displays --json | python3 -c "import sys,json; d=json.load(sys.stdin); m=next(x for x in d['displays'] if x['is_main']); b=m['bounds']; print(f\"{b['x']},{b['y']},{b['w']},{b['h']}\")")
+./aos show create --id test-cursor --url aos://sigil/test-cursor/index.html --at "$AT"
 ```
 
 - [ ] **Step 2: Smoothness check (primary criterion)**
