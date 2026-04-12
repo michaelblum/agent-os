@@ -258,6 +258,32 @@ class UnifiedDaemon {
         }
     }
 
+    /// Send an async response to a canvas that made a mutation request with a request_id.
+    /// Reuses the headsup.receive dispatch path — the canvas differentiates by msg.type.
+    /// If requestID is nil, this is a no-op (fire-and-forget path).
+    private func dispatchCanvasResponse(
+        to canvasID: String,
+        requestID: String?,
+        status: String,
+        code: String? = nil,
+        message: String? = nil,
+        createdID: String? = nil
+    ) {
+        guard let requestID = requestID else { return }
+        var obj: [String: Any] = [
+            "type": "canvas.response",
+            "request_id": requestID,
+            "status": status
+        ]
+        if let code = code { obj["code"] = code }
+        if let message = message { obj["message"] = message }
+        if let createdID = createdID { obj["id"] = createdID }
+        guard let json = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return }
+        let b64 = json.base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+        canvasManager.evalAsync(canvasID: canvasID, js: js)
+    }
+
     // MARK: - Connection Handling
 
     private func acceptLoop() {
