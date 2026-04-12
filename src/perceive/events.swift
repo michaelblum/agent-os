@@ -27,11 +27,12 @@ func cursorSettledData(x: Double, y: Double, display: Int, idle_ms: Int) -> [Str
     ["x": x, "y": y, "display": display, "idle_ms": idle_ms]
 }
 
-func inputEventData(type: String, x: Double? = nil, y: Double? = nil, keyCode: Int64? = nil) -> [String: Any] {
+func inputEventData(type: String, x: Double? = nil, y: Double? = nil, keyCode: Int64? = nil, flags: [String: Bool]? = nil) -> [String: Any] {
     var data: [String: Any] = ["type": type]
     if let x { data["x"] = x }
     if let y { data["y"] = y }
     if let keyCode { data["key_code"] = keyCode }
+    if let flags { data["flags"] = flags }
     return data
 }
 
