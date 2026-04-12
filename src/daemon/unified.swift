@@ -97,6 +97,18 @@ class UnifiedDaemon {
         // Wire canvas events -> broadcast
         canvasManager.onEvent = { [weak self] canvasID, payload in
             guard let self = self else { return }
+
+            // Intercept subscribe/unsubscribe before relay — these configure daemon
+            // state, not events for other subscribers to observe.
+            if let dict = payload as? [String: Any],
+               let type = dict["type"] as? String,
+               type == "subscribe" || type == "unsubscribe" {
+                let inner = dict["payload"] as? [String: Any]
+                let events = (inner?["events"] as? [String]) ?? []
+                self.handleCanvasSubscription(canvasID: canvasID, type: type, events: events)
+                return
+            }
+
             let data: [String: Any] = ["id": canvasID, "payload": payload]
             self.broadcastEvent(service: "display", event: "canvas_message", data: data)
         }
@@ -182,6 +194,28 @@ class UnifiedDaemon {
                 }
             }
         }
+    }
+
+    private func handleCanvasSubscription(canvasID: String, type: String, events: [String]) {
+        guard !events.isEmpty else { return }
+        canvasSubscriptionLock.lock()
+        if type == "subscribe" {
+            var current = canvasEventSubscriptions[canvasID] ?? []
+            for ev in events { current.insert(ev) }
+            canvasEventSubscriptions[canvasID] = current
+        } else {  // unsubscribe
+            if var current = canvasEventSubscriptions[canvasID] {
+                for ev in events { current.remove(ev) }
+                if current.isEmpty {
+                    canvasEventSubscriptions.removeValue(forKey: canvasID)
+                } else {
+                    canvasEventSubscriptions[canvasID] = current
+                }
+            }
+        }
+        let snapshot = canvasEventSubscriptions[canvasID]
+        canvasSubscriptionLock.unlock()
+        fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(snapshot ?? [])\n", stderr)
     }
 
     // MARK: - Connection Handling
