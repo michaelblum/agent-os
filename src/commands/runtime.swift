@@ -17,7 +17,7 @@ private struct RuntimeStatusResponse: Encodable {
 
 func runtimeCommand(args: [String]) {
     guard let sub = args.first else {
-        exitError("Usage: aos runtime <install|status|path|sign>", code: "MISSING_SUBCOMMAND")
+        exitError("Usage: aos runtime <install|status|path|sign|display-union>", code: "MISSING_SUBCOMMAND")
     }
 
     switch sub {
@@ -31,9 +31,43 @@ func runtimeCommand(args: [String]) {
     case "sign":
         let extraArgs = Array(args.dropFirst())
         runRuntimeScriptCommand(scriptName: "sign-aos-runtime", extraArgs: extraArgs, asJSON: false)
+    case "display-union":
+        runtimeDisplayUnionCommand(args: Array(args.dropFirst()))
     default:
         exitError("Unknown runtime subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+/// Print the union bounding box of all connected displays as
+/// `x,y,w,h` (comma-separated integers) in the shared AOS top-left
+/// coordinate convention — matching the `display_geometry` channel's
+/// `global_bounds` field. Consumed by Sigil's global canvas setup
+/// (`aos show create --at $(aos runtime display-union)`).
+private func runtimeDisplayUnionCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        print("Usage: aos runtime display-union")
+        print("")
+        print("Print the bounding box of all connected displays as x,y,w,h")
+        print("(integers, comma-separated) in top-left-origin coordinates.")
+        return
+    }
+    print(runtimeDisplayUnion())
+}
+
+/// Compute the global canvas bounds as `x,y,w,h` comma-separated integers.
+/// Reuses `snapshotDisplayGeometry()` so the output is guaranteed to match
+/// the `display_geometry` channel's `global_bounds` shape and coordinate
+/// system. Returns `"0,0,0,0"` when no displays are attached.
+func runtimeDisplayUnion() -> String {
+    let snapshot = snapshotDisplayGeometry()
+    guard let global = snapshot["global_bounds"] as? [String: Double] else {
+        return "0,0,0,0"
+    }
+    let x = Int(global["x"] ?? 0)
+    let y = Int(global["y"] ?? 0)
+    let w = Int(global["w"] ?? 0)
+    let h = Int(global["h"] ?? 0)
+    return "\(x),\(y),\(w),\(h)"
 }
 
 private func runtimeStatusCommand(args: [String]) {

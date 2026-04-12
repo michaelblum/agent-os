@@ -229,6 +229,7 @@ func printUsage() {
       aos runtime status --json        # Installed AOS.app runtime status
       aos runtime path                 # Installed AOS.app path
       aos runtime install              # Package + install stable runtime
+      aos runtime display-union        # Bounding box of all displays (x,y,w,h)
       aos doctor --json                # Runtime + permission health
       aos reset --mode current --json  # Stop matching services + clear state/artifacts
       aos permissions preflight --json # Safe upfront readiness check before testing
