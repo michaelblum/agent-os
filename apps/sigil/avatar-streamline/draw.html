@@ -52,10 +52,26 @@ function postToHost(type, payload) {
   }
 }
 
+// Track whether hit-area has been created (guards canvas.update until ready).
+var hitReady = false;
+
 window.headsup = window.headsup || {};
 window.headsup.receive = function(b64) {
   try {
     var msg = JSON.parse(atob(b64));
+
+    // Response envelope from canvas.create / canvas.remove (Phase 1 API).
+    if (msg.type === 'canvas.response') {
+      if (msg.request_id === 'create-hit' && msg.status === 'ok') {
+        hitReady = true;
+        console.log('[avatar-draw] hit-area created');
+      } else if (msg.request_id === 'create-hit') {
+        console.error('[avatar-draw] hit-area create failed:', msg.code, msg.message);
+      }
+      return;
+    }
+
+    // Input event fan-out (PoC path).
     eventCount++;
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
       target.x = msg.x;
@@ -98,6 +114,16 @@ requestAnimationFrame(tick);
 // ---- Subscribe to cursor events ----
 postToHost('subscribe', { events: ['input_event'] });
 console.log('[avatar-draw] subscribed, waiting for events');
+
+// Create the hit-area as our child. Initial frame is off-screen until we get
+// our first cursor event; Task 4 will reposition it every rAF tick.
+postToHost('canvas.create', {
+  id: 'avatar-hit',
+  url: 'aos://sigil/avatar-streamline/hit-area.html',
+  frame: [-1000, -1000, HIT_SIZE, HIT_SIZE],
+  interactive: true,
+  request_id: 'create-hit'
+});
 </script>
 </body>
 </html>
