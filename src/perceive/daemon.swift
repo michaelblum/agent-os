@@ -150,14 +150,28 @@ class PerceptionEngine {
     }
 
     private func inputEventPayload(for type: CGEventType, event: CGEvent, eventName: String) -> [String: Any] {
+        let flags = modifierFlags(from: event.flags)
         switch type {
-        case .keyDown:
+        case .keyDown, .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            return inputEventData(type: eventName, keyCode: keyCode)
+            return inputEventData(type: eventName, keyCode: keyCode, flags: flags)
         default:
             let point = event.location
-            return inputEventData(type: eventName, x: point.x, y: point.y)
+            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags)
         }
+    }
+
+    /// Map `CGEventFlags` to the shared {shift, ctrl, cmd, opt, fn} dict used
+    /// in every `input_event` payload. `.maskAlphaShift` (capslock) is ignored
+    /// intentionally.
+    private func modifierFlags(from flags: CGEventFlags) -> [String: Bool] {
+        return [
+            "shift": flags.contains(.maskShift),
+            "ctrl": flags.contains(.maskControl),
+            "cmd": flags.contains(.maskCommand),
+            "opt": flags.contains(.maskAlternate),
+            "fn": flags.contains(.maskSecondaryFn),
+        ]
     }
 
     private func handleMouseEvent(_ event: CGEvent) {
