@@ -257,11 +257,16 @@ class UnifiedDaemon {
 
     private func handleCanvasSubscription(canvasID: String, type: String, events: [String]) {
         guard !events.isEmpty else { return }
+        var newlyAddedDisplayGeometry = false
+
         canvasSubscriptionLock.lock()
         if type == "subscribe" {
             var current = canvasEventSubscriptions[canvasID] ?? []
+            let before = current
             for ev in events { current.insert(ev) }
             canvasEventSubscriptions[canvasID] = current
+            newlyAddedDisplayGeometry =
+                events.contains("display_geometry") && !before.contains("display_geometry")
         } else {  // unsubscribe
             if var current = canvasEventSubscriptions[canvasID] {
                 for ev in events { current.remove(ev) }
@@ -275,6 +280,15 @@ class UnifiedDaemon {
         let snapshot = canvasEventSubscriptions[canvasID]
         canvasSubscriptionLock.unlock()
         fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(snapshot ?? [])\n", stderr)
+
+        if newlyAddedDisplayGeometry {
+            // Initial state-replay for this subscriber only. Dispatch async
+            // to avoid reentering the canvas message handler from inside
+            // the subscribe path.
+            DispatchQueue.main.async { [weak self] in
+                self?.broadcastDisplayGeometry(to: canvasID)
+            }
+        }
     }
 
     private func forwardInputEventToCanvases(data: [String: Any]) {
