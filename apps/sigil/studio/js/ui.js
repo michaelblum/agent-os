@@ -3,6 +3,7 @@ import { computeBaseScale } from './scene.js';
 import { updateGeometry, updateOmegaGeometry } from '../../renderer/geometry.js';
 import { updateAllColors } from '../../renderer/colors.js';
 import { applyPreset } from '../../renderer/presets.js';
+import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../../renderer/appearance.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { applySkin } from '../../renderer/skins.js';
 import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
@@ -384,6 +385,164 @@ function applyConfig(c) {
     updateAllColors();
 }
 
+/**
+ * syncUIFromState — populate DOM input values from `state`, WITHOUT dispatching
+ * input/change events. State is already the source of truth (via applyAppearance
+ * or direct UI listener writes); this is the reverse mirror used after a
+ * preset/appearance load so the Studio sliders/toggles show the right positions.
+ *
+ * Only fields present in appearance.js are synced here — drag-only runtime
+ * state (avatar position, charge level, quick-spin axis, etc.) is intentionally
+ * ignored.
+ */
+export function syncUIFromState() {
+    const setVal = (id, val, strVal) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.type === 'checkbox') {
+            el.checked = !!val;
+        } else {
+            el.value = val;
+            if (strVal !== undefined) {
+                const vDisp = document.getElementById(id.replace('Slider', 'Val'));
+                if (vDisp) vDisp.innerText = strVal;
+            }
+        }
+    };
+    const setInverted = (id, val) => {
+        // Mask toggles are inverted in UI (Show Faces = !mask)
+        const el = document.getElementById(id);
+        if (el) el.checked = !val;
+    };
+    const setText = (id, text) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = text;
+    };
+
+    // Size
+    setVal('baseSizeSlider', state.avatarBase);
+    setText('baseSizeVal', Math.round(state.avatarBase));
+    setVal('minSizeSlider', state.avatarMin);
+    setText('minSizeVal', Math.round(state.avatarMin));
+    setVal('maxSizeSlider', state.avatarMax);
+    setText('maxSizeVal', Math.round(state.avatarMax));
+
+    // Primary geometry
+    setVal('shapeSelect', state.currentGeometryType);
+    setVal('stellationSlider', state.stellationFactor, state.stellationFactor.toFixed(2));
+    setVal('opacitySlider', state.currentOpacity, state.currentOpacity.toFixed(2));
+    setVal('edgeOpacitySlider', state.currentEdgeOpacity, state.currentEdgeOpacity.toFixed(2));
+    setInverted('maskToggle', state.isMaskEnabled);
+    setVal('interiorEdgesToggle', state.isInteriorEdgesEnabled);
+    setVal('specularToggle', state.isSpecularEnabled);
+    setVal('skinSelect', state.currentSkin);
+    setVal('idleSpinSlider', state.idleSpinSpeed, state.idleSpinSpeed.toFixed(3));
+    setVal('zDepthSlider', state.z_depth, state.z_depth.toFixed(2));
+
+    // Shape params
+    setVal('tetASlider', state.tetartoidA, state.tetartoidA.toFixed(2));
+    setVal('tetBSlider', state.tetartoidB, state.tetartoidB.toFixed(2));
+    setVal('tetCSlider', state.tetartoidC, state.tetartoidC.toFixed(2));
+    setVal('torusRadiusSlider', state.torusRadius, state.torusRadius.toFixed(2));
+    setVal('torusTubeSlider', state.torusTube, state.torusTube.toFixed(2));
+    setVal('torusArcSlider', state.torusArc, state.torusArc.toFixed(2));
+    setVal('cylinderTopSlider', state.cylinderTopRadius, state.cylinderTopRadius.toFixed(2));
+    setVal('cylinderBottomSlider', state.cylinderBottomRadius, state.cylinderBottomRadius.toFixed(2));
+    setVal('cylinderHeightSlider', state.cylinderHeight, state.cylinderHeight.toFixed(2));
+    setVal('cylinderSidesSlider', state.cylinderSides, String(state.cylinderSides));
+    setVal('boxWidthSlider', state.boxWidth, state.boxWidth.toFixed(2));
+    setVal('boxHeightSlider', state.boxHeight, state.boxHeight.toFixed(2));
+    setVal('boxDepthSlider', state.boxDepth, state.boxDepth.toFixed(2));
+
+    // Aura
+    setVal('auraToggle', state.isAuraEnabled);
+    setVal('auraReachSlider', state.auraReach, state.auraReach.toFixed(2));
+    setVal('auraIntensitySlider', state.auraIntensity, state.auraIntensity.toFixed(2));
+    setVal('pulseRateSlider', state.auraPulseRate, state.auraPulseRate.toFixed(3));
+    setVal('spikeMultiplier', state.spikeMultiplier);
+
+    // Colors — component gradient pickers (keys match renderer state.colors)
+    const colorKeys = Object.keys(state.colors || {});
+    colorKeys.forEach(k => {
+        const v = state.colors[k];
+        if (!v) return;
+        setVal(k + 'Color1', v[0]);
+        setVal(k + 'Color2', v[1]);
+    });
+
+    // Phenomena
+    setVal('pulsarToggle', state.isPulsarEnabled);
+    setVal('pulsarCount', state.pulsarRayCount);
+    setVal('accretionToggle', state.isAccretionEnabled);
+    setVal('accretionCount', state.accretionDiskCount);
+    setVal('gammaToggle', state.isGammaEnabled);
+    setVal('gammaCount', state.gammaRayCount);
+    setVal('neutrinoToggle', state.isNeutrinosEnabled);
+    setVal('neutrinoCount', state.neutrinoJetCount);
+
+    // Turbulence
+    ['p', 'a', 'g', 'n'].forEach(k => {
+        const t = state.turbState[k];
+        if (!t) return;
+        setVal(`${k}TurbSlider`, t.val, t.val.toFixed(2));
+        setVal(`${k}TurbSpdSlider`, t.spd, t.spd.toFixed(1));
+        setVal(`${k}TurbMod`, t.mod);
+    });
+
+    // Lightning
+    setVal('lightningToggle', state.isLightningEnabled);
+    setVal('lightningOriginCenter', state.lightningOriginCenter);
+    setVal('lightningSolidBlock', state.lightningSolidBlock);
+    setVal('lightningLengthSlider', state.lightningBoltLength, String(state.lightningBoltLength));
+    setVal('lightningFreqSlider', state.lightningFrequency, state.lightningFrequency.toFixed(1));
+    setVal('lightningDurSlider', state.lightningDuration, state.lightningDuration.toFixed(1));
+    setVal('lightningBranchSlider', state.lightningBranching, state.lightningBranching.toFixed(2));
+    setVal('lightningBrightSlider', state.lightningBrightness, state.lightningBrightness.toFixed(1));
+
+    // Magnetic
+    setVal('magneticToggle', state.isMagneticEnabled);
+    setVal('magneticCountSlider', state.magneticTentacleCount, String(state.magneticTentacleCount));
+    setVal('magneticSpeedSlider', state.magneticTentacleSpeed, state.magneticTentacleSpeed.toFixed(1));
+    setVal('magneticWanderSlider', state.magneticWander, state.magneticWander.toFixed(1));
+
+    // Omega
+    setVal('omegaToggle', state.isOmegaEnabled);
+    setVal('omegaShapeSelect', state.omegaGeometryType);
+    setVal('omegaStellationSlider', state.omegaStellationFactor, state.omegaStellationFactor.toFixed(2));
+    setVal('omegaScaleSlider', state.omegaScale, state.omegaScale.toFixed(2));
+    setVal('omegaOpacitySlider', state.omegaOpacity, state.omegaOpacity.toFixed(2));
+    setVal('omegaEdgeOpacitySlider', state.omegaEdgeOpacity, state.omegaEdgeOpacity.toFixed(2));
+    setInverted('omegaMaskToggle', state.omegaIsMaskEnabled);
+    setVal('omegaInteriorEdgesToggle', state.omegaIsInteriorEdgesEnabled);
+    setVal('omegaSpecularToggle', state.omegaIsSpecularEnabled);
+    setVal('omegaSkinSelect', state.omegaSkin);
+    setVal('omegaCounterSpin', state.omegaCounterSpin);
+    setVal('omegaLockPosition', state.omegaLockPosition);
+    setVal('omegaInterDimensional', state.omegaInterDimensional);
+    setVal('omegaGhostCountSlider', state.omegaGhostCount, String(state.omegaGhostCount));
+    setVal('omegaGhostDurSlider', state.omegaGhostDuration, state.omegaGhostDuration.toFixed(1));
+    setVal('omegaGhostMode', state.omegaGhostMode);
+
+    // Swarm
+    setVal('swarmToggle', state.isSwarmEnabled);
+    setVal('swarmCountSlider', state.swarmCount, String(state.swarmCount));
+    setVal('swarmGravitySlider', state.swarmGravity, String(state.swarmGravity));
+    setVal('swarmHorizonSlider', state.swarmEventHorizon, state.swarmEventHorizon.toFixed(1));
+    setVal('swarmTimeSlider', state.swarmTimeScale, state.swarmTimeScale.toFixed(1));
+    setVal('blackHoleModeToggle', state.isBlackHoleMode);
+
+    // Grid
+    setVal('gridModeSelect', state.gridMode);
+    setVal('grid3dRenderMode', state.grid3dRenderMode);
+    setVal('grid3dDensitySlider', state.grid3dDensity, String(state.grid3dDensity));
+    setVal('grid3dRadiusSlider', state.grid3dRenderRadius,
+        state.grid3dRenderRadius >= 30 ? 'Full' : state.grid3dRenderRadius.toFixed(1));
+    setVal('grid3dSnowGlobeToggle', state.grid3dSnowGlobe);
+    setVal('grid3dProbeToggle', state.grid3dShowProbe);
+    setVal('grid3dRelativeToggle', state.grid3dRelativeMotion);
+    setVal('grid3dTimeSlider', state.grid3dTimeScale, state.grid3dTimeScale.toFixed(1));
+}
+
 function randomizeAll(seed) {
     // Seeded PRNG: same seed = same result
     if (seed === undefined) seed = Math.floor(Math.random() * 999999);
@@ -747,7 +906,16 @@ export function setupUI() {
         maxSizeSlider.addEventListener('change', persistConfig);
     }
 
-    // Load persisted avatar config on startup
+    // Seed state from the canonical appearance defaults before any UI listener
+    // fires. applyAppearance is the single gateway into state; syncUIFromState
+    // mirrors state into DOM inputs (no events dispatched — state is truth).
+    applyAppearance(DEFAULT_APPEARANCE);
+    syncUIFromState();
+
+    // Load persisted avatar config on startup (legacy /_state/avatar-config.json).
+    // applyConfig still goes through DOM-event dispatch to wire up derived UI
+    // chrome (sub-control visibility etc.); it writes state via the same
+    // listeners as live user input.
     fetch(CONFIG_URL).then(r => {
         if (!r.ok) return null;
         return r.json();
@@ -1029,8 +1197,12 @@ export function setupUI() {
 
     proxyInput('ctx-zdepth', 'zDepthSlider');
 
-    // Preset select
-    document.getElementById('presetSelect').addEventListener('change', (e) => applyPreset(e.target.value));
+    // Preset select — applyPreset now routes through applyAppearance (writes
+    // state only), then syncUIFromState mirrors state back into DOM inputs.
+    document.getElementById('presetSelect').addEventListener('change', (e) => {
+        applyPreset(e.target.value);
+        syncUIFromState();
+    });
 
     // Shape param settings: map shape code -> settings container ID
     const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings' };

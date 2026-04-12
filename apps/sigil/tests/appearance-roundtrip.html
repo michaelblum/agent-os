@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>RUNNING</title>
+<style>
+  body { background: #111; color: #eee; font-family: ui-monospace, monospace;
+         font-size: 12px; margin: 0; padding: 12px; white-space: pre-wrap; }
+  .pass { color: #7f7; }
+  .fail { color: #f77; }
+</style>
+</head>
+<body>
+<!-- appearance.js imports colors.js which transitively imports magnetic.js etc.
+     Those modules reference THREE at top level, so we must load it here too. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="out">running…</div>
+<script>
+window.addEventListener('error', (e) => {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (script error)\n' + (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || ''); }
+});
+</script>
+<script type="module">
+import state from '../renderer/state.js';
+import {
+    applyAppearance,
+    snapshotAppearance,
+    DEFAULT_APPEARANCE
+} from '../renderer/appearance.js';
+try {
+
+// Structural-deep-equality helper (order-insensitive).
+function deepEqual(a, b, path = '') {
+    if (a === b) return null;
+    if (typeof a !== typeof b) return `type mismatch at ${path || '(root)'}: ${typeof a} vs ${typeof b}`;
+    if (a && typeof a === 'object' && b && typeof b === 'object') {
+        if (Array.isArray(a) !== Array.isArray(b)) return `array/object mismatch at ${path}`;
+        if (Array.isArray(a)) {
+            if (a.length !== b.length) return `array length at ${path}: ${a.length} vs ${b.length}`;
+            for (let i = 0; i < a.length; i++) {
+                const d = deepEqual(a[i], b[i], `${path}[${i}]`);
+                if (d) return d;
+            }
+            return null;
+        }
+        const ak = Object.keys(a).sort(), bk = Object.keys(b).sort();
+        if (ak.length !== bk.length || !ak.every((k, i) => k === bk[i])) {
+            return `key set mismatch at ${path || '(root)'}: ${JSON.stringify(ak)} vs ${JSON.stringify(bk)}`;
+        }
+        for (const k of ak) {
+            const d = deepEqual(a[k], b[k], path ? `${path}.${k}` : k);
+            if (d) return d;
+        }
+        return null;
+    }
+    return `value mismatch at ${path || '(root)'}: ${JSON.stringify(a)} vs ${JSON.stringify(b)}`;
+}
+
+// Deep clone (structuredClone is safe in WebKit).
+const fixture = structuredClone(DEFAULT_APPEARANCE);
+
+// Tweak a representative sampling so PASS is meaningful (not just initial state).
+fixture.shape = 20;
+fixture.opacity = 0.5;
+fixture.edgeOpacity = 0.75;
+fixture.maskEnabled = false;
+fixture.aura.reach = 2.0;
+fixture.aura.pulseRate = 0.007;
+fixture.colors.face = ['#ff00ff', '#123456'];
+fixture.colors.edge = ['#abcdef', '#fedcba'];
+fixture.phenomena.pulsar = { enabled: true, count: 4 };
+fixture.phenomena.gamma = { enabled: true, count: 2 };
+fixture.turbulence.p = { val: 0.3, spd: 2.5, mod: 'staggered' };
+fixture.lightning.enabled = true;
+fixture.lightning.frequency = 3.5;
+fixture.magnetic.tentacleCount = 12;
+fixture.omega.enabled = true;
+fixture.omega.ghostMode = 'vertexDissolve';
+fixture.swarm.enabled = true;
+fixture.swarm.blackHole = true;
+fixture.grid.mode = '3d';
+fixture.shapeParams.box.width = 1.5;
+fixture.size.base = 250;
+
+applyAppearance(fixture);
+const snap = snapshotAppearance();
+
+const diff = deepEqual(fixture, snap);
+const ok = diff === null;
+
+document.title = ok ? 'PASS' : 'FAIL';
+
+const out = document.getElementById('out');
+if (ok) {
+    out.className = 'pass';
+    out.textContent = 'PASS\n\napplyAppearance → snapshotAppearance roundtrip is stable.';
+} else {
+    out.className = 'fail';
+    out.textContent = 'FAIL\n\nFirst diff: ' + diff +
+        '\n\n--- fixture ---\n' + JSON.stringify(fixture, null, 2) +
+        '\n\n--- snapshot ---\n' + JSON.stringify(snap, null, 2);
+}
+} catch (err) {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (exception)\n' + (err && err.stack || String(err)); }
+}
+</script>
+</body>
+</html>
