@@ -1,5 +1,7 @@
 # Sigil-1 — Avatar state machine, gesture, fast-travel, goto-mode
 
+> **Superseded 2026-04-12:** Acceptance criterion #2 (idle cursor-follow) was the wrong default. See `docs/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md` for the parked-idle model that replaces it.
+
 **Status:** spec
 **Date:** 2026-04-12
 **Parent arc:** avatar-sub elimination (AOS-1 + AOS-2 + Sigil-1 + Sigil-2)

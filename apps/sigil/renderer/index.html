@@ -3072,24 +3072,26 @@ function tickFastTravel() {
     }
 }
 
-// Per-tick: in IDLE, avatar lerps toward cursor. In other states, avatar
-// position is driven by the state machine / fast-travel animation; cursor
-// lerp still runs so the avatar picks up the current cursor when it
-// returns to IDLE. avatarPos is the source of truth for "where the avatar
-// is" (hit-testing, menu origin, etc.).
+// Per-tick: in IDLE the avatar is parked — its position is fixed at the
+// resolved home until a state transition moves it. During fast-travel
+// animation the state machine drives avatarPos. The cursor lerp tracks
+// the latest cursor so GOTO-click math has a smoothed reference, but
+// does not feed into IDLE. avatarPos is the source of truth for "where
+// the avatar is" (hit-testing, menu origin, etc.).
 function liveJsTick() {
-    if (!liveJs.currentCursor.valid || !liveJs.cursorTarget.valid) return;
-
-    const a = liveJs.followAlpha;
-    liveJs.currentCursor.x += (liveJs.cursorTarget.x - liveJs.currentCursor.x) * a;
-    liveJs.currentCursor.y += (liveJs.cursorTarget.y - liveJs.currentCursor.y) * a;
+    // Cursor smoothing only runs once we've seen at least one cursor
+    // event; IDLE no longer depends on cursor data, so the rest of the
+    // tick (scene position, hit frame) must proceed regardless.
+    if (liveJs.currentCursor.valid && liveJs.cursorTarget.valid) {
+        const a = liveJs.followAlpha;
+        liveJs.currentCursor.x += (liveJs.cursorTarget.x - liveJs.currentCursor.x) * a;
+        liveJs.currentCursor.y += (liveJs.cursorTarget.y - liveJs.currentCursor.y) * a;
+    }
 
     if (liveJs.travel) {
         tickFastTravel(); // overrides avatarPos during travel
     } else if (liveJs.state === 'IDLE') {
-        liveJs.avatarPos.x = liveJs.currentCursor.x;
-        liveJs.avatarPos.y = liveJs.currentCursor.y;
-        liveJs.avatarPos.valid = true;
+        // Parked: avatarPos is not modified. currentCursor tracks for GOTO-click math.
     }
 
     if (liveJs.avatarPos.valid) {
