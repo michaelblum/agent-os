@@ -149,9 +149,22 @@ status_json() {
 JSON
 }
 
+seed_wiki() {
+  # Idempotent wiki seed (seedIfAbsent semantics). Safe to re-run.
+  # Skips silently if the seed helper is missing — operator can still install.
+  local seed_script="$(cd "$(dirname "$0")" && pwd)/sigilctl-seed.sh"
+  if [[ -x "$seed_script" ]]; then
+    AOS_RUNTIME_MODE="$MODE" "$seed_script" --mode "$MODE" >/dev/null
+  fi
+}
+
 install_service() {
   mkdir -p "$HOME_DIR/Library/LaunchAgents" "$LOG_DIR"
   [[ -x "$BINARY_PATH" ]] || { echo "avatar-sub binary not found at $BINARY_PATH; run bash apps/sigil/build-avatar.sh first" >&2; exit 1; }
+
+  # Seed wiki docs (default agent, etc.) before starting the service so the
+  # renderer finds them on first boot. No-op if already seeded.
+  seed_wiki
 
   cat >"$PLIST_PATH" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -302,12 +315,13 @@ case "$CMD" in
   start) start_service; if [[ "${1:-}" == "--json" ]]; then status_json; else echo "started"; fi ;;
   stop) stop_service; if [[ "${1:-}" == "--json" ]]; then status_json; else echo "stopped"; fi ;;
   restart) stop_service; start_service; if [[ "${1:-}" == "--json" ]]; then status_json; else echo "restarted"; fi ;;
+  seed) seed_wiki; echo "seeded" ;;
   status) status_json ;;
   logs) logs_service "${1:-200}" ;;
   state) state_json ;;
   ensure-avatar) ensure_avatar ;;
   *)
-    echo "Usage: apps/sigil/sigilctl [--mode repo|installed] <install|start|stop|restart|status|logs|state|ensure-avatar>" >&2
+    echo "Usage: apps/sigil/sigilctl [--mode repo|installed] <install|start|stop|restart|seed|status|logs|state|ensure-avatar>" >&2
     exit 1
     ;;
 esac

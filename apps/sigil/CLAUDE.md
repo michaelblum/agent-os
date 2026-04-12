@@ -35,6 +35,34 @@ apps/sigil/sigilctl logs
 
 Sigil resolves the daemon socket from the current runtime mode (`~/.config/aos/{mode}/sock`). Logs go to `~/.config/aos/{mode}/sigil.log`.
 
+## First-Time Setup — Seed
+
+Sigil's renderer loads its configuration from per-agent wiki documents under the
+`sigil/agents/` namespace. Before first launch (or after a wiki wipe), seed the
+default agent document so the renderer has something to load:
+
+```bash
+# One-shot seed (idempotent — re-running is a no-op once the docs exist)
+apps/sigil/sigilctl --mode repo seed
+# or equivalently
+apps/sigil/sigilctl-seed.sh --mode repo
+```
+
+Under the hood this invokes:
+
+```bash
+./aos wiki seed --namespace sigil \
+  --file "agents/default.md:$(pwd)/apps/sigil/seed/wiki/sigil/agents/default.md"
+```
+
+Source of truth is `apps/sigil/seed/wiki/sigil/` in the repo. The seed step is
+also invoked automatically by `sigilctl install` so a fresh launchd install
+always guarantees the default agent doc exists under
+`~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
+
+If you launch Sigil manually (running `avatar-sub` directly or via
+`aos show create`), run the seed step yourself first.
+
 ## Architecture
 
 | File | Role |
