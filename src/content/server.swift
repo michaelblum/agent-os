@@ -213,7 +213,7 @@ class ContentServer {
                 do {
                     try bodyData.write(to: URL(fileURLWithPath: resolvedPath))
                     WikiIndexHooks.reindex(path: relativePath)
-                    WikiChangeBus.emit(path: relativePath, op: isNew ? .created : .updated)
+                    WikiChangeBus.shared.emit(path: relativePath, op: isNew ? .created : .updated)
                     return httpResponse(status: 200, statusText: "OK", body: "OK")
                 } catch {
                     return httpResponse(status: 500, statusText: "Internal Server Error", body: "Write failed: \(error.localizedDescription)")
@@ -226,7 +226,7 @@ class ContentServer {
                 do {
                     try FileManager.default.removeItem(atPath: resolvedPath)
                     WikiIndexHooks.remove(path: relativePath)
-                    WikiChangeBus.emit(path: relativePath, op: .deleted)
+                    WikiChangeBus.shared.emit(path: relativePath, op: .deleted)
                     return httpResponse(status: 200, statusText: "OK", body: "OK")
                 } catch {
                     return httpResponse(status: 500, statusText: "Internal Server Error", body: "Delete failed: \(error.localizedDescription)")

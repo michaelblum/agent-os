@@ -41,6 +41,9 @@ class UnifiedDaemon {
     private let sigilInputLock = NSLock()
     private var sigilInputState = SigilInputState()
 
+    // Wiki FSEvents watcher
+    private var wikiWatcher: WikiWatcher?
+
     // Idle management
     var idleTimeout: TimeInterval
     var idleTimer: DispatchSourceTimer?
@@ -236,6 +239,13 @@ class UnifiedDaemon {
             contentServer = ContentServer(config: contentConfig, repoRoot: repoRoot, stateDir: aosStateDir())
             contentServer?.start()
         }
+
+        // Start wiki FSEvents watcher and wire change bus
+        WikiChangeBus.shared.daemon = self
+        let wikiWatchRoot = URL(fileURLWithPath: aosStateDir()).appendingPathComponent("wiki")
+        let watcher = WikiWatcher(wikiRoot: wikiWatchRoot)
+        watcher.start()
+        self.wikiWatcher = watcher
 
         // Accept connections
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
