@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 16px; background: #0a0e14; color: #cbd5e1;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, monospace; }
+h1 { font-size: 14px; margin: 0 0 12px 0; color: #8ef; }
+#log { background: #020617; padding: 8px 12px; border-radius: 4px;
+  max-height: 75vh; overflow-y: auto; white-space: pre-wrap; }
+.line { padding: 1px 0; }
+.ts { color: #64748b; }
+.type { font-weight: bold; margin-left: 6px; }
+.mods { color: #fbbf24; margin-left: 6px; }
+.pos { color: #94a3b8; margin-left: 6px; }
+.down { color: #f87171; }
+.up { color: #60a5fa; }
+.drag { color: #c084fc; }
+.moved { color: #64748b; }
+.key { color: #fbbf24; }
+.hint { color: #64748b; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<h1>input_event test harness</h1>
+<div class="hint">Clicks, key presses, and modifier combos will appear below. mouse_moved is dimmed.</div>
+<div id="log"></div>
+<script>
+function postToHost(type, payload) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+    window.webkit.messageHandlers.headsup.postMessage(
+      payload !== undefined ? { type: type, payload: payload } : { type: type }
+    );
+  }
+}
+
+var logEl = document.getElementById('log');
+
+function classify(type) {
+  if (type.endsWith('_down')) return 'down';
+  if (type.endsWith('_up')) return 'up';
+  if (type.endsWith('_dragged')) return 'drag';
+  if (type === 'mouse_moved') return 'moved';
+  if (type.startsWith('key_')) return 'key';
+  return '';
+}
+
+function mods(flags) {
+  if (!flags) return '';
+  var active = [];
+  if (flags.cmd) active.push('cmd');
+  if (flags.shift) active.push('shift');
+  if (flags.ctrl) active.push('ctrl');
+  if (flags.opt) active.push('opt');
+  if (flags.fn) active.push('fn');
+  return active.length ? active.join('+') : '';
+}
+
+function line(msg) {
+  var ts = new Date().toISOString().slice(11, 23);
+  var cls = classify(msg.type);
+  var el = document.createElement('div');
+  el.className = 'line ' + cls;
+  var posText = '';
+  if (typeof msg.x === 'number') {
+    posText = Math.round(msg.x) + ',' + Math.round(msg.y);
+  } else if (typeof msg.key_code === 'number') {
+    posText = 'key=' + msg.key_code;
+  }
+  var modText = mods(msg.flags);
+  el.innerHTML =
+    '<span class="ts">' + ts + '</span>' +
+    '<span class="type">' + msg.type + '</span>' +
+    (posText ? '<span class="pos">' + posText + '</span>' : '') +
+    (modText ? '<span class="mods">[' + modText + ']</span>' : '');
+  logEl.insertBefore(el, logEl.firstChild);
+  while (logEl.childNodes.length > 400) logEl.removeChild(logEl.lastChild);
+}
+
+window.headsup = window.headsup || {};
+window.headsup.receive = function(b64) {
+  try {
+    var msg = JSON.parse(atob(b64));
+    if (typeof msg.type === 'string') line(msg);
+  } catch (e) {
+    var el = document.createElement('div');
+    el.textContent = 'parse error: ' + e;
+    logEl.insertBefore(el, logEl.firstChild);
+  }
+};
+
+postToHost('subscribe', { events: ['input_event'] });
+</script>
+</body>
+</html>
