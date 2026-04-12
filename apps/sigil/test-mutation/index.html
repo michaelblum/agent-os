@@ -1,51 +1,93 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
-<style>body{margin:0;background:rgba(0,0,0,0.4);color:#fff;font:13px ui-monospace,monospace;padding:12px;}
-button{font:13px ui-monospace,monospace;padding:6px 10px;margin:4px 4px 0 0;}
+<style>
+html,body{margin:0;background:rgba(0,0,0,0.6);color:#eee;font:13px ui-monospace,monospace;padding:12px;}
+button{font:12px ui-monospace,monospace;padding:5px 8px;margin:2px;}
+#log{white-space:pre-wrap;margin-top:8px;max-height:60vh;overflow:auto;border-top:1px solid #444;padding-top:6px;}
+.group{margin:6px 0;padding:4px 6px;border-left:2px solid #555;}
+.group b{color:#8ef;}
 </style>
 </head>
 <body>
-<div id="log">test-mutation ready</div>
-<div>
-  <button onclick="createChild()">create child-a</button>
-  <button onclick="moveChild()">move child-a +50,+50</button>
-  <button onclick="toggleInteractive()">toggle child-a interactive</button>
-  <button onclick="removeChild()">remove child-a</button>
+<div>canvas-mutation harness (caller id = <span id="self">?</span>)</div>
+<div class="group"><b>create</b>
+ <button onclick="testCreate()">valid child</button>
+ <button onclick="testCreateDup()">duplicate id</button>
+ <button onclick="testCreateBadFrame()">bad frame</button>
 </div>
+<div class="group"><b>update</b>
+ <button onclick="testMove()">move child +50,+50</button>
+ <button onclick="testMoveRapid()">move 60 times (hot path)</button>
+ <button onclick="testToggleInteractive()">toggle interactive</button>
+</div>
+<div class="group"><b>remove</b>
+ <button onclick="testRemove()">remove child</button>
+ <button onclick="testRemoveOrphan()">remove self orphan-children</button>
+</div>
+<div class="group"><b>permission</b>
+ <button onclick="testRemoveUnowned()">try to remove sibling (should FORBIDDEN)</button>
+ <button onclick="testRemoveCLI()">try to remove a CLI canvas (should OK)</button>
+</div>
+<div id="log"></div>
 <script>
-var log = document.getElementById('log');
+var selfID = new URLSearchParams(location.search).get('id') || 'test-parent';
+document.getElementById('self').textContent = selfID;
+var logEl = document.getElementById('log');
 var childFrame = [400, 400, 300, 200];
 var childInteractive = false;
-function writeln(s){ log.textContent += '\n' + s; }
+
+function logLine(s){ logEl.textContent += s + '\n'; logEl.scrollTop = logEl.scrollHeight; }
+
 window.headsup = window.headsup || {};
 window.headsup.receive = function(b64){
-  try { writeln('recv: ' + JSON.stringify(JSON.parse(atob(b64)))); }
-  catch(e){ writeln('parse err: ' + e); }
+  try { logLine('\u2190 ' + JSON.stringify(JSON.parse(atob(b64)))); }
+  catch(e){ logLine('parse err: ' + e); }
 };
 function post(type, payload){
+  logLine('\u2192 ' + type + ' ' + JSON.stringify(payload));
   window.webkit.messageHandlers.headsup.postMessage({type:type, payload:payload});
 }
-function createChild(){
-  post('canvas.create', {
-    id:'child-a', url:'aos://sigil/test-mutation/child.html',
-    frame: childFrame.slice(), interactive: childInteractive, request_id:'r-create'
-  });
-  writeln('\u2192 canvas.create');
+function testCreate(){
+  post('canvas.create', {id:'child-a', url:'aos://sigil/test-mutation/child.html',
+    frame: childFrame.slice(), interactive: childInteractive, request_id:'cr-1'});
 }
-function moveChild(){
-  childFrame[0] += 50; childFrame[1] += 50;
-  post('canvas.update', { id:'child-a', frame: childFrame.slice() });
-  writeln('\u2192 canvas.update frame=' + childFrame.join(','));
+function testCreateDup(){
+  post('canvas.create', {id:'child-a', url:'aos://sigil/test-mutation/child.html',
+    frame:[500,500,200,200], request_id:'cr-dup'});
 }
-function toggleInteractive(){
+function testCreateBadFrame(){
+  post('canvas.create', {id:'child-bad', url:'aos://sigil/test-mutation/child.html',
+    frame:[1,2,3], request_id:'cr-bad'});
+}
+function testMove(){
+  childFrame[0]+=50; childFrame[1]+=50;
+  post('canvas.update', {id:'child-a', frame: childFrame.slice()});
+}
+function testMoveRapid(){
+  var base = childFrame.slice();
+  var i = 0;
+  var t = setInterval(function(){
+    i++;
+    post('canvas.update', {id:'child-a', frame:[base[0]+i, base[1]+i, base[2], base[3]]});
+    if (i >= 60){ clearInterval(t); childFrame = [base[0]+60, base[1]+60, base[2], base[3]]; }
+  }, 16);
+}
+function testToggleInteractive(){
   childInteractive = !childInteractive;
-  post('canvas.update', { id:'child-a', interactive: childInteractive });
-  writeln('\u2192 canvas.update interactive=' + childInteractive);
+  post('canvas.update', {id:'child-a', interactive: childInteractive});
 }
-function removeChild(){
-  post('canvas.remove', { id:'child-a', request_id:'r-remove' });
-  writeln('\u2192 canvas.remove');
+function testRemove(){
+  post('canvas.remove', {id:'child-a', request_id:'rm-1'});
+}
+function testRemoveOrphan(){
+  post('canvas.remove', {id: selfID, orphan_children:true, request_id:'rm-orph'});
+}
+function testRemoveUnowned(){
+  post('canvas.remove', {id:'child-b', request_id:'rm-unowned'});
+}
+function testRemoveCLI(){
+  post('canvas.remove', {id:'cli-canvas', request_id:'rm-cli'});
 }
 </script>
 </body>
