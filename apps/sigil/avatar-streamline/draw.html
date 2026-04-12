@@ -107,6 +107,19 @@ function tick() {
     ctx.stroke();
   }
 
+  // Drive hit-area — fire-and-forget per Phase 1 spec (no request_id).
+  if (hitReady && current.valid) {
+    postToHost('canvas.update', {
+      id: 'avatar-hit',
+      frame: [
+        Math.round(current.x - HIT_HALF),
+        Math.round(current.y - HIT_HALF),
+        HIT_SIZE,
+        HIT_SIZE
+      ]
+    });
+  }
+
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
