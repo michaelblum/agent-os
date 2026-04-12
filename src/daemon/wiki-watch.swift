@@ -2,6 +2,11 @@
 //
 // Watches wikiRoot for .md file changes and emits wiki_page_changed events
 // via WikiChangeBus with ~100ms debounce.
+//
+// Note: API writes via the content server (PUT/DELETE /wiki/*) both call
+// WikiChangeBus.shared.emit directly and trigger FSEvents. Two events may
+// fire per write. Subscribers are required to be idempotent per spec
+// §Failure modes.
 
 import Foundation
 
