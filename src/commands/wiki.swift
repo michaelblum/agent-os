@@ -867,6 +867,47 @@ func wikiSeedCommand(args: [String]) {
 
     let wikiDir = aosWikiDir()
 
+    // Per-file seed mode: --namespace <ns> [--file <rel>:<absolutePath> ...]
+    if let ns = getArg(args, "--namespace") {
+        // Collect all --file <rel>:<absolutePath> pairs (may repeat)
+        var filePairs: [(String, URL)] = []
+        var i = 0
+        while i < args.count {
+            if args[i] == "--file", i + 1 < args.count {
+                let pair = args[i + 1]
+                if let colonIdx = pair.firstIndex(of: ":") {
+                    let rel = String(pair[pair.startIndex..<colonIdx])
+                    let src = String(pair[pair.index(after: colonIdx)...])
+                    filePairs.append((rel, URL(fileURLWithPath: src)))
+                } else {
+                    fputs("Error: --file value must be <rel>:<absolutePath>\n", stderr)
+                    exit(1)
+                }
+                i += 2
+            } else {
+                i += 1
+            }
+        }
+        do {
+            let written = try WikiSeed.seedIfAbsent(
+                wikiRoot: URL(fileURLWithPath: wikiDir),
+                namespace: ns,
+                files: filePairs
+            )
+            if asJSON {
+                let result: [String: Any] = ["status": "ok", "written": written]
+                if let data = try? JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+                   let s = String(data: data, encoding: .utf8) { print(s) }
+            } else {
+                print("Seeded \(written) file(s) into \(ns).")
+            }
+        } catch {
+            fputs("Error seeding wiki: \(error)\n", stderr)
+            exit(1)
+        }
+        return
+    }
+
     // Check if wiki already has content
     let fm = FileManager.default
     let hasContent = ["plugins", "entities", "concepts"].contains { dir in
