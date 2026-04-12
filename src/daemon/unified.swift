@@ -45,6 +45,11 @@ class UnifiedDaemon {
     var idleTimeout: TimeInterval
     var idleTimer: DispatchSourceTimer?
 
+    // Coalesce display_geometry rebroadcasts — didChangeScreenParameters can
+    // storm during display reconfig; we only need one broadcast per quiet burst.
+    private var displayGeometryBroadcastScheduled = false
+    private let displayGeometryCoalesceMs: Int = 100
+
     struct SubscriberConnection {
         let fd: Int32
         var perceptionChannelIDs: Set<UUID>
@@ -203,14 +208,14 @@ class UnifiedDaemon {
         }
 
         // Observe display arrangement changes -> rebroadcast geometry to
-        // every canvas subscribed to display_geometry.
+        // every canvas subscribed to display_geometry. Coalesce bursts —
+        // didChangeScreenParameters can storm during display reconfig.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.broadcastDisplayGeometry()
-            fputs("[canvas-sub] display_geometry change notification fired\n", stderr)
+            self?.scheduleDisplayGeometryBroadcast()
         }
 
         spatial.startPolling()
@@ -339,6 +344,7 @@ class UnifiedDaemon {
         canvasSubscriptionLock.unlock()
 
         guard !targets.isEmpty else { return }
+        fputs("[canvas-sub] display_geometry change -> broadcasting to \(targets.count) canvas(es)\n", stderr)
 
         let snapshot = snapshotDisplayGeometry()
         guard let json = try? JSONSerialization.data(withJSONObject: snapshot, options: []) else { return }
@@ -348,7 +354,18 @@ class UnifiedDaemon {
         for canvasID in targets {
             canvasManager.evalAsync(canvasID: canvasID, js: js)
         }
-        fputs("[canvas-sub] display_geometry broadcast to \(targets.count) canvas(es)\n", stderr)
+    }
+
+    /// Coalesced entry point for didChangeScreenParameters. Collapses a burst
+    /// of notifications into a single broadcast after a short quiet window.
+    private func scheduleDisplayGeometryBroadcast() {
+        if displayGeometryBroadcastScheduled { return }
+        displayGeometryBroadcastScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(displayGeometryCoalesceMs)) { [weak self] in
+            guard let self = self else { return }
+            self.displayGeometryBroadcastScheduled = false
+            self.broadcastDisplayGeometry()
+        }
     }
 
     /// Send an async response to a canvas that made a mutation request with a request_id.
