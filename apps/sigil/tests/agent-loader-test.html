@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>RUNNING</title>
+<style>
+  body { background: #111; color: #eee; font-family: ui-monospace, monospace;
+         font-size: 12px; margin: 0; padding: 12px; white-space: pre-wrap; }
+  .pass { color: #7f7; }
+  .fail { color: #f77; }
+</style>
+</head>
+<body>
+<div id="out">running…</div>
+<script>
+window.addEventListener('error', (e) => {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (script error)\n' + (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || ''); }
+});
+</script>
+<script type="module">
+import { parseAgentDoc, loadAgent, MINIMAL_DEFAULT } from '../renderer/agent-loader.js';
+try {
+
+const sample = `---
+type: agent
+id: default
+name: Default
+tags: [sigil]
+---
+
+Prose here.
+
+\`\`\`json
+{"appearance":{"shape":6},"minds":{"skills":[]},"instance":{"home":{"anchor":"nonant","nonant":"bottom-right","display":"main"},"size":300}}
+\`\`\`
+`;
+
+const parsed = parseAgentDoc(sample);
+const ok = parsed.id === 'default'
+        && parsed.appearance.shape === 6
+        && parsed.instance.size === 300;
+
+// Malformed fallback — missing json block should return the minimal default.
+const fallback = parseAgentDoc('not markdown no json');
+const ok2 = fallback.appearance === MINIMAL_DEFAULT.appearance;
+
+document.title = (ok && ok2) ? 'PASS' : 'FAIL';
+
+const out = document.getElementById('out');
+if (ok && ok2) {
+    out.className = 'pass';
+    out.textContent = 'PASS\n\nparseAgentDoc parses frontmatter + json block and falls back on malformed input.';
+} else {
+    out.className = 'fail';
+    out.textContent = 'FAIL\n\nok=' + ok + ' ok2=' + ok2 +
+        '\n\n--- parsed ---\n' + JSON.stringify(parsed, null, 2) +
+        '\n\n--- fallback ---\n' + JSON.stringify(fallback, null, 2);
+}
+} catch (err) {
+    document.title = 'FAIL';
+    const o = document.getElementById('out');
+    if (o) { o.className = 'fail'; o.textContent = 'FAIL (exception)\n' + (err && err.stack || String(err)); }
+}
+</script>
+</body>
+</html>
