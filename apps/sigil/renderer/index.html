@@ -2775,6 +2775,11 @@ const liveJs = {
     hitReady: false,
     hitSize: 80,
     hitInteractive: false, // last value we pushed; used to debounce updates
+
+    // Placeholder UI overlay (dashed ring in GOTO; circle in DRAG).
+    ui: null,
+    gotoRingRadius: 60,
+    menuRingRadius: 120,
 };
 
 function setupLiveJs() {
@@ -2792,6 +2797,26 @@ function setupLiveJs() {
     // {type: "mouse_move"|"mouse_down"|"key_down"|..., x?, y?, button?,
     //  key_code?, flags: {shift, ctrl, cmd, opt, fn}}
     postToHost('subscribe', { events: ['input_event'] });
+
+    // 2D UI overlay for GOTO/DRAG placeholder rings. Lives above the
+    // Three.js canvas and is pointer-events:none so the full-display
+    // canvas stays passthrough.
+    const ui = document.createElement('canvas');
+    ui.style.position = 'absolute';
+    ui.style.inset = '0';
+    ui.style.pointerEvents = 'none';
+    document.body.appendChild(ui);
+    liveJs.ui = ui;
+    const resizeUi = () => {
+        const dpr = window.devicePixelRatio || 1;
+        ui.width = Math.floor(window.innerWidth * dpr);
+        ui.height = Math.floor(window.innerHeight * dpr);
+        ui.style.width = window.innerWidth + 'px';
+        ui.style.height = window.innerHeight + 'px';
+        ui.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resizeUi();
+    window.addEventListener('resize', resizeUi);
 
     // Spawn avatar-hit as our child canvas. Initial frame is off-screen;
     // liveJsTick starts repositioning once hitReady flips true.
@@ -3056,6 +3081,39 @@ function liveJsTick() {
             liveJs.hitInteractive = wantInteractive;
         }
         postToHost('canvas.update', update);
+    }
+
+    drawLiveJsUi();
+}
+
+function drawLiveJsUi() {
+    const ui = liveJs.ui;
+    if (!ui) return;
+    const ctx = ui.getContext('2d');
+    ctx.clearRect(0, 0, ui.width, ui.height);
+
+    if (liveJs.state === 'GOTO' && liveJs.avatarPos.valid) {
+        // Placeholder goto-mode cue: dashed ring around avatar.
+        ctx.beginPath();
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = 'rgba(180, 220, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.arc(liveJs.avatarPos.x, liveJs.avatarPos.y, liveJs.gotoRingRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    } else if (liveJs.state === 'DRAG' && liveJs.mousedownAvatarPos) {
+        // Placeholder menu ring: solid circle at drag origin.
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 180, 220, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.arc(liveJs.mousedownAvatarPos.x, liveJs.mousedownAvatarPos.y, liveJs.menuRingRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        // Inner cancel zone visual.
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 180, 220, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.arc(liveJs.mousedownAvatarPos.x, liveJs.mousedownAvatarPos.y, liveJs.dragCancelRadius, 0, Math.PI * 2);
+        ctx.stroke();
     }
 }
 
