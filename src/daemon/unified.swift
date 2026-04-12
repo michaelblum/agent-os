@@ -201,6 +201,18 @@ class UnifiedDaemon {
             self?.broadcastEvent(service: "perceive", event: "focus_changed",
                                 data: ["pid": pid, "app": app])
         }
+
+        // Observe display arrangement changes -> rebroadcast geometry to
+        // every canvas subscribed to display_geometry.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.broadcastDisplayGeometry()
+            fputs("[canvas-sub] display_geometry change notification fired\n", stderr)
+        }
+
         spatial.startPolling()
 
         // Start content server
