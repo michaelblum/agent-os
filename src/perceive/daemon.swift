@@ -130,12 +130,20 @@ class PerceptionEngine {
             return "mouse_moved"
         case .rightMouseDown:
             return "right_mouse_down"
+        case .rightMouseUp:
+            return "right_mouse_up"
         case .rightMouseDragged:
             return "right_mouse_dragged"
+        case .otherMouseDown:
+            return "other_mouse_down"
+        case .otherMouseUp:
+            return "other_mouse_up"
         case .otherMouseDragged:
             return "other_mouse_dragged"
         case .keyDown:
             return "key_down"
+        case .keyUp:
+            return "key_up"
         default:
             return nil
         }
