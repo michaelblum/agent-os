@@ -2651,7 +2651,18 @@ function init() {
 
     state.polyGroup.scale.set(state.z_depth, state.z_depth, state.z_depth);
 
-    setupIPC();
+    // Boot-mode gate: ?mode=live-js drives the avatar from in-JS state machine
+    // (Sigil-1). Absent, the legacy Swift IPC path still drives position.
+    state.sigilBootMode = new URLSearchParams(window.location.search).get('mode') === 'live-js'
+        ? 'live-js'
+        : 'swift-ipc';
+    console.log('[sigil] boot mode:', state.sigilBootMode);
+
+    if (state.sigilBootMode === 'live-js') {
+        setupLiveJs();
+    } else {
+        setupIPC();
+    }
     animate();
 }
 
@@ -2717,6 +2728,48 @@ function setupIPC() {
             console.error('[live] IPC parse error:', e);
         }
     };
+}
+
+// === SIGIL-1 LIVE-JS RUNTIME ===
+// In live-js boot mode the renderer runs as a full-display passthrough canvas
+// launched directly by `aos show create` (no Swift host). Subscribes to
+// input_event + display_geometry, owns its own state machine, spawns
+// avatar-hit as a child canvas.
+
+function postToHost(type, payload) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+        window.webkit.messageHandlers.headsup.postMessage(
+            payload !== undefined ? { type: type, payload: payload } : { type: type }
+        );
+    }
+}
+
+function setupLiveJs() {
+    // Reuse headsup.receive dispatch for live-js messages (input_event,
+    // display_geometry, canvas.response). Legacy handleMessage() types still
+    // resolve through the same switch for robustness.
+    window.headsup = window.headsup || {};
+    window.headsup.receive = function(b64) {
+        try {
+            const msg = JSON.parse(atob(b64));
+            handleLiveJsMessage(msg);
+        } catch (e) {
+            console.error('[sigil-1] IPC parse error:', e);
+        }
+    };
+    console.log('[sigil-1] live-js setup complete');
+}
+
+function handleLiveJsMessage(msg) {
+    // T2+ will expand this switch. For now, log and let existing live-mode
+    // messages still route through handleMessage so the bootstrap is safe.
+    if (msg.type === 'input_event' || msg.type === 'display_geometry' || msg.type === 'canvas.response') {
+        console.log('[sigil-1] rx', msg.type);
+        return;
+    }
+    // Fallback to legacy handler for anything else (shouldn't arrive in
+    // live-js mode, but harmless).
+    handleMessage(msg);
 }
 
 function handleMessage(msg) {
