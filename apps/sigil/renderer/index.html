@@ -2770,6 +2770,11 @@ const liveJs = {
 
     // Fast-travel animation state (T5 fills in).
     travel: null,
+
+    // Hit-area child canvas (avatar-hit).
+    hitReady: false,
+    hitSize: 80,
+    hitInteractive: false, // last value we pushed; used to debounce updates
 };
 
 function setupLiveJs() {
@@ -2787,6 +2792,16 @@ function setupLiveJs() {
     // {type: "mouse_move"|"mouse_down"|"key_down"|..., x?, y?, button?,
     //  key_code?, flags: {shift, ctrl, cmd, opt, fn}}
     postToHost('subscribe', { events: ['input_event'] });
+
+    // Spawn avatar-hit as our child canvas. Initial frame is off-screen;
+    // liveJsTick starts repositioning once hitReady flips true.
+    postToHost('canvas.create', {
+        id: 'avatar-hit',
+        url: 'aos://sigil/avatar-streamline/hit-area.html',
+        frame: [-1000, -1000, liveJs.hitSize, liveJs.hitSize],
+        interactive: false,
+        request_id: 'create-hit',
+    });
 
     console.log('[sigil-1] live-js setup complete; subscribed to input_event');
 }
@@ -2823,7 +2838,14 @@ function handleLiveJsMessage(msg) {
             if (msg.key_code === 53 /* ESC */) smHandleCancel('escape');
             break;
         case 'canvas.response':
-            // T4 handles avatar-hit create responses here.
+            if (msg.request_id === 'create-hit') {
+                if (msg.status === 'ok') {
+                    liveJs.hitReady = true;
+                    console.log('[sigil-1] avatar-hit ready');
+                } else {
+                    console.error('[sigil-1] avatar-hit create failed:', msg.code, msg.message);
+                }
+            }
             break;
         case 'display_geometry':
             // T8 parses this.
@@ -2982,6 +3004,28 @@ function liveJsTick() {
     if (liveJs.avatarPos.valid) {
         const p = screenToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
         setScenePosition(p.x, p.y);
+    }
+
+    // Drive avatar-hit frame every frame (fire-and-forget, same pattern as
+    // Phase 3 draw.html). Flip interactive lazily — only push on change.
+    if (liveJs.hitReady && liveJs.avatarPos.valid) {
+        const half = liveJs.hitSize / 2;
+        const wantInteractive =
+            liveJs.state === 'PRESS' || liveJs.state === 'DRAG';
+        const update = {
+            id: 'avatar-hit',
+            frame: [
+                Math.round(liveJs.avatarPos.x - half),
+                Math.round(liveJs.avatarPos.y - half),
+                liveJs.hitSize,
+                liveJs.hitSize,
+            ],
+        };
+        if (wantInteractive !== liveJs.hitInteractive) {
+            update.interactive = wantInteractive;
+            liveJs.hitInteractive = wantInteractive;
+        }
+        postToHost('canvas.update', update);
     }
 }
 
