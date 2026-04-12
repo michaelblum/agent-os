@@ -116,6 +116,17 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasID, action, at in
             guard let self = self else { return }
             self.updateSigilCanvasState(canvasID: canvasID, action: action, at: at)
+
+            // Drop event subscriptions when the canvas is gone.
+            if action == "removed" {
+                self.canvasSubscriptionLock.lock()
+                let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
+                self.canvasSubscriptionLock.unlock()
+                if had {
+                    fputs("[canvas-sub] cleared subscriptions for removed canvas=\(canvasID)\n", stderr)
+                }
+            }
+
             var data: [String: Any] = ["canvas_id": canvasID, "action": action]
             if let at = at { data["at"] = at }
             self.broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
