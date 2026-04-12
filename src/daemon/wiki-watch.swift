@@ -16,6 +16,10 @@ final class WikiWatcher {
         self.wikiRoot = wikiRoot
     }
 
+    deinit {
+        stop()
+    }
+
     func start() {
         // Ensure the wiki directory exists so FSEvents has something to watch.
         try? FileManager.default.createDirectory(at: wikiRoot, withIntermediateDirectories: true)
