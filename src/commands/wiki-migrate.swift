@@ -11,25 +11,36 @@ enum WikiMigrate {
     static func migrateIfNeeded(wikiRoot: URL) throws -> Bool {
         let fm = FileManager.default
         let aosDir = wikiRoot.appendingPathComponent("aos")
-        if fm.fileExists(atPath: aosDir.path) { return false }
 
         let legacy = ["entities", "concepts", "plugins"]
         let presentLegacy = legacy.filter {
             fm.fileExists(atPath: wikiRoot.appendingPathComponent($0).path)
         }
+
+        // True no-op: no legacy dirs at top level. aos/ may or may not exist —
+        // either way there's nothing to move. If aos/ is present with legacy
+        // dirs still alongside it, we fall through and finish the migration.
         guard !presentLegacy.isEmpty else { return false }
 
-        // Backup first
+        // Backup first — skip if a prior (possibly interrupted) run already created one.
         let backup = wikiRoot.deletingLastPathComponent()
             .appendingPathComponent(wikiRoot.lastPathComponent + ".pre-namespace-bak")
         if !fm.fileExists(atPath: backup.path) {
             try fm.copyItem(at: wikiRoot, to: backup)
         }
 
-        try fm.createDirectory(at: aosDir, withIntermediateDirectories: true)
+        // Ensure aos/ exists (may already exist from a partial prior run).
+        if !fm.fileExists(atPath: aosDir.path) {
+            try fm.createDirectory(at: aosDir, withIntermediateDirectories: true)
+        }
+
         for name in presentLegacy {
             let src = wikiRoot.appendingPathComponent(name)
             let dst = aosDir.appendingPathComponent(name)
+            // Defensive: if aos/<name> already exists, skip rather than clobber.
+            // presentLegacy filtered on top-level existence, so this only trips
+            // in the rare both-exist state — leave it for manual resolution.
+            if fm.fileExists(atPath: dst.path) { continue }
             try fm.moveItem(at: src, to: dst)
         }
         return true
