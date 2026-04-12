@@ -113,7 +113,7 @@ class ContentServer {
         }
 
         let method = String(parts[0])
-        guard method == "GET" || method == "HEAD" || method == "POST" else {
+        guard method == "GET" || method == "HEAD" || method == "POST" || method == "PUT" || method == "DELETE" else {
             return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method Not Allowed")
         }
 
@@ -175,6 +175,71 @@ class ContentServer {
             }
             let mimeType = mimeTypeForExtension((resolvedPath as NSString).pathExtension)
             return httpResponse(status: 200, statusText: "OK", contentType: mimeType, body: method == "HEAD" ? nil : fileData)
+        }
+
+        // wiki prefix: read/write from the state wiki directory
+        if prefix == "wiki" {
+            guard let dir = stateDir else {
+                return httpResponse(status: 404, statusText: "Not Found", body: "State directory not configured")
+            }
+            let wikiRoot = (dir as NSString).appendingPathComponent("wiki")
+            let relativePath = segments.count > 1 ? String(segments[1]) : ""
+            guard !relativePath.isEmpty, !relativePath.contains(".."), !relativePath.hasPrefix("/") else {
+                return httpResponse(status: 400, statusText: "Bad Request", body: "Invalid wiki path")
+            }
+            let filePath = (wikiRoot as NSString).appendingPathComponent(relativePath)
+            let resolvedPath = (filePath as NSString).standardizingPath
+            let resolvedRoot = (wikiRoot as NSString).standardizingPath
+            guard resolvedPath.hasPrefix(resolvedRoot) else {
+                return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
+            }
+
+            switch method {
+            case "GET", "HEAD":
+                guard FileManager.default.fileExists(atPath: resolvedPath),
+                      let fileData = FileManager.default.contents(atPath: resolvedPath) else {
+                    return httpResponse(status: 404, statusText: "Not Found", body: "Not Found: \(decoded)")
+                }
+                let mimeType = mimeTypeForExtension((resolvedPath as NSString).pathExtension)
+                return httpResponse(status: 200, statusText: "OK", contentType: mimeType, body: method == "HEAD" ? nil : fileData)
+
+            case "PUT":
+                guard let bodyData = extractBody(raw), !bodyData.isEmpty else {
+                    return httpResponse(status: 400, statusText: "Bad Request", body: "No body")
+                }
+                let parentDir = (resolvedPath as NSString).deletingLastPathComponent
+                try? FileManager.default.createDirectory(atPath: parentDir, withIntermediateDirectories: true)
+                let isNew = !FileManager.default.fileExists(atPath: resolvedPath)
+                do {
+                    try bodyData.write(to: URL(fileURLWithPath: resolvedPath))
+                    WikiIndexHooks.reindex(path: relativePath)
+                    WikiChangeBus.emit(path: relativePath, op: isNew ? .created : .updated)
+                    return httpResponse(status: 200, statusText: "OK", body: "OK")
+                } catch {
+                    return httpResponse(status: 500, statusText: "Internal Server Error", body: "Write failed: \(error.localizedDescription)")
+                }
+
+            case "DELETE":
+                guard FileManager.default.fileExists(atPath: resolvedPath) else {
+                    return httpResponse(status: 404, statusText: "Not Found", body: "Not Found")
+                }
+                do {
+                    try FileManager.default.removeItem(atPath: resolvedPath)
+                    WikiIndexHooks.remove(path: relativePath)
+                    WikiChangeBus.emit(path: relativePath, op: .deleted)
+                    return httpResponse(status: 200, statusText: "OK", body: "OK")
+                } catch {
+                    return httpResponse(status: 500, statusText: "Internal Server Error", body: "Delete failed: \(error.localizedDescription)")
+                }
+
+            default:
+                return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method Not Allowed")
+            }
+        }
+
+        // PUT/DELETE only allowed on _state or wiki
+        guard method == "GET" || method == "HEAD" || method == "POST" else {
+            return httpResponse(status: 405, statusText: "Method Not Allowed", body: "PUT/DELETE only allowed on /wiki/")
         }
 
         // POST only allowed on _state
