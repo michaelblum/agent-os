@@ -83,6 +83,8 @@ fixture.swarm.blackHole = true;
 fixture.grid.mode = '3d';
 fixture.shapeParams.box.width = 1.5;
 fixture.size.base = 250;
+// Non-default trails — exercise all five fields so schema drift is caught.
+fixture.trails = { enabled: false, count: 12, opacity: 0.75, fadeMs: 650, style: 'particles' };
 
 applyAppearance(fixture);
 const snap = snapshotAppearance();

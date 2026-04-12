@@ -147,6 +147,20 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         showProbe: false,
         relativeMotion: false,
         timeScale: 1.0
+    },
+
+    // Trails (motion-trail visual behind the avatar).
+    // `enabled`/`count` map to state.isTrailEnabled/state.trailLength; the
+    // remaining fields (opacity/fadeMs/style) are declared so the seed doc
+    // schema (plan 2026-04-12) roundtrips losslessly. They are stored on
+    // state but not yet consumed by particles.js — forward-compatible
+    // scaffolding for Task 4/6/10.
+    trails: {
+        enabled: true,
+        count: 6,
+        opacity: 0.5,
+        fadeMs: 400,
+        style: 'omega'
     }
 });
 
@@ -301,24 +315,47 @@ export function applyAppearance(blob) {
     state.grid3dRelativeMotion = g.relativeMotion ?? D.grid.relativeMotion;
     state.grid3dTimeScale = g.timeScale ?? D.grid.timeScale;
 
+    // Trails
+    // `enabled` -> state.isTrailEnabled, `count` -> state.trailLength (trail
+    // sprite pool size). `opacity`/`fadeMs`/`style` are stored on state so the
+    // seed doc's schema roundtrips; particles.js does not yet consume them.
+    const tr = blob.trails ?? D.trails;
+    state.isTrailEnabled = tr.enabled ?? D.trails.enabled;
+    state.trailLength = tr.count ?? D.trails.count;
+    state.trailOpacity = tr.opacity ?? D.trails.opacity;
+    state.trailFadeMs = tr.fadeMs ?? D.trails.fadeMs;
+    state.trailStyle = tr.style ?? D.trails.style;
+
     // Trigger renderer update hooks that need mesh/material rebuilds.
     // Guarded: in headless/test contexts groups/materials may not exist yet,
     // and in pre-init contexts (e.g. Studio applyAppearance(DEFAULT) called
     // before scene.js initScene()) the Three.js groups aren't wired either.
-    try { updateGeometry(state.currentGeometryType); } catch (_) {}
-    try { updateOmegaGeometry(state.omegaGeometryType); } catch (_) {}
-    try { applySkin(state.currentSkin, false); } catch (_) {}
-    try { applySkin(state.omegaSkin, true); } catch (_) {}
-    try { updateAllColors(); } catch (_) {}
-    try { updatePulsars(state.pulsarRayCount); } catch (_) {}
-    try { updateGammaRays(state.gammaRayCount); } catch (_) {}
-    try { updateAccretion(state.accretionDiskCount); } catch (_) {}
-    try { updateNeutrinos(state.neutrinoJetCount); } catch (_) {}
+    // Errors surface at console.debug so real regressions are visible in
+    // devtools without breaking the headless-safety behavior.
+    try { updateGeometry(state.currentGeometryType); }
+    catch (e) { console.debug('[appearance] updateGeometry skipped:', e); }
+    try { updateOmegaGeometry(state.omegaGeometryType); }
+    catch (e) { console.debug('[appearance] updateOmegaGeometry skipped:', e); }
+    try { applySkin(state.currentSkin, false); }
+    catch (e) { console.debug('[appearance] applySkin(primary) skipped:', e); }
+    try { applySkin(state.omegaSkin, true); }
+    catch (e) { console.debug('[appearance] applySkin(omega) skipped:', e); }
+    try { updateAllColors(); }
+    catch (e) { console.debug('[appearance] updateAllColors skipped:', e); }
+    try { updatePulsars(state.pulsarRayCount); }
+    catch (e) { console.debug('[appearance] updatePulsars skipped:', e); }
+    try { updateGammaRays(state.gammaRayCount); }
+    catch (e) { console.debug('[appearance] updateGammaRays skipped:', e); }
+    try { updateAccretion(state.accretionDiskCount); }
+    catch (e) { console.debug('[appearance] updateAccretion skipped:', e); }
+    try { updateNeutrinos(state.neutrinoJetCount); }
+    catch (e) { console.debug('[appearance] updateNeutrinos skipped:', e); }
 
     // Opt-in scene-change hook (e.g. live-js boot may attach one for
     // geometry rebuild / skin rebind after first applyAppearance).
     if (typeof state._onAppearanceChanged === 'function') {
-        try { state._onAppearanceChanged(); } catch (_) {}
+        try { state._onAppearanceChanged(); }
+        catch (e) { console.debug('[appearance] _onAppearanceChanged hook threw:', e); }
     }
 }
 
@@ -448,6 +485,14 @@ export function snapshotAppearance() {
             showProbe: state.grid3dShowProbe,
             relativeMotion: state.grid3dRelativeMotion,
             timeScale: state.grid3dTimeScale
+        },
+
+        trails: {
+            enabled: state.isTrailEnabled,
+            count: state.trailLength,
+            opacity: state.trailOpacity ?? DEFAULT_APPEARANCE.trails.opacity,
+            fadeMs: state.trailFadeMs ?? DEFAULT_APPEARANCE.trails.fadeMs,
+            style: state.trailStyle ?? DEFAULT_APPEARANCE.trails.style
         }
     };
 }
