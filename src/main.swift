@@ -214,6 +214,7 @@ func printUsage() {
       reindex                Rebuild the index from filesystem
       lint                   Check for broken links, orphans, missing frontmatter
       seed                   Populate wiki with starter content
+      migrate-namespaces     Move legacy entities/concepts/plugins into aos/ namespace
 
     Examples:
       aos see cursor                    # What's under the cursor

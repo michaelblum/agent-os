@@ -17,7 +17,7 @@ func aosWikiDbPath(for mode: AOSRuntimeMode? = nil) -> String {
 
 func wikiCommand(args: [String]) {
     guard let sub = args.first else {
-        exitError("Usage: aos wiki <create-plugin|add|rm|link|list|search|show|invoke|reindex|lint|seed>", code: "MISSING_SUBCOMMAND")
+        exitError("Usage: aos wiki <create-plugin|add|rm|link|list|search|show|invoke|reindex|lint|seed|migrate-namespaces>", code: "MISSING_SUBCOMMAND")
     }
     let subArgs = Array(args.dropFirst())
     switch sub {
@@ -43,6 +43,8 @@ func wikiCommand(args: [String]) {
         wikiInvokeCommand(args: subArgs)
     case "seed":
         wikiSeedCommand(args: subArgs)
+    case "migrate-namespaces":
+        wikiMigrateNamespacesCommand(args: subArgs)
     default:
         exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
