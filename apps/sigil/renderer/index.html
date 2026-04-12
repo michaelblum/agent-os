@@ -2754,6 +2754,22 @@ const liveJs = {
     cursorTarget: { x: 0, y: 0, valid: false },
     currentCursor: { x: 0, y: 0, valid: false },
     followAlpha: 0.12, // matches Swift behaviorFollowCursor's smoothing:0.12
+
+    // Avatar screen position (what we consider "where the avatar is").
+    // Equals currentCursor in IDLE; during GOTO/fast-travel/drag it's
+    // driven by the state machine rather than the cursor.
+    avatarPos: { x: 0, y: 0, valid: false },
+    avatarHitRadius: 40, // "on avatar" = within 40px of avatarPos
+
+    // State machine.
+    state: 'IDLE', // 'IDLE' | 'PRESS' | 'DRAG' | 'GOTO'
+    mousedownPos: null,        // where the left button went down
+    mousedownAvatarPos: null,  // avatar position at mousedown (for drag-cancel zone)
+    dragThreshold: 6,          // pixels; middle of brief's 4-8 range
+    dragCancelRadius: 40,      // release within this of mousedownAvatarPos cancels menu
+
+    // Fast-travel animation state (T5 fills in).
+    travel: null,
 };
 
 function setupLiveJs() {
@@ -2776,9 +2792,7 @@ function setupLiveJs() {
 }
 
 function handleLiveJsMessage(msg) {
-    // Input events (fan-out from daemon; type is the event subtype).
-    // Everything with x/y updates the cursor target; state-machine-specific
-    // handlers dispatched from a switch in later tasks.
+    // Cursor position tracking: any event with x/y updates the target.
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
         liveJs.cursorTarget.x = msg.x;
         liveJs.cursorTarget.y = msg.y;
@@ -2788,33 +2802,187 @@ function handleLiveJsMessage(msg) {
             liveJs.currentCursor.y = msg.y;
             liveJs.currentCursor.valid = true;
         }
-        return;
     }
 
-    if (msg.type === 'canvas.response') {
-        // T4 will handle avatar-hit create responses here.
-        return;
+    // Dispatch state-machine transitions by event type.
+    switch (msg.type) {
+        case 'left_mouse_down':
+            smHandleMouseDown(msg.x, msg.y);
+            break;
+        case 'left_mouse_up':
+            smHandleMouseUp(msg.x, msg.y);
+            break;
+        case 'left_mouse_dragged':
+        case 'mouse_moved':
+            smHandleMouseMove(msg.x, msg.y);
+            break;
+        case 'right_mouse_down':
+            smHandleCancel('right_click');
+            break;
+        case 'key_down':
+            if (msg.key_code === 53 /* ESC */) smHandleCancel('escape');
+            break;
+        case 'canvas.response':
+            // T4 handles avatar-hit create responses here.
+            break;
+        case 'display_geometry':
+            // T8 parses this.
+            break;
+        default:
+            // Unknown in live-js mode → try legacy handler for resilience.
+            if (msg.type && !msg.type.startsWith('left_') && !msg.type.startsWith('right_')
+                && !msg.type.startsWith('other_') && msg.type !== 'mouse_moved' && msg.type !== 'key_up') {
+                handleMessage(msg);
+            }
+            break;
     }
-
-    if (msg.type === 'display_geometry') {
-        // T8 will parse this. Swallow for now.
-        return;
-    }
-
-    // Fallback — legacy Swift-IPC types shouldn't arrive in live-js mode,
-    // but keep the path tolerant.
-    handleMessage(msg);
 }
 
-// Per-tick cursor follow: lerp current toward target, then push to scene.
-// Called from animate(). Later tasks will gate this by state (only in IDLE).
+// === STATE MACHINE ===
+
+function smSet(next, reason) {
+    if (liveJs.state === next) return;
+    console.log('[sigil-1] state:', liveJs.state, '→', next, reason ? '(' + reason + ')' : '');
+    liveJs.state = next;
+}
+
+function smIsOnAvatar(x, y) {
+    if (!liveJs.avatarPos.valid) return false;
+    const dx = x - liveJs.avatarPos.x;
+    const dy = y - liveJs.avatarPos.y;
+    return (dx * dx + dy * dy) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
+}
+
+function smDistance(ax, ay, bx, by) {
+    const dx = ax - bx, dy = ay - by;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function smHandleMouseDown(x, y) {
+    switch (liveJs.state) {
+        case 'IDLE':
+            if (smIsOnAvatar(x, y)) {
+                liveJs.mousedownPos = { x: x, y: y };
+                liveJs.mousedownAvatarPos = {
+                    x: liveJs.avatarPos.x,
+                    y: liveJs.avatarPos.y,
+                };
+                smSet('PRESS', 'mousedown-on-avatar');
+            }
+            // mousedown off-avatar in IDLE is ignored (passthrough territory).
+            break;
+        case 'GOTO':
+            // Any click in GOTO = either fast-travel target or cancel-on-avatar.
+            if (smIsOnAvatar(x, y)) {
+                smSet('IDLE', 'goto-click-on-avatar');
+            } else {
+                // Commit to fast-travel at mouseup (not down) — this is mousedown;
+                // hold context so mouseup fires the travel.
+                liveJs.mousedownPos = { x: x, y: y };
+            }
+            break;
+        // PRESS/DRAG ignore additional mousedowns.
+        default: break;
+    }
+}
+
+function smHandleMouseUp(x, y) {
+    switch (liveJs.state) {
+        case 'PRESS': {
+            // Short, stationary click — treat as click-on-avatar → GOTO.
+            smSet('GOTO', 'press→click');
+            liveJs.mousedownPos = null;
+            break;
+        }
+        case 'DRAG': {
+            // Release decision:
+            // - within drag-cancel zone of avatar origin → cancel
+            // - on menu ring (not yet implemented for selection) → log + IDLE
+            // - elsewhere → fast-travel
+            const origin = liveJs.mousedownAvatarPos;
+            const distFromOrigin = origin ? smDistance(x, y, origin.x, origin.y) : 99999;
+            if (distFromOrigin <= liveJs.dragCancelRadius) {
+                smSet('IDLE', 'drag-cancel-in-origin-zone');
+            } else {
+                const dx = x - (origin ? origin.x : x);
+                const dy = y - (origin ? origin.y : y);
+                const angle = Math.atan2(dy, dx);
+                console.log('[sigil-1] menu release angle=' + angle.toFixed(3) + ' radius=' + distFromOrigin.toFixed(0));
+                // Sigil-1: no slices → default to fast-travel on any non-cancel release.
+                startFastTravel(x, y);
+                smSet('IDLE', 'drag-release→fast-travel');
+            }
+            liveJs.mousedownPos = null;
+            liveJs.mousedownAvatarPos = null;
+            break;
+        }
+        case 'GOTO': {
+            if (!smIsOnAvatar(x, y)) {
+                // Mousedown+up both off-avatar = fast-travel to release point.
+                startFastTravel(x, y);
+                smSet('IDLE', 'goto-release→fast-travel');
+            }
+            liveJs.mousedownPos = null;
+            break;
+        }
+        default: break;
+    }
+}
+
+function smHandleMouseMove(x, y) {
+    if (liveJs.state === 'PRESS' && liveJs.mousedownPos) {
+        const d = smDistance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y);
+        if (d >= liveJs.dragThreshold) {
+            smSet('DRAG', 'press+move≥threshold');
+        }
+    }
+}
+
+function smHandleCancel(reason) {
+    if (liveJs.state === 'GOTO' || liveJs.state === 'DRAG' || liveJs.state === 'PRESS') {
+        smSet('IDLE', reason);
+        liveJs.mousedownPos = null;
+        liveJs.mousedownAvatarPos = null;
+    }
+}
+
+// Stub — T5 replaces with easing animation. For now, teleport so DRAG/GOTO
+// release behavior is observable end-to-end.
+function startFastTravel(x, y) {
+    liveJs.avatarPos.x = x;
+    liveJs.avatarPos.y = y;
+    liveJs.avatarPos.valid = true;
+    // Nudge currentCursor too so the follow doesn't yank it back.
+    liveJs.currentCursor.x = x;
+    liveJs.currentCursor.y = y;
+    liveJs.cursorTarget.x = x;
+    liveJs.cursorTarget.y = y;
+    const p = screenToScene(x, y);
+    setScenePosition(p.x, p.y);
+}
+
+// Per-tick: in IDLE, avatar lerps toward cursor. In other states, avatar
+// position is driven by the state machine / fast-travel animation; cursor
+// lerp still runs so the avatar picks up the current cursor when it
+// returns to IDLE. avatarPos is the source of truth for "where the avatar
+// is" (hit-testing, menu origin, etc.).
 function liveJsTick() {
     if (!liveJs.currentCursor.valid || !liveJs.cursorTarget.valid) return;
+
     const a = liveJs.followAlpha;
     liveJs.currentCursor.x += (liveJs.cursorTarget.x - liveJs.currentCursor.x) * a;
     liveJs.currentCursor.y += (liveJs.cursorTarget.y - liveJs.currentCursor.y) * a;
-    const p = screenToScene(liveJs.currentCursor.x, liveJs.currentCursor.y);
-    setScenePosition(p.x, p.y);
+
+    if (liveJs.state === 'IDLE') {
+        liveJs.avatarPos.x = liveJs.currentCursor.x;
+        liveJs.avatarPos.y = liveJs.currentCursor.y;
+        liveJs.avatarPos.valid = true;
+    }
+
+    if (liveJs.avatarPos.valid) {
+        const p = screenToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
+        setScenePosition(p.x, p.y);
+    }
 }
 
 function handleMessage(msg) {
