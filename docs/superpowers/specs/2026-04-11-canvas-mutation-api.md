@@ -189,6 +189,6 @@ Per the elimination arc:
 
 ## Open questions (for implementation, not blocking spec)
 
-- Does CLI `aos show create --id <existing>` currently clobber or error? Answer informs whether Phase 1 needs to change CLI behavior for consistency.
+- ~~Does CLI `aos show create --id <existing>` currently clobber or error?~~ **Resolved:** CLI returns `DUPLICATE_ID` (verified at `src/display/canvas.swift:339`). JS path aligned — same code, same semantics.
 - Should `canvas.update` return an error response when `request_id` is supplied, despite the "fire-and-forget" default? Leaning toward "no — update is always fire-and-forget, request_id is ignored." Cleaner rule.
 - Should the response envelope be `{type: "canvas.response", ...}` or `{type: "response", target: "canvas.create", ...}`? Former is simpler; latter is more general if we add non-canvas RPCs later. Phase 1 uses the former; revisit if a second RPC family shows up.
