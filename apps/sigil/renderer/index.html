@@ -2780,6 +2780,10 @@ const liveJs = {
     ui: null,
     gotoRingRadius: 60,
     menuRingRadius: 120,
+
+    // Display geometry (from AOS-1). Used to clamp fast-travel targets so
+    // the avatar stays on-screen.
+    displays: null, // last received snapshot
 };
 
 function setupLiveJs() {
@@ -2796,7 +2800,7 @@ function setupLiveJs() {
     // Subscribe to input_event fan-out. Payload shape (per AOS-2):
     // {type: "mouse_move"|"mouse_down"|"key_down"|..., x?, y?, button?,
     //  key_code?, flags: {shift, ctrl, cmd, opt, fn}}
-    postToHost('subscribe', { events: ['input_event'] });
+    postToHost('subscribe', { events: ['input_event', 'display_geometry'] });
 
     // 2D UI overlay for GOTO/DRAG placeholder rings. Lives above the
     // Three.js canvas and is pointer-events:none so the full-display
@@ -2873,7 +2877,9 @@ function handleLiveJsMessage(msg) {
             }
             break;
         case 'display_geometry':
-            // T8 parses this.
+            liveJs.displays = msg.displays || [];
+            console.log('[sigil-1] display_geometry snapshot:',
+                liveJs.displays.length, 'display(s)');
             break;
         default:
             // Unknown in live-js mode → try legacy handler for resilience.
@@ -2999,7 +3005,29 @@ function smHandleCancel(reason) {
 // Triggers the existing ghost-trail visuals via applyBehaviorPreset.
 function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
 
+function clampToVisibleBounds(x, y) {
+    const displays = liveJs.displays;
+    if (!displays || displays.length === 0) return { x, y };
+    // Find the display whose visible_bounds contains the target, else clamp
+    // to the nearest visible_bounds rect.
+    let best = null, bestD = Infinity;
+    for (const d of displays) {
+        const vb = d.visible_bounds || d.bounds;
+        if (!vb) continue;
+        const inside = x >= vb.x && x < vb.x + vb.width
+            && y >= vb.y && y < vb.y + vb.height;
+        if (inside) return { x, y };
+        const cx = Math.max(vb.x, Math.min(x, vb.x + vb.width - 1));
+        const cy = Math.max(vb.y, Math.min(y, vb.y + vb.height - 1));
+        const dd = (x - cx) ** 2 + (y - cy) ** 2;
+        if (dd < bestD) { bestD = dd; best = { x: cx, y: cy }; }
+    }
+    return best || { x, y };
+}
+
 function startFastTravel(toX, toY) {
+    const clamped = clampToVisibleBounds(toX, toY);
+    toX = clamped.x; toY = clamped.y;
     const fromX = liveJs.avatarPos.valid ? liveJs.avatarPos.x : toX;
     const fromY = liveJs.avatarPos.valid ? liveJs.avatarPos.y : toY;
     const dist = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
