@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>body{margin:0;background:rgba(0,0,0,0.4);color:#fff;font:14px ui-monospace,monospace;padding:12px;}</style>
+</head>
+<body>
+<div id="log">test-mutation: booting</div>
+<script>
+var log = document.getElementById('log');
+function writeln(s){ log.textContent += '\n' + s; }
+window.headsup = window.headsup || {};
+window.headsup.receive = function(b64){
+  try { var msg = JSON.parse(atob(b64)); writeln('recv: ' + JSON.stringify(msg)); }
+  catch(e){ writeln('parse err: ' + e); }
+};
+function post(type, payload){
+  window.webkit.messageHandlers.headsup.postMessage({type:type, payload:payload});
+}
+// Ask for a child canvas 300x200 at (400, 400).
+post('canvas.create', {
+  id: 'child-a', url: 'aos://sigil/test-mutation/child.html',
+  frame: [400, 400, 300, 200], interactive: false, request_id: 'r1'
+});
+writeln('posted canvas.create');
+</script>
+</body>
+</html>

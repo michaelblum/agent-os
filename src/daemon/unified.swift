@@ -111,12 +111,25 @@ class UnifiedDaemon {
             // Intercept subscribe/unsubscribe before relay — these configure daemon
             // state, not events for other subscribers to observe.
             if let dict = payload as? [String: Any],
-               let type = dict["type"] as? String,
-               type == "subscribe" || type == "unsubscribe" {
+               let type = dict["type"] as? String {
                 let inner = dict["payload"] as? [String: Any]
-                let events = (inner?["events"] as? [String]) ?? []
-                self.handleCanvasSubscription(canvasID: canvasID, type: type, events: events)
-                return
+                switch type {
+                case "subscribe", "unsubscribe":
+                    let events = (inner?["events"] as? [String]) ?? []
+                    self.handleCanvasSubscription(canvasID: canvasID, type: type, events: events)
+                    return
+                case "canvas.create":
+                    self.handleCanvasCreate(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "canvas.update":
+                    self.handleCanvasUpdate(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "canvas.remove":
+                    self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
+                    return
+                default:
+                    break
+                }
             }
 
             let data: [String: Any] = ["id": canvasID, "payload": payload]
@@ -282,6 +295,76 @@ class UnifiedDaemon {
         let b64 = json.base64EncodedString()
         let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
         canvasManager.evalAsync(canvasID: canvasID, js: js)
+    }
+
+    private func handleCanvasCreate(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+
+        guard let newID = payload["id"] as? String, !newID.isEmpty else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ID", message: "canvas.create requires id")
+            return
+        }
+        guard let url = payload["url"] as? String, !url.isEmpty else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_URL", message: "canvas.create requires url")
+            return
+        }
+        guard let frameArr = payload["frame"] as? [Any], frameArr.count == 4 else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
+            return
+        }
+        let at: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard at.count == 4 else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_FRAME", message: "frame values must be numeric")
+            return
+        }
+        let interactive = payload["interactive"] as? Bool
+
+        let resolvedURL = resolveContentURL(url)
+
+        let req = CanvasRequest(
+            action: "create",
+            id: newID,
+            at: at,
+            anchorWindow: nil, anchorChannel: nil, offset: nil,
+            html: nil, url: resolvedURL,
+            interactive: interactive,
+            focus: nil, ttl: nil, js: nil, scope: nil,
+            autoProject: nil, channel: nil, data: nil
+        )
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let response = self.canvasManager.handle(req)
+            if response.status == "success" {
+                self.canvasSubscriptionLock.lock()
+                self.canvasCreatedBy[newID] = callerID
+                var siblings = self.canvasChildren[callerID] ?? []
+                siblings.insert(newID)
+                self.canvasChildren[callerID] = siblings
+                self.canvasSubscriptionLock.unlock()
+                fputs("[canvas-mut] create ok caller=\(callerID) new=\(newID)\n", stderr)
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "ok", createdID: newID)
+            } else {
+                fputs("[canvas-mut] create fail caller=\(callerID) new=\(newID) code=\(response.code ?? "?") err=\(response.error ?? "?")\n", stderr)
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: response.code, message: response.error)
+            }
+        }
+    }
+
+    private func handleCanvasUpdate(callerID: String, payload: [String: Any]) {
+        // Implemented in Task 4.
+        fputs("[canvas-mut] update stub caller=\(callerID)\n", stderr)
+    }
+
+    private func handleCanvasRemove(callerID: String, payload: [String: Any]) {
+        // Implemented in Task 5.
+        fputs("[canvas-mut] remove stub caller=\(callerID)\n", stderr)
     }
 
     // MARK: - Connection Handling
