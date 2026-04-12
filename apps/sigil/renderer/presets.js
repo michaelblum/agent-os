@@ -16,7 +16,9 @@ const PRESET_PATCHES = {
     default: (base) => ({
         ...base,
         shape: 6,
-        maskEnabled: true, interiorEdges: true, specular: true,
+        // maskEnabled: Studio's checkbox is "Show Faces" (inverted). Old
+        // preset set UI checkbox=true → listener wrote state=!true → false.
+        maskEnabled: false, interiorEdges: true, specular: true,
         opacity: 0.25, edgeOpacity: 1.0,
         aura: { ...base.aura, enabled: true, reach: 1.0, intensity: 1.0 },
         phenomena: {
@@ -38,7 +40,8 @@ const PRESET_PATCHES = {
     blackhole: (base) => ({
         ...base,
         shape: 100,
-        maskEnabled: false, interiorEdges: false, specular: false,
+        // Show-Faces inversion: old UI=false → state=!false → true
+        maskEnabled: true, interiorEdges: false, specular: false,
         opacity: 1.0, edgeOpacity: 0.0,
         aura: { ...base.aura, enabled: false },
         phenomena: {
@@ -65,7 +68,8 @@ const PRESET_PATCHES = {
     crystal: (base) => ({
         ...base,
         shape: 20,
-        maskEnabled: false, interiorEdges: true, specular: true,
+        // Show-Faces inversion: old UI=false → state=!false → true
+        maskEnabled: true, interiorEdges: true, specular: true,
         opacity: 0.15, edgeOpacity: 0.8,
         aura: { ...base.aura, enabled: true, reach: 0.8, intensity: 1.5, pulseRate: 0.002 },
         phenomena: {
@@ -87,7 +91,8 @@ const PRESET_PATCHES = {
 
     neon: (base) => ({
         ...base,
-        maskEnabled: true, interiorEdges: true, specular: false,
+        // Show-Faces inversion: old UI=true → state=!true → false
+        maskEnabled: false, interiorEdges: true, specular: false,
         opacity: 0.0, edgeOpacity: 1.0,
         aura: { ...base.aura, enabled: true, reach: 1.5, intensity: 2.0, pulseRate: 0.008 },
         phenomena: {
@@ -112,7 +117,9 @@ const PRESET_PATCHES = {
         ...base,
         shape: 6,
         stellation: -1,
-        maskEnabled: true, interiorEdges: true, specular: true,
+        // Show-Faces inversion: old UI=true → state=!true → false
+        // (omega.maskEnabled below is NOT flipped — already correct.)
+        maskEnabled: false, interiorEdges: true, specular: true,
         opacity: 0.25, edgeOpacity: 0.4,
         skin: 'none',
         idleSpin: 0.01,
