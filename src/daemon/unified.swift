@@ -144,9 +144,34 @@ class UnifiedDaemon {
             if action == "removed" {
                 self.canvasSubscriptionLock.lock()
                 let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
+                let children = self.canvasChildren.removeValue(forKey: canvasID) ?? []
+                // Detach this canvas from its parent's child set.
+                if let parent = self.canvasCreatedBy.removeValue(forKey: canvasID) {
+                    if var peers = self.canvasChildren[parent] {
+                        peers.remove(canvasID)
+                        if peers.isEmpty {
+                            self.canvasChildren.removeValue(forKey: parent)
+                        } else {
+                            self.canvasChildren[parent] = peers
+                        }
+                    }
+                }
                 self.canvasSubscriptionLock.unlock()
                 if had {
                     fputs("[canvas-sub] cleared subscriptions for removed canvas=\(canvasID)\n", stderr)
+                }
+                // Cascade: any children whose parent just died are removed too.
+                // Runs on main thread (this closure already does).
+                for child in children {
+                    let req = CanvasRequest(
+                        action: "remove", id: child, at: nil,
+                        anchorWindow: nil, anchorChannel: nil, offset: nil,
+                        html: nil, url: nil, interactive: nil,
+                        focus: nil, ttl: nil, js: nil, scope: nil,
+                        autoProject: nil, channel: nil, data: nil
+                    )
+                    _ = self.canvasManager.handle(req)
+                    fputs("[canvas-mut] cascade-removed child=\(child) (parent=\(canvasID))\n", stderr)
                 }
             }
 
@@ -461,27 +486,20 @@ class UnifiedDaemon {
     /// If orphanChildren is true, children are detached (createdBy[child] = nil) but not removed.
     /// Updates ownership maps atomically under canvasSubscriptionLock.
     private func performCascadeRemove(targetID: String, orphanChildren: Bool) {
-        canvasSubscriptionLock.lock()
-        let children = canvasChildren[targetID] ?? []
         if orphanChildren {
+            canvasSubscriptionLock.lock()
+            let children = canvasChildren.removeValue(forKey: targetID) ?? []
             for child in children {
                 canvasCreatedBy.removeValue(forKey: child)
             }
-            canvasChildren.removeValue(forKey: targetID)
+            canvasSubscriptionLock.unlock()
         }
-        canvasSubscriptionLock.unlock()
+        // If not orphaning, the lifecycle handler does the cascade automatically
+        // when handle(remove) fires below.
 
-        if !orphanChildren {
-            for child in children {
-                performCascadeRemove(targetID: child, orphanChildren: false)
-            }
-        }
-
-        // Remove the target itself via the standard pipeline.
         let req = CanvasRequest(
-            action: "remove",
-            id: targetID,
-            at: nil, anchorWindow: nil, anchorChannel: nil, offset: nil,
+            action: "remove", id: targetID, at: nil,
+            anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: nil, interactive: nil,
             focus: nil, ttl: nil, js: nil, scope: nil,
             autoProject: nil, channel: nil, data: nil
@@ -492,23 +510,6 @@ class UnifiedDaemon {
         } else {
             fputs("[canvas-mut] remove ok target=\(targetID) orphan=\(orphanChildren)\n", stderr)
         }
-
-        // Ownership cleanup for the target itself — parent's children set, target's own rows.
-        // (Note: the canvas_lifecycle "removed" handler in Task 6 also cleans these entries,
-        // but doing it here keeps the post-condition local to this function.)
-        canvasSubscriptionLock.lock()
-        if let parent = canvasCreatedBy.removeValue(forKey: targetID) {
-            if var peers = canvasChildren[parent] {
-                peers.remove(targetID)
-                if peers.isEmpty {
-                    canvasChildren.removeValue(forKey: parent)
-                } else {
-                    canvasChildren[parent] = peers
-                }
-            }
-        }
-        canvasChildren.removeValue(forKey: targetID)
-        canvasSubscriptionLock.unlock()
     }
 
     // MARK: - Connection Handling
