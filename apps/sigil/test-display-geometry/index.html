@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html, body { margin: 0; padding: 16px; background: #0a0e14; color: #cbd5e1;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, monospace; }
+h1 { font-size: 14px; margin: 0 0 12px 0; color: #8ef; }
+.row { margin-bottom: 12px; }
+.displays { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.display {
+  border: 1px solid #334155; padding: 10px 12px; border-radius: 4px;
+  background: rgba(30, 41, 59, 0.6); min-width: 220px;
+}
+.display.main { border-color: #8ef; }
+.k { color: #64748b; }
+.v { color: #e2e8f0; }
+#log { background: #020617; padding: 8px 12px; border-radius: 4px;
+  max-height: 320px; overflow-y: auto; white-space: pre-wrap; font-size: 12px; }
+.ts { color: #8ef; }
+</style>
+</head>
+<body>
+<h1>display_geometry test harness</h1>
+<div class="row"><span class="k">global_bounds:</span> <span class="v" id="global">—</span></div>
+<div class="displays" id="displays"></div>
+<div><strong>Log</strong></div>
+<div id="log"></div>
+<script>
+var snapshotCount = 0;
+var logEl = document.getElementById('log');
+var globalEl = document.getElementById('global');
+var displaysEl = document.getElementById('displays');
+
+function postToHost(type, payload) {
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+    window.webkit.messageHandlers.headsup.postMessage(
+      payload !== undefined ? { type: type, payload: payload } : { type: type }
+    );
+  }
+}
+
+function fmtRect(r) {
+  return '[' + Math.round(r.x) + ',' + Math.round(r.y) + ' ' +
+         Math.round(r.w) + 'x' + Math.round(r.h) + ']';
+}
+
+function render(snapshot) {
+  globalEl.textContent = fmtRect(snapshot.global_bounds);
+  displaysEl.innerHTML = '';
+  snapshot.displays.forEach(function(d) {
+    var el = document.createElement('div');
+    el.className = 'display' + (d.is_main ? ' main' : '');
+    el.innerHTML =
+      '<div><span class="k">id:</span> <span class="v">' + d.display_id + '</span>' +
+      (d.is_main ? '  <span class="k">(main)</span>' : '') + '</div>' +
+      '<div><span class="k">uuid:</span> <span class="v">' + (d.display_uuid || '').slice(0, 8) + '…</span></div>' +
+      '<div><span class="k">bounds:</span> <span class="v">' + fmtRect(d.bounds) + '</span></div>' +
+      '<div><span class="k">visible:</span> <span class="v">' + fmtRect(d.visible_bounds) + '</span></div>' +
+      '<div><span class="k">scale:</span> <span class="v">' + d.scale_factor + '×</span>' +
+      '  <span class="k">rot:</span> <span class="v">' + d.rotation + '°</span></div>';
+    displaysEl.appendChild(el);
+  });
+}
+
+function log(msg) {
+  var ts = new Date().toISOString().slice(11, 23);
+  var line = document.createElement('div');
+  line.innerHTML = '<span class="ts">' + ts + '</span> ' + msg;
+  logEl.insertBefore(line, logEl.firstChild);
+}
+
+window.headsup = window.headsup || {};
+window.headsup.receive = function(b64) {
+  try {
+    var msg = JSON.parse(atob(b64));
+    if (msg.type === 'display_geometry') {
+      snapshotCount++;
+      log('snapshot #' + snapshotCount + ' — ' + msg.displays.length + ' display(s), global=' + fmtRect(msg.global_bounds));
+      render(msg);
+    }
+  } catch (e) {
+    log('parse error: ' + e);
+  }
+};
+
+postToHost('subscribe', { events: ['display_geometry'] });
+log('subscribed; waiting for snapshot…');
+</script>
+</body>
+</html>
