@@ -358,8 +358,56 @@ class UnifiedDaemon {
     }
 
     private func handleCanvasUpdate(callerID: String, payload: [String: Any]) {
-        // Implemented in Task 4.
-        fputs("[canvas-mut] update stub caller=\(callerID)\n", stderr)
+        guard let targetID = payload["id"] as? String, !targetID.isEmpty else {
+            fputs("[canvas-mut] update dropped caller=\(callerID) reason=missing-id\n", stderr)
+            return
+        }
+
+        // Permission check. `true` = allowed.
+        let permitted: Bool = {
+            if targetID == callerID { return true }
+            canvasSubscriptionLock.lock()
+            defer { canvasSubscriptionLock.unlock() }
+            if let owner = canvasCreatedBy[targetID] { return owner == callerID }
+            return true  // no recorded owner = CLI-origin = open per spec rule 3
+        }()
+        guard permitted else {
+            fputs("[canvas-mut] update forbidden caller=\(callerID) target=\(targetID)\n", stderr)
+            return
+        }
+
+        // Build the CanvasRequest. Only `frame` and `interactive` are accepted for update.
+        var at: [CGFloat]? = nil
+        if let arr = payload["frame"] as? [Any], arr.count == 4 {
+            let parsed: [CGFloat] = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+            if parsed.count == 4 { at = parsed }
+        }
+        let interactive = payload["interactive"] as? Bool
+
+        guard at != nil || interactive != nil else {
+            fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
+            return
+        }
+
+        let req = CanvasRequest(
+            action: "update",
+            id: targetID,
+            at: at,
+            anchorWindow: nil, anchorChannel: nil, offset: nil,
+            html: nil, url: nil,
+            interactive: interactive,
+            focus: nil, ttl: nil, js: nil, scope: nil,
+            autoProject: nil, channel: nil, data: nil
+        )
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let response = self.canvasManager.handle(req)
+            if response.status != "success" {
+                fputs("[canvas-mut] update fail caller=\(callerID) target=\(targetID) code=\(response.code ?? "?") err=\(response.error ?? "?")\n", stderr)
+            }
+            // Success path is intentionally silent — update is the 60Hz hot path.
+        }
     }
 
     private func handleCanvasRemove(callerID: String, payload: [String: Any]) {
