@@ -8,6 +8,7 @@ import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from
 import { applySkin } from '../../renderer/skins.js';
 import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
+import { loadAgent } from '../../renderer/agent-loader.js';
 
 // --- Seeded PRNG (mulberry32) ---
 function mulberry32(seed) {
@@ -862,18 +863,105 @@ export function setupUI() {
         }
     });
 
-    // --- Size sliders ---
-    const CONFIG_URL = '/_state/avatar-config.json';
+    // --- Agent persistence (wiki PUT) ---
+    //
+    // Studio persists appearance edits by writing the active agent's wiki
+    // document via `PUT /wiki/sigil/agents/<id>.md`. The daemon emits
+    // `wiki_page_changed`; if a live avatar is running and subscribed, it
+    // re-fetches and re-applies the appearance (apps/sigil/renderer Task 9).
+    //
+    // We preserve frontmatter, prose, and the non-appearance fields (`minds`,
+    // `instance`, `version`) in the JSON block — only the `appearance` key is
+    // replaced.
+    const studioParams = new URLSearchParams(location.search);
+    const activeAgentId = studioParams.get('agent') ?? 'default';
+    const AGENT_PATH = `sigil/agents/${activeAgentId}.md`;
 
-    function persistConfig() {
-        const config = getConfig();
-        fetch(CONFIG_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config, null, 2)
-        }).catch(err => console.warn('Config persist failed:', err));
+    function showStudioError(msg) {
+        console.error('[studio]', msg);
+        try { alert(msg); } catch (e) {}
     }
 
+    function initialAgentDoc(agentId) {
+        const body = JSON.stringify({
+            version: 1,
+            appearance: snapshotAppearance(),
+            minds: { skills: [], tools: [], workflows: [] },
+            instance: {
+                home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
+                size: 300
+            }
+        }, null, 2);
+        return `---\ntype: agent\nid: ${agentId}\nname: ${agentId}\ntags: [sigil]\n---\n\n`
+            + `Sigil agent: ${agentId}.\n\n`
+            + '```json\n' + body + '\n```\n';
+    }
+
+    function replaceAppearanceInDoc(markdown, appearance) {
+        // Find ```json ... ``` block, parse, replace .appearance, reserialize.
+        const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
+        if (!match) {
+            // Append a fresh block
+            const body = JSON.stringify({
+                version: 1,
+                appearance,
+                minds: { skills: [], tools: [], workflows: [] },
+                instance: {
+                    home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
+                    size: 300
+                }
+            }, null, 2);
+            return markdown + `\n\`\`\`json\n${body}\n\`\`\`\n`;
+        }
+        let parsed;
+        try {
+            parsed = JSON.parse(match[1]);
+        } catch (e) {
+            console.warn('[studio] agent doc JSON malformed; rewriting block', e);
+            parsed = {
+                version: 1,
+                minds: { skills: [], tools: [], workflows: [] },
+                instance: {
+                    home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
+                    size: 300
+                }
+            };
+        }
+        parsed.appearance = appearance;
+        const newBlock = JSON.stringify(parsed, null, 2);
+        return markdown.replace(match[0], '```json\n' + newBlock + '\n```');
+    }
+
+    async function persistAgent() {
+        // Fetch current doc to preserve frontmatter, prose, minds, instance
+        let doc;
+        try {
+            const res = await fetch(`/wiki/${AGENT_PATH}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            doc = await res.text();
+        } catch (e) {
+            console.warn('[studio] no existing agent doc; writing fresh', e);
+            doc = initialAgentDoc(activeAgentId);
+        }
+
+        const appearance = snapshotAppearance();
+        const updated = replaceAppearanceInDoc(doc, appearance);
+
+        try {
+            const put = await fetch(`/wiki/${AGENT_PATH}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'text/markdown' },
+                body: updated,
+            });
+            if (!put.ok) {
+                showStudioError(`save failed: HTTP ${put.status}`);
+            }
+        } catch (e) {
+            showStudioError(`save failed: ${e.message ?? e}`);
+        }
+    }
+
+    // --- Size sliders ---
     const baseSizeSlider = document.getElementById('baseSizeSlider');
     const baseSizeVal = document.getElementById('baseSizeVal');
     if (baseSizeSlider) {
@@ -883,7 +971,7 @@ export function setupUI() {
             state.baseScale = computeBaseScale(v);
             if (baseSizeVal) baseSizeVal.innerText = Math.round(v);
         });
-        baseSizeSlider.addEventListener('change', persistConfig);
+        baseSizeSlider.addEventListener('change', persistAgent);
     }
 
     const minSizeSlider = document.getElementById('minSizeSlider');
@@ -893,7 +981,7 @@ export function setupUI() {
             state.avatarMin = parseFloat(e.target.value);
             if (minSizeVal) minSizeVal.innerText = Math.round(state.avatarMin);
         });
-        minSizeSlider.addEventListener('change', persistConfig);
+        minSizeSlider.addEventListener('change', persistAgent);
     }
 
     const maxSizeSlider = document.getElementById('maxSizeSlider');
@@ -903,7 +991,7 @@ export function setupUI() {
             state.avatarMax = parseFloat(e.target.value);
             if (maxSizeVal) maxSizeVal.innerText = Math.round(state.avatarMax);
         });
-        maxSizeSlider.addEventListener('change', persistConfig);
+        maxSizeSlider.addEventListener('change', persistAgent);
     }
 
     // Seed state from the canonical appearance defaults before any UI listener
@@ -912,16 +1000,16 @@ export function setupUI() {
     applyAppearance(DEFAULT_APPEARANCE);
     syncUIFromState();
 
-    // Load persisted avatar config on startup (legacy /_state/avatar-config.json).
-    // applyConfig still goes through DOM-event dispatch to wire up derived UI
-    // chrome (sub-control visibility etc.); it writes state via the same
-    // listeners as live user input.
-    fetch(CONFIG_URL).then(r => {
-        if (!r.ok) return null;
-        return r.json();
-    }).then(config => {
-        if (config) applyConfig(config);
-    }).catch(() => {});
+    // Load the active agent's appearance on startup via the wiki. Falls back
+    // silently to DEFAULT_APPEARANCE (already seeded above) on any failure;
+    // loadAgent parses frontmatter + ```json block and never throws — see
+    // apps/sigil/renderer/agent-loader.js.
+    loadAgent(`sigil/agents/${activeAgentId}`).then(agent => {
+        if (agent && agent.appearance) {
+            applyAppearance(agent.appearance);
+            syncUIFromState();
+        }
+    }).catch(err => console.warn('[studio] agent load failed:', err));
 
     // Action Buttons
     document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
@@ -961,14 +1049,16 @@ export function setupUI() {
         });
     }
 
-    document.getElementById('btn-save').addEventListener('click', () => {
-        const config = getConfig();
-        const jsonStr = JSON.stringify(config, null, 2);
-        const blob = new Blob([jsonStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'celestial_config.json';
-        a.click(); URL.revokeObjectURL(url);
+    // Save = persist appearance to the active agent's wiki doc. Daemon emits
+    // wiki_page_changed; any live avatar subscribed to that channel will
+    // re-fetch + applyAppearance (see renderer Task 9). Visual ack on the
+    // button so operators know the PUT was accepted.
+    document.getElementById('btn-save').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const prevBg = btn.style.background;
+        await persistAgent();
+        btn.style.background = 'rgba(188, 19, 254, 0.4)';
+        setTimeout(() => { btn.style.background = prevBg; }, 600);
     });
 
     document.getElementById('btn-load').addEventListener('click', () => {

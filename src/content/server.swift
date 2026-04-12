@@ -83,20 +83,85 @@ class ContentServer {
 
     private func handleConnection(_ connection: NWConnection) {
         connection.start(queue: DispatchQueue(label: "aos.content-conn"))
+        receiveUntilComplete(connection: connection, accumulated: Data())
+    }
 
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, error in
-            guard let self = self, let data = data, error == nil else {
+    /// Accumulate bytes until we have the full HTTP request (headers + body).
+    ///
+    /// Clients like WKWebView `fetch()` commonly send the request line +
+    /// headers in one TCP segment and the body in a second segment; a single
+    /// `connection.receive` call sees only the first segment, so PUT/POST
+    /// bodies arrive empty. We parse headers as soon as we see `\r\n\r\n`,
+    /// extract Content-Length, and keep reading until we have `contentLength`
+    /// bytes of body (or zero if no Content-Length header, which is valid for
+    /// GET/HEAD/DELETE).
+    private func receiveUntilComplete(connection: NWConnection, accumulated: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+            guard let self = self else {
                 connection.cancel()
                 return
             }
-
-            let request = String(data: data, encoding: .utf8) ?? ""
-            let response = self.handleHTTPRequest(request)
-
-            connection.send(content: response, completion: .contentProcessed { _ in
+            if let error = error {
+                fputs("Content server: receive error: \(error)\n", stderr)
                 connection.cancel()
-            })
+                return
+            }
+            var buf = accumulated
+            if let data = data, !data.isEmpty {
+                buf.append(data)
+            }
+
+            // Look for end-of-headers
+            let sep = Data([0x0D, 0x0A, 0x0D, 0x0A])  // \r\n\r\n
+            guard let sepRange = buf.range(of: sep) else {
+                if isComplete {
+                    // Connection closed before we got a full header.
+                    connection.cancel()
+                    return
+                }
+                // Headers not fully received yet — keep reading.
+                self.receiveUntilComplete(connection: connection, accumulated: buf)
+                return
+            }
+
+            let headerBytes = buf.subdata(in: 0..<sepRange.lowerBound)
+            let bodyStart = sepRange.upperBound
+            let bodySoFar = buf.count - bodyStart
+
+            // Parse Content-Length out of the headers (case-insensitive).
+            var contentLength = 0
+            if let headerStr = String(data: headerBytes, encoding: .utf8) {
+                for line in headerStr.components(separatedBy: "\r\n") {
+                    let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+                    guard parts.count == 2 else { continue }
+                    if parts[0].lowercased() == "content-length" {
+                        contentLength = Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? 0
+                        break
+                    }
+                }
+            }
+
+            if bodySoFar < contentLength {
+                if isComplete {
+                    // Peer closed early; give up with what we have.
+                    self.finishRequest(connection: connection, request: buf)
+                    return
+                }
+                self.receiveUntilComplete(connection: connection, accumulated: buf)
+                return
+            }
+
+            // Full request received — process it.
+            self.finishRequest(connection: connection, request: buf)
         }
+    }
+
+    private func finishRequest(connection: NWConnection, request buf: Data) {
+        let request = String(data: buf, encoding: .utf8) ?? ""
+        let response = self.handleHTTPRequest(request)
+        connection.send(content: response, completion: .contentProcessed { _ in
+            connection.cancel()
+        })
     }
 
     // MARK: - HTTP Request Processing
