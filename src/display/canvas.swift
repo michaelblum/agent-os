@@ -807,6 +807,18 @@ class CanvasManager {
         return response
     }
 
+    /// Fire-and-forget JavaScript evaluation on a canvas. Non-blocking.
+    /// Used by the broadcast paths that fan out input events to subscribed canvases at
+    /// high frequency. Unlike `handleEval`, this does not wait for a result or return
+    /// a value — callers should not rely on ordering or completion.
+    func evalAsync(canvasID: String, js: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                  let canvas = self.canvases[canvasID] else { return }
+            canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
     private func handleToFront(_ req: CanvasRequest) -> CanvasResponse {
         guard let id = req.id else {
             return .fail("to-front requires --id", code: "MISSING_ID")
