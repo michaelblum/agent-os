@@ -2835,6 +2835,38 @@ function setupLiveJs() {
     console.log('[sigil-1] live-js setup complete; subscribed to input_event');
 }
 
+// Task 8 helpers: union-of-displays bookkeeping.
+//
+// `computeUnion(displays)` returns the bounding rect over every display's
+// `visible_bounds`. Shape: `{minX, minY, maxX, maxY, w, h}`. Missing/empty
+// input collapses to a zero rect so callers can safely skip clamping.
+//
+// `unionSize(union)` returns a stable string signature for topology-change
+// detection. We include min corners so that moving a monitor (same w/h,
+// different origin) still counts as a material change.
+function computeUnion(displays) {
+    if (!Array.isArray(displays) || displays.length === 0) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0, w: 0, h: 0 };
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const d of displays) {
+        const vb = d && d.visible_bounds;
+        if (!vb) continue;
+        if (vb.x < minX) minX = vb.x;
+        if (vb.y < minY) minY = vb.y;
+        if (vb.x + vb.w > maxX) maxX = vb.x + vb.w;
+        if (vb.y + vb.h > maxY) maxY = vb.y + vb.h;
+    }
+    if (!Number.isFinite(minX)) {
+        return { minX: 0, minY: 0, maxX: 0, maxY: 0, w: 0, h: 0 };
+    }
+    return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+}
+function unionSize(union) {
+    if (!union) return '0,0,0,0';
+    return union.minX + ',' + union.minY + ',' + union.w + ',' + union.h;
+}
+
 function handleLiveJsMessage(msg) {
     // Cursor position tracking: any event with x/y updates the target.
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
@@ -2887,6 +2919,34 @@ function handleLiveJsMessage(msg) {
                 const resolver = liveJs._resolveFirstDisplayGeometry;
                 liveJs._resolveFirstDisplayGeometry = null;
                 resolver(liveJs.displays);
+            }
+            // Task 8: recompute union, clamp avatarPos if it is now outside
+            // the visible bounds (e.g. operator unplugged the display the
+            // avatar was parked on), and log an advisory if the topology
+            // changed since boot.
+            {
+                const union = computeUnion(liveJs.displays);
+                liveJs.globalBounds = union;
+                if (liveJs.avatarPos.valid && union.w > 0 && union.h > 0) {
+                    const outside =
+                        liveJs.avatarPos.x < union.minX || liveJs.avatarPos.x > union.maxX ||
+                        liveJs.avatarPos.y < union.minY || liveJs.avatarPos.y > union.maxY;
+                    if (outside) {
+                        const clampedX = Math.max(union.minX, Math.min(union.maxX, liveJs.avatarPos.x));
+                        const clampedY = Math.max(union.minY, Math.min(union.maxY, liveJs.avatarPos.y));
+                        console.info('[sigil] avatarPos outside union; clamping',
+                            '(' + liveJs.avatarPos.x.toFixed(1) + ',' + liveJs.avatarPos.y.toFixed(1) + ')',
+                            '→',
+                            '(' + clampedX.toFixed(1) + ',' + clampedY.toFixed(1) + ')');
+                        liveJs.avatarPos.x = clampedX;
+                        liveJs.avatarPos.y = clampedY;
+                        // avatarPos.valid remains true — clamping does not invalidate.
+                    }
+                }
+                if (liveJs.globalBoundsAtBoot &&
+                    unionSize(union) !== unionSize(liveJs.globalBoundsAtBoot)) {
+                    console.info('[sigil] global bounds changed since boot; restart avatar for full canvas coverage');
+                }
             }
             break;
         default:
@@ -3321,6 +3381,8 @@ function _waitForEffectsSettled() {
 // do not hoist to the global object by default.
 window.state = state;
 window.liveJs = liveJs;
+window.computeUnion = computeUnion;
+window.unionSize = unionSize;
 </script>
 <script type="module">
 // ============================================================
@@ -3511,6 +3573,14 @@ async function boot() {
         liveJs.avatarPos = { x: home.x, y: home.y, valid: true };
         liveJs.avatarSize = agent.instance.size;
         liveJs.currentAgentId = currentAgentId;
+        // Task 8: snapshot the union-of-displays at boot so subsequent
+        // display_geometry rebroadcasts can detect topology changes and log
+        // an advisory that the operator may want to relaunch for full
+        // canvas coverage.
+        if (typeof window.computeUnion === 'function') {
+            liveJs.globalBoundsAtBoot = window.computeUnion(displays);
+            liveJs.globalBounds = liveJs.globalBoundsAtBoot;
+        }
         console.log('[sigil] home resolved:',
             'pos=(' + home.x.toFixed(1) + ',' + home.y.toFixed(1) + ')',
             'size=' + agent.instance.size,
