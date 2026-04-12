@@ -2672,6 +2672,10 @@ function animate() {
 
     state.globalTime += dt;
 
+    if (state.sigilBootMode === 'live-js') {
+        liveJsTick();
+    }
+
     // Nova scale calculation
     if (state.collapseTime > 0 && state.wasFullCharge) {
         let t = Math.max(0, state.collapseTime) / 0.75;
@@ -2744,10 +2748,15 @@ function postToHost(type, payload) {
     }
 }
 
+// Cursor tracking — target is last reported screen position, current lerps
+// toward it. setScenePosition runs in animate() when state machine allows.
+const liveJs = {
+    cursorTarget: { x: 0, y: 0, valid: false },
+    currentCursor: { x: 0, y: 0, valid: false },
+    followAlpha: 0.12, // matches Swift behaviorFollowCursor's smoothing:0.12
+};
+
 function setupLiveJs() {
-    // Reuse headsup.receive dispatch for live-js messages (input_event,
-    // display_geometry, canvas.response). Legacy handleMessage() types still
-    // resolve through the same switch for robustness.
     window.headsup = window.headsup || {};
     window.headsup.receive = function(b64) {
         try {
@@ -2757,19 +2766,55 @@ function setupLiveJs() {
             console.error('[sigil-1] IPC parse error:', e);
         }
     };
-    console.log('[sigil-1] live-js setup complete');
+
+    // Subscribe to input_event fan-out. Payload shape (per AOS-2):
+    // {type: "mouse_move"|"mouse_down"|"key_down"|..., x?, y?, button?,
+    //  key_code?, flags: {shift, ctrl, cmd, opt, fn}}
+    postToHost('subscribe', { events: ['input_event'] });
+
+    console.log('[sigil-1] live-js setup complete; subscribed to input_event');
 }
 
 function handleLiveJsMessage(msg) {
-    // T2+ will expand this switch. For now, log and let existing live-mode
-    // messages still route through handleMessage so the bootstrap is safe.
-    if (msg.type === 'input_event' || msg.type === 'display_geometry' || msg.type === 'canvas.response') {
-        console.log('[sigil-1] rx', msg.type);
+    // Input events (fan-out from daemon; type is the event subtype).
+    // Everything with x/y updates the cursor target; state-machine-specific
+    // handlers dispatched from a switch in later tasks.
+    if (typeof msg.x === 'number' && typeof msg.y === 'number') {
+        liveJs.cursorTarget.x = msg.x;
+        liveJs.cursorTarget.y = msg.y;
+        liveJs.cursorTarget.valid = true;
+        if (!liveJs.currentCursor.valid) {
+            liveJs.currentCursor.x = msg.x;
+            liveJs.currentCursor.y = msg.y;
+            liveJs.currentCursor.valid = true;
+        }
         return;
     }
-    // Fallback to legacy handler for anything else (shouldn't arrive in
-    // live-js mode, but harmless).
+
+    if (msg.type === 'canvas.response') {
+        // T4 will handle avatar-hit create responses here.
+        return;
+    }
+
+    if (msg.type === 'display_geometry') {
+        // T8 will parse this. Swallow for now.
+        return;
+    }
+
+    // Fallback — legacy Swift-IPC types shouldn't arrive in live-js mode,
+    // but keep the path tolerant.
     handleMessage(msg);
+}
+
+// Per-tick cursor follow: lerp current toward target, then push to scene.
+// Called from animate(). Later tasks will gate this by state (only in IDLE).
+function liveJsTick() {
+    if (!liveJs.currentCursor.valid || !liveJs.cursorTarget.valid) return;
+    const a = liveJs.followAlpha;
+    liveJs.currentCursor.x += (liveJs.cursorTarget.x - liveJs.currentCursor.x) * a;
+    liveJs.currentCursor.y += (liveJs.cursorTarget.y - liveJs.currentCursor.y) * a;
+    const p = screenToScene(liveJs.currentCursor.x, liveJs.currentCursor.y);
+    setScenePosition(p.x, p.y);
 }
 
 function handleMessage(msg) {
