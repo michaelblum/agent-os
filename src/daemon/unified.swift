@@ -220,6 +220,16 @@ class UnifiedDaemon {
 
         spatial.startPolling()
 
+        // Relocate legacy flat layout into aos/ namespace. Idempotent, creates backup.
+        let wikiRoot = URL(fileURLWithPath: aosStateDir()).appendingPathComponent("wiki")
+        do {
+            if try WikiMigrate.migrateIfNeeded(wikiRoot: wikiRoot) {
+                fputs("wiki: migrated flat layout into aos/ namespace (backup at wiki.pre-namespace-bak)\n", stderr)
+            }
+        } catch {
+            fputs("wiki: migration failed: \(error) — continuing with current layout\n", stderr)
+        }
+
         // Start content server
         if let contentConfig = currentConfig.content, !contentConfig.roots.isEmpty {
             let repoRoot = aosCurrentRepoRoot()
