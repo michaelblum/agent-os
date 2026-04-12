@@ -218,6 +218,25 @@ class UnifiedDaemon {
         fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(snapshot ?? [])\n", stderr)
     }
 
+    private func forwardInputEventToCanvases(data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("input_event") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        // Serialize once, base64 once, reuse across canvases.
+        guard let json = try? JSONSerialization.data(withJSONObject: data, options: []) else { return }
+        let b64 = json.base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+
+        for canvasID in targets {
+            canvasManager.evalAsync(canvasID: canvasID, js: js)
+        }
+    }
+
     // MARK: - Connection Handling
 
     private func acceptLoop() {
@@ -531,16 +550,19 @@ class UnifiedDaemon {
         let fds = subscribers.values.filter { $0.isSubscribed && $0.wantsInputEvents }.map(\.fd)
         subscriberLock.unlock()
 
-        guard !fds.isEmpty else { return }
-
-        let byteArray = [UInt8](bytes)
-        eventWriteQueue.async {
-            for fd in fds {
-                byteArray.withUnsafeBufferPointer { ptr in
-                    _ = write(fd, ptr.baseAddress!, ptr.count)
+        if !fds.isEmpty {
+            let byteArray = [UInt8](bytes)
+            eventWriteQueue.async {
+                for fd in fds {
+                    byteArray.withUnsafeBufferPointer { ptr in
+                        _ = write(fd, ptr.baseAddress!, ptr.count)
+                    }
                 }
             }
         }
+
+        // Forward to subscribed canvases via JS eval. Non-blocking; no response required.
+        forwardInputEventToCanvases(data: data)
     }
 
     private func updateSigilCanvasState(canvasID: String, action: String, at: [CGFloat]?) {
