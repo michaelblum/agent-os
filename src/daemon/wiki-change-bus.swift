@@ -32,6 +32,21 @@ final class WikiChangeBus {
         var payload: [String: Any] = ["path": path, "op": op.rawValue]
         if let t = type { payload["type"] = t }
         daemon.broadcastEvent(service: "wiki", event: "wiki_page_changed", data: payload)
+
+        // Also forward to subscribed canvases via JS eval.
+        //
+        // Canvas-side dispatch in handleLiveJsMessage() routes by msg.type.
+        // The wiki frontmatter "type" field (e.g. "agent") would collide with
+        // that dispatch key if passed through verbatim, so the canvas payload
+        // carries the event name in `type` and renames the frontmatter field
+        // to `wiki_type`. Socket subscribers keep the original `data` shape.
+        var canvasPayload: [String: Any] = [
+            "type": "wiki_page_changed",
+            "path": path,
+            "op": op.rawValue,
+        ]
+        if let t = type { canvasPayload["wiki_type"] = t }
+        daemon.forwardWikiPageChangedToCanvases(data: canvasPayload)
     }
 }
 

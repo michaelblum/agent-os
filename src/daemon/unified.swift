@@ -347,6 +347,29 @@ class UnifiedDaemon {
         }
     }
 
+    /// Fan out a wiki_page_changed event to every canvas that has subscribed
+    /// to the `wiki_page_changed` channel. Caller (WikiChangeBus.emit) is
+    /// responsible for shaping `data` so that `data["type"]` is the event
+    /// name ("wiki_page_changed"), since live-js canvas dispatch routes by
+    /// msg.type.
+    func forwardWikiPageChangedToCanvases(data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("wiki_page_changed") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        guard let json = try? JSONSerialization.data(withJSONObject: data, options: []) else { return }
+        let b64 = json.base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+
+        for canvasID in targets {
+            canvasManager.evalAsync(canvasID: canvasID, js: js)
+        }
+    }
+
     /// Fan out the current display geometry snapshot to every canvas
     /// subscribed to `display_geometry`. Invoked on subscribe (single
     /// target) and on `NSApplication.didChangeScreenParametersNotification`

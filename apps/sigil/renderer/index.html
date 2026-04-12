@@ -2800,7 +2800,13 @@ function setupLiveJs() {
     // Subscribe to input_event fan-out. Payload shape (per AOS-2):
     // {type: "mouse_move"|"mouse_down"|"key_down"|..., x?, y?, button?,
     //  key_code?, flags: {shift, ctrl, cmd, opt, fn}}
-    postToHost('subscribe', { events: ['input_event', 'display_geometry'] });
+    //
+    // Also subscribe to wiki_page_changed so the avatar can live-reload
+    // when its agent doc is edited on disk (Task 9). Payload shape (per
+    // forwardWikiPageChangedToCanvases in unified.swift):
+    //   {type: "wiki_page_changed", path: "sigil/agents/<id>.md",
+    //    op: "created"|"updated"|"deleted", wiki_type?: string}
+    postToHost('subscribe', { events: ['input_event', 'display_geometry', 'wiki_page_changed'] });
 
     // 2D UI overlay for GOTO/DRAG placeholder rings. Lives above the
     // Three.js canvas and is pointer-events:none so the full-display
@@ -2949,6 +2955,24 @@ function handleLiveJsMessage(msg) {
                 }
             }
             break;
+        case 'wiki_page_changed': {
+            // Live reload (Task 9). Filter to this avatar's agent doc,
+            // mark a pending reload, and flush immediately if we are in
+            // the parked state. Mid-gesture edits defer until the next
+            // transition back to IDLE (flushReload is also called from
+            // smSet when transitioning into IDLE and from tickFastTravel
+            // when the travel animation completes).
+            const agentId = liveJs.currentAgentId;
+            if (!agentId) break; // boot hasn't finished resolving the agent yet
+            const expected = 'sigil/agents/' + agentId + '.md';
+            if (msg.path !== expected) break;
+            liveJs.pendingReload = true;
+            console.log('[sigil] wiki_page_changed for current agent:', msg.path, '(' + msg.op + ')');
+            if (liveJs.state === 'IDLE' && !liveJs.travel) {
+                flushReload();
+            }
+            break;
+        }
         default:
             // Unknown in live-js mode → try legacy handler for resilience.
             if (msg.type && !msg.type.startsWith('left_') && !msg.type.startsWith('right_')
@@ -2965,6 +2989,31 @@ function smSet(next, reason) {
     if (liveJs.state === next) return;
     console.log('[sigil-1] state:', liveJs.state, '→', next, reason ? '(' + reason + ')' : '');
     liveJs.state = next;
+    // Task 9: on every transition INTO IDLE, try to flush any pending
+    // wiki_page_changed reload. If fast-travel was kicked off on this
+    // same mouseup (drag-release→fast-travel, goto-release→fast-travel)
+    // the state is IDLE but liveJs.travel is truthy — flushReload's
+    // internal gate defers until the travel animation completes
+    // (tickFastTravel retries the flush on completion).
+    if (next === 'IDLE') flushReload();
+}
+
+// Live-reload flush. Delegates to the module-scope helper installed on
+// window.__sigilFlushReload by the boot module (which owns the loadAgent
+// + applyAppearance imports). Gated: only runs if a reload is pending,
+// the avatar is truly parked (IDLE and not animating), and the module
+// helper is installed.
+function flushReload() {
+    if (!liveJs.pendingReload) return;
+    if (liveJs.state !== 'IDLE') return;
+    if (liveJs.travel) return;
+    if (typeof window.__sigilFlushReload !== 'function') return;
+    liveJs.pendingReload = false;
+    window.__sigilFlushReload().catch((e) => {
+        // Restore pending flag so a later IDLE tick can retry.
+        console.error('[sigil] flushReload failed:', e);
+        liveJs.pendingReload = true;
+    });
 }
 
 function smIsOnAvatar(x, y) {
@@ -3129,6 +3178,10 @@ function tickFastTravel() {
         liveJs.cursorTarget.y = t.toY;
         liveJs.travel = null;
         applyBehaviorPreset('standby', null);
+        // Task 9: travel animation ended. State is already IDLE (set at
+        // the mouseup that started the travel), so any deferred
+        // wiki_page_changed reload now has its moment.
+        flushReload();
     }
 }
 
@@ -3589,6 +3642,27 @@ async function boot() {
         console.error('[sigil] home resolution failed:', e);
     }
 }
+
+// Expose a live-reload helper for the classic-script flushReload() in
+// handleLiveJsMessage. Reloads the current agent doc, re-applies its
+// appearance blob, and refreshes the inline renderer's visuals. Home
+// position is deliberately NOT re-resolved (home applies only at spawn
+// per the Sigil Foundation spec).
+async function sigilReloadCurrentAgent() {
+    const liveJs = window.liveJs;
+    if (!liveJs || !liveJs.currentAgentId) {
+        throw new Error('sigilReloadCurrentAgent: currentAgentId not set');
+    }
+    const agentPath = 'sigil/agents/' + liveJs.currentAgentId;
+    const agent = await loadAgent(agentPath);
+    syncWindowStateToModule();
+    applyAppearance(agent.appearance);
+    syncModuleStateToWindow();
+    rebuildInlineVisualsAfterAppearance();
+    liveJs.avatarSize = agent.instance.size;
+    console.log('[sigil] live-reloaded agent:', liveJs.currentAgentId);
+}
+window.__sigilFlushReload = sigilReloadCurrentAgent;
 
 // Module scripts are deferred by default (run after DOMContentLoaded and
 // after any preceding classic inline scripts). init() and liveJs will
