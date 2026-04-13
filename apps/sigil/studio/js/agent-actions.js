@@ -157,9 +157,25 @@ function openRosterKebab(id, anchor) {
   }, 0);
 }
 
+// --- Inline rename (from Agent panel name input — no prompt) ---
+async function doRenameInline(id, newName) {
+  const md = await loadAgentDoc(id);
+  if (!md) return;
+  const updated = md.replace(/^name:\s*.+$/m, `name: ${newName}`);
+  await putAgentDoc(id, updated);
+  const active = getActiveAgent();
+  if (active?.id === id) setActiveAgent({ ...active, name: newName });
+  document.dispatchEvent(new CustomEvent('roster:refresh'));
+}
+
 export function setupAgentActions() {
   document.addEventListener('chip:save-as', () => doFork(getActiveAgent()?.id));
   document.addEventListener('chip:rename', () => doRename(getActiveAgent()?.id));
+  document.addEventListener('chip:rename-inline', async (e) => {
+    const active = getActiveAgent();
+    if (!active?.id || !e.detail?.name) return;
+    await doRenameInline(active.id, e.detail.name);
+  });
   document.addEventListener('chip:delete', () => doDelete(getActiveAgent()?.id));
   document.addEventListener('chip:undo', doUndo);
   document.addEventListener('roster:new', () => doFork(null));

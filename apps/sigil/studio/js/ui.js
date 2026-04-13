@@ -10,7 +10,7 @@ import { EFFECTS } from '../../renderer/fx-registry.js';
 import { loadAgent } from '../../renderer/agent-loader.js';
 import { randomizeAll } from './randomize.js';
 import { undoLastSave } from './undo-handler.js';
-import { setActiveAgent, getActiveAgent } from './active-agent.js';
+import { setActiveAgent, getActiveAgent, onActiveAgentChange } from './active-agent.js';
 
 // Inlined from deleted scene.js — converts pixel base size to Three.js scene scale.
 const REF_BASE = 300;
@@ -857,6 +857,64 @@ export function setupUI() {
         }
     }
 
+    function replaceJsonBlock(markdown, mutator) {
+        const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
+        let body = match ? JSON.parse(match[1] || '{}') : {
+            version: 1, appearance: {}, minds: { skills: [], tools: [], workflows: [] },
+            instance: { home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, size: 300 },
+        };
+        body = mutator(body) ?? body;
+        const ser = JSON.stringify(body, null, 2);
+        if (match) return markdown.replace(match[0], '```json\n' + ser + '\n```');
+        return markdown + `\n\`\`\`json\n${ser}\n\`\`\`\n`;
+    }
+
+    async function persistAgentInstance(patch) {
+        const id = getActiveAgent()?.id;
+        if (!id) return;
+        document.dispatchEvent(new CustomEvent('sync:saving'));
+        try {
+            const res = await fetch(`/wiki/sigil/agents/${id}.md`);
+            const doc = res.ok ? await res.text() : initialAgentDoc(id);
+            const updated = replaceJsonBlock(doc, (body) => {
+                body.instance = { ...(body.instance ?? {}), ...patch };
+                return body;
+            });
+            const put = await fetch(`/wiki/sigil/agents/${id}.md`, {
+                method: 'PUT', headers: { 'Content-Type': 'text/markdown' }, body: updated,
+            });
+            if (!put.ok) throw new Error(`HTTP ${put.status}`);
+            document.dispatchEvent(new CustomEvent('sync:saved'));
+        } catch (e) {
+            document.dispatchEvent(new CustomEvent('sync:error', { detail: { message: String(e.message ?? e) } }));
+        }
+    }
+
+    // --- Agent panel — identity, home, size ---
+    const agentNameInput = document.getElementById('agentDisplayName');
+    const agentAnchorSel = document.getElementById('agentHomeAnchor');
+    const agentNonantSel = document.getElementById('agentHomeNonant');
+    const agentDisplaySel = document.getElementById('agentHomeDisplay');
+
+    function hydrateAgentPanel(agent) {
+        if (!agent) return;
+        if (agentNameInput) agentNameInput.value = agent.name ?? agent.id ?? '';
+        const home = agent.instance?.home ?? {};
+        if (agentAnchorSel) agentAnchorSel.value = home.anchor ?? 'nonant';
+        if (agentNonantSel) agentNonantSel.value = home.nonant ?? 'bottom-right';
+        if (agentDisplaySel) agentDisplaySel.value = home.display ?? 'main';
+    }
+    onActiveAgentChange(hydrateAgentPanel);
+
+    agentNameInput?.addEventListener('change', (e) => {
+        document.dispatchEvent(new CustomEvent('chip:rename-inline', { detail: { name: e.target.value } }));
+    });
+    [agentAnchorSel, agentNonantSel, agentDisplaySel].forEach(el => el?.addEventListener('change', () => {
+        persistAgentInstance({
+            home: { anchor: agentAnchorSel.value, nonant: agentNonantSel.value, display: agentDisplaySel.value },
+        });
+    }));
+
     // --- Size sliders ---
     const baseSizeSlider = document.getElementById('baseSizeSlider');
     const baseSizeVal = document.getElementById('baseSizeVal');
@@ -867,7 +925,10 @@ export function setupUI() {
             state.baseScale = computeBaseScale(v);
             if (baseSizeVal) baseSizeVal.innerText = Math.round(v);
         });
-        baseSizeSlider.addEventListener('change', persistAgent);
+        baseSizeSlider.addEventListener('change', (e) => {
+            persistAgent();
+            persistAgentInstance({ size: parseInt(e.target.value, 10) });
+        });
     }
 
     const minSizeSlider = document.getElementById('minSizeSlider');
