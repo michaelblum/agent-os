@@ -914,6 +914,19 @@ export function setupUI() {
         maxSizeSlider.addEventListener('change', persistAgent);
     }
 
+    // Delegated appearance persistence. Sliders, toggles, selects, and color
+    // pickers inside the appearance panels fire `change` on commit (release /
+    // toggle / picker close), which is the right beat to snapshot → wiki.
+    // Scrub-during-drag lives on `input` and intentionally doesn't persist —
+    // see #39 for the live-preview follow-on. Context-menu inputs proxy via
+    // dispatchEvent('change') on the sidebar element, which is inside one of
+    // these panels, so those bubble through here too.
+    ['panel-geom', 'panel-colors', 'panel-anim'].forEach(id => {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        panel.addEventListener('change', () => { persistAgent(); });
+    });
+
     // Seed state from the canonical appearance defaults before any UI listener
     // fires. applyAppearance is the single gateway into state; syncUIFromState
     // mirrors state into DOM inputs (no events dispatched — state is truth).

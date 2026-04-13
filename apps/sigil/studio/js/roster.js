@@ -51,22 +51,33 @@ async function switchToAgent(id) {
 
 export async function setupRoster() {
   const grid = document.getElementById('roster-grid');
+  // Refresh races: boot fires both the initial refresh() and the first
+  // onActiveAgentChange near-simultaneously. Each one used to clear → await →
+  // append, so two interleaved runs produced 2× tiles. Token guard: only the
+  // newest invocation gets to touch the DOM, and the mutation is atomic
+  // (collect first, then replaceChildren in one step).
+  let refreshSeq = 0;
   async function refresh() {
-    grid.replaceChildren();
+    const myToken = ++refreshSeq;
+    const tiles = [];
     try {
       const ids = await listAgents();
+      if (myToken !== refreshSeq) return;
       const active = getActiveAgent();
       for (const id of ids) {
         const md = await loadAgentDoc(id);
+        if (myToken !== refreshSeq) return;
         if (!md) continue;
         const parsed = parseAgentDoc(md);
         parsed.id = id;
-        grid.appendChild(renderTile(parsed, id === active?.id));
+        tiles.push(renderTile(parsed, id === active?.id));
       }
     } catch (e) {
       console.warn('[roster] refresh failed:', e);
     }
-    grid.appendChild(renderNewTile());
+    if (myToken !== refreshSeq) return;
+    tiles.push(renderNewTile());
+    grid.replaceChildren(...tiles);
   }
   onActiveAgentChange(() => refresh());
   document.addEventListener('roster:refresh', refresh);
