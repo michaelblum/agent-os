@@ -2975,7 +2975,23 @@ function smSet(next, reason) {
     // the state is IDLE but liveJs.travel is truthy — flushReload's
     // internal gate defers until the travel animation completes
     // (tickFastTravel retries the flush on completion).
-    if (next === 'IDLE') flushReload();
+    if (next === 'IDLE') {
+        flushReload();
+        postLastPositionToDaemon();
+    }
+}
+
+// Fire-and-forget: tell the daemon where the avatar currently sits so
+// subsequent spawns of this agent (within the daemon's lifetime) resume
+// here instead of falling back to birthplace. Skipped if currentAgentId
+// hasn't been set yet (boot race) or if avatarPos isn't valid (during
+// fast-travel transit the position may be in a stale frame).
+function postLastPositionToDaemon() {
+    const agentId = liveJs.currentAgentId;
+    if (!agentId) return;
+    const p = liveJs.avatarPos;
+    if (!p || !p.valid || typeof p.x !== 'number' || typeof p.y !== 'number') return;
+    postToHost('agent.lastPosition.set', { agent_id: agentId, x: p.x, y: p.y });
 }
 
 // Live-reload flush. Delegates to the module-scope helper installed on
