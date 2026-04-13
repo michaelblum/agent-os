@@ -22,7 +22,7 @@
 - `apps/sigil/renderer/agent-loader.js` — rename `MINIMAL_DEFAULT.instance.home` → `.birthplace`; add migration logic to `loadAgent`.
 - `apps/sigil/renderer/index.html` — update imports, rename call site, add `resolvePosition()` in boot, add lastPosition post on IDLE transition.
 - `apps/sigil/seed/wiki/sigil/agents/default.md` — rename `home` → `birthplace` in the JSON block.
-- `src/daemon/unified.swift` — add `lastPositions` map + dispatch cases for `agent.lastPosition.get` / `agent.lastPosition.set`.
+- `src/daemon/unified.swift` — add `lastPositions` map + dispatch cases for `position.get` / `position.set`.
 
 **Created:**
 - `tests/renderer/birthplace-resolver.test.mjs` — node:test suite for the resolver.
@@ -648,11 +648,11 @@ In `src/daemon/unified.swift`, find the switch statement inside `canvasManager.o
 Add two cases before `default`:
 
 ```swift
-                case "agent.lastPosition.get":
-                    self.handleAgentLastPositionGet(callerID: canvasID, payload: inner ?? [:])
+                case "position.get":
+                    self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
                     return
-                case "agent.lastPosition.set":
-                    self.handleAgentLastPositionSet(callerID: canvasID, payload: inner ?? [:])
+                case "position.set":
+                    self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
 ```
 
@@ -661,24 +661,24 @@ Add two cases before `default`:
 In the same file, alongside `handleCanvasCreate` and `handleCanvasUpdate` (near line 440), add:
 
 ```swift
-    /// Request/response: return the stored lastPosition for `agent_id` or
-    /// null if none. Required payload field: agent_id (String). Optional:
+    /// Request/response: return the stored lastPosition for `key` or
+    /// null if none. Required payload field: key (String). Optional:
     /// request_id (String) for correlation.
-    private func handleAgentLastPositionGet(callerID: String, payload: [String: Any]) {
+    private func handlePositionGet(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
-        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty else {
+        guard let key = payload["key"] as? String, !key.isEmpty else {
             if let rid = requestID {
                 self.sendCanvasResponse(canvasID: callerID, requestID: rid,
-                    status: "error", code: "MISSING_AGENT_ID",
-                    message: "agent.lastPosition.get requires agent_id")
+                    status: "error", code: "MISSING_KEY",
+                    message: "position.get requires key")
             }
             return
         }
         lastPositionsLock.lock()
-        let pos = lastPositions[agentID]
+        let pos = lastPositions[key]
         lastPositionsLock.unlock()
 
-        var extra: [String: Any] = ["agent_id": agentID]
+        var extra: [String: Any] = ["key": key]
         if let p = pos {
             extra["position"] = ["x": p.x, "y": p.y]
         } else {
@@ -690,18 +690,18 @@ In the same file, alongside `handleCanvasCreate` and `handleCanvasUpdate` (near 
         }
     }
 
-    /// Fire-and-forget: record the current position for `agent_id`. Required
-    /// payload fields: agent_id (String), x (Double), y (Double). No response
+    /// Fire-and-forget: record the current position for `key`. Required
+    /// payload fields: key (String), x (Double), y (Double). No response
     /// emitted; caller is expected to treat this as eventually-consistent.
-    private func handleAgentLastPositionSet(callerID: String, payload: [String: Any]) {
-        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty,
+    private func handlePositionSet(callerID: String, payload: [String: Any]) {
+        guard let key = payload["key"] as? String, !key.isEmpty,
               let x = (payload["x"] as? NSNumber)?.doubleValue,
               let y = (payload["y"] as? NSNumber)?.doubleValue else {
-            fputs("[last-position] malformed set from canvas=\(callerID); ignoring\n", stderr)
+            fputs("[position] malformed set from canvas=\(callerID); ignoring\n", stderr)
             return
         }
         lastPositionsLock.lock()
-        lastPositions[agentID] = (x: x, y: y)
+        lastPositions[key] = (x: x, y: y)
         lastPositionsLock.unlock()
     }
 ```
@@ -774,9 +774,9 @@ Then verify via a scratch interactive canvas:
     // Register a receive handler for canvas.response from the daemon
     window.headsup = { receive: (b64) => window.__out.push(JSON.parse(atob(b64))) };
     // SET
-    call("agent.lastPosition.set", { agent_id: "smoke", x: 111, y: 222 });
+    call("position.set", { key: "smoke", x: 111, y: 222 });
     // GET (with request_id)
-    setTimeout(() => call("agent.lastPosition.get", { agent_id: "smoke", request_id: "r1" }), 50);
+    setTimeout(() => call("position.get", { key: "smoke", request_id: "r1" }), 50);
   </script>' \
   --interactive --at 0,0,200,200
 sleep 1
@@ -787,7 +787,7 @@ sleep 1
 Expected output contains an entry like:
 
 ```
-{"type":"canvas.response","request_id":"r1","status":"ok","agent_id":"smoke","position":{"x":111,"y":222}}
+{"type":"canvas.response","request_id":"r1","status":"ok","key":"smoke","position":{"x":111,"y":222}}
 ```
 
 If the response is missing, inspect the daemon log:
@@ -802,12 +802,12 @@ Look for `[last-position]` or crash markers.
 
 ```bash
 git add src/daemon/unified.swift
-git commit -m "feat(daemon): agent.lastPosition.{get,set} IPC verbs + in-memory map
+git commit -m "feat(daemon): position.{get,set} IPC verbs + in-memory map
 
-Adds a daemon-scope [String: (x, y)] dictionary keyed by agent_id, plus
+Adds a daemon-scope [String: (x, y)] dictionary keyed by key, plus
 two canvas-message dispatch cases:
-  - agent.lastPosition.get (request/response; returns position or null)
-  - agent.lastPosition.set (fire-and-forget write)
+  - position.get (request/response; returns position or null)
+  - position.set (fire-and-forget write)
 
 Map is in-memory only, wiped on daemon restart. NSLock-guarded for
 thread safety. Extends sendCanvasResponse with an optional 'extra' dict
@@ -857,7 +857,7 @@ async function getLastPositionFromDaemon(agentId) {
         window.liveJs._lpWaiters = window.liveJs._lpWaiters || [];
         window.liveJs._lpWaiters.push(handler);
         const timer = setTimeout(() => done(null), 250);
-        postToHost('agent.lastPosition.get', { agent_id: agentId, request_id: requestId });
+        postToHost('position.get', { key: agentId, request_id: requestId });
     });
 }
 
@@ -1042,7 +1042,7 @@ function postLastPositionToDaemon() {
     if (!agentId) return;
     const p = liveJs.avatarPos;
     if (!p || !p.valid || typeof p.x !== 'number' || typeof p.y !== 'number') return;
-    postToHost('agent.lastPosition.set', { agent_id: agentId, x: p.x, y: p.y });
+    postToHost('position.set', { key: agentId, x: p.x, y: p.y });
 }
 ```
 
@@ -1059,8 +1059,8 @@ sleep 0.3
 ./aos show create --id lp-peek --url 'data:text/html,<!doctype html><script>
   window.headsup = { receive: (b64) => { window.__r = JSON.parse(atob(b64)); } };
   window.webkit.messageHandlers.headsup.postMessage(JSON.stringify({
-    type: "agent.lastPosition.get",
-    payload: { agent_id: "default", request_id: "peek-1" }
+    type: "position.get",
+    payload: { key: "default", request_id: "peek-1" }
   }));
 </script>' --interactive --at 0,0,1,1
 sleep 0.3
@@ -1111,7 +1111,7 @@ Expected: position is at the main display's bottom-right nonant (x ≈ mainW × 
 git add apps/sigil/renderer/index.html
 git commit -m "feat(sigil): post lastPosition to daemon on IDLE transition
 
-smSet() now fires agent.lastPosition.set whenever the state machine
+smSet() now fires position.set whenever the state machine
 enters IDLE. Skipped if currentAgentId or avatarPos isn't ready, so
 boot races and invalid in-transit frames don't poison the map.
 
@@ -1359,6 +1359,6 @@ Spec §testing."
 
 - [ ] **Spec coverage.** Walk the spec sections one at a time. Every requirement has a task: rename (Task 1), unit tests (Tasks 2, 4), MINIMAL_DEFAULT + seed (Task 3), migration logic (Task 4), daemon IPC (Task 5), boot flow (Task 6), IDLE hook (Task 7), integration (Task 8). No gaps.
 - [ ] **Placeholder scan.** No "TBD", "fill in", "similar to", etc. Every code step shows the code.
-- [ ] **Type consistency.** `resolveBirthplace` used everywhere it's referenced. `agent.lastPosition.get` / `.set` strings match across renderer, daemon, and tests. `lastPositions` key is agent_id string in both layers.
+- [ ] **Type consistency.** `resolveBirthplace` used everywhere it's referenced. `position.get` / `position.set` strings match across renderer, daemon, and tests. `lastPositions` internal map key is the agent string in both layers.
 - [ ] **Commit cadence.** 8 commits, each bisectable. Rename is its own commit; migration, daemon, boot, and IDLE hook each land independently.
 - [ ] **Out-of-scope discipline.** Touch only the files listed in the file map. No drive-by cleanups.

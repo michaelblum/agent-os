@@ -143,11 +143,11 @@ class UnifiedDaemon {
                 case "canvas.remove":
                     self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
                     return
-                case "agent.lastPosition.get":
-                    self.handleAgentLastPositionGet(callerID: canvasID, payload: inner ?? [:])
+                case "position.get":
+                    self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
                     return
-                case "agent.lastPosition.set":
-                    self.handleAgentLastPositionSet(callerID: canvasID, payload: inner ?? [:])
+                case "position.set":
+                    self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
                 default:
                     break
@@ -643,24 +643,24 @@ class UnifiedDaemon {
         }
     }
 
-    /// Request/response: return the stored lastPosition for `agent_id` or
-    /// null if none. Required payload field: agent_id (String). Optional:
+    /// Request/response: return the stored lastPosition for `key` or
+    /// null if none. Required payload field: key (String). Optional:
     /// request_id (String) for correlation.
-    private func handleAgentLastPositionGet(callerID: String, payload: [String: Any]) {
+    private func handlePositionGet(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
-        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty else {
+        guard let key = payload["key"] as? String, !key.isEmpty else {
             if let rid = requestID {
                 dispatchCanvasResponse(to: callerID, requestID: rid,
-                    status: "error", code: "MISSING_AGENT_ID",
-                    message: "agent.lastPosition.get requires agent_id")
+                    status: "error", code: "MISSING_KEY",
+                    message: "position.get requires key")
             }
             return
         }
         lastPositionsLock.lock()
-        let pos = lastPositions[agentID]
+        let pos = lastPositions[key]
         lastPositionsLock.unlock()
 
-        var extra: [String: Any] = ["agent_id": agentID]
+        var extra: [String: Any] = ["key": key]
         if let p = pos {
             extra["position"] = ["x": p.x, "y": p.y]
         } else {
@@ -672,18 +672,18 @@ class UnifiedDaemon {
         }
     }
 
-    /// Fire-and-forget: record the current position for `agent_id`. Required
-    /// payload fields: agent_id (String), x (Double), y (Double). No response
+    /// Fire-and-forget: record the current position for `key`. Required
+    /// payload fields: key (String), x (Double), y (Double). No response
     /// emitted; caller is expected to treat this as eventually-consistent.
-    private func handleAgentLastPositionSet(callerID: String, payload: [String: Any]) {
-        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty,
+    private func handlePositionSet(callerID: String, payload: [String: Any]) {
+        guard let key = payload["key"] as? String, !key.isEmpty,
               let x = (payload["x"] as? NSNumber)?.doubleValue,
               let y = (payload["y"] as? NSNumber)?.doubleValue else {
-            fputs("[last-position] malformed set from canvas=\(callerID); ignoring\n", stderr)
+            fputs("[position] malformed set from canvas=\(callerID); ignoring\n", stderr)
             return
         }
         lastPositionsLock.lock()
-        lastPositions[agentID] = (x: x, y: y)
+        lastPositions[key] = (x: x, y: y)
         lastPositionsLock.unlock()
     }
 

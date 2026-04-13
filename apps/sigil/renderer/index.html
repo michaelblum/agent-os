@@ -2991,7 +2991,7 @@ function postLastPositionToDaemon() {
     if (!agentId) return;
     const p = liveJs.avatarPos;
     if (!p || !p.valid || typeof p.x !== 'number' || typeof p.y !== 'number') return;
-    postToHost('agent.lastPosition.set', { agent_id: agentId, x: p.x, y: p.y });
+    postToHost('position.set', { key: agentId, x: p.x, y: p.y });
 }
 
 // Live-reload flush. Delegates to the module-scope helper installed on
@@ -3497,7 +3497,7 @@ async function getLastPositionFromDaemon(agentId) {
         window.liveJs._lpWaiters = window.liveJs._lpWaiters || [];
         window.liveJs._lpWaiters.push(handler);
         const timer = setTimeout(() => done(null), 250);
-        postToHost('agent.lastPosition.get', { agent_id: agentId, request_id: requestId });
+        postToHost('position.get', { key: agentId, request_id: requestId });
     });
 }
 
