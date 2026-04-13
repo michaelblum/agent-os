@@ -8,6 +8,8 @@ import { applySkin } from '../../renderer/skins.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 import { loadAgent } from '../../renderer/agent-loader.js';
 import { randomizeAll } from './randomize.js';
+import { undoLastSave } from './undo-handler.js';
+import { setActiveAgent, getActiveAgent } from './active-agent.js';
 
 // Inlined from deleted scene.js — converts pixel base size to Three.js scene scale.
 const REF_BASE = 300;
@@ -826,31 +828,26 @@ export function setupUI() {
     }
 
     async function persistAgent() {
-        // Fetch current doc to preserve frontmatter, prose, minds, instance
+        const activeId = getActiveAgent()?.id ?? activeAgentId;
+        document.dispatchEvent(new CustomEvent('sync:saving'));
+        // Snapshot previous appearance for undo before mutating.
+        const prevAppearance = snapshotAppearance();
+        undoLastSave.buffer.record(activeId, prevAppearance);
         let doc;
         try {
-            const res = await fetch(`/wiki/${AGENT_PATH}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            doc = await res.text();
-        } catch (e) {
-            console.warn('[studio] no existing agent doc; writing fresh', e);
-            doc = initialAgentDoc(activeAgentId);
-        }
-
+            const res = await fetch(`/wiki/sigil/agents/${activeId}.md`);
+            doc = res.ok ? await res.text() : initialAgentDoc(activeId);
+        } catch { doc = initialAgentDoc(activeId); }
         const appearance = snapshotAppearance();
         const updated = replaceAppearanceInDoc(doc, appearance);
-
         try {
-            const put = await fetch(`/wiki/${AGENT_PATH}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'text/markdown' },
-                body: updated,
+            const put = await fetch(`/wiki/sigil/agents/${activeId}.md`, {
+                method: 'PUT', headers: { 'Content-Type': 'text/markdown' }, body: updated,
             });
-            if (!put.ok) {
-                showStudioError(`save failed: HTTP ${put.status}`);
-            }
+            if (!put.ok) throw new Error(`HTTP ${put.status}`);
+            document.dispatchEvent(new CustomEvent('sync:saved'));
         } catch (e) {
-            showStudioError(`save failed: ${e.message ?? e}`);
+            document.dispatchEvent(new CustomEvent('sync:error', { detail: { message: String(e.message ?? e) } }));
         }
     }
 
@@ -902,6 +899,7 @@ export function setupUI() {
             applyAppearance(agent.appearance);
             syncUIFromState();
         }
+        setActiveAgent({ id: activeAgentId, name: agent?.name, appearance: agent?.appearance });
     }).catch(err => console.warn('[studio] agent load failed:', err));
 
     // Action Buttons
