@@ -1,15 +1,21 @@
 import state from '../../renderer/state.js';
-import { computeBaseScale } from './scene.js';
 import { updateGeometry, updateOmegaGeometry } from '../../renderer/geometry.js';
 import { updateAllColors } from '../../renderer/colors.js';
 import { applyPreset } from '../../renderer/presets.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../../renderer/appearance.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { applySkin } from '../../renderer/skins.js';
-import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 import { loadAgent } from '../../renderer/agent-loader.js';
 import { randomizeAll } from './randomize.js';
+
+// Inlined from deleted scene.js — converts pixel base size to Three.js scene scale.
+const REF_BASE = 300;
+const REF_SCALE = 1.1;
+const REF_HEIGHT = 1080;
+function computeBaseScale(base) {
+    return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
+}
 
 function makeEditable(id, getMin, getMax, isFloat, onChange) {
     const el = document.getElementById(id);
