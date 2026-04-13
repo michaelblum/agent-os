@@ -53,6 +53,14 @@ class UnifiedDaemon {
     private var displayGeometryBroadcastScheduled = false
     private let displayGeometryCoalesceMs: Int = 100
 
+    // Per-agent last-known position, keyed by agent id (e.g. "default" from
+    // `sigil/agents/default.md`). In-memory only — wiped on daemon restart.
+    // Written by the renderer on every transition to IDLE; read by the
+    // renderer on boot to resume the avatar where the user last left it.
+    // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
+    private var lastPositions: [String: (x: Double, y: Double)] = [:]
+    private let lastPositionsLock = NSLock()
+
     struct SubscriberConnection {
         let fd: Int32
         var perceptionChannelIDs: Set<UUID>
@@ -134,6 +142,12 @@ class UnifiedDaemon {
                     return
                 case "canvas.remove":
                     self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "agent.lastPosition.get":
+                    self.handleAgentLastPositionGet(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "agent.lastPosition.set":
+                    self.handleAgentLastPositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
                 default:
                     break
@@ -420,7 +434,8 @@ class UnifiedDaemon {
         status: String,
         code: String? = nil,
         message: String? = nil,
-        createdID: String? = nil
+        createdID: String? = nil,
+        extra: [String: Any] = [:]
     ) {
         guard let requestID = requestID else { return }
         var obj: [String: Any] = [
@@ -431,6 +446,7 @@ class UnifiedDaemon {
         if let code = code { obj["code"] = code }
         if let message = message { obj["message"] = message }
         if let createdID = createdID { obj["id"] = createdID }
+        for (k, v) in extra { obj[k] = v }
         guard let json = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return }
         let b64 = json.base64EncodedString()
         let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
@@ -625,6 +641,50 @@ class UnifiedDaemon {
         } else {
             fputs("[canvas-mut] remove ok target=\(targetID) orphan=\(orphanChildren)\n", stderr)
         }
+    }
+
+    /// Request/response: return the stored lastPosition for `agent_id` or
+    /// null if none. Required payload field: agent_id (String). Optional:
+    /// request_id (String) for correlation.
+    private func handleAgentLastPositionGet(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty else {
+            if let rid = requestID {
+                dispatchCanvasResponse(to: callerID, requestID: rid,
+                    status: "error", code: "MISSING_AGENT_ID",
+                    message: "agent.lastPosition.get requires agent_id")
+            }
+            return
+        }
+        lastPositionsLock.lock()
+        let pos = lastPositions[agentID]
+        lastPositionsLock.unlock()
+
+        var extra: [String: Any] = ["agent_id": agentID]
+        if let p = pos {
+            extra["position"] = ["x": p.x, "y": p.y]
+        } else {
+            extra["position"] = NSNull()
+        }
+        if let rid = requestID {
+            dispatchCanvasResponse(to: callerID, requestID: rid,
+                status: "ok", extra: extra)
+        }
+    }
+
+    /// Fire-and-forget: record the current position for `agent_id`. Required
+    /// payload fields: agent_id (String), x (Double), y (Double). No response
+    /// emitted; caller is expected to treat this as eventually-consistent.
+    private func handleAgentLastPositionSet(callerID: String, payload: [String: Any]) {
+        guard let agentID = payload["agent_id"] as? String, !agentID.isEmpty,
+              let x = (payload["x"] as? NSNumber)?.doubleValue,
+              let y = (payload["y"] as? NSNumber)?.doubleValue else {
+            fputs("[last-position] malformed set from canvas=\(callerID); ignoring\n", stderr)
+            return
+        }
+        lastPositionsLock.lock()
+        lastPositions[agentID] = (x: x, y: y)
+        lastPositionsLock.unlock()
     }
 
     // MARK: - Connection Handling
