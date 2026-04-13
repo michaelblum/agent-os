@@ -828,6 +828,11 @@ export function setupUI() {
         return markdown.replace(match[0], '```json\n' + newBlock + '\n```');
     }
 
+    // Note: scrub-during-drag live preview was considered (PUT on `input` events
+    // to hit the desktop avatar via wiki_page_changed). Deferred — the existing
+    // change-event autosave provides release-to-commit feedback, which is the
+    // dominant editing gesture. Revisit if scrub-feel becomes a priority; see
+    // issue filed as follow-on.
     async function persistAgent() {
         const activeId = getActiveAgent()?.id ?? activeAgentId;
         document.dispatchEvent(new CustomEvent('sync:saving'));
