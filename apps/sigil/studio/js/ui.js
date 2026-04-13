@@ -4,6 +4,7 @@ import { updateAllColors } from '../../renderer/colors.js';
 import { applyPreset } from '../../renderer/presets.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../../renderer/appearance.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
+export { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { applySkin } from '../../renderer/skins.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 import { loadAgent } from '../../renderer/agent-loader.js';
@@ -901,15 +902,6 @@ export function setupUI() {
         }
         setActiveAgent({ id: activeAgentId, name: agent?.name, appearance: agent?.appearance });
     }).catch(err => console.warn('[studio] agent load failed:', err));
-
-    // Action Buttons
-    document.getElementById('btn-randomize').addEventListener('click', () => {
-        const seed = Math.floor(Math.random() * 999999);
-        randomizeAll(seed, 'everything', { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos });
-        const url = new URL(window.location);
-        url.searchParams.set('seed', seed);
-        window.history.replaceState({}, '', url);
-    });
 
     const btnShare = document.getElementById('btn-share');
     if (btnShare) {
