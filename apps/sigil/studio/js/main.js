@@ -6,6 +6,7 @@ import { setupUI, setupEditableLabels } from './ui.js';
 import { setupChip } from './chip.js';
 import { setupRoster } from './roster.js';
 import { setupReroll } from './reroll.js';
+import { setupAgentActions } from './agent-actions.js';
 
 function init() {
   setupUI();
@@ -13,6 +14,7 @@ function init() {
   setupChip();
   setupRoster();
   setupReroll();
+  setupAgentActions();
 }
 
 window.addEventListener('DOMContentLoaded', init);

@@ -1748,6 +1748,10 @@ export function setupUI() {
             setTimeout(() => applyConfig(JSON.parse(json)), 100);
         } catch (e) { console.warn('Invalid config param', e); }
     }
+
+    // Allow agent-actions.js (and any other module) to trigger a persist without
+    // importing ui.js directly — e.g. after an undo restores appearance state.
+    document.addEventListener('persist:request', () => { persistAgent(); });
 }
 
 export function setupEditableLabels() {
