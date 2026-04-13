@@ -2878,12 +2878,24 @@ function handleLiveJsMessage(msg) {
             if (msg.key_code === 53 /* ESC */) smHandleCancel('escape');
             break;
         case 'canvas.response':
+            // Existing avatar-hit flow
             if (msg.request_id === 'create-hit') {
                 if (msg.status === 'ok') {
                     liveJs.hitReady = true;
                     console.log('[sigil-1] avatar-hit ready');
                 } else {
                     console.error('[sigil-1] avatar-hit create failed:', msg.code, msg.message);
+                }
+                break;
+            }
+            // Generic waiter dispatch (currently used by the boot module's
+            // lastPosition lookup). Each waiter returns true if it consumed
+            // the message; consumed waiters are auto-removed inside the
+            // resolver. Iterate over a snapshot to avoid mutation-during-
+            // iteration if a waiter's done() callback splices the list.
+            if (Array.isArray(liveJs._lpWaiters)) {
+                for (const handler of liveJs._lpWaiters.slice()) {
+                    try { handler(msg); } catch (e) { console.error('[sigil] waiter threw:', e); }
                 }
             }
             break;
@@ -3415,33 +3427,76 @@ async function boot() {
         console.error('[sigil] applyAppearance pipeline threw:', e);
     }
 
-    // 4. Await the first display_geometry broadcast, then resolve home.
+    // 4. Await the first display_geometry broadcast, then resolve position.
     //    Subscription was opened inside init() → setupLiveJs().
     try {
         const displays = await awaitFirstDisplayGeometry();
-        // Temporary bridge: after Task 4 lands, loadAgent always returns agent
-        // objects with `instance.birthplace` populated, so the fallback becomes
-        // dead code. Task 6 rewrites this block to call resolvePosition().
-        const home = resolveBirthplace(agent.instance.birthplace ?? agent.instance.home, displays);
+        // Set currentAgentId early so that in-flight IDLE transitions
+        // during boot (uncommon but possible) have a valid id to post under.
         const liveJs = window.liveJs;
-        liveJs.avatarPos = { x: home.x, y: home.y, valid: true };
-        liveJs.avatarSize = agent.instance.size;
         liveJs.currentAgentId = currentAgentId;
-        // Task 8: snapshot the union-of-displays at boot so subsequent
-        // display_geometry rebroadcasts can detect topology changes and log
-        // an advisory that the operator may want to relaunch for full
-        // canvas coverage.
+        const pos = await resolvePosition({ ...agent, id: currentAgentId }, displays);
+        liveJs.avatarPos = { x: pos.x, y: pos.y, valid: true };
+        liveJs.avatarSize = agent.instance.size;
+        // Task 8 (foundation): snapshot union-of-displays for topology change detection
         if (typeof window.computeUnion === 'function') {
             liveJs.globalBoundsAtBoot = window.computeUnion(displays);
             liveJs.globalBounds = liveJs.globalBoundsAtBoot;
         }
-        console.log('[sigil] home resolved:',
-            'pos=(' + home.x.toFixed(1) + ',' + home.y.toFixed(1) + ')',
+        console.log('[sigil] position resolved:',
+            'pos=(' + pos.x.toFixed(1) + ',' + pos.y.toFixed(1) + ')',
             'size=' + agent.instance.size,
             'agent=' + currentAgentId);
     } catch (e) {
-        console.error('[sigil] home resolution failed:', e);
+        console.error('[sigil] position resolution failed:', e);
     }
+}
+
+// Request/response over the canvas IPC bridge to ask the daemon for the
+// agent's lastPosition. Resolves with {x, y} if present, null if not, and
+// null on timeout or malformed response. 250ms timeout is generous — the
+// daemon's dispatch is synchronous on the main thread.
+async function getLastPositionFromDaemon(agentId) {
+    const requestId = 'lp-get-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    return new Promise((resolve) => {
+        let settled = false;
+        const done = (value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            // Best-effort cleanup of the one-shot response handler
+            const idx = window.liveJs._lpWaiters?.indexOf?.(handler);
+            if (idx > -1) window.liveJs._lpWaiters.splice(idx, 1);
+            resolve(value);
+        };
+        const handler = (msg) => {
+            if (msg?.type !== 'canvas.response') return false;
+            if (msg.request_id !== requestId) return false;
+            if (msg.status !== 'ok') { done(null); return true; }
+            const p = msg.position;
+            if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') { done(null); return true; }
+            done({ x: p.x, y: p.y });
+            return true;
+        };
+        window.liveJs._lpWaiters = window.liveJs._lpWaiters || [];
+        window.liveJs._lpWaiters.push(handler);
+        const timer = setTimeout(() => done(null), 250);
+        postToHost('agent.lastPosition.get', { agent_id: agentId, request_id: requestId });
+    });
+}
+
+// Resolve the avatar's initial position. Tries the daemon's lastPosition
+// map first (populated during this daemon's lifetime by IDLE transitions);
+// falls back to resolveBirthplace(agent.instance.birthplace, displays) for
+// first-spawn-ever and post-daemon-restart cases.
+async function resolvePosition(agent, displays) {
+    try {
+        const lp = await getLastPositionFromDaemon(agent.id);
+        if (lp) return lp;
+    } catch (e) {
+        console.warn('[sigil] lastPosition lookup failed; falling back to birthplace:', e);
+    }
+    return resolveBirthplace(agent.instance.birthplace, displays);
 }
 
 // Expose a live-reload helper for the classic-script flushReload() in
