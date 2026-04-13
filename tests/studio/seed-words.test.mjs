@@ -37,3 +37,24 @@ test('distinct seeds usually produce distinct words', () => {
   }
   assert.equal(collisions, 0, 'first 200 seeds collide');
 });
+
+test('seeds with non-zero tail roundtrip correctly', () => {
+  // Seeds spanning the high-order tail digit
+  for (const seed of [18432, 36864, 500000, 999999]) {
+    const words = seedToWords(seed);
+    assert.equal(wordsToSeed(words), seed);
+  }
+});
+
+test('edge inputs to seedToWords are handled', () => {
+  // Overflow wraps via % 1_000_000
+  assert.equal(seedToWords(1_000_001), seedToWords(1));
+  // Negative seeds use abs
+  assert.equal(seedToWords(-5), seedToWords(5));
+  // Non-finite inputs fall back to seed=0 (no 'undefined' in output)
+  for (const bad of [NaN, Infinity, -Infinity, undefined, null, 'not-a-number']) {
+    const out = seedToWords(bad);
+    assert.match(out, /^[a-z]+-[a-z]+-\d{2}$/, `malformed output for ${String(bad)}: ${out}`);
+    assert.doesNotMatch(out, /undefined|NaN/);
+  }
+});

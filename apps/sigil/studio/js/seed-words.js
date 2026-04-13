@@ -55,7 +55,8 @@ function hashString(s) {
 }
 
 export function seedToWords(seed) {
-  const n = Math.abs(Math.trunc(seed)) % 1_000_000;
+  const raw = Number(seed);
+  const n = Number.isFinite(raw) ? Math.abs(Math.trunc(raw)) % 1_000_000 : 0;
   const L = ADJECTIVES.length;
   const N = NOUNS.length;
   const adj = ADJECTIVES[n % L];
@@ -70,7 +71,7 @@ export function wordsToSeed(s) {
   const ai = ADJECTIVES.indexOf(m[1]);
   const ni = NOUNS.indexOf(m[2]);
   const tail = parseInt(m[3], 10);
-  if (ai < 0 || ni < 0 || isNaN(tail) || tail < 0 || tail >= 100) return hashString(s);
+  if (ai < 0 || ni < 0 || tail < 0 || tail >= 100) return hashString(s);
   const L = ADJECTIVES.length;
   const N = NOUNS.length;
   return ai + L * ni + L * N * tail;
