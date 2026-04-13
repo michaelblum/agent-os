@@ -74,10 +74,55 @@ function parseYAMLFrontmatter(src) {
 // src/daemon/unified.swift (resolveContentURL).
 export async function loadAgent(wikiPath) {
   try {
-    const res = await fetch(`/wiki/${wikiPath}.md`);
+    const url = `/wiki/${wikiPath}.md`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
-    return parseAgentDoc(text);
+    const agent = parseAgentDoc(text);
+
+    // Migration: if the doc has `home` but not `birthplace`, rewrite on disk
+    // and upgrade the in-memory agent. If both are present, `birthplace` wins
+    // and `home` is left orphaned (logged advisory, no rewrite — we don't
+    // mutate docs on a read path when both fields are present).
+    const inst = agent.instance ?? {};
+    const hasBirthplace = inst.birthplace != null;
+    const hasHome = inst.home != null;
+
+    if (hasBirthplace && hasHome) {
+      console.warn('[agent-loader] agent doc has both birthplace and home; home is orphaned and will NOT be removed automatically (to avoid unexpected writes on read). Manual cleanup recommended.');
+      return agent;
+    }
+
+    if (!hasBirthplace && hasHome) {
+      // In-place rename. `agent.instance` already came from parseAgentDoc,
+      // which returned a fresh object — safe to mutate.
+      agent.instance = { ...inst, birthplace: inst.home };
+      delete agent.instance.home;
+
+      // Rewrite the wiki doc so `home` no longer appears on disk. Best-effort:
+      // if the PUT fails we keep the in-memory rewrite and the next load will
+      // retry. Construct the new body by replacing the `home` key token in
+      // the JSON block — simpler and safer than round-tripping through the
+      // full frontmatter + JSON serializer.
+      const rewritten = text.replace(/"home"\s*:/g, '"birthplace":');
+      try {
+        const putRes = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'text/markdown' },
+          body: rewritten,
+        });
+        if (!putRes.ok) throw new Error(`PUT HTTP ${putRes.status}`);
+        console.log('[agent-loader] migrated home → birthplace in', wikiPath);
+      } catch (e) {
+        console.warn('[agent-loader] migration PUT failed; keeping in-memory rewrite:', e);
+      }
+      return agent;
+    }
+
+    // hasBirthplace-only or neither — parseAgentDoc already filled in
+    // MINIMAL_DEFAULT.instance (which has `birthplace`) when `instance` was
+    // missing from the doc, so the agent object is already well-formed.
+    return agent;
   } catch (e) {
     console.warn('[agent-loader] fetch failed, falling back:', e);
     return { ...MINIMAL_DEFAULT };
