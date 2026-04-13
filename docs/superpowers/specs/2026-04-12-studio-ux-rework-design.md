@@ -65,7 +65,7 @@ Safety (try-without-committing) is delegated to wiki version history via a **Rev
 
 ### Window model
 
-Studio is a **floating inspector window**, ~460px wide, flexible height. Rendered via `aos show create --url aos://sigil/studio/index.html --kind inspector`. Sits beside the live avatar rather than replacing it.
+Studio is a **compact interactive canvas** — ~460px wide, flexible height — rendered via `aos show create --url aos://sigil/studio/index.html --interactive --focus --at <geom>`. The inspector-style look (small, floating beside the avatar) is achieved via caller-supplied size/position and the window chrome inherited from the existing `.floating` interactive-canvas path (`src/display/canvas.swift:161-164`). No daemon changes; no new `--kind` flag introduced here.
 
 Previous split-view layout (3D canvas left, 340px sidebar right) is gone. The entire window is the sidebar.
 
@@ -84,7 +84,7 @@ Clicking the chip opens a menu anchored to it:
 
 - **Save as…** — fork current doc into a new id (same mechanic as the roster "+ new" tile, source = current agent)
 - **Rename** — inline edit of the name field; id does not change
-- **Revert to previous version** — fetches prior revision from wiki history, applies it; wiki history source is the daemon content server
+- **Undo last save** — session-scoped revert. Studio maintains an in-memory ring buffer of the last 20 pre-save appearance snapshots per agent; this menu item steps one back. See *Undo model* below.
 - **Delete** — confirm modal, `DELETE /wiki/sigil/agents/<id>.md`, switches Studio back to `default`
 
 **Clone** is intentionally not in the chip menu — it would duplicate **Save as…** with the same source. Clone lives in the roster tile row-overflow (kebab) for cloning *other* agents without switching to them first.
@@ -126,6 +126,18 @@ Anchored below the Reroll button. 280px wide, detached popover.
 Clicking a scope chip does *not* immediately roll; it sets the scope for the next roll. Clicking the Reroll button (outside the flyout) or pressing Enter in the seed row triggers the roll.
 
 **Seeded determinism**: `randomizeAll(seed)` already exists (`ui.js:547`) and drives a `mulberry32` PRNG. The refactor work is (a) partitioning the randomize body by scope so `randomizeAll(seed, scope)` touches only the requested slice, (b) maintaining a bounded in-memory history of recent seeds, (c) converting numeric seeds to human-readable word-pairs for display (e.g., a hash-to-wordlist mapping). Seeds remain numerically stable; the word form is display only.
+
+**Wordlist**: ships in-repo at `apps/sigil/studio/js/seed-words.js` — two arrays of ~128 adjectives and ~128 nouns (~16k combinations, sufficient for display uniqueness within a roster). No new runtime dependency. A numeric seed maps to `<adjective>-<noun>-<seed mod 100>` via stable hashing; the exact derivation lives in the plan.
+
+### Undo model
+
+Revert-to-previous is **session-scoped, in-memory, per-agent**. The daemon content server performs destructive writes with no revision history (confirmed at `src/content/server.swift:271-285`). A proper durable wiki-history story is a separate future initiative and is intentionally out of scope here.
+
+Studio keeps a ring buffer of the last 20 pre-save appearance snapshots for each agent it has touched during the session. Each entry stores: timestamp, agent id, appearance blob, seed (if the save was produced by a roll). The chip menu's **Undo last save** item pops the top entry and re-applies it, triggering a new save (so the undo itself becomes a save event — consistent with autosave semantics and reversible by a subsequent undo).
+
+The buffer does *not* persist across Studio restarts. Closing Studio forfeits in-session undo history; the current wiki doc is the floor. Users who want a specific past state for long-term recovery should fork it (save-as) into its own agent before discarding.
+
+When the durable wiki-history initiative lands, the chip menu item will rename back to "Revert to previous version" and gain cross-session depth; the UI affordance is stable.
 
 ### Live-preview slider behavior
 
@@ -178,11 +190,18 @@ Three.js CDN reference and all `renderer/` imports that exist purely to support 
 - **Sigil-2 menu work** — radial menu, beam, stellation push are out of scope.
 - **Visual redesign of Shape/Color/FX panel contents** — internal control layouts are preserved from the `2026-04-07` spec. This initiative rebuilds the shell, not the panels.
 
-## Open Questions
+## Resolved During Spec Review
 
-1. **Wiki revision history surface.** Does the content server expose prior revisions via `GET /wiki/<path>?rev=<n>` or equivalent? If not, "Revert to previous version" needs a daemon-side addition. If the daemon does not track revisions at all, revert falls back to "undo last save" (in-memory stack of the last N saved states). Needs confirmation before implementation.
-2. **Human-readable seed format.** Adjectives+nouns mapping (e.g., `forest-lion`) requires a small wordlist. Use an existing wordlist (e.g., `petname` style) or ship a minimal one in-repo? Leaning toward the latter to keep zero runtime dependencies.
-3. **Inspector window kind.** Does `aos show create --kind inspector` already exist, or does Studio open as a regular canvas with floating hints? If the latter, the window chrome rendered in the mockup (titlebar, traffic lights) is illustrative — Studio itself owns no chrome and inherits whatever the canvas system provides.
+The following were open in early drafts; each is now closed with a codebase citation.
+
+1. **Wiki revision history — NONE.** `src/content/server.swift:271-285` performs destructive writes with no history/backup mechanism; no `?rev=` routing exists and the wiki directory is not a git repo. Decision: ship a session-scoped in-memory undo ring buffer in this initiative (see *Undo model*). File a follow-on issue for durable wiki history.
+2. **Seed wordlist — in-repo.** No existing petname/wordlist utility in the codebase (grep confirmed). Ship ~128 adjectives + ~128 nouns as a JS module under `apps/sigil/studio/js/seed-words.js`. Zero new runtime dependencies.
+3. **Inspector window kind — not a daemon concept.** `aos show create` accepts no `--kind`, `--style`, or `--level` flag (`src/display/client.swift:113-215`); interactive canvases all use `.floating` window level uniformly. Studio opens as a regular interactive canvas with caller-supplied compact geometry. "Inspector" is a look, not a kind. No daemon changes in this initiative.
+
+## Follow-on Issues To File
+
+- **Durable wiki revision history**: content server should retain prior revisions (git-backed or sidecar `.history/`) and expose them via HTTP. Unblocks cross-session revert in Studio and everywhere else the wiki is edited.
+- **Canvas window kinds**: introduce a `--kind` enum on `aos show create` for inspector/palette/hud variants if more than Sigil Studio wants compact chrome. Optional, low priority; Studio does not need it.
 
 ## Constraints
 
