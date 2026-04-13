@@ -35,7 +35,7 @@ of the main display at boot.
   },
   "minds": { "skills": [], "tools": [], "workflows": [] },
   "instance": {
-    "home": { "anchor": "nonant", "nonant": "bottom-right", "display": "main" },
+    "birthplace": { "anchor": "nonant", "nonant": "bottom-right", "display": "main" },
     "size": 300
   }
 }
