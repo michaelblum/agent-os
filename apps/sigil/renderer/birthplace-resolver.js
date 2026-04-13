@@ -1,10 +1,11 @@
-// Home position resolver for Sigil agents.
+// Birthplace position resolver for Sigil agents.
 //
-// Maps an agent's `instance.home` descriptor + the current display geometry
-// to an absolute global-canvas (x, y) point.
+// Maps an agent's `instance.birthplace` descriptor + the current display
+// geometry to an absolute global-canvas (x, y) point. Consulted at first
+// spawn only; subsequent spawns use the daemon-side lastPosition map.
 //
 // Inputs:
-//   home: one of
+//   birthplace: one of
 //     - { anchor: 'coords', coords: { x, y } }                   // absolute point
 //     - { anchor: 'nonant', nonant: <cell>, display: <uuid|'main'> }
 //   displays: AOS display_geometry array; each entry has
@@ -30,20 +31,20 @@ const NONANT_CELLS = {
   'bottom-right':  [5/6, 5/6],
 };
 
-export function resolveHome(home, displays) {
+export function resolveBirthplace(birthplace, displays) {
   const mainDisplay = displays.find(d => d.is_main) ?? displays[0];
   if (!mainDisplay) return { x: 0, y: 0 };
 
-  if (home.anchor === 'coords' && home.coords) {
-    return { x: home.coords.x, y: home.coords.y };
+  if (birthplace.anchor === 'coords' && birthplace.coords) {
+    return { x: birthplace.coords.x, y: birthplace.coords.y };
   }
 
   // Anchor to display — resolve by UUID or 'main'
-  const target = home.display === 'main'
+  const target = birthplace.display === 'main'
     ? mainDisplay
-    : (displays.find(d => d.uuid === home.display) ?? mainDisplay);
+    : (displays.find(d => d.uuid === birthplace.display) ?? mainDisplay);
 
   const vb = target.visible_bounds;
-  const cell = NONANT_CELLS[home.nonant ?? 'bottom-right'] ?? NONANT_CELLS['bottom-right'];
+  const cell = NONANT_CELLS[birthplace.nonant ?? 'bottom-right'] ?? NONANT_CELLS['bottom-right'];
   return { x: vb.x + vb.w * cell[0], y: vb.y + vb.h * cell[1] };
 }

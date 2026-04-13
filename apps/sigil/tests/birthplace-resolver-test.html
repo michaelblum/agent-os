@@ -36,7 +36,7 @@ window.addEventListener('load', () => {
 });
 </script>
 <script type="module">
-import { resolveHome } from '../renderer/home-resolver.js';
+import { resolveBirthplace } from '../renderer/birthplace-resolver.js';
 try {
 
 const displays = [
@@ -45,17 +45,17 @@ const displays = [
 ];
 
 // nonant bottom-right of main
-let p = resolveHome({ anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, displays);
+let p = resolveBirthplace({ anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, displays);
 const ok1 = Math.round(p.x) === Math.round(0 + 1512*5/6) && Math.round(p.y) === Math.round(25 + 957*5/6);
 const p1 = { x: p.x, y: p.y };
 
 // coords
-p = resolveHome({ anchor: 'coords', coords: { x: 400, y: 200 } }, displays);
+p = resolveBirthplace({ anchor: 'coords', coords: { x: 400, y: 200 } }, displays);
 const ok2 = p.x === 400 && p.y === 200;
 const p2 = { x: p.x, y: p.y };
 
 // bogus display UUID -> fallback to main bottom-right
-p = resolveHome({ anchor: 'nonant', nonant: 'top-left', display: 'NOT-REAL' }, displays);
+p = resolveBirthplace({ anchor: 'nonant', nonant: 'top-left', display: 'NOT-REAL' }, displays);
 const ok3 = Math.round(p.x) === Math.round(1512/6) && Math.round(p.y) === Math.round(25 + 957/6);
 const p3 = { x: p.x, y: p.y };
 

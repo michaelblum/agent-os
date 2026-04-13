@@ -3263,7 +3263,7 @@ window.unionSize = unionSize;
 
 import { loadAgent } from './agent-loader.js';
 import { applyAppearance } from './appearance.js';
-import { resolveHome } from './home-resolver.js';
+import { resolveBirthplace } from './birthplace-resolver.js';
 import moduleState from './state.js';
 
 // The bundled inline <script> defines its own `state` singleton which owns
@@ -3419,7 +3419,10 @@ async function boot() {
     //    Subscription was opened inside init() → setupLiveJs().
     try {
         const displays = await awaitFirstDisplayGeometry();
-        const home = resolveHome(agent.instance.home, displays);
+        // Temporary bridge: after Task 4 lands, loadAgent always returns agent
+        // objects with `instance.birthplace` populated, so the fallback becomes
+        // dead code. Task 6 rewrites this block to call resolvePosition().
+        const home = resolveBirthplace(agent.instance.birthplace ?? agent.instance.home, displays);
         const liveJs = window.liveJs;
         liveJs.avatarPos = { x: home.x, y: home.y, valid: true };
         liveJs.avatarSize = agent.instance.size;
