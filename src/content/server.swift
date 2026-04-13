@@ -259,6 +259,31 @@ class ContentServer {
                 return httpResponse(status: 403, statusText: "Forbidden", body: "Forbidden")
             }
 
+            // Directory listing: /wiki/<dir>/ → JSON listing of entries.
+            // Only GET/HEAD supported; no write semantics on directories.
+            if decoded.hasSuffix("/") {
+                guard method == "GET" || method == "HEAD" else {
+                    return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method not allowed on directory")
+                }
+                var isDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDir), isDir.boolValue else {
+                    return httpResponse(status: 404, statusText: "Not Found", body: "Directory not found")
+                }
+                let children = (try? FileManager.default.contentsOfDirectory(atPath: resolvedPath)) ?? []
+                struct Entry: Codable { let name: String; let kind: String }
+                let entries: [Entry] = children.sorted().compactMap { name in
+                    if name.hasPrefix(".") { return nil }
+                    let childPath = (resolvedPath as NSString).appendingPathComponent(name)
+                    var childIsDir: ObjCBool = false
+                    FileManager.default.fileExists(atPath: childPath, isDirectory: &childIsDir)
+                    return Entry(name: name, kind: childIsDir.boolValue ? "dir" : "file")
+                }
+                struct Listing: Codable { let path: String; let entries: [Entry] }
+                let payload = Listing(path: relativePath, entries: entries)
+                let data = (try? JSONEncoder().encode(payload)) ?? Data("{\"path\":\"\(relativePath)\",\"entries\":[]}".utf8)
+                return httpResponse(status: 200, statusText: "OK", contentType: "application/json", body: method == "HEAD" ? nil : data)
+            }
+
             switch method {
             case "GET", "HEAD":
                 guard FileManager.default.fileExists(atPath: resolvedPath),
