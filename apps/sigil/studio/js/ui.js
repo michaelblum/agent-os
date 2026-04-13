@@ -9,18 +9,7 @@ import { applySkin } from '../../renderer/skins.js';
 import { resetCameraOrbit, transitionToFlatView } from './interaction.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
 import { loadAgent } from '../../renderer/agent-loader.js';
-
-// --- Seeded PRNG (mulberry32) ---
-function mulberry32(seed) {
-    return function() {
-        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-        return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    };
-}
-
-let _currentSeed = null;
+import { randomizeAll } from './randomize.js';
 
 function makeEditable(id, getMin, getMax, isFloat, onChange) {
     const el = document.getElementById(id);
@@ -544,108 +533,6 @@ export function syncUIFromState() {
     setVal('grid3dTimeSlider', state.grid3dTimeScale, state.grid3dTimeScale.toFixed(1));
 }
 
-function randomizeAll(seed) {
-    // Seeded PRNG: same seed = same result
-    if (seed === undefined) seed = Math.floor(Math.random() * 999999);
-    _currentSeed = seed;
-    const rng = mulberry32(seed);
-
-    // Update URL with seed (without reload)
-    const url = new URL(window.location);
-    url.searchParams.set('seed', seed);
-    window.history.replaceState({}, '', url);
-
-    const setUI = (id, val, strVal) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.type === 'checkbox') {
-            if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change')); }
-        } else {
-            el.value = val;
-            if (strVal !== undefined) {
-                const vDisp = document.getElementById(id.replace('Slider', 'Val'));
-                if (vDisp) vDisp.innerText = strVal;
-            }
-            el.dispatchEvent(new Event('input'));
-            el.dispatchEvent(new Event('change'));
-        }
-    };
-
-    const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 100];
-    setUI('shapeSelect', shapes[Math.floor(rng() * shapes.length)]);
-
-    let stellation = (rng() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
-    let opacity = rng().toFixed(2); setUI('opacitySlider', opacity, opacity);
-    let edgeOpacity = (rng() * 0.8 + 0.2).toFixed(2); setUI('edgeOpacitySlider', edgeOpacity, edgeOpacity);
-    let aReach = (rng() * 3).toFixed(2); setUI('auraReachSlider', aReach, aReach);
-    let aInt = (rng() * 3).toFixed(2); setUI('auraIntensitySlider', aInt, aInt);
-    let spin = (rng() * 0.025).toFixed(3); setUI('idleSpinSlider', spin, spin);
-    let pulse = (rng() * 0.019 + 0.001).toFixed(3); setUI('pulseRateSlider', pulse, pulse);
-    // Old gridMass randomization removed — unified grid
-
-    setUI('pulsarToggle', rng() > 0.7);
-    setUI('accretionToggle', rng() > 0.7);
-    setUI('gammaToggle', rng() > 0.7);
-    setUI('neutrinoToggle', rng() > 0.7);
-    setUI('lightningToggle', rng() > 0.7);
-    setUI('magneticToggle', rng() > 0.7);
-    // Only randomize omega params if user has secondary shape enabled — don't toggle it
-    if (state.isOmegaEnabled) {
-        // Randomize omega appearance
-        setUI('omegaShapeSelect', [4, 6, 8, 12, 20, 90, 100][Math.floor(rng() * 7)]);
-        setUI('omegaStellationSlider', (rng() * 3 - 1), (rng() * 3 - 1).toFixed(2));
-        setUI('omegaOpacitySlider', rng(), rng().toFixed(2));
-        setUI('omegaEdgeOpacitySlider', rng(), rng().toFixed(2));
-        setUI('omegaScaleSlider', 0.5 + rng() * 3, (0.5 + rng() * 3).toFixed(2));
-        setUI('omegaMaskToggle', rng() > 0.5);
-        setUI('omegaCounterSpin', rng() > 0.5);
-        setUI('omegaInterDimensional', rng() > 0.7);
-    }
-
-    // Randomize counts (reset to 1)
-    ['pulsarCount', 'accretionCount', 'gammaCount', 'neutrinoCount'].forEach(id => setUI(id, 1));
-    state.pulsarRayCount = 1; state.accretionDiskCount = 1; state.gammaRayCount = 1; state.neutrinoJetCount = 1;
-    updatePulsars(1); updateGammaRays(1); updateAccretion(1); updateNeutrinos(1);
-
-    // Randomize skin (weighted toward 'none')
-    const skins = ['none', 'none', 'none', 'rocky', 'gas-giant', 'ice', 'volcanic', 'solar'];
-    setUI('skinSelect', skins[Math.floor(rng() * skins.length)]);
-
-    // Reset shape params to defaults
-    state.tetartoidA = 1.0; state.tetartoidB = 1.5; state.tetartoidC = 2.0;
-    setUI('tetASlider', 1.0, '1.00'); setUI('tetBSlider', 1.5, '1.50'); setUI('tetCSlider', 2.0, '2.00');
-    state.torusRadius = 1.0; state.torusTube = 0.3; state.torusArc = 1.0;
-    setUI('torusRadiusSlider', 1.0, '1.00'); setUI('torusTubeSlider', 0.3, '0.30'); setUI('torusArcSlider', 1.0, '1.00');
-    state.cylinderTopRadius = 1.0; state.cylinderBottomRadius = 1.0; state.cylinderHeight = 1.0; state.cylinderSides = 32;
-    setUI('cylinderTopSlider', 1.0, '1.00'); setUI('cylinderBottomSlider', 1.0, '1.00'); setUI('cylinderHeightSlider', 1.0, '1.00'); setUI('cylinderSidesSlider', 32, '32');
-    state.boxWidth = 1.0; state.boxHeight = 1.0; state.boxDepth = 1.0;
-    setUI('boxWidthSlider', 1.0, '1.00'); setUI('boxHeightSlider', 1.0, '1.00'); setUI('boxDepthSlider', 1.0, '1.00');
-
-    // Randomize turbulence
-    ['p', 'a', 'g', 'n'].forEach(k => {
-        let tVal = (rng() * 0.5).toFixed(2);
-        let tSpd = (rng() * 4 + 0.5).toFixed(1);
-        let tMod = ['uniform', 'staggered', 'random'][Math.floor(rng() * 3)];
-        setUI(`${k}TurbSlider`, tVal, tVal);
-        setUI(`${k}TurbSpdSlider`, tSpd, tSpd);
-        document.getElementById(`${k}TurbMod`).value = tMod;
-        state.turbState[k].val = parseFloat(tVal);
-        state.turbState[k].spd = parseFloat(tSpd);
-        state.turbState[k].mod = tMod;
-    });
-
-    setUI('maskToggle', rng() > 0.5);
-    setUI('interiorEdgesToggle', rng() > 0.5);
-    setUI('specularToggle', rng() > 0.5);
-
-    if (rng() > 0.5) {
-        let c1 = '#' + Math.floor(rng() * 16777215).toString(16).padStart(6, '0');
-        let c2 = '#' + Math.floor(rng() * 16777215).toString(16).padStart(6, '0');
-        setUI('masterColor1', c1);
-        setUI('masterColor2', c2);
-    }
-}
-
 function buildFxGrid() {
     const grid = document.getElementById('fxGrid');
     if (!grid) return;
@@ -1012,7 +899,13 @@ export function setupUI() {
     }).catch(err => console.warn('[studio] agent load failed:', err));
 
     // Action Buttons
-    document.getElementById('btn-randomize').addEventListener('click', () => randomizeAll());
+    document.getElementById('btn-randomize').addEventListener('click', () => {
+        const seed = Math.floor(Math.random() * 999999);
+        randomizeAll(seed, 'everything', { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos });
+        const url = new URL(window.location);
+        url.searchParams.set('seed', seed);
+        window.history.replaceState({}, '', url);
+    });
 
     const btnShare = document.getElementById('btn-share');
     if (btnShare) {
@@ -1852,7 +1745,7 @@ export function setupUI() {
     const params = new URLSearchParams(window.location.search);
     if (params.has('seed')) {
         const seed = parseInt(params.get('seed'));
-        if (!isNaN(seed)) setTimeout(() => randomizeAll(seed), 100);
+        if (!isNaN(seed)) setTimeout(() => randomizeAll(seed, 'everything', { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos }), 100);
     } else if (params.has('config')) {
         try {
             const json = atob(params.get('config'));
