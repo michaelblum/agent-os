@@ -41,10 +41,10 @@ and restart Sigil/seed). `sigil/agents/default.md` exists after startup.
 **Test steps:**
 
 ```bash
-# Back up, wipe, reseed via sigilctl
+# Back up, wipe, reseed via sigilctl-seed.sh
 cp -R "$HOME/.config/aos/repo/wiki/sigil/agents" /tmp/accept-wiki-bak.c1
 rm -rf "$HOME/.config/aos/repo/wiki/sigil/agents"
-/Users/Michael/Code/agent-os/apps/sigil/sigilctl --mode repo seed
+/Users/Michael/Code/agent-os/apps/sigil/sigilctl-seed.sh --mode repo
 # Expect: directory + default.md recreated
 ls "$HOME/.config/aos/repo/wiki/sigil/agents"
 # Restore
@@ -56,7 +56,7 @@ mv /tmp/accept-wiki-bak.c1 "$HOME/.config/aos/repo/wiki/sigil/agents"
 seed runs. File starts with `---\ntype: agent\nid: default\n...`.
 
 **Actual result:** After `rm -rf`, the agents directory is absent.
-`sigilctl seed` prints `seeded`, and `ls` confirms `default.md` is recreated
+`sigilctl-seed.sh` prints `seeded`, and `ls` confirms `default.md` is recreated
 with the expected frontmatter:
 
 ```

@@ -87,14 +87,6 @@ func aosDaemonStdoutLogPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/daemon.stdout.log"
 }
 
-func aosSigilLogPath(for mode: AOSRuntimeMode? = nil) -> String {
-    "\(aosStateDir(for: mode))/sigil.log"
-}
-
-func aosSigilStdoutLogPath(for mode: AOSRuntimeMode? = nil) -> String {
-    "\(aosStateDir(for: mode))/sigil.stdout.log"
-}
-
 // MARK: - Launchd Labels (mode-scoped)
 
 func aosServiceLabel(for mode: AOSRuntimeMode? = nil) -> String {
@@ -102,35 +94,28 @@ func aosServiceLabel(for mode: AOSRuntimeMode? = nil) -> String {
     return "com.agent-os.aos.\(resolved.rawValue)"
 }
 
-func aosSigilServiceLabel(for mode: AOSRuntimeMode? = nil) -> String {
-    let resolved = mode ?? aosCurrentRuntimeMode()
-    return "com.agent-os.sigil.\(resolved.rawValue)"
-}
-
 func aosServicePlistPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosHomeDir())/Library/LaunchAgents/\(aosServiceLabel(for: mode)).plist"
 }
 
-func aosSigilPlistPath(for mode: AOSRuntimeMode? = nil) -> String {
-    "\(aosHomeDir())/Library/LaunchAgents/\(aosSigilServiceLabel(for: mode)).plist"
-}
-
-/// All known launchd labels (both modes, both services) for cleanup/doctor.
+/// All known launchd labels across modes for cleanup/doctor.
 func aosAllServiceLabels() -> [String] {
-    AOSRuntimeMode.allCases.flatMap { mode in
-        [aosServiceLabel(for: mode), aosSigilServiceLabel(for: mode)]
-    }
+    AOSRuntimeMode.allCases.map { aosServiceLabel(for: $0) }
 }
 
-/// Legacy labels that may still be loaded from before the mode split.
-let aosLegacyServiceLabels = ["com.agent-os.aos", "com.agent-os.sigil", "com.agent-os.heads-up"]
+/// Legacy labels that may still be loaded from earlier installs.
+/// Includes the retired Sigil launchd service (com.agent-os.sigil.*) so
+/// `aos reset` still unloads stale agents after the avatar-sub retirement.
+let aosLegacyServiceLabels = [
+    "com.agent-os.aos",
+    "com.agent-os.sigil",
+    "com.agent-os.sigil.repo",
+    "com.agent-os.sigil.installed",
+    "com.agent-os.heads-up",
+]
 
 func aosInstalledBinaryPath(_ executableName: String) -> String {
     "\(aosInstallAppPath())/Contents/MacOS/\(executableName)"
-}
-
-func aosInstalledSigilWorkDir() -> String {
-    "\(aosInstallAppPath())/Contents/Resources/agent-os/apps/sigil"
 }
 
 func aosRepoRootFromBases(_ bases: [String]) -> String? {
@@ -186,8 +171,7 @@ func aosExpectedBinaryPath(program: String, mode: AOSRuntimeMode) -> String {
         return aosInstalledBinaryPath(program)
     case .repo:
         if let repoRoot = aosCurrentRepoRoot() {
-            let relative = program == "avatar-sub" ? "apps/sigil/build/avatar-sub" : program
-            return NSString(string: (repoRoot as NSString).appendingPathComponent(relative)).standardizingPath
+            return NSString(string: (repoRoot as NSString).appendingPathComponent(program)).standardizingPath
         }
         return NSString(string: FileManager.default.currentDirectoryPath).appendingPathComponent(program)
     }

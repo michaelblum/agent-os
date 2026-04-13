@@ -10,7 +10,6 @@ struct AosConfig: Codable {
     var voice: VoiceConfig
     var perception: PerceptionConfig
     var feedback: FeedbackConfig
-    var status_item: StatusItemConfig?
     var content: ContentConfig?         // content server port and document roots
 
     struct VoiceConfig: Codable {
@@ -30,13 +29,6 @@ struct AosConfig: Codable {
         var sound: Bool
     }
 
-    struct StatusItemConfig: Codable {
-        var enabled: Bool?          // false by default — headless daemon is the default
-        var toggle_id: String?      // canvas ID to toggle (default: "avatar")
-        var toggle_url: String?     // URL to load when creating the toggle canvas
-        var toggle_at: [Double]?    // [x, y, w, h] target position for the toggle canvas
-    }
-
     struct ContentConfig: Codable {
         var port: Int
         var roots: [String: String]  // prefix -> directory path
@@ -46,7 +38,6 @@ struct AosConfig: Codable {
         voice: VoiceConfig(enabled: false, announce_actions: true, voice: nil, rate: nil),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
-        status_item: nil,
         content: nil
     )
 }
@@ -93,20 +84,6 @@ func setConfigValue(key: String, value: String) {
         config.feedback.visual = (value == "true" || value == "1")
     case "feedback.sound":
         config.feedback.sound = (value == "true" || value == "1")
-    case "status_item.enabled":
-        if config.status_item == nil { config.status_item = .init() }
-        config.status_item?.enabled = (value == "true" || value == "1")
-    case "status_item.toggle_id":
-        if config.status_item == nil { config.status_item = .init() }
-        config.status_item?.toggle_id = value
-    case "status_item.toggle_url":
-        if config.status_item == nil { config.status_item = .init() }
-        config.status_item?.toggle_url = value
-    case "status_item.toggle_at":
-        if config.status_item == nil { config.status_item = .init() }
-        let parts = value.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
-        guard parts.count == 4 else { exitError("toggle_at must be x,y,w,h", code: "INVALID_VALUE") }
-        config.status_item?.toggle_at = parts
     case "content.port":
         if config.content == nil { config.content = AosConfig.ContentConfig(port: 0, roots: [:]) }
         if let n = Int(value), n >= 0 { config.content?.port = n }

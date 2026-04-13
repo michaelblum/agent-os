@@ -130,10 +130,6 @@ and other significant actions without the agent needing to call `aos say`.
 | perception.settle_threshold_ms | int | 200 | Cursor settle threshold |
 | feedback.visual | bool | true | Visual feedback overlays |
 | feedback.sound | bool | false | Sound feedback |
-| status_item.enabled | bool | false | Show menu bar icon |
-| status_item.toggle_id | string | "avatar" | Canvas ID to toggle on click |
-| status_item.toggle_url | string | — | URL to load when creating canvas |
-| status_item.toggle_at | array | [200,200,300,300] | [x,y,w,h] position for canvas |
 | content.port | int | 0 | Content server port (0 = OS-assigned) |
 | content.roots.{name} | string | — | Content root: URL prefix → directory path |
 

@@ -5,9 +5,6 @@
 aos
 dist/
 packages/hand-off/hand-off
-apps/sigil/build/
-apps/sigil/avatar-sub
-tools/dogfood/avatar-sub
 tools/dogfood/__pycache__/
 node_modules/
 

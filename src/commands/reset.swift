@@ -89,10 +89,9 @@ private func runReset(mode: ResetMode) -> ResetResponse {
 
     // Stop mode-scoped services for targeted modes
     for mode in targetModes {
-        for label in [aosSigilServiceLabel(for: mode), aosServiceLabel(for: mode)] {
-            if stopLaunchAgent(label: label) {
-                stoppedServices.append(label)
-            }
+        let label = aosServiceLabel(for: mode)
+        if stopLaunchAgent(label: label) {
+            stoppedServices.append(label)
         }
     }
     // Also stop any legacy (pre-mode-split) services
@@ -133,7 +132,6 @@ private func runReset(mode: ResetMode) -> ResetResponse {
         for path in [
             "\(repoRoot)/aos",
             "\(repoRoot)/dist",
-            "\(repoRoot)/apps/sigil/build",
             "\(repoRoot)/tools/dogfood/__pycache__"
         ] {
             if FileManager.default.fileExists(atPath: path) {
@@ -143,9 +141,8 @@ private func runReset(mode: ResetMode) -> ResetResponse {
         }
     }
 
-    let allPlistPaths = AOSRuntimeMode.allCases.flatMap { mode in
-        [aosServicePlistPath(for: mode), aosSigilPlistPath(for: mode)]
-    } + aosLegacyServiceLabels.map { "\(aosHomeDir())/Library/LaunchAgents/\($0).plist" }
+    let allPlistPaths = AOSRuntimeMode.allCases.map { aosServicePlistPath(for: $0) }
+        + aosLegacyServiceLabels.map { "\(aosHomeDir())/Library/LaunchAgents/\($0).plist" }
     let remainingPaths = ([aosInstallAppPath()] + allPlistPaths)
         .filter { FileManager.default.fileExists(atPath: $0) }
 

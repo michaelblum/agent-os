@@ -283,11 +283,6 @@ class CanvasManager {
     var isEmpty: Bool { canvases.isEmpty }
     func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
 
-    /// Set the window alpha for a canvas (0 = invisible, 1 = fully visible).
-    /// Used by StatusItemManager to hide the canvas until WKWebView is ready.
-    func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
-        canvases[id]?.window.alphaValue = alpha
-    }
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
     var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
 

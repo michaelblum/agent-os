@@ -2,38 +2,20 @@
 
 Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system that uses the AOS daemon's canvas system for display. It does not belong in `packages/` — it's an application, not a toolkit component.
 
-## Build
-
-```bash
-cd apps/sigil && bash build-avatar.sh
-```
-
-Compiles all Swift files into `./build/avatar-sub`.
-
-To remove local Sigil build outputs:
-
-```bash
-cd apps/sigil && bash clean.sh
-```
+Sigil is pure web — the renderer, studio, and chat surfaces are HTML/JS loaded into WKWebView canvases created by the AOS daemon. There is no Swift host process; all state, animation, and event handling live in JS inside the canvas. The legacy `avatar-sub` Swift binary was retired 2026-04-13 (see #46).
 
 ## Run
 
-Sigil is a client of the AOS daemon — it connects via the mode-scoped socket.
+Start the AOS daemon, then launch the avatar canvas:
 
 ```bash
-# Repo mode — use explicit paths so both come from the same mode
-./aos serve                              # repo daemon
-apps/sigil/build/avatar-sub              # repo avatar
-
-# Or use sigilctl for service lifecycle
-apps/sigil/sigilctl --mode repo install
-apps/sigil/sigilctl status
-apps/sigil/sigilctl logs
+./aos serve                               # repo daemon (launchd normally manages this)
+./aos show create --id avatar-main \
+    --url 'aos://sigil/renderer/index.html' \
+    --at 0,0,1512,982
 ```
 
-**Important:** `aos` and `avatar-sub` must come from the same runtime mode. Do not mix an installed `aos serve` with a repo-built `avatar-sub` — they connect to different mode-scoped sockets and will appear disconnected.
-
-Sigil resolves the daemon socket from the current runtime mode (`~/.config/aos/{mode}/sock`). Logs go to `~/.config/aos/{mode}/sigil.log`.
+Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
 
 ## First-Time Setup — Seed
 
@@ -43,8 +25,6 @@ default agent document so the renderer has something to load:
 
 ```bash
 # One-shot seed (idempotent — re-running is a no-op once the docs exist)
-apps/sigil/sigilctl --mode repo seed
-# or equivalently
 apps/sigil/sigilctl-seed.sh --mode repo
 ```
 
@@ -55,41 +35,36 @@ Under the hood this invokes:
   --file "agents/default.md:$(pwd)/apps/sigil/seed/wiki/sigil/agents/default.md"
 ```
 
-Source of truth is `apps/sigil/seed/wiki/sigil/` in the repo. The seed step is
-also invoked automatically by `sigilctl install` so a fresh launchd install
-always guarantees the default agent doc exists under
-`~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
-
-If you launch Sigil manually (running `avatar-sub` directly or via
-`aos show create`), run the seed step yourself first.
+Source of truth is `apps/sigil/seed/wiki/sigil/` in the repo. The default agent
+doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 
 ## Architecture
 
-| File | Role |
+| Path | Role |
 |------|------|
-| `avatar-sub.swift` | Entry point, state machine, runtime input bridge, event dispatch, reconnection |
-| `avatar-behaviors.swift` | Choreographer — maps channel events to animation sequences |
-| `avatar-animate.swift` | Animation primitives (moveTo, scaleTo, orbit, holdPosition) — sends scene-position updates |
-| `avatar-spatial.swift` | Spatial helpers (display geometry, multi-display handoff, element resolution) |
-| `avatar-easing.swift` | Easing functions |
-| `avatar-ipc.swift` | Socket/IPC helpers for daemon communication + scene-position messaging |
-| `renderer/` | Shared Three.js modules (geometry, colors, aura, effects, ghost trails) + bundled live renderer |
-| `studio/` | Avatar Studio — stageless control surface for designing the avatar's appearance and managing the agent roster |
-| `radial-menu-config.json` | Menu items (geometry, name, color, action) — deferred, to be reimplemented |
+| `renderer/index.html` | Live avatar renderer — Three.js scene + Sigil-1 state machine (IDLE / PRESS / DRAG / GOTO), fast-travel animation, display-union clamping, wiki live-reload. Loaded as a full-display passthrough canvas. |
+| `renderer/*.js` | ES modules: `agent-loader`, `appearance`, `home-resolver`, `state`, plus the shared Three.js modules (geometry, colors, aura, phenomena, skins, trails). |
+| `studio/` | Stageless control surface for designing the avatar's appearance and managing the agent roster. No in-Studio 3D canvas — the live desktop avatar is the preview. |
+| `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
+| `avatar-streamline/` | Hit-area child canvas + draw experiments used by the renderer for interactive gestures. |
+| `avatar-hit-target.html` | Small interactive child canvas the renderer spawns at the avatar's screen position for drag/press capture. |
+| `radial-menu-config.json` | Menu items (deferred, to be reimplemented). |
+| `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
+| `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
 
 ## Canvas Model
 
-The avatar runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
+The renderer runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
 
-- **Live mode**: `renderer/index.html` — bundled renderer, IPC-driven position via `headsup.receive()`
-- **Studio mode**: `studio/index.html` — stageless control surface for designing the avatar's appearance and managing the agent roster. The live desktop avatar is the preview; there is no in-Studio 3D canvas. Agent docs live at `sigil/agents/*.md` in the wiki.
-- **Config**: per-agent wiki docs at `sigil/agents/*.md`, written via the content server's `/wiki` REST surface. Studio lists agents via `GET /wiki/sigil/agents/` (directory listing endpoint).
+- **Renderer**: `aos://sigil/renderer/index.html` — owns the state machine, subscribes to the daemon's `input_event`, `display_geometry`, and `wiki_page_changed` streams via the `headsup.receive` bridge.
+- **Studio**: `aos://sigil/studio/index.html` — stageless control surface. Agent docs live at `sigil/agents/*.md` in the wiki; Studio lists them via `GET /wiki/sigil/agents/`.
+- **Config per agent**: the renderer loads `sigil/agents/<id>.md` via the content server's `/wiki` REST surface. Live-edits to that doc trigger a `wiki_page_changed` broadcast, which the renderer flushes on the next IDLE frame.
 
-Multi-display: canvases on all displays at launch. Avatar hands off between displays when crossing boundaries.
+Multi-display: the renderer clamps the avatar position to the union of `visible_bounds` reported by the daemon. Moving the avatar across displays is handled by the state machine's fast-travel animation, not by Swift-side window handoff.
 
 ### Content Server
 
-The AOS daemon serves Sigil's HTML surfaces (renderer, studio) over localhost. Configure in `~/.config/aos/{mode}/config.json`:
+The AOS daemon serves Sigil's HTML surfaces over localhost. Configure in `~/.config/aos/{mode}/config.json`:
 
 ```json
 { "content": { "roots": { "sigil": "apps/sigil" } } }
@@ -99,10 +74,10 @@ Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index
 
 ## Dependencies
 
-- **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub
-- **Three.js r128** — 3D rendering engine (loaded from CDN)
+- **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub, content server
+- **Three.js r128** — 3D rendering engine (loaded from CDN by `renderer/index.html`)
 - **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
-- **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — channel events that drive avatar behaviors
+- **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — posts to the `actions` channel; canvases can subscribe for behavior cues
 
 ## Chat Canvas Protocol
 

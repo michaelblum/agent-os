@@ -21,10 +21,6 @@ echo ""
 echo "Building aos..."
 bash build.sh
 
-echo ""
-echo "Building avatar-sub..."
-bash apps/sigil/build-avatar.sh
-
 # ── 2. Assemble .app bundle ────────────────────────────────────────
 echo ""
 echo "Assembling $APP_NAME.app..."
@@ -34,11 +30,10 @@ mkdir -p "$STAGED_APP/Contents/Resources/agent-os"
 
 # Binaries
 cp aos "$STAGED_APP/Contents/MacOS/aos"
-cp apps/sigil/build/avatar-sub "$STAGED_APP/Contents/MacOS/avatar-sub"
 
 # ── 3. Copy web assets ─────────────────────────────────────────────
 # apps/sigil — HTML surfaces (renderer, studio, chat) + config JSON
-# Exclude: Swift source, shell scripts, build dir, CLAUDE.md, sigilctl, DS_Store
+# Exclude: shell scripts, CLAUDE.md, DS_Store
 rsync -am \
     --include='*/' \
     --include='*.html' --include='*.js' --include='*.mjs' \
@@ -90,7 +85,6 @@ PLIST
 
 # ── 5. Codesign (ad-hoc) ──────────────────────────────────────────
 echo "Signing..."
-codesign -s - -f "$STAGED_APP/Contents/MacOS/avatar-sub"
 codesign -s - -f "$STAGED_APP/Contents/MacOS/aos"
 codesign -s - -f "$STAGED_APP"
 

@@ -2651,18 +2651,7 @@ function init() {
 
     state.polyGroup.scale.set(state.z_depth, state.z_depth, state.z_depth);
 
-    // Boot-mode gate: ?mode=live-js drives the avatar from in-JS state machine
-    // (Sigil-1). Absent, the legacy Swift IPC path still drives position.
-    state.sigilBootMode = new URLSearchParams(window.location.search).get('mode') === 'live-js'
-        ? 'live-js'
-        : 'swift-ipc';
-    console.log('[sigil] boot mode:', state.sigilBootMode);
-
-    if (state.sigilBootMode === 'live-js') {
-        setupLiveJs();
-    } else {
-        setupIPC();
-    }
+    setupLiveJs();
     animate();
 }
 
@@ -2672,9 +2661,7 @@ function animate() {
 
     state.globalTime += dt;
 
-    if (state.sigilBootMode === 'live-js') {
-        liveJsTick();
-    }
+    liveJsTick();
 
     // Nova scale calculation
     if (state.collapseTime > 0 && state.wasFullCharge) {
@@ -2720,25 +2707,11 @@ function animate() {
     state.renderer.render(state.scene, state.camera);
 }
 
-// === IPC ===
-
-function setupIPC() {
-    window.headsup = window.headsup || {};
-    window.headsup.receive = function(b64) {
-        try {
-            const msg = JSON.parse(atob(b64));
-            handleMessage(msg);
-        } catch (e) {
-            console.error('[live] IPC parse error:', e);
-        }
-    };
-}
-
 // === SIGIL-1 LIVE-JS RUNTIME ===
-// In live-js boot mode the renderer runs as a full-display passthrough canvas
-// launched directly by `aos show create` (no Swift host). Subscribes to
-// input_event + display_geometry, owns its own state machine, spawns
-// avatar-hit as a child canvas.
+// The renderer runs as a full-display passthrough canvas launched directly by
+// `aos show create` (no Swift host). Subscribes to input_event +
+// display_geometry, owns its own state machine, spawns avatar-hit as a child
+// canvas.
 
 function postToHost(type, payload) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
@@ -2838,7 +2811,7 @@ function setupLiveJs() {
         request_id: 'create-hit',
     });
 
-    console.log('[sigil-1] live-js setup complete; subscribed to input_event');
+    console.log('[sigil-1] renderer setup complete; subscribed to input_event');
 }
 
 // Task 8 helpers: union-of-displays bookkeeping.
@@ -2974,11 +2947,6 @@ function handleLiveJsMessage(msg) {
             break;
         }
         default:
-            // Unknown in live-js mode → try legacy handler for resilience.
-            if (msg.type && !msg.type.startsWith('left_') && !msg.type.startsWith('right_')
-                && !msg.type.startsWith('other_') && msg.type !== 'mouse_moved' && msg.type !== 'key_up') {
-                handleMessage(msg);
-            }
             break;
     }
 }
@@ -3116,10 +3084,7 @@ function smHandleCancel(reason) {
     }
 }
 
-// Port of behaviorFastTravel from avatar-behaviors.swift:
-//   duration = clamp(dist / 5000, 0.12, 0.3) seconds
-//   easing: easeOutQuart
-// Triggers the existing ghost-trail visuals via applyBehaviorPreset.
+// Fast travel: duration = clamp(dist / 5000, 0.12, 0.3)s, easing easeOutQuart.
 function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
 
 function clampToVisibleBounds(x, y) {
@@ -3154,8 +3119,9 @@ function startFastTravel(toX, toY) {
         startMs: performance.now(),
         durationMs,
     };
-    // Kick off ghost trails (renderer already knows this preset).
-    applyBehaviorPreset('fast_travel', null);
+    // Kick off ghost trails.
+    state.isOmegaEnabled = true;
+    state.omegaInterDimensional = true;
 }
 
 function tickFastTravel() {
@@ -3177,7 +3143,7 @@ function tickFastTravel() {
         liveJs.cursorTarget.x = t.toX;
         liveJs.cursorTarget.y = t.toY;
         liveJs.travel = null;
-        applyBehaviorPreset('standby', null);
+        state.omegaInterDimensional = false;
         // Task 9: travel animation ended. State is already IDLE (set at
         // the mouseup that started the travel), so any deferred
         // wiki_page_changed reload now has its moment.
@@ -3268,163 +3234,6 @@ function drawLiveJsUi() {
     }
 }
 
-function handleMessage(msg) {
-    switch (msg.type) {
-        case 'scene_position': {
-            const [px, py] = msg.position;
-            const { x, y } = screenToScene(px, py);
-            setScenePosition(x, y);
-            break;
-        }
-
-        case 'transit_start': {
-            const [px, py] = msg.position;
-            const { x, y } = screenToScene(px, py);
-            setScenePosition(x, y);
-            state.omegaInterDimensional = true;
-            break;
-        }
-
-        case 'transit_end': {
-            _waitForEffectsSettled().then(() => {
-                window.postMessage({ type: 'effects_settled' }, '*');
-            });
-            break;
-        }
-
-        case 'config': {
-            applyConfig(msg.data);
-            break;
-        }
-
-        case 'show': {
-            document.body.style.visibility = 'visible';
-            break;
-        }
-
-        case 'hide': {
-            document.body.style.visibility = 'hidden';
-            break;
-        }
-
-        case 'behavior': {
-            applyBehaviorPreset(msg.slot, msg.data);
-            break;
-        }
-
-        default:
-            break;
-    }
-}
-
-function applyConfig(config) {
-    if (config == null) return;
-
-    // Geometry
-    if (config.shape != null) {
-        state.currentGeometryType = config.shape;
-        updateGeometry(state.currentGeometryType);
-    }
-    if (config.stellationFactor != null) {
-        state.stellationFactor = config.stellationFactor;
-        updateGeometry(state.currentGeometryType);
-    }
-    if (config.opacity != null) {
-        state.currentOpacity = config.opacity;
-    }
-    if (config.edgeOpacity != null) {
-        state.currentEdgeOpacity = config.edgeOpacity;
-    }
-    if (config.isMaskEnabled != null) {
-        state.isMaskEnabled = config.isMaskEnabled;
-    }
-    if (config.isInteriorEdgesEnabled != null) {
-        state.isInteriorEdgesEnabled = config.isInteriorEdgesEnabled;
-    }
-    if (config.isSpecularEnabled != null) {
-        state.isSpecularEnabled = config.isSpecularEnabled;
-    }
-
-    // Colors
-    if (config.colors != null) {
-        Object.assign(state.colors, config.colors);
-    }
-
-    // Aura
-    if (config.isAuraEnabled != null) {
-        state.isAuraEnabled = config.isAuraEnabled;
-    }
-    if (config.auraReach != null) {
-        state.auraReach = config.auraReach;
-    }
-    if (config.auraIntensity != null) {
-        state.auraIntensity = config.auraIntensity;
-    }
-    if (config.auraPulseRate != null) {
-        state.auraPulseRate = config.auraPulseRate;
-    }
-
-    // Effects toggles
-    if (config.isPulsarEnabled != null) state.isPulsarEnabled = config.isPulsarEnabled;
-    if (config.isAccretionEnabled != null) state.isAccretionEnabled = config.isAccretionEnabled;
-    if (config.isGammaEnabled != null) state.isGammaEnabled = config.isGammaEnabled;
-    if (config.isNeutrinosEnabled != null) state.isNeutrinosEnabled = config.isNeutrinosEnabled;
-    if (config.isLightningEnabled != null) state.isLightningEnabled = config.isLightningEnabled;
-    if (config.isMagneticEnabled != null) state.isMagneticEnabled = config.isMagneticEnabled;
-
-    // Omega / ghost settings
-    if (config.isOmegaEnabled != null) state.isOmegaEnabled = config.isOmegaEnabled;
-    if (config.omegaInterDimensional != null) state.omegaInterDimensional = config.omegaInterDimensional;
-    if (config.omegaGhostCount != null) state.omegaGhostCount = config.omegaGhostCount;
-    if (config.omegaGhostMode != null) state.omegaGhostMode = config.omegaGhostMode;
-    if (config.omegaGhostDuration != null) state.omegaGhostDuration = config.omegaGhostDuration;
-    if (config.omegaLagFactor != null) state.omegaLagFactor = config.omegaLagFactor;
-    if (config.omegaScale != null) state.omegaScale = config.omegaScale;
-    if (config.omegaOpacity != null) state.omegaOpacity = config.omegaOpacity;
-    if (config.omegaEdgeOpacity != null) state.omegaEdgeOpacity = config.omegaEdgeOpacity;
-    if (config.omegaCounterSpin != null) state.omegaCounterSpin = config.omegaCounterSpin;
-
-    // Spin speed
-    if (config.idleSpinSpeed != null) state.idleSpinSpeed = config.idleSpinSpeed;
-
-    // Rebuild colors after any changes
-    updateAllColors();
-}
-
-function applyBehaviorPreset(slot, data) {
-    switch (slot) {
-        case 'fast_travel':
-            state.omegaInterDimensional = true;
-            state.isOmegaEnabled = true;
-            break;
-
-        case 'standby':
-        case 'idle':
-            state.omegaInterDimensional = false;
-            break;
-
-        default:
-            break;
-    }
-
-    if (data) {
-        applyConfig(data);
-    }
-}
-
-function _waitForEffectsSettled() {
-    return new Promise((resolve) => {
-        const check = () => {
-            if (!state.omegaGhosts || state.omegaGhosts.length === 0) {
-                resolve();
-            } else {
-                setTimeout(check, 100);
-            }
-        };
-        check();
-    });
-}
-
 // Boot dispatch lives in the module script below so we can await the agent
 // loader + first display_geometry broadcast before the scene is fully staged.
 // See the `<script type="module">` block at the end of <body>.
@@ -3441,12 +3250,9 @@ window.unionSize = unionSize;
 // ============================================================
 // LIVE-JS BOOT SEQUENCE (Task 6)
 // ============================================================
-// For ?mode=live-js: load the agent wiki doc, apply appearance, await the
-// first display_geometry snapshot from the AOS daemon, then compute the
+// Load the agent wiki doc, apply appearance, await the first
+// display_geometry snapshot from the AOS daemon, then compute the
 // resolved home position and stamp it onto liveJs.avatarPos.
-//
-// For the legacy swift-ipc boot (no mode= param): preserve the prior
-// behavior of just calling init() on DOMContentLoaded.
 //
 // The bundled inline <script> above has already defined init(), setupLiveJs,
 // handleLiveJsMessage, the `liveJs` namespace, and `state`. This module
@@ -3574,14 +3380,6 @@ function awaitFirstDisplayGeometry() {
 
 async function boot() {
     const params = new URLSearchParams(window.location.search);
-    const mode = params.get('mode') === 'live-js' ? 'live-js' : 'swift-ipc';
-
-    if (mode !== 'live-js') {
-        // Legacy swift-ipc boot: match prior behavior (plain init()).
-        window.init();
-        return;
-    }
-
     const agentPath = params.get('agent') ?? 'sigil/agents/default';
     const currentAgentId = agentPath.split('/').pop(); // e.g. 'default'
 

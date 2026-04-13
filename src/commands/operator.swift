@@ -93,7 +93,6 @@ private struct DoctorResponse: Encodable {
     let permissions_setup: PermissionsSetupState
     let runtime: RuntimeState
     let aos_service: LaunchAgentState
-    let sigil_service: LaunchAgentState
     let notes: [String]
 }
 
@@ -145,11 +144,6 @@ func doctorCommand(args: [String]) {
         expectedBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode),
         logPath: aosDaemonLogPath(for: mode)
     )
-    let sigilService = launchAgentState(
-        label: aosSigilServiceLabel(for: mode),
-        expectedBinaryPath: aosExpectedBinaryPath(program: "avatar-sub", mode: mode),
-        logPath: aosSigilLogPath(for: mode)
-    )
 
     var notes: [String] = []
     if !runtime.daemon_running {
@@ -171,9 +165,6 @@ func doctorCommand(args: [String]) {
     }
     if !aosService.target_matches_expected {
         notes.append("AOS launch agent target does not match the expected \(runtime.mode) runtime binary.")
-    }
-    if !sigilService.target_matches_expected {
-        notes.append("Sigil launch agent target does not match the expected \(runtime.mode) runtime binary.")
     }
     if !runtime.legacy_state_items.isEmpty {
         notes.append("Legacy shared runtime state still exists in \(runtime.legacy_state_dir).")
@@ -207,7 +198,6 @@ func doctorCommand(args: [String]) {
         permissions_setup: permissionsSetup,
         runtime: runtime,
         aos_service: aosService,
-        sigil_service: sigilService,
         notes: notes
     )
     print(jsonString(response))
@@ -598,10 +588,7 @@ private func repoArtifactList() -> [String] {
     let mode = aosCurrentRuntimeMode()
     var candidates = ["\(repoRoot)/dist"]
     if mode != .repo {
-        candidates.append(contentsOf: [
-            "\(repoRoot)/aos",
-            "\(repoRoot)/apps/sigil/build"
-        ])
+        candidates.append("\(repoRoot)/aos")
     }
     return candidates.filter { FileManager.default.fileExists(atPath: $0) }
 }
@@ -877,8 +864,7 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
 }
 
 private func restartPermissionsDependentServices() -> [String] {
-    let labels = [aosServiceLabel(), aosSigilServiceLabel()]
-    return labels.filter(restartManagedLaunchAgent)
+    return [aosServiceLabel()].filter(restartManagedLaunchAgent)
 }
 
 private func restartManagedLaunchAgent(_ label: String) -> Bool {

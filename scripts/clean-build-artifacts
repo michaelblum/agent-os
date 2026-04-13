@@ -7,9 +7,6 @@ REPO_ROOT="$PWD"
 paths=(
   "$REPO_ROOT/aos"
   "$REPO_ROOT/dist"
-  "$REPO_ROOT/apps/sigil/build"
-  "$REPO_ROOT/apps/sigil/avatar-sub"
-  "$REPO_ROOT/tools/dogfood/avatar-sub"
   "$REPO_ROOT/tools/dogfood/__pycache__"
 )
 

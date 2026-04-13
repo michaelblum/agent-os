@@ -255,7 +255,7 @@ DOGFOOD="$AGENT_OS_ROOT/tools/dogfood"
 
 _emit_action() {
   # Usage: _emit_action "before|after" "action_name" [extra_json_fields]
-  # Posts to the "actions" channel. avatar-sub subscribes and reacts.
+  # Posts to the "actions" channel for subscribers (e.g. the Sigil renderer).
   local phase="$1" action="$2"
   shift 2
   local extra="$*"
