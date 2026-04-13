@@ -109,11 +109,12 @@ Exact wire names are refinable at plan time (`sigil.*` vs `agent.*` vs generic s
 `loadAgent` in `apps/sigil/renderer/agent-loader.js`:
 1. Fetch the agent wiki doc.
 2. Parse the JSON `instance` block.
-3. If `instance.birthplace` is present → use it. Done.
+3. If `instance.birthplace` is present → use it.
+   - If `instance.home` is ALSO present → log an advisory ("doc has both; `home` is orphaned — not removed to avoid unexpected writes on read"). No rewrite. `birthplace` wins.
 4. Else if `instance.home` is present → construct `instance.birthplace = instance.home`, delete `instance.home`, serialize doc, PUT via the wiki write endpoint, then proceed with the in-memory rewritten doc.
-5. Else → `instance.birthplace = MINIMAL_DEFAULT.birthplace` (same fallback as today's `MINIMAL_DEFAULT.home`).
+5. Else → `instance.birthplace = MINIMAL_DEFAULT.birthplace` (rename of today's `MINIMAL_DEFAULT.home`).
 
-Fresh installs never see `home`. The seed doc is updated in the same PR.
+Fresh installs never see `home`. The seed doc at `apps/sigil/seed/wiki/sigil/agents/default.md` AND `MINIMAL_DEFAULT` in `agent-loader.js` are both updated in the same PR.
 
 ## Error handling
 
