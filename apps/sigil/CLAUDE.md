@@ -74,8 +74,7 @@ If you launch Sigil manually (running `avatar-sub` directly or via
 | `avatar-easing.swift` | Easing functions |
 | `avatar-ipc.swift` | Socket/IPC helpers for daemon communication + scene-position messaging |
 | `renderer/` | Shared Three.js modules (geometry, colors, aura, effects, ghost trails) + bundled live renderer |
-| `studio/` | Avatar Studio — customization UI for designing the avatar's appearance |
-| `avatar.html` | **Legacy** — replaced by `renderer/index.html`, kept for reference |
+| `studio/` | Avatar Studio — stageless control surface for designing the avatar's appearance and managing the agent roster |
 | `radial-menu-config.json` | Menu items (geometry, name, color, action) — deferred, to be reimplemented |
 
 ## Canvas Model
@@ -83,8 +82,8 @@ If you launch Sigil manually (running `avatar-sub` directly or via
 The avatar runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
 
 - **Live mode**: `renderer/index.html` — bundled renderer, IPC-driven position via `headsup.receive()`
-- **Studio mode**: `studio/index.html` — full customization UI for avatar design
-- **Config**: `~/.config/aos/{mode}/avatar-config.json` — saved from Studio, loaded by Live
+- **Studio mode**: `studio/index.html` — stageless control surface for designing the avatar's appearance and managing the agent roster. The live desktop avatar is the preview; there is no in-Studio 3D canvas. Agent docs live at `sigil/agents/*.md` in the wiki.
+- **Config**: per-agent wiki docs at `sigil/agents/*.md`, written via the content server's `/wiki` REST surface. Studio lists agents via `GET /wiki/sigil/agents/` (directory listing endpoint).
 
 Multi-display: canvases on all displays at launch. Avatar hands off between displays when crossing boundaries.
 
