@@ -647,58 +647,22 @@ export function setupUI() {
         });
     });
 
-    // Sidebar Navigation
+    // Nav rail — switches active panel. No sidebar expand/collapse in the
+    // stageless shell; the rail is always visible and panels swap in-place.
     const navIcons = document.querySelectorAll('.nav-icon[data-target]');
     const panels = document.querySelectorAll('.panel');
-
-    let isTitleScrolled = false;
-    let hasScrolledOnce = false;
-    const titleWrapper = document.getElementById('sidebar-title-wrapper');
-
-    const checkScroll = (panel) => {
-        if (panel.scrollTop > 10 && !isTitleScrolled) {
-            isTitleScrolled = true;
-            hasScrolledOnce = true;
-            titleWrapper.classList.remove('scrolled-up');
-            titleWrapper.classList.add('scrolled');
-        } else if (panel.scrollTop <= 10 && isTitleScrolled) {
-            isTitleScrolled = false;
-            if (hasScrolledOnce) {
-                titleWrapper.classList.remove('scrolled');
-                titleWrapper.classList.add('scrolled-up');
-            }
-        }
-    };
-
-    panels.forEach(p => {
-        p.addEventListener('scroll', () => {
-            if (p.classList.contains('active')) checkScroll(p);
-        });
-    });
-
     navIcons.forEach(icon => {
         icon.addEventListener('click', () => {
             navIcons.forEach(n => n.classList.remove('active'));
             panels.forEach(p => p.classList.remove('active'));
             icon.classList.add('active');
             const targetPanel = document.getElementById(icon.getAttribute('data-target'));
-            targetPanel.classList.add('active');
-            document.getElementById('sidebar').classList.add('expanded');
-            document.getElementById('sidebar').classList.remove('collapsed');
-            checkScroll(targetPanel);
+            if (targetPanel) targetPanel.classList.add('active');
         });
     });
 
-    document.getElementById('toggle-sidebar').addEventListener('click', () => {
-        const sb = document.getElementById('sidebar');
-        if (sb.classList.contains('expanded')) {
-            sb.classList.remove('expanded'); sb.classList.add('collapsed');
-        } else {
-            sb.classList.remove('collapsed'); sb.classList.add('expanded');
-        }
-    });
-
-    // Close studio — tell daemon to remove this canvas, fall back to window.close()
+    // Esc closes the Studio canvas. No explicit button — close is handled by
+    // the chip menu (Delete) + OS window controls.
     function closeStudio() {
         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
             window.webkit.messageHandlers.headsup.postMessage({ action: 'close' });
@@ -706,7 +670,6 @@ export function setupUI() {
             window.close();
         }
     }
-    document.getElementById('btn-close').addEventListener('click', closeStudio);
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
             closeStudio();
@@ -1004,32 +967,9 @@ export function setupUI() {
         });
     }
 
-    // Save = persist appearance to the active agent's wiki doc. Daemon emits
-    // wiki_page_changed; any live avatar subscribed to that channel will
-    // re-fetch + applyAppearance (see renderer Task 9). Visual ack on the
-    // button so operators know the PUT was accepted.
-    document.getElementById('btn-save').addEventListener('click', async (e) => {
-        const btn = e.currentTarget;
-        const prevBg = btn.style.background;
-        await persistAgent();
-        btn.style.background = 'rgba(188, 19, 254, 0.4)';
-        setTimeout(() => { btn.style.background = prevBg; }, 600);
-    });
-
-    document.getElementById('btn-load').addEventListener('click', () => {
-        document.getElementById('file-loader').click();
-    });
-
-    document.getElementById('file-loader').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            try { applyConfig(JSON.parse(ev.target.result)); } catch (err) { console.error('Invalid JSON file', err); }
-        };
-        reader.readAsText(file);
-        e.target.value = '';
-    });
+    // Save button removed — appearance persists via slider `change` events
+    // (persistAgent) and chip-menu "Save as". File import/export also moved
+    // off the header; chip-menu owns agent lifecycle in the stageless shell.
 
     // Master Gradient color pickers
     const colorKeys = ['face', 'edge', 'aura', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'];
@@ -1242,12 +1182,8 @@ export function setupUI() {
 
     proxyInput('ctx-zdepth', 'zDepthSlider');
 
-    // Preset select — applyPreset now routes through applyAppearance (writes
-    // state only), then syncUIFromState mirrors state back into DOM inputs.
-    document.getElementById('presetSelect').addEventListener('change', (e) => {
-        applyPreset(e.target.value);
-        syncUIFromState();
-    });
+    // Preset select removed from the stageless shell — presets are reachable
+    // via the reroll flyout's "style" scope (apps/sigil/studio/js/reroll.js).
 
     // Shape param settings: map shape code -> settings container ID
     const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings' };
@@ -1462,7 +1398,6 @@ export function setupUI() {
         showShapeSettings(state.currentGeometryType);
     });
     document.getElementById('shapeSelect').addEventListener('change', updateAvatarCard);
-    document.getElementById('presetSelect').addEventListener('change', updateAvatarCard);
     // Show shape-specific params for initial shape
     showShapeSettings(state.currentGeometryType);
     document.getElementById('skinSelect').addEventListener('change', (e) => {
@@ -1772,30 +1707,9 @@ export function setupUI() {
     document.getElementById('btn-spike').addEventListener('click', () => { state.auraSpike = 1.0; });
     document.getElementById('spikeMultiplier').addEventListener('input', (e) => { state.spikeMultiplier = parseFloat(e.target.value); });
 
-    // Super Charge
-    const btnCharge = document.getElementById('btn-supercharge');
-    const startCharge = (e) => {
-        if (e.button !== undefined && e.button !== 0) return;
-        state.isCharging = true; state.chargeTime = 0; state.chargeLevel = 0;
-        state.collapseTime = 0; state.chargeReleaseTimer = 0;
-        state.isShockwaveActive = false; state.wasFullCharge = false;
-    };
-    const endCharge = () => {
-        if (state.isCharging) {
-            state.isCharging = false;
-            btnCharge.classList.remove('vibrate');
-            document.getElementById('charge-fill').style.width = '0%';
-            if (state.chargeTime > 0) {
-                state.collapseTime = 0.75;
-                state.wasFullCharge = (state.chargeLevel >= 0.99);
-            }
-            state.chargeTime = 0; state.chargeLevel = 0;
-        }
-    };
-    btnCharge.addEventListener('mousedown', startCharge);
-    btnCharge.addEventListener('touchstart', startCharge, { passive: true });
-    window.addEventListener('mouseup', endCharge);
-    window.addEventListener('touchend', endCharge);
+    // Super Charge button removed with the 3D preview — the charge gesture
+    // only made sense against the in-app canvas. Desktop avatar is the
+    // preview now; charge is triggered via agent channel events if needed.
 
     // Z-Depth scale
     document.getElementById('zDepthSlider').addEventListener('input', (e) => {

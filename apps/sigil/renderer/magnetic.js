@@ -2,9 +2,14 @@ import state from './state.js';
 
 const SEGMENTS = 25;
 
-// Reusable scratch vectors (avoid per-frame allocations)
-const _dir = new THREE.Vector3();
-const _target = new THREE.Vector3();
+// Reusable scratch vectors (avoid per-frame allocations).
+// Lazy-init so the module is import-safe when THREE isn't loaded
+// (e.g. Studio imports this file transitively via colors.js but never
+// instantiates tentacles — it has no 3D scene).
+let _dir, _target;
+function _ensureScratch() {
+    if (!_dir) { _dir = new THREE.Vector3(); _target = new THREE.Vector3(); }
+}
 
 // --- Tentacle (lerp-chain magnetic field line) ---
 class Tentacle {
@@ -31,6 +36,7 @@ class Tentacle {
     }
 
     update(time) {
+        _ensureScratch();
         const totalSpeed = this.localSpeed * state.magneticTentacleSpeed;
         const head = this.points[0];
         const wander = state.magneticWander;

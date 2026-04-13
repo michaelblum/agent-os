@@ -1,8 +1,15 @@
 import state from './state.js';
 import { updateOmegaGeometry } from './geometry.js';
 
-const _lastPos = new THREE.Vector3();
-const _counterSpinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+// Lazy-init so this module is import-safe when THREE isn't loaded
+// (Studio imports transitively via colors.js but has no 3D scene).
+let _lastPos, _counterSpinAxis;
+function _ensureScratch() {
+    if (!_lastPos) {
+        _lastPos = new THREE.Vector3();
+        _counterSpinAxis = new THREE.Vector3(0.5, 1.0, 0).normalize();
+    }
+}
 let _lastPosInitialized = false;
 let _wasCounterSpin = false;
 let _counterSpinAngle = 0;
@@ -20,6 +27,7 @@ export function createOmega() {
 
 export function animateOmega(dt) {
     if (!state.omegaGroup) return;
+    _ensureScratch();
 
     // --- Visibility ---
     if (!state.isOmegaEnabled) {
