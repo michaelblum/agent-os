@@ -446,7 +446,14 @@ class UnifiedDaemon {
         if let code = code { obj["code"] = code }
         if let message = message { obj["message"] = message }
         if let createdID = createdID { obj["id"] = createdID }
-        for (k, v) in extra { obj[k] = v }
+        let reserved: Set<String> = ["type", "request_id", "status", "code", "message"]
+        for (k, v) in extra {
+            if reserved.contains(k) {
+                fputs("[canvas-response] dropping extra key '\(k)' — shadows reserved response field\n", stderr)
+                continue
+            }
+            obj[k] = v
+        }
         guard let json = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return }
         let b64 = json.base64EncodedString()
         let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
@@ -648,6 +655,9 @@ class UnifiedDaemon {
     /// request_id (String) for correlation.
     private func handlePositionGet(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
+        if requestID == nil {
+            fputs("[position] get from canvas=\(callerID) missing request_id — no response can be delivered\n", stderr)
+        }
         guard let key = payload["key"] as? String, !key.isEmpty else {
             if let rid = requestID {
                 dispatchCanvasResponse(to: callerID, requestID: rid,

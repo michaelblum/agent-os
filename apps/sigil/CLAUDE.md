@@ -43,7 +43,7 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | Path | Role |
 |------|------|
 | `renderer/index.html` | Live avatar renderer — Three.js scene + Sigil-1 state machine (IDLE / PRESS / DRAG / GOTO), fast-travel animation, display-union clamping, wiki live-reload. Loaded as a full-display passthrough canvas. |
-| `renderer/*.js` | ES modules: `agent-loader`, `appearance`, `home-resolver`, `state`, plus the shared Three.js modules (geometry, colors, aura, phenomena, skins, trails). |
+| `renderer/*.js` | ES modules: `agent-loader`, `appearance`, `birthplace-resolver`, `state`, plus the shared Three.js modules (geometry, colors, aura, phenomena, skins, trails). |
 | `studio/` | Stageless control surface for designing the avatar's appearance and managing the agent roster. No in-Studio 3D canvas — the live desktop avatar is the preview. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
 | `avatar-streamline/` | Hit-area child canvas + draw experiments used by the renderer for interactive gestures. |

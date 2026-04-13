@@ -2889,10 +2889,9 @@ function handleLiveJsMessage(msg) {
                 break;
             }
             // Generic waiter dispatch (currently used by the boot module's
-            // lastPosition lookup). Each waiter returns true if it consumed
-            // the message; consumed waiters are auto-removed inside the
-            // resolver. Iterate over a snapshot to avoid mutation-during-
-            // iteration if a waiter's done() callback splices the list.
+            // lastPosition lookup). Waiters self-remove from _lpWaiters via
+            // their done() callback; return values are ignored. Iterate
+            // over a snapshot to avoid mutation-during-iteration.
             if (Array.isArray(liveJs._lpWaiters)) {
                 for (const handler of liveJs._lpWaiters.slice()) {
                     try { handler(msg); } catch (e) { console.error('[sigil] waiter threw:', e); }
@@ -3486,13 +3485,12 @@ async function getLastPositionFromDaemon(agentId) {
             resolve(value);
         };
         const handler = (msg) => {
-            if (msg?.type !== 'canvas.response') return false;
-            if (msg.request_id !== requestId) return false;
-            if (msg.status !== 'ok') { done(null); return true; }
+            if (msg?.type !== 'canvas.response') return;
+            if (msg.request_id !== requestId) return;
+            if (msg.status !== 'ok') { done(null); return; }
             const p = msg.position;
-            if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') { done(null); return true; }
+            if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') { done(null); return; }
             done({ x: p.x, y: p.y });
-            return true;
         };
         window.liveJs._lpWaiters = window.liveJs._lpWaiters || [];
         window.liveJs._lpWaiters.push(handler);
@@ -3517,9 +3515,9 @@ async function resolvePosition(agent, displays) {
 
 // Expose a live-reload helper for the classic-script flushReload() in
 // handleLiveJsMessage. Reloads the current agent doc, re-applies its
-// appearance blob, and refreshes the inline renderer's visuals. Home
-// position is deliberately NOT re-resolved (home applies only at spawn
-// per the Sigil Foundation spec).
+// appearance blob, and refreshes the inline renderer's visuals. Position
+// is deliberately NOT re-resolved here — birthplace applies only at spawn,
+// and lastPosition is the live coordinate, not a wiki-sourced value.
 async function sigilReloadCurrentAgent() {
     const liveJs = window.liveJs;
     if (!liveJs || !liveJs.currentAgentId) {

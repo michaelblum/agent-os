@@ -473,7 +473,7 @@ With bogus UUID: avatarPos = {x:1260, y:762.1666666666667, valid:true}
 After restore respawn: avatarPos = {x:1260, y:762.1666666666667, valid:true}
 ```
 
-`resolveHome` in `home-resolver.js` correctly falls back to main bottom-right
+`resolveBirthplace` in `birthplace-resolver.js` correctly falls back to main bottom-right
 when the referenced display UUID is not attached.
 
 **Status:** PASS
