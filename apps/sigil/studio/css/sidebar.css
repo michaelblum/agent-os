@@ -1,78 +1,44 @@
-/* Collapsing Sidebar Styles */
-#sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    display: flex;
-    z-index: 20;
-    transition: width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-    background: rgba(20, 10, 30, 0.85);
-    backdrop-filter: blur(8px);
-    border-right: 1px solid rgba(209, 135, 255, 0.3);
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
-}
-#sidebar.expanded { width: 340px; }
-#sidebar.collapsed { width: 60px; }
+/* Studio nav rail + panel visibility.
+ * Layout container is #nav-rail-container + #panel-container in shell.css.
+ * Legacy #sidebar / #content-area styles were removed with the stageless
+ * shell rewrite — only nav-icon + panel rules live here now. */
 
-/* Icon Navigation Rail */
 #nav-rail {
-    width: 60px;
-    min-width: 60px;
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    border-right: 1px solid rgba(74, 43, 110, 0.4);
-    background: rgba(15, 5, 25, 0.6);
+    padding: 12px 0;
+    gap: 8px;
     overflow-y: auto;
-    z-index: 15;
 }
 #nav-rail::-webkit-scrollbar { display: none; }
+
 .nav-icon {
-    width: 40px;
-    height: 40px;
-    margin-bottom: 15px;
-    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
     display: flex;
     justify-content: center;
     align-items: center;
     cursor: pointer;
     color: #a060d0;
-    transition: all 0.2s;
+    font-size: 22px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .nav-icon:hover { background: rgba(188, 19, 254, 0.2); color: #fff; }
 .nav-icon.active { background: #bc13fe; color: #fff; box-shadow: 0 0 10px rgba(188, 19, 254, 0.5); }
-.nav-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; }
 
-/* Content Area */
-#content-area {
-    flex-grow: 1;
-    overflow: hidden;
-    position: relative;
-}
-
-
+/* Panels — siblings inside #panel-container; one visible at a time. */
 .panel {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 280px;
-    height: 100vh;
-    padding: 80px 20px 80px 20px;
-    box-sizing: border-box;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    overflow-y: auto;
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: 15px;
     color: white;
 }
-.panel.active {
-    opacity: 1;
-    pointer-events: auto;
-}
-#content-area::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 6px; }
+.panel.active { display: flex; }
+
+#panel-container::-webkit-scrollbar, .panel::-webkit-scrollbar { width: 6px; }
 .panel::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
 .panel::-webkit-scrollbar-thumb { background: #4a2b6e; border-radius: 4px; }
