@@ -279,9 +279,14 @@ class ContentServer {
                     return Entry(name: name, kind: childIsDir.boolValue ? "dir" : "file")
                 }
                 struct Listing: Codable { let path: String; let entries: [Entry] }
-                let payload = Listing(path: relativePath, entries: entries)
-                let data = (try? JSONEncoder().encode(payload)) ?? Data("{\"path\":\"\(relativePath)\",\"entries\":[]}".utf8)
-                return httpResponse(status: 200, statusText: "OK", contentType: "application/json", body: method == "HEAD" ? nil : data)
+                let cleanPath = relativePath.hasSuffix("/") ? String(relativePath.dropLast()) : relativePath
+                let payload = Listing(path: cleanPath, entries: entries)
+                do {
+                    let data = try JSONEncoder().encode(payload)
+                    return httpResponse(status: 200, statusText: "OK", contentType: "application/json", body: method == "HEAD" ? nil : data)
+                } catch {
+                    return httpResponse(status: 500, statusText: "Internal Server Error", body: "Failed to encode listing")
+                }
             }
 
             switch method {
