@@ -87,7 +87,11 @@ bash build.sh                    # Produces ./aos
 
 When working on a specific package, read ARCHITECTURE.md first to understand how it fits the ecosystem. If your work affects the interface between tools (JSON schemas, coordinate systems, output contracts), update `shared/schemas/` and note it in ARCHITECTURE.md Section 7.
 
-## Related Repos
+## Work Tracking
 
-- `Findly-Inc/syborg` (`/Users/Michael/Documents/GitHub/syborg/`) — Chrome extension + chrome-harness. Separate repo (business IP).
-- DRAW scrapyard (`/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/`) — historical capture code to mine for tear-sheet.
+Work items, bugs, and enhancements are tracked in GitHub Issues. The session-start hook injects open issues into every session automatically.
+
+- Log new work: `gh issue create --title "..." --body "..." --label enhancement|bug`
+- Close completed work: `gh issue close <number> --reason completed`
+- Don't create local task files — GitHub Issues is the single source of truth.
+

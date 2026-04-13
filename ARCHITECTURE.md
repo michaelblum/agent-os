@@ -295,7 +295,46 @@ The overlays move with the page when it scrolls, respect CSS z-index, and lock o
 
 ---
 
-## 6. The Scrapyard: Code Archaeology Map
+## 6. Union Canvas Foundation
+
+A **union canvas** is an AOS canvas whose bounds span the bounding box of the current display arrangement ("union of displays"). It exists so agent-presence surfaces — Sigil's avatar, ghost trails, inter-display effects — can render across display boundaries with a single transparent overlay.
+
+### Invariants
+
+1. **Coordinate system.** Global CG coordinates (top-left origin, Y-down). The daemon reports `display_geometry` in this frame; all canvases and all position data share it. No per-display local frames at the canvas layer.
+2. **Transparent + passthrough by default.** A union canvas is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
+3. **One canvas, one owner.** A given union canvas has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant union canvases are out of scope; composition happens by stacking multiple independently-owned canvases.
+4. **Opt-in topology tracking.** A union canvas created with `--at $(aos runtime display-union)` snapshots the union at spawn time. Whether its bounds automatically follow topology changes is a lifecycle decision (see below) — not a guaranteed property of every union canvas.
+5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") lives in the owning app's state, not in the canvas subsystem. The canvas only knows about its bounds.
+
+### Coordinate system contract
+
+- `display_geometry` events carry an array of displays, each with global-frame `{x, y, w, h}` (top-left origin), a `visible_bounds` subset excluding the menu bar/dock, and an identifier. See `src/display/display-geometry.swift`.
+- `computeUnion(displays)` (in the renderer) produces `{minX, minY, maxX, maxY, w, h}` — the tight bounding box around all displays.
+- Negative coordinates are valid when a secondary display sits above or to the left of the primary. Apps must not assume `{0, 0}` is a valid upper-left.
+- When an app stores absolute positions (e.g., Sigil's in-memory `lastPosition`), those coordinates remain absolute across display-topology changes. On topology change, positions outside the new union are expected to clamp to the union edge (handled by the renderer today; see `apps/sigil/renderer/index.html:2906-2929`).
+
+### Lifecycle
+
+- **Creation.** `aos show create --id <name> --at $(aos runtime display-union) --url ...` — the `aos runtime display-union` subcommand resolves the current union and is substituted by the shell. This is a *snapshot* model: the canvas bounds are fixed to whatever the union was at create time.
+- **Topology change (current).** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, rebroadcasts `display_geometry`. Canvas bounds do not auto-update. Renderer clamps position to new union and logs an advisory to relaunch. Tracked: #49.
+- **Topology change (target).** On display-topology change, every canvas that was created with union-bound semantics should have its bounds updated by the daemon via an internal equivalent of `aos show update --at <new-union>`. Canvases with explicit hard-coded bounds stay frozen. The distinction requires a post-create signal the daemon can read — design open.
+- **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for union canvases specifically.
+
+### Known gaps
+
+- Canvas bounds don't auto-track topology (#49).
+- Live renderer has parallel inline and ES-module renderers bridged by a hand-maintained appearance-field sync list (#47).
+- Three.js loaded from CDN rather than vendored (#48).
+- No explicit "union-bound" flag at create time — the daemon can't distinguish canvases that *want* topology tracking from those with explicit bounds. Needed before #49 can ship safely.
+
+### Moniker
+
+"Union canvas" is the technical name in specs and code (matches `computeUnion`, `display-union`). User-facing speech can stay informal ("the desktop avatar," "the desktop canvas"). Avoid "global canvas" — too vague.
+
+---
+
+## 7. The Scrapyard: Code Archaeology Map
 
 A historical code bundle from the DRAW project (`/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f`) contains ~38K lines of battle-tested extraction and capture code. Here's where each capability maps in the new ecosystem:
 
@@ -365,7 +404,7 @@ The scrapyard lives at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f`
 
 ---
 
-## 7. Open Questions & Future Work
+## 8. Open Questions & Future Work
 
 ### Naming Unification
 
