@@ -84,7 +84,8 @@ A small, opinionated module that wraps the daemon's in-canvas wire. Every WKWebV
 
 export function wireBridge(handler)            // installs window.headsup.receive
 export function emit(type, payload?)            // postToHost wrapper, omits payload if undefined
-export function subscribe(events, handler?)     // adds events to the daemon's per-canvas subscription
+export function subscribe(events)                // adds events to the daemon's per-canvas subscription
+                                                 // (handlers are wired separately via wireBridge — different concerns)
 export function unsubscribe(events)             // inverse
 export function spawnChild(opts)                // canvas.create with request_id round-trip; returns Promise
 export function mutateSelf(opts)                // canvas.update on self (frame, interactive, etc.); fire-and-forget
