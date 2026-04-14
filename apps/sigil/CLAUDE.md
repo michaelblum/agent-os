@@ -12,7 +12,7 @@ Start the AOS daemon, then launch the avatar canvas:
 ./aos serve                               # repo daemon (launchd normally manages this)
 ./aos show create --id avatar-main \
     --url 'aos://sigil/renderer/index.html' \
-    --at 0,0,1512,982
+    --track union
 ```
 
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
