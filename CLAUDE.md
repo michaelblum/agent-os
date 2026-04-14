@@ -2,6 +2,18 @@
 
 Ecosystem of macOS and web automation CLIs. Each package builds independently. See ARCHITECTURE.md for the full blueprint.
 
+## Layering
+
+```
+src/, shared/              primitives — unified `aos` binary (perceive, display, act, voice, daemon) + cross-tool schemas
+  └─ packages/toolkit/     reusable WKWebView components + AosComponent framework
+       └─ apps/            consumer surfaces (sigil today; future chat, inspectors, etc.)
+```
+
+Not every directory under `packages/` is the middle layer. `packages/toolkit/` is the reusable-component layer between primitives and apps. `packages/gateway/` (MCP server) and `packages/host/` (agent host) are peers to `src/` — they consume primitives for different purposes (external tool surface, Anthropic SDK loop), not building blocks for apps.
+
+Pointers: `ARCHITECTURE.md` for full architecture, `packages/toolkit/CLAUDE.md` for toolkit specifics, `apps/sigil/CLAUDE.md` for Sigil specifics.
+
 ## Structure
 
 ```
