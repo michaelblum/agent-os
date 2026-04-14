@@ -1,4 +1,7 @@
 ---
+name: sigil-studio-presentation-design
+description: Studio-adjacent avatar behaviors — kill `home` as an abstraction (replace with `instance.birthplace` + daemon-side `lastPosition`), add a Studio-invoked "inspected" state for the avatar, formalize Studio/avatar cooperation. To be promoted to a spec via superpowers:brainstorming.
+type: project
 status: validated-deferred
 source: session c42b7da7 (studio-slider-fix) conversation with Michael, 2026-04-13
 connects_to: apps/sigil/studio/, apps/sigil/renderer/, src/daemon/

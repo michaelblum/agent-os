@@ -5,7 +5,6 @@ status: exploring
 date: 2026-04-02
 session: hand-off-v2-design (post-compaction)
 trigger: when the agent is re-discovering things it already knew from a previous session, or when focus channel data is being thrown away at session end
-related: lightrag_assessment.md, spatial_model_proposal.md, dogfood_bootstrap_strategy.md
 keywords: knowledge graph, DAG, persistence, memory, minesweeper, app discovery, user behavior, annotations, pruning, LightRAG, background process, semantic, edges
 ---
 
@@ -50,7 +49,7 @@ A local directed acyclic graph (DAG) that persists across sessions. Think of the
 - **Behavioral profiles** could be informed by the graph — if the user always navigates Settings → Accessibility → Voice Control, the agent can use that path directly.
 
 ## What this is NOT
-- Not a full app model/registry (see scratchpad/app_reconnaissance_and_registry.md)
+- Not a full app model/registry
 - Not a replacement for live AX queries (always verify)
 - Not a product feature yet — this is infrastructure thinking
 
