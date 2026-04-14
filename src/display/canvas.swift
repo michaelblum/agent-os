@@ -96,6 +96,16 @@ class CanvasWebView: WKWebView {
     }
 }
 
+// MARK: - Track Target
+
+/// A canvas's tracking target. When set, the daemon resolves bounds from the
+/// target on create and re-resolves on relevant change events. v1 supports
+/// only `.union` (bounds = union of all displays). Future target types
+/// (window:<wid>, channel:<cid>, display:<n>, static:<rect>) land via #60.
+enum TrackTarget: String {
+    case union
+}
+
 // MARK: - Canvas
 
 class Canvas {
@@ -122,6 +132,7 @@ class Canvas {
         set { messageHandler.onMessage = newValue }
     }
     var autoProjectMode: String?
+    var trackTarget: TrackTarget?
 
     func setTTL(_ seconds: Double?) {
         ttlTimer?.cancel()
@@ -261,7 +272,8 @@ class Canvas {
             interactive: isInteractive,
             ttl: remainingTTL,
             scope: scope,
-            autoProject: autoProjectMode
+            autoProject: autoProjectMode,
+            track: trackTarget?.rawValue
         )
     }
 }
