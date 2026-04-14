@@ -7,6 +7,9 @@
 import Foundation
 import CoreGraphics
 
+private let INSPECTOR_CANVAS_ID = "__inspector__"
+private let INSPECTOR_URL = "aos://toolkit/components/inspector-panel/index.html"
+
 func inspectCommand(args: [String]) {
     ensureInteractivePreflight(command: "aos inspect")
 
@@ -49,13 +52,6 @@ func inspectCommand(args: [String]) {
         panelY = mainBounds.height - panelHeight - 20
     }
 
-    // Read the inspector HTML from the toolkit
-    let htmlPath = findInspectorHTML()
-    guard let htmlData = FileManager.default.contents(atPath: htmlPath),
-          let html = String(data: htmlData, encoding: .utf8) else {
-        exitError("Cannot read inspector-panel.html at \(htmlPath)", code: "FILE_NOT_FOUND")
-    }
-
     // Connect to daemon (persistent session for the lifetime of the command)
     let session = DaemonSession()
     guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
@@ -68,9 +64,9 @@ func inspectCommand(args: [String]) {
     // Create connection-scoped inspector canvas
     session.sendAndReceive([
         "action": "create",
-        "id": "__inspector__",
+        "id": INSPECTOR_CANVAS_ID,
         "at": [panelX!, panelY!, panelWidth, panelHeight],
-        "html": html,
+        "url": INSPECTOR_URL,
         "scope": "connection"
     ])
 
@@ -104,21 +100,20 @@ func inspectCommand(args: [String]) {
 
             switch envelope.event {
             case "element_focused":
-                let jsData = inspectJsonStringForJS(envelope.data)
-                session.sendOnly([
-                    "action": "eval",
-                    "id": "__inspector__",
-                    "js": "updateElement(\(jsData))"
+                sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
+                    "type": "element",
+                    "data": envelope.data
                 ])
 
             case "cursor_moved", "cursor_settled":
                 if let x = envelope.data["x"] as? Double,
                    let y = envelope.data["y"] as? Double,
                    let display = envelope.data["display"] as? Int {
-                    session.sendOnly([
-                        "action": "eval",
-                        "id": "__inspector__",
-                        "js": "updateCursor(\(x),\(y),\(display))"
+                    sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
+                        "type": "cursor",
+                        "x": x,
+                        "y": y,
+                        "display": display
                     ])
                 }
 
@@ -129,24 +124,4 @@ func inspectCommand(args: [String]) {
     }
 
     session.disconnect()
-}
-
-// MARK: - Helpers
-
-private func findInspectorHTML() -> String {
-    let candidates = [
-        aosRepoPath("packages/toolkit/components/inspector-panel.html"),
-        "packages/toolkit/components/inspector-panel.html",
-    ]
-    for path in candidates {
-        let resolved = (path as NSString).standardizingPath
-        if FileManager.default.fileExists(atPath: resolved) { return resolved }
-    }
-    return candidates.last!
-}
-
-private func inspectJsonStringForJS(_ dict: [String: Any]) -> String {
-    guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]),
-          let str = String(data: data, encoding: .utf8) else { return "{}" }
-    return str
 }

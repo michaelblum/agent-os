@@ -8,6 +8,9 @@
 import Foundation
 import CoreGraphics
 
+private let LOG_CANVAS_ID = "__log__"
+private let LOG_URL = "aos://toolkit/components/log-console/index.html"
+
 func logCommand(args: [String]) {
     let sub = args.first
 
@@ -63,13 +66,7 @@ func logCommand(args: [String]) {
         break
     }
 
-    // Stream mode: create console and read stdin
-    let htmlPath = findLogHTML()
-    guard let htmlData = FileManager.default.contents(atPath: htmlPath),
-          let html = String(data: htmlData, encoding: .utf8) else {
-        exitError("Cannot read log-console.html at \(htmlPath)", code: "FILE_NOT_FOUND")
-    }
-
+    // Stream mode
     let session = DaemonSession()
     guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon. Run 'aos serve' first.", code: "CONNECT_ERROR")
@@ -81,15 +78,15 @@ func logCommand(args: [String]) {
     // Create connection-scoped log canvas
     session.sendAndReceive([
         "action": "create",
-        "id": "__log__",
+        "id": LOG_CANVAS_ID,
         "at": [panelX!, panelY!, panelWidth, panelHeight],
-        "html": html,
+        "url": LOG_URL,
         "scope": "connection"
     ])
 
     fputs("Log console active. Reading stdin. Ctrl-C to stop.\n", stderr)
 
-    evalLog(session: session, message: "Log console started", level: "debug")
+    pushLogEntry(session: session, message: "Log console started", level: "debug")
 
     // Read stdin line by line
     while let line = readLine(strippingNewline: true) {
@@ -100,9 +97,9 @@ func logCommand(args: [String]) {
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let msg = json["message"] as? String {
             let lvl = json["level"] as? String ?? level
-            evalLog(session: session, message: msg, level: lvl)
+            pushLogEntry(session: session, message: msg, level: lvl)
         } else {
-            evalLog(session: session, message: line, level: level)
+            pushLogEntry(session: session, message: line, level: level)
         }
     }
 
@@ -111,13 +108,12 @@ func logCommand(args: [String]) {
 
 // MARK: - Helpers
 
-private func evalLog(session: DaemonSession, message: String, level: String) {
-    let escaped = message
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "'", with: "\\'")
-        .replacingOccurrences(of: "\n", with: "\\n")
-    let js = "pushLog('\(escaped)','\(level)')"
-    session.sendOnly(["action": "eval", "id": "__log__", "js": js])
+private func pushLogEntry(session: DaemonSession, message: String, level: String) {
+    sendHeadsupMessage(session: session, canvasID: LOG_CANVAS_ID, payload: [
+        "type": "log",
+        "message": message,
+        "level": level
+    ])
 }
 
 private func logPushMessage(_ message: String, level: String) {
@@ -125,32 +121,16 @@ private func logPushMessage(_ message: String, level: String) {
     guard session.connect() else {
         exitError("Daemon not running or no log console active", code: "CONNECT_ERROR")
     }
-    evalLog(session: session, message: message, level: level)
-    // Read response to flush
+    pushLogEntry(session: session, message: message, level: level)
     _ = session.readOneJSON()
     session.disconnect()
     print("{\"status\":\"ok\"}")
 }
 
 private func logClearConsole() {
-    let result = daemonOneShot(
-        ["action": "eval", "id": "__log__", "js": "clearLog()"]
-    )
-    if result != nil {
+    if sendHeadsupMessageOneShot(canvasID: LOG_CANVAS_ID, payload: ["type": "clear"]) != nil {
         print("{\"status\":\"ok\"}")
     } else {
         exitError("Daemon not running or no log console active", code: "CONNECT_ERROR")
     }
-}
-
-private func findLogHTML() -> String {
-    let candidates = [
-        aosRepoPath("packages/toolkit/components/log-console.html"),
-        "packages/toolkit/components/log-console.html",
-    ]
-    for path in candidates {
-        let resolved = (path as NSString).standardizingPath
-        if FileManager.default.fileExists(atPath: resolved) { return resolved }
-    }
-    return candidates.last!
 }

@@ -76,6 +76,34 @@ func aosRepoPath(_ relativePath: String) -> String {
     NSString(string: (findAgentOSRepoRoot() as NSString).appendingPathComponent(relativePath)).standardizingPath
 }
 
+// MARK: - Canvas Bridge Helpers
+
+/// Deliver a JSON payload to a canvas component's `window.headsup.receive(b64)`
+/// handler via daemon `eval`. Mirrors the pattern used by component launchers
+/// and matches what `AosComponent.onMessage` expects.
+func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [String: Any]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
+    let b64 = data.base64EncodedString()
+    session.sendOnly([
+        "action": "eval",
+        "id": canvasID,
+        "js": "window.headsup.receive(\"\(b64)\")"
+    ])
+}
+
+/// One-shot variant for contexts without a persistent `DaemonSession`.
+/// Returns the raw response dict or nil if the daemon is unreachable.
+@discardableResult
+func sendHeadsupMessageOneShot(canvasID: String, payload: [String: Any]) -> [String: Any]? {
+    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return nil }
+    let b64 = data.base64EncodedString()
+    return daemonOneShot([
+        "action": "eval",
+        "id": canvasID,
+        "js": "window.headsup.receive(\"\(b64)\")"
+    ])
+}
+
 // MARK: - Process Helpers
 
 struct ProcessOutput {

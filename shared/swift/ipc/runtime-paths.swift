@@ -118,12 +118,12 @@ func aosInstalledBinaryPath(_ executableName: String) -> String {
 func aosRepoRootFromBases(_ bases: [String]) -> String? {
     if let override = ProcessInfo.processInfo.environment["AOS_REPO_ROOT"], !override.isEmpty {
         let path = NSString(string: override).standardizingPath
-        if FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent("packages/toolkit/components/inspector-panel.html")) {
+        if FileManager.default.fileExists(atPath: (path as NSString).appendingPathComponent("packages/toolkit/components/inspector-panel/index.html")) {
             return path
         }
     }
 
-    let sentinel = "packages/toolkit/components/inspector-panel.html"
+    let sentinel = "packages/toolkit/components/inspector-panel/index.html"
     let suffixes = ["", "..", "../..", "../../.."]
 
     for base in bases {
@@ -146,7 +146,7 @@ func aosBundledRepoRoot(executablePath: String = aosExecutablePath()) -> String?
         .deletingLastPathComponent()
         .deletingLastPathComponent()
     let resourcesRoot = bundleURL.appendingPathComponent("Contents/Resources/agent-os").path
-    let sentinel = (resourcesRoot as NSString).appendingPathComponent("packages/toolkit/components/inspector-panel.html")
+    let sentinel = (resourcesRoot as NSString).appendingPathComponent("packages/toolkit/components/inspector-panel/index.html")
     return FileManager.default.fileExists(atPath: sentinel) ? resourcesRoot : nil
 }
 
