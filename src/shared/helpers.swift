@@ -78,9 +78,9 @@ func aosRepoPath(_ relativePath: String) -> String {
 
 // MARK: - Canvas Bridge Helpers
 
-/// Deliver a JSON payload to a canvas component's `window.headsup.receive(b64)`
-/// handler via daemon `eval`. Mirrors the pattern used by component launchers
-/// and matches what `AosComponent.onMessage` expects.
+/// Deliver a JSON payload to a canvas via daemon `eval`. The payload is
+/// base64-encoded and passed to `window.headsup.receive(b64)`, where the
+/// Layer 1a bridge (`runtime/bridge.js`) decodes and routes it.
 func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [String: Any]) {
     guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
     let b64 = data.base64EncodedString()
