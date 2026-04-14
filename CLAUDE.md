@@ -13,6 +13,7 @@ packages/
   tear-sheet/     (planned) Node.js CLI — Web artifact extraction
   toolkit/        Reusable components built on agent-os primitives (components/, patterns/)
   gateway/        Node.js MCP server — typed script execution + cross-harness coordination
+  host/           Node.js agent host — Anthropic SDK loop, session store, sigil bridge
 apps/
   sigil/          Avatar presence system (Track 2 consumer of display subsystem)
 shared/
@@ -85,7 +86,7 @@ bash build.sh                    # Produces ./aos
 
 ## Cross-Tool Work
 
-When working on a specific package, read ARCHITECTURE.md first to understand how it fits the ecosystem. If your work affects the interface between tools (JSON schemas, coordinate systems, output contracts), update `shared/schemas/` and note it in ARCHITECTURE.md Section 7.
+When working on a specific package, read ARCHITECTURE.md first to understand how it fits the ecosystem. If your work affects the interface between tools (JSON schemas, coordinate systems, output contracts), update `shared/schemas/` and reflect it in ARCHITECTURE.md §3 (Component Roster) or §5 (Communication & Data Flow) as appropriate. §7 is the Scrapyard archaeology map — don't confuse with it.
 
 ## Work Tracking
 

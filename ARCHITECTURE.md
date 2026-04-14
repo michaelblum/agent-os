@@ -80,10 +80,13 @@ Pure Swift binaries using only Apple frameworks. Zero external dependencies. Eac
 |------|------|------------|--------|
 | `aos` perception subsystem | **Perception** — screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (merged from side-eye) |
 | `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
-| `aos` display subsystem | **Projection** — display server: renders HTML/CSS/SVG to OS overlays, transparent bitmaps, or browser injection | WebKit (WKWebView), AppKit (NSWindow) | Render mode production, serve mode planned |
-| `speak-up` | **Audio** — text-to-speech output, speech-to-text dictation | AVFoundation, Speech | Planned |
+| `aos` display subsystem | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
+| `aos` voice subsystem | **Audio (TTS)** — `aos say`, daemon-driven announcements, config-driven voice/rate | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT planned |
+| `speak-up` (standalone) | **Audio (STT + persona)** — global hotkey dictation, persona routing, ElevenLabs/Whisper integration | AVFoundation, Speech | Planned |
 
-All four share the LCS convention. All four emit JSON. All four are stateless — the orchestrator holds state, not the tools.
+Most Layer 1 capability now ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/voice/`). `hand-off` remains its own package. `speak-up` is the planned standalone audio CLI for dictation + persona-driven TTS that go beyond what the in-aos voice subsystem provides.
+
+All share the LCS convention. All emit JSON. All are stateless at the tool level — the daemon and orchestrator hold state, not individual subcommands.
 
 ### Layer 2: Web Layer (Node / CDP)
 
@@ -123,12 +126,22 @@ All ecosystem tools live in `michaelblum/agent-os` as a monorepo. Each tool is a
 
 ```
 agent-os/
-  packages/              ← Track 1: unopinionated primitives
-    side-eye/            ← (merged into aos — see MOVED.md)
+  src/                   ← Unified aos binary (perception, display, action-lite, voice, daemon)
+    perceive/            ← Screenshots, AX tree, focus channels, graph navigation (merged side-eye)
+    display/             ← Canvas/overlay server, render mode, content HTTP server
+    act/                 ← click/type/press/session (CGEvent + AX)
+    voice/               ← TTS engine, `aos say`, daemon announcements
+    content/             ← HTTP file server for WKWebView canvases
+    daemon/              ← UnifiedDaemon: socket, routing, autonomic
+    commands/, shared/
+  packages/              ← Track 1: standalone primitives
+    side-eye/            ← (merged into aos — MOVED.md stub only)
     hand-off/            ← Swift CLI — OS action
-    speak-up/            ← (planned) Swift CLI — Audio I/O
+    speak-up/            ← (planned) Swift CLI — STT + persona audio
     tear-sheet/          ← (planned) Node.js CLI — Web extraction
     toolkit/             ← Reusable components built on primitives (components/, patterns/)
+    gateway/             ← Node.js MCP server — typed scripts + cross-harness coordination
+    host/                ← Node.js agent host — Anthropic SDK loop, sessions, sigil bridge
   apps/                  ← Track 2: opinionated consumers
     sigil/               ← Avatar presence system (consumer of display subsystem)
   shared/
@@ -137,6 +150,7 @@ agent-os/
       spatial-topology.md
       annotation.schema.json
       annotation.md
+    swift/ipc/           ← Shared Swift IPC helpers (runtime paths, socket client)
   tools/
     dogfood/             ← Development/testing scripts
   ARCHITECTURE.md        ← This file
@@ -147,12 +161,18 @@ agent-os/
 | Component | Layer | Language | Location | Status | Key Capabilities |
 |-----------|-------|----------|----------|--------|-----------------|
 | `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS (merged from side-eye) |
-| `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize |
-| `aos` display subsystem | OS | Swift | `src/display/` | Render mode production | Display server: HTML→bitmap (render mode), persistent canvases (serve mode planned), browser injection (planned) |
-| `speak-up` | OS | Swift | `packages/speak-up/` | Planned | TTS (ElevenLabs/native), STT (Whisper/native), global hotkey |
+| `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
+| `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT planned |
+| `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/session`; lighter-weight than `hand-off` |
+| `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize, behavioral profiles |
+| `speak-up` | OS | Swift | `packages/speak-up/` | Planned | Global hotkey dictation, STT (Whisper/native), persona routing, ElevenLabs integration |
+| `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server: typed script execution, session registration, cross-harness pub/sub, capability discovery, SQLite-backed state |
+| `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
+| `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, canvas-inspector, legacy single-file overlays |
 | `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
 | `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
 | `tear-sheet` | Web | Node.js | `packages/tear-sheet/` | Planned | Element capture, scroll stitch, artifact packaging |
+| Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
 | Syborg Studio | Control | React/TS | `Findly-Inc/syborg` | Production | Chrome extension: sidebar, portal, annotation system |
 
 ### Archived Repos
