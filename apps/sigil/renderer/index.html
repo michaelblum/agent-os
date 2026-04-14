@@ -2042,98 +2042,6 @@ function updateOmegaColors() {
 // === MAGNETIC FIELD ===
 // (from js/magnetic.js)
 
-const MAGNETIC_SEGMENTS = 25;
-const _magDir = new THREE.Vector3();
-const _magTarget = new THREE.Vector3();
-
-class Tentacle {
-    constructor(basePos, length) {
-        this.basePos = basePos.clone();
-        this.length = length;
-        this.points = [];
-        for (let i = 0; i < MAGNETIC_SEGMENTS; i++) {
-            this.points.push(new THREE.Vector3().copy(basePos));
-        }
-
-        this.material = new THREE.LineBasicMaterial({
-            color: new THREE.Color(state.colors.magnetic[0]),
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
-        });
-        this.mesh = new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(this.points),
-            this.material
-        );
-        this.phase = Math.random() * Math.PI * 2;
-        this.localSpeed = 0.4 + Math.random() * 0.6;
-    }
-
-    update(time) {
-        const totalSpeed = this.localSpeed * state.magneticTentacleSpeed;
-        const head = this.points[0];
-        const wander = state.magneticWander;
-
-        head.x = this.basePos.x + Math.sin(time * totalSpeed + this.phase) * wander;
-        head.y = this.basePos.y + Math.cos(time * totalSpeed * 0.8 + this.phase) * wander;
-        head.z = this.basePos.z + Math.sin(time * totalSpeed * 1.2 + this.phase) * wander;
-
-        const segLen = this.length / MAGNETIC_SEGMENTS;
-        for (let i = 1; i < MAGNETIC_SEGMENTS; i++) {
-            const prev = this.points[i - 1];
-            const curr = this.points[i];
-            _magDir.subVectors(curr, prev).normalize();
-            _magTarget.copy(prev).addScaledVector(_magDir, segLen);
-            curr.lerp(_magTarget, 0.15);
-        }
-
-        const posAttr = this.mesh.geometry.attributes.position;
-        for (let i = 0; i < MAGNETIC_SEGMENTS; i++) {
-            posAttr.setXYZ(i, this.points[i].x, this.points[i].y, this.points[i].z);
-        }
-        posAttr.needsUpdate = true;
-        this.material.opacity = (0.4 + Math.sin(time * 2 + this.phase) * 0.2);
-    }
-}
-
-function createMagneticField() {
-    state.magneticTentacleGroup = new THREE.Group();
-    state.magneticTentacleGroup.visible = false;
-    state.polyGroup.add(state.magneticTentacleGroup);
-
-    const count = state.magneticTentacleCount;
-    const phi = Math.PI * (3.0 - Math.sqrt(5.0));
-    for (let i = 0; i < count; i++) {
-        const y = 1.0 - (i / (count - 1)) * 2.0;
-        const radius = Math.sqrt(1 - y * y);
-        const theta = phi * i;
-        const base = new THREE.Vector3(
-            radius * Math.cos(theta),
-            y,
-            radius * Math.sin(theta)
-        );
-
-        const t = new Tentacle(base, 2.5);
-        state.magneticTentacles.push(t);
-        state.magneticTentacleGroup.add(t.mesh);
-    }
-}
-
-function animateMagneticField(dt) {
-    if (!state.isMagneticEnabled || state.isDestroyed) {
-        if (state.magneticTentacleGroup) state.magneticTentacleGroup.visible = false;
-        return;
-    }
-
-    state.magneticTentacleGroup.visible = true;
-    state.magneticTentacles.forEach(t => t.update(state.globalTime));
-}
-
-function updateMagneticColors() {
-    const c1 = new THREE.Color(state.colors.magnetic[0]);
-    state.magneticTentacles.forEach(t => t.material.color.copy(c1));
-}
-
 // === LIVE SCENE ===
 // (from live/js/scene.js)
 
@@ -2924,8 +2832,6 @@ function syncModuleStateToWindow() {
         'isNeutrinosEnabled', 'neutrinoJetCount',
         // Turbulence (whole object replaced)
         'turbState',
-        // Magnetic
-        'isMagneticEnabled', 'magneticTentacleCount', 'magneticTentacleSpeed', 'magneticWander',
         // Omega
         'isOmegaEnabled', 'omegaGeometryType', 'omegaStellationFactor', 'omegaScale',
         'omegaOpacity', 'omegaEdgeOpacity', 'omegaIsMaskEnabled', 'omegaIsInteriorEdgesEnabled',
@@ -3110,6 +3016,11 @@ import { createLightning, animateLightning, updateLightningColors } from './ligh
 window.createLightning = createLightning;
 window.animateLightning = animateLightning;
 window.updateLightningColors = updateLightningColors;
+
+import { createMagneticField, animateMagneticField, updateMagneticColors } from './magnetic.js';
+window.createMagneticField = createMagneticField;
+window.animateMagneticField = animateMagneticField;
+window.updateMagneticColors = updateMagneticColors;
 
 // Module scripts are deferred by default (run after DOMContentLoaded and
 // after any preceding classic inline scripts). init() and liveJs will
