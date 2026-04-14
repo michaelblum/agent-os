@@ -75,7 +75,7 @@ Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index
 ## Dependencies
 
 - **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub, content server
-- **Three.js r128** — 3D rendering engine (loaded from CDN by `renderer/index.html`)
+- **Three.js r128** — 3D rendering engine. Vendored at `renderer/vendor/three.min.js` (loaded by `renderer/index.html` and `tests/appearance-roundtrip.html`). No CDN at boot.
 
 ## Chat Canvas Protocol
 
