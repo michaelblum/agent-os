@@ -346,6 +346,16 @@ class CanvasManager {
             return .fail("Canvas '\(id)' already exists. Use update or remove first.", code: "DUPLICATE_ID")
         }
 
+        let trackTarget: TrackTarget?
+        if let trackStr = req.track {
+            guard let t = TrackTarget(rawValue: trackStr) else {
+                return .fail("Unknown track target: \(trackStr)", code: "INVALID_TRACK")
+            }
+            trackTarget = t
+        } else {
+            trackTarget = nil
+        }
+
         // Resolve anchorChannel → anchorWindow + window_bounds
         var resolvedAnchorWindow = req.anchorWindow
         var channelWindowBounds: CGRect? = nil
@@ -381,7 +391,16 @@ class CanvasManager {
         }
 
         let cgFrame: CGRect
-        if autoMode == "cursor_trail" {
+        if trackTarget == .union {
+            // Resolve union bounds from the current display topology.
+            // Uses allDisplaysBounds() (same as cursor_trail) so values round-trip
+            // correctly through cgToScreen/screenToCG and match `aos runtime display-union`.
+            let bounds = allDisplaysBounds()
+            guard bounds.width > 0, bounds.height > 0 else {
+                return .fail("--track union requires at least one connected display", code: "NO_DISPLAYS")
+            }
+            cgFrame = bounds
+        } else if autoMode == "cursor_trail" {
             // cursor_trail spans all displays
             cgFrame = allDisplaysBounds()
         } else if let at = req.at, at.count == 4 {
@@ -408,11 +427,12 @@ class CanvasManager {
             // Auto-project with channel: cover the whole window
             cgFrame = channelWindowBounds!
         } else {
-            return .fail("create requires --at x,y,w,h, --anchor-window + --offset, or --anchor-channel", code: "MISSING_POSITION")
+            return .fail("create requires --at x,y,w,h, --anchor-window + --offset, --anchor-channel, or --track <target>", code: "MISSING_POSITION")
         }
 
         let interactive = req.interactive ?? false
         let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive)
+        canvas.trackTarget = trackTarget
         // --focus on create: activate immediately and arm a one-shot
         // focusInput() eval for when the page emits 'ready'. The OS-level
         // activation avoids the click-to-focus delay macOS applies to
