@@ -3326,7 +3326,7 @@ function syncModuleStateToWindow() {
         // Primary geometry
         'currentGeometryType', 'stellationFactor', 'currentOpacity',
         'currentEdgeOpacity', 'isMaskEnabled', 'isInteriorEdgesEnabled',
-        'isSpecularEnabled', 'currentSkin', 'idleSpinSpeed', 'z_depth',
+        'isSpecularEnabled', 'idleSpinSpeed', 'z_depth',
         // Shape params
         'tetartoidA', 'tetartoidB', 'tetartoidC',
         'torusRadius', 'torusTube', 'torusArc',
@@ -3350,7 +3350,7 @@ function syncModuleStateToWindow() {
         // Omega
         'isOmegaEnabled', 'omegaGeometryType', 'omegaStellationFactor', 'omegaScale',
         'omegaOpacity', 'omegaEdgeOpacity', 'omegaIsMaskEnabled', 'omegaIsInteriorEdgesEnabled',
-        'omegaIsSpecularEnabled', 'omegaSkin', 'omegaCounterSpin', 'omegaLockPosition',
+        'omegaIsSpecularEnabled', 'omegaCounterSpin', 'omegaLockPosition',
         'omegaInterDimensional', 'omegaGhostCount', 'omegaGhostMode', 'omegaGhostDuration',
         'omegaLagFactor',
         // Swarm
@@ -3373,10 +3373,6 @@ function rebuildInlineVisualsAfterAppearance() {
     catch (e) { console.debug('[sigil] inline updateGeometry skipped:', e); }
     try { window.updateOmegaGeometry(window.state.omegaGeometryType); }
     catch (e) { console.debug('[sigil] inline updateOmegaGeometry skipped:', e); }
-    try { window.applySkin(window.state.currentSkin, false); }
-    catch (e) { console.debug('[sigil] inline applySkin(primary) skipped:', e); }
-    try { window.applySkin(window.state.omegaSkin, true); }
-    catch (e) { console.debug('[sigil] inline applySkin(omega) skipped:', e); }
     try { window.updatePulsars(window.state.pulsarRayCount); }
     catch (e) { console.debug('[sigil] inline updatePulsars skipped:', e); }
     try { window.updateGammaRays(window.state.gammaRayCount); }
