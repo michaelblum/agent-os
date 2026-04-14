@@ -2,6 +2,8 @@
 
 Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `CLAUDE.md` for the full layering picture.
 
+Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md)
+
 ## Layered model
 
 ```
@@ -27,6 +29,7 @@ runtime/                Layer 1a — universal canvas runtime
 
 panel/                  Layer 1b — panel primitives
   chrome.js               mountChrome — pure DOM scaffold
+  defaults.css            optional stock panel visuals (opt-in)
   router.js               createRouter — manifest-prefix dispatch
   layouts/
     single.js             Single(Content)
@@ -36,7 +39,7 @@ panel/                  Layer 1b — panel primitives
   _smoke/                 smoke harness
 
 components/             Layer 2 — reusable Content units
-  _base/                  shared theme.css (legacy AosComponent retired)
+  _base/                  shared theme.css tokens/reset (legacy AosComponent retired)
   canvas-inspector/       live canvas list + lifecycle subscription
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
   log-console/            scrolling timestamped log (driven by `aos log push`)
@@ -87,11 +90,19 @@ export default function MyContent() {
 
 ```html
 <!doctype html>
-<html><body><script type="module">
+<html>
+<head>
+  <link rel="stylesheet" href="../_base/theme.css">
+  <link rel="stylesheet" href="../../panel/defaults.css">
+</head>
+<body>
+<script type="module">
 import { mountPanel, Single } from '../../panel/index.js'
 import MyContent from './index.js'
 mountPanel({ title: 'My Content', layout: Single(MyContent) })
-</script></body></html>
+</script>
+</body>
+</html>
 ```
 
 3. (Optional) Create `launch.sh` if the component needs bootstrap data.
@@ -100,3 +111,9 @@ mountPanel({ title: 'My Content', layout: Single(MyContent) })
 
 - **Toolkit (Layer 1/2)**: reusable across apps, not opinionated about a specific use case.
 - **App (Layer 3)**: tied to a specific product (e.g., Sigil's avatar personality, agent doc schema). Lives in `apps/<name>/` and consumes Layer 1a (and optionally 1b/2).
+
+## Styling Boundary
+
+- `panel/` JS provides structure and behavior only; it should not define a canonical visual design.
+- `components/_base/theme.css` provides shared tokens/reset utilities.
+- `panel/defaults.css` is an optional stock look for standalone toolkit panels. Apps and demos may replace it entirely.

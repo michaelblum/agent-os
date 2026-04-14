@@ -28,15 +28,15 @@ export function Tabs(factories) {
       // Build tab strip in the header's controls slot.
       const tabStrip = document.createElement('div')
       tabStrip.className = 'aos-tabs'
-      tabStrip.style.cssText = 'display:flex;gap:4px;'
+      tabStrip.style.cssText = 'display:flex;align-items:center;gap:4px;flex-wrap:wrap;'
       chrome.headerEl.querySelector('.aos-controls').appendChild(tabStrip)
 
       const tabButtons = contents.map((c, i) => {
         const label = c.manifest?.title || c.manifest?.name || `tab ${i + 1}`
         const btn = document.createElement('button')
         btn.className = 'aos-tab'
+        btn.type = 'button'
         btn.textContent = label
-        btn.style.cssText = 'background:#333;color:#ddd;border:1px solid #444;border-radius:3px;padding:2px 8px;font-family:inherit;font-size:11px;cursor:pointer;'
         btn.addEventListener('click', () => activate(i))
         tabStrip.appendChild(btn)
         return btn
@@ -78,7 +78,7 @@ export function Tabs(factories) {
         activeIdx = idx
         contents.forEach((c, i) => {
           elByContent.get(c).style.display = i === idx ? 'block' : 'none'
-          tabButtons[i].style.background = i === idx ? '#555' : '#333'
+          tabButtons[i].classList.toggle('active', i === idx)
         })
       }
 

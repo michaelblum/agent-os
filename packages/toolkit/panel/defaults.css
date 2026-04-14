@@ -1,0 +1,31 @@
+/* defaults.css — optional visual baseline for toolkit panels.
+ *
+ * Import this when you want the stock panel chrome. `panel/` JS does not
+ * require it; consumers may replace all of this with their own styles.
+ */
+
+.aos-panel {
+  background: var(--bg-panel, rgba(18, 18, 28, 0.93));
+  border: 1px solid var(--border-panel, rgba(100, 100, 140, 0.35));
+  border-radius: var(--radius-panel, 8px);
+  backdrop-filter: blur(var(--blur-radius, 20px));
+  -webkit-backdrop-filter: blur(var(--blur-radius, 20px));
+  overflow: hidden;
+}
+
+.aos-header {
+  background: var(--bg-panel-header, rgba(24, 24, 36, 0.96));
+  border-bottom: 1px solid var(--border-subtle, rgba(80, 80, 120, 0.2));
+  font-size: var(--font-size-header, 9px);
+  color: var(--text-header, #556);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.aos-title {
+  color: var(--text-primary, #e0e0e0);
+}
+
+.aos-content {
+  background: var(--bg-panel-content, transparent);
+}

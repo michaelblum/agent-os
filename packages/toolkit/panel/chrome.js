@@ -13,12 +13,22 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
 
   const panel = document.createElement('div')
   panel.className = 'aos-panel'
-  panel.style.cssText = 'flex:1;display:flex;flex-direction:column;background:#1a1a1a;color:#ddd;font-family:ui-monospace,monospace;font-size:12px;border-radius:6px;overflow:hidden;'
+  panel.style.cssText = 'flex:1;display:flex;flex-direction:column;'
 
   const header = document.createElement('div')
   header.className = 'aos-header'
-  header.style.cssText = 'padding:6px 10px;border-bottom:1px solid #333;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;cursor:' + (draggable ? 'grab' : 'default') + ';user-select:none;background:#222;'
-  header.innerHTML = `<span class="aos-title">${esc(title)}</span><span class="aos-controls"></span>`
+  header.style.cssText = 'padding:6px 10px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;cursor:' + (draggable ? 'grab' : 'default') + ';user-select:none;gap:8px;'
+
+  const titleEl = document.createElement('span')
+  titleEl.className = 'aos-title'
+  titleEl.textContent = title
+
+  const controlsEl = document.createElement('span')
+  controlsEl.className = 'aos-controls'
+  controlsEl.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;'
+
+  header.appendChild(titleEl)
+  header.appendChild(controlsEl)
 
   const content = document.createElement('div')
   content.className = 'aos-content'
@@ -34,8 +44,8 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
     panelEl: panel,
     headerEl: header,
     contentEl: content,
-    setTitle(text) { header.querySelector('.aos-title').textContent = text },
-    setControls(html) { header.querySelector('.aos-controls').innerHTML = html },
+    setTitle(text) { titleEl.textContent = text },
+    setControls(html) { controlsEl.innerHTML = html },
   }
 }
 
