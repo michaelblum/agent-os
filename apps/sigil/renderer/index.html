@@ -1853,11 +1853,9 @@ window.getTurbulence = getTurbulence;
 //     fallbacks see current values, not the state.js defaults.
 //   - After applyAppearance: copy every field applyAppearance wrote back
 //     to window.state so the inline render loop reads the agent's values.
-//   - Re-run the INLINE update hooks (phenomena counts etc.) against the
-//     now-updated window.state to rebuild objects the module path does not own.
-//     Geometry is owned by the module path: syncWindowStateToModule seeds
+//     (Geometry is owned by the module path: syncWindowStateToModule seeds
 //     moduleState.polyGroup before applyAppearance, so geometry.js operates
-//     on the real scene directly.
+//     on the real scene directly.)
 function syncWindowStateToModule() {
     for (const k of Object.keys(window.state)) {
         if (k in moduleState) moduleState[k] = window.state[k];
@@ -1881,9 +1879,6 @@ function syncModuleStateToWindow() {
         if (k in moduleState) window.state[k] = moduleState[k];
     }
 }
-function rebuildInlineVisualsAfterAppearance() {
-}
-
 function awaitFirstDisplayGeometry() {
     // Promise resolves when the first `display_geometry` message lands in
     // handleLiveJsMessage — which stashes the snapshot on liveJs.displays
@@ -1926,13 +1921,12 @@ async function boot() {
 
     // 3. Apply appearance. applyAppearance writes into the module-scope
     //    state.js singleton (imported by appearance.js). Sync state in,
-    //    apply, sync state back, then rebuild inline visuals so the live
-    //    bundled renderer reflects the agent's appearance blob.
+    //    apply, sync state back so the inline renderers (Swarm, Grid) read
+    //    current values from window.state via the APPEARANCE_FIELDS bridge.
     try {
         syncWindowStateToModule();
         applyAppearance(agent.appearance);
         syncModuleStateToWindow();
-        rebuildInlineVisualsAfterAppearance();
     } catch (e) {
         console.error('[sigil] applyAppearance pipeline threw:', e);
     }
@@ -2023,7 +2017,6 @@ async function sigilReloadCurrentAgent() {
     syncWindowStateToModule();
     applyAppearance(agent.appearance);
     syncModuleStateToWindow();
-    rebuildInlineVisualsAfterAppearance();
     liveJs.avatarSize = agent.instance.size;
     console.log('[sigil] live-reloaded agent:', liveJs.currentAgentId);
 }
