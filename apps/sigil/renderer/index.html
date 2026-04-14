@@ -3334,7 +3334,6 @@ function syncModuleStateToWindow() {
         'boxWidth', 'boxHeight', 'boxDepth',
         // Aura
         'isAuraEnabled', 'auraReach', 'auraIntensity', 'auraPulseRate', 'spikeMultiplier',
-        // Colors migrated to colors.js module — no longer needs bridge write-back (#48 Task 11)
         // Phenomena
         'isPulsarEnabled', 'pulsarRayCount',
         'isAccretionEnabled', 'accretionDiskCount',
@@ -3378,7 +3377,6 @@ function rebuildInlineVisualsAfterAppearance() {
     catch (e) { console.debug('[sigil] inline applySkin(primary) skipped:', e); }
     try { window.applySkin(window.state.omegaSkin, true); }
     catch (e) { console.debug('[sigil] inline applySkin(omega) skipped:', e); }
-    // updateAllColors migrated to colors.js module — applyAppearance is now authoritative (#48 Task 11)
     try { window.updatePulsars(window.state.pulsarRayCount); }
     catch (e) { console.debug('[sigil] inline updatePulsars skipped:', e); }
     try { window.updateGammaRays(window.state.gammaRayCount); }
