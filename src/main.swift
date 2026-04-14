@@ -42,6 +42,8 @@ struct AOS {
             doctorCommand(args: Array(args.dropFirst()))
         case "reset":
             resetCommand(args: Array(args.dropFirst()))
+        case "clean":
+            cleanCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "focus":
@@ -102,6 +104,7 @@ func printUsage() {
       runtime              Package/sign/install the stable AOS.app runtime
       doctor               Runtime and permission health checks
       reset                Deterministic cleanup for repo/installed runtime state
+      clean                Session-boundary cleanup (stale daemons, orphaned canvases)
       permissions          Permission preflight and one-time onboarding
       inspect              Live AX element inspector overlay
       log                  Display log console panel

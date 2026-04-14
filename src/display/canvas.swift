@@ -5,6 +5,73 @@
 import AppKit
 import WebKit
 
+// MARK: - AOS URL Scheme Handler
+
+/// Intercepts `aos://` URL loads in WKWebView and proxies them to the content server.
+/// Safety net: prevents the custom scheme from leaking to macOS's system URL handler
+/// if resolveContentURL() fails to rewrite the URL before it reaches WKWebView.
+class AosSchemeHandler: NSObject, WKURLSchemeHandler {
+    var portProvider: () -> UInt16 = { 0 }
+    private var stopped = Set<ObjectIdentifier>()
+    private let lock = NSLock()
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        let taskID = ObjectIdentifier(urlSchemeTask as AnyObject)
+
+        guard let url = urlSchemeTask.request.url else {
+            urlSchemeTask.didFailWithError(URLError(.badURL))
+            return
+        }
+
+        let port = portProvider()
+        guard port > 0 else {
+            fputs("[aos-scheme] content server unavailable for \(url.absoluteString)\n", stderr)
+            let html = "<html><body style=\"font-family:system-ui;color:#fff;background:#1a1a2e;padding:2em\"><h2>aos:// content server unavailable</h2><pre>aos content status --json</pre><p>\(url.absoluteString)</p></body></html>"
+            let data = html.data(using: .utf8)!
+            let response = URLResponse(url: url, mimeType: "text/html",
+                                       expectedContentLength: data.count, textEncodingName: "utf-8")
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+            return
+        }
+
+        let host = url.host ?? ""
+        let path = url.path
+        let query = url.query.map { "?\($0)" } ?? ""
+        let resolvedString = "http://127.0.0.1:\(port)/\(host)\(path)\(query)"
+        guard let resolvedURL = URL(string: resolvedString) else {
+            urlSchemeTask.didFailWithError(URLError(.badURL))
+            return
+        }
+
+        fputs("[aos-scheme] \(url.absoluteString) → \(resolvedString)\n", stderr)
+
+        URLSession.shared.dataTask(with: resolvedURL) { [weak self] data, response, error in
+            guard let self = self else { return }
+            self.lock.lock()
+            let wasStopped = self.stopped.remove(taskID) != nil
+            self.lock.unlock()
+            if wasStopped { return }
+
+            if let error = error {
+                urlSchemeTask.didFailWithError(error)
+                return
+            }
+            if let response = response { urlSchemeTask.didReceive(response) }
+            if let data = data { urlSchemeTask.didReceive(data) }
+            urlSchemeTask.didFinish()
+        }.resume()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        let taskID = ObjectIdentifier(urlSchemeTask as AnyObject)
+        lock.lock()
+        stopped.insert(taskID)
+        lock.unlock()
+    }
+}
+
 // MARK: - Script Message Handler
 
 /// Receives postMessage calls from canvas JS: window.webkit.messageHandlers.headsup.postMessage({...})
@@ -154,7 +221,7 @@ class Canvas {
         return max(0, deadline.timeIntervalSinceNow)
     }
 
-    init(id: String, cgFrame: CGRect, interactive: Bool) {
+    init(id: String, cgFrame: CGRect, interactive: Bool, aosSchemeHandler: WKURLSchemeHandler? = nil) {
         self.id = id
         self.isInteractive = interactive
 
@@ -178,6 +245,9 @@ class Canvas {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()
+        if let handler = aosSchemeHandler {
+            config.setURLSchemeHandler(handler, forURLScheme: "aos")
+        }
         let controller = WKUserContentController()
         controller.add(messageHandler, name: "headsup")
         config.userContentController = controller
@@ -283,6 +353,7 @@ class Canvas {
 class CanvasManager {
     private var canvases: [String: Canvas] = [:]
     private var anchorTimer: DispatchSourceTimer?
+    var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
     /// (canvasID, action, at?) — relayed to subscribers as canvas_lifecycle events
@@ -455,7 +526,7 @@ class CanvasManager {
         }
 
         let interactive = req.interactive ?? false
-        let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive)
+        let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
         canvas.trackTarget = trackTarget
         // --focus on create: activate immediately and arm a one-shot
         // focusInput() eval for when the page emits 'ready'. The OS-level

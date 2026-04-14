@@ -255,6 +255,13 @@ class UnifiedDaemon {
             contentServer?.start()
         }
 
+        // Register aos:// scheme handler on all WKWebViews — safety net that
+        // prevents the custom scheme from leaking to macOS if resolveContentURL
+        // fails to rewrite the URL (e.g. content server not yet ready).
+        let schemeHandler = AosSchemeHandler()
+        schemeHandler.portProvider = { [weak self] in self?.contentServer?.assignedPort ?? 0 }
+        canvasManager.aosSchemeHandler = schemeHandler
+
         // Start wiki FSEvents watcher and wire change bus
         WikiChangeBus.shared.daemon = self
         let wikiWatchRoot = URL(fileURLWithPath: aosStateDir()).appendingPathComponent("wiki")

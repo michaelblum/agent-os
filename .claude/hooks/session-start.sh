@@ -40,6 +40,32 @@ except: print('aos doctor failed to parse')
   echo "$STATUS"
 fi
 
+# 2b. Session-boundary cleanup check (stale daemons, orphaned canvases)
+if [ -x "$AOS" ]; then
+  CLEAN=$("$AOS" clean --dry-run --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if d.get('status') == 'dirty':
+        parts = []
+        sd = d.get('stale_daemons', [])
+        cv = d.get('canvases', [])
+        if sd: parts.append(f'{len(sd)} stale daemon(s)')
+        if cv: parts.append(f'{len(cv)} orphaned canvas(es): {\", \".join(c[\"id\"] for c in cv)}')
+        print('DIRTY: ' + '; '.join(parts))
+    else:
+        print('CLEAN')
+except: print('UNKNOWN')
+" 2>/dev/null || echo "UNKNOWN")
+  if [ "$CLEAN" != "CLEAN" ] && [ "$CLEAN" != "UNKNOWN" ]; then
+    echo ""
+    echo "## Stale Resources"
+    echo "$CLEAN"
+    echo "Run \`aos clean\` to wipe, or \`aos clean --dry-run --json\` for details."
+    echo "IMPORTANT: Alert the user about stale resources before proceeding. Offer to run \`aos clean\` for them."
+  fi
+fi
+
 # 3. Uncommitted work summary
 echo ""
 echo "## Git State"

@@ -102,6 +102,7 @@ aos service start|stop|restart    # Service lifecycle
 aos service status [--json]       # Launch agent state
 aos doctor [--json]               # Full health check (permissions, daemon, services)
 aos reset --mode current|repo|installed|all  # Deterministic state cleanup
+aos clean [--dry-run] [--json]    # Session-boundary cleanup (stale daemons, orphaned canvases)
 aos permissions check [--json]    # Read-only permission check
 aos permissions setup --once      # Interactive onboarding flow
 ```
