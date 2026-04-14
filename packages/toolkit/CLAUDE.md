@@ -1,11 +1,11 @@
 # toolkit
 
-Reusable components built on agent-os primitives. The middle layer between Track 1 packages and Track 2 apps.
+Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `CLAUDE.md` for the full layering picture.
 
 ```
-agent-os primitives (`aos see`, `aos show`, `aos do`, `aos say` via AOS daemon)
-  -> toolkit (shared components, patterns)
-    -> apps (sigil, etc.)
+aos primitives (perceive/display/act/voice via the AOS daemon)
+  -> packages/toolkit (shared components + AosComponent framework)
+    -> apps/ (sigil, etc.)
 ```
 
 ## Structure
