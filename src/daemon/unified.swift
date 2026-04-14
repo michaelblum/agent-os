@@ -200,6 +200,7 @@ class UnifiedDaemon {
             var data: [String: Any] = ["canvas_id": canvasID, "action": action]
             if let at = at { data["at"] = at }
             self.broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
+            self.fanOutCanvasLifecycle(data)
         }
 
         canvasManager.onCanvasCountChanged = { [weak self] in
@@ -376,6 +377,31 @@ class UnifiedDaemon {
         guard !targets.isEmpty else { return }
 
         guard let json = try? JSONSerialization.data(withJSONObject: data, options: []) else { return }
+        let b64 = json.base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+
+        for canvasID in targets {
+            canvasManager.evalAsync(canvasID: canvasID, js: js)
+        }
+    }
+
+    /// Fan out a canvas_lifecycle event to every canvas that has subscribed
+    /// to the `canvas_lifecycle` channel. Wraps `data` in a `{type, ...}`
+    /// envelope since live-js canvas dispatch routes by msg.type and the
+    /// broadcast site does not include `type` in the data dict.
+    /// Mirror of forwardWikiPageChangedToCanvases.
+    func fanOutCanvasLifecycle(_ data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("canvas_lifecycle") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        var msg: [String: Any] = ["type": "canvas_lifecycle"]
+        for (k, v) in data { msg[k] = v }
+        guard let json = try? JSONSerialization.data(withJSONObject: msg, options: []) else { return }
         let b64 = json.base64EncodedString()
         let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
 
