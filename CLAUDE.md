@@ -6,7 +6,7 @@ Ecosystem of macOS and web automation CLIs. Each package builds independently. S
 
 ```
 src/, shared/              primitives — unified `aos` binary (perceive, display, act, voice, daemon) + cross-tool schemas
-  └─ packages/toolkit/     reusable WKWebView components + AosComponent framework
+  └─ packages/toolkit/     reusable WKWebView components + Content factory framework
        └─ apps/            consumer surfaces (sigil today; future chat, inspectors, etc.)
 ```
 
@@ -61,7 +61,7 @@ bash build.sh                    # Produces ./aos
 
 - `ARCHITECTURE.md` — ecosystem design, philosophy, component roster
 - `src/CLAUDE.md` — unified `aos` binary: commands, setup, config keys
-- `packages/toolkit/CLAUDE.md` — reusable canvas components + AosComponent framework
+- `packages/toolkit/CLAUDE.md` — reusable canvas components + Layer 1a/1b framework
 - `packages/gateway/CLAUDE.md` — MCP server surface
 - `apps/sigil/CLAUDE.md` — avatar presence system
 - `shared/schemas/` — JSON contracts shared across tools (spatial model, coordinate conventions)
