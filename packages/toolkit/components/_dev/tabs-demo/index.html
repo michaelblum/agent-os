@@ -6,6 +6,9 @@
   <style>
     html, body { margin: 0; background: transparent; font-family: ui-monospace, monospace; font-size: 12px; color: #ddd; }
 
+    /* Component styles duplicated from individual component index.html files.
+       If you change a component's CSS, update this file too. */
+
     /* Canvas Inspector styles */
     .minimap {
       position: relative;
@@ -38,6 +41,7 @@
     }
     .minimap-canvas:hover { background: rgba(138, 180, 255, 0.3); }
     .minimap-canvas.self { border-color: var(--accent-purple); background: rgba(80, 120, 255, 0.1); pointer-events: none; }
+    .minimap-canvas.tinted { opacity: 0.85; }
     .canvas-list { padding: 0 8px 8px; }
     .canvas-item {
       display: flex;
@@ -49,6 +53,7 @@
       line-height: 1.6;
     }
     .canvas-item:hover { background: var(--bg-hover); }
+    .canvas-item.self { opacity: 0.5; }
     .canvas-id { color: var(--accent-blue); font-weight: 600; flex-shrink: 0; }
     .canvas-dims { color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; }
     .canvas-flags { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }

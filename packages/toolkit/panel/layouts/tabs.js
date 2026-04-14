@@ -22,6 +22,7 @@ export function Tabs(factories) {
       const contents = factories.map(f => typeof f === 'function' ? f() : f)
       const hostByContent = new Map()
       const elByContent = new Map()
+      // Retained for future programmatic activation API (tear-off, keyboard nav).
       let activeIdx = 0
 
       // Build tab strip in the header's controls slot.
