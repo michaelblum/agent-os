@@ -47,11 +47,8 @@ export function spawnChild(opts) {
 
 export function mutateSelf(opts) {
   // opts: { frame?: [x,y,w,h], interactive?: bool }
-  // fire-and-forget; daemon logs errors.
-  // Injects `id` from the declared manifest name so the daemon can route
-  // the update back to this canvas (daemon requires explicit id in payload).
-  const selfId = window.headsup?.manifest?.name
-  emit('canvas.update', selfId ? { id: selfId, ...opts } : opts)
+  // fire-and-forget; daemon defaults id to caller (this canvas) when omitted
+  emit('canvas.update', opts)
 }
 
 export function removeSelf(opts = {}) {
