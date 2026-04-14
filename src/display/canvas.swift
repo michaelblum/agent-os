@@ -297,6 +297,30 @@ class CanvasManager {
 
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
     var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
+    var hasTrackedCanvases: Bool { canvases.values.contains { $0.trackTarget != nil } }
+
+    /// Re-resolve bounds for every canvas with a tracking target and apply
+    /// the new bounds. Called from the daemon's coalesced display_geometry
+    /// handler on topology change. Failures on individual canvases are logged
+    /// but never block the rest of the iteration — a broken canvas must not
+    /// stall the topology-change broadcast.
+    func retargetTrackedCanvases() {
+        let unionBounds = allDisplaysBounds()
+        guard unionBounds.width > 0, unionBounds.height > 0 else {
+            fputs("[canvas] retargetTrackedCanvases: no displays, skipping\n", stderr)
+            return
+        }
+
+        for canvas in canvases.values {
+            guard let target = canvas.trackTarget else { continue }
+            switch target {
+            case .union:
+                canvas.updatePosition(cgRect: unionBounds)
+                let atArr: [CGFloat] = [unionBounds.origin.x, unionBounds.origin.y, unionBounds.size.width, unionBounds.size.height]
+                onCanvasLifecycle?(canvas.id, "updated", atArr)
+            }
+        }
+    }
 
     func removeByTTL(_ id: String) {
         guard let canvas = canvases.removeValue(forKey: id) else { return }
