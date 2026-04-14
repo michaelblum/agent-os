@@ -20,9 +20,8 @@ components/
     index.html      Entry point (loads theme.css + inspector.js)
     inspector.js    Component logic (extends AosComponent)
     launch.sh       Bootstrap script (creates canvas, sends initial data, relays events)
-  cursor-decor.html   Legacy single-file component (Three.js cursor shape)
-  inspector-panel.html Legacy single-file component (AX inspector)
-  log-console.html    Legacy single-file component (scrolling log)
+  inspector-panel.html Legacy single-file component (AX inspector) — see #58 for migration
+  log-console.html    Legacy single-file component (scrolling log) — see #58 for migration
 ```
 
 ## Content Server
@@ -62,7 +61,7 @@ new MyTool().mount(document.getElementById('app'));
 
 ## Legacy Components
 
-The single-file `.html` components (`cursor-decor`, `inspector-panel`, `log-console`) inline their bridge and theme code. They work via `file://` URLs and don't require the content server. New components should use the base class pattern instead.
+The single-file `.html` components (`inspector-panel`, `log-console`) inline their bridge and theme code. They work via `file://` URLs and don't require the content server. New components should use the base class pattern instead. Both are scheduled for migration to the `AosComponent` framework — see #58.
 
 ## When to put something here vs. in an app
 
