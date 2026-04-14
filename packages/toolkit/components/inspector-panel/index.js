@@ -6,7 +6,7 @@
 
 import { esc } from '../../runtime/bridge.js'
 
-const BASE_TITLE = 'AOS Inspector'
+const BASE_TITLE = 'AX Inspector'
 
 export default function InspectorPanel() {
   let contentEl = null
