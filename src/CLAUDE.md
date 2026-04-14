@@ -50,7 +50,7 @@ The capture pipeline runs in-process — no external binary dependency.
 **Key options:**
 - `--out <path>`, `--base64`, `--format <png|jpg|heic>`, `--quality <high|med|low>`
 - `--window` (capture window only), `--crop <spec>`, `--grid <CxR>`
-- `--xray` (AX traversal), `--label` (badge annotations, requires heads-up)
+- `--xray` (AX traversal), `--label` (badge annotations via `aos show render`)
 - `--show-cursor`, `--highlight-cursor`, `--radius <px>`
 - `--delay <sec>`, `--clipboard`, `--draw-rect <coords> <color>`
 - `--interactive`, `--wait-for-click`

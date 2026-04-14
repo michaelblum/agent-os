@@ -3,7 +3,7 @@
 Reusable components built on agent-os primitives. The middle layer between Track 1 packages and Track 2 apps.
 
 ```
-agent-os primitives (side-eye, display (via AOS daemon), hand-off)
+agent-os primitives (`aos see`, `aos show`, `aos do`, `aos say` via AOS daemon)
   -> toolkit (shared components, patterns)
     -> apps (sigil, etc.)
 ```

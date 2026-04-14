@@ -1,20 +1,28 @@
 # agent-os
 
-Ecosystem-level documentation and shared contracts for the agent automation CLI suite.
+A macOS automation ecosystem for agents. Perception, action, projection, and voice unified into a single `aos` binary with subcommand groups, plus a typed MCP gateway for external consumers and a Node.js agent host.
 
-This repo is the "constitution" — it holds architectural decisions, shared schemas, and cross-cutting specs that no single tool repo should own.
+## Principle
 
-## The Ecosystem
+**Agent tokens are for decisions, not plumbing.** The agent is the brain; the daemon is the nervous system. The daemon handles element resolution, cursor tracking, TTS, visual feedback. The agent decides WHAT and WHY.
 
-| Tool | Role | Status |
-|------|------|--------|
-| [`side-eye`](https://github.com/michaelblum/side-eye) | OS perception (screenshots, AX tree) | Production |
-| `hand-off` | OS action (mouse, keyboard via CGEvent) | Planned |
-| `heads-up` | OS projection (floating overlays, avatar) | Planned |
-| `speak-up` | Audio I/O (TTS, STT, dictation) | Planned |
-| [`chrome-harness`](https://github.com/Findly-Inc/syborg/tree/main/tools/chrome-harness) | Chrome lifecycle & CDP broker | Production |
-| `pw-bridge` | Playwright over CDP stdin protocol | Production |
-| `tear-sheet` | Web artifact extraction & packaging | Planned |
-| [Syborg Studio](https://github.com/Findly-Inc/syborg) | Chrome extension control surface | Production |
+## Subcommand groups
+
+| Group | Role | Status |
+|-------|------|--------|
+| `aos see` | Perception — screenshots, AX tree, cursor queries, focus channels, graph navigation | Production |
+| `aos show` | Projection — persistent WKWebView canvases, overlays, HTML→bitmap render | Production |
+| `aos do` | Action — AX semantic actions, CGEvent input, AppleScript verbs, behavioral profiles | Production |
+| `aos say` | Voice — TTS, daemon-driven announcements | Production (TTS); STT planned |
+| `aos serve` | Unified daemon: one socket, one CGEventTap, shared state | Production |
+
+## Track-2 consumers
+
+| Package | Role |
+|---------|------|
+| `apps/sigil` | Avatar presence system — Track 2 consumer of the display subsystem |
+| `packages/host` | Node.js agent host — Anthropic SDK loop, session store |
+| `packages/gateway` | MCP server — typed script execution, cross-harness coordination (for external consumers) |
+| `packages/toolkit` | Reusable WKWebView components for apps |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.

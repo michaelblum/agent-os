@@ -5,21 +5,20 @@ Ecosystem of macOS and web automation CLIs. Each package builds independently. S
 ## Structure
 
 ```
-src/              AOS unified binary source (perception, display, action, voice)
+src/              AOS unified binary source
+  perceive/       `aos see` — screenshots, AX tree, focus channels, graph nav
+  display/        `aos show` — WKWebView canvases, overlays, render mode
+  act/            `aos do` — AX + CGEvent + AppleScript actuator
+  voice/          `aos say` — TTS, daemon announcements (STT planned)
+  daemon/         `aos serve` — unified daemon, one socket, one CGEventTap
 packages/
-  side-eye/       (merged into aos — see MOVED.md)
-  hand-off/       Swift CLI — OS action (mouse, keyboard)
-  speak-up/       (planned) Swift CLI — Audio I/O (TTS, STT)
-  tear-sheet/     (planned) Node.js CLI — Web artifact extraction
-  toolkit/        Reusable components built on agent-os primitives (components/, patterns/)
-  gateway/        Node.js MCP server — typed script execution + cross-harness coordination
-  host/           Node.js agent host — Anthropic SDK loop, session store, sigil bridge
+  toolkit/        Reusable WKWebView components for apps
+  gateway/        Node.js MCP server — external consumer surface
+  host/           Node.js agent host — Anthropic SDK loop, session store
 apps/
   sigil/          Avatar presence system (Track 2 consumer of display subsystem)
 shared/
   schemas/        Cross-tool JSON contracts
-tools/
-  dogfood/        Development/testing scripts (agent helpers, chat overlay, xray)
 ```
 
 ## Runtime Model
@@ -45,7 +44,7 @@ This prevents cross-mode contamination between repo builds and the installed app
 - `com.agent-os.aos.repo` / `com.agent-os.aos.installed`
 - `com.agent-os.sigil.repo` / `com.agent-os.sigil.installed`
 
-Legacy labels (`com.agent-os.aos`, `com.agent-os.sigil`, `com.agent-os.heads-up`) are cleaned up by `aos reset`.
+Retired Sigil service labels (`com.agent-os.sigil`, `com.agent-os.sigil.repo`, `com.agent-os.sigil.installed`) from the avatar-sub retirement are unloaded by `aos reset`.
 
 ### First-Time Setup
 

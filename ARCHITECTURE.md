@@ -1,14 +1,18 @@
 # Agent OS — Ecosystem Architecture Blueprint
 
-A multi-agent macOS and web automation ecosystem built on Unix-style, single-purpose CLIs. An LLM orchestrator composes these tools by piping structured JSON between them. No tool knows about any other tool. The orchestrator is the only entity that holds the full picture.
+A macOS automation ecosystem built around a single unified Swift binary (`aos`) with Unix-style subcommand groups. An LLM orchestrator drives the binary by invoking subcommands and piping structured JSON between them. Subcommands are independent at the verb level — perception doesn't know about action, action doesn't know about projection — but they share one daemon, one socket, and one coordinate contract.
 
 ## 1. Philosophy & Design Principles
 
+### Agent Tokens Are For Decisions, Not Plumbing
+
+The agent (LLM) is the brain. The daemon is the nervous system. The agent decides WHAT to do and WHY; the daemon handles HOW — finding elements, tracking the cursor, converting text to speech, showing visual feedback. To serve this, OS-layer capability ships as a single binary (`aos`) with subcommand groups (`see`, `show`, `do`, `say`) over one daemon, one socket, one CGEventTap, and shared state. Separate CLIs per capability wasted agent tokens on inter-tool plumbing and fragmented state across sockets that had to be kept in sync. **The unified binary is the canonical architecture.** Any doc language suggesting per-capability standalone CLIs is drift from an earlier iteration — squash it.
+
 ### Unix-Style Composition
 
-Every tool does one thing. Perception is separate from action. Action is separate from projection. Voice is separate from vision. Tools communicate through structured JSON on stdout (success) and stderr (errors). An orchestrator — any orchestrator — pipes them together.
+Within the unified binary, each subcommand does one thing. Perception is separate from action. Action is separate from projection. Voice is separate from vision. Subcommands communicate through structured JSON on stdout (success) and stderr (errors). An orchestrator — any orchestrator — pipes them together.
 
-This means the ecosystem is not a framework. It is a parts bin. You can use `side-eye` without `hand-off`. You can use `chrome-harness` without Syborg Studio. You can replace Syborg Studio entirely and the CLIs still work.
+`aos see`, `aos show`, `aos do`, and `aos say` are independently useful at the verb level: a consumer can use perception without action, action without projection. The binary is the shared runtime; the subcommand is the unit of composition.
 
 ### JSON-First I/O Contract
 
@@ -38,15 +42,15 @@ The ecosystem uses two coordinate layers that compose cleanly:
 
 | Layer | Origin | Used by |
 |-------|--------|---------|
-| **Global CG** | Top-left of primary display = `(0,0)` | Spatial topology (`shared/schemas/spatial-topology.schema.json`), `hand-off` targeting, display arrangement |
-| **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `side-eye` captures, `--xray` element bounds, annotations |
+| **Global CG** | Top-left of primary display = `(0,0)` | Spatial topology (`shared/schemas/spatial-topology.schema.json`), `aos do` targeting, display arrangement |
+| **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `aos see` captures, `--xray` element bounds, annotations |
 
 **LCS is what agents see.** All perception output uses coordinates relative to the captured target — a display, a window, a cropped zone. `(0,0)` is always the top-left of whatever was captured. This means:
 - Agents never do global screen math during perception
 - Coordinates from one tool's output can be fed directly to another tool's input
 - Foveated perception (cropping to a region) automatically filters out everything outside the crop
 
-**Global CG is the world map.** The spatial topology model uses global coordinates so `hand-off` can translate window-relative positions to absolute click targets. Converting between layers: LCS → Global = add display/window origin; Global → LCS = subtract it.
+**Global CG is the world map.** The spatial topology model uses global coordinates so `aos do` can translate window-relative positions to absolute click targets. Converting between layers: LCS → Global = add display/window origin; Global → LCS = subtract it.
 
 See `shared/schemas/spatial-topology.md` for the full coordinate system specification.
 
@@ -56,65 +60,32 @@ The ecosystem draws hard lines between three categories of capability:
 
 | Category | What it does | Example |
 |----------|-------------|---------|
-| **Sensor** | Reads state, emits structured data | `side-eye` captures pixels + AX tree |
-| **Actuator** | Changes state, synthesizes events | `hand-off` fires CGEvent clicks |
+| **Sensor** | Reads state, emits structured data | `aos see` captures pixels + AX tree |
+| **Actuator** | Changes state, synthesizes events | `aos do` fires CGEvent clicks |
 | **Projection** | Renders visual feedback for humans | The display subsystem (`src/display/`) draws floating overlays |
 
 No tool crosses these boundaries. A sensor never mutates. An actuator never renders UI. A projection never captures.
 
 ### "Mirror, Don't Reinvent"
 
-When exposing capabilities to agents, use APIs they already know from pre-training. `pw-bridge` exposes real Playwright method signatures, not a custom DSL. The Chrome extension uses standard `chrome.*` APIs. This means an agent that knows Playwright or Chrome Extensions already knows how to drive these tools.
+When exposing capabilities to agents, use APIs they already know from pre-training. Prefer standard idioms (Playwright method signatures, `chrome.*` APIs, shell-style subcommand grammar) over custom DSLs. An agent that already knows the source API knows how to drive the tool.
 
 ---
 
-## 2. The Three Layers
+## 2. The OS Layer — the `aos` Binary
 
-### Layer 1: OS Layer (Native Swift CLIs)
+A single Swift binary using only Apple frameworks. Zero external dependencies. Manages its own macOS permissions (Screen Recording, Accessibility, Microphone). Treats the computer as a physical object — pixels, mouse events, audio hardware.
 
-Pure Swift binaries using only Apple frameworks. Zero external dependencies. Each manages its own macOS permissions (Screen Recording, Accessibility, Microphone). These tools treat the computer as a physical object — pixels, mouse events, audio hardware.
+| Subsystem | Role | Frameworks | Status |
+|-----------|------|------------|--------|
+| `aos` perception | **Perception** — screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production |
+| `aos` action | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
+| `aos` display | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
+| `aos` voice | **Audio** — `aos say` (TTS), daemon-driven announcements, config-driven voice/rate. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
 
-**Tools:**
+All capability ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`). No per-capability standalone CLI escape hatches — new audio/perception/action functionality lands as subcommands on the existing subsystems.
 
-| Tool | Role | Frameworks | Status |
-|------|------|------------|--------|
-| `aos` perception subsystem | **Perception** — screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production (merged from side-eye) |
-| `hand-off` | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production (v1.0) |
-| `aos` display subsystem | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
-| `aos` voice subsystem | **Audio (TTS)** — `aos say`, daemon-driven announcements, config-driven voice/rate | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT planned |
-| `speak-up` (standalone) | **Audio (STT + persona)** — global hotkey dictation, persona routing, ElevenLabs/Whisper integration | AVFoundation, Speech | Planned |
-
-Most Layer 1 capability now ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/voice/`). `hand-off` remains its own package. `speak-up` is the planned standalone audio CLI for dictation + persona-driven TTS that go beyond what the in-aos voice subsystem provides.
-
-All share the LCS convention. All emit JSON. All are stateless at the tool level — the daemon and orchestrator hold state, not individual subcommands.
-
-### Layer 2: Web Layer (Node / CDP)
-
-Node.js tools that interact with the browser's internals via Chrome DevTools Protocol. These treat the browser as a programmable environment — DOM state, page lifecycle, extension APIs.
-
-**Tools:**
-
-| Tool | Role | Tech | Status |
-|------|------|------|--------|
-| `chrome-harness` | **Lifecycle** — boot Chrome, manage profiles, install/reload extensions, broker CDP connections | Node.js, raw WebSocket CDP | Production (in syborg repo) |
-| `pw-bridge` | **DOM Action** — expose Playwright commands to agents via stdin line protocol | Playwright Core over CDP | Production (in chrome-harness/scripts/) |
-| `tear-sheet` | **Artifact Extraction** — high-fidelity element capture, scroll stitching, DOM/CSS/metadata extraction for reports and decks | Playwright, CDP | Planned (code exists in DRAW scrapyard) |
-
-`chrome-harness` is the foundational piece. It hand-rolls WebSocket frames against CDP endpoints with zero npm dependencies (in its core). `pw-bridge` currently ships as a script inside `chrome-harness/scripts/` — it's a consumer of the CDP connection that `chrome-harness` brokers, not a standalone tool. `tear-sheet` would follow the same pattern: connect to the Chrome instance that `chrome-harness` manages.
-
-### Layer 3: Control Surface Layer (UI Clients)
-
-The control surface is what a human sees and interacts with. It is **not** the agent. It is a display client that renders the agent's state and accepts human input.
-
-**Current assembly: Syborg Studio**
-
-Syborg Studio uses a dedicated Chrome instance as its display layer. The Chrome extension (Manifest V3) provides:
-- A **React sidebar** (chat interface, annotation chip system, "Teach Syborg" menu)
-- A **portal tab** (durable GUI with routes for publications, multi-agent hierarchy)
-- **Content scripts** (in-page annotation overlays inside a closed shadow DOM)
-- A **background service worker** (message routing between content scripts and sidebar)
-
-Syborg Studio is one possible assembly. The CLIs don't know it exists. Another team could build a completely different control surface — a native macOS app, a terminal TUI, an iOS companion — using the same underlying tools.
+All subsystems share the LCS convention. All emit JSON. All are stateless at the subcommand level — the daemon and orchestrator hold state.
 
 ---
 
@@ -122,27 +93,23 @@ Syborg Studio is one possible assembly. The CLIs don't know it exists. Another t
 
 ### Monorepo Structure
 
-All ecosystem tools live in `michaelblum/agent-os` as a monorepo. Each tool is a separate package with its own build, but agents see everything from one session.
+The `aos` unified binary is the canonical primitive. `packages/` holds supporting Node.js services (MCP gateway, agent host) and reusable WKWebView components. `apps/` holds Track 2 consumers.
 
 ```
 agent-os/
-  src/                   ← Unified aos binary (perception, display, action-lite, voice, daemon)
-    perceive/            ← Screenshots, AX tree, focus channels, graph navigation (merged side-eye)
-    display/             ← Canvas/overlay server, render mode, content HTTP server
-    act/                 ← click/type/press/session (CGEvent + AX)
-    voice/               ← TTS engine, `aos say`, daemon announcements
+  src/                   ← Unified aos binary
+    perceive/            ← `aos see` — screenshots, AX tree, focus channels, graph nav
+    display/             ← `aos show` — WKWebView canvases, overlays, render mode
+    act/                 ← `aos do` — AX + CGEvent + AppleScript actuator
+    voice/               ← `aos say` — TTS, daemon announcements (STT planned)
     content/             ← HTTP file server for WKWebView canvases
-    daemon/              ← UnifiedDaemon: socket, routing, autonomic
+    daemon/              ← `aos serve` — UnifiedDaemon: socket, routing, autonomic
     commands/, shared/
-  packages/              ← Track 1: standalone primitives
-    side-eye/            ← (merged into aos — MOVED.md stub only)
-    hand-off/            ← Swift CLI — OS action
-    speak-up/            ← (planned) Swift CLI — STT + persona audio
-    tear-sheet/          ← (planned) Node.js CLI — Web extraction
-    toolkit/             ← Reusable components built on primitives (components/, patterns/)
-    gateway/             ← Node.js MCP server — typed scripts + cross-harness coordination
-    host/                ← Node.js agent host — Anthropic SDK loop, sessions, sigil bridge
-  apps/                  ← Track 2: opinionated consumers
+  packages/
+    toolkit/             ← Reusable WKWebView components for apps
+    gateway/             ← Node.js MCP server — external consumer surface
+    host/                ← Node.js agent host — Anthropic SDK loop, sessions
+  apps/
     sigil/               ← Avatar presence system (consumer of display subsystem)
   shared/
     schemas/             ← Cross-tool JSON contracts
@@ -150,172 +117,55 @@ agent-os/
       spatial-topology.md
       annotation.schema.json
       annotation.md
+      daemon-event.schema.json
+      daemon-event.md
     swift/ipc/           ← Shared Swift IPC helpers (runtime paths, socket client)
-  tools/
-    dogfood/             ← Development/testing scripts
   ARCHITECTURE.md        ← This file
 ```
 
-**Syborg Studio** (`Findly-Inc/syborg`) remains a separate repo — it's proprietary business IP. `chrome-harness` and `pw-bridge` live inside it for now; they may be extracted to agent-os when decoupled from the extension build.
-
 | Component | Layer | Language | Location | Status | Key Capabilities |
 |-----------|-------|----------|----------|--------|-----------------|
-| `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS (merged from side-eye) |
+| `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS |
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
-| `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT planned |
-| `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/session`; lighter-weight than `hand-off` |
-| `hand-off` | OS | Swift | `packages/hand-off/` | Production (v1.0) | Multi-backend actuator: AX press/focus/set-value, CGEvent click/drag/scroll/type/key, AppleScript verbs, window raise/move/resize, behavioral profiles |
-| `speak-up` | OS | Swift | `packages/speak-up/` | Planned | Global hotkey dictation, STT (Whisper/native), persona routing, ElevenLabs integration |
+| `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT + persona planned |
+| `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server: typed script execution, session registration, cross-harness pub/sub, capability discovery, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
 | `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, canvas-inspector, legacy single-file overlays |
-| `chrome-harness` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness` | Production | Chrome lifecycle, CDP broker, extension install/reload |
-| `pw-bridge` | Web | Node.js | `Findly-Inc/syborg/tools/chrome-harness/scripts` | Production | Playwright stdin protocol, target switching, DOM interaction |
-| `tear-sheet` | Web | Node.js | `packages/tear-sheet/` | Planned | Element capture, scroll stitch, artifact packaging |
 | Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
-| Syborg Studio | Control | React/TS | `Findly-Inc/syborg` | Production | Chrome extension: sidebar, portal, annotation system |
-
-### Archived Repos
-
-| Repo | What's in it | Notes |
-|------|-------------|-------|
-| `michaelblum/side-eye` | Original standalone repo | Fully merged into `aos` unified binary (`src/perceive/`). Package removed. |
-| `Findly-Inc/studio-gurulab` | WebSherpa, annotation overlays, MCP control surfaces | Superseded by agent-os ecosystem. Cloud archive only. |
-| `Findly-Inc/DRAW` | Historical web scraping/capture codebase (1.5 GB) | Curated extraction in local scrapyard bundle at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f/` |
-| `michaelblum/bridgehand` | Slippy orb prototype | May inform display subsystem skin system |
 
 ---
 
-## 4. Control Surface Architecture
+## 4. Communication & Data Flow
 
-### The Chat Component Problem
+### Between Subcommands and the Orchestrator
 
-The current chat interface is built directly into the Chrome extension sidebar (`src/sidepanel/main.tsx`). This welds the conversation UI to Chrome — if you want a chat interface in a floating desktop window, a standalone web page, or a different browser, you'd have to rebuild it.
-
-### The Portable Session Renderer
-
-The chat component should be abstracted into a standalone, embeddable module: a **session renderer** that takes a connection to any local runtime and renders it as a conversation. It has no opinion about where it lives.
-
-**What the session renderer does:**
-- Renders a message stream (agent turns, user turns, tool calls, status updates)
-- Accepts user text input and sends it to the connected runtime
-- Displays tool-specific UI affordances (annotation chips, inline plan cards, etc.)
-- Adapts to its container (sidebar width, floating window, full page)
-
-**What it does NOT do:**
-- Manage the agent runtime
-- Hold conversation state (the runtime holds state)
-- Know whether it's inside Chrome, Electron, Tauri, or a standalone browser tab
-
-### "Casting" — How a Runtime Connects to a UI
-
-When an agent session starts, the runtime needs to "cast" into a display surface. The casting protocol is the contract between the headless runtime and the visual renderer:
-
-```
-Runtime (headless)                    Control Surface (visual)
-     |                                        |
-     |--- WebSocket / local HTTP ------------>|  session.connect
-     |                                        |
-     |<-- user.message ---------------------|  user types
-     |--- agent.message -------------------->|  agent responds
-     |--- agent.tool_call ------------------>|  tool activity
-     |--- agent.status --------------------->|  state changes
-     |                                        |
-```
-
-The specifics of this protocol are an open design question (see Section 7). The key architectural decision is: **the runtime and the renderer are separate processes connected by a well-defined protocol, not a monolithic app.**
-
-### Syborg Studio as One Assembly
-
-With this factoring, Syborg Studio becomes an assembly of portable parts:
-
-| Part | What it is | Could also live in... |
-|------|-----------|----------------------|
-| Session renderer (chat) | Embeddable React component | Tauri window, standalone page, iOS app |
-| Annotation system | Content scripts + shadow DOM | Only makes sense in a browser context |
-| Portal | Multi-route React app | Standalone web app, Electron |
-| Background worker | Extension message router | Would need equivalent in non-Chrome contexts |
-
-The annotation system is inherently browser-scoped (it overlays DOM elements). The chat and portal are portable. This means a "desktop mode" could be: chat in a floating Tauri window + annotations still in Chrome when needed.
-
----
-
-## 5. Communication & Data Flow
-
-### Between CLIs and the Orchestrator
-
-The orchestrator (whatever it is — Codex, Claude Code, a custom daemon) calls CLIs as subprocesses:
+The orchestrator (whatever it is — Codex, Claude Code, a custom daemon) invokes `aos` subcommands as subprocesses:
 
 ```
 Orchestrator
-  |-- side-eye main --xray --base64    --> JSON { status, base64, elements }
-  |-- hand-off click 450,320            --> JSON { status: "success" }
-  |-- aos display cast --skin orb --at ... --> JSON { id: "avatar" }
-  |-- speak-up say "Hello"              --> JSON { status: "success" }
+  |-- aos see capture --xray --base64  --> JSON { status, base64, elements }
+  |-- aos do click 450,320              --> JSON { status: "success" }
+  |-- aos show create --id orb --at ... --> JSON { id: "orb" }
+  |-- aos say "Hello"                   --> JSON { status: "success" }
 ```
 
-Each call is fire-and-forget. The CLI does its job and exits. The orchestrator decides what to do next based on the JSON response.
+Each call is fire-and-forget. The subcommand does its job and exits. The orchestrator decides what to do next based on the JSON response. Persistent state — canvases, focus channels, behavioral profiles — lives in the daemon (`aos serve`), which the subcommands talk to over a Unix socket.
 
-### Between chrome-harness and the Browser
+### The Feedback Loop
 
-`chrome-harness` talks to Chrome via raw CDP WebSocket on port 9224:
+The agent's way of showing the human what it's doing is native macOS throughout:
 
-```
-chrome-harness                          Chrome (CDP)
-     |                                       |
-     |--- HTTP GET /json/list ------------->|  discover targets
-     |--- WebSocket to target -------------->|  send CDP commands
-     |    Runtime.evaluate(...)              |
-     |    Page.navigate(...)                 |
-     |<-- CDP event/response ---------------|
-```
+1. `aos see capture --xray` perceives the screen
+2. `aos show` draws a spotlight, overlay, or avatar canvas on the native desktop
+3. `aos do click` fires at the identified coordinates
+4. `aos say` narrates what happened
 
-`pw-bridge` layers Playwright on top of this same CDP connection, providing a higher-level command interface via stdin.
-
-### Between Extension Components
-
-Inside the Chrome extension, communication flows through the background service worker:
-
-```
-Content Script (page)          Background Worker          Sidebar (React)
-     |                              |                          |
-     |-- chrome.runtime.sendMsg --->|                          |
-     |                              |-- message to sidebar --->|
-     |                              |<-- message from sidebar -|
-     |<-- chrome.runtime.sendMsg ---|                          |
-```
-
-The content scripts run in a closed shadow DOM on the page. They cannot be queried with normal CSS selectors from outside — interaction requires coordinate-based clicks or evaluation inside the shadow root.
-
-### The Two Feedback Loops
-
-The ecosystem has two parallel ways for the agent to show the human what it's doing:
-
-**Loop A — OS Physical (Desktop Apps)**
-
-For non-browser contexts (Xcode, Terminal, Finder):
-1. `side-eye --xray` perceives the screen
-2. The display subsystem (`aos display`) draws a spotlight or laser pointer on the native desktop
-3. `hand-off` clicks at the identified coordinates
-4. `speak-up` narrates what happened
-
-Everything is native macOS. No DOM involved.
-
-**Loop B — DOM-Scoped (Web Pages)**
-
-For browser contexts:
-1. `pw-bridge` inspects the DOM (or `side-eye --xray` reads the AXWebArea)
-2. The Chrome extension's content scripts draw overlays (toolbar, annotations, cursors) inside the shadow DOM
-3. `pw-bridge` executes DOM actions (click, fill, navigate) OR `hand-off` fires physical clicks
-4. `speak-up` narrates what happened
-
-The overlays move with the page when it scrolls, respect CSS z-index, and lock onto DOM elements.
-
-**The orchestrator decides which loop to use** based on what it's interacting with. The tools themselves don't know or care about the other loop.
+No DOM involved. Browser automation (if needed) is the orchestrator's concern and lives outside agent-os.
 
 ---
 
-## 6. Union Canvas Foundation
+## 5. Union Canvas Foundation
 
 A **union canvas** is an AOS canvas whose bounds span the bounding box of the current display arrangement ("union of displays"). It exists so agent-presence surfaces — Sigil's avatar, ghost trails, inter-display effects — can render across display boundaries with a single transparent overlay.
 
@@ -343,10 +193,7 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 
 ### Known gaps
 
-- Canvas bounds don't auto-track topology (#49).
-- Live renderer has parallel inline and ES-module renderers bridged by a hand-maintained appearance-field sync list (#47).
-- Three.js loaded from CDN rather than vendored (#48).
-- No explicit "union-bound" flag at create time — the daemon can't distinguish canvases that *want* topology tracking from those with explicit bounds. Needed before #49 can ship safely.
+Tracked as sub-issues under the umbrella #50. Do not duplicate the list here — the issue is the source of truth.
 
 ### Moniker
 
@@ -354,129 +201,4 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 
 ---
 
-## 7. The Scrapyard: Code Archaeology Map
-
-A historical code bundle from the DRAW project (`/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f`) contains ~38K lines of battle-tested extraction and capture code. Here's where each capability maps in the new ecosystem:
-
-### Capabilities That Map to `tear-sheet` (Artifact Archivist)
-
-These are about producing pristine, high-fidelity artifacts for human consumption (reports, decks):
-
-| Scrapyard Function | Source File | What It Does |
-|-------------------|-------------|-------------|
-| `cropToElement()` | clipUtils.js | Device-pixel-aware element cropping |
-| `stitchImagesWithOverlap()` | clipUtils.js | Overlap-aware vertical image stitching from scroll captures |
-| `_captureVisibleTabWithQuota()` | taskExecutors.js | Rate-limited viewport capture with retry/backoff |
-| Body/element/internal stitch paths | taskExecutors.js | Multi-pass capture for tall elements and scrollable containers |
-| `captureSnapshotModalStitch()` | indeed_timer_sweep.cjs | Modal content scroll-and-stitch |
-| `stitchSlicesWithFfmpeg()` | indeed_timer_sweep.cjs | ffmpeg vertical stitch for pre-rendered slices |
-| `captureCompanyLogo()` | indeed_timer_sweep.cjs | Download-first or screenshot-fallback asset capture |
-| `optimizeFullPageImageCapture()` | semantic_workflow_runner.js | Resize/recompress with quality budget |
-| `extract_content()` | content.js | Browser-side text/HTML extraction |
-| `extractLinksFromPage()` | content.js | Link extraction |
-| `_getScopedHtml()` | content.js | Scoped HTML extraction with optional metadata |
-| `downloadPdf()` | content.js | PDF fetch |
-| GAS Backend conversion | sources.js, export.js | Google Docs/Slides/Sheets/PDF conversion |
-
-### Capabilities That Map to `pw-bridge` Payloads (DOM Prep)
-
-These are about taming the browser environment before perception or action:
-
-| Scrapyard Function | Source File | What It Does |
-|-------------------|-------------|-------------|
-| `hideObscuringElementsForCapture()` | semantic_workflow_runner.js | Hide sticky/fixed elements, known modal selectors, geometry-based obscurers |
-| `restoreAutoHiddenElementsForCapture()` | semantic_workflow_runner.js | Restore hidden elements, resume animations/videos |
-| `_waitForAnimations()` | content.js | Wait for finite/chained animations to finish |
-| `_suppressScrollbarsAndRounding()` | content.js | Remove border-radius, box-shadow, hide scrollbars for clean capture |
-| Animation finish/pause | semantic_workflow_runner.js | `anim.finish()` for finite, `anim.pause()` for infinite |
-| Video pause/resume | semantic_workflow_runner.js | Pause playing videos before capture |
-| CSS injection capture guard | semantic_workflow_runner.js | Disable transitions/animations/caret/scrollbars globally |
-
-These functions would be injected via `pw-bridge`'s `page.evaluate()` before `side-eye` captures, solving the Actuator Asymmetry problem (sticky headers blocking CGEvent clicks).
-
-### Capabilities Superseded by `side-eye`
-
-| Scrapyard Function | Why It's Superseded |
-|-------------------|-------------------|
-| `_getSimplifiedDom()` | `side-eye --xray` provides this natively via the AX tree, without DOM injection |
-| `_precomputeInspectionData()` | Same — perception is now OS-level, not browser-level |
-| `get_element_context_bundle()` | `side-eye --xray`'s `context_path` breadcrumbs serve the same purpose |
-
-### Capabilities That Are Out of Scope (But Preserved)
-
-| Capability | Why It's Archived |
-|-----------|------------------|
-| YouTube URL discovery / video analysis routing | Domain-specific to DRAW's use case |
-| LLM-assisted selector generation (llmProcessor.js) | Interesting but not part of the CLI ecosystem |
-| Google Apps Script backend | Historical; Google API access would be a separate concern |
-| Structured projection extraction | Domain-specific scraping pattern |
-
-### Entry Points for Scavenger Agents
-
-If an agent needs to mine the scrapyard:
-1. Start with `CAPTURE_INDEX.md` — function-level map
-2. `content.js` — browser-side extraction core
-3. `taskExecutors.js` — capture orchestration
-4. `clipUtils.js` — image stitching math
-5. `semantic_workflow_runner.js` — modern capture guard
-
-The scrapyard lives at `/Users/Michael/Documents/DRAW_scavenger_bundle_5047887f`. The full historical repo is at `/Users/Michael/Documents/GitHub/DRAW` (1.5GB).
-
----
-
-## 8. Open Questions & Future Work
-
-### Naming Unification
-
-The current names are a mix of idiomatic (`side-eye`, `hand-off`), literal (`chrome-harness`), and abbreviated (`pw-bridge`). A naming brainstorming session has been outlined (see the Perplexity discussion) but not yet executed. The Perplexity conversation proposed four thematic directions:
-1. Idiomatic/anthropomorphic (extend the `side-eye`/`hand-off` vibe)
-2. Professional/purpose-centric (`os-sensor`, `os-actuator`, etc.)
-3. Cybernetic/exoskeleton (matching "Syborg")
-4. Wildcard metaphor (nautical, theatrical, etc.)
-
-**Decision status:** Deferred. Current working names are used throughout this doc.
-
-### Casting Protocol Specification
-
-The "casting" protocol between runtime and control surface (Section 4) needs a concrete spec:
-- Transport: WebSocket? Local HTTP streaming? Unix socket?
-- Message format: JSON-RPC? Custom envelope? Server-Sent Events?
-- Session lifecycle: How does a runtime advertise availability? How does a UI discover runtimes?
-- State sync: Who is the source of truth for conversation history?
-
-### chrome-harness Extraction
-
-`chrome-harness` currently lives inside the Syborg repo (`tools/chrome-harness/`). Following the ecosystem philosophy, it should be its own repo — it's a general-purpose Chrome lifecycle tool, not Syborg-specific. However, it currently has tight coupling to Syborg's build paths and extension names. Extraction requires:
-- Generalizing hardcoded extension names and paths
-- Deciding whether `pw-bridge` stays bundled with chrome-harness or becomes independent
-- Publishing connection info in a discoverable way (so any tool can find the CDP endpoint)
-
-### The Display Subsystem Skin System
-
-The display subsystem (`src/display/`) needs design work:
-- How are custom skins defined and loaded?
-- How does the orb "fly into" Chrome when summoned? (Animation + state handoff to extension)
-- How does click-through vs. interactive mode toggle?
-- Does it need to manage multiple simultaneous projections (orb + spotlight)?
-
-### Voice Integration Architecture
-
-`speak-up` raises questions:
-- Local vs. cloud STT? (Whisper.cpp on-device vs. Groq/OpenAI API)
-- How does the global hotkey interact with the OS's built-in dictation?
-- Streaming TTS: does the CLI block until playback finishes, or emit events?
-- Persona system: how are ElevenLabs voice IDs mapped to agent personas?
-
-### tear-sheet Scope
-
-The archivist CLI needs clearer boundaries:
-- Does it own the "frame" feature (adding device frames, browser chrome, drop shadows)?
-- Does it handle video/motion capture (`video_capture.cjs`), or is that yet another tool?
-- Does it run standalone, or does it require `chrome-harness` to already be managing a Chrome instance?
-
-### The AXWebArea Bridge
-
-`side-eye --xray` can already pierce into Chrome/Safari via macOS Accessibility, reading web DOM elements as native AX nodes. Open questions from the Perplexity discussion:
-- Can we extract `AXDOMIdentifier` (HTML `id`), `AXDOMClassList` (CSS classes), and `AXURL` (link href) from web elements?
-- How do scroll-area coordinates behave for off-screen DOM elements?
-- Does the AX bridge reliably report z-index occlusion?
+Open design questions and future work are tracked in GitHub Issues, not in this file. See the `enhancement` label for active design work.
