@@ -240,6 +240,7 @@ func updateCommand(args: [String]) {
     var interactive: Bool? = nil
     var focus: Bool? = nil
     var ttlValue: String? = nil
+    var track: String? = nil
 
     var i = 0
     while i < args.count {
@@ -279,6 +280,12 @@ func updateCommand(args: [String]) {
         case "--ttl":
             i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
             ttlValue = args[i]
+        case "--track":
+            i += 1; guard i < args.count else { exitError("--track requires a target (e.g. 'union')", code: "MISSING_ARG") }
+            track = args[i]
+            guard track == "union" else {
+                exitError("Unknown --track target: \(track ?? ""). Supported: union", code: "INVALID_ARG")
+            }
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -294,6 +301,10 @@ func updateCommand(args: [String]) {
 
     if let ttlStr = ttlValue {
         request.ttl = parseDuration(ttlStr)
+    }
+
+    if track != nil && at != nil {
+        exitError("cannot combine --at with --track (pick one)", code: "INVALID_ARG")
     }
 
     if let atStr = at {
@@ -313,6 +324,7 @@ func updateCommand(args: [String]) {
     } else if htmlValue != nil || fileValue != nil {
         request.html = resolveHTML(htmlValue: htmlValue, fileValue: fileValue)
     }
+    if let t = track { request.track = t }
 
     let client = DaemonClient()
     guard let fd = client.connect() else {
