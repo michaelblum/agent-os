@@ -174,7 +174,7 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 1. **Coordinate system.** Global CG coordinates (top-left origin, Y-down). The daemon reports `display_geometry` in this frame; all canvases and all position data share it. No per-display local frames at the canvas layer.
 2. **Transparent + passthrough by default.** A union canvas is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
 3. **One canvas, one owner.** A given union canvas has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant union canvases are out of scope; composition happens by stacking multiple independently-owned canvases.
-4. **Opt-in topology tracking.** A union canvas created with `--at $(aos runtime display-union)` snapshots the union at spawn time. Whether its bounds automatically follow topology changes is a lifecycle decision (see below) — not a guaranteed property of every union canvas.
+4. **Opt-in topology tracking.** A union canvas created with `--track union` resolves its bounds from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
 5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") lives in the owning app's state, not in the canvas subsystem. The canvas only knows about its bounds.
 
 ### Coordinate system contract
@@ -186,9 +186,8 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 
 ### Lifecycle
 
-- **Creation.** `aos show create --id <name> --at $(aos runtime display-union) --url ...` — the `aos runtime display-union` subcommand resolves the current union and is substituted by the shell. This is a *snapshot* model: the canvas bounds are fixed to whatever the union was at create time.
-- **Topology change (current).** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, rebroadcasts `display_geometry`. Canvas bounds do not auto-update. Renderer clamps position to new union and logs an advisory to relaunch. Tracked: #49.
-- **Topology change (target).** On display-topology change, every canvas that was created with union-bound semantics should have its bounds updated by the daemon via an internal equivalent of `aos show update --at <new-union>`. Canvases with explicit hard-coded bounds stay frozen. The distinction requires a post-create signal the daemon can read — design open.
+- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current display topology snapshot. Callers who want a snapshot-only canvas can still pass `--at $(aos runtime display-union)` (legacy shorthand) but it produces a static canvas that won't follow topology changes.
+- **Topology change.** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, re-resolves bounds for every canvas whose `track == union`, then rebroadcasts `display_geometry`. Renderers see their canvas already sitting in the new bounds by the time they receive the event.
 - **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for union canvases specifically.
 
 ### Known gaps
