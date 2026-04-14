@@ -69,7 +69,8 @@ export function animateAura(dt) {
         state.chargeLevel = Math.min(state.chargeTime / 3.0, 1.0);
 
         if (state.chargeLevel >= 1.0) {
-            document.getElementById('btn-supercharge').classList.add('vibrate');
+            const btnSupercharge = document.getElementById('btn-supercharge');
+            if (btnSupercharge) btnSupercharge.classList.add('vibrate');
         }
 
         // --- Inward particles (spawn rate increases over time) ---
@@ -93,7 +94,8 @@ export function animateAura(dt) {
             }
         }
 
-        document.getElementById('charge-fill').style.width = (state.chargeLevel * 100) + '%';
+        const chargeFill = document.getElementById('charge-fill');
+        if (chargeFill) chargeFill.style.width = (state.chargeLevel * 100) + '%';
 
         state.forceAuraVisible = true;
         let shrinkFactor = 1.0 - (0.5 * state.chargeLevel);
