@@ -2039,198 +2039,6 @@ function updateOmegaColors() {
     }
 }
 
-// === LIGHTNING ===
-// (from js/lightning.js)
-
-class Lightning {
-    constructor(start, end, isBranch = false) {
-        this.start = start.clone();
-        this.end = end.clone();
-        this.isBranch = isBranch;
-        this.maxLife = state.lightningDuration * (isBranch ? 0.5 : 1.0);
-        this.life = this.maxLife;
-        this.branches = [];
-        this.points = [];
-
-        this.generate();
-
-        const coreColor = new THREE.Color(0xffffff).lerp(
-            new THREE.Color(state.colors.lightning[0]),
-            1 - Math.min(state.lightningBrightness, 1.0)
-        );
-        this.material = new THREE.LineBasicMaterial({
-            color: coreColor,
-            transparent: true,
-            opacity: 1,
-            blending: THREE.AdditiveBlending,
-            linewidth: 1 + Math.random() * 0.5
-        });
-        this.mesh = new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(this.points),
-            this.material
-        );
-        state.scene.add(this.mesh);
-    }
-
-    generate() {
-        this.points = [];
-        let subPoints = [this.start, this.end];
-        let iterations = this.isBranch ? 3 : 6;
-
-        for (let i = 0; i < iterations; i++) {
-            let next = [];
-            for (let j = 0; j < subPoints.length - 1; j++) {
-                let p1 = subPoints[j];
-                let p2 = subPoints[j + 1];
-                let mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-                let jitter = p1.distanceTo(p2) * 0.25;
-                mid.x += (Math.random() - 0.5) * jitter;
-                mid.y += (Math.random() - 0.5) * jitter;
-                mid.z += (Math.random() - 0.5) * jitter;
-                next.push(p1);
-                next.push(mid);
-            }
-            next.push(subPoints[subPoints.length - 1]);
-            subPoints = next;
-        }
-        this.points = subPoints;
-
-        if (!this.isBranch) {
-            let boundingRadius = state.z_depth * state.novaScale;
-            let origin = state.polyGroup.position;
-            for (let i = 1; i < this.points.length - 1; i++) {
-                if (Math.random() < state.lightningBranching) {
-                    let p = this.points[i];
-                    let branchDir = new THREE.Vector3(
-                        Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
-                    ).normalize();
-                    let branchLen = 0.3 + Math.random() * 0.8;
-                    let branchEnd = p.clone().add(branchDir.multiplyScalar(branchLen));
-
-                    if (state.lightningSolidBlock) {
-                        let distFromCenter = branchEnd.clone().sub(origin).length();
-                        if (distFromCenter < boundingRadius) {
-                            branchEnd.sub(origin).normalize().multiplyScalar(boundingRadius).add(origin);
-                        }
-                    }
-
-                    this.branches.push(new Lightning(p, branchEnd, true));
-                }
-            }
-        }
-    }
-
-    update(dt) {
-        this.life -= dt;
-        const alpha = Math.max(0, this.life / this.maxLife);
-
-        const flicker = Math.random() > 0.15 ? 1 : 0.4;
-        this.material.opacity = alpha * flicker * state.lightningBrightness;
-
-        const corona = state.colors.lightning[1] ? 0.5 : 0;
-        if (corona > 0) {
-            this.material.opacity += Math.random() * corona * alpha * 0.5;
-        }
-
-        if (Math.random() > 0.8 && this.life > 0.1) {
-            this.branches.forEach(b => {
-                state.scene.remove(b.mesh);
-                b.mesh.geometry.dispose();
-                b.mesh.material.dispose();
-            });
-            this.branches = [];
-            this.generate();
-            this.mesh.geometry.setFromPoints(this.points);
-        } else {
-            this.branches.forEach(b => b.update(dt));
-        }
-
-        if (this.life <= 0) {
-            this.dispose();
-            return false;
-        }
-        return true;
-    }
-
-    dispose() {
-        state.scene.remove(this.mesh);
-        this.mesh.geometry.dispose();
-        this.mesh.material.dispose();
-        this.branches.forEach(b => {
-            state.scene.remove(b.mesh);
-            b.mesh.geometry.dispose();
-            b.mesh.material.dispose();
-        });
-        this.branches = [];
-    }
-}
-
-function spawnBolt() {
-    const origin = state.polyGroup.position.clone();
-    const boundingRadius = state.z_depth * state.novaScale;
-    const actualLength = state.lightningBoltLength / 25;
-
-    const dir = new THREE.Vector3(
-        Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5
-    ).normalize();
-
-    let start, end;
-
-    if (state.lightningOriginCenter) {
-        if (state.lightningSolidBlock) {
-            start = origin.clone().add(dir.clone().multiplyScalar(boundingRadius));
-            end = origin.clone().add(dir.clone().multiplyScalar(boundingRadius + actualLength));
-        } else {
-            start = origin.clone().add(
-                new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2)
-            );
-            end = origin.clone().add(dir.clone().multiplyScalar(actualLength));
-        }
-    } else {
-        if (state.lightningSolidBlock) {
-            start = origin.clone().add(dir.clone().multiplyScalar(boundingRadius + actualLength));
-            end = origin.clone().add(dir.clone().multiplyScalar(boundingRadius));
-        } else {
-            start = origin.clone().add(dir.clone().multiplyScalar(actualLength + boundingRadius));
-            end = origin.clone().add(
-                new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.2)
-            );
-        }
-    }
-
-    state.lightningStrikes.push(new Lightning(start, end));
-}
-
-function createLightning() {
-    // No setup needed — bolts are spawned dynamically in animateLightning
-}
-
-function animateLightning(dt) {
-    if (!state.isLightningEnabled || state.isDestroyed) {
-        if (state.lightningStrikes.length > 0) {
-            state.lightningStrikes.forEach(b => b.dispose());
-            state.lightningStrikes = [];
-        }
-        return;
-    }
-
-    state.lightningTimer -= dt;
-    if (state.lightningTimer <= 0) {
-        spawnBolt();
-        state.lightningTimer = (6.0 - state.lightningFrequency) + Math.random() * 2;
-    }
-
-    for (let i = state.lightningStrikes.length - 1; i >= 0; i--) {
-        if (!state.lightningStrikes[i].update(dt)) {
-            state.lightningStrikes.splice(i, 1);
-        }
-    }
-}
-
-function updateLightningColors() {
-    // Bolts are short-lived and pick up colors at spawn time; nothing to update.
-}
-
 // === MAGNETIC FIELD ===
 // (from js/magnetic.js)
 
@@ -3116,10 +2924,6 @@ function syncModuleStateToWindow() {
         'isNeutrinosEnabled', 'neutrinoJetCount',
         // Turbulence (whole object replaced)
         'turbState',
-        // Lightning
-        'isLightningEnabled', 'lightningOriginCenter', 'lightningSolidBlock',
-        'lightningBoltLength', 'lightningFrequency', 'lightningDuration',
-        'lightningBranching', 'lightningBrightness',
         // Magnetic
         'isMagneticEnabled', 'magneticTentacleCount', 'magneticTentacleSpeed', 'magneticWander',
         // Omega
@@ -3301,6 +3105,11 @@ window.animateParticles = animateParticles;
 window.animateTrails = animateTrails;
 window.fireExplosion = fireExplosion;
 window.fireSuperNova = fireSuperNova;
+
+import { createLightning, animateLightning, updateLightningColors } from './lightning.js';
+window.createLightning = createLightning;
+window.animateLightning = animateLightning;
+window.updateLightningColors = updateLightningColors;
 
 // Module scripts are deferred by default (run after DOMContentLoaded and
 // after any preceding classic inline scripts). init() and liveJs will
