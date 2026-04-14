@@ -101,7 +101,7 @@ func inspectCommand(args: [String]) {
             switch envelope.event {
             case "element_focused":
                 sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
-                    "type": "element",
+                    "type": "inspector/element",
                     "data": envelope.data
                 ])
 
@@ -110,7 +110,7 @@ func inspectCommand(args: [String]) {
                    let y = envelope.data["y"] as? Double,
                    let display = envelope.data["display"] as? Int {
                     sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
-                        "type": "cursor",
+                        "type": "inspector/cursor",
                         "x": x,
                         "y": y,
                         "display": display

@@ -27,7 +27,7 @@ export function mountPanel({ title = 'AOS', layout, draggable = true, container 
 }
 
 function mountSingle(chrome, content) {
-  const host = makeHost(chrome.contentEl, content)
+  const host = makeHost(chrome, content)
   if (content.manifest) declareManifest(content.manifest)
 
   const router = createRouter({
@@ -49,9 +49,10 @@ function mountSingle(chrome, content) {
   emitReady()
 }
 
-function makeHost(contentEl, content) {
+function makeHost(chrome, content) {
   return {
-    contentEl,
+    contentEl: chrome.contentEl,
+    setTitle(text) { chrome.setTitle(text) },
     emit(type, payload) {
       const prefix = content.manifest?.channelPrefix
       const fullType = prefix ? `${prefix}/${type}` : type

@@ -4,14 +4,12 @@
 // minimap of displays + canvas overlays. Reacts to canvas_lifecycle events
 // to stay current. Subscribes via the host's manifest.requires entry.
 
-import { esc } from '../../runtime/bridge.js'
-import { emit } from '../../runtime/bridge.js'
+import { esc, emit } from '../../runtime/bridge.js'
 
 const SELF_ID = 'canvas-inspector'
 
 export default function CanvasInspector() {
   let contentEl = null
-  let host = null
   let displays = []
   let canvases = []
   let eventCount = 0
@@ -128,7 +126,6 @@ export default function CanvasInspector() {
     },
 
     render(_host) {
-      host = _host
       contentEl = document.createElement('div')
       contentEl.className = 'canvas-inspector-body'
       contentEl.innerHTML = '<div class="empty-state">Waiting for canvases\u2026</div>'
