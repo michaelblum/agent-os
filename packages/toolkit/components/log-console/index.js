@@ -12,13 +12,32 @@ const BASE_TITLE = 'Log'
 export default function LogConsole() {
   let entriesEl = null
   let host = null
-  let count = 0
 
   function ts() {
     const now = new Date()
     return String(now.getHours()).padStart(2, '0') + ':' +
            String(now.getMinutes()).padStart(2, '0') + ':' +
            String(now.getSeconds()).padStart(2, '0')
+  }
+
+  function updateTitle() {
+    if (!host) return
+    const n = entriesEl ? entriesEl.children.length : 0
+    host.setTitle(n > 0 ? `${BASE_TITLE} \u2014 ${n}` : BASE_TITLE)
+  }
+
+  function appendEntry({ ts: tsStr, level, text }) {
+    if (!entriesEl) return
+    const entry = document.createElement('div')
+    entry.className = 'entry'
+    entry.innerHTML =
+      `<span class="ts">${esc(tsStr)}</span>` +
+      `<span class="level ${esc(level)}">${esc(level)}</span>` +
+      `<span class="msg">${esc(text)}</span>`
+    entriesEl.appendChild(entry)
+    while (entriesEl.children.length > MAX_ENTRIES) {
+      entriesEl.removeChild(entriesEl.firstChild)
+    }
   }
 
   return {
@@ -31,76 +50,53 @@ export default function LogConsole() {
       defaultSize: { w: 450, h: 300 },
     },
 
-    render(_host) {
-      host = _host
+    render(host_) {
+      host = host_
       entriesEl = document.createElement('div')
       entriesEl.id = 'entries'
       return entriesEl
     },
 
-    onMessage(msg, _host) {
+    onMessage(msg) {
       if (msg.type === 'append') {
         if (!entriesEl) return
         const p = msg.payload || {}
-        const text = p.text || p.message || ''
+        const text = p.text || ''
         const level = p.level || 'info'
-
-        const entry = document.createElement('div')
-        entry.className = 'entry'
-        entry.innerHTML =
-          `<span class="ts">${ts()}</span>` +
-          `<span class="level ${esc(level)}">${esc(level)}</span>` +
-          `<span class="msg">${esc(text)}</span>`
-
-        entriesEl.appendChild(entry)
-        count++
-
-        while (entriesEl.children.length > MAX_ENTRIES) {
-          entriesEl.removeChild(entriesEl.firstChild)
+        appendEntry({ ts: ts(), level, text })
+        if (entriesEl.parentElement) {
+          entriesEl.parentElement.scrollTop = entriesEl.parentElement.scrollHeight
         }
-
-        entriesEl.parentElement && (entriesEl.parentElement.scrollTop = entriesEl.parentElement.scrollHeight)
-
-        const h = _host || host
-        if (h) h.setTitle(`${BASE_TITLE} \u2014 ${count}`)
+        updateTitle()
         return
       }
 
       if (msg.type === 'clear') {
         if (!entriesEl) return
         entriesEl.innerHTML = ''
-        count = 0
-        const h = _host || host
-        if (h) h.setTitle(BASE_TITLE)
+        updateTitle()
         return
       }
     },
 
     serialize() {
-      if (!entriesEl) return { entries: [], count }
+      if (!entriesEl) return { entries: [] }
       const entries = Array.from(entriesEl.querySelectorAll('.entry')).map(el => ({
         ts: el.querySelector('.ts')?.textContent || '',
         level: el.querySelector('.level')?.textContent || 'info',
         text: el.querySelector('.msg')?.textContent || '',
       }))
-      return { entries, count }
+      return { entries }
     },
 
-    restore(state) {
+    restore(state, host_) {
+      if (host_) host = host_
       if (!entriesEl || !state?.entries) return
       entriesEl.innerHTML = ''
-      count = 0
       for (const e of state.entries) {
-        const entry = document.createElement('div')
-        entry.className = 'entry'
-        entry.innerHTML =
-          `<span class="ts">${esc(e.ts)}</span>` +
-          `<span class="level ${esc(e.level)}">${esc(e.level)}</span>` +
-          `<span class="msg">${esc(e.text)}</span>`
-        entriesEl.appendChild(entry)
-        count++
+        appendEntry({ ts: e.ts, level: e.level || 'info', text: e.text })
       }
-      if (host) host.setTitle(count > 0 ? `${BASE_TITLE} \u2014 ${count}` : BASE_TITLE)
+      updateTitle()
     },
   }
 }
