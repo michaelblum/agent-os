@@ -18,15 +18,15 @@ function setUI(id, val, strVal) {
   const el = document.getElementById(id);
   if (!el) return;
   if (el.type === 'checkbox') {
-    if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change')); }
+    if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change', { bubbles: true })); }
   } else {
     el.value = val;
     if (strVal !== undefined) {
       const vDisp = document.getElementById(id.replace('Slider', 'Val'));
       if (vDisp) vDisp.innerText = strVal;
     }
-    el.dispatchEvent(new Event('input'));
-    el.dispatchEvent(new Event('change'));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
 

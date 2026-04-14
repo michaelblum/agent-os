@@ -224,15 +224,15 @@ function applyConfig(c) {
         const el = document.getElementById(id);
         if (!el) return;
         if (el.type === 'checkbox') {
-            if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change')); }
+            if (el.checked !== val) { el.checked = val; el.dispatchEvent(new Event('change', { bubbles: true })); }
         } else {
             el.value = val;
             if (strVal !== undefined) {
                 const vDisp = document.getElementById(id.replace('Slider', 'Val'));
                 if (vDisp) vDisp.innerText = strVal;
             }
-            el.dispatchEvent(new Event('input'));
-            el.dispatchEvent(new Event('change'));
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
         }
     };
 
@@ -598,7 +598,7 @@ function buildFxGrid() {
             const sideEl = document.getElementById(fx.sidebarId);
             if (!sideEl) return;
             sideEl.checked = !sideEl.checked;
-            sideEl.dispatchEvent(new Event('change'));
+            sideEl.dispatchEvent(new Event('change', { bubbles: true }));
             tile.classList.toggle('active');
         });
 
@@ -921,10 +921,15 @@ export function setupUI() {
     // see #39 for the live-preview follow-on. Context-menu inputs proxy via
     // dispatchEvent('change') on the sidebar element, which is inside one of
     // these panels, so those bubble through here too.
+    let persistTimer = null;
+    function debouncedPersist() {
+        clearTimeout(persistTimer);
+        persistTimer = setTimeout(() => persistAgent(), 150);
+    }
     ['panel-geom', 'panel-colors', 'panel-anim'].forEach(id => {
         const panel = document.getElementById(id);
         if (!panel) return;
-        panel.addEventListener('change', () => { persistAgent(); });
+        panel.addEventListener('change', debouncedPersist);
     });
 
     // Seed state from the canonical appearance defaults before any UI listener
@@ -1022,8 +1027,8 @@ export function setupUI() {
             if (!sideEl) return;
             if (sideEl.type === 'checkbox') sideEl.checked = e.target.checked;
             else sideEl.value = e.target.value;
-            sideEl.dispatchEvent(new Event('change'));
-            sideEl.dispatchEvent(new Event('input'));
+            sideEl.dispatchEvent(new Event('change', { bubbles: true }));
+            sideEl.dispatchEvent(new Event('input', { bubbles: true }));
         });
     };
 

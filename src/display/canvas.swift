@@ -488,8 +488,8 @@ class CanvasManager {
         let cgFrame: CGRect
         if trackTarget == .union {
             // Resolve union bounds from the current display topology.
-            // Uses allDisplaysBounds() (same as cursor_trail) so values round-trip
-            // correctly through cgToScreen/screenToCG and match `aos runtime display-union`.
+            // Uses allDisplaysBounds() which calls CGDisplayBounds directly,
+            // matching `aos runtime display-union` and `snapshotDisplayGeometry`.
             let bounds = allDisplaysBounds()
             guard bounds.width > 0, bounds.height > 0 else {
                 return .fail("--track union requires at least one connected display", code: "NO_DISPLAYS")
@@ -1071,14 +1071,17 @@ class CanvasManager {
 // MARK: - Display Bounds Helper
 
 /// Compute the bounding rect of all connected displays in CG coordinates.
+/// Uses CGDisplayBounds directly (top-left origin, Y-down) to avoid the
+/// broken NSScreen→screenToCG conversion that assumes primary display height
+/// for all screens (see #65).
 func allDisplaysBounds() -> CGRect {
-    var result = CGRect.zero
-    for screen in NSScreen.screens {
-        let cgFrame = screenToCG(screen.frame)
-        result = result.isEmpty ? cgFrame : result.union(cgFrame)
-    }
-    if result.isEmpty {
+    let displays = getDisplays()
+    guard !displays.isEmpty else {
         return CGRect(x: 0, y: 0, width: 1920, height: 1080) // fallback
+    }
+    var result = displays[0].bounds
+    for d in displays.dropFirst() {
+        result = result.union(d.bounds)
     }
     return result
 }
