@@ -22,3 +22,4 @@
 export { mountPanel } from './mount.js'
 export { mountChrome } from './chrome.js'
 export { Single } from './layouts/single.js'
+export { Tabs } from './layouts/tabs.js'

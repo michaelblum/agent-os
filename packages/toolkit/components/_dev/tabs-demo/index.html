@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../../_base/theme.css">
+  <style>
+    html, body { margin: 0; background: transparent; font-family: ui-monospace, monospace; font-size: 12px; color: #ddd; }
+
+    /* Canvas Inspector styles */
+    .minimap {
+      position: relative;
+      margin: 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      background: rgba(10, 10, 20, 0.5);
+      overflow: hidden;
+    }
+    .minimap-display {
+      position: absolute;
+      border: 1px solid rgba(100, 100, 140, 0.3);
+      border-radius: 2px;
+      background: rgba(30, 30, 50, 0.4);
+    }
+    .minimap-display-label {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 8px;
+      color: var(--text-muted);
+    }
+    .minimap-canvas {
+      position: absolute;
+      border: 1px solid var(--accent-blue);
+      border-radius: 1px;
+      background: rgba(138, 180, 255, 0.15);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .minimap-canvas:hover { background: rgba(138, 180, 255, 0.3); }
+    .minimap-canvas.self { border-color: var(--accent-purple); background: rgba(80, 120, 255, 0.1); pointer-events: none; }
+    .canvas-list { padding: 0 8px 8px; }
+    .canvas-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: var(--font-size-small);
+      line-height: 1.6;
+    }
+    .canvas-item:hover { background: var(--bg-hover); }
+    .canvas-id { color: var(--accent-blue); font-weight: 600; flex-shrink: 0; }
+    .canvas-dims { color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; }
+    .canvas-flags { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+    .flag { font-size: 9px; padding: 0 4px; border-radius: 2px; background: rgba(60, 60, 90, 0.3); color: var(--text-secondary); }
+    .flag.interactive { color: var(--accent-yellow); background: rgba(221, 170, 102, 0.15); }
+    .flag.scoped { color: var(--accent-green); }
+    .btn { background: none; border: 1px solid var(--border-subtle); color: var(--text-secondary); border-radius: 3px; padding: 1px 5px; font-size: 9px; cursor: pointer; font-family: var(--font-mono); }
+    .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .btn.disabled { opacity: 0.4; cursor: not-allowed; }
+    .empty-state { color: var(--text-muted); text-align: center; padding: 16px; font-style: italic; }
+    .status-bar { padding: 4px 10px; font-size: 8px; color: var(--text-header); text-transform: uppercase; letter-spacing: 0.5px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; display: flex; justify-content: space-between; }
+
+    /* Inspector Panel styles */
+    .inspector-panel-body { padding: 10px 12px; }
+    .row { display: flex; margin-bottom: 4px; line-height: 1.4; }
+    .label { color: var(--text-label); min-width: 52px; flex-shrink: 0; font-size: var(--font-size-small); text-transform: uppercase; letter-spacing: 0.5px; }
+    .value { color: var(--text-primary); word-break: break-word; flex: 1; }
+    .role-badge { display: inline-block; background: var(--accent-purple); color: var(--accent-blue); padding: 1px 6px; border-radius: 3px; font-weight: 600; font-size: var(--font-size-base); }
+    .path { color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-subtle); }
+    .path span { color: #bbb; }
+    .path .sep { color: var(--text-muted); margin: 0 3px; }
+    .bounds { color: var(--accent-green); font-size: var(--font-size-small); font-family: var(--font-mono); }
+    .empty { color: var(--text-muted); text-align: center; padding: 20px; font-style: italic; }
+
+    /* Log Console styles */
+    #entries { padding: 4px 0; }
+    .entry { padding: 2px 10px; line-height: 1.5; border-bottom: 1px solid rgba(50, 50, 70, 0.15); display: flex; gap: 8px; }
+    .entry:hover { background: var(--bg-hover); }
+    .ts { color: var(--text-header); flex-shrink: 0; font-size: var(--font-size-small); }
+    .level { flex-shrink: 0; font-size: var(--font-size-small); font-weight: 600; min-width: 36px; }
+    .level.info  { color: var(--accent-green); }
+    .level.warn  { color: var(--accent-yellow); }
+    .level.error { color: var(--accent-red); }
+    .level.debug { color: #88a; }
+    .msg { flex: 1; word-break: break-word; }
+  </style>
+</head>
+<body>
+<script type="module">
+import { mountPanel, Tabs } from '../../../panel/index.js'
+import CanvasInspector from '../../canvas-inspector/index.js'
+import InspectorPanel from '../../inspector-panel/index.js'
+import LogConsole from '../../log-console/index.js'
+
+mountPanel({
+  title: 'Toolkit Workstation',
+  layout: Tabs([CanvasInspector, InspectorPanel, LogConsole]),
+})
+</script>
+</body>
+</html>
