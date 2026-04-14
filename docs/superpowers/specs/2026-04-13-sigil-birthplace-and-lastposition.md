@@ -23,7 +23,7 @@ This is spec (i) of a two-spec arc. Spec (ii) will cover Studio's "inspected" av
 
 - **Disk-persisted lastPosition.** In-memory only; wiped on daemon restart. If cross-reboot persistence is wanted later, it's a single follow-on issue.
 - **Inspected avatar state, SIGIL_PAD, Studio-adjacent behaviors.** Spec (ii).
-- **Renderer architecture reconciliation** (inline bundle vs ES modules — #47). This spec rides on existing hooks without touching the split.
+- **Renderer architecture reconciliation** (inline bundle vs ES modules — #48). This spec rides on existing hooks without touching the split.
 - **New position-change pub/sub channel.** No external consumer legitimately needs position-change events at the canvas-IPC layer.
 
 ## Schema & data model
@@ -156,9 +156,9 @@ None at spec level. Plan-level open items:
 ## References
 
 - Scratchpad: `memory/scratchpad/sigil-studio-presentation-design.md` (source of the design intent)
-- Architecture: `ARCHITECTURE.md` §6 (Union Canvas Foundation — coordinate contract, invariants)
+- Architecture: `ARCHITECTURE.md` §5 (Union Canvas Foundation — coordinate contract, invariants)
 - Umbrella issue: #50 (union canvas foundation)
-- Related issues: #49 (auto-resize on topology change), #47 (renderer reconciliation — out of scope)
+- Related issues: #49 (auto-resize on topology change), #48 (renderer reconciliation — out of scope)
 - Current home-resolver: `apps/sigil/renderer/home-resolver.js` (becomes `birthplace-resolver.js`)
 - Current boot sequence: `apps/sigil/renderer/index.html:3381-3442`
 - Current display-topology handling: `apps/sigil/renderer/index.html:2890-2929`, `src/daemon/unified.swift:213-407`
