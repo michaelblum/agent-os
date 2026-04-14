@@ -110,9 +110,8 @@ func logCommand(args: [String]) {
 
 private func pushLogEntry(session: DaemonSession, message: String, level: String) {
     sendHeadsupMessage(session: session, canvasID: LOG_CANVAS_ID, payload: [
-        "type": "log",
-        "message": message,
-        "level": level
+        "type": "log/append",
+        "payload": ["text": message, "level": level]
     ])
 }
 
@@ -128,7 +127,7 @@ private func logPushMessage(_ message: String, level: String) {
 }
 
 private func logClearConsole() {
-    if sendHeadsupMessageOneShot(canvasID: LOG_CANVAS_ID, payload: ["type": "clear"]) != nil {
+    if sendHeadsupMessageOneShot(canvasID: LOG_CANVAS_ID, payload: ["type": "log/clear"]) != nil {
         print("{\"status\":\"ok\"}")
     } else {
         exitError("Daemon not running or no log console active", code: "CONNECT_ERROR")
