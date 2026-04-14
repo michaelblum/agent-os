@@ -415,12 +415,18 @@ class UnifiedDaemon {
 
     /// Coalesced entry point for didChangeScreenParameters. Collapses a burst
     /// of notifications into a single broadcast after a short quiet window.
+    ///
+    /// Order matters: retarget tracked canvases FIRST, then broadcast. Renderers
+    /// subscribed to display_geometry should see their canvas already sitting
+    /// in the new bounds by the time they receive the event, not a transient
+    /// "stale rect + new topology" state.
     private func scheduleDisplayGeometryBroadcast() {
         if displayGeometryBroadcastScheduled { return }
         displayGeometryBroadcastScheduled = true
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(displayGeometryCoalesceMs)) { [weak self] in
             guard let self = self else { return }
             self.displayGeometryBroadcastScheduled = false
+            self.canvasManager.retargetTrackedCanvases()
             self.broadcastDisplayGeometry()
         }
     }
