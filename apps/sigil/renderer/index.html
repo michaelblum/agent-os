@@ -3307,10 +3307,11 @@ import moduleState from './state.js';
 //     fallbacks see current values, not the state.js defaults.
 //   - After applyAppearance: copy every field applyAppearance wrote back
 //     to window.state so the inline render loop reads the agent's values.
-//   - Re-run the INLINE update hooks (updateAllColors, updateGeometry, ...)
-//     against the now-updated window.state to rebuild meshes/materials.
-//     The versions applyAppearance invoked internally run against moduleState
-//     (which lacks scene refs) and silently no-op via try/catch guards.
+//   - Re-run the INLINE update hooks (phenomena counts etc.) against the
+//     now-updated window.state to rebuild objects the module path does not own.
+//     Geometry is owned by the module path: syncWindowStateToModule seeds
+//     moduleState.polyGroup before applyAppearance, so geometry.js operates
+//     on the real scene directly.
 function syncWindowStateToModule() {
     for (const k of Object.keys(window.state)) {
         if (k in moduleState) moduleState[k] = window.state[k];
@@ -3323,15 +3324,6 @@ function syncModuleStateToWindow() {
     const APPEARANCE_FIELDS = [
         // Size
         'avatarBase', 'avatarMin', 'avatarMax',
-        // Primary geometry
-        'currentGeometryType', 'stellationFactor', 'currentOpacity',
-        'currentEdgeOpacity', 'isMaskEnabled', 'isInteriorEdgesEnabled',
-        'isSpecularEnabled', 'idleSpinSpeed', 'z_depth',
-        // Shape params
-        'tetartoidA', 'tetartoidB', 'tetartoidC',
-        'torusRadius', 'torusTube', 'torusArc',
-        'cylinderTopRadius', 'cylinderBottomRadius', 'cylinderHeight', 'cylinderSides',
-        'boxWidth', 'boxHeight', 'boxDepth',
         // Aura
         'isAuraEnabled', 'auraReach', 'auraIntensity', 'auraPulseRate', 'spikeMultiplier',
         // Phenomena
@@ -3367,12 +3359,6 @@ function syncModuleStateToWindow() {
     }
 }
 function rebuildInlineVisualsAfterAppearance() {
-    // All of these are the INLINE (bundled) versions exposed on window via
-    // function declarations in the classic <script>.
-    try { window.updateGeometry(window.state.currentGeometryType); }
-    catch (e) { console.debug('[sigil] inline updateGeometry skipped:', e); }
-    try { window.updateOmegaGeometry(window.state.omegaGeometryType); }
-    catch (e) { console.debug('[sigil] inline updateOmegaGeometry skipped:', e); }
     try { window.updatePulsars(window.state.pulsarRayCount); }
     catch (e) { console.debug('[sigil] inline updatePulsars skipped:', e); }
     try { window.updateGammaRays(window.state.gammaRayCount); }
