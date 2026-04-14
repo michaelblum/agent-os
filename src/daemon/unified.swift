@@ -553,10 +553,11 @@ class UnifiedDaemon {
     }
 
     private func handleCanvasUpdate(callerID: String, payload: [String: Any]) {
-        guard let targetID = payload["id"] as? String, !targetID.isEmpty else {
-            fputs("[canvas-mut] update dropped caller=\(callerID) reason=missing-id\n", stderr)
-            return
-        }
+        // Default to self-mutation when id is missing or empty: the daemon already
+        // knows the caller from the postMessage source. Explicit id is still
+        // accepted for cross-canvas mutation (subject to ownership checks below).
+        let providedID = payload["id"] as? String
+        let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
 
         // Permission check. `true` = allowed.
         let permitted: Bool = {
@@ -609,11 +610,9 @@ class UnifiedDaemon {
         let requestID = payload["request_id"] as? String
         let orphanChildren = (payload["orphan_children"] as? Bool) ?? false
 
-        guard let targetID = payload["id"] as? String, !targetID.isEmpty else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "MISSING_ID", message: "canvas.remove requires id")
-            return
-        }
+        // Default to self-removal when id is missing or empty.
+        let providedID = payload["id"] as? String
+        let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
 
         // Permission check — identical rule to update.
         let permitted: Bool = {
