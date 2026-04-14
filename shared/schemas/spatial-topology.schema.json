@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/spatial-topology.schema.json",
   "title": "Spatial Topology",
-  "description": "Display → Window topology for the agent-os ecosystem. Produced by side-eye, consumed by hand-off and orchestrators.",
+  "description": "Display → Window topology for agent-os. Produced by `aos see list`, consumed by `aos do` and orchestrators.",
   "type": "object",
   "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "cursor", "displays", "apps"],
   "additionalProperties": false,

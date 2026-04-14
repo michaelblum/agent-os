@@ -1,4 +1,4 @@
-// context.swift — Context operator and coordinate conversion for hand-off v2 session mode.
+// context.swift — Context operator and coordinate conversion for `aos do` session mode.
 // Resolves window-relative or global coordinates, and handles the "context" action.
 
 import CoreGraphics

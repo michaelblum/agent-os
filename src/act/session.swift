@@ -1,4 +1,4 @@
-// session.swift — Stdin/stdout ndjson session loop with action dispatch for hand-off v2.
+// session.swift — Stdin/stdout ndjson session loop with action dispatch for `aos do`.
 // Reads ActionRequest JSON lines from stdin, dispatches to handlers, writes ActionResponse JSON to stdout.
 
 import CoreGraphics

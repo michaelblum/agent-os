@@ -129,7 +129,7 @@ func printUsage() {
       --crop <spec>        Crop: x,y,w,h or named regions (top-half, etc.)
       --grid <CxR>         Grid overlay (e.g. 4x3)
       --xray               AX element traversal overlay
-      --label              Badge annotations (implies --xray, requires heads-up)
+      --label              Badge annotations (implies --xray; uses `aos show render`)
       --format <fmt>       png, jpg, heic (default: png)
       --quality <q>        high, med, low (default: high)
       --show-cursor        Include cursor in capture

@@ -1,4 +1,4 @@
-// models.swift — Shared types for hand-off v2
+// act-models.swift — Shared types for `aos do`
 // All response, request, targeting, profile, and state types live here.
 
 import CoreGraphics

@@ -13,8 +13,8 @@
     },
     "service": {
       "type": "string",
-      "enum": ["side-eye", "heads-up", "hand-off"],
-      "description": "Which daemon emitted this event."
+      "enum": ["perceive", "display", "act", "voice"],
+      "description": "Which aos subsystem emitted this event."
     },
     "event": {
       "type": "string",

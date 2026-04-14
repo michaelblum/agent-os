@@ -62,7 +62,7 @@ func listProfiles() -> [(name: String, description: String?, source: String)] {
 
 // MARK: - CLI Subcommands
 
-/// `hand-off profiles` — list all profiles as a JSON array to stdout.
+/// `aos do profiles` — list all profiles as a JSON array to stdout.
 func profilesListCommand() {
     let profiles = listProfiles()
 
@@ -82,7 +82,7 @@ func profilesListCommand() {
     }
 }
 
-/// `hand-off profiles show <name>` — print full profile JSON with pretty-printing.
+/// `aos do profiles show <name>` — print full profile JSON with pretty-printing.
 func profilesShowCommand(name: String) {
     guard let profile = loadProfile(name: name) else {
         exitError("Profile not found: \(name)", code: "PROFILE_NOT_FOUND")

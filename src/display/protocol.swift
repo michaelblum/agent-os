@@ -19,7 +19,7 @@ import Foundation
 // accept/reject buttons. The messageHandler fires "approved" or "rejected"
 // back to the orchestrator, which reads the response and removes the canvas.
 //
-//   heads-up create --id approval --at 400,300,300,150 --interactive --html '
+//   aos show create --id approval --at 400,300,300,150 --interactive --html '
 //     <button onclick="headsup({action:\"approved\"})">Approve</button>
 //     <button onclick="headsup({action:\"rejected\"})">Reject</button>'
 //
@@ -27,7 +27,7 @@ import Foundation
 // A list of actions the user can click. Each button sends a different action
 // string. The orchestrator receives the chosen action via messageHandler.
 //
-//   heads-up create --id menu --at 500,200,200,300 --interactive --html '
+//   aos show create --id menu --at 500,200,200,300 --interactive --html '
 //     <div class="menu">
 //       <div onclick="headsup({action:\"copy\"})">Copy</div>
 //       <div onclick="headsup({action:\"paste\"})">Paste</div>
@@ -38,18 +38,18 @@ import Foundation
 // A single button that signals the agent to halt the current operation.
 // Typically placed in a corner with a TTL as a safety net.
 //
-//   heads-up create --id stop --at 50,50,80,40 --interactive --ttl 30s --html '
+//   aos show create --id stop --at 50,50,80,40 --interactive --ttl 30s --html '
 //     <button onclick="headsup({action:\"stop\"})">Stop</button>'
 //
 // --- Status Dashboard (non-interactive) ---
 // A read-only display updated via eval. The agent pushes state updates
 // from the host side. No messageHandler needed.
 //
-//   heads-up create --id status --at 100,100,400,200 --html '
+//   aos show create --id status --at 100,100,400,200 --html '
 //     <div id="state">Initializing...</div>
 //     <script>function setState(s){document.getElementById("state").textContent=s;}</script>'
-//   heads-up eval --id status --js "setState('Processing step 3 of 5')"
-//   heads-up eval --id status --js "setState('Complete')"
+//   aos show eval --id status --js "setState('Processing step 3 of 5')"
+//   aos show eval --id status --js "setState('Complete')"
 //
 
 // MARK: - Request (CLI → Daemon)

@@ -2,8 +2,8 @@
 
 **File:** `spatial-topology.schema.json`
 **Version:** 0.1.0
-**Producer:** `side-eye list`
-**Consumers:** `hand-off`, orchestrators
+**Producer:** `aos see list`
+**Consumers:** `aos do`, orchestrators
 
 ## What This Is
 
@@ -20,8 +20,8 @@ Two layers, not one:
 
 | Layer | Origin | Units | Used by |
 |-------|--------|-------|---------|
-| **Global CG** (this schema) | Top-left of primary display = `(0,0)` | Points (logical pixels) | Topology, hand-off targeting, display arrangement |
-| **LCS** (side-eye captures) | Top-left of captured region = `(0,0)` | Points | `--xray` element bounds, annotations, crops |
+| **Global CG** (this schema) | Top-left of primary display = `(0,0)` | Points (logical pixels) | Topology, `aos do` targeting, display arrangement |
+| **LCS** (`aos see` captures) | Top-left of captured region = `(0,0)` | Points | `--xray` element bounds, annotations, crops |
 
 **Converting between them:**
 - LCS → Global: add the display's `bounds.x` and `bounds.y`
@@ -42,7 +42,7 @@ Two layers, not one:
 
 **Session-scoped IDs are exposed but not for persistence.** `window_id` (CGWindowID) and `display_id` (CGDirectDisplayID) are valid for the current login session. Use `display_uuid` and `bundle_id` for cross-session references.
 
-## How hand-off Uses This
+## How `aos do` Uses This
 
 **Click in a window:**
 ```
@@ -73,7 +73,7 @@ Check:  any window at lower index overlaps the button's bounds?
 | Spaces | Not actionable — agents work with visible state; app activation handles switching | Optional enrichment if a use case emerges |
 | Stage Manager groups | Apple doesn't expose an API | Add if API appears |
 | Tab groups within windows | App-specific (Safari tabs, Finder tabs) | Separate schema |
-| Window contents (AX tree) | That's `side-eye --xray`, not topology | Topology = containers, xray = contents |
+| Window contents (AX tree) | That's `aos see capture --xray`, not topology | Topology = containers, xray = contents |
 | Menu bar items | Different API surface | Out of scope |
 
 ## macOS APIs Backing This Schema

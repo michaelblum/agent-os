@@ -121,18 +121,10 @@ private func runReset(mode: ResetMode) -> ResetResponse {
         }
     }
 
-    // Remove legacy side-eye config directory
-    let sideEyeDir = NSString("~/.config/side-eye").expandingTildeInPath
-    if FileManager.default.fileExists(atPath: sideEyeDir) {
-        try? FileManager.default.removeItem(atPath: sideEyeDir)
-        removedPaths.append(sideEyeDir)
-    }
-
     if targetModes.contains(.repo), let repoRoot = aosCurrentRepoRoot() {
         for path in [
             "\(repoRoot)/aos",
-            "\(repoRoot)/dist",
-            "\(repoRoot)/tools/dogfood/__pycache__"
+            "\(repoRoot)/dist"
         ] {
             if FileManager.default.fileExists(atPath: path) {
                 try? FileManager.default.removeItem(atPath: path)

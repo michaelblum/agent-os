@@ -532,59 +532,22 @@ func generateBadgeHTML(annotations: [AnnotationJSON], width: Int, height: Int, s
     """
 }
 
-/// Find a render binary for --label compositing.
-/// First tries heads-up (legacy), then tries aos itself (unified binary).
-func findRenderBinary() -> (path: String, useAosShowRender: Bool)? {
-    let selfPath = CommandLine.arguments[0]
-    let selfDir = (selfPath as NSString).deletingLastPathComponent
-
-    // 1. Try heads-up adjacent to current binary
-    let headsUpPath = (selfDir as NSString).appendingPathComponent("heads-up")
-    if FileManager.default.isExecutableFile(atPath: headsUpPath) {
-        return (headsUpPath, false)
-    }
-
-    // 2. Try heads-up in PATH
-    let whichProc = Process()
-    whichProc.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-    whichProc.arguments = ["heads-up"]
-    let whichPipe = Pipe()
-    whichProc.standardOutput = whichPipe
-    whichProc.standardError = FileHandle.nullDevice
-    try? whichProc.run()
-    whichProc.waitUntilExit()
-    let whichOut = String(data: whichPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if whichProc.terminationStatus == 0 && !whichOut.isEmpty {
-        return (whichOut, false)
-    }
-
-    // 3. Try aos itself (unified binary has `aos show render`)
-    let resolvedSelf = (selfPath as NSString).resolvingSymlinksInPath
-    if FileManager.default.isExecutableFile(atPath: resolvedSelf) {
-        return (resolvedSelf, true)
-    }
-
-    return nil
+/// Resolve this binary's path for invoking `aos show render` as a subprocess.
+func findRenderBinary() -> String? {
+    let resolvedSelf = (CommandLine.arguments[0] as NSString).resolvingSymlinksInPath
+    return FileManager.default.isExecutableFile(atPath: resolvedSelf) ? resolvedSelf : nil
 }
 
-/// Shell out to render HTML to a transparent PNG bitmap for --label compositing.
+/// Shell out to `aos show render` to rasterize HTML to a transparent PNG for --label compositing.
 func renderHTMLToBitmap(html: String, width: Int, height: Int) -> CGImage? {
-    guard let renderInfo = findRenderBinary() else { return nil }
+    guard let binaryPath = findRenderBinary() else { return nil }
 
     let tempPath = NSTemporaryDirectory() + "aos-overlay-\(ProcessInfo.processInfo.processIdentifier).png"
     defer { try? FileManager.default.removeItem(atPath: tempPath) }
 
     let proc = Process()
-    proc.executableURL = URL(fileURLWithPath: renderInfo.path)
-
-    if renderInfo.useAosShowRender {
-        // aos show render --width W --height H --out path
-        proc.arguments = ["show", "render", "--width", "\(width)", "--height", "\(height)", "--out", tempPath]
-    } else {
-        // heads-up render --width W --height H --out path
-        proc.arguments = ["render", "--width", "\(width)", "--height", "\(height)", "--out", tempPath]
-    }
+    proc.executableURL = URL(fileURLWithPath: binaryPath)
+    proc.arguments = ["show", "render", "--width", "\(width)", "--height", "\(height)", "--out", tempPath]
 
     let inPipe = Pipe()
     proc.standardInput = inPipe
@@ -872,14 +835,8 @@ let captureTargets: Set<String> = ["main", "center", "middle", "external", "user
 // MARK: - Named Zones
 
 let zonesFilePath = (aosStateDir() as NSString).appendingPathComponent("zones.json")
-private let legacyZonesFilePath = NSString("~/.config/side-eye/zones.json").expandingTildeInPath
 
 func loadZones() -> [String: ZoneEntry] {
-    // Migrate from legacy side-eye path if needed
-    if !FileManager.default.fileExists(atPath: zonesFilePath),
-       FileManager.default.fileExists(atPath: legacyZonesFilePath) {
-        try? FileManager.default.copyItem(atPath: legacyZonesFilePath, toPath: zonesFilePath)
-    }
     guard let data = FileManager.default.contents(atPath: zonesFilePath),
           let zones = try? JSONDecoder().decode([String: ZoneEntry].self, from: data)
     else { return [:] }
@@ -1768,7 +1725,7 @@ func captureCommand(args: [String]) async {
             if let overlay = renderHTMLToBitmap(html: badgeHTML, width: image.width, height: image.height) {
                 image = compositeOverlay(overlay, onto: image)
             } else {
-                exitError("Render binary not found. Install heads-up for --label support.", code: "MISSING_DEPENDENCY")
+                exitError("Render binary not found — could not locate `aos show render`.", code: "MISSING_DEPENDENCY")
             }
         }
 

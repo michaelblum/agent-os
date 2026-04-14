@@ -103,15 +103,12 @@ func aosAllServiceLabels() -> [String] {
     AOSRuntimeMode.allCases.map { aosServiceLabel(for: $0) }
 }
 
-/// Legacy labels that may still be loaded from earlier installs.
-/// Includes the retired Sigil launchd service (com.agent-os.sigil.*) so
-/// `aos reset` still unloads stale agents after the avatar-sub retirement.
+/// Retired Sigil launchd service labels. `aos reset` unloads these so stale
+/// agents left over from the avatar-sub retirement don't keep running.
 let aosLegacyServiceLabels = [
-    "com.agent-os.aos",
     "com.agent-os.sigil",
     "com.agent-os.sigil.repo",
     "com.agent-os.sigil.installed",
-    "com.agent-os.heads-up",
 ]
 
 func aosInstalledBinaryPath(_ executableName: String) -> String {

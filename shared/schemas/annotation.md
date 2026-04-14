@@ -2,8 +2,8 @@
 
 **File:** `annotation.schema.json`
 **Version:** 0.1.0
-**Producer:** `side-eye --label`
-**Consumers:** `heads-up`, orchestrators, vision models
+**Producer:** `aos see capture --label`
+**Consumers:** `aos show`, orchestrators, vision models
 
 ## What This Is
 
@@ -15,7 +15,7 @@ The schema is coordinate-space-agnostic. The coordinate space depends on the pro
 
 | Producer | Coordinate space |
 |---|---|
-| `side-eye --label` | LCS (top-left of captured region = 0,0) |
+| `aos see capture --label` | LCS (top-left of captured region = 0,0) |
 | Spatial topology cross-reference | Global CG (top-left of primary display = 0,0) |
 
 The consumer knows which space it's operating in.
@@ -41,8 +41,8 @@ Badge "1" marks the Search field at (100, 200). Badge "2" marks the Submit butto
 
 ## Rendering
 
-The schema describes WHAT to label, not HOW to render it. An HTML/CSS/SVG template turns annotation data into visual content. The `heads-up render` command rasterizes the template to a bitmap. Different templates can produce different visual styles from the same data.
+The schema describes WHAT to label, not HOW to render it. An HTML/CSS/SVG template turns annotation data into visual content. The `aos show render` command rasterizes the template to a bitmap. Different templates can produce different visual styles from the same data.
 
-## Relationship to side-eye --xray
+## Relationship to `aos see --xray`
 
 `--xray` returns a flat array of interactive UI elements with `role`, `title`, `label`, `value`, `bounds`. `--label` converts these into the annotation schema format, using the AX element's `title` or `label` as the annotation label. The annotation array is a strict subset of the xray data — just `bounds` + `label`.

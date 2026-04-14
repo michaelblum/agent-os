@@ -1,4 +1,4 @@
-// actions.swift — Session-mode action handlers for hand-off v2.
+// actions.swift — Session-mode action handlers for `aos do`.
 // Each handler takes (ActionRequest, SessionState) -> ActionResponse and never kills the session on error.
 
 import AppKit
@@ -646,7 +646,7 @@ func handleStatus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 
 // MARK: - Action Introspection
 
-/// Map AX action names to hand-off session verbs.
+/// Map AX action names to `aos do` session verbs.
 let axActionToVerb: [String: String] = [
     "AXPress": "press",
     "AXConfirm": "press",
@@ -668,7 +668,7 @@ func handleListActions(_ req: ActionRequest, state: SessionState) -> ActionRespo
     var available: [AvailableAction] = []
 
     for elem in state.channelElements {
-        // Map AX actions to hand-off verbs
+        // Map AX actions to `aos do` verbs
         var verbs = Set<String>()
         for axAction in elem.actions {
             if let verb = axActionToVerb[axAction] {

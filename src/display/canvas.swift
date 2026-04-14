@@ -75,7 +75,7 @@ class CanvasWindow: NSWindow {
     /// but keystrokes go to whatever app macOS considers "active".
     override func sendEvent(_ event: NSEvent) {
         if isInteractiveCanvas && event.type == .leftMouseDown && !isKeyWindow {
-            // Activate the heads-up process so macOS routes keystrokes here
+            // Activate the aos daemon process so macOS routes keystrokes here
             NSApp.activate(ignoringOtherApps: true)
             makeKey()
         }
