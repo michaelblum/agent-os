@@ -1831,7 +1831,6 @@ window.unionSize = unionSize;
 import { loadAgent } from './agent-loader.js';
 import { applyAppearance } from './appearance.js';
 import { resolveBirthplace } from './birthplace-resolver.js';
-import moduleState from './state.js';
 import { createPhenomena, animatePhenomena, updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos, getTurbulence } from './phenomena.js';
 window.createPhenomena = createPhenomena;
 window.animatePhenomena = animatePhenomena;
@@ -1840,45 +1839,6 @@ window.updateGammaRays = updateGammaRays;
 window.updateAccretion = updateAccretion;
 window.updateNeutrinos = updateNeutrinos;
 window.getTurbulence = getTurbulence;
-
-// The bundled inline <script> defines its own `state` singleton which owns
-// the live Three.js object references (polyGroup, scene, renderer, etc).
-// `appearance.js` imports the separate module-scope `state.js` singleton.
-// Bridge the two so applyAppearance's writes land on the object the inline
-// renderer actually reads from.
-//
-// Strategy:
-//   - Before applyAppearance: copy scalar state from the inline bundled
-//     `state` (window.state) into `moduleState` so applyAppearance's ??
-//     fallbacks see current values, not the state.js defaults.
-//   - After applyAppearance: copy every field applyAppearance wrote back
-//     to window.state so the inline render loop reads the agent's values.
-//     (Geometry is owned by the module path: syncWindowStateToModule seeds
-//     moduleState.polyGroup before applyAppearance, so geometry.js operates
-//     on the real scene directly.)
-function syncWindowStateToModule() {
-    for (const k of Object.keys(window.state)) {
-        if (k in moduleState) moduleState[k] = window.state[k];
-    }
-}
-function syncModuleStateToWindow() {
-    // Write back every field applyAppearance is known to touch. Using a
-    // property list rather than a blanket Object.assign avoids clobbering
-    // window.state keys that carry inline-only Three.js object refs.
-    const APPEARANCE_FIELDS = [
-        // Size
-        'avatarBase', 'avatarMin', 'avatarMax',
-        // Swarm
-        'isSwarmEnabled', 'swarmCount', 'swarmGravity', 'swarmEventHorizon',
-        'swarmTimeScale', 'isBlackHoleMode',
-        // Grid
-        'gridMode', 'grid3dRenderMode', 'grid3dDensity', 'grid3dRenderRadius',
-        'grid3dSnowGlobe', 'grid3dShowProbe', 'grid3dRelativeMotion', 'grid3dTimeScale',
-    ];
-    for (const k of APPEARANCE_FIELDS) {
-        if (k in moduleState) window.state[k] = moduleState[k];
-    }
-}
 function awaitFirstDisplayGeometry() {
     // Promise resolves when the first `display_geometry` message lands in
     // handleLiveJsMessage — which stashes the snapshot on liveJs.displays
@@ -1919,14 +1879,10 @@ async function boot() {
         agent = { ...mod.MINIMAL_DEFAULT };
     }
 
-    // 3. Apply appearance. applyAppearance writes into the module-scope
-    //    state.js singleton (imported by appearance.js). Sync state in,
-    //    apply, sync state back so the inline renderers (Swarm, Grid) read
-    //    current values from window.state via the APPEARANCE_FIELDS bridge.
+    // 3. Apply appearance. state.js now re-exports window.state so modules
+    //    and inline code share the same object — no sync bridge needed.
     try {
-        syncWindowStateToModule();
         applyAppearance(agent.appearance);
-        syncModuleStateToWindow();
     } catch (e) {
         console.error('[sigil] applyAppearance pipeline threw:', e);
     }
@@ -2014,9 +1970,7 @@ async function sigilReloadCurrentAgent() {
     }
     const agentPath = 'sigil/agents/' + liveJs.currentAgentId;
     const agent = await loadAgent(agentPath);
-    syncWindowStateToModule();
     applyAppearance(agent.appearance);
-    syncModuleStateToWindow();
     liveJs.avatarSize = agent.instance.size;
     console.log('[sigil] live-reloaded agent:', liveJs.currentAgentId);
 }

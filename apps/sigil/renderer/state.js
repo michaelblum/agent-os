@@ -1,5 +1,15 @@
 // Centralized application state
-const state = {
+//
+// The renderer has two script contexts: a classic inline <script> in index.html
+// (which creates the authoritative `state` and assigns it to `window.state`),
+// and ES modules (aura.js, phenomena.js, etc.) that `import state from './state.js'`.
+//
+// To ensure both contexts share a single object, we re-export window.state when
+// it exists (the classic script runs before modules). If this file is loaded in
+// a standalone context (tests, Studio) where no classic script ran first, we
+// fall back to a fresh default object.
+
+const defaults = {
     // Three.js object references (set during init)
     scene: null,
     perspCamera: null,
@@ -302,5 +312,10 @@ const state = {
     // Charge beam sequence state (saved/restored during supernova charge)
     chargeSequence: null
 };
+
+// Re-export the classic script's state object when running inside the renderer
+// (where the inline <script> has already created window.state). This guarantees
+// modules and inline code mutate the same object — no sync bridge needed.
+const state = (typeof window !== 'undefined' && window.state) ? window.state : defaults;
 
 export default state;
