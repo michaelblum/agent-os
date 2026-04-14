@@ -3178,8 +3178,9 @@ function tickFastTravel() {
     }
 }
 
-// Per-tick: in IDLE the avatar is parked — its position is fixed at the
-// resolved home until a state transition moves it. During fast-travel
+// Per-tick: in IDLE the avatar is parked — its position is fixed at its
+// parked coordinate (spawn resolution or post-travel destination) until a
+// state transition moves it. During fast-travel
 // animation the state machine drives avatarPos. The cursor lerp tracks
 // the latest cursor so GOTO-click math has a smoothed reference, but
 // does not feed into IDLE. avatarPos is the source of truth for "where
@@ -3278,8 +3279,9 @@ window.unionSize = unionSize;
 // LIVE-JS BOOT SEQUENCE (Task 6)
 // ============================================================
 // Load the agent wiki doc, apply appearance, await the first
-// display_geometry snapshot from the AOS daemon, then compute the
-// resolved home position and stamp it onto liveJs.avatarPos.
+// display_geometry snapshot from the AOS daemon, then resolve the spawn
+// position (daemon-side lastPosition if present, else birthplace) and
+// stamp it onto liveJs.avatarPos.
 //
 // The bundled inline <script> above has already defined init(), setupLiveJs,
 // handleLiveJsMessage, the `liveJs` namespace, and `state`. This module

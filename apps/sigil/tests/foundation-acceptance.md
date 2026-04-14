@@ -19,7 +19,7 @@ was either:
 | # | Criterion | Status |
 |---|-----------|--------|
 | 1 | Default seed materializes | PASS |
-| 2 | Launch spawns orb at home | PASS |
+| 2 | Launch spawns orb at birthplace | PASS |
 | 3 | Idle is parked | PASS |
 | 4 | Click-goto still works | PASS |
 | 5 | Fast-travel trails honor config | PARTIAL (trailLength live, trailOpacity/fadeMs scaffolded but not consumed) |
@@ -27,7 +27,7 @@ was either:
 | 7 | Live reload on wiki edit | PASS |
 | 8 | Live reload deferred mid-gesture | PASS |
 | 9 | Studio save round-trip | PASS |
-| 10 | Home off-screen fallback | PASS |
+| 10 | Birthplace off-screen fallback | PASS |
 | 11 | Cascade cleanup unchanged | PASS |
 | 12 | Sigil-1 spec annotation | PASS |
 
@@ -71,7 +71,7 @@ tags: [sigil, orchestrator]
 
 ---
 
-## Criterion 2 — Launch spawns orb at home
+## Criterion 2 — Launch spawns orb at birthplace
 
 **Spec language:** `aos show create` with union bounds launches. Orb renders at
 the bottom-right nonant of the main display.
@@ -433,9 +433,9 @@ Round-trip fully works: Studio snapshot → `fetch PUT /wiki/sigil/agents/defaul
 
 ---
 
-## Criterion 10 — Home off-screen fallback
+## Criterion 10 — Birthplace off-screen fallback
 
-**Spec language:** Set `instance.home.display` to a bogus UUID, restart. Avatar
+**Spec language:** Set `instance.birthplace.display` to a bogus UUID, restart. Avatar
 spawns at fallback nonant.
 
 **Test steps:**
