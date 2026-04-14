@@ -76,8 +76,6 @@ Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index
 
 - **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub, content server
 - **Three.js r128** — 3D rendering engine (loaded from CDN by `renderer/index.html`)
-- **xray_target.py** (`tools/dogfood/xray_target.py`) — element resolution for spatial behaviors
-- **agent_helpers.sh** (`tools/dogfood/agent_helpers.sh`) — posts to the `actions` channel; canvases can subscribe for behavior cues
 
 ## Chat Canvas Protocol
 
