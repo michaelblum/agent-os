@@ -3,8 +3,8 @@
 **Session:** toolkit-redux
 **Date:** 2026-04-14
 **Status:** Draft
-**Scope:** Refactor `packages/toolkit/_base/` from a monolithic `AosComponent` class into a layered, composable foundation. Extract a universal **canvas runtime** (Layer 1a) consumed by everything that lives in a WKWebView. Build **panel primitives** (Layer 1b) on top of that runtime. Re-express today's three toolkit components plus a new Sigil control panel as Layer 2/3 consumers. Lay groundwork for a tabbed workstation host with future tear-off support.
-**Out of scope:** Building tabs/tear-off itself (separate plan, after primitives ship). Migrating the avatar renderer / hit-area / chat / studio to Layer 1a (separate per-surface commits, after Layer 1a stabilizes). Tear-off animation/UX. The Sigil control panel's specific control set (separate Sigil-side spec).
+**Scope:** Refactor `packages/toolkit/_base/` from a monolithic `AosComponent` class into a layered, composable foundation. Extract a universal **canvas runtime** (Layer 1a) consumed by everything that lives in a WKWebView. Build **panel primitives** (Layer 1b) on top of that runtime. Re-express today's three toolkit components as Layer 2 consumers. Build the `Tabs` layout and a dev demo that proves composition end-to-end. This corresponds to **Steps 0–3** of the migration order below.
+**Out of scope (deferred to separate sessions):** The Sigil control panel itself (Step 4 — Sigil-owned, separate spec). Migrating the avatar renderer, hit-area, chat, and studio to Layer 1a (Step 5 — coordinated with the surface owners; renderer migration likely involves renderer-strangler). Tear-off + Floating layout (Step 6 — separate spec, depends on Tabs being shipped).
 
 ## Problem
 
@@ -267,21 +267,21 @@ Verification per commit: launch the standalone, exercise its primary function, c
 
 With three Content units in hand, build `layouts/tabs.js` and ship a manual test page (`packages/toolkit/components/_dev/tabs-demo/index.html`) that hosts all three. This validates the channel router, manifest-prefix dispatch, and content-host plumbing before any app consumes it.
 
-### Step 4 — Sigil control panel
+### Step 4 (separate session — Sigil-owned) — Sigil control panel
 
-New: `apps/sigil/control/`. Built on Layer 1a + 1b. Following renderer-strangler's guidance:
+Out of scope for this spec's implementation. Lives at `apps/sigil/control/` because it edits Sigil-specific data. Will be built on Layer 1a + 1b once those ship. Following renderer-strangler's guidance:
 
 - Live mode toggles use `canvas.eval` to mutate `state.X` directly in the renderer (low-cost path; no daemon-side stream needed initially).
 - Save (or debounced auto-save) writes the agent doc via the wiki write API.
 - Renderer's existing `wiki_page_changed` reload path handles persistence.
 
-Lives at `apps/sigil/control/` because it edits Sigil-specific data; mounts as `Single(SigilControl)` for standalone use, can be embedded in a future Sigil Workstation as one of four `Tabs(...)`.
+Mounts as `Single(SigilControl)` for standalone use, can be embedded in a future Sigil Workstation as one of multiple `Tabs(...)`.
 
-### Step 5 (optional, deferred) — Migrate non-toolkit canvases to Layer 1a
+### Step 5 (separate session — surface-owner-coordinated) — Migrate non-toolkit canvases to Layer 1a
 
-Each is a separate commit, coordinated with the surface owner:
+Each is a separate commit, coordinated with the surface owner. Suggested order (separate session(s)):
 
-- **hit-area** — smallest, easiest. Probably bundled with a Step-2 commit if scope permits.
+- **hit-area** — smallest, easiest. Could be the pilot of Step 5.
 - **chat** — replaces its inline bridge plumbing with Layer 1a; manifest is already Layer-0.5-compatible. Probably one tight commit.
 - **studio** — its own bespoke shell stays; Layer 1a replaces the bridge plumbing only.
 - **renderer** — coordinated with renderer-strangler; touches stable code. Slated last; the win is real but not urgent.
