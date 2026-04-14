@@ -1,142 +1,146 @@
 <!DOCTYPE html>
 <html style="background:transparent">
 <head>
+<meta charset="utf-8">
 <link rel="stylesheet" href="../_base/theme.css">
 <style>
-  /* Minimap */
-  .minimap {
-    position: relative;
-    margin: 8px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    background: rgba(10, 10, 20, 0.5);
-    overflow: hidden;
-  }
-  .minimap-display {
-    position: absolute;
-    border: 1px solid rgba(100, 100, 140, 0.3);
-    border-radius: 2px;
-    background: rgba(30, 30, 50, 0.4);
-  }
-  .minimap-display-label {
-    position: absolute;
-    bottom: 2px;
-    right: 4px;
-    font-size: 8px;
-    color: var(--text-muted);
-  }
-  .minimap-canvas {
-    position: absolute;
-    border: 1px solid var(--accent-blue);
-    border-radius: 1px;
-    background: rgba(138, 180, 255, 0.15);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .minimap-canvas:hover {
-    background: rgba(138, 180, 255, 0.3);
-  }
-  .minimap-canvas.self {
-    border-color: var(--accent-purple);
-    background: rgba(80, 120, 255, 0.1);
-    pointer-events: none;
-  }
-  .minimap-canvas.tinted {
-    opacity: 0.85;
-  }
+/* Minimap */
+.minimap {
+  position: relative;
+  margin: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: rgba(10, 10, 20, 0.5);
+  overflow: hidden;
+}
+.minimap-display {
+  position: absolute;
+  border: 1px solid rgba(100, 100, 140, 0.3);
+  border-radius: 2px;
+  background: rgba(30, 30, 50, 0.4);
+}
+.minimap-display-label {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 8px;
+  color: var(--text-muted);
+}
+.minimap-canvas {
+  position: absolute;
+  border: 1px solid var(--accent-blue);
+  border-radius: 1px;
+  background: rgba(138, 180, 255, 0.15);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.minimap-canvas:hover {
+  background: rgba(138, 180, 255, 0.3);
+}
+.minimap-canvas.self {
+  border-color: var(--accent-purple);
+  background: rgba(80, 120, 255, 0.1);
+  pointer-events: none;
+}
+.minimap-canvas.tinted {
+  opacity: 0.85;
+}
 
-  /* Canvas list */
-  .canvas-list {
-    padding: 0 8px 8px;
-  }
-  .canvas-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 6px;
-    border-radius: 4px;
-    font-size: var(--font-size-small);
-    line-height: 1.6;
-  }
-  .canvas-item:hover {
-    background: var(--bg-hover);
-  }
-  .canvas-item.self {
-    opacity: 0.5;
-  }
-  .canvas-id {
-    color: var(--accent-blue);
-    font-weight: 600;
-    flex-shrink: 0;
-  }
-  .canvas-dims {
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 9px;
-  }
-  .canvas-flags {
-    margin-left: auto;
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  .flag {
-    font-size: 9px;
-    padding: 0 4px;
-    border-radius: 2px;
-    background: rgba(60, 60, 90, 0.3);
-    color: var(--text-secondary);
-  }
-  .flag.interactive {
-    color: var(--accent-yellow);
-    background: rgba(221, 170, 102, 0.15);
-  }
-  .flag.scoped {
-    color: var(--accent-green);
-  }
+/* Canvas list */
+.canvas-list {
+  padding: 0 8px 8px;
+}
+.canvas-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: var(--font-size-small);
+  line-height: 1.6;
+}
+.canvas-item:hover {
+  background: var(--bg-hover);
+}
+.canvas-item.self {
+  opacity: 0.5;
+}
+.canvas-id {
+  color: var(--accent-blue);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.canvas-dims {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+.canvas-flags {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.flag {
+  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: rgba(60, 60, 90, 0.3);
+  color: var(--text-secondary);
+}
+.flag.interactive {
+  color: var(--accent-yellow);
+  background: rgba(221, 170, 102, 0.15);
+}
+.flag.scoped {
+  color: var(--accent-green);
+}
 
-  .btn {
-    background: none;
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 9px;
-    cursor: pointer;
-    font-family: var(--font-mono);
-  }
-  .btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-  .btn.active {
-    background: rgba(138, 180, 255, 0.2);
-    color: var(--accent-blue);
-    border-color: var(--accent-blue);
-  }
+.btn {
+  background: none;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+.btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
-  .empty-state {
-    color: var(--text-muted);
-    text-align: center;
-    padding: 16px;
-    font-style: italic;
-  }
+.empty-state {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px;
+  font-style: italic;
+}
 
-  .status-bar {
-    padding: 4px 10px;
-    font-size: 8px;
-    color: var(--text-header);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-top: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-    display: flex;
-    justify-content: space-between;
-  }
+.status-bar {
+  padding: 4px 10px;
+  font-size: 8px;
+  color: var(--text-header);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+}
 </style>
 </head>
 <body>
-<div id="app"></div>
-<script type="module" src="./inspector.js"></script>
+<script type="module">
+import { mountPanel, Single } from '../../panel/index.js'
+import CanvasInspector from './index.js'
+
+mountPanel({ title: 'Canvas Inspector', layout: Single(CanvasInspector) })
+</script>
 </body>
 </html>
