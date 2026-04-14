@@ -57,11 +57,12 @@ export default function InspectorPanel() {
     onMessage(msg, host) {
       if (msg.type === 'element') {
         if (!contentEl) return
-        contentEl.innerHTML = renderElement(msg.data)
+        contentEl.innerHTML = renderElement(msg.payload)
         return
       }
       if (msg.type === 'cursor') {
-        host.setTitle(`${BASE_TITLE} \u2014 ${Math.round(msg.x)}, ${Math.round(msg.y)}  Display ${msg.display}`)
+        const p = msg.payload || {}
+        host.setTitle(`${BASE_TITLE} \u2014 ${Math.round(p.x)}, ${Math.round(p.y)}  Display ${p.display}`)
         return
       }
     },

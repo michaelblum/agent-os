@@ -102,7 +102,7 @@ func inspectCommand(args: [String]) {
             case "element_focused":
                 sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
                     "type": "inspector/element",
-                    "data": envelope.data
+                    "payload": envelope.data
                 ])
 
             case "cursor_moved", "cursor_settled":
@@ -111,9 +111,11 @@ func inspectCommand(args: [String]) {
                    let display = envelope.data["display"] as? Int {
                     sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
                         "type": "inspector/cursor",
-                        "x": x,
-                        "y": y,
-                        "display": display
+                        "payload": [
+                            "x": x,
+                            "y": y,
+                            "display": display
+                        ]
                     ])
                 }
 
