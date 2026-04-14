@@ -124,6 +124,7 @@ func createCommand(args: [String]) {
     var ttlValue: String? = nil
     var scope: String? = nil
     var autoProject: String? = nil
+    var track: String? = nil
 
     var i = 0
     while i < args.count {
@@ -168,6 +169,13 @@ func createCommand(args: [String]) {
         case "--auto-project":
             i += 1; guard i < args.count else { exitError("--auto-project requires a mode (cursor_trail, highlight_focused, label_elements)", code: "MISSING_ARG") }
             autoProject = args[i]
+        case "--track":
+            i += 1; guard i < args.count else { exitError("--track requires a target (e.g. 'union')", code: "MISSING_ARG") }
+            track = args[i]
+            // v1: only 'union' is supported
+            guard track == "union" else {
+                exitError("Unknown --track target: \(track ?? ""). Supported: union", code: "INVALID_ARG")
+            }
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -191,6 +199,9 @@ func createCommand(args: [String]) {
         guard parts.count == 4 else { exitError("--at must be x,y,w,h (comma-separated)", code: "INVALID_ARG") }
         request.at = parts
     }
+    if track != nil && at != nil {
+        exitError("cannot combine --at with --track (pick one)", code: "INVALID_ARG")
+    }
     if let aw = anchorWindow { request.anchorWindow = aw }
     if let ac = anchorChannel { request.anchorChannel = ac }
     if let offStr = offset {
@@ -199,6 +210,7 @@ func createCommand(args: [String]) {
         request.offset = parts
     }
     if let ap = autoProject { request.autoProject = ap }
+    if let t = track { request.track = t }
 
     if let url = urlValue {
         request.url = url
