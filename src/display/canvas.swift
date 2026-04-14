@@ -656,6 +656,29 @@ class CanvasManager {
             onCanvasLifecycle?(id, "updated", atArr)
         }
 
+        if let trackStr = req.track {
+            guard let t = TrackTarget(rawValue: trackStr) else {
+                return .fail("Unknown track target: \(trackStr)", code: "INVALID_TRACK")
+            }
+            canvas.trackTarget = t
+
+            // Resolve new bounds from the target immediately so the retarget
+            // is visible without waiting for the next topology-change event.
+            if t == .union {
+                let bounds = allDisplaysBounds()
+                if bounds.width > 0 && bounds.height > 0 {
+                    canvas.updatePosition(cgRect: bounds)
+                    let atArr: [CGFloat] = [bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height]
+                    onCanvasLifecycle?(id, "updated", atArr)
+                }
+            }
+
+            // Clear conflicting anchor state — track supersedes anchors.
+            canvas.anchorWindowID = nil
+            canvas.anchorChannelID = nil
+            canvas.offset = nil
+        }
+
         // anchorChannel on update: re-read channel, update anchor
         if let chanID = req.anchorChannel {
             guard let channel = readChannelFile(id: chanID) else {
