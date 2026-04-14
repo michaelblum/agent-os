@@ -19,6 +19,8 @@ aos permissions setup --once     # One-time Accessibility + Screen Recording flo
 aos doctor --json                # Verify runtime health
 ```
 
+Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
+
 See root `CLAUDE.md` for the runtime model (repo vs installed modes, mode-scoped state).
 
 ## Usage
@@ -144,6 +146,26 @@ aos content status [--json]               # Show server address and roots
 
 Canvases load via URL: `aos://sigil/studio/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 
+### Wiki (aos wiki)
+
+A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by Sigil (agent docs under `sigil/agents/`) and as a general-purpose namespace for plugin assets. Also exposed via the daemon's content server at `/wiki/...`.
+
+```bash
+aos wiki list [--namespace <ns>]      # List entries (defaults to all namespaces)
+aos wiki show <path>                  # Print an entry
+aos wiki add <path> --file <src>      # Create or update an entry from a file
+aos wiki rm <path>                    # Delete an entry
+aos wiki link <from> <to>             # Cross-link entries
+aos wiki search <query>               # Full-text search
+aos wiki seed [--force] --namespace <ns> --file <name:path> [...]
+                                      # Bulk-seed a namespace (idempotent unless --force)
+aos wiki reindex                      # Rebuild the search index
+aos wiki lint                         # Validate frontmatter + links
+aos wiki invoke <path>                # Invoke a workflow-typed entry
+aos wiki create-plugin <name>         # Scaffold a new plugin namespace
+aos wiki migrate-namespaces           # One-shot schema migration
+```
+
 ### Tools
 
 High-level commands that combine modules:
@@ -163,7 +185,7 @@ src/
   voice/              # Voice: TTS engine, say command
   content/            # Content server: HTTP file serving for WKWebView canvases
   daemon/             # UnifiedDaemon: socket, routing, autonomic
-  commands/           # serve, set, inspect, log, service, runtime, operator, reset
+  commands/           # serve, set, inspect, log, service, runtime, operator, reset, wiki
 shared/swift/ipc/
   runtime-paths.swift # AOSRuntimeMode, mode-scoped path resolution
   connection.swift    # Socket connection, DaemonSession, auto-start
