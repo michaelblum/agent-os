@@ -59,3 +59,11 @@ export function removeSelf(opts = {}) {
 export function setInteractive(interactive) {
   mutateSelf({ interactive: !!interactive })
 }
+
+export function move(dx, dy) {
+  // Daemon's legacy relative-move action — auto-targets the calling canvas
+  // and accepts integer/float deltas at the TOP level of the message (NOT
+  // wrapped in payload — see canvas.swift handler at line ~516). Distinct
+  // from mutateSelf({frame}) which requires absolute coordinates.
+  window.webkit?.messageHandlers?.headsup?.postMessage({ type: 'move', dx, dy })
+}

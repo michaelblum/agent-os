@@ -5,6 +5,7 @@
 // relative-move type that auto-targets the calling canvas).
 
 import { esc } from '../runtime/bridge.js'
+import { move } from '../runtime/canvas.js'
 
 export function mountChrome(container, { title = 'AOS', draggable = true } = {}) {
   container.innerHTML = ''
@@ -47,9 +48,8 @@ function wireDrag(header) {
       const dx = ev.screenX - lastX
       const dy = ev.screenY - lastY
       lastX = ev.screenX; lastY = ev.screenY
-      // Use the daemon's legacy relative move type — it auto-targets the
-      // calling canvas (no explicit id needed) and is well-supported.
-      window.webkit?.messageHandlers?.headsup?.postMessage({ type: 'move', dx, dy })
+      // Drag deltas → Layer 1a move helper (wraps daemon's legacy relative-move).
+      move(dx, dy)
     }
     const onUp = () => {
       header.style.cursor = 'grab'
