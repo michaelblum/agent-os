@@ -34,7 +34,6 @@ chmod 755 "$EXECUTABLE_DST"
 mkdir -p \
   "$SIGIL_RESOURCE_ROOT/apps/sigil" \
   "$SIGIL_RESOURCE_ROOT/packages/toolkit/components"
-cp "$REPO_ROOT/apps/sigil/avatar-hit-target.html" "$SIGIL_RESOURCE_ROOT/apps/sigil/avatar-hit-target.html"
 cp "$REPO_ROOT/apps/sigil/radial-menu-config.json" "$SIGIL_RESOURCE_ROOT/apps/sigil/radial-menu-config.json"
 cp "$REPO_ROOT/packages/toolkit/components/cursor-decor.html" "$SIGIL_RESOURCE_ROOT/packages/toolkit/components/cursor-decor.html"
 

@@ -2805,7 +2805,7 @@ function setupLiveJs() {
     // liveJsTick starts repositioning once hitReady flips true.
     postToHost('canvas.create', {
         id: 'avatar-hit',
-        url: 'aos://sigil/avatar-streamline/hit-area.html',
+        url: 'aos://sigil/renderer/hit-area.html',
         frame: [-1000, -1000, liveJs.hitSize, liveJs.hitSize],
         interactive: false,
         request_id: 'create-hit',
