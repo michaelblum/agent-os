@@ -35,49 +35,18 @@ shared/
 
 ## Runtime Model
 
-AOS has two explicit runtime modes:
+The ecosystem has two explicit runtime modes, selected automatically by the executable's path:
 
 | Mode | Binary location | When |
 |------|----------------|------|
 | **repo** | `./aos` (dev checkout) | Building/testing from source |
 | **installed** | `~/Applications/AOS.app/Contents/MacOS/aos` | Packaged runtime |
 
-Detection is automatic (executable path containing `.app/Contents/MacOS/` → installed, else repo).
+Each mode gets its own state directory at `~/.config/aos/{mode}/` — daemon socket, config, permission-onboarding marker, and per-component logs (`daemon.log`, `sigil.log`, …) all live here. This prevents cross-mode contamination between repo builds and the installed app.
 
-**Each mode gets its own state directory** under `~/.config/aos/{mode}/`:
-- `sock` — daemon Unix socket
-- `config.json` — live-reloaded daemon config
-- `permissions-onboarding.json` — setup marker
-- `daemon.log`, `sigil.log` — logs
+The live launchd label is `com.agent-os.aos.{mode}`. Legacy `com.agent-os.sigil*` labels from the avatar-sub retirement are unloaded by `aos reset`; no Sigil launchd service exists in the current model.
 
-This prevents cross-mode contamination between repo builds and the installed app.
-
-**Launchd labels are also mode-scoped:**
-- `com.agent-os.aos.repo` / `com.agent-os.aos.installed`
-- `com.agent-os.sigil.repo` / `com.agent-os.sigil.installed`
-
-Retired Sigil service labels (`com.agent-os.sigil`, `com.agent-os.sigil.repo`, `com.agent-os.sigil.installed`) from the avatar-sub retirement are unloaded by `aos reset`.
-
-### First-Time Setup
-
-Before interactive commands work, run the permission onboarding flow:
-
-```bash
-aos permissions setup --once     # Prompts for Accessibility + Screen Recording
-aos doctor --json                # Verify everything is healthy
-```
-
-Interactive commands (`aos do`, `aos see cursor/observe/capture`, `aos inspect`) will exit early with `PERMISSIONS_SETUP_REQUIRED` if onboarding hasn't been completed for the current runtime mode.
-
-### Key Operational Commands
-
-```bash
-aos doctor [--json]              # Full runtime health diagnostic
-aos runtime status [--json]      # Runtime identity and signing info
-aos service install [--mode repo|installed]  # Install launch agent
-aos service status [--json]      # Launch agent state
-aos reset --mode current|repo|installed|all  # Deterministic cleanup
-```
+Operational details (`aos permissions setup`, `aos doctor`, `aos service install`, `aos reset`, etc.) live in `src/CLAUDE.md`.
 
 ## Build
 
@@ -90,14 +59,16 @@ bash build.sh                    # Produces ./aos
 
 ## Key Files
 
-- `ARCHITECTURE.md` — ecosystem design, philosophy, component roster, open questions
-- `src/CLAUDE.md` — unified binary commands and usage
+- `ARCHITECTURE.md` — ecosystem design, philosophy, component roster
+- `src/CLAUDE.md` — unified `aos` binary: commands, setup, config keys
+- `packages/toolkit/CLAUDE.md` — reusable canvas components + AosComponent framework
+- `packages/gateway/CLAUDE.md` — MCP server surface
 - `apps/sigil/CLAUDE.md` — avatar presence system
 - `shared/schemas/` — JSON contracts shared across tools (spatial model, coordinate conventions)
 
 ## Cross-Tool Work
 
-When working on a specific package, read ARCHITECTURE.md first to understand how it fits the ecosystem. If your work affects the interface between tools (JSON schemas, coordinate systems, output contracts), update `shared/schemas/` and reflect it in ARCHITECTURE.md §3 (Component Roster) or §5 (Communication & Data Flow) as appropriate. §7 is the Scrapyard archaeology map — don't confuse with it.
+When working on a specific package, read `ARCHITECTURE.md` first to understand how it fits the ecosystem. If your work affects the interface between tools (JSON schemas, coordinate systems, output contracts), update `shared/schemas/` and reflect it in `ARCHITECTURE.md §3 (Component Roster)` or `§4 (Communication & Data Flow)` as appropriate.
 
 ## Work Tracking
 
