@@ -69,6 +69,7 @@ struct CanvasRequest: Codable {
     var js: String?             // JavaScript to evaluate (for "eval" action)
     var scope: String?          // "connection" or "global" (default: global)
     var autoProject: String?    // auto-projection mode: "cursor_trail", "highlight_focused", "label_elements"
+    var track: String?          // tracking target (e.g. "union") — bounds auto-resolve + auto-update
     var channel: String?        // channel name (for "post" action)
     var data: String?           // JSON string payload (for "post" action)
 }
@@ -94,6 +95,7 @@ struct CanvasInfo: Codable {
     var ttl: Double?            // remaining seconds until expiry (nil = no expiry)
     var scope: String?          // "connection" or "global"
     var autoProject: String?
+    var track: String?          // tracking target if any
 }
 
 // MARK: - Encode/Decode Helpers
