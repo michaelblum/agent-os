@@ -22,6 +22,8 @@ struct AOS {
             handleDo(args: Array(args.dropFirst()))
         case "say":
             handleSay(args: Array(args.dropFirst()))
+        case "tell":
+            handleTell(args: Array(args.dropFirst()))
         case "set":
             handleSet(args: Array(args.dropFirst()))
         case "serve":
@@ -424,4 +426,8 @@ func handleSet(args: [String]) {
 
 func handleServe(args: [String]) {
     serveCommand(args: args)
+}
+
+func handleTell(args: [String]) {
+    tellCommand(args: args)
 }
