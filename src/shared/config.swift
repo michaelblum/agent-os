@@ -12,6 +12,11 @@ struct AosConfig: Codable {
     var feedback: FeedbackConfig
     var content: ContentConfig?         // content server port and document roots
     var status_item: StatusItemConfig?
+    var hotkeys: HotkeysConfig?
+
+    struct HotkeysConfig: Codable {
+        var cancel_speech: UInt16?  // macOS keyCode (default: 53 = ESC)
+    }
 
     struct VoiceConfig: Codable {
         var enabled: Bool
@@ -144,6 +149,15 @@ func setConfigValue(key: String, value: String) {
             )
         }
         config.status_item?.icon = value
+    case "hotkeys.cancel_speech":
+        if config.hotkeys == nil { config.hotkeys = AosConfig.HotkeysConfig(cancel_speech: nil) }
+        if value == "none" || value == "disabled" {
+            config.hotkeys?.cancel_speech = nil
+        } else if let n = UInt16(value) {
+            config.hotkeys?.cancel_speech = n
+        } else {
+            exitError("hotkeys.cancel_speech must be a macOS keyCode (integer) or 'none'", code: "INVALID_VALUE")
+        }
     default:
         exitError("Unknown config key: \(key)", code: "UNKNOWN_KEY")
     }

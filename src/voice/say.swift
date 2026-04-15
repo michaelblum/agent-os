@@ -57,15 +57,44 @@ func sayCommand(args: [String]) {
         exitError("Usage: aos say [--voice <id>] [--rate <wpm>] <text>", code: "MISSING_TEXT")
     }
 
-    // Initialize NSApplication (needed for NSSpeechSynthesizer)
+    // Initialize NSApplication (needed for NSSpeechSynthesizer and global event monitor)
     _ = NSApplication.shared
 
     // Create engine with configured voice
     let engine = SpeechEngine(voice: voiceID)
     if let r = rate { engine.setRate(r) }
 
+    // Hotkey: cancel speech (default: ESC = keyCode 53) via CGEvent tap
+    let cancelKey = config.hotkeys?.cancel_speech ?? 53
+    let engineRef = Unmanaged.passUnretained(engine).toOpaque()
+    let tap = CGEvent.tapCreate(
+        tap: .cgSessionEventTap,
+        place: .headInsertEventTap,
+        options: .listenOnly,
+        eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+        callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
+            guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
+            let eng = Unmanaged<SpeechEngine>.fromOpaque(refcon).takeUnretainedValue()
+            let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+            if keyCode == loadConfig().hotkeys?.cancel_speech ?? 53 {
+                eng.stop()
+            }
+            return Unmanaged.passUnretained(event)
+        },
+        userInfo: engineRef
+    )
+    var tapSource: CFRunLoopSource?
+    if let tap = tap {
+        tapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), tapSource, .defaultMode)
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
     // Speak and wait
     engine.speakAndWait(text)
+
+    if let tap = tap { CGEvent.tapEnable(tap: tap, enable: false) }
+    if let s = tapSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), s, .defaultMode) }
 
     // Output confirmation
     let response: [String: Any] = [
