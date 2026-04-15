@@ -27,6 +27,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/hooks/check-messages.sh",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   },
   "enableAllProjectMcpServers": true
