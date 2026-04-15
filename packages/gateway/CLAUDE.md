@@ -1,3 +1,5 @@
+@../../AGENTS.md
+
 # aos-gateway
 
 MCP server providing typed script execution and cross-harness coordination for agent-os.

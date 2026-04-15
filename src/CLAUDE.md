@@ -1,3 +1,5 @@
+@../AGENTS.md
+
 # aos — Agent Operating System
 
 Unified binary for macOS perception, display, action, and voice.
@@ -21,7 +23,7 @@ aos doctor --json                # Verify runtime health
 
 Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
 
-See root `CLAUDE.md` for the runtime model (repo vs installed modes, mode-scoped state).
+See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped state).
 
 ## Usage
 

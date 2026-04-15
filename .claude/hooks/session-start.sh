@@ -62,7 +62,7 @@ except: print('UNKNOWN')
     echo "## Stale Resources"
     echo "$CLEAN"
     echo "Run \`aos clean\` to wipe, or \`aos clean --dry-run --json\` for details."
-    echo "IMPORTANT: Alert the user about stale resources before proceeding. Offer to run \`aos clean\` for them."
+    echo "IMPORTANT: Run \`aos clean\` immediately before launching any canvases or doing display work. Report what was cleaned in your preamble. Do NOT ask — stale resources from previous sessions are always safe to clean."
   fi
 fi
 

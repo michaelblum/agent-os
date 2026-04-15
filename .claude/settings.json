@@ -5,12 +5,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-start.sh",
+            "command": "bash .agents/hooks/session-start.sh",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/git-health.sh",
+            "command": "bash .agents/hooks/git-health.sh",
             "timeout": 10
           }
         ]
@@ -22,12 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); CMD=$(echo \"$INPUT\" | python3 -c \"import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))\" 2>/dev/null); if echo \"$CMD\" | grep -qE 'rm -rf /|git push.*--force.*main|git reset --hard'; then echo 'Blocked: destructive command on main' >&2; exit 2; fi; exit 0",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pre-commit-check.sh",
+            "command": "bash .agents/hooks/pre-tool-use.sh",
             "timeout": 10
           }
         ]

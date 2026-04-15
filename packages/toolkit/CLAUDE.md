@@ -1,6 +1,8 @@
+@../../AGENTS.md
+
 # toolkit
 
-Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `CLAUDE.md` for the full layering picture.
+Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `AGENTS.md` for the full layering picture.
 
 Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md)
 

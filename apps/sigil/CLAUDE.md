@@ -1,3 +1,5 @@
+@../../AGENTS.md
+
 # Sigil — Avatar Presence System
 
 Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system that uses the AOS daemon's canvas system for display. It does not belong in `packages/` — it's an application, not a toolkit component.
