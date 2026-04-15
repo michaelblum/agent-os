@@ -154,13 +154,22 @@ chmod +x "$LAUNCHER"
 # Copy short command to clipboard
 echo "bash ${LAUNCHER}" | pbcopy
 
+# --- Post to coordination channels via aos tell ---
+if command -v aos >/dev/null 2>&1; then
+  PAYLOAD_CONTENT=$(cat "$PAYLOAD_FILE")
+  aos tell handoff "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
+  aos tell "$TO" "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
+  echo "  Posted to 'handoff' and '${TO}' channels via aos tell."
+fi
+
 echo "Handoff ready."
 echo ""
 echo "  Gateway payload: ${PAYLOAD_FILE}"
 echo "  Launcher:        ${LAUNCHER}"
 echo "  Clipboard:       bash ${LAUNCHER}"
 echo ""
-echo "  Post the payload to BOTH channels:"
-echo "    1. post_message(channel='handoff', payload=<brief>, from='${FROM}')"
-echo "    2. post_message(channel='${TO}', payload=<brief>, from='${FROM}')"
+echo "  Channels posted via aos tell (handoff + ${TO})."
+echo "  If daemon was unavailable, manually post:"
+echo "    aos tell handoff \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
+echo "    aos tell ${TO} \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
 echo "  Then paste the clipboard command in a new terminal to launch."
