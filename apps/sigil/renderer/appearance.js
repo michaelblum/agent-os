@@ -28,7 +28,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     version: 1,
 
     // Size (logical pixels)
-    size: { base: 300, min: 40, max: 400 },
+    size: { base: 180, min: 40, max: 400 },
 
     // Primary geometry
     shape: 6,

@@ -81,6 +81,25 @@
   flex-wrap: wrap;
 }
 
+.aos-tab {
+  appearance: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  font: 600 var(--font-size-small) var(--font-mono);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.aos-tab:hover { color: var(--text-primary); }
+.aos-tab.active {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: rgba(100, 100, 140, 0.4);
+}
+
 .aos-tab-content {
   height: 100%;
 }

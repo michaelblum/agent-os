@@ -34,7 +34,7 @@ function defaultDoc(id, name) {
     minds: { skills: [], tools: [], workflows: [] },
     instance: {
       home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-      size: 300,
+      size: 180,
     },
   };
   return `---

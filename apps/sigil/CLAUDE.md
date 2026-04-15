@@ -17,6 +17,12 @@ Start the AOS daemon, then launch the avatar canvas:
     --track union
 ```
 
+For the full operator-facing control surface, use the one-shot workbench launcher:
+
+```bash
+apps/sigil/workbench/launch.sh
+```
+
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
 
 ## First-Time Setup — Seed
@@ -48,6 +54,7 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `renderer/*.js` | Renderer boot imports `agent-loader`, `appearance`, `birthplace-resolver`, `state` as ES modules. Most rendering logic currently lives inlined in a single large classic `<script>` in `index.html`; Studio consumes the companion modules (`geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`) as ES modules. See #48 for the inline-bundle vs. ES-module reconciliation. |
 | `studio/` | Stageless control surface for designing the avatar's appearance and managing the agent roster. No in-Studio 3D canvas — the live desktop avatar is the preview. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
+| `workbench/` | Multi-tab operator workstation that embeds Studio + Chat and warms debug tabs (canvas inspector + log) in one canvas. |
 | `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. |
 | `radial-menu-config.json` | Menu items (deferred, to be reimplemented). |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |

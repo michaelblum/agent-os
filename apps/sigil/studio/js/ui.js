@@ -748,7 +748,7 @@ export function setupUI() {
             minds: { skills: [], tools: [], workflows: [] },
             instance: {
                 home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                size: 300
+                size: 180
             }
         }, null, 2);
         return `---\ntype: agent\nid: ${agentId}\nname: ${agentId}\ntags: [sigil]\n---\n\n`
@@ -767,7 +767,7 @@ export function setupUI() {
                 minds: { skills: [], tools: [], workflows: [] },
                 instance: {
                     home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                    size: 300
+                    size: 180
                 }
             }, null, 2);
             return markdown + `\n\`\`\`json\n${body}\n\`\`\`\n`;
@@ -782,7 +782,7 @@ export function setupUI() {
                 minds: { skills: [], tools: [], workflows: [] },
                 instance: {
                     home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                    size: 300
+                    size: 180
                 }
             };
         }
@@ -824,7 +824,7 @@ export function setupUI() {
         const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
         let body = match ? JSON.parse(match[1] || '{}') : {
             version: 1, appearance: {}, minds: { skills: [], tools: [], workflows: [] },
-            instance: { home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, size: 300 },
+            instance: { home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, size: 180 },
         };
         body = mutator(body) ?? body;
         const ser = JSON.stringify(body, null, 2);

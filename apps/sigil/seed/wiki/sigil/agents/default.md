@@ -36,7 +36,7 @@ of the main display at boot.
   "minds": { "skills": [], "tools": [], "workflows": [] },
   "instance": {
     "birthplace": { "anchor": "nonant", "nonant": "bottom-right", "display": "main" },
-    "size": 300
+    "size": 180
   }
 }
 ```

@@ -260,7 +260,7 @@ const defaults = {
     // All sizes in logical pixels (points). baseScale is derived from avatarBase
     // and display geometry — it maps logical pixels to scene units.
     // z_depth is a creative multiplier: 1.0 = render at exactly avatarBase size.
-    avatarBase: 300,
+    avatarBase: 180,
     avatarMin: 40,
     avatarMax: 400,
     baseScale: 1.0,

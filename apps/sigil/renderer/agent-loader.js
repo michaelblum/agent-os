@@ -25,7 +25,7 @@ export const MINIMAL_DEFAULT = Object.freeze({
   minds: { skills: [], tools: [], workflows: [] },
   instance: {
     birthplace: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-    size: 300,
+    size: 180,
   },
 });
 

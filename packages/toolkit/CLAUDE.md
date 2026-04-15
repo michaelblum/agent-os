@@ -43,8 +43,11 @@ panel/                  Layer 1b — panel primitives
 components/             Layer 2 — reusable Content units
   _base/                  shared theme.css tokens/reset (legacy AosComponent retired)
   canvas-inspector/       live canvas list + lifecycle subscription
+    styles.css              canonical component styles (link, don't copy)
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
+    styles.css              canonical component styles (link, don't copy)
   log-console/            scrolling timestamped log (driven by `aos log push`)
+    styles.css              canonical component styles (link, don't copy)
   _dev/                   developer demos
     tabs-demo/            all three components in one Tabs panel
 ```
@@ -88,7 +91,11 @@ export default function MyContent() {
 }
 ```
 
-2. Create `components/<name>/index.html` mounting via `mountPanel`:
+2. Create `components/<name>/styles.css` with the component's visual styles. Use
+   tokens from `theme.css` (e.g. `var(--text-muted)`) — never hardcode a parallel
+   token system. This file is the canonical source; host pages `<link>` it.
+
+3. Create `components/<name>/index.html` mounting via `mountPanel`:
 
 ```html
 <!doctype html>
@@ -96,6 +103,7 @@ export default function MyContent() {
 <head>
   <link rel="stylesheet" href="../_base/theme.css">
   <link rel="stylesheet" href="../../panel/defaults.css">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <script type="module">
@@ -107,7 +115,7 @@ mountPanel({ title: 'My Content', layout: Single(MyContent) })
 </html>
 ```
 
-3. (Optional) Create `launch.sh` if the component needs bootstrap data.
+4. (Optional) Create `launch.sh` if the component needs bootstrap data.
 
 ## When to put something here vs. in an app
 
@@ -116,6 +124,10 @@ mountPanel({ title: 'My Content', layout: Single(MyContent) })
 
 ## Styling Boundary
 
-- `panel/` JS provides structure and behavior only; it should not define a canonical visual design.
 - `components/_base/theme.css` provides shared tokens/reset utilities.
-- `panel/defaults.css` is an optional stock look for standalone toolkit panels. Apps and demos may replace it entirely.
+- `panel/defaults.css` is the stock look for panel chrome (structure, header, tabs,
+  scrollbar). Apps may override via cascade.
+- Each component owns a `styles.css` with its visual presentation. Host pages
+  `<link>` the stylesheets for the components they use — never duplicate the CSS
+  inline. Consumers override via cascade (load after the component stylesheet).
+- `panel/` JS provides structure and behavior only.
