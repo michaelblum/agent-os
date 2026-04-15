@@ -24,6 +24,8 @@ struct AOS {
             handleSay(args: Array(args.dropFirst()))
         case "tell":
             handleTell(args: Array(args.dropFirst()))
+        case "listen":
+            handleListen(args: Array(args.dropFirst()))
         case "set":
             handleSet(args: Array(args.dropFirst()))
         case "serve":
@@ -96,7 +98,9 @@ func printUsage() {
       see <subcommand>     Perception — query what's on screen
       show <subcommand>    Display — manage overlays and render
       do <subcommand>      Action — execute mouse, keyboard, AX actions
-      say <text>           Voice — speak text aloud
+      say <text>           Voice — speak text (sugar for tell human)
+      tell <audience>      Communication — send to human, channel, or session
+      listen <channel>     Communication — receive from channels
       set <key> <value>    Configure autonomic settings
       focus <subcommand>   Focus channels — track window AX trees
       graph <subcommand>   Graph navigation — display/window/depth control
@@ -182,6 +186,20 @@ func printUsage() {
       --rate <wpm>         Speech rate (words per minute)
       --list-voices        List available system voices
 
+    Communication (aos tell):
+      <audience> "text"      Send message to audience (human, channel, session)
+      --json <data>          Send structured JSON payload
+      --from <name>          Identify sender
+      --register <name>      Register session presence
+      --who                  List online sessions
+
+    Communication (aos listen):
+      <channel>              Read recent messages from channel
+      <channel> --follow     Stream messages in real-time
+      --channels             List known channels
+      --since <id>           Read messages after this ID
+      --limit <n>            Max messages to return (default: 50)
+
     Configuration (aos set):
       voice.enabled <bool>              Enable/disable voice output
       perception.default_depth <0-3>    Default perception depth
@@ -262,6 +280,12 @@ func printUsage() {
       aos wiki create-plugin my-flow     # Create a new plugin
       aos wiki invoke self-check         # Bundle a plugin for chat injection
       aos wiki lint                      # Check wiki health
+      aos tell human "Found the bug"     # Speak aloud (same as aos say)
+      aos tell handoff "task complete"    # Post to handoff channel
+      aos tell --register my-session     # Register presence
+      aos tell --who                     # List online sessions
+      aos listen handoff                 # Read handoff channel
+      aos listen handoff --follow        # Stream handoff messages
     """
     print(usage)
 }
@@ -430,4 +454,8 @@ func handleServe(args: [String]) {
 
 func handleTell(args: [String]) {
     tellCommand(args: args)
+}
+
+func handleListen(args: [String]) {
+    listenCommand_coord(args: args)
 }
