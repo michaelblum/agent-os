@@ -28,37 +28,39 @@ func serveCommand(args: [String]) {
     // that is only assigned as a side effect of NSApplication.shared's first access.
     NSApplication.shared.setActivationPolicy(.accessory)
 
-    // Status item (menu bar icon)
-    var statusItemManager: StatusItemManager?
+    // Status item (menu bar icon) — holder class provides explicit ownership
+    // and ensures onCanvasCountChanged always reaches the current manager.
+    class StatusItemHolder { var manager: StatusItemManager? }
+    let statusItem = StatusItemHolder()
     if let siConfig = config.status_item, siConfig.enabled {
         let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
         mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
         mgr.setup()
-        statusItemManager = mgr
+        statusItem.manager = mgr
     }
 
     // Update status item icon when canvas count changes
     let existingCallback = daemon.canvasManager.onCanvasCountChanged
-    daemon.canvasManager.onCanvasCountChanged = { [weak statusItemManager] in
+    daemon.canvasManager.onCanvasCountChanged = { [weak statusItem] in
         existingCallback?()
-        statusItemManager?.updateIcon()
+        statusItem?.manager?.updateIcon()
     }
 
     // Watch config for status item changes
-    daemon.configChangeHandler = { [weak statusItemManager, weak daemon] newConfig in
-        guard let daemon = daemon else { return }
+    daemon.configChangeHandler = { [weak statusItem, weak daemon] newConfig in
+        guard let daemon = daemon, let statusItem = statusItem else { return }
         if let siConfig = newConfig.status_item, siConfig.enabled {
-            if let mgr = statusItemManager {
+            if let mgr = statusItem.manager {
                 mgr.updateConfig(siConfig)
             } else {
                 let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
                 mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
                 mgr.setup()
-                statusItemManager = mgr
+                statusItem.manager = mgr
             }
         } else {
-            statusItemManager?.teardown()
-            statusItemManager = nil
+            statusItem.manager?.teardown()
+            statusItem.manager = nil
         }
     }
 
