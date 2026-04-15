@@ -115,17 +115,6 @@ export function drawAccretionTexture(canvas, ctx, c1, c2) {
     ctx.fillRect(0, 0, 512, 512);
 }
 
-export function drawWhiteDwarf(canvas, ctx) {
-    canvas.width = 128; canvas.height = 128;
-    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(0.2, 'rgba(255, 255, 255, 1.0)');
-    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
-    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 128, 128);
-}
-
 export function updateFaceVertexColors() {
     if (state.currentSkin !== 'none' && state.skinMaterial) { updateSkinColorRamp(false); return; }
     applyGradientVertexColors(state.coreMesh, state.colors.face);

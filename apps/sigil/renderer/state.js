@@ -73,6 +73,8 @@ const defaults = {
     currentSkin: 'none',
 
     // Aura
+    isAuraEnabled: true,
+    auraIntensity: 1.0,
     auraReach: 1.0,
     auraPulseRate: 0.002,
     auraSpike: 0,

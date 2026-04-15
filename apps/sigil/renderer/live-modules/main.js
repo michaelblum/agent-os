@@ -159,7 +159,7 @@ function animate() {
     }
 
     // --- Spin ---
-    const isPaused = false; 
+    const isPaused = state.isPaused; 
     if (!isPaused) {
         state.polyGroup.rotation.y += 0.005;
         state.polyGroup.rotation.x += 0.002;
@@ -185,7 +185,7 @@ function animate() {
 function postToHost(action, payload) {
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
         window.webkit.messageHandlers.headsup.postMessage(
-            JSON.stringify({ type: action, payload: payload || {} })
+            { type: action, payload: payload || {} }
         );
     }
 }
@@ -257,7 +257,7 @@ function handleLiveJsMessage(msg) {
 
 // --- Boot Sequence ---
 function awaitFirstDisplayGeometry() {
-    if (Array.isArray(liveJs.displays)) {
+    if (liveJs.displays && liveJs.displays.length > 0) {
         return Promise.resolve(liveJs.displays);
     }
     return new Promise((resolve) => {
