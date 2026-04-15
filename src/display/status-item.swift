@@ -60,10 +60,19 @@ class StatusItemManager {
         guard !isAnimating else { return }
 
         if canvasManager.hasCanvas(toggleId) {
-            dismissCanvas()
+            if isCanvasSuspended() {
+                resumeCanvas()
+            } else {
+                suspendCanvas()
+            }
         } else {
-            summonCanvas()
+            summonCanvas()  // cold boot
         }
+    }
+
+    private func isCanvasSuspended() -> Bool {
+        guard let canvas = canvasManager.canvas(forID: toggleId) else { return false }
+        return canvas.suspended
     }
 
     // MARK: - Summon
@@ -149,21 +158,32 @@ class StatusItemManager {
         }
     }
 
-    // MARK: - Dismiss
+    // MARK: - Suspend / Resume
+
+    private func suspendCanvas() {
+        if toggleTrack == nil { saveCurrentPosition() }
+
+        var req = CanvasRequest(action: "suspend")
+        req.id = toggleId
+        _ = canvasManager.handle(req)
+        updateIcon()
+    }
+
+    private func resumeCanvas() {
+        var req = CanvasRequest(action: "resume")
+        req.id = toggleId
+        _ = canvasManager.handle(req)
+        updateIcon()
+    }
+
+    // MARK: - Dismiss (hard remove — daemon restart / full teardown)
 
     private func dismissCanvas() {
         let isTracked = toggleTrack != nil
 
-        // Save position before the dismissed eval — captures pre-cleanup frame.
         if !isTracked { saveCurrentPosition() }
 
-        // Give the canvas a chance to clean up children
-        let msg = "{\"type\":\"behavior\",\"slot\":\"dismissed\"}"
-        let b64 = Data(msg.utf8).base64EncodedString()
-        var evalReq = CanvasRequest(action: "eval")
-        evalReq.id = toggleId
-        evalReq.js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-        _ = canvasManager.handle(evalReq)
+        // Cascade remove handles children — no dismissed eval needed.
 
         if !isTracked {
             // Fixed-position canvas: animate frame to icon, then remove
@@ -381,8 +401,10 @@ class StatusItemManager {
     }
 
     func updateIcon() {
-        let showing = canvasManager.hasCanvas(toggleId)
-        statusItem?.button?.image = drawHexagonIcon(filled: showing || isAnimating)
+        let exists = canvasManager.hasCanvas(toggleId)
+        let suspended = isCanvasSuspended()
+        // Filled = active or animating. Unfilled = suspended, absent, or idle.
+        statusItem?.button?.image = drawHexagonIcon(filled: (exists && !suspended) || isAnimating)
     }
 
     private func drawHexagonIcon(filled: Bool) -> NSImage {
