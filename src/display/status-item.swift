@@ -71,41 +71,78 @@ class StatusItemManager {
     private func summonCanvas() {
         guard !toggleUrl.isEmpty else { return }
 
-        let target = loadSavedPosition() ?? toggleAt
-        guard target.count == 4 else { return }
-
-        let iconPos = statusItemCGPosition()
-        let startSize: CGFloat = 40
-        let fromX = iconPos.x - startSize / 2
-        let fromY = iconPos.y
-
         let resolvedUrl = urlResolver?(toggleUrl) ?? toggleUrl
 
         var req = CanvasRequest(action: "create")
         req.id = toggleId
         req.url = resolvedUrl
-        req.at = [fromX, fromY, startSize, startSize]
         if let track = toggleTrack { req.track = track }
-        _ = canvasManager.handle(req)
-        canvasManager.setCanvasAlpha(toggleId, 0)
-        updateIcon()
 
-        isAnimating = true
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            Thread.sleep(forTimeInterval: 0.35)
+        let isTracked = toggleTrack != nil
 
-            DispatchQueue.main.async {
-                self?.canvasManager.setCanvasAlpha(self?.toggleId ?? "", 1)
+        if !isTracked {
+            // Fixed-position canvas: animate frame from icon to target
+            let target = loadSavedPosition() ?? toggleAt
+            guard target.count == 4 else { return }
+
+            let iconPos = statusItemCGPosition()
+            let startSize: CGFloat = 40
+            let fromX = iconPos.x - startSize / 2
+            let fromY = iconPos.y
+
+            req.at = [fromX, fromY, startSize, startSize]
+            _ = canvasManager.handle(req)
+            canvasManager.setCanvasAlpha(toggleId, 0)
+            updateIcon()
+
+            isAnimating = true
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                Thread.sleep(forTimeInterval: 0.35)
+
+                DispatchQueue.main.async {
+                    self?.canvasManager.setCanvasAlpha(self?.toggleId ?? "", 1)
+                }
+
+                self?.animateFrame(
+                    from: [fromX, fromY, startSize, startSize],
+                    to: target.map { CGFloat($0) },
+                    duration: 0.5,
+                    easing: { t in 1 - pow(1 - t, 3) }  // easeOutCubic
+                )
+
+                DispatchQueue.main.async { [weak self] in
+                    self?.isAnimating = false
+                    self?.updateIcon()
+                }
             }
+        } else {
+            // Tracked canvas (e.g. union): lightweight dot animation from icon
+            // to birthplace using Core Animation, then create the real canvas.
+            // Compute the bottom-right nonant of the main display as target —
+            // this is where the Sigil avatar's default birthplace resolves to.
+            let dotSize: CGFloat = 80
+            let landingCenter = mainDisplayNonantCenter(column: 2, row: 2)
 
-            self?.animateFrame(
-                from: [fromX, fromY, startSize, startSize],
-                to: target.map { CGFloat($0) },
-                duration: 0.5,
-                easing: { t in 1 - pow(1 - t, 3) }  // easeOutCubic
+            let iconPos = statusItemCGPosition()
+            let startSize: CGFloat = 30
+            let fromCG = CGRect(
+                x: iconPos.x - startSize / 2, y: iconPos.y,
+                width: startSize, height: startSize
+            )
+            let toCG = CGRect(
+                x: landingCenter.x - dotSize / 2,
+                y: landingCenter.y - dotSize / 2,
+                width: dotSize, height: dotSize
             )
 
-            DispatchQueue.main.async { [weak self] in
+            // Create the real tracked canvas immediately so it starts loading
+            // while the dot animation plays — animation masks boot time.
+            _ = canvasManager.handle(req)
+
+            isAnimating = true
+            updateIcon()
+
+            animateDot(from: fromCG, to: toCG, duration: 0.45) { [weak self] in
                 self?.isAnimating = false
                 self?.updateIcon()
             }
@@ -115,8 +152,10 @@ class StatusItemManager {
     // MARK: - Dismiss
 
     private func dismissCanvas() {
+        let isTracked = toggleTrack != nil
+
         // Save position before the dismissed eval — captures pre-cleanup frame.
-        saveCurrentPosition()
+        if !isTracked { saveCurrentPosition() }
 
         // Give the canvas a chance to clean up children
         let msg = "{\"type\":\"behavior\",\"slot\":\"dismissed\"}"
@@ -126,42 +165,72 @@ class StatusItemManager {
         evalReq.js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
         _ = canvasManager.handle(evalReq)
 
-        let iconPos = statusItemCGPosition()
-        let endSize: CGFloat = 20
-        let toX = iconPos.x - endSize / 2
-        let toY = iconPos.y
+        if !isTracked {
+            // Fixed-position canvas: animate frame to icon, then remove
+            let iconPos = statusItemCGPosition()
+            let endSize: CGFloat = 20
+            let toX = iconPos.x - endSize / 2
+            let toY = iconPos.y
 
-        // Read current position
-        var fromX: CGFloat = 200, fromY: CGFloat = 200
-        var fromW: CGFloat = 300, fromH: CGFloat = 300
-        let listResp = canvasManager.handle(CanvasRequest(action: "list"))
-        if let canvases = listResp.canvases {
-            for c in canvases where c.id == toggleId {
-                fromX = c.at[0]; fromY = c.at[1]; fromW = c.at[2]; fromH = c.at[3]
-            }
-        }
-
-        isAnimating = true
-        updateIcon()
-
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            self?.animateFrame(
-                from: [fromX, fromY, fromW, fromH],
-                to: [toX, toY, endSize, endSize],
-                duration: 0.4,
-                easing: { t in
-                    let c1 = 1.70158, c3 = c1 + 1
-                    return c3 * t * t * t - c1 * t * t  // easeInBack
+            var fromX: CGFloat = 200, fromY: CGFloat = 200
+            var fromW: CGFloat = 300, fromH: CGFloat = 300
+            let listResp = canvasManager.handle(CanvasRequest(action: "list"))
+            if let canvases = listResp.canvases {
+                for c in canvases where c.id == toggleId {
+                    fromX = c.at[0]; fromY = c.at[1]; fromW = c.at[2]; fromH = c.at[3]
                 }
+            }
+
+            isAnimating = true
+            updateIcon()
+
+            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+                self?.animateFrame(
+                    from: [fromX, fromY, fromW, fromH],
+                    to: [toX, toY, endSize, endSize],
+                    duration: 0.4,
+                    easing: { t in
+                        let c1 = 1.70158, c3 = c1 + 1
+                        return c3 * t * t * t - c1 * t * t  // easeInBack
+                    }
+                )
+
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    var rm = CanvasRequest(action: "remove")
+                    rm.id = self.toggleId
+                    _ = self.canvasManager.handle(rm)
+                    self.isAnimating = false
+                    self.updateIcon()
+                }
+            }
+        } else {
+            // Tracked canvas: remove real canvas, animate dot back to icon.
+            let dotSize: CGFloat = 80
+            let landingCenter = mainDisplayNonantCenter(column: 2, row: 2)
+            let fromCG = CGRect(
+                x: landingCenter.x - dotSize / 2,
+                y: landingCenter.y - dotSize / 2,
+                width: dotSize, height: dotSize
             )
 
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                var rm = CanvasRequest(action: "remove")
-                rm.id = self.toggleId
-                _ = self.canvasManager.handle(rm)
-                self.isAnimating = false
-                self.updateIcon()
+            var rm = CanvasRequest(action: "remove")
+            rm.id = toggleId
+            _ = canvasManager.handle(rm)
+
+            let iconPos = statusItemCGPosition()
+            let endSize: CGFloat = 20
+            let toCG = CGRect(
+                x: iconPos.x - endSize / 2, y: iconPos.y,
+                width: endSize, height: endSize
+            )
+
+            isAnimating = true
+            updateIcon()
+
+            animateDot(from: fromCG, to: toCG, duration: 0.35) { [weak self] in
+                self?.isAnimating = false
+                self?.updateIcon()
             }
         }
     }
@@ -169,10 +238,12 @@ class StatusItemManager {
     // MARK: - Animation
 
     private func animateFrame(
+        id animId: String? = nil,
         from: [CGFloat], to: [CGFloat],
         duration: Double, easing: @escaping (Double) -> Double
     ) {
         guard from.count == 4, to.count == 4 else { return }
+        let targetId = animId ?? toggleId
         let fps = 60.0
         let totalFrames = Int(duration * fps)
         let t0 = Date()
@@ -189,7 +260,7 @@ class StatusItemManager {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 var updateReq = CanvasRequest(action: "update")
-                updateReq.id = self.toggleId
+                updateReq.id = targetId
                 updateReq.at = [x, y, w, h]
                 _ = self.canvasManager.handle(updateReq)
             }
@@ -198,6 +269,72 @@ class StatusItemManager {
             let got = Date().timeIntervalSince(t0)
             if want > got { Thread.sleep(forTimeInterval: want - got) }
         }
+    }
+
+    // MARK: - Dot Animation (lightweight, no WKWebView)
+
+    /// Animate a small colored dot between two CG-coordinate rects using
+    /// Core Animation (NSAnimationContext). Much faster and smoother than
+    /// creating a WKWebView canvas or manual frame-by-frame updates.
+    private func animateDot(
+        from fromCG: CGRect, to toCG: CGRect,
+        duration: TimeInterval, completion: @escaping () -> Void
+    ) {
+        let fromScreen = cgToScreen(fromCG)
+
+        let dot = NSWindow(
+            contentRect: fromScreen,
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        dot.level = .floating
+        dot.isOpaque = false
+        dot.backgroundColor = .clear
+        dot.hasShadow = false
+        dot.ignoresMouseEvents = true
+
+        // Use a view that keeps itself circular as the window resizes
+        let circle = OvalView(
+            frame: NSRect(origin: .zero, size: fromScreen.size),
+            color: NSColor(red: 0.5, green: 0.35, blue: 1.0, alpha: 0.7)
+        )
+        circle.autoresizingMask = [.width, .height]
+        dot.contentView = circle
+        dot.orderFrontRegardless()
+
+        let toScreen = cgToScreen(toCG)
+
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = duration
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            dot.animator().setFrame(toScreen, display: true)
+            dot.animator().alphaValue = 0.0
+        }, completionHandler: {
+            dot.orderOut(nil)
+            completion()
+        })
+    }
+
+    // MARK: - Display Geometry
+
+    /// Return the CG-coordinate center of a nonant on the main display.
+    /// Column 0 = left, 1 = center, 2 = right.  Row 0 = top, 1 = middle, 2 = bottom.
+    private func mainDisplayNonantCenter(column: Int, row: Int) -> CGPoint {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return CGPoint(x: 400, y: 400)
+        }
+        let visible = screen.visibleFrame
+        let screenH = screen.frame.height
+        // Convert NSScreen visible frame to CG coordinates
+        let cgX = visible.origin.x
+        let cgY = screenH - visible.origin.y - visible.height
+        let cgW = visible.width
+        let cgH = visible.height
+
+        let cx = cgX + cgW * (CGFloat(column) * 2 + 1) / 6
+        let cy = cgY + cgH * (CGFloat(row) * 2 + 1) / 6
+        return CGPoint(x: cx, y: cy)
     }
 
     // MARK: - Position Persistence
@@ -279,6 +416,23 @@ class StatusItemManager {
         }
         img.isTemplate = true
         return img
+    }
+}
+
+// MARK: - OvalView
+
+private class OvalView: NSView {
+    let color: NSColor
+
+    init(frame: NSRect, color: NSColor) {
+        self.color = color
+        super.init(frame: frame)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        color.setFill()
+        NSBezierPath(ovalIn: bounds).fill()
     }
 }
 

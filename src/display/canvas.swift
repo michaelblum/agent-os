@@ -171,6 +171,7 @@ class CanvasWebView: WKWebView {
 /// (window:<wid>, channel:<cid>, display:<n>, static:<rect>) land via #60.
 enum TrackTarget: String {
     case union
+    case none
 }
 
 // MARK: - Canvas
@@ -394,6 +395,8 @@ class CanvasManager {
                 canvas.updatePosition(cgRect: unionBounds)
                 let atArr: [CGFloat] = [unionBounds.origin.x, unionBounds.origin.y, unionBounds.size.width, unionBounds.size.height]
                 onCanvasLifecycle?(canvas.id, "updated", atArr)
+            case .none:
+                break  // no-op; .none is transient (used to temporarily untrack during animation)
             }
         }
     }
@@ -760,7 +763,7 @@ class CanvasManager {
             guard let t = TrackTarget(rawValue: trackStr) else {
                 return .fail("Unknown track target: \(trackStr)", code: "INVALID_TRACK")
             }
-            canvas.trackTarget = t
+            canvas.trackTarget = (t == .none) ? nil : t
 
             // Resolve new bounds from the target immediately so the retarget
             // is visible without waiting for the next topology-change event.
