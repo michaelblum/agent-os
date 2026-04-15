@@ -201,6 +201,9 @@ class Canvas {
     }
     var autoProjectMode: String?
     var trackTarget: TrackTarget?
+    var suspended: Bool = false
+    var cascadeFromParent: Bool = true
+    var parent: String?
 
     func setTTL(_ seconds: Double?) {
         ttlTimer?.cancel()
@@ -344,7 +347,10 @@ class Canvas {
             ttl: remainingTTL,
             scope: scope,
             autoProject: autoProjectMode,
-            track: trackTarget?.rawValue
+            track: trackTarget?.rawValue,
+            parent: parent,
+            cascade: cascadeFromParent,
+            suspended: suspended
         )
     }
 }
