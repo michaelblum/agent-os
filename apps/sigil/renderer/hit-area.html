@@ -8,11 +8,23 @@ html, body { margin: 0; width: 100%; height: 100%; background: transparent; over
 </head>
 <body>
 <script>
-// Minimal absorber page. No subscriptions, no message handlers.
-// Its job is to exist where canvas.update puts it so clicks land here
-// instead of passing through to the desktop.
+// Minimal absorber page. Exists where canvas.update puts it so clicks land
+// here instead of passing through to the desktop.
 window.headsup = window.headsup || {};
-window.headsup.receive = function(_b64) { /* no-op */ };
+window.headsup.receive = function(b64) {
+    try {
+        const json = JSON.parse(atob(b64));
+        if (json.type === 'lifecycle') {
+            if (json.action === 'resume') {
+                // ACK immediately — no rAF loop to restart
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+                    window.webkit.messageHandlers.headsup.postMessage({ type: 'lifecycle.ready', payload: { reason: 'resume' } });
+                }
+            }
+            // suspend is a no-op — no render loop to pause
+        }
+    } catch (e) { /* ignore malformed messages */ }
+};
 console.log('[avatar-hit] ready');
 </script>
 </body>
