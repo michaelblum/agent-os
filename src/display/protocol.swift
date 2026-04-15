@@ -70,6 +70,8 @@ struct CanvasRequest: Codable {
     var scope: String?          // "connection" or "global" (default: global)
     var autoProject: String?    // auto-projection mode: "cursor_trail", "highlight_focused", "label_elements"
     var track: String?          // tracking target (e.g. "union") — bounds auto-resolve + auto-update
+    var parent: String?         // parent canvas ID (nil = infer from source canvas)
+    var cascade: Bool?          // lifecycle cascade from parent (default true; false = survive parent suspend/remove)
     var channel: String?        // channel name (for "post" action)
     var data: String?           // JSON string payload (for "post" action)
 }
@@ -96,6 +98,9 @@ struct CanvasInfo: Codable {
     var scope: String?          // "connection" or "global"
     var autoProject: String?
     var track: String?          // tracking target if any
+    var parent: String?         // parent canvas ID (nil if root)
+    var cascade: Bool?          // lifecycle cascade flag
+    var suspended: Bool?        // true if canvas is suspended (hidden + paused)
 }
 
 // MARK: - Encode/Decode Helpers
