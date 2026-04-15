@@ -1403,8 +1403,8 @@ function computeWorkbenchFrame() {
     }
     if (!best) return null;
     const mx = 32, my = 28;
-    const uw = Math.max(480, best.w - mx * 2);
-    const uh = Math.max(360, best.h - my * 2);
+    const uw = best.w - mx * 2;
+    const uh = best.h - my * 2;
     const w = Math.max(480, Math.round(uw * 2 / 3));
     const h = uh;
     const x = best.x + best.w - mx - w;
@@ -1591,6 +1591,7 @@ function handleLiveJsMessage(msg) {
                 if (liveJs.workbenchVisible) {
                     postToHost('canvas.remove', { id: 'sigil-workbench' });
                     liveJs.workbenchVisible = false;
+                    liveJs.preWorkbenchPos = null;
                 }
             }
             break;
