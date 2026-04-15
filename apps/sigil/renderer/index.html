@@ -1193,7 +1193,10 @@ function init() {
     animate();
 }
 
+let rendererSuspended = false;
+
 function animate() {
+    if (rendererSuspended) return;
     requestAnimationFrame(animate);
     const dt = 0.016;
 
@@ -1584,15 +1587,18 @@ function handleLiveJsMessage(msg) {
                 }
             }
             break;
-        case 'behavior':
-            if (msg.slot === 'dismissed') {
-                // Clean up child canvases before parent is torn down
-                postToHost('canvas.remove', { id: 'avatar-hit' });
-                if (liveJs.workbenchVisible) {
-                    postToHost('canvas.remove', { id: 'sigil-workbench' });
-                    liveJs.workbenchVisible = false;
-                    liveJs.preWorkbenchPos = null;
-                }
+        case 'lifecycle':
+            if (msg.action === 'suspend') {
+                rendererSuspended = true;
+                console.log('[sigil] lifecycle: suspended');
+            } else if (msg.action === 'resume') {
+                rendererSuspended = false;
+                requestAnimationFrame(animate);
+                // ACK after one frame renders
+                requestAnimationFrame(() => {
+                    postToHost('lifecycle.ready', { reason: 'resume' });
+                    console.log('[sigil] lifecycle: resumed, ACK sent');
+                });
             }
             break;
         default:
