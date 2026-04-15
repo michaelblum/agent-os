@@ -58,6 +58,7 @@ class UnifiedDaemon {
     // Written by the renderer on every transition to IDLE; read by the
     // renderer on boot to resume the avatar where the user last left it.
     // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
+    var configChangeHandler: ((AosConfig) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
 
@@ -971,6 +972,7 @@ class UnifiedDaemon {
                 speechEngine?.setRate(rate)
             }
         }
+        configChangeHandler?(new)
     }
 
     // MARK: - Autonomic Voice

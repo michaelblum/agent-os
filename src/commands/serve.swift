@@ -28,6 +28,40 @@ func serveCommand(args: [String]) {
     // that is only assigned as a side effect of NSApplication.shared's first access.
     NSApplication.shared.setActivationPolicy(.accessory)
 
+    // Status item (menu bar icon)
+    var statusItemManager: StatusItemManager?
+    if let siConfig = config.status_item, siConfig.enabled {
+        let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
+        mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+        mgr.setup()
+        statusItemManager = mgr
+    }
+
+    // Update status item icon when canvas count changes
+    let existingCallback = daemon.canvasManager.onCanvasCountChanged
+    daemon.canvasManager.onCanvasCountChanged = { [weak statusItemManager] in
+        existingCallback?()
+        statusItemManager?.updateIcon()
+    }
+
+    // Watch config for status item changes
+    daemon.configChangeHandler = { [weak statusItemManager, weak daemon] newConfig in
+        guard let daemon = daemon else { return }
+        if let siConfig = newConfig.status_item, siConfig.enabled {
+            if let mgr = statusItemManager {
+                mgr.updateConfig(siConfig)
+            } else {
+                let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
+                mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+                mgr.setup()
+                statusItemManager = mgr
+            }
+        } else {
+            statusItemManager?.teardown()
+            statusItemManager = nil
+        }
+    }
+
     // Run the main loop (needed for CGEventTap, NSWindow, WKWebView)
     NSApplication.shared.run()
 }
