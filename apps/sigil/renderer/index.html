@@ -1295,6 +1295,10 @@ const liveJs = {
     // Display geometry (from AOS-1). Used to clamp fast-travel targets so
     // the avatar stays on-screen.
     displays: null, // last received snapshot
+
+    // Workbench state
+    workbenchVisible: false,
+    preWorkbenchPos: null,
 };
 
 function setupLiveJs() {
@@ -1317,7 +1321,7 @@ function setupLiveJs() {
     // forwardWikiPageChangedToCanvases in unified.swift):
     //   {type: "wiki_page_changed", path: "sigil/agents/<id>.md",
     //    op: "created"|"updated"|"deleted", wiki_type?: string}
-    postToHost('subscribe', { events: ['input_event', 'display_geometry', 'wiki_page_changed'] });
+    postToHost('subscribe', { events: ['input_event', 'display_geometry', 'wiki_page_changed', 'canvas_lifecycle'] });
 
     // 2D UI overlay for GOTO/DRAG placeholder rings. Lives above the
     // Three.js canvas and is pointer-events:none so the full-display
@@ -1384,6 +1388,74 @@ function unionSize(union) {
     return union.minX + ',' + union.minY + ',' + union.w + ',' + union.h;
 }
 
+function computeWorkbenchFrame() {
+    if (!liveJs.displays || !liveJs.avatarPos.valid) return null;
+    const ax = liveJs.avatarPos.x, ay = liveJs.avatarPos.y;
+    let best = null, bestD = null;
+    for (const d of liveJs.displays) {
+        const b = d.visible_bounds || d.bounds;
+        const inside = b.x <= ax && ax <= b.x + b.w && b.y <= ay && ay <= b.y + b.h;
+        if (inside) { best = b; break; }
+        const cx = Math.max(b.x, Math.min(ax, b.x + b.w));
+        const cy = Math.max(b.y, Math.min(ay, b.y + b.h));
+        const d2 = (ax - cx) ** 2 + (ay - cy) ** 2;
+        if (bestD === null || d2 < bestD) { bestD = d2; best = b; }
+    }
+    if (!best) return null;
+    const mx = 32, my = 28;
+    const uw = Math.max(480, best.w - mx * 2);
+    const uh = Math.max(360, best.h - my * 2);
+    const w = Math.max(480, Math.round(uw * 2 / 3));
+    const h = uh;
+    const x = best.x + best.w - mx - w;
+    const y = best.y + my;
+    return [Math.round(x), Math.round(y), Math.round(w), Math.round(h)];
+}
+
+function computeNonantHome() {
+    if (!liveJs.displays || !liveJs.avatarPos.valid) return null;
+    const ax = liveJs.avatarPos.x, ay = liveJs.avatarPos.y;
+    let best = null, bestD = null;
+    for (const d of liveJs.displays) {
+        const b = d.visible_bounds || d.bounds;
+        const inside = b.x <= ax && ax <= b.x + b.w && b.y <= ay && ay <= b.y + b.h;
+        if (inside) { best = b; break; }
+        const cx = Math.max(b.x, Math.min(ax, b.x + b.w));
+        const cy = Math.max(b.y, Math.min(ay, b.y + b.h));
+        const d2 = (ax - cx) ** 2 + (ay - cy) ** 2;
+        if (bestD === null || d2 < bestD) { bestD = d2; best = b; }
+    }
+    if (!best) return null;
+    return { x: best.x + best.w / 6, y: best.y + best.h / 6 };
+}
+
+function showWorkbench() {
+    const frame = computeWorkbenchFrame();
+    if (!frame) return;
+    liveJs.preWorkbenchPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
+    postToHost('canvas.create', {
+        id: 'sigil-workbench',
+        url: 'aos://sigil/workbench/index.html',
+        frame: frame,
+        interactive: true,
+        focus: true,
+    });
+    liveJs.workbenchVisible = true;
+    // Auto-park to top-left nonant
+    const home = computeNonantHome();
+    if (home) startFastTravel(home.x, home.y);
+}
+
+function dismissWorkbench() {
+    // Set state BEFORE removing canvas so the canvas_lifecycle handler
+    // sees workbenchVisible=false and doesn't double-restore.
+    liveJs.workbenchVisible = false;
+    const restorePos = liveJs.preWorkbenchPos;
+    liveJs.preWorkbenchPos = null;
+    postToHost('canvas.remove', { id: 'sigil-workbench' });
+    if (restorePos) startFastTravel(restorePos.x, restorePos.y);
+}
+
 function handleLiveJsMessage(msg) {
     // Cursor position tracking: any event with x/y updates the target.
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
@@ -1410,7 +1482,15 @@ function handleLiveJsMessage(msg) {
             smHandleMouseMove(msg.x, msg.y);
             break;
         case 'right_mouse_down':
-            smHandleCancel('right_click');
+            if (liveJs.state === 'IDLE' && smIsOnAvatar(msg.x, msg.y)) {
+                if (liveJs.workbenchVisible) {
+                    dismissWorkbench();
+                } else {
+                    showWorkbench();
+                }
+            } else {
+                smHandleCancel('right_click');
+            }
             break;
         case 'key_down':
             if (msg.key_code === 53 /* ESC */) smHandleCancel('escape');
@@ -1495,6 +1575,25 @@ function handleLiveJsMessage(msg) {
             }
             break;
         }
+        case 'canvas_lifecycle':
+            if (msg.canvas_id === 'sigil-workbench' && msg.action === 'removed') {
+                liveJs.workbenchVisible = false;
+                if (liveJs.preWorkbenchPos) {
+                    startFastTravel(liveJs.preWorkbenchPos.x, liveJs.preWorkbenchPos.y);
+                    liveJs.preWorkbenchPos = null;
+                }
+            }
+            break;
+        case 'behavior':
+            if (msg.slot === 'dismissed') {
+                // Clean up child canvases before parent is torn down
+                postToHost('canvas.remove', { id: 'avatar-hit' });
+                if (liveJs.workbenchVisible) {
+                    postToHost('canvas.remove', { id: 'sigil-workbench' });
+                    liveJs.workbenchVisible = false;
+                }
+            }
+            break;
         default:
             break;
     }
