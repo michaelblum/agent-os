@@ -46,21 +46,24 @@ func serveCommand(args: [String]) {
         statusItem?.manager?.updateIcon()
     }
 
-    // Watch config for status item changes
+    // Watch config for status item changes.
+    // ConfigWatcher fires on a background queue; NSStatusBar requires main thread.
     daemon.configChangeHandler = { [weak statusItem, weak daemon] newConfig in
-        guard let daemon = daemon, let statusItem = statusItem else { return }
-        if let siConfig = newConfig.status_item, siConfig.enabled {
-            if let mgr = statusItem.manager {
-                mgr.updateConfig(siConfig)
+        DispatchQueue.main.async { [weak statusItem, weak daemon] in
+            guard let daemon = daemon, let statusItem = statusItem else { return }
+            if let siConfig = newConfig.status_item, siConfig.enabled {
+                if let mgr = statusItem.manager {
+                    mgr.updateConfig(siConfig)
+                } else {
+                    let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
+                    mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+                    mgr.setup()
+                    statusItem.manager = mgr
+                }
             } else {
-                let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
-                mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
-                mgr.setup()
-                statusItem.manager = mgr
+                statusItem.manager?.teardown()
+                statusItem.manager = nil
             }
-        } else {
-            statusItem.manager?.teardown()
-            statusItem.manager = nil
         }
     }
 
