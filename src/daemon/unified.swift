@@ -144,6 +144,17 @@ class UnifiedDaemon {
                 case "canvas.remove":
                     self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "canvas.suspend":
+                    self.handleCanvasSuspend(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "canvas.resume":
+                    self.handleCanvasResume(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "lifecycle.ready":
+                    DispatchQueue.main.async { [weak self] in
+                        self?.canvasManager.receiveLifecycleReady(canvasID)
+                    }
+                    return
                 case "position.get":
                     self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -183,18 +194,21 @@ class UnifiedDaemon {
                 if had {
                     fputs("[canvas-sub] cleared subscriptions for removed canvas=\(canvasID)\n", stderr)
                 }
-                // Cascade: any children whose parent just died are removed too.
-                // Runs on main thread (this closure already does).
+                // Cascade: children with cascade=true are removed; cascade=false are orphaned.
                 for child in children {
-                    let req = CanvasRequest(
-                        action: "remove", id: child, at: nil,
-                        anchorWindow: nil, anchorChannel: nil, offset: nil,
-                        html: nil, url: nil, interactive: nil,
-                        focus: nil, ttl: nil, js: nil, scope: nil,
-                        autoProject: nil, channel: nil, data: nil
-                    )
-                    _ = self.canvasManager.handle(req)
-                    fputs("[canvas-mut] cascade-removed child=\(child) (parent=\(canvasID))\n", stderr)
+                    if let childCanvas = self.canvasManager.canvas(forID: child),
+                       !childCanvas.cascadeFromParent {
+                        // Orphan: detach parent but don't remove
+                        childCanvas.parent = nil
+                        self.canvasSubscriptionLock.lock()
+                        self.canvasCreatedBy.removeValue(forKey: child)
+                        self.canvasSubscriptionLock.unlock()
+                        fputs("[canvas-mut] orphaned child=\(child) (parent=\(canvasID) removed)\n", stderr)
+                    } else {
+                        let req = CanvasRequest(action: "remove", id: child)
+                        _ = self.canvasManager.handle(req)
+                        fputs("[canvas-mut] cascade-removed child=\(child) (parent=\(canvasID))\n", stderr)
+                    }
                 }
             }
 
@@ -535,14 +549,23 @@ class UnifiedDaemon {
             anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: resolvedURL,
             interactive: interactive,
-            focus: nil, ttl: nil, js: nil, scope: nil,
-            autoProject: nil, channel: nil, data: nil
+            focus: payload["focus"] as? Bool, ttl: nil, js: nil, scope: nil,
+            autoProject: nil,
+            track: payload["track"] as? String,
+            parent: payload["parent"] as? String,
+            cascade: payload["cascade"] as? Bool,
+            channel: nil, data: nil
         )
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let response = self.canvasManager.handle(req)
             if response.status == "success" {
+                // Set implicit parent if CanvasManager didn't set an explicit one
+                if let canvas = self.canvasManager.canvas(forID: newID), canvas.parent == nil {
+                    canvas.parent = callerID
+                }
+
                 self.canvasSubscriptionLock.lock()
                 self.canvasCreatedBy[newID] = callerID
                 var siblings = self.canvasChildren[callerID] ?? []
@@ -656,6 +679,34 @@ class UnifiedDaemon {
             } else {
                 self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
             }
+        }
+    }
+
+    private func handleCanvasSuspend(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let targetID = (payload["id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let req = CanvasRequest(action: "suspend", id: targetID)
+            let response = self.canvasManager.handle(req)
+            self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: response.status == "success" ? "ok" : "error",
+                code: response.code, message: response.error)
+        }
+    }
+
+    private func handleCanvasResume(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let targetID = (payload["id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let req = CanvasRequest(action: "resume", id: targetID)
+            let response = self.canvasManager.handle(req)
+            self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: response.status == "success" ? "ok" : "error",
+                code: response.code, message: response.error)
         }
     }
 
