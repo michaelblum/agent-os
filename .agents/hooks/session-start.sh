@@ -22,7 +22,7 @@ fi
 
 if [ -n "$SESSION_NAME" ] && [ -f "/tmp/aos-handoff-${SESSION_NAME}.json" ]; then
   BRIEF=$(python3 -c "
-import json, sys
+import json
 d = json.load(open('/tmp/aos-handoff-${SESSION_NAME}.json'))
 print(d.get('brief', ''))
 " 2>/dev/null || echo "(failed to parse bootstrap file)")
