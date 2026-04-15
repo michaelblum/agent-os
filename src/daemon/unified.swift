@@ -16,6 +16,7 @@ class UnifiedDaemon {
     let canvasManager = CanvasManager()
     private var speechEngine: SpeechEngine?
     private var contentServer: ContentServer?
+    let coordination = CoordinationBus()
 
     // Socket server
     var serverFD: Int32 = -1
@@ -944,6 +945,38 @@ class UnifiedDaemon {
             }
             sendResponseJSON(to: clientFD, ["status": "ok"])
 
+        // -- Coordination actions --
+        case "tell":
+            handleTellAction(json: json, clientFD: clientFD)
+
+        case "coord-register":
+            guard let name = json["name"] as? String else {
+                sendResponseJSON(to: clientFD, ["error": "name required", "code": "MISSING_ARG"])
+                return
+            }
+            let role = json["role"] as? String ?? "worker"
+            let harness = json["harness"] as? String ?? "unknown"
+            let result = coordination.registerSession(name: name, role: role, harness: harness)
+            sendResponseJSON(to: clientFD, result)
+
+        case "coord-who":
+            let sessions = coordination.whoIsOnline()
+            sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions])
+
+        case "coord-read":
+            guard let channel = json["channel"] as? String else {
+                sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"])
+                return
+            }
+            let since = json["since"] as? String
+            let limit = json["limit"] as? Int ?? 50
+            let msgs = coordination.readMessages(channel: channel, since: since, limit: limit)
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel": channel, "messages": msgs])
+
+        case "coord-channels":
+            let channels = coordination.listChannels()
+            sendResponseJSON(to: clientFD, ["status": "ok", "channels": channels])
+
         // -- Unified ping --
         case "ping":
             let uptime = Date().timeIntervalSince(startTime)
@@ -1053,6 +1086,56 @@ class UnifiedDaemon {
         DispatchQueue.main.async {
             engine.speak(text)
         }
+    }
+
+    // MARK: - Tell (Coordination)
+
+    private func handleTellAction(json: [String: Any], clientFD: Int32) {
+        guard let audience = json["audience"] as? String, !audience.isEmpty else {
+            sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"])
+            return
+        }
+
+        let text = json["text"] as? String
+        let jsonPayload = json["payload"]  // structured data alternative
+        let from = json["from"] as? String ?? "cli"
+
+        guard text != nil || jsonPayload != nil else {
+            sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"])
+            return
+        }
+
+        let audiences = audience.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        var routes: [[String: Any]] = []
+
+        for aud in audiences {
+            if aud == "human" {
+                // Route to TTS
+                if currentConfig.voice.enabled, let t = text {
+                    announce(t)
+                    routes.append(["audience": "human", "route": "voice", "delivered": true])
+                } else if text != nil {
+                    // Voice disabled — still acknowledge but note no delivery
+                    routes.append(["audience": "human", "route": "voice", "delivered": false,
+                                   "reason": "voice.enabled is false"])
+                }
+            } else {
+                // Route to coordination bus channel
+                let payload: Any = jsonPayload ?? (text as Any)
+                let msg = coordination.postMessage(channel: aud, from: from, payload: payload)
+                // Broadcast as event so `listen` subscribers get it
+                broadcastEvent(service: "coordination", event: "message", data: [
+                    "channel": aud,
+                    "id": msg.id,
+                    "from": from,
+                    "payload": msg.payload,
+                    "created_at": msg.createdAt
+                ])
+                routes.append(["audience": aud, "route": "channel", "delivered": true, "id": msg.id])
+            }
+        }
+
+        sendResponseJSON(to: clientFD, ["status": "ok", "routes": routes])
     }
 
     // MARK: - Helpers
