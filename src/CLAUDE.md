@@ -38,8 +38,15 @@ aos see mouse --radius 200                   # Area around cursor
 aos show render --html "..." --out /tmp/x.png
 aos do click 500,300              # Click at coordinates
 aos do type "hello world"         # Type with natural cadence
-aos say "Hello, I'm your agent"   # Speak text aloud
+aos say "Hello, I'm your agent"   # Speak text aloud (sugar for tell human)
 aos say --list-voices             # List available voices
+aos tell human "Hello"             # Speak (same as aos say)
+aos tell handoff "task complete"    # Post to coordination channel
+aos tell --register my-session     # Register session presence
+aos tell --who                     # List online sessions
+aos listen handoff                 # Read channel messages
+aos listen handoff --follow        # Stream messages in real-time
+aos listen --channels              # List known channels
 aos set voice.enabled true        # Configure settings
 aos inspect                       # Live AX element inspector overlay
 aos log push "message"            # Push to log console
@@ -193,7 +200,7 @@ src/
   voice/              # Voice: TTS engine, say command
   content/            # Content server: HTTP file serving for WKWebView canvases
   daemon/             # UnifiedDaemon: socket, routing, autonomic
-  commands/           # serve, set, inspect, log, service, runtime, operator, reset, wiki
+  commands/           # tell, listen, serve, set, inspect, log, service, runtime, operator, reset, wiki
 shared/swift/ipc/
   runtime-paths.swift # AOSRuntimeMode, mode-scoped path resolution
   connection.swift    # Socket connection, DaemonSession, auto-start
