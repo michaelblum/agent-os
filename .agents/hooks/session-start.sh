@@ -5,6 +5,33 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
 
+# --- Session Communication Layer ---
+SESSION_NAME="${AOS_SESSION_NAME:-}"
+
+if [ -n "$SESSION_NAME" ]; then
+  echo ""
+  echo "## Gateway Registration"
+  echo "Register this session: name=\"${SESSION_NAME}\" harness=\"claude-code\" role=\"worker\""
+  echo "Call register_session(name='${SESSION_NAME}', harness='claude-code', role='worker') now."
+else
+  echo ""
+  echo "## Session Name"
+  echo "No AOS_SESSION_NAME set. Name this session early:"
+  echo "  Use /rename and then register with the gateway via register_session()."
+fi
+
+if [ -n "$SESSION_NAME" ] && [ -f "/tmp/aos-handoff-${SESSION_NAME}.json" ]; then
+  BRIEF=$(python3 -c "
+import json, sys
+d = json.load(open('/tmp/aos-handoff-${SESSION_NAME}.json'))
+print(d.get('brief', ''))
+" 2>/dev/null || echo "(failed to parse bootstrap file)")
+  echo ""
+  echo "## Handoff Brief"
+  echo "$BRIEF"
+  rm -f "/tmp/aos-handoff-${SESSION_NAME}.json"
+fi
+
 echo "--- agent-os session context ---"
 
 if command -v gh >/dev/null 2>&1; then
