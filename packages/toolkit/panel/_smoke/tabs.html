@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../../components/_base/theme.css">
+  <link rel="stylesheet" href="../defaults.css">
+  <style>
+    html, body {
+      margin: 0;
+      background: transparent;
+      font-family: ui-monospace, monospace;
+    }
+
+    .tab-body {
+      padding: 12px;
+      line-height: 1.6;
+    }
+
+    .tab-body strong {
+      color: var(--accent-blue);
+    }
+  </style>
+</head>
+<body>
+<script type="module">
+import { mountPanel, Tabs } from '../index.js'
+
+function makeContent(name, text) {
+  return () => ({
+    manifest: {
+      name: `smoke-${name.toLowerCase()}`,
+      title: name,
+    },
+    render() {
+      const el = document.createElement('div')
+      el.className = 'tab-body'
+      el.innerHTML = `<strong>${name}</strong><div>${text}</div>`
+      return el
+    },
+  })
+}
+
+mountPanel({
+  title: 'panel/_smoke tabs',
+  layout: Tabs([
+    makeContent('Alpha', 'First tab body. Basic stock tab shell only.'),
+    makeContent('Beta', 'Second tab body. Click tabs to confirm activation behavior.'),
+    makeContent('Gamma', 'Third tab body. Header drag should still work outside the tab strip.'),
+  ]),
+})
+</script>
+</body>
+</html>

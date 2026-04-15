@@ -28,8 +28,8 @@ export function Tabs(factories) {
       // Build tab strip in the header's controls slot.
       const tabStrip = document.createElement('div')
       tabStrip.className = 'aos-tabs'
-      tabStrip.style.cssText = 'display:flex;align-items:center;gap:4px;flex-wrap:wrap;'
-      chrome.headerEl.querySelector('.aos-controls').appendChild(tabStrip)
+      tabStrip.setAttribute('role', 'tablist')
+      chrome.controlsEl.appendChild(tabStrip)
 
       const tabButtons = contents.map((c, i) => {
         const label = c.manifest?.title || c.manifest?.name || `tab ${i + 1}`
@@ -37,6 +37,7 @@ export function Tabs(factories) {
         btn.className = 'aos-tab'
         btn.type = 'button'
         btn.textContent = label
+        btn.setAttribute('role', 'tab')
         btn.addEventListener('click', () => activate(i))
         tabStrip.appendChild(btn)
         return btn
@@ -46,7 +47,7 @@ export function Tabs(factories) {
       contents.forEach((c, i) => {
         const slot = document.createElement('div')
         slot.className = 'aos-tab-content'
-        slot.style.cssText = 'display:none;height:100%;'
+        slot.setAttribute('role', 'tabpanel')
         chrome.contentEl.appendChild(slot)
         elByContent.set(c, slot)
 
@@ -64,7 +65,7 @@ export function Tabs(factories) {
 
       // Manifest at the panel level: union of constituent manifests.
       declareManifest({
-        name: chrome.headerEl.querySelector('.aos-title').textContent || 'tabs-panel',
+        name: chrome.titleEl.textContent || 'tabs-panel',
         accepts: contents.flatMap(c => (c.manifest?.accepts || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
         emits: contents.flatMap(c => (c.manifest?.emits || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
         contents: contents.map(c => ({ name: c.manifest?.name, prefix: c.manifest?.channelPrefix })),
@@ -77,8 +78,13 @@ export function Tabs(factories) {
       function activate(idx) {
         activeIdx = idx
         contents.forEach((c, i) => {
-          elByContent.get(c).style.display = i === idx ? 'block' : 'none'
-          tabButtons[i].classList.toggle('active', i === idx)
+          const isActive = i === idx
+          const slot = elByContent.get(c)
+          slot.hidden = !isActive
+          slot.dataset.active = String(isActive)
+          tabButtons[i].classList.toggle('active', isActive)
+          tabButtons[i].setAttribute('aria-selected', String(isActive))
+          tabButtons[i].dataset.active = String(isActive)
         })
       }
 

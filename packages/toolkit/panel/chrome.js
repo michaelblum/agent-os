@@ -4,20 +4,18 @@
 // and reports drag deltas via raw move postMessage (daemon-supported legacy
 // relative-move type that auto-targets the calling canvas).
 
-import { esc } from '../runtime/bridge.js'
 import { move } from '../runtime/canvas.js'
 
 export function mountChrome(container, { title = 'AOS', draggable = true } = {}) {
   container.innerHTML = ''
-  container.style.cssText = 'margin:0;height:100vh;display:flex;flex-direction:column;'
+  container.classList.add('aos-panel-root')
 
   const panel = document.createElement('div')
   panel.className = 'aos-panel'
-  panel.style.cssText = 'flex:1;display:flex;flex-direction:column;'
 
   const header = document.createElement('div')
   header.className = 'aos-header'
-  header.style.cssText = 'padding:6px 10px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;cursor:' + (draggable ? 'grab' : 'default') + ';user-select:none;gap:8px;'
+  header.dataset.draggable = String(draggable)
 
   const titleEl = document.createElement('span')
   titleEl.className = 'aos-title'
@@ -25,35 +23,35 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
 
   const controlsEl = document.createElement('span')
   controlsEl.className = 'aos-controls'
-  controlsEl.style.cssText = 'display:flex;align-items:center;gap:6px;min-width:0;'
 
   header.appendChild(titleEl)
   header.appendChild(controlsEl)
 
   const content = document.createElement('div')
   content.className = 'aos-content'
-  content.style.cssText = 'flex:1;overflow:auto;'
 
   panel.appendChild(header)
   panel.appendChild(content)
   container.appendChild(panel)
 
-  if (draggable) wireDrag(header)
+  if (draggable) wireDrag(header, controlsEl)
 
   return {
     panelEl: panel,
     headerEl: header,
+    titleEl,
+    controlsEl,
     contentEl: content,
     setTitle(text) { titleEl.textContent = text },
     setControls(html) { controlsEl.innerHTML = html },
   }
 }
 
-function wireDrag(header) {
+function wireDrag(header, controlsEl) {
   header.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.aos-controls')) return
+    if (e.target instanceof Node && controlsEl.contains(e.target)) return
     let lastX = e.screenX, lastY = e.screenY
-    header.style.cursor = 'grabbing'
+    header.dataset.dragging = 'true'
     const onMove = (ev) => {
       const dx = ev.screenX - lastX
       const dy = ev.screenY - lastY
@@ -62,7 +60,7 @@ function wireDrag(header) {
       move(dx, dy)
     }
     const onUp = () => {
-      header.style.cursor = 'grab'
+      delete header.dataset.dragging
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }

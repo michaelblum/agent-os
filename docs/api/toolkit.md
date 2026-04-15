@@ -156,6 +156,41 @@ Public entrypoint:
 import { mountPanel, mountChrome, Single, Tabs } from 'aos://toolkit/panel/index.js'
 ```
 
+### `mountChrome(container, options?)`
+
+Builds the panel shell without mounting content or wiring messages.
+
+```js
+const chrome = mountChrome(document.body, {
+  title: 'My Panel',
+  draggable: true,
+})
+```
+
+Options:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `title` | `string` | header title |
+| `draggable` | `boolean` | whether header drag emits relative move events |
+
+Returns an object with:
+
+| Field / method | Meaning |
+| --- | --- |
+| `panelEl` | outer panel element |
+| `headerEl` | header element |
+| `titleEl` | title slot element |
+| `controlsEl` | controls slot element |
+| `contentEl` | content mount element |
+| `setTitle(text)` | update the title slot |
+| `setControls(html)` | replace controls slot contents with HTML |
+
+Notes:
+
+- `mountChrome()` adds the `aos-panel-root` class to the mount container
+- the returned slot refs are the behavioral contract; consumers should not rely on querying `.aos-*` classes for runtime behavior
+
 ### `mountPanel(options)`
 
 Creates a panel shell and mounts a layout.
@@ -190,7 +225,9 @@ Important boundary:
 
 - `Tabs` provides structure and activation behavior
 - `Tabs` does **not** define a canonical visual design
-- consumers own the CSS for `.aos-tabs`, `.aos-tab`, and `.aos-tab.active`
+- consumers own the CSS for `.aos-tabs`, `.aos-tab`, `.aos-tab.active`, and `.aos-tab-content`
+- `Tabs` mounts its strip into `chrome.controlsEl`; consumers should treat slot refs as the behavioral API and `.aos-*` classes as styling hooks
+- active tab state is exposed via `.active`, `data-active`, `aria-selected`, and the `hidden` attribute on tab panels
 
 ## Content Contract
 
@@ -286,9 +323,12 @@ Current host surface:
 This is intentional and should be preserved.
 
 - `panel/` JavaScript is structure and behavior, not canonical visual design.
-- `components/_base/theme.css` provides shared tokens and reset utilities.
-- `panel/defaults.css` is an optional stock look for standalone toolkit panels.
+- `components/_base/theme.css` provides shared tokens and minimal reset utilities only.
+- `panel/defaults.css` is an optional stock layout/look baseline for standalone toolkit panels.
 - apps, demos, and product surfaces may replace `panel/defaults.css` entirely.
+- if you omit `panel/defaults.css`, you own the layout CSS for `aos-panel-root`, `aos-panel`, header/content slots, and any tab treatment
+- stock typography, overflow, and scrollbar treatment belong in `panel/defaults.css` or consumer CSS, not in panel behavior code or content internals
+- content-specific styling should target content-owned classes, not shell classes such as `.aos-content`
 
 ## Minimal Standalone Template
 
