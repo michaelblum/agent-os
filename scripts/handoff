@@ -1,0 +1,164 @@
+#!/bin/bash
+# scripts/handoff — Post a structured handoff brief to the AOS gateway
+# and generate a short launcher command for the next Claude Code session.
+#
+# Usage:
+#   scripts/handoff --to <name> --from <name> --task "<description>"
+#   scripts/handoff --to verify-lifecycle --from lifecycle-impl \
+#     --task "Run Task 8: integration test" \
+#     --context "See plan Task 8 for steps."
+#
+# What it does:
+#   1. Gathers git state, daemon status, recent commits
+#   2. Writes a structured handoff brief to a JSON payload
+#   3. Writes a launcher script to /tmp/aos-handoff-<name>
+#   4. Copies "bash /tmp/aos-handoff-<name>" to clipboard
+#
+# The launcher script calls `claude -n "<name>" "<seed prompt>"` where the
+# seed prompt tells the agent to read the handoff brief from the gateway
+# channel. The brief is posted to the gateway by the CALLING Claude session
+# (this script outputs the payload path for the caller to post via MCP).
+#
+# Options:
+#   --to       NAME    Next session name (required)
+#   --from     NAME    Current session name (required)
+#   --task     TEXT    One-line task description (required)
+#   --context  TEXT    Additional context (optional)
+#   --branch   NAME    Override branch detection (optional)
+#   --resume          Use --resume instead of -n (optional)
+#   --dry-run         Print everything but don't write or copy (optional)
+
+set -euo pipefail
+ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+# --- Parse args ---
+TO="" FROM="" TASK="" CONTEXT="" BRANCH="" RESUME=false DRY_RUN=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --to)       TO="$2"; shift 2 ;;
+    --from)     FROM="$2"; shift 2 ;;
+    --task)     TASK="$2"; shift 2 ;;
+    --context)  CONTEXT="$2"; shift 2 ;;
+    --branch)   BRANCH="$2"; shift 2 ;;
+    --resume)   RESUME=true; shift ;;
+    --dry-run)  DRY_RUN=true; shift ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+if [[ -z "$TO" || -z "$FROM" || -z "$TASK" ]]; then
+  echo "Usage: scripts/handoff --to <name> --from <name> --task \"<description>\"" >&2
+  exit 1
+fi
+
+# --- Gather context ---
+BRANCH="${BRANCH:-$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "unknown")}"
+AHEAD=$(git -C "$ROOT" rev-list --count "origin/main..HEAD" 2>/dev/null || echo "?")
+DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+LAST_COMMITS=$(git -C "$ROOT" log --oneline -5 2>/dev/null || echo "unavailable")
+HEAD_SHA=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "?")
+
+AOS="$ROOT/aos"
+DAEMON_STATUS="unknown"
+if [[ -x "$AOS" ]]; then
+  DAEMON_STATUS=$("$AOS" doctor --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    mode = d.get('identity',{}).get('mode','?')
+    status = d.get('status','?')
+    pid = d.get('runtime',{}).get('daemon_pid','?')
+    print(f'{status} (mode={mode} pid={pid})')
+except: print('unavailable')
+" 2>/dev/null || echo "unavailable")
+fi
+
+# --- Build the brief ---
+BRIEF="## Handoff: ${FROM} → ${TO}
+
+**Task:** ${TASK}
+
+### Git State
+- branch: \`${BRANCH}\`
+- head: \`${HEAD_SHA}\`
+- ahead of origin/main: ${AHEAD}
+- dirty files: ${DIRTY}
+
+### Recent Commits
+\`\`\`
+${LAST_COMMITS}
+\`\`\`
+
+### AOS Runtime
+${DAEMON_STATUS}"
+
+if [[ -n "$CONTEXT" ]]; then
+  BRIEF="${BRIEF}
+
+### Additional Context
+${CONTEXT}"
+fi
+
+# --- Build the gateway payload ---
+PAYLOAD_FILE="/tmp/aos-handoff-${TO}.json"
+python3 << PYEOF > "$PAYLOAD_FILE"
+import json
+payload = {
+    "type": "session_handoff",
+    "from": $(python3 -c "import json; print(json.dumps('$FROM'))"),
+    "to": $(python3 -c "import json; print(json.dumps('$TO'))"),
+    "task": $(python3 -c "import json; print(json.dumps('$TASK'))"),
+    "brief": $(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$BRIEF")
+}
+json.dump(payload, open("$PAYLOAD_FILE", "w"), indent=2)
+PYEOF
+
+# --- Build the seed prompt ---
+SEED="Bootstrap: /tmp/aos-handoff-${TO}.json"
+
+# --- Build the launcher script ---
+LAUNCHER="/tmp/aos-handoff-${TO}"
+if $RESUME; then
+  CLAUDE_CMD="claude --resume \"${TO}\" \"${SEED}\""
+else
+  CLAUDE_CMD="claude -n \"${TO}\" \"${SEED}\""
+fi
+
+# --- Output ---
+if $DRY_RUN; then
+  echo "=== BRIEF ==="
+  echo "$BRIEF"
+  echo ""
+  echo "=== SEED PROMPT ==="
+  echo "$SEED"
+  echo ""
+  echo "=== LAUNCHER ==="
+  echo "$CLAUDE_CMD"
+  echo ""
+  echo "=== CLIPBOARD ==="
+  echo "bash ${LAUNCHER}"
+  exit 0
+fi
+
+# Write the launcher
+cat > "$LAUNCHER" << LAUNCHEOF
+#!/bin/bash
+cd "$ROOT"
+export AOS_SESSION_NAME="$TO"
+exec $CLAUDE_CMD
+LAUNCHEOF
+chmod +x "$LAUNCHER"
+
+# Copy short command to clipboard
+echo "bash ${LAUNCHER}" | pbcopy
+
+echo "Handoff ready."
+echo ""
+echo "  Gateway payload: ${PAYLOAD_FILE}"
+echo "  Launcher:        ${LAUNCHER}"
+echo "  Clipboard:       bash ${LAUNCHER}"
+echo ""
+echo "  Post the payload to BOTH channels:"
+echo "    1. post_message(channel='handoff', payload=<brief>, from='${FROM}')"
+echo "    2. post_message(channel='${TO}', payload=<brief>, from='${FROM}')"
+echo "  Then paste the clipboard command in a new terminal to launch."
