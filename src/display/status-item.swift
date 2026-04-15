@@ -14,9 +14,10 @@ class StatusItemManager {
     private(set) var toggleUrl: String
     private(set) var toggleAt: [Double]
     private(set) var toggleTrack: String?
-    private(set) var iconStyle: String
+    private(set) var iconStyle: String  // stored for future multi-icon support; updateIcon does not branch on it yet
     var urlResolver: ((String) -> String)?
 
+    // handleClick is always called on main; isAnimating is read/written on main only.
     private var isAnimating = false
     private let positionFile: String
 
@@ -114,6 +115,7 @@ class StatusItemManager {
     // MARK: - Dismiss
 
     private func dismissCanvas() {
+        // Save position before the dismissed eval — captures pre-cleanup frame.
         saveCurrentPosition()
 
         // Give the canvas a chance to clean up children
@@ -231,7 +233,7 @@ class StatusItemManager {
 
     // MARK: - Icon
 
-    func statusItemCGPosition() -> CGPoint {
+    private func statusItemCGPosition() -> CGPoint {
         guard let button = statusItem?.button,
               let window = button.window else {
             return CGPoint(x: 100, y: 0)
