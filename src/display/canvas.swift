@@ -382,6 +382,22 @@ class CanvasManager {
     var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
     var hasTrackedCanvases: Bool { canvases.values.contains { $0.trackTarget != nil } }
 
+    /// Expose a canvas for external callers (daemon layer) that need to set parent.
+    func canvas(forID id: String) -> Canvas? { canvases[id] }
+
+    /// Collect a canvas and all its cascade-eligible descendants (recursive).
+    func collectTree(_ rootID: String) -> [String] {
+        var result = [rootID]
+        for canvas in canvases.values where canvas.parent == rootID && canvas.cascadeFromParent {
+            result.append(contentsOf: collectTree(canvas.id))
+        }
+        return result
+    }
+
+    /// Pending resume ACKs: canvas IDs we're waiting on.
+    private var pendingResumeACKs: Set<String> = []
+    private var resumeCompletion: (() -> Void)?
+
     /// Re-resolve bounds for every canvas with a tracking target and apply
     /// the new bounds. Called from the daemon's coalesced display_geometry
     /// handler on topology change. Failures on individual canvases are logged
@@ -442,6 +458,8 @@ class CanvasManager {
         case "ping":    return handlePing()
         case "eval":    return handleEval(request)
         case "to-front": return handleToFront(request)
+        case "suspend": return handleSuspend(request)
+        case "resume":  return handleResume(request)
         default:
             return .fail("Unknown action: \(request.action)", code: "UNKNOWN_ACTION")
         }
@@ -542,6 +560,25 @@ class CanvasManager {
         let interactive = req.interactive ?? false
         let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
         canvas.trackTarget = trackTarget
+        canvas.cascadeFromParent = req.cascade ?? true
+        // Explicit parent from request (implicit parent set by daemon layer)
+        if let explicitParent = req.parent {
+            guard canvases[explicitParent] != nil else {
+                canvas.close()
+                return .fail("Parent canvas '\(explicitParent)' not found", code: "PARENT_NOT_FOUND")
+            }
+            canvas.parent = explicitParent
+        }
+        // Born suspended: if parent is suspended and cascade is true, start hidden
+        let bornSuspended: Bool = {
+            guard canvas.cascadeFromParent, let pid = canvas.parent,
+                  let parentCanvas = canvases[pid] else { return false }
+            return parentCanvas.suspended
+        }()
+        if bornSuspended {
+            canvas.suspended = true
+        }
+
         // --focus on create: activate immediately and arm a one-shot
         // focusInput() eval for when the page emits 'ready'. The OS-level
         // activation avoids the click-to-focus delay macOS applies to
@@ -725,9 +762,11 @@ class CanvasManager {
             return .fail("create requires --html, --file, --url, --auto-project, or stdin content", code: "NO_CONTENT")
         }
 
-        canvas.show()
-        if req.focus == true && interactive {
-            canvas.grabFocus()
+        if !bornSuspended {
+            canvas.show()
+            if req.focus == true && interactive {
+                canvas.grabFocus()
+            }
         }
         canvases[id] = canvas
 
@@ -987,6 +1026,95 @@ class CanvasManager {
         }
         canvas.window.orderFront(nil)
         return .ok()
+    }
+
+    // MARK: - Suspend / Resume
+
+    private func handleSuspend(_ req: CanvasRequest) -> CanvasResponse {
+        guard let id = req.id else {
+            return .fail("suspend requires --id", code: "MISSING_ID")
+        }
+        guard let canvas = canvases[id] else {
+            return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
+        }
+        if canvas.suspended { return .ok() }
+
+        // Phase 1: atomic hide — collect tree, orderOut all windows
+        let tree = collectTree(id)
+        for cid in tree {
+            guard let c = canvases[cid] else { continue }
+            c.window.orderOut(nil)
+            c.suspended = true
+        }
+
+        // Phase 2: notify renderers (async, best-effort, no ACK needed)
+        let suspendMsg = "{\"type\":\"lifecycle\",\"action\":\"suspend\"}"
+        let b64 = Data(suspendMsg.utf8).base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+        for cid in tree {
+            evalAsync(canvasID: cid, js: js)
+        }
+
+        onCanvasCountChanged?()
+        return .ok()
+    }
+
+    private func handleResume(_ req: CanvasRequest) -> CanvasResponse {
+        guard let id = req.id else {
+            return .fail("resume requires --id", code: "MISSING_ID")
+        }
+        guard let canvas = canvases[id] else {
+            return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
+        }
+        if !canvas.suspended { return .ok() }
+
+        // Phase 1: notify renderers to wake up, collect ACKs
+        let tree = collectTree(id)
+        let suspendedInTree = tree.filter { canvases[$0]?.suspended == true }
+
+        pendingResumeACKs = Set(suspendedInTree)
+        let showWindows: () -> Void = { [weak self] in
+            guard let self = self else { return }
+            self.pendingResumeACKs.removeAll()
+            self.resumeCompletion = nil
+            // Phase 2: atomic show
+            for cid in suspendedInTree {
+                guard let c = self.canvases[cid] else { continue }
+                if c.isInteractive {
+                    c.window.makeKeyAndOrderFront(nil)
+                } else {
+                    c.window.orderFront(nil)
+                }
+                c.suspended = false
+            }
+            self.onCanvasCountChanged?()
+        }
+        resumeCompletion = showWindows
+
+        // Send lifecycle:resume to each renderer
+        let resumeMsg = "{\"type\":\"lifecycle\",\"action\":\"resume\"}"
+        let b64 = Data(resumeMsg.utf8).base64EncodedString()
+        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+        for cid in suspendedInTree {
+            evalAsync(canvasID: cid, js: js)
+        }
+
+        // 200ms timeout — show windows even if ACKs don't arrive
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self, self.resumeCompletion != nil else { return }
+            fputs("[canvas] resume ACK timeout; showing windows anyway\n", stderr)
+            self.resumeCompletion?()
+        }
+
+        return .ok()
+    }
+
+    /// Called when a renderer sends lifecycle.ready ACK.
+    func receiveLifecycleReady(_ canvasID: String) {
+        pendingResumeACKs.remove(canvasID)
+        if pendingResumeACKs.isEmpty, let completion = resumeCompletion {
+            completion()
+        }
     }
 
     // MARK: - Window Anchoring
