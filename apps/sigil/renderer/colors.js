@@ -28,6 +28,49 @@ export function updateMaterialTexture(material, canvasDrawer) {
     return newTexture;
 }
 
+/**
+ * DRY: Shared linear gradient texture drawer.
+ * @param {Array} stops - Array of {pos, color, alpha}
+ */
+export function drawLinearGradientTexture(canvas, ctx, width, height, stops) {
+    canvas.width = width; canvas.height = height;
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    stops.forEach(s => grad.addColorStop(s.pos, hexToRgba(s.color, s.alpha)));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+}
+
+/**
+ * DRY: Shared vertex color applier for Y-axis gradients.
+ */
+export function applyGradientVertexColors(mesh, colors) {
+    if (!mesh) return;
+    const geo = mesh.geometry;
+    const count = geo.attributes.position.count;
+    if (!geo.attributes.color || geo.attributes.color.count !== count) {
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    }
+    const colAttr = geo.attributes.color;
+    geo.computeBoundingBox();
+    const min = geo.boundingBox.min.y;
+    const range = (geo.boundingBox.max.y - min) || 1;
+    const c1 = new THREE.Color(colors[0]);
+    const c2 = new THREE.Color(colors[1]);
+    const tC = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+        colAttr.setXYZ(i, tC.r, tC.g, tC.b);
+    }
+    colAttr.needsUpdate = true;
+    mesh.material.vertexColors = true;
+    mesh.material.color.setHex(0xffffff);
+    if (mesh.material.map && !mesh.userData.isSkin) { 
+        mesh.material.map.dispose(); 
+        mesh.material.map = null; 
+    }
+    mesh.material.needsUpdate = true;
+}
+
 export function drawAuraTexture(canvas, ctx, c1, c2, isCore) {
     canvas.width = 128; canvas.height = 128;
     const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
@@ -45,25 +88,21 @@ export function drawAuraTexture(canvas, ctx, c1, c2, isCore) {
 }
 
 export function drawPulsarTexture(canvas, ctx, c1, c2) {
-    canvas.width = 16; canvas.height = 256;
-    const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, hexToRgba(c2, 0));
-    grad.addColorStop(0.5, hexToRgba(c1, 1));
-    grad.addColorStop(1, hexToRgba(c2, 0));
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 16, 256);
+    drawLinearGradientTexture(canvas, ctx, 16, 256, [
+        {pos: 0, color: c2, alpha: 0},
+        {pos: 0.5, color: c1, alpha: 1},
+        {pos: 1, color: c2, alpha: 0}
+    ]);
 }
 
 export function drawGammaTexture(canvas, ctx, c1, c2) {
-    canvas.width = 16; canvas.height = 256;
-    const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, hexToRgba(c2, 0));
-    grad.addColorStop(0.3, hexToRgba(c2, 0.05));
-    grad.addColorStop(0.5, hexToRgba(c1, 1));
-    grad.addColorStop(0.7, hexToRgba(c2, 0.05));
-    grad.addColorStop(1, hexToRgba(c2, 0));
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 16, 256);
+    drawLinearGradientTexture(canvas, ctx, 16, 256, [
+        {pos: 0, color: c2, alpha: 0},
+        {pos: 0.3, color: c2, alpha: 0.05},
+        {pos: 0.5, color: c1, alpha: 1},
+        {pos: 0.7, color: c2, alpha: 0.05},
+        {pos: 1, color: c2, alpha: 0}
+    ]);
 }
 
 export function drawAccretionTexture(canvas, ctx, c1, c2) {
@@ -88,53 +127,12 @@ export function drawWhiteDwarf(canvas, ctx) {
 }
 
 export function updateFaceVertexColors() {
-    if (!state.coreMesh) return;
     if (state.currentSkin !== 'none' && state.skinMaterial) { updateSkinColorRamp(false); return; }
-    const geo = state.coreMesh.geometry;
-    const count = geo.attributes.position.count;
-    if (!geo.attributes.color || geo.attributes.color.count !== count) {
-        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-    }
-    const col = geo.attributes.color;
-    geo.computeBoundingBox();
-    const min = geo.boundingBox.min.y;
-    const range = (geo.boundingBox.max.y - min) || 1;
-    const c1 = new THREE.Color(state.colors.face[0]);
-    const c2 = new THREE.Color(state.colors.face[1]);
-    const tC = new THREE.Color();
-    for (let i = 0; i < count; i++) {
-        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
-        col.setXYZ(i, tC.r, tC.g, tC.b);
-    }
-    col.needsUpdate = true;
-    state.coreMesh.material.vertexColors = true;
-    state.coreMesh.material.color.setHex(0xffffff);
-    if (state.coreMesh.material.map) { state.coreMesh.material.map.dispose(); state.coreMesh.material.map = null; }
-    state.coreMesh.material.needsUpdate = true;
+    applyGradientVertexColors(state.coreMesh, state.colors.face);
 }
 
 export function updateEdgeVertexColors() {
-    if (!state.wireframeMesh) return;
-    const geo = state.wireframeMesh.geometry;
-    const count = geo.attributes.position.count;
-    if (!geo.attributes.color || geo.attributes.color.count !== count) {
-        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-    }
-    const col = geo.attributes.color;
-    geo.computeBoundingBox();
-    const min = geo.boundingBox.min.y;
-    const range = (geo.boundingBox.max.y - min) || 1;
-    const c1 = new THREE.Color(state.colors.edge[0]);
-    const c2 = new THREE.Color(state.colors.edge[1]);
-    const tC = new THREE.Color();
-    for (let i = 0; i < count; i++) {
-        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
-        col.setXYZ(i, tC.r, tC.g, tC.b);
-    }
-    col.needsUpdate = true;
-    state.wireframeMesh.material.vertexColors = true;
-    state.wireframeMesh.material.color.setHex(0xffffff);
-    state.wireframeMesh.material.needsUpdate = true;
+    applyGradientVertexColors(state.wireframeMesh, state.colors.edge);
 }
 
 export function updateAllColors() {
@@ -169,9 +167,6 @@ export function updateAllColors() {
         drawAuraTexture(canv, ctx, state.colors.aura[0], state.colors.aura[1], false));
     let coreTex = updateMaterialTexture(state.coreSprite.material, (canv, ctx) =>
         drawAuraTexture(canv, ctx, state.colors.aura[0], state.colors.aura[1], true));
-    updateMaterialTexture(state.chargeSpheroid.material, (canv, ctx) =>
-        drawAuraTexture(canv, ctx, '#ffffff', state.colors.aura[0], true));
-
     // Trail sprites share the core texture
     state.trailSprites.forEach(s => s.material.map = coreTex);
 

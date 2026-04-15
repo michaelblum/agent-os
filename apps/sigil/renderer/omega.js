@@ -39,7 +39,7 @@ export function animateOmega(dt) {
     state.omegaGroup.visible = true;
 
     // --- Scale ---
-    state.omegaGroup.scale.setScalar(state.omegaScale * state.z_depth * state.novaScale);
+    state.omegaGroup.scale.setScalar(state.omegaScale * state.z_depth * state.appScale);
 
     // --- Position ---
     if (state.omegaInterDimensional) {
@@ -231,7 +231,7 @@ function _spawnGhost() {
     ghostMesh.position.copy(state.omegaGroup.position);
     ghostMesh.quaternion.copy(state.omegaGroup.quaternion);
 
-    const currentScale = state.omegaScale * state.z_depth * state.novaScale;
+    const currentScale = state.omegaScale * state.z_depth * state.appScale;
     ghostMesh.scale.setScalar(currentScale);
 
     state.scene.add(ghostMesh);

@@ -35,6 +35,7 @@ func serveCommand(args: [String]) {
     if let siConfig = config.status_item, siConfig.enabled {
         let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
         mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+        mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
         mgr.setup()
         statusItem.manager = mgr
     }
@@ -44,6 +45,14 @@ func serveCommand(args: [String]) {
     daemon.canvasManager.onCanvasCountChanged = { [weak statusItem] in
         existingCallback?()
         statusItem?.manager?.updateIcon()
+    }
+
+    // Route canvas-provided menu items to status item
+    daemon.canvasManager.onMenuItems = { [weak statusItem] canvasID, items in
+        DispatchQueue.main.async {
+            guard let mgr = statusItem?.manager, canvasID == mgr.toggleId else { return }
+            mgr.setMenuItems(items)
+        }
     }
 
     // Watch config for status item changes.
@@ -57,6 +66,7 @@ func serveCommand(args: [String]) {
                 } else {
                     let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
                     mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+                    mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
                     mgr.setup()
                     statusItem.manager = mgr
                 }

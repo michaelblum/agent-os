@@ -145,6 +145,9 @@ class UnifiedDaemon {
                 case "canvas.remove":
                     self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "canvas.send":
+                    self.handleCanvasSend(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "canvas.suspend":
                     self.handleCanvasSuspend(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -683,6 +686,22 @@ class UnifiedDaemon {
         }
     }
 
+    /// Relay an arbitrary message from one canvas to another via headsup.receive.
+    /// Payload: { target: "canvas-id", message: { ... } }
+    private func handleCanvasSend(callerID: String, payload: [String: Any]) {
+        guard let targetID = payload["target"] as? String, !targetID.isEmpty else { return }
+        guard let message = payload["message"] else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if let jsonData = try? JSONSerialization.data(withJSONObject: message),
+               let jsonStr = String(data: jsonData, encoding: .utf8) {
+                let b64 = Data(jsonStr.utf8).base64EncodedString()
+                let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+                self.canvasManager.evalAsync(canvasID: targetID, js: js)
+            }
+        }
+    }
+
     private func handleCanvasSuspend(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
         let targetID = (payload["id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
@@ -739,6 +758,13 @@ class UnifiedDaemon {
         } else {
             fputs("[canvas-mut] remove ok target=\(targetID) orphan=\(orphanChildren)\n", stderr)
         }
+    }
+
+    func getLastPosition(key: String) -> (x: Double, y: Double)? {
+        lastPositionsLock.lock()
+        let pos = lastPositions[key]
+        lastPositionsLock.unlock()
+        return pos
     }
 
     /// Request/response: return the stored lastPosition for `key` or

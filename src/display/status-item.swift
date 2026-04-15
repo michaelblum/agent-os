@@ -16,10 +16,12 @@ class StatusItemManager {
     private(set) var toggleTrack: String?
     private(set) var iconStyle: String  // stored for future multi-icon support; updateIcon does not branch on it yet
     var urlResolver: ((String) -> String)?
+    var lastPositionResolver: ((String) -> (x: Double, y: Double)?)?
 
     // handleClick is always called on main; isAnimating is read/written on main only.
     private var isAnimating = false
     private let positionFile: String
+    private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
 
     init(canvasManager: CanvasManager, config: AosConfig.StatusItemConfig) {
         self.canvasManager = canvasManager
@@ -38,6 +40,7 @@ class StatusItemManager {
         updateIcon()
         statusItem?.button?.target = self
         statusItem?.button?.action = #selector(handleClick(_:))
+        statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
     func teardown() {
@@ -59,6 +62,11 @@ class StatusItemManager {
     @objc func handleClick(_ sender: Any?) {
         guard !isAnimating else { return }
 
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showContextMenu()
+            return
+        }
+
         if canvasManager.hasCanvas(toggleId) {
             if isCanvasSuspended() {
                 resumeCanvas()
@@ -68,6 +76,60 @@ class StatusItemManager {
         } else {
             summonCanvas()  // cold boot
         }
+    }
+
+    func setMenuItems(_ items: [[String: String]]) {
+        customMenuItems = items
+    }
+
+    private func showContextMenu() {
+        let menu = NSMenu()
+
+        // App-provided items first
+        for (index, item) in customMenuItems.enumerated() {
+            guard let title = item["title"] else { continue }
+            let mi = NSMenuItem(title: title, action: #selector(menuCustomItem(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.tag = index
+            menu.addItem(mi)
+        }
+
+        if !customMenuItems.isEmpty {
+            menu.addItem(NSMenuItem.separator())
+        }
+
+        // Daemon-owned items
+        if canvasManager.hasCanvas(toggleId) {
+            let removeItem = NSMenuItem(title: "Remove", action: #selector(menuRemove), keyEquivalent: "")
+            removeItem.target = self
+            menu.addItem(removeItem)
+        }
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Quit AOS", action: #selector(menuQuit), keyEquivalent: "")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        guard let button = statusItem?.button else { return }
+        let pos = NSPoint(x: 0, y: button.bounds.maxY + 5)
+        menu.popUp(positioning: nil, at: pos, in: button)
+    }
+
+    @objc private func menuCustomItem(_ sender: NSMenuItem) {
+        let index = sender.tag
+        guard index < customMenuItems.count,
+              let id = customMenuItems[index]["id"] else { return }
+        // Relay the selection back to the canvas
+        canvasManager.evalAsync(canvasID: toggleId, js: "window.__aosMenuAction?.(\"\(id)\")")
+    }
+
+    @objc private func menuRemove() {
+        dismissCanvas()
+    }
+
+    @objc private func menuQuit() {
+        NSApp.terminate(nil)
     }
 
     private func isCanvasSuspended() -> Bool {
@@ -80,11 +142,15 @@ class StatusItemManager {
     private func summonCanvas() {
         guard !toggleUrl.isEmpty else { return }
 
+        let iconPos = statusItemCGPosition()
         let resolvedUrl = urlResolver?(toggleUrl) ?? toggleUrl
+        // Pass icon origin to the canvas so it can animate entrance from there
+        let separator = resolvedUrl.contains("?") ? "&" : "?"
+        let urlWithOrigin = "\(resolvedUrl)\(separator)origin_x=\(Int(iconPos.x))&origin_y=\(Int(iconPos.y))"
 
         var req = CanvasRequest(action: "create")
         req.id = toggleId
-        req.url = resolvedUrl
+        req.url = urlWithOrigin
         if let track = toggleTrack { req.track = track }
 
         let isTracked = toggleTrack != nil
@@ -94,7 +160,6 @@ class StatusItemManager {
             let target = loadSavedPosition() ?? toggleAt
             guard target.count == 4 else { return }
 
-            let iconPos = statusItemCGPosition()
             let startSize: CGFloat = 40
             let fromX = iconPos.x - startSize / 2
             let fromY = iconPos.y
@@ -125,36 +190,11 @@ class StatusItemManager {
                 }
             }
         } else {
-            // Tracked canvas (e.g. union): lightweight dot animation from icon
-            // to birthplace using Core Animation, then create the real canvas.
-            // Compute the bottom-right nonant of the main display as target —
-            // this is where the Sigil avatar's default birthplace resolves to.
-            let dotSize: CGFloat = 80
-            let landingCenter = mainDisplayNonantCenter(column: 2, row: 2)
-
-            let iconPos = statusItemCGPosition()
-            let startSize: CGFloat = 30
-            let fromCG = CGRect(
-                x: iconPos.x - startSize / 2, y: iconPos.y,
-                width: startSize, height: startSize
-            )
-            let toCG = CGRect(
-                x: landingCenter.x - dotSize / 2,
-                y: landingCenter.y - dotSize / 2,
-                width: dotSize, height: dotSize
-            )
-
-            // Create the real tracked canvas immediately so it starts loading
-            // while the dot animation plays — animation masks boot time.
+            // Tracked canvas (e.g. union): Sigil owns the entrance animation.
+            // The origin is passed via query params so Sigil can animate from
+            // the icon position to the resolved avatar position.
             _ = canvasManager.handle(req)
-
-            isAnimating = true
             updateIcon()
-
-            animateDot(from: fromCG, to: toCG, duration: 0.45) { [weak self] in
-                self?.isAnimating = false
-                self?.updateIcon()
-            }
         }
     }
 
@@ -163,10 +203,30 @@ class StatusItemManager {
     private func suspendCanvas() {
         if toggleTrack == nil { saveCurrentPosition() }
 
-        var req = CanvasRequest(action: "suspend")
-        req.id = toggleId
-        _ = canvasManager.handle(req)
-        updateIcon()
+        let iconPos = statusItemCGPosition()
+
+        if toggleTrack != nil {
+            // Tracked canvas: tell Sigil to animate back to icon, then suspend
+            // after the animation completes (or after a timeout).
+            let msg = "{\"type\":\"lifecycle\",\"action\":\"exit\",\"origin_x\":\(Int(iconPos.x)),\"origin_y\":\(Int(iconPos.y))}"
+            let b64 = Data(msg.utf8).base64EncodedString()
+            let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+            canvasManager.evalAsync(canvasID: toggleId, js: js)
+            updateIcon()
+
+            // Suspend after animation duration + margin
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
+                guard let self = self else { return }
+                var req = CanvasRequest(action: "suspend")
+                req.id = self.toggleId
+                _ = self.canvasManager.handle(req)
+            }
+        } else {
+            var req = CanvasRequest(action: "suspend")
+            req.id = toggleId
+            _ = canvasManager.handle(req)
+            updateIcon()
+        }
     }
 
     private func resumeCanvas() {
@@ -174,6 +234,19 @@ class StatusItemManager {
         req.id = toggleId
         _ = canvasManager.handle(req)
         updateIcon()
+
+        if toggleTrack != nil {
+            // Send enter animation after resume shows the window (250ms covers
+            // the 200ms ACK timeout + margin for first rAF).
+            let iconPos = statusItemCGPosition()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self = self else { return }
+                let msg = "{\"type\":\"lifecycle\",\"action\":\"enter\",\"origin_x\":\(Int(iconPos.x)),\"origin_y\":\(Int(iconPos.y))}"
+                let b64 = Data(msg.utf8).base64EncodedString()
+                let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
+                self.canvasManager.evalAsync(canvasID: self.toggleId, js: js)
+            }
+        }
     }
 
     // MARK: - Dismiss (hard remove — daemon restart / full teardown)

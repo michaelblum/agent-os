@@ -1,5 +1,5 @@
 import state from './state.js';
-import { updateFaceVertexColors, updateEdgeVertexColors } from './colors.js';
+import { applyGradientVertexColors } from './colors.js';
 import { applySkin, updateSkinColorRamp } from './skins.js';
 
 export function createStellatedGeometry(baseGeometry, factor) {
@@ -129,10 +129,30 @@ export function createTetartoid(size, a, b, c) {
     return geo;
 }
 
-export function updateGeometry(type) {
-    if (state.coreMesh) state.polyGroup.remove(state.coreMesh);
-    if (state.wireframeMesh) state.polyGroup.remove(state.wireframeMesh);
-    if (state.depthMesh) state.polyGroup.remove(state.depthMesh);
+/**
+ * DRY: Shared builder for poly geometries (depth + core + wireframe).
+ * Config: { group, depthKey, coreKey, wireKey, opacity, edgeOpacity, 
+ *           stellation, isInterior, isSpecular, isMask, colors, skin, isOmega }
+ */
+function buildShapeHierarchy(type, config) {
+    const { group, depthKey, coreKey, wireKey, isOmega } = config;
+
+    // Dispose old
+    if (state[coreKey]) {
+        group.remove(state[coreKey]);
+        state[coreKey].geometry.dispose();
+        state[coreKey].material.dispose();
+    }
+    if (state[wireKey]) {
+        group.remove(state[wireKey]);
+        state[wireKey].geometry.dispose();
+        state[wireKey].material.dispose();
+    }
+    if (state[depthKey]) {
+        group.remove(state[depthKey]);
+        state[depthKey].geometry.dispose();
+        state[depthKey].material.dispose();
+    }
 
     let baseGeometry;
     const size = 1.0;
@@ -149,152 +169,82 @@ export function updateGeometry(type) {
         default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
     }
 
-    const finalGeometry = createStellatedGeometry(baseGeometry, state.stellationFactor);
+    const finalGeometry = createStellatedGeometry(baseGeometry, config.stellation);
 
+    // 1. Depth pre-pass
     const depthMat = new THREE.MeshBasicMaterial({
         colorWrite: false, side: THREE.FrontSide, depthWrite: true,
         polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
-    state.depthMesh = new THREE.Mesh(finalGeometry, depthMat);
-    state.depthMesh.renderOrder = 2;
-    state.depthMesh.visible = !state.isInteriorEdgesEnabled;
-    state.polyGroup.add(state.depthMesh);
+    state[depthKey] = new THREE.Mesh(finalGeometry, depthMat);
+    state[depthKey].renderOrder = 2;
+    state[depthKey].visible = !config.isInterior;
+    group.add(state[depthKey]);
 
-    const isSolid = state.currentOpacity >= 0.99;
+    // 2. Core face mesh
+    const isSolid = config.opacity >= 0.99;
     const coreMat = new THREE.MeshPhongMaterial({
-        transparent: !isSolid, opacity: state.currentOpacity,
-        shininess: state.isSpecularEnabled ? 80 : 0,
-        specular: state.isSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+        transparent: !isSolid, opacity: config.opacity,
+        shininess: config.isSpecular ? 80 : 0,
+        specular: config.isSpecular ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
         side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
         depthWrite: isSolid,
         polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
     });
-    state.coreMesh = new THREE.Mesh(finalGeometry, coreMat);
-    state.coreMesh.renderOrder = 3;
-    state.coreMesh.visible = !state.isMaskEnabled;
-    state.polyGroup.add(state.coreMesh);
+    state[coreKey] = new THREE.Mesh(finalGeometry, coreMat);
+    state[coreKey].renderOrder = 3;
+    state[coreKey].visible = !config.isMask;
+    group.add(state[coreKey]);
 
+    // 3. Wireframe edge mesh
     const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
     const edgeMat = new THREE.LineBasicMaterial({
-        linewidth: 2, depthTest: true, transparent: true, opacity: state.currentEdgeOpacity
+        linewidth: 2, depthTest: true, transparent: true, opacity: config.edgeOpacity
     });
-    state.wireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
-    state.wireframeMesh.renderOrder = 4;
-    state.polyGroup.add(state.wireframeMesh);
+    state[wireKey] = new THREE.LineSegments(edgeGeo, edgeMat);
+    state[wireKey].renderOrder = 4;
+    group.add(state[wireKey]);
 
-    updateFaceVertexColors();
-    updateEdgeVertexColors();
-    if (state.currentSkin !== 'none') applySkin(state.currentSkin, false);
+    // Apply vertex colors and skins
+    applyGradientVertexColors(state[coreKey], config.faceColors);
+    applyGradientVertexColors(state[wireKey], config.edgeColors);
+    if (config.skin !== 'none') applySkin(config.skin, isOmega);
+}
+
+export function updateGeometry(type) {
+    buildShapeHierarchy(type, {
+        group: state.polyGroup,
+        depthKey: 'depthMesh',
+        coreKey: 'coreMesh',
+        wireKey: 'wireframeMesh',
+        opacity: state.currentOpacity,
+        edgeOpacity: state.currentEdgeOpacity,
+        stellation: state.stellationFactor,
+        isInterior: state.isInteriorEdgesEnabled,
+        isSpecular: state.isSpecularEnabled,
+        isMask: state.isMaskEnabled,
+        faceColors: state.colors.face,
+        edgeColors: state.colors.edge,
+        skin: state.currentSkin,
+        isOmega: false
+    });
 }
 
 export function updateOmegaGeometry(type) {
-    if (state.omegaCoreMesh) state.omegaGroup.remove(state.omegaCoreMesh);
-    if (state.omegaWireframeMesh) state.omegaGroup.remove(state.omegaWireframeMesh);
-    if (state.omegaDepthMesh) state.omegaGroup.remove(state.omegaDepthMesh);
-
-    let baseGeometry;
-    const size = 1.0;
-    switch (type) {
-        case 4: baseGeometry = new THREE.TetrahedronGeometry(size); break;
-        case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
-        case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
-        case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
-        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
-        case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
-        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
-        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides); break;
-        case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
-        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
-    }
-
-    const finalGeometry = createStellatedGeometry(baseGeometry, state.omegaStellationFactor);
-
-    // Depth pre-pass mesh
-    const depthMat = new THREE.MeshBasicMaterial({
-        colorWrite: false, side: THREE.FrontSide, depthWrite: true,
-        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
+    buildShapeHierarchy(type, {
+        group: state.omegaGroup,
+        depthKey: 'omegaDepthMesh',
+        coreKey: 'omegaCoreMesh',
+        wireKey: 'omegaWireframeMesh',
+        opacity: state.omegaOpacity,
+        edgeOpacity: state.omegaEdgeOpacity,
+        stellation: state.omegaStellationFactor,
+        isInterior: state.omegaIsInteriorEdgesEnabled,
+        isSpecular: state.omegaIsSpecularEnabled,
+        isMask: state.omegaIsMaskEnabled,
+        faceColors: state.colors.omegaFace,
+        edgeColors: state.colors.omegaEdge,
+        skin: state.omegaSkin,
+        isOmega: true
     });
-    state.omegaDepthMesh = new THREE.Mesh(finalGeometry, depthMat);
-    state.omegaDepthMesh.renderOrder = 2;
-    state.omegaDepthMesh.visible = !state.omegaIsInteriorEdgesEnabled;
-    state.omegaGroup.add(state.omegaDepthMesh);
-
-    // Core face mesh
-    const isSolid = state.omegaOpacity >= 0.99;
-    const coreMat = new THREE.MeshPhongMaterial({
-        transparent: !isSolid, opacity: state.omegaOpacity,
-        shininess: state.omegaIsSpecularEnabled ? 80 : 0,
-        specular: state.omegaIsSpecularEnabled ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
-        side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
-        depthWrite: isSolid,
-        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
-    });
-    state.omegaCoreMesh = new THREE.Mesh(finalGeometry, coreMat);
-    state.omegaCoreMesh.renderOrder = 3;
-    state.omegaCoreMesh.visible = !state.omegaIsMaskEnabled;
-    state.omegaGroup.add(state.omegaCoreMesh);
-
-    // Wireframe edge mesh
-    const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
-    const edgeMat = new THREE.LineBasicMaterial({
-        linewidth: 2, depthTest: true, transparent: true, opacity: state.omegaEdgeOpacity
-    });
-    state.omegaWireframeMesh = new THREE.LineSegments(edgeGeo, edgeMat);
-    state.omegaWireframeMesh.renderOrder = 4;
-    state.omegaGroup.add(state.omegaWireframeMesh);
-
-    // Apply vertex colors
-    _updateOmegaFaceVertexColors();
-    _updateOmegaEdgeVertexColors();
-    if (state.omegaSkin !== 'none') applySkin(state.omegaSkin, true);
-}
-
-function _updateOmegaFaceVertexColors() {
-    if (!state.omegaCoreMesh) return;
-    if (state.omegaSkin !== 'none' && state.omegaSkinMaterial) { updateSkinColorRamp(true); return; }
-    const geo = state.omegaCoreMesh.geometry;
-    const count = geo.attributes.position.count;
-    if (!geo.attributes.color || geo.attributes.color.count !== count) {
-        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-    }
-    const col = geo.attributes.color;
-    geo.computeBoundingBox();
-    const min = geo.boundingBox.min.y;
-    const range = (geo.boundingBox.max.y - min) || 1;
-    const c1 = new THREE.Color(state.colors.omegaFace[0]);
-    const c2 = new THREE.Color(state.colors.omegaFace[1]);
-    const tC = new THREE.Color();
-    for (let i = 0; i < count; i++) {
-        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
-        col.setXYZ(i, tC.r, tC.g, tC.b);
-    }
-    col.needsUpdate = true;
-    state.omegaCoreMesh.material.vertexColors = true;
-    state.omegaCoreMesh.material.color.setHex(0xffffff);
-    if (state.omegaCoreMesh.material.map) { state.omegaCoreMesh.material.map.dispose(); state.omegaCoreMesh.material.map = null; }
-    state.omegaCoreMesh.material.needsUpdate = true;
-}
-
-function _updateOmegaEdgeVertexColors() {
-    if (!state.omegaWireframeMesh) return;
-    const geo = state.omegaWireframeMesh.geometry;
-    const count = geo.attributes.position.count;
-    if (!geo.attributes.color || geo.attributes.color.count !== count) {
-        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
-    }
-    const col = geo.attributes.color;
-    geo.computeBoundingBox();
-    const min = geo.boundingBox.min.y;
-    const range = (geo.boundingBox.max.y - min) || 1;
-    const c1 = new THREE.Color(state.colors.omegaEdge[0]);
-    const c2 = new THREE.Color(state.colors.omegaEdge[1]);
-    const tC = new THREE.Color();
-    for (let i = 0; i < count; i++) {
-        tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
-        col.setXYZ(i, tC.r, tC.g, tC.b);
-    }
-    col.needsUpdate = true;
-    state.omegaWireframeMesh.material.vertexColors = true;
-    state.omegaWireframeMesh.material.color.setHex(0xffffff);
-    state.omegaWireframeMesh.material.needsUpdate = true;
 }

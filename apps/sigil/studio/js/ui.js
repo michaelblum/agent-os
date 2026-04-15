@@ -791,23 +791,37 @@ export function setupUI() {
         return markdown.replace(match[0], '```json\n' + newBlock + '\n```');
     }
 
-    // Note: scrub-during-drag live preview was considered (PUT on `input` events
-    // to hit the desktop avatar via wiki_page_changed). Deferred — the existing
-    // change-event autosave provides release-to-commit feedback, which is the
-    // dominant editing gesture. Revisit if scrub-feel becomes a priority; see
-    // issue filed as follow-on.
+    // Push appearance directly to the live renderer for instant preview,
+    // then persist to wiki as the durable write.
+    function pushLivePreview(appearance) {
+        const headsup = window.webkit?.messageHandlers?.headsup;
+        if (!headsup) return;
+        headsup.postMessage({
+            type: 'canvas.send',
+            payload: {
+                target: 'avatar-main',
+                message: { type: 'live_appearance', appearance }
+            }
+        });
+    }
+
     async function persistAgent() {
         const activeId = getActiveAgent()?.id ?? activeAgentId;
         document.dispatchEvent(new CustomEvent('sync:saving'));
         // Snapshot previous appearance for undo before mutating.
         const prevAppearance = snapshotAppearance();
         undoLastSave.buffer.record(activeId, prevAppearance);
+        const appearance = snapshotAppearance();
+
+        // Instant preview — no wiki round-trip needed for visual feedback
+        pushLivePreview(appearance);
+
+        // Persist to wiki as durable storage
         let doc;
         try {
             const res = await fetch(`/wiki/sigil/agents/${activeId}.md`);
             doc = res.ok ? await res.text() : initialAgentDoc(activeId);
         } catch { doc = initialAgentDoc(activeId); }
-        const appearance = snapshotAppearance();
         const updated = replaceAppearanceInDoc(doc, appearance);
         try {
             const put = await fetch(`/wiki/sigil/agents/${activeId}.md`, {

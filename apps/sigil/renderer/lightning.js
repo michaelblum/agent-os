@@ -57,7 +57,7 @@ class Lightning {
 
         // Branching
         if (!this.isBranch) {
-            let boundingRadius = state.z_depth * state.novaScale;
+            let boundingRadius = state.z_depth * state.appScale;
             let origin = state.polyGroup.position;
             for (let i = 1; i < this.points.length - 1; i++) {
                 if (Math.random() < state.lightningBranching) {
@@ -133,7 +133,7 @@ class Lightning {
 // --- Spawn a single bolt ---
 function spawnBolt() {
     const origin = state.polyGroup.position.clone();
-    const boundingRadius = state.z_depth * state.novaScale;
+    const boundingRadius = state.z_depth * state.appScale;
     const actualLength = state.lightningBoltLength / 25;
 
     const dir = new THREE.Vector3(

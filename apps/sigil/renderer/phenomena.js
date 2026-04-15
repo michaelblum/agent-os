@@ -31,32 +31,40 @@ function distributeGroupChildren(group, count) {
     }
 }
 
+/**
+ * DRY: Shared instance count syncer for phenomena groups.
+ */
+function syncGroupInstanceCount(group, count, createItemFn) {
+    if (!group) return;
+    while (group.children.length < count) {
+        let item = createItemFn();
+        if (item) {
+            item.userData.seed = Math.random();
+            group.add(item);
+        }
+    }
+    distributeGroupChildren(group, count);
+}
+
 // --- Multi-instance update functions ---
 export function updatePulsars(count) {
-    if (!state.pulsarGroup || !state.pulsarGeo || !state.beamMat) return;
-    while (state.pulsarGroup.children.length < count) {
-        let m = new THREE.Mesh(state.pulsarGeo, state.beamMat);
-        m.userData.seed = Math.random();
-        state.pulsarGroup.add(m);
-    }
-    distributeGroupChildren(state.pulsarGroup, count);
+    syncGroupInstanceCount(state.pulsarGroup, count, () => {
+        if (!state.pulsarGeo || !state.beamMat) return null;
+        return new THREE.Mesh(state.pulsarGeo, state.beamMat);
+    });
 }
 
 export function updateGammaRays(count) {
-    if (!state.gammaRaysGroup || !state.gammaGeo || !state.gammaBeamMat) return;
-    while (state.gammaRaysGroup.children.length < count) {
-        let m = new THREE.Mesh(state.gammaGeo, state.gammaBeamMat);
-        m.userData.seed = Math.random();
-        state.gammaRaysGroup.add(m);
-    }
-    distributeGroupChildren(state.gammaRaysGroup, count);
+    syncGroupInstanceCount(state.gammaRaysGroup, count, () => {
+        if (!state.gammaGeo || !state.gammaBeamMat) return null;
+        return new THREE.Mesh(state.gammaGeo, state.gammaBeamMat);
+    });
 }
 
 export function updateAccretion(count) {
-    if (!state.accretionGroup || !state.diskMat) return;
-    while (state.accretionGroup.children.length < count) {
+    syncGroupInstanceCount(state.accretionGroup, count, () => {
+        if (!state.diskMat) return null;
         let singleDiskGroup = new THREE.Group();
-        singleDiskGroup.userData.seed = Math.random();
         let diskMesh = new THREE.Mesh(new THREE.RingGeometry(0.8, 4.0, 128), state.diskMat);
         diskMesh.rotation.x = Math.PI / 2;
         singleDiskGroup.add(diskMesh);
@@ -75,16 +83,14 @@ export function updateAccretion(count) {
                 targetOp: 0.5 + Math.random() * 0.25
             });
         }
-        state.accretionGroup.add(singleDiskGroup);
-    }
-    distributeGroupChildren(state.accretionGroup, count);
+        return singleDiskGroup;
+    });
 }
 
 export function updateNeutrinos(count) {
-    if (!state.neutrinoGroup || !state.neutrinoMat) return;
-    while (state.neutrinoGroup.children.length < count) {
+    syncGroupInstanceCount(state.neutrinoGroup, count, () => {
+        if (!state.neutrinoMat) return null;
         let jetGroup = new THREE.Group();
-        jetGroup.userData.seed = Math.random();
         for (let i = 0; i < 30; i++) {
             let p = new THREE.Sprite(state.neutrinoMat);
             p.scale.set(0.12, 0.12, 1);
@@ -100,9 +106,8 @@ export function updateNeutrinos(count) {
                 zOffset: (Math.random() - 0.5) * 0.075
             });
         }
-        state.neutrinoGroup.add(jetGroup);
-    }
-    distributeGroupChildren(state.neutrinoGroup, count);
+        return jetGroup;
+    });
 }
 
 export function createPhenomena() {
@@ -167,33 +172,29 @@ export function animatePhenomena(dt) {
     const turb = state.turbState;
     const gt = state.globalTime;
 
-    // --- Pulsar turbulence ---
-    if (state.isPulsarEnabled && state.pulsarGroup && state.pulsarGroup.visible && !state.isDestroyed) {
-        let c = state.pulsarRayCount;
-        for (let i = 0; i < state.pulsarGroup.children.length; i++) {
-            let m = state.pulsarGroup.children[i];
+    // --- Turbulence trainee ---
+    const applyTurbulence = (group, config, baseStretch, baseBulge = 0) => {
+        if (!group || !group.visible) return;
+        const count = group.children.length;
+        for (let i = 0; i < count; i++) {
+            const m = group.children[i];
             if (!m.visible) continue;
-            let noise = getTurbulence(gt, turb.p.spd, turb.p.mod, i, c, m.userData.seed);
-            let stretch = 1.0 + noise * turb.p.val * 3.0;
-            let bulge = 1.0 + noise * turb.p.val * 0.5;
-            m.scale.set(bulge, stretch, bulge);
+            const noise = getTurbulence(gt, config.spd, config.mod, i, count, m.userData.seed);
+            const stretch = 1.0 + noise * config.val * baseStretch;
+            if (baseBulge > 0) {
+                const bulge = 1.0 + noise * config.val * baseBulge;
+                m.scale.set(bulge, stretch, bulge);
+            } else {
+                m.scale.set(1.0, stretch, 1.0);
+            }
         }
-    }
+    };
 
-    // --- Gamma ray turbulence ---
-    if (state.isGammaEnabled && state.gammaRaysGroup && state.gammaRaysGroup.visible && !state.isDestroyed) {
-        let c = state.gammaRayCount;
-        for (let i = 0; i < state.gammaRaysGroup.children.length; i++) {
-            let m = state.gammaRaysGroup.children[i];
-            if (!m.visible) continue;
-            let noise = getTurbulence(gt, turb.g.spd, turb.g.mod, i, c, m.userData.seed);
-            let stretch = 1.0 + noise * turb.g.val * 5.0;
-            m.scale.set(1.0, stretch, 1.0);
-        }
-    }
+    applyTurbulence(state.pulsarGroup, turb.p, 3.0, 0.5);
+    applyTurbulence(state.gammaRaysGroup, turb.g, 5.0);
 
     // --- Accretion disk turbulence + ring animation ---
-    if (state.isAccretionEnabled && state.accretionRings && !state.isDestroyed) {
+    if (state.isAccretionEnabled && state.accretionRings) {
         let triggeredFlash = false;
         let c = state.accretionDiskCount;
         const c1 = new THREE.Color(state.colors.accretion[0]);
@@ -258,13 +259,10 @@ export function animatePhenomena(dt) {
         if (triggeredFlash) state.voxelFlashTimer = 1.0;
     } else {
         state.voxelFlashTimer = 0;
-        if (state.isDestroyed && state.accretionRings) {
-            state.accretionRings.forEach(ring => ring.mesh.visible = false);
-        }
     }
 
     // Voxel Flash
-    if (state.voxelFlashTimer > 0 && !state.isDestroyed) {
+    if (state.voxelFlashTimer > 0) {
         state.voxelFlashTimer -= dt * 6.0;
         if (state.flashVoxel) state.flashVoxel.material.opacity = Math.max(0, state.voxelFlashTimer);
     } else if (state.flashVoxel) {
@@ -272,7 +270,7 @@ export function animatePhenomena(dt) {
     }
 
     // --- Neutrino turbulence ---
-    if (state.isNeutrinosEnabled && state.neutrinoParticles && !state.isDestroyed) {
+    if (state.isNeutrinosEnabled && state.neutrinoParticles) {
         // Compute per-jet noise
         let c = state.neutrinoJetCount;
         for (let i = 0; i < state.neutrinoGroup.children.length; i++) {

@@ -363,6 +363,7 @@ class CanvasManager {
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
+    var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
     /// (canvasID, action, at?) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((String, String, [CGFloat]?) -> Void)?
     let startTime = Date()
@@ -729,6 +730,14 @@ class CanvasManager {
                         )
                         canvas.updatePosition(cgRect: newFrame)
                     }
+                    return
+                }
+
+                // Canvas-provided menu items for the status bar right-click menu.
+                // { type: "set_menu_items", items: [{title: "...", id: "..."}, ...] }
+                if type == "set_menu_items",
+                   let rawItems = dict["items"] as? [[String: String]] {
+                    self?.onMenuItems?(id, rawItems)
                     return
                 }
             }
