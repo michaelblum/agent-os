@@ -82,28 +82,56 @@ A single Swift binary using only Apple frameworks. Zero external dependencies. M
 | `aos` action | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
 | `aos` display | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
 | `aos` voice | **Audio** — `aos say` (TTS), daemon-driven announcements, config-driven voice/rate. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
-| `aos` coordination | **Coordination** — `aos tell` (post messages, register presence), `aos hear` (receive messages). Agent-to-agent communication over daemon channels | Foundation (daemon socket) | Planned |
+| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, presence), `aos listen` (inbound: STT, channels, stdin). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Planned (`say` ships as sugar for `tell human`) |
 
 All capability ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`). No per-capability standalone CLI escape hatches — new audio/perception/action functionality lands as subcommands on the existing subsystems.
 
-### Verb Taxonomy: The 2×2
+### Verb Taxonomy: Unified Communication
 
-The verb vocabulary follows an embodied metaphor with two axes — audience (human vs agent) and direction (produce vs receive):
+The verb vocabulary follows an embodied metaphor. Communication is one primitive — the daemon routes by audience and source:
 
-|  | **Human-facing** | **Agent-facing** |
-|--|------------------|------------------|
-| **Agent produces** | `say` (speak aloud) | `tell` (send message) |
-| **Agent receives** | `listen` (STT, planned) | `hear` (receive messages) |
+| Verb | What the agent does | What the daemon handles |
+|------|--------------------|-----------------------|
+| `see` | Perceive the environment | Screen, cursor, AX tree |
+| `do` | Act on the environment | CGEvents, AX actions, AppleScript |
+| `show` | Project visuals | Canvases, overlays, render |
+| `tell` | Communicate outward | Routes to TTS, channels, future sinks |
+| `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
 
-The environment-facing verbs (`see`/`do`) perceive and act on the physical desktop. The human-facing verbs (`say`/`show`/`listen`) communicate with the user via voice and visuals. The agent-facing verbs (`tell`/`hear`) coordinate between agent sessions.
+The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to deliver it. This follows the first principle above: agent tokens are for decisions, not plumbing.
 
-`do tell` (AppleScript tell blocks) is not the same verb — it talks to *apps*, not agents. Three tiers of communication: human (`say`), agent (`tell`), app (`do tell`).
+**`say` is sugar for `tell human`.** It stays as a convenience — short, intuitive, already shipped — but it's not a separate primitive. When `tell` gains new capabilities, `say` inherits them.
+
+**`do tell` is a different level.** AppleScript `do tell` talks to *apps*. `tell` talks to *agents and humans*. Three tiers: human (`tell human`), agent (`tell <channel>`), app (`do tell`).
+
+### Communication Routing
+
+```
+aos tell <audience> "message"
+         │
+         ▼
+      daemon (arbiter)
+         ├─→ TTS engine         (audience = human)
+         ├─→ channel post       (audience = session/channel)
+         ├─→ both               (audience = human,channel)
+         └─→ future sinks       (Slack, push, webhook)
+
+aos listen [--from <source>]
+         ▲
+      daemon (arbiter)
+         ├── STT engine         (source = human)
+         ├── channel message    (source = agent)
+         ├── stdin pipe         (source = bash)
+         └── future sources     (webhook, file watch)
+```
+
+The daemon routes based on config (`aos set voice.*`), presence (which sessions are online), and channel state. This is a natural extension of the daemon's existing responsibilities — it already manages voice config, canvases, and perception state.
 
 ### Coordination Bus
 
-The daemon hosts the coordination bus natively — channels, messages, presence. `aos tell` and `aos hear` talk to the daemon over its existing Unix socket, the same way `aos see` and `aos show` do. No separate process required.
+The daemon hosts the coordination bus natively — channels, messages, presence. No separate process required. `aos tell` and `aos listen` talk to the daemon over its existing Unix socket, the same way `aos see` and `aos show` do.
 
-The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's coordination bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
+The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's communication bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
 
 Channels inherit runtime mode isolation (repo channels don't crosstalk with installed channels) and wiki namespace conventions (apps scope channels under their namespace, system channels are root-level). See the design spec: `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 

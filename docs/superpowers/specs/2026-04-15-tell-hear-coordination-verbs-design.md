@@ -1,7 +1,7 @@
-# `tell`/`hear` — Coordination Verbs Design Spec
+# `tell`/`listen` — Unified Communication Verbs Design Spec
 
-**Date:** 2026-04-15
-**Scope:** New top-level `aos` verbs for agent-to-agent coordination. Daemon-native, no MCP dependency.
+**Date:** 2026-04-15 (revised)
+**Scope:** Two top-level `aos` verbs for all agent communication. Daemon-native routing, no MCP dependency.
 
 ## Problem
 
@@ -11,64 +11,101 @@ Session coordination (handoff, presence, messaging) currently requires the MCP g
 2. Codex and other non-MCP stacks can't participate
 3. Agent context windows are loaded with MCP tool schemas that exist only for coordination plumbing
 
-The MCP gateway should be an optional adapter for external consumers, not a prerequisite for core platform operations.
+Beyond coordination, the existing verb vocabulary encodes the delivery mechanism into the verb choice: `say` for TTS, a future `tell` for channels. This forces the agent to choose *how* to communicate rather than *what* to communicate and *to whom*. That's plumbing — and the first principle of ARCHITECTURE.md says agent tokens are for decisions, not plumbing.
 
-## Design Decision: Verb Taxonomy
+## Key Insight: Communication Is One Primitive
 
-### The existing metaphor
-
-The `aos` verb vocabulary follows an embodied metaphor — the agent has a body:
-
-| Verb | Metaphor | What it does |
-|------|----------|-------------|
-| `see` | eyes | Perceive the environment (screen, cursor, AX tree) |
-| `do` | hands | Act on the environment (click, type, press) |
-| `say` | mouth | Speak aloud to the human (TTS) |
-| `show` | projection | Display visuals to the human (canvases, overlays) |
-
-These cover the agent's relationship with **the environment** (`see`/`do`) and with **the human** (`say`/`show`). What's missing is the agent's relationship with **other agents**.
-
-### The 2x2
+The earlier design (v1, same date) proposed a 2×2 grid:
 
 |  | **Human-facing** | **Agent-facing** |
 |--|------------------|------------------|
-| **Agent produces** | `say` (speak aloud) | `tell` (send message) |
-| **Agent receives** | `listen` (STT, #55) | `hear` (receive messages) |
+| **Agent produces** | `say` | `tell` |
+| **Agent receives** | `listen` | `hear` |
 
-- `say`/`listen` = voice channel between agent and human
-- `tell`/`hear` = message channel between agents
+This is clean but encodes the *audience* into the *verb*. The agent has to decide: am I talking to a human or an agent? Then pick the right verb. But that's a routing decision, not a communication decision.
 
-`tell` is `say` for agents — same output modality (language), different audience. `hear` is `listen` for agents — same input modality, different source.
+**The revised design:** the primitive is communication itself. Two verbs, one routing layer.
 
-### Why `tell`/`hear` specifically
+- **`tell`** — agent produces language. The daemon routes it based on audience.
+- **`listen`** — agent receives language. The daemon aggregates sources.
 
-- **Body metaphor consistency.** The existing verbs are embodied English words, not technical jargon. `tell` and `hear` continue this.
-- **Semantic distinction from `say`.** `say` broadcasts audibly (TTS to the room). `tell` is directed to a specific recipient or channel (textual, structured).
-- **No collision with existing verbs.** `do tell` exists (AppleScript tell blocks) but operates at a different level — `do tell` talks to *apps*, `tell` talks to *agents*. This is a hierarchy (human → agent → app), not a conflict.
-- **`listen` is already earmarked** for STT (#55). `hear` is the agent-facing counterpart, keeping the symmetry clean.
+The agent decides WHAT to say and TO WHOM. The daemon decides HOW to deliver it.
 
-## Design Decision: Daemon-Native Coordination
+## Design: Two Verbs + Routing Arbiter
 
-The coordination bus is a **daemon primitive**, not a separate service.
+### `tell` — all outbound communication
 
-### Reasoning
+```
+aos tell <audience> "message"
+         │
+         ▼
+      daemon (arbiter)
+         │
+         ├─→ TTS engine (audience is human, voice enabled)
+         ├─→ channel post (audience is a session/channel name)
+         ├─→ both (audience is mixed)
+         └─→ future: Slack, push notification, webhook, etc.
+```
 
-The daemon (`aos serve`) is already a persistent process with a Unix socket, routing, and shared state. Adding channels/messages is another daemon capability alongside perception, display, and voice. This means:
+The audience determines the route:
 
-- No separate process to run (the daemon is already running)
-- `aos tell` talks to the daemon the same way `aos see` and `aos show` do
-- No Node.js dependency for coordination
-- Works from any shell, any agent stack — if you can run `aos`, you can coordinate
+| Audience | Route | Mechanism |
+|----------|-------|-----------|
+| `human` | Voice | TTS via SpeechEngine |
+| `<channel-name>` | Channel | Daemon coordination bus |
+| `<session-name>` | Direct message | Daemon coordination bus |
+| `human,handoff` | Mixed | TTS + channel post |
+
+### `listen` — all inbound communication
+
+```
+      daemon (arbiter)
+         │
+         ├── STT engine (human speaking)
+         ├── channel message (agent posted)
+         ├── stdin pipe (bash command)
+         ├── future: webhook, file watch, etc.
+         │
+         ▼
+aos listen [--from <source>]
+```
+
+All inbound language arrives through `listen`. The source metadata comes with the message, but the verb is the same regardless of origin.
+
+### `say` becomes sugar
+
+`aos say "hello"` is sugar for `aos tell human "hello"`. It stays as a convenience command — it's short, intuitive, already shipped. But conceptually, it's not a separate primitive. It's `tell` with a hardcoded audience.
+
+This means `say` doesn't need to evolve independently. When `tell` gains new capabilities (structured payloads, delivery confirmation), `say` inherits them automatically because it's the same codepath.
+
+### Why this is better than v1
+
+1. **Follows ARCHITECTURE.md principle #1.** "Agent Tokens Are For Decisions, Not Plumbing." Choosing between `say` and `tell` based on audience *is* plumbing. The agent shouldn't care whether the human hears it through speakers or reads it in a channel.
+
+2. **New delivery mechanisms are routes, not verbs.** Want Slack integration? Add a route to the arbiter. The verb vocabulary doesn't grow. Four verbs was already at the edge of elegant; more would be bloat.
+
+3. **The agent's mental model is simpler.** "I tell things and I listen for things." That's it. No decision tree about which communication verb to use.
+
+4. **Source/audience composition.** `tell human,handoff "done"` posts to a channel AND speaks aloud. With separate verbs, the agent has to make two calls. With unified `tell`, it's one intent, one call, multiple routes.
+
+## Design Decision: The Daemon as Arbiter
+
+The daemon routes communication based on:
+
+- **Config** — voice enabled? which voice? rate? (`aos set voice.*`)
+- **Presence** — which sessions are online? (`tell --who`)
+- **Channel state** — does the channel exist? who's subscribed?
+- **Audience type** — human, session name, channel name, mixed
+
+The daemon already has all of this context. It manages voice config, runs the coordination bus, and tracks state. Routing is a natural extension, not a new responsibility.
 
 ### MCP gateway becomes an adapter
 
-The gateway package (`packages/gateway/`) remains as an optional MCP adapter. External developers who want MCP integration can use it. It wraps the daemon's coordination bus, not the other way around. The daemon is the source of truth; the gateway is a view.
-
-### Platform vs SDK split
+The gateway package (`packages/gateway/`) remains as an optional MCP adapter for external consumers. It wraps the daemon's communication bus. The daemon is the source of truth; the gateway is a view.
 
 | Role | Interface | Who uses it |
 |------|-----------|-------------|
-| Agent-os developer | `aos` CLI (tell/hear) | Sessions working on or inside agent-os |
+| Agent-os developer | `aos` CLI (tell/listen) | Sessions working on or inside agent-os |
 | App developer | `aos` CLI | Apps built on agent-os (Sigil, future apps) |
 | External integrator | MCP gateway (optional) | Third-party tools wanting MCP access |
 
@@ -82,66 +119,92 @@ Channels are scoped by runtime mode, same as all other state:
 ~/.config/aos/{repo|installed}/
   config.json       # aos set
   wiki/             # aos wiki
-  channels/         # aos tell / aos hear
+  channels/         # aos tell / aos listen
 ```
 
-Repo-mode dev sessions don't crosstalk with installed-mode app sessions. No new scoping mechanism.
+Repo-mode dev sessions don't crosstalk with installed-mode app sessions.
 
 ### Wiki namespace convention
 
-Channels can be namespaced following the same convention as wiki entries:
+Channels follow the same namespace convention as wiki entries:
 
 - `handoff` — system-level, root namespace
 - `sigil/events` — app-scoped
 - `myplugin/status` — plugin-scoped
 
-Apps and plugins declare channels in their namespace. System channels are root-level.
-
 ### Why inherit rather than invent
 
-The scoping model (mode isolation + namespace convention) is already established and understood by agents via AGENTS.md. New resource types that follow existing conventions require zero new documentation about scoping. New resource types that invent their own conventions create cognitive overhead and potential for divergence.
+The scoping model (mode isolation + namespace convention) is already established. New resource types that follow existing conventions require zero new documentation about scoping. New resource types that invent their own create cognitive overhead and divergence.
 
-## Trigger: What Started This
+## Verb Taxonomy (Revised)
 
-The canvas lifecycle work (suspend/resume, `fafbe10`..`00993d8`) was triggered by status-item toggle latency: clicking the menu bar icon to show the avatar took several seconds because each toggle destroyed and recreated the canvas. The fix wasn't a Sigil-specific workaround — it was suspend/resume as a canvas lifecycle primitive.
+| Verb | What the agent does | What the daemon does |
+|------|--------------------|--------------------|
+| `see` | Perceive the environment | Captures screen, AX tree, cursor state |
+| `do` | Act on the environment | Fires CGEvents, AX actions, AppleScript |
+| `show` | Project visuals | Manages canvases, overlays, render |
+| `tell` | Communicate outward | Routes to TTS, channels, future sinks |
+| `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
 
-During handoff of the lifecycle work for HITL testing, the handoff script couldn't post to the gateway without MCP tools loaded. This surfaced the question: why is coordination locked behind MCP? The answer — it shouldn't be. Coordination is a primitive that belongs in the daemon, exposed through `tell`/`hear`, following the verb taxonomy and scoping conventions already established.
+`say` stays as sugar for `tell human`. `do tell` stays as AppleScript (different level — talking to apps, not agents/humans).
+
+Five core verbs, not six. The communication primitive is unified.
 
 ## Usage (Planned)
 
 ```bash
-# Post a message to a channel
+# Tell a human (TTS) — identical to current `aos say`
+aos tell human "I found the bug in line 47"
+aos say "I found the bug in line 47"              # sugar, same thing
+
+# Tell a channel (agent coordination)
 aos tell handoff "task complete, see commit abc1234"
 
-# Post structured payload
+# Tell a session directly
+aos tell hitl-visual-test "ready for your review"
+
+# Tell multiple audiences
+aos tell human,handoff "done — handing off to visual testing"
+
+# Structured payload
 aos tell sigil/events --json '{"type": "state_change", "state": "active"}'
 
-# Register presence
+# Presence
 aos tell --register my-session-name
-
-# Who's online
 aos tell --who
 
-# Read messages from a channel
-aos hear handoff
-
-# Stream messages (future, with aos hear)
-aos hear sigil/events --follow
+# Listen for messages
+aos listen handoff
+aos listen --from human                           # STT only
+aos listen sigil/events --follow                  # stream
 ```
+
+## Trigger: What Started This
+
+The canvas lifecycle work (suspend/resume) was triggered by status-item toggle latency. During handoff of that work, `scripts/handoff` couldn't post to the gateway without MCP tools. This surfaced: why is coordination locked behind MCP?
+
+The first answer was `tell`/`hear` as coordination-specific verbs (the 2×2). But examining the verb taxonomy revealed a deeper insight: `say` and `tell` are the same primitive — produce language — differing only in routing. The agent shouldn't choose the delivery mechanism; the daemon should. This collapsed four verbs into two, with the daemon as routing arbiter.
 
 ## What This Replaces
 
 | Before | After |
 |--------|-------|
-| MCP `post_message` tool | `aos tell <channel> "message"` |
-| MCP `register_session` tool | `aos tell --register <name>` |
-| MCP `who_is_online` tool | `aos tell --who` |
-| MCP `read_stream` tool | `aos hear <channel>` |
-| `scripts/handoff` + manual MCP posting | `scripts/handoff` calls `aos tell` internally |
-| MCP server must be loaded | `aos` CLI is sufficient |
+| `aos say "text"` | `aos tell human "text"` (or keep `say` as sugar) |
+| MCP `post_message` | `aos tell <channel> "message"` |
+| MCP `register_session` | `aos tell --register <name>` |
+| MCP `who_is_online` | `aos tell --who` |
+| MCP `read_stream` | `aos listen <channel>` |
+| STT (#55) as separate verb | `aos listen --from human` |
+| `scripts/handoff` + manual MCP | `scripts/handoff` calls `aos tell` internally |
+| 4 communication verbs | 2 verbs + routing |
+
+## Design Evolution
+
+This spec supersedes the v1 design (same date) which proposed four verbs (`say`/`tell`/`listen`/`hear`). The revision recognizes that audience-routing is the daemon's job, not the agent's verb choice. The v1 thinking was useful — the 2×2 grid revealed the gap — but the final design compresses it.
 
 ## Principles Reinforced
 
-1. **Primitives First.** Coordination is a primitive, not an app-level concern. Push it down to the daemon so every app benefits.
-2. **CLI is the control surface.** `aos` is the canonical interface for development inside agent-os. MCP is an optional adapter for external consumers.
-3. **Scoping inheritance.** New resource types follow existing mode/namespace conventions. Don't invent new scoping models.
+1. **Agent Tokens Are For Decisions, Not Plumbing.** The agent decides what to communicate and to whom. The daemon decides how to deliver it.
+2. **Primitives First.** Communication is one primitive with routing, not four separate capabilities.
+3. **CLI is the control surface.** `aos` is the canonical interface. MCP is an optional adapter.
+4. **Scoping inheritance.** Channels follow runtime mode isolation and wiki namespace conventions.

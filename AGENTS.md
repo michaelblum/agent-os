@@ -47,18 +47,18 @@ and wiki namespace conventions. Don't invent new scoping models.
 
 The `aos` CLI uses an embodied verb metaphor. Know the verbs and what they cover:
 
-| Verb | Role | Direction |
-|------|------|-----------|
-| `see` | Perception — screen, cursor, AX tree | Environment → agent |
-| `do` | Action — click, type, press, AppleScript | Agent → environment |
-| `say` | Voice — speak aloud to the human (TTS) | Agent → human |
-| `show` | Display — canvases, overlays, render | Agent → human |
-| `tell` | Coordination — message agents/channels | Agent → agents |
-| `hear` | Coordination — receive from channels | Agents → agent |
+| Verb | What the agent does | What the daemon handles |
+|------|--------------------|-----------------------|
+| `see` | Perceive the environment | Screen, cursor, AX tree |
+| `do` | Act on the environment | CGEvents, AX actions, AppleScript |
+| `show` | Project visuals | Canvases, overlays, render |
+| `tell` | Communicate outward | Routes to TTS, channels, future sinks |
+| `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
 
-`tell`/`hear` are the agent-to-agent counterparts of `say`/`listen`. See
-`ARCHITECTURE.md` for the full rationale and the design spec at
-`docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
+`say` is sugar for `tell human`. `do tell` is AppleScript (talks to apps, not
+agents). The agent decides WHAT to communicate and TO WHOM — the daemon decides
+HOW to deliver it. See `ARCHITECTURE.md` for the full rationale and the design
+spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 ## Repo-Wide Methods
 
