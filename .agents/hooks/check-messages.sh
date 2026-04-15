@@ -18,6 +18,9 @@ fi
 
 [ -z "$SESSION_NAME" ] && exit 0
 
+# Guard: reject session names containing path separators
+[[ "$SESSION_NAME" == */* ]] && exit 0
+
 # Gateway DB location
 GATEWAY_DB="$HOME/.config/aos-gateway/gateway.db"
 [ -f "$GATEWAY_DB" ] || exit 0
@@ -48,7 +51,7 @@ RESULT=$(sqlite3 "$GATEWAY_DB" "
 
 # Update cursor to latest message ID
 LATEST=$(echo "$RESULT" | tail -1 | cut -d'|' -f1)
-echo "$LATEST" > "$STATE_FILE"
+echo "$LATEST" > "${STATE_FILE}.tmp" 2>/dev/null && mv "${STATE_FILE}.tmp" "$STATE_FILE" 2>/dev/null
 
 # Count and summarize
 COUNT=$(echo "$RESULT" | wc -l | tr -d ' ')
