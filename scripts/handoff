@@ -14,10 +14,11 @@
 #   3. Writes a launcher script to /tmp/aos-handoff-<name>
 #   4. Copies "bash /tmp/aos-handoff-<name>" to clipboard
 #
-# The launcher script calls `claude -n "<name>" "<seed prompt>"` where the
-# seed prompt tells the agent to read the handoff brief from the gateway
-# channel. The brief is posted to the gateway by the CALLING Claude session
-# (this script outputs the payload path for the caller to post via MCP).
+# The launcher script sets AOS_SESSION_NAME and calls `claude -n "<name>"
+# "Bootstrap: /tmp/aos-handoff-<name>.json"`. The session-start hook reads
+# the bootstrap file automatically. The brief is also posted to the gateway
+# by the CALLING session (both 'handoff' and named channel) for turn-hook
+# detection if the target session is already running.
 #
 # Options:
 #   --to       NAME    Next session name (required)
@@ -101,17 +102,18 @@ fi
 
 # --- Build the gateway payload ---
 PAYLOAD_FILE="/tmp/aos-handoff-${TO}.json"
-python3 << PYEOF > "$PAYLOAD_FILE"
-import json
+AOS_FROM="$FROM" AOS_TO="$TO" AOS_TASK="$TASK" AOS_BRIEF="$BRIEF" AOS_PAYLOAD="$PAYLOAD_FILE" \
+  python3 -c "
+import json, os
 payload = {
-    "type": "session_handoff",
-    "from": $(python3 -c "import json; print(json.dumps('$FROM'))"),
-    "to": $(python3 -c "import json; print(json.dumps('$TO'))"),
-    "task": $(python3 -c "import json; print(json.dumps('$TASK'))"),
-    "brief": $(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$BRIEF")
+    'type': 'session_handoff',
+    'from': os.environ['AOS_FROM'],
+    'to': os.environ['AOS_TO'],
+    'task': os.environ['AOS_TASK'],
+    'brief': os.environ['AOS_BRIEF'],
 }
-json.dump(payload, open("$PAYLOAD_FILE", "w"), indent=2)
-PYEOF
+json.dump(payload, open(os.environ['AOS_PAYLOAD'], 'w'), indent=2)
+"
 
 # --- Build the seed prompt ---
 SEED="Bootstrap: /tmp/aos-handoff-${TO}.json"
@@ -119,9 +121,9 @@ SEED="Bootstrap: /tmp/aos-handoff-${TO}.json"
 # --- Build the launcher script ---
 LAUNCHER="/tmp/aos-handoff-${TO}"
 if $RESUME; then
-  CLAUDE_CMD="claude --resume \"${TO}\" \"${SEED}\""
+  CLAUDE_FLAG="--resume"
 else
-  CLAUDE_CMD="claude -n \"${TO}\" \"${SEED}\""
+  CLAUDE_FLAG="-n"
 fi
 
 # --- Output ---
@@ -133,7 +135,7 @@ if $DRY_RUN; then
   echo "$SEED"
   echo ""
   echo "=== LAUNCHER ==="
-  echo "$CLAUDE_CMD"
+  echo "AOS_SESSION_NAME=\"${TO}\" claude ${CLAUDE_FLAG} \"${TO}\" \"${SEED}\""
   echo ""
   echo "=== CLIPBOARD ==="
   echo "bash ${LAUNCHER}"
@@ -145,7 +147,7 @@ cat > "$LAUNCHER" << LAUNCHEOF
 #!/bin/bash
 cd "$ROOT"
 export AOS_SESSION_NAME="$TO"
-exec $CLAUDE_CMD
+exec claude ${CLAUDE_FLAG} "$TO" "$SEED"
 LAUNCHEOF
 chmod +x "$LAUNCHER"
 
