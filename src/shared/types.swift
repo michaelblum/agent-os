@@ -30,9 +30,22 @@ struct Bounds: Codable {
 
 // MARK: - Coordinate Conversion
 
+func globalDisplayBounds() -> CGRect {
+    let displays = getDisplays()
+    guard let first = displays.first else {
+        return CGRect(x: 0, y: 0, width: 0, height: 0)
+    }
+    return displays.dropFirst().reduce(first.bounds) { partial, display in
+        partial.union(display.bounds)
+    }
+}
+
+func globalDisplayMaxY() -> CGFloat {
+    globalDisplayBounds().maxY
+}
+
 /// Convert NSEvent mouse coordinates (bottom-left origin) to CG coordinates (top-left origin).
 func mouseInCGCoords() -> CGPoint {
     let mouse = NSEvent.mouseLocation
-    let mainH = CGDisplayBounds(CGMainDisplayID()).height
-    return CGPoint(x: mouse.x, y: mainH - mouse.y)
+    return CGPoint(x: mouse.x, y: globalDisplayMaxY() - mouse.y)
 }

@@ -17,6 +17,8 @@ Examples:
 - `bash tests/wiki-write-api.sh`
 - `bash tests/content/wiki-list.test.sh`
 - `bash tests/daemon-singleton.sh`
+- `bash tests/capture-region-perception.sh`
+- `bash tests/capture-canvas-surface.sh`
 - `./aos runtime status --json`
 - `./aos show create ...`
 
@@ -52,6 +54,9 @@ if a run is interrupted.
 
 Examples:
 
+- `bash tests/capture-region-perception.sh`
+- `bash tests/capture-canvas-surface.sh`
+- `bash tests/capture-union-canvas-surface.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 
 ## Recovery

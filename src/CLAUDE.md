@@ -83,8 +83,9 @@ The capture pipeline runs in-process — no external binary dependency.
 
 **Key options:**
 - `--out <path>`, `--base64`, `--format <png|jpg|heic>`, `--quality <high|med|low>`
-- `--window` (capture window only), `--crop <spec>`, `--grid <CxR>`
+- `--window` (capture window only), `--crop <spec>`, `--region <x,y,w,h>` (global CG points), `--canvas <id>`, `--channel <id>`, `--grid <CxR>`
 - `--xray` (AX traversal), `--label` (badge annotations via `aos show render`)
+- `--perception` (attach topology + resolved surface geometry to the JSON response, including per-display segments for spanning captures)
 - `--show-cursor`, `--highlight-cursor`, `--radius <px>`
 - `--delay <sec>`, `--clipboard`, `--draw-rect <coords> <color>`
 - `--interactive`, `--wait-for-click`

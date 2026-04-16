@@ -77,6 +77,8 @@ The current top-level commands are:
 ```bash
 aos see cursor
 aos see capture main --base64
+aos see capture --canvas canvas-inspector --perception --out /tmp/inspector.png
+aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png
 aos do click 500,300
 ```
 
@@ -136,7 +138,17 @@ Shorthand capture is supported:
 ```bash
 aos see main
 aos see external 1
+aos see capture --canvas canvas-inspector --perception
+aos see capture --region 1172,442,320,480 --perception
 ```
+
+`--perception` augments the capture response with:
+
+- global capture bounds
+- local capture bounds in the emitted image
+- composite capture scale
+- per-display surface segments when a region/canvas/channel spans multiple displays
+- a `spatial-topology` snapshot for the same moment
 
 ## `aos show`
 

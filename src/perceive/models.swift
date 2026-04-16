@@ -247,6 +247,35 @@ struct CaptureWindowJSON: Encodable {
     let scale_factor: Double
 }
 
+struct CaptureSurfaceSegmentJSON: Encodable {
+    let display: Int
+    let scale_factor: Double
+    let bounds_global: STBounds
+    let bounds_local: BoundsJSON
+}
+
+struct CapturePerceptionJSON: Encodable {
+    let capture_bounds_global: STBounds
+    let capture_bounds_local: BoundsJSON
+    let capture_scale_factor: Double
+    let cursor_local: CursorJSON?
+    let segments: [CaptureSurfaceSegmentJSON]
+    let topology: SpatialTopology
+}
+
+struct CaptureSurfaceJSON: Encodable {
+    let kind: String
+    let id: String?
+    let display: Int?
+    let displays: [Int]
+    let scale_factor: Double?
+    let capture_scale_factor: Double
+    let window_id: Int?
+    let bounds_global: STBounds
+    let bounds_local: BoundsJSON
+    let segments: [CaptureSurfaceSegmentJSON]
+}
+
 struct SuccessResponse: Encodable {
     let status = "success"
     var files: [String]?
@@ -259,8 +288,12 @@ struct SuccessResponse: Encodable {
     var elements: [AXElementJSON]?
     var annotations: [AnnotationJSON]?
     var window: CaptureWindowJSON?
+    var surfaces: [CaptureSurfaceJSON]?
+    var perceptions: [CapturePerceptionJSON]?
 
-    enum CodingKeys: String, CodingKey { case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations, window }
+    enum CodingKeys: String, CodingKey {
+        case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations, window, surfaces, perceptions
+    }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -275,5 +308,7 @@ struct SuccessResponse: Encodable {
         if let e = elements { try c.encode(e, forKey: .elements) }
         if let a = annotations { try c.encode(a, forKey: .annotations) }
         if let win = window { try c.encode(win, forKey: .window) }
+        if let s = surfaces { try c.encode(s, forKey: .surfaces) }
+        if let p = perceptions { try c.encode(p, forKey: .perceptions) }
     }
 }

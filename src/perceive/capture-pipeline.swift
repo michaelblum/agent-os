@@ -248,9 +248,7 @@ func resolveDisplayTarget(_ target: String, displays: [CaptureDisplayEntry]) -> 
 
 /// Find the display containing the current mouse cursor.
 func displayForMouse(displays: [CaptureDisplayEntry]) -> CaptureDisplayEntry? {
-    let mouse = NSEvent.mouseLocation
-    let mainH = CGDisplayBounds(CGMainDisplayID()).height
-    let pt = CGPoint(x: mouse.x, y: mainH - mouse.y)
+    let pt = mouseInCGCoords()
     return displays.first(where: { $0.bounds.contains(pt) }) ?? displays.first(where: { $0.isMain })
 }
 
@@ -407,6 +405,208 @@ func applyCrop(_ image: CGImage, style: String) -> (image: CGImage, rect: CGRect
         exitError("Crop region is outside image bounds", code: "CROP_FAILED")
     }
     return (cropped, rect)
+}
+
+func parseGlobalRect(_ spec: String, label: String = "--region") -> CGRect {
+    let parts = spec.split(separator: ",").compactMap { Double($0) }
+    guard parts.count == 4 else {
+        exitError("\(label) must be x,y,w,h", code: "INVALID_ARG")
+    }
+    let rect = CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
+    guard rect.width > 0, rect.height > 0 else {
+        exitError("\(label) width and height must be positive", code: "INVALID_ARG")
+    }
+    return rect.integral
+}
+
+struct CaptureSurfaceSelection {
+    let kind: String
+    let id: String?
+    let globalBounds: CGRect
+    let windowID: Int?
+    let segments: [CaptureSurfaceSegmentSelection]
+}
+
+struct CaptureSurfaceSegmentSelection {
+    let display: CaptureDisplayEntry
+    let globalBounds: CGRect
+}
+
+func stBounds(_ rect: CGRect) -> STBounds {
+    STBounds(x: rect.origin.x, y: rect.origin.y, width: rect.width, height: rect.height)
+}
+
+func resolveSurfaceSegments(_ region: CGRect, displays: [CaptureDisplayEntry]) -> [CaptureSurfaceSegmentSelection] {
+    let active = displays.filter { !$0.isMirrored }
+    let segments = active.compactMap { display -> CaptureSurfaceSegmentSelection? in
+        let intersection = region.intersection(display.bounds)
+        guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { return nil }
+        return CaptureSurfaceSegmentSelection(display: display, globalBounds: intersection.integral)
+    }
+    guard !segments.isEmpty else {
+        exitError("Region \(NSStringFromRect(region)) does not intersect any active display.", code: "NO_DISPLAY")
+    }
+    return segments.sorted {
+        if $0.globalBounds.minY == $1.globalBounds.minY {
+            return $0.globalBounds.minX < $1.globalBounds.minX
+        }
+        return $0.globalBounds.minY < $1.globalBounds.minY
+    }
+}
+
+func capturePixelRect(globalRect: CGRect, in display: CaptureDisplayEntry) -> CGRect {
+    CGRect(
+        x: (globalRect.origin.x - display.bounds.origin.x) * display.scaleFactor,
+        y: (globalRect.origin.y - display.bounds.origin.y) * display.scaleFactor,
+        width: globalRect.width * display.scaleFactor,
+        height: globalRect.height * display.scaleFactor
+    ).integral
+}
+
+func captureLocalRect(globalRect: CGRect, within captureBounds: CGRect, scaleFactor: Double) -> CGRect {
+    CGRect(
+        x: (globalRect.origin.x - captureBounds.origin.x) * scaleFactor,
+        y: (globalRect.origin.y - captureBounds.origin.y) * scaleFactor,
+        width: globalRect.width * scaleFactor,
+        height: globalRect.height * scaleFactor
+    ).integral
+}
+
+func globalCaptureRect(display: CaptureDisplayEntry, windowFrame: CGRect?, cropRect: CGRect?) -> CGRect {
+    let base = windowFrame ?? display.bounds
+    guard let crop = cropRect else { return base }
+    return CGRect(
+        x: base.origin.x + crop.origin.x / display.scaleFactor,
+        y: base.origin.y + crop.origin.y / display.scaleFactor,
+        width: crop.width / display.scaleFactor,
+        height: crop.height / display.scaleFactor
+    )
+}
+
+func localCursorInCapture(topology: SpatialTopology, captureRect: CGRect, scaleFactor: Double) -> CursorJSON? {
+    let point = CGPoint(x: topology.cursor.x, y: topology.cursor.y)
+    guard captureRect.contains(point) else { return nil }
+    return CursorJSON(
+        x: Int((point.x - captureRect.origin.x) * scaleFactor),
+        y: Int((point.y - captureRect.origin.y) * scaleFactor)
+    )
+}
+
+func capturePerceptionSnapshot(
+    topology: SpatialTopology,
+    captureRect: CGRect,
+    imageSize: CGSize,
+    scaleFactor: Double,
+    segments: [CaptureSurfaceSegmentJSON]
+) -> CapturePerceptionJSON {
+    CapturePerceptionJSON(
+        capture_bounds_global: stBounds(captureRect),
+        capture_bounds_local: BoundsJSON(x: 0, y: 0, width: Int(imageSize.width), height: Int(imageSize.height)),
+        capture_scale_factor: scaleFactor,
+        cursor_local: localCursorInCapture(topology: topology, captureRect: captureRect, scaleFactor: scaleFactor),
+        segments: segments,
+        topology: topology
+    )
+}
+
+func captureSurfaceSegmentJSON(
+    segment: CaptureSurfaceSegmentSelection,
+    captureBounds: CGRect,
+    scaleFactor: Double
+) -> CaptureSurfaceSegmentJSON {
+    let localBounds = captureLocalRect(globalRect: segment.globalBounds, within: captureBounds, scaleFactor: scaleFactor)
+    return CaptureSurfaceSegmentJSON(
+        display: segment.display.ordinal,
+        scale_factor: segment.display.scaleFactor,
+        bounds_global: stBounds(segment.globalBounds),
+        bounds_local: BoundsJSON(
+            x: Int(localBounds.origin.x),
+            y: Int(localBounds.origin.y),
+            width: Int(localBounds.width),
+            height: Int(localBounds.height)
+        )
+    )
+}
+
+func captureSurfaceJSON(
+    selection: CaptureSurfaceSelection,
+    imageSize: CGSize,
+    scaleFactor: Double
+) -> CaptureSurfaceJSON {
+    let segments = selection.segments.map {
+        captureSurfaceSegmentJSON(segment: $0, captureBounds: selection.globalBounds, scaleFactor: scaleFactor)
+    }
+    let displays = segments.map(\.display)
+    return CaptureSurfaceJSON(
+        kind: selection.kind,
+        id: selection.id,
+        display: displays.count == 1 ? displays[0] : nil,
+        displays: displays,
+        scale_factor: segments.count == 1 ? segments[0].scale_factor : nil,
+        capture_scale_factor: scaleFactor,
+        window_id: selection.windowID,
+        bounds_global: stBounds(selection.globalBounds),
+        bounds_local: BoundsJSON(x: 0, y: 0, width: Int(imageSize.width), height: Int(imageSize.height)),
+        segments: segments
+    )
+}
+
+func decodeCanvasResponse(_ response: [String: Any]) -> CanvasResponse? {
+    guard JSONSerialization.isValidJSONObject(response),
+          let data = try? JSONSerialization.data(withJSONObject: response, options: []) else { return nil }
+    return CanvasResponse.from(data)
+}
+
+func readCanvasInfo(id: String) -> CanvasInfo? {
+    guard let response = daemonOneShot(["action": "list"], autoStartBinary: aosExecutablePath()),
+          let decoded = decodeCanvasResponse(response),
+          decoded.error == nil,
+          let canvases = decoded.canvases else { return nil }
+    return canvases.first(where: { $0.id == id })
+}
+
+func resolveCaptureSurface(opts: CaptureOptions, displays: [CaptureDisplayEntry]) -> CaptureSurfaceSelection? {
+    if let canvasID = opts.canvasID {
+        guard let canvas = readCanvasInfo(id: canvasID) else {
+            exitError("Canvas '\(canvasID)' not found", code: "CANVAS_NOT_FOUND")
+        }
+        let bounds = CGRect(x: canvas.at[0], y: canvas.at[1], width: canvas.at[2], height: canvas.at[3]).integral
+        return CaptureSurfaceSelection(
+            kind: "canvas",
+            id: canvasID,
+            globalBounds: bounds,
+            windowID: nil,
+            segments: resolveSurfaceSegments(bounds, displays: displays)
+        )
+    }
+    if let channelID = opts.channelID {
+        guard let channel = readChannelFile(id: channelID) else {
+            exitError("Channel '\(channelID)' not found", code: "CHANNEL_NOT_FOUND")
+        }
+        if isChannelStale(channel) {
+            exitError("Channel '\(channelID)' is stale (>10s since last update)", code: "CHANNEL_STALE")
+        }
+        let wb = channel.window_bounds
+        let bounds = CGRect(x: wb.x, y: wb.y, width: wb.w, height: wb.h).integral
+        return CaptureSurfaceSelection(
+            kind: "channel",
+            id: channelID,
+            globalBounds: bounds,
+            windowID: channel.target.window_id,
+            segments: resolveSurfaceSegments(bounds, displays: displays)
+        )
+    }
+    if let regionSpec = opts.region {
+        let region = parseGlobalRect(regionSpec)
+        return CaptureSurfaceSelection(
+            kind: "region",
+            id: nil,
+            globalBounds: region,
+            windowID: nil,
+            segments: resolveSurfaceSegments(region, displays: displays)
+        )
+    }
+    return nil
 }
 
 // MARK: - Cursor Position
@@ -582,6 +782,52 @@ func compositeOverlay(_ overlay: CGImage, onto base: CGImage) -> CGImage {
     return ctx.makeImage() ?? base
 }
 
+func cropImage(_ image: CGImage, to rect: CGRect) -> CGImage {
+    let integral = rect.integral
+    guard let cropped = image.cropping(to: integral) else {
+        exitError("Crop region is outside image bounds", code: "CROP_FAILED")
+    }
+    return cropped
+}
+
+struct CapturedSurfaceSegment {
+    let segment: CaptureSurfaceSegmentSelection
+    let image: CGImage
+    let localRect: CGRect
+}
+
+func stitchSurfaceSegments(
+    _ segments: [CapturedSurfaceSegment],
+    canvasSize: CGSize
+) -> CGImage {
+    let width = Int(canvasSize.width)
+    let height = Int(canvasSize.height)
+    guard let ctx = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        exitError("Failed to create stitched capture context", code: "CAPTURE_FAILED")
+    }
+
+    ctx.clear(CGRect(x: 0, y: 0, width: width, height: height))
+    for segment in segments {
+        let rect = segment.localRect
+        let drawRect = CGRect(
+            x: rect.origin.x,
+            y: canvasSize.height - rect.origin.y - rect.height,
+            width: rect.width,
+            height: rect.height
+        )
+        ctx.draw(segment.image, in: drawRect)
+    }
+    return ctx.makeImage() ?? segments[0].image
+}
+
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
@@ -615,8 +861,12 @@ struct CaptureOptions {
     var outputPath: String? = nil
     var useBase64: Bool = false
     var crop: String? = nil
+    var region: String? = nil
+    var canvasID: String? = nil
+    var channelID: String? = nil
     var format: String = "png"
     var quality: String = "high"
+    var perception: Bool = false
 
     // Cursor
     var showCursor: Bool = false
@@ -686,6 +936,18 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
             i += 1
             guard i < args.count else { exitError("--crop requires a value", code: "MISSING_ARG") }
             opts.crop = args[i]
+        case "--region":
+            i += 1
+            guard i < args.count else { exitError("--region requires x,y,w,h in global CG points", code: "MISSING_ARG") }
+            opts.region = args[i]
+        case "--canvas":
+            i += 1
+            guard i < args.count else { exitError("--canvas requires a canvas id", code: "MISSING_ARG") }
+            opts.canvasID = args[i]
+        case "--channel":
+            i += 1
+            guard i < args.count else { exitError("--channel requires a focus channel id", code: "MISSING_ARG") }
+            opts.channelID = args[i]
         case "--format":
             i += 1
             guard i < args.count else { exitError("--format requires a value", code: "MISSING_ARG") }
@@ -694,6 +956,8 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
             i += 1
             guard i < args.count else { exitError("--quality requires a value", code: "MISSING_ARG") }
             opts.quality = args[i].lowercased()
+        case "--perception":
+            opts.perception = true
 
         // Cursor
         case "--show-cursor":
@@ -1114,7 +1378,7 @@ func showInteractiveSelection(on display: CaptureDisplayEntry, timeout: Double =
 // MARK: - Command: list (spatial topology)
 
 @available(macOS 14.0, *)
-func seeListCommand() {
+func buildSpatialTopology() -> SpatialTopology {
     let displays = getCaptureDisplays()
 
     // Build window list using CGWindowList directly.
@@ -1268,7 +1532,12 @@ func seeListCommand() {
         displays: stDisplays,
         apps: stApps
     )
-    print(jsonString(topology))
+    return topology
+}
+
+@available(macOS 14.0, *)
+func seeListCommand() {
+    print(jsonString(buildSpatialTopology()))
 }
 
 // MARK: - Command: cursor (capture pipeline version)
@@ -1458,6 +1727,20 @@ func captureCommand(args: [String]) async {
     let fmt = resolveUTType(for: opts.format)
     let quality = resolveQuality(for: opts.quality)
 
+    if opts.region != nil && opts.crop != nil {
+        exitError("--region and --crop cannot be used together", code: "INVALID_ARG")
+    }
+    if opts.region != nil && opts.windowOnly {
+        exitError("--region and --window cannot be used together", code: "INVALID_ARG")
+    }
+    let explicitSurfaceFlags = [opts.region != nil, opts.canvasID != nil, opts.channelID != nil].filter { $0 }.count
+    if explicitSurfaceFlags > 1 {
+        exitError("Use only one of --region, --canvas, or --channel", code: "INVALID_ARG")
+    }
+    if (opts.canvasID != nil || opts.channelID != nil) && opts.windowOnly {
+        exitError("--window cannot be combined with --canvas or --channel", code: "INVALID_ARG")
+    }
+
     // ── Zone resolution ──
     if !captureTargets.contains(opts.target) && !opts.target.hasPrefix("external") {
         let zones = loadZones()
@@ -1497,72 +1780,74 @@ func captureCommand(args: [String]) async {
     }
 
     let displays = getCaptureDisplays()
+    let explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
 
     // ── Resolve target ──
     var targetDisplayIDs: [CGDirectDisplayID] = []
     var specificWindow: SCWindow? = nil
     var responseWarning: String? = nil
+    if explicitSurface == nil {
+        switch opts.target {
+        case "main", "center", "middle":
+            guard let d = displays.first(where: { $0.isMain }) else { exitError("No main display", code: "NO_DISPLAY") }
+            targetDisplayIDs = [d.cgID]
 
-    switch opts.target {
-    case "main", "center", "middle":
-        guard let d = displays.first(where: { $0.isMain }) else { exitError("No main display", code: "NO_DISPLAY") }
-        targetDisplayIDs = [d.cgID]
+        case "external":
+            guard let d = displays.first(where: { !$0.isMain && !$0.isMirrored }) else {
+                exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY")
+            }
+            targetDisplayIDs = [d.cgID]
 
-    case "external":
-        guard let d = displays.first(where: { !$0.isMain && !$0.isMirrored }) else {
-            exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY")
+        case "external 1":
+            let exts = displays.filter { !$0.isMain && !$0.isMirrored }
+            guard let d = exts.first else { exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY") }
+            targetDisplayIDs = [d.cgID]
+
+        case "external 2":
+            let exts = displays.filter { !$0.isMain && !$0.isMirrored }
+            if exts.count >= 2 { targetDisplayIDs = [exts[1].cgID] }
+            else if let d = exts.first { targetDisplayIDs = [d.cgID] }
+            else { exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY") }
+
+        case "user_active":
+            guard let app = NSWorkspace.shared.frontmostApplication else {
+                exitError("No frontmost application", code: "NO_ACTIVE_APP")
+            }
+            guard let w = largestWindow(for: app.processIdentifier, in: content.windows) else {
+                exitError("No window for active app '\(app.localizedName ?? "?")'", code: "NO_WINDOW")
+            }
+            specificWindow = w
+            targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
+
+        case "selfie":
+            guard let w = selfieWindow(content: content) else {
+                exitError("Cannot find hosting app window", code: "SELFIE_NOT_FOUND")
+            }
+            specificWindow = w
+            targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
+
+        case "mouse":
+            guard let d = displayForMouse(displays: displays) else {
+                exitError("Cannot determine display for cursor", code: "NO_DISPLAY")
+            }
+            targetDisplayIDs = [d.cgID]
+            if let r = opts.radius {
+                let pt = mouseInCGCoords()
+                let relX = pt.x - d.bounds.origin.x
+                let relY = pt.y - d.bounds.origin.y
+                let scale = d.scaleFactor
+                let px = Int(relX * scale)
+                let py = Int(relY * scale)
+                let pr = Int(Double(r) * scale)
+                opts.crop = "\(max(0, px - pr)),\(max(0, py - pr)),\(pr * 2),\(pr * 2)"
+            }
+
+        case "all":
+            targetDisplayIDs = displays.filter { !$0.isMirrored }.map { $0.cgID }
+
+        default:
+            exitError("Unknown target: '\(opts.target)'", code: "UNKNOWN_TARGET")
         }
-        targetDisplayIDs = [d.cgID]
-
-    case "external 1":
-        let exts = displays.filter { !$0.isMain && !$0.isMirrored }
-        guard let d = exts.first else { exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY") }
-        targetDisplayIDs = [d.cgID]
-
-    case "external 2":
-        let exts = displays.filter { !$0.isMain && !$0.isMirrored }
-        if exts.count >= 2 { targetDisplayIDs = [exts[1].cgID] }
-        else if let d = exts.first { targetDisplayIDs = [d.cgID] }
-        else { exitError("No external display connected", code: "NO_EXTERNAL_DISPLAY") }
-
-    case "user_active":
-        guard let app = NSWorkspace.shared.frontmostApplication else {
-            exitError("No frontmost application", code: "NO_ACTIVE_APP")
-        }
-        guard let w = largestWindow(for: app.processIdentifier, in: content.windows) else {
-            exitError("No window for active app '\(app.localizedName ?? "?")'", code: "NO_WINDOW")
-        }
-        specificWindow = w
-        targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
-
-    case "selfie":
-        guard let w = selfieWindow(content: content) else {
-            exitError("Cannot find hosting app window", code: "SELFIE_NOT_FOUND")
-        }
-        specificWindow = w
-        targetDisplayIDs = [displayForWindow(w, displays: displays).cgID]
-
-    case "mouse":
-        guard let d = displayForMouse(displays: displays) else {
-            exitError("Cannot determine display for cursor", code: "NO_DISPLAY")
-        }
-        targetDisplayIDs = [d.cgID]
-        if let r = opts.radius {
-            let pt = mouseInCGCoords()
-            let relX = pt.x - d.bounds.origin.x
-            let relY = pt.y - d.bounds.origin.y
-            let scale = d.scaleFactor
-            let px = Int(relX * scale)
-            let py = Int(relY * scale)
-            let pr = Int(Double(r) * scale)
-            opts.crop = "\(max(0, px - pr)),\(max(0, py - pr)),\(pr * 2),\(pr * 2)"
-        }
-
-    case "all":
-        targetDisplayIDs = displays.filter { !$0.isMirrored }.map { $0.cgID }
-
-    default:
-        exitError("Unknown target: '\(opts.target)'", code: "UNKNOWN_TARGET")
     }
 
     // ── Interactive selection ──
@@ -1600,6 +1885,10 @@ func captureCommand(args: [String]) async {
     var responseClickY: Int? = nil
     var responseElements: [AXElementJSON]? = nil
     var responseAnnotations: [AnnotationJSON]? = nil
+    var responseWindow: CaptureWindowJSON? = nil
+    var responseSurfaces: [CaptureSurfaceJSON] = []
+    let topologySnapshot = opts.perception ? buildSpatialTopology() : nil
+    var responsePerceptions: [CapturePerceptionJSON] = []
 
     if let iImg = interactiveImage {
         var finalImage = iImg
@@ -1612,122 +1901,99 @@ func captureCommand(args: [String]) async {
         results.append((finalImage, opts.resolvedOutputPath))
     }
 
-    for (idx, cgID) in targetDisplayIDs.enumerated() {
-        if interactiveImage != nil { break }
-        guard let entry = displays.first(where: { $0.cgID == cgID }) else { continue }
-        var image: CGImage
+    if interactiveImage == nil, let surface = explicitSurface {
+        let captureScale = max(surface.segments.map { $0.display.scaleFactor }.max() ?? 1.0, 1.0)
+        let stitchedRect = CGRect(
+            x: 0,
+            y: 0,
+            width: surface.globalBounds.width * captureScale,
+            height: surface.globalBounds.height * captureScale
+        ).integral
 
-        // 1. Capture
-        if opts.windowOnly {
-            let window: SCWindow
-            if let sw = specificWindow, idx == 0 {
-                window = sw
-            } else {
-                let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-                guard let w = largestWindowOnDisplay(entry, in: content.windows, preferPID: frontPID) else {
-                    exitError("No window on display \(entry.ordinal)", code: "NO_WINDOW")
-                }
-                window = w
+        var capturedSegments: [CapturedSurfaceSegment] = []
+        for segment in surface.segments {
+            guard let scDisplay = content.displays.first(where: { $0.displayID == segment.display.cgID }) else {
+                exitError("Display \(segment.display.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+            }
+            let displayImage: CGImage
+            do {
+                displayImage = try await captureDisplay(scDisplay, scaleFactor: segment.display.scaleFactor, showCursor: opts.showCursor)
+            } catch {
+                exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED")
             }
 
-            if window.frame.width < 10 || window.frame.height < 10 {
-                responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
-                guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                    exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
-                }
-                do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
-                catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
-            } else {
-                do { image = try await captureWindow(window, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
-                catch {
-                    responseWarning = "Window capture failed (\(error.localizedDescription)). Falling back to display capture."
-                    guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                        exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
-                    }
-                    do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
-                    catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
-                }
-            }
-        } else {
-            guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
-                exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
-            }
-            do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
-            catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+            let pixelRect = capturePixelRect(globalRect: segment.globalBounds, in: segment.display)
+            let cropped = cropImage(displayImage, to: pixelRect)
+            let localRect = captureLocalRect(globalRect: segment.globalBounds, within: surface.globalBounds, scaleFactor: captureScale)
+            capturedSegments.append(CapturedSurfaceSegment(segment: segment, image: cropped, localRect: localRect))
         }
 
-        // 2. Cursor highlight
-        var cursorCapPos: (x: Int, y: Int)? = nil
-        if let hlColor = opts.highlightCursorColor, let pos = cursorPositionInImageSpace(display: entry) {
-            cursorCapPos = pos
-            let radius = 25.0 * entry.scaleFactor
-            let color = parseHexColor(hlColor)
-            image = drawOnImage(image) { ctx, w, h in
-                ctx.setFillColor(color)
-                let ctxY = CGFloat(h) - CGFloat(pos.y)
-                ctx.fillEllipse(in: CGRect(
-                    x: CGFloat(pos.x) - radius, y: ctxY - radius,
-                    width: radius * 2, height: radius * 2
-                ))
-            }
-        }
-
-        // 3. Crop
-        var cropRect: CGRect? = nil
-        if let crop = opts.crop {
-            let result = applyCrop(image, style: crop)
-            image = result.image
-            cropRect = result.rect
-        }
-
-        // 4. Build CoordinateMapper
-        let windowFrame: CGRect? = opts.windowOnly ? (specificWindow?.frame ?? nil) : nil
+        var image = stitchSurfaceSegments(capturedSegments, canvasSize: stitchedRect.size)
         let mapper = CoordinateMapper(
-            displayOrigin: entry.bounds.origin,
-            scaleFactor: entry.scaleFactor,
-            cropRect: cropRect,
-            windowFrame: windowFrame
+            displayOrigin: surface.globalBounds.origin,
+            scaleFactor: captureScale,
+            cropRect: nil,
+            windowFrame: nil
         )
         let imageSize = CGSize(width: image.width, height: image.height)
 
-        // 5. Cursor position in LCS
-        if let capPos = cursorCapPos {
-            let displayRelPt = CGPoint(
-                x: entry.bounds.origin.x + Double(capPos.x) / entry.scaleFactor,
-                y: entry.bounds.origin.y + Double(capPos.y) / entry.scaleFactor
+        if responseWindow == nil,
+           let windowID = surface.windowID,
+           let sw = content.windows.first(where: { Int($0.windowID) == windowID }) {
+            let scale = displayForWindow(sw, displays: displays).scaleFactor
+            responseWindow = CaptureWindowJSON(
+                window_id: Int(sw.windowID),
+                title: sw.title,
+                app_name: sw.owningApplication?.applicationName ?? "",
+                app_pid: Int(sw.owningApplication?.processID ?? 0),
+                bounds: STBounds(x: sw.frame.origin.x, y: sw.frame.origin.y, width: sw.frame.width, height: sw.frame.height),
+                scale_factor: scale
             )
-            if let lcs = mapper.toLCS(globalPoint: displayRelPt) {
+        }
+
+        if let hlColor = opts.highlightCursorColor {
+            let cursorPoint = mouseInCGCoords()
+            if let lcs = mapper.toLCS(globalPoint: cursorPoint) {
                 responseCursor = CursorJSON(x: lcs.x, y: lcs.y)
+                let radius = 25.0 * captureScale
+                let color = parseHexColor(hlColor)
+                image = drawOnImage(image) { ctx, w, h in
+                    ctx.setFillColor(color)
+                    let ctxY = CGFloat(h) - CGFloat(lcs.y)
+                    ctx.fillEllipse(in: CGRect(
+                        x: CGFloat(lcs.x) - radius,
+                        y: ctxY - radius,
+                        width: radius * 2,
+                        height: radius * 2
+                    ))
+                }
             }
         }
 
-        // 6. Click position in LCS
-        if let clickPt = clickCGPos {
-            if let lcs = mapper.toLCS(globalPoint: clickPt) {
-                responseClickX = lcs.x
-                responseClickY = lcs.y
-            }
+        if let clickPt = clickCGPos, let lcs = mapper.toLCS(globalPoint: clickPt) {
+            responseClickX = lcs.x
+            responseClickY = lcs.y
         }
 
-        // 7. Xray
         if opts.xray {
-            if opts.windowOnly, let sw = specificWindow, let ownerApp = sw.owningApplication {
+            if let windowID = surface.windowID,
+               let ownerApp = content.windows.first(where: { Int($0.windowID) == windowID })?.owningApplication {
                 responseElements = xrayApp(
                     pid: ownerApp.processID,
                     appName: ownerApp.applicationName,
-                    mapper: mapper, imageSize: imageSize
+                    mapper: mapper,
+                    imageSize: imageSize
                 )
             } else {
                 responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
             }
         }
 
-        // 7b. Label
         if opts.label, let elems = responseElements, !elems.isEmpty {
             let anns = buildAnnotations(from: elems)
             responseAnnotations = anns
 
-            let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height, scaleFactor: entry.scaleFactor)
+            let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height, scaleFactor: captureScale)
             if let overlay = renderHTMLToBitmap(html: badgeHTML, width: image.width, height: image.height) {
                 image = compositeOverlay(overlay, onto: image)
             } else {
@@ -1735,7 +2001,6 @@ func captureCommand(args: [String]) async {
             }
         }
 
-        // 8. Overlays
         if let grid = opts.grid {
             image = drawGrid(on: image, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
         }
@@ -1743,18 +2008,215 @@ func captureCommand(args: [String]) async {
             image = drawRects(on: image, rects: opts.drawRects, thickness: opts.thickness, shadow: opts.shadow)
         }
 
-        // 9. Output path
-        let basePath = opts.resolvedOutputPath
-        let path: String
-        if targetDisplayIDs.count > 1 {
-            let ext = (basePath as NSString).pathExtension
-            let stem = (basePath as NSString).deletingPathExtension
-            path = "\(stem)_\(idx + 1).\(ext)"
-        } else {
-            path = basePath
+        let surfaceJSON = captureSurfaceJSON(selection: surface, imageSize: imageSize, scaleFactor: captureScale)
+        responseSurfaces.append(surfaceJSON)
+        if let topology = topologySnapshot {
+            responsePerceptions.append(
+                capturePerceptionSnapshot(
+                    topology: topology,
+                    captureRect: surface.globalBounds,
+                    imageSize: imageSize,
+                    scaleFactor: captureScale,
+                    segments: surfaceJSON.segments
+                )
+            )
         }
 
-        results.append((image, path))
+        results.append((image, opts.resolvedOutputPath))
+    } else {
+        for (idx, cgID) in targetDisplayIDs.enumerated() {
+            if interactiveImage != nil { break }
+            guard let entry = displays.first(where: { $0.cgID == cgID }) else { continue }
+            var image: CGImage
+            var capturedWindow: SCWindow? = nil
+
+            // 1. Capture
+            if opts.windowOnly {
+                let window: SCWindow
+                if let sw = specificWindow, idx == 0 {
+                    window = sw
+                } else {
+                    let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    guard let w = largestWindowOnDisplay(entry, in: content.windows, preferPID: frontPID) else {
+                        exitError("No window on display \(entry.ordinal)", code: "NO_WINDOW")
+                    }
+                    window = w
+                }
+
+                if window.frame.width < 10 || window.frame.height < 10 {
+                    responseWarning = "Window appears minimized or hidden (frame: \(Int(window.frame.width))x\(Int(window.frame.height))). Falling back to display capture."
+                    guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
+                        exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                    }
+                    do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                    catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+                } else {
+                    do {
+                        image = try await captureWindow(window, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor)
+                        capturedWindow = window
+                    }
+                    catch {
+                        responseWarning = "Window capture failed (\(error.localizedDescription)). Falling back to display capture."
+                        guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
+                            exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                        }
+                        do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                        catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+                    }
+                }
+            } else {
+                guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
+                    exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
+                }
+                do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
+            }
+
+            // 2. Cursor highlight
+            var cursorCapPos: (x: Int, y: Int)? = nil
+            if let hlColor = opts.highlightCursorColor, let pos = cursorPositionInImageSpace(display: entry) {
+                cursorCapPos = pos
+                let radius = 25.0 * entry.scaleFactor
+                let color = parseHexColor(hlColor)
+                image = drawOnImage(image) { ctx, w, h in
+                    ctx.setFillColor(color)
+                    let ctxY = CGFloat(h) - CGFloat(pos.y)
+                    ctx.fillEllipse(in: CGRect(
+                        x: CGFloat(pos.x) - radius, y: ctxY - radius,
+                        width: radius * 2, height: radius * 2
+                    ))
+                }
+            }
+
+            // 3. Crop
+            var cropRect: CGRect? = nil
+            if let crop = opts.crop {
+                let result = applyCrop(image, style: crop)
+                image = result.image
+                cropRect = result.rect
+            }
+
+            // 4. Build CoordinateMapper
+            let windowFrame: CGRect? = capturedWindow?.frame
+            let mapper = CoordinateMapper(
+                displayOrigin: entry.bounds.origin,
+                scaleFactor: entry.scaleFactor,
+                cropRect: cropRect,
+                windowFrame: windowFrame
+            )
+            let imageSize = CGSize(width: image.width, height: image.height)
+            if responseWindow == nil, let sw = capturedWindow {
+                responseWindow = CaptureWindowJSON(
+                    window_id: Int(sw.windowID),
+                    title: sw.title,
+                    app_name: sw.owningApplication?.applicationName ?? "",
+                    app_pid: Int(sw.owningApplication?.processID ?? 0),
+                    bounds: STBounds(x: sw.frame.origin.x, y: sw.frame.origin.y, width: sw.frame.width, height: sw.frame.height),
+                    scale_factor: entry.scaleFactor
+                )
+            }
+
+            // 5. Cursor position in LCS
+            if let capPos = cursorCapPos {
+                let displayRelPt = CGPoint(
+                    x: entry.bounds.origin.x + Double(capPos.x) / entry.scaleFactor,
+                    y: entry.bounds.origin.y + Double(capPos.y) / entry.scaleFactor
+                )
+                if let lcs = mapper.toLCS(globalPoint: displayRelPt) {
+                    responseCursor = CursorJSON(x: lcs.x, y: lcs.y)
+                }
+            }
+
+            // 6. Click position in LCS
+            if let clickPt = clickCGPos {
+                if let lcs = mapper.toLCS(globalPoint: clickPt) {
+                    responseClickX = lcs.x
+                    responseClickY = lcs.y
+                }
+            }
+
+            // 7. Xray
+            if opts.xray {
+                if opts.windowOnly, let ownerApp = (capturedWindow ?? specificWindow)?.owningApplication {
+                    responseElements = xrayApp(
+                        pid: ownerApp.processID,
+                        appName: ownerApp.applicationName,
+                        mapper: mapper, imageSize: imageSize
+                    )
+                } else {
+                    responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
+                }
+            }
+
+            // 7b. Label
+            if opts.label, let elems = responseElements, !elems.isEmpty {
+                let anns = buildAnnotations(from: elems)
+                responseAnnotations = anns
+
+                let badgeHTML = generateBadgeHTML(annotations: anns, width: image.width, height: image.height, scaleFactor: entry.scaleFactor)
+                if let overlay = renderHTMLToBitmap(html: badgeHTML, width: image.width, height: image.height) {
+                    image = compositeOverlay(overlay, onto: image)
+                } else {
+                    exitError("Render binary not found — could not locate `aos show render`.", code: "MISSING_DEPENDENCY")
+                }
+            }
+
+            // 8. Overlays
+            if let grid = opts.grid {
+                image = drawGrid(on: image, spec: grid, thickness: opts.thickness, shadow: opts.shadow)
+            }
+            if !opts.drawRects.isEmpty {
+                image = drawRects(on: image, rects: opts.drawRects, thickness: opts.thickness, shadow: opts.shadow)
+            }
+
+            let surfaceSelection: CaptureSurfaceSelection = {
+                if let sw = capturedWindow {
+                    return CaptureSurfaceSelection(
+                        kind: "window",
+                        id: nil,
+                        globalBounds: sw.frame.integral,
+                        windowID: Int(sw.windowID),
+                        segments: [CaptureSurfaceSegmentSelection(display: entry, globalBounds: sw.frame.integral)]
+                    )
+                }
+                let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
+                return CaptureSurfaceSelection(
+                    kind: "display",
+                    id: opts.target == "all" ? "display-\(entry.ordinal)" : opts.target,
+                    globalBounds: captureRect,
+                    windowID: nil,
+                    segments: [CaptureSurfaceSegmentSelection(display: entry, globalBounds: captureRect)]
+                )
+            }()
+            let surfaceJSON = captureSurfaceJSON(selection: surfaceSelection, imageSize: imageSize, scaleFactor: entry.scaleFactor)
+            responseSurfaces.append(surfaceJSON)
+
+            if let topology = topologySnapshot {
+                let captureRect = globalCaptureRect(display: entry, windowFrame: windowFrame, cropRect: cropRect)
+                responsePerceptions.append(
+                    capturePerceptionSnapshot(
+                        topology: topology,
+                        captureRect: captureRect,
+                        imageSize: CGSize(width: image.width, height: image.height),
+                        scaleFactor: entry.scaleFactor,
+                        segments: surfaceJSON.segments
+                    )
+                )
+            }
+
+            // 9. Output path
+            let basePath = opts.resolvedOutputPath
+            let path: String
+            if targetDisplayIDs.count > 1 {
+                let ext = (basePath as NSString).pathExtension
+                let stem = (basePath as NSString).deletingPathExtension
+                path = "\(stem)_\(idx + 1).\(ext)"
+            } else {
+                path = basePath
+            }
+
+            results.append((image, path))
+        }
     }
 
     // ── Clipboard ──
@@ -1777,17 +2239,14 @@ func captureCommand(args: [String]) async {
         resp.warning = responseWarning
         resp.elements = responseElements
         resp.annotations = responseAnnotations
-        if opts.windowOnly, let sw = specificWindow {
-            let f = sw.frame
-            let displayEntry = displays.first(where: { $0.cgID == targetDisplayIDs.first })
-            resp.window = CaptureWindowJSON(
-                window_id: Int(sw.windowID),
-                title: sw.title,
-                app_name: sw.owningApplication?.applicationName ?? "",
-                app_pid: Int(sw.owningApplication?.processID ?? 0),
-                bounds: STBounds(x: f.origin.x, y: f.origin.y, width: f.width, height: f.height),
-                scale_factor: displayEntry?.scaleFactor ?? 1.0
-            )
+        if !responseSurfaces.isEmpty {
+            resp.surfaces = responseSurfaces
+        }
+        if opts.perception && !responsePerceptions.isEmpty {
+            resp.perceptions = responsePerceptions
+        }
+        if opts.windowOnly, let window = responseWindow {
+            resp.window = window
         }
         return resp
     }

@@ -9,6 +9,8 @@ aos_test_cleanup_prefix "$PREFIX"
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
 DAEMON_PID=""
+ARTIFACT_DIR="${AOS_TEST_ARTIFACT_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-artifacts.XXXXXX")}"
+mkdir -p "$ARTIFACT_DIR"
 
 cleanup() {
   aos_test_kill_root "$ROOT"
@@ -49,6 +51,32 @@ wait_for_ping || { echo "FAIL: isolated daemon did not become reachable"; exit 1
 DAEMON_PID="$(aos_test_wait_for_lock_pid "$ROOT")" || { echo "FAIL: isolated daemon lock pid did not appear"; exit 1; }
 
 bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
+
+PRE_DRAG_CAPTURE_PNG="$ARTIFACT_DIR/pre-drag-inspector.png"
+PRE_DRAG_CAPTURE_JSON="$ARTIFACT_DIR/pre-drag-inspector.json"
+
+python3 - "$PRE_DRAG_CAPTURE_PNG" "$PRE_DRAG_CAPTURE_JSON" <<'PY'
+import json, pathlib, subprocess, sys
+
+png_path = pathlib.Path(sys.argv[1])
+json_path = pathlib.Path(sys.argv[2])
+capture = json.loads(subprocess.check_output([
+    "./aos", "see", "capture",
+    "--canvas", "canvas-inspector",
+    "--perception",
+    "--out", str(png_path),
+], text=True))
+json_path.write_text(json.dumps(capture, indent=2) + "\n")
+print(f"Artifacts: {png_path.parent}", flush=True)
+print(f"Pre-drag capture: {png_path}", flush=True)
+print(f"Pre-drag perception: {json_path}", flush=True)
+PY
+
+PAUSE_BEFORE_DRAG_SECONDS="${AOS_TEST_PAUSE_BEFORE_DRAG_SECONDS:-10}"
+if [[ "$PAUSE_BEFORE_DRAG_SECONDS" =~ ^[0-9]+$ ]] && (( PAUSE_BEFORE_DRAG_SECONDS > 0 )); then
+  echo "Pausing ${PAUSE_BEFORE_DRAG_SECONDS}s before drag..."
+  sleep "$PAUSE_BEFORE_DRAG_SECONDS"
+fi
 
 python3 - <<'PY'
 import json, subprocess

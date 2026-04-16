@@ -87,14 +87,18 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 /// Convert CG coordinates (top-left origin, Y-down) to NSScreen coordinates (bottom-left origin, Y-up).
 func cgToScreen(_ cgRect: CGRect) -> NSRect {
-    guard let screen = NSScreen.screens.first else {
-        return NSRect(x: cgRect.origin.x, y: cgRect.origin.y,
-                      width: cgRect.size.width, height: cgRect.size.height)
+    let desktopMaxY = globalDisplayMaxY()
+    guard desktopMaxY > 0 else {
+        return NSRect(
+            x: cgRect.origin.x,
+            y: cgRect.origin.y,
+            width: cgRect.size.width,
+            height: cgRect.size.height
+        )
     }
-    let screenHeight = screen.frame.height
     return NSRect(
         x: cgRect.origin.x,
-        y: screenHeight - cgRect.origin.y - cgRect.size.height,
+        y: desktopMaxY - cgRect.origin.y - cgRect.size.height,
         width: cgRect.size.width,
         height: cgRect.size.height
     )
@@ -102,14 +106,18 @@ func cgToScreen(_ cgRect: CGRect) -> NSRect {
 
 /// Convert NSScreen coordinates back to CG coordinates.
 func screenToCG(_ nsRect: NSRect) -> CGRect {
-    guard let screen = NSScreen.screens.first else {
-        return CGRect(x: nsRect.origin.x, y: nsRect.origin.y,
-                      width: nsRect.size.width, height: nsRect.size.height)
+    let desktopMaxY = globalDisplayMaxY()
+    guard desktopMaxY > 0 else {
+        return CGRect(
+            x: nsRect.origin.x,
+            y: nsRect.origin.y,
+            width: nsRect.size.width,
+            height: nsRect.size.height
+        )
     }
-    let screenHeight = screen.frame.height
     return CGRect(
         x: nsRect.origin.x,
-        y: screenHeight - nsRect.origin.y - nsRect.size.height,
+        y: desktopMaxY - nsRect.origin.y - nsRect.size.height,
         width: nsRect.size.width,
         height: nsRect.size.height
     )
@@ -1175,11 +1183,9 @@ class CanvasManager {
             if canvas.autoProjectMode == "cursor_trail" {
                 anyAutoProject = true
                 if shouldUpdateCursorTrail {
-                    let loc = NSEvent.mouseLocation
-                    // Convert from NSScreen coords (Y-up) to CG coords (Y-down)
-                    let screenHeight = NSScreen.screens.first?.frame.height ?? 0
-                    let cgX = loc.x
-                    let cgY = screenHeight - loc.y
+                    let point = mouseInCGCoords()
+                    let cgX = point.x
+                    let cgY = point.y
                     let js = "if(typeof addPoint==='function')addPoint(\(cgX),\(cgY),\(now.timeIntervalSince1970*1000))"
                     canvas.webView.evaluateJavaScript(js, completionHandler: nil)
                 }
