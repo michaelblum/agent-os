@@ -548,12 +548,11 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSON,
             examples: ["aos listen handoff", "aos listen handoff --limit 10"]),
-        InvocationForm(id: "listen-follow", usage: "aos listen <channel> --follow [--since id] [--limit N]",
+        InvocationForm(id: "listen-follow", usage: "aos listen <channel> --follow [--since id]",
             args: [
                 pos("channel", "Channel to follow"),
                 flag("follow", "--follow", "Stream messages in real-time", type: .bool, required: true),
-                flag("since", "--since", "Start after this message ID"),
-                flag("limit", "--limit", "Initial backfill limit", type: .int, default: .int(50))
+                flag("since", "--since", "Start after this message ID")
             ],
             stdin: nil, constraints: nil,
             execution: execStreaming(daemon: true),
@@ -971,12 +970,18 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outJSONFlag,
             examples: ["aos wiki reindex"]),
-        InvocationForm(id: "wiki-lint", usage: "aos wiki lint [--fix] [--json]",
-            args: [flag("fix", "--fix", "Auto-fix issues", type: .bool)],
+        InvocationForm(id: "wiki-lint", usage: "aos wiki lint [--json]",
+            args: [],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSONFlag,
-            examples: ["aos wiki lint", "aos wiki lint --fix --json"]),
+            examples: ["aos wiki lint", "aos wiki lint --json"]),
+        InvocationForm(id: "wiki-lint-fix", usage: "aos wiki lint --fix [--json]",
+            args: [flag("fix", "--fix", "Auto-fix issues (reindexes)", type: .bool, required: true)],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki lint --fix --json"]),
         InvocationForm(id: "wiki-seed", usage: "aos wiki seed [--force] [--namespace ns] [--file name:path ...] [--json]",
             args: [
                 flag("force", "--force", "Overwrite existing pages", type: .bool),
@@ -994,6 +999,22 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outJSONFlag,
             examples: ["aos wiki migrate-namespaces"])
+    ]))
+
+    // ── help ──────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["help"], summary: "Show help for commands", forms: [
+        InvocationForm(id: "help-full", usage: "aos help [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos help", "aos help --json"]),
+        InvocationForm(id: "help-command", usage: "aos help <command-path...> [--json]",
+            args: [pos("command-path", "Command path to look up (e.g. show create)", variadic: true)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos help show", "aos help show create --json", "aos help do click --json"])
     ]))
 
     return reg
