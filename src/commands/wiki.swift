@@ -16,6 +16,10 @@ func aosWikiDbPath(for mode: AOSRuntimeMode? = nil) -> String {
 // MARK: - Command Router
 
 func wikiCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["wiki"], json: args.contains("--json"))
+        exit(0)
+    }
     guard let sub = args.first else {
         exitError("Usage: aos wiki <create-plugin|add|rm|link|list|search|show|invoke|reindex|lint|seed|migrate-namespaces>", code: "MISSING_SUBCOMMAND")
     }

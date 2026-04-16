@@ -16,6 +16,10 @@ private struct RuntimeStatusResponse: Encodable {
 }
 
 func runtimeCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["runtime"], json: args.contains("--json"))
+        exit(0)
+    }
     guard let sub = args.first else {
         exitError("Usage: aos runtime <install|status|path|sign|display-union>", code: "MISSING_SUBCOMMAND")
     }

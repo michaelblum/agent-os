@@ -26,6 +26,10 @@ private struct CleanCanvasEntry: Encodable {
 }
 
 func cleanCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["clean"], json: args.contains("--json"))
+        exit(0)
+    }
     var dryRun = false
     var asJSON = false
 

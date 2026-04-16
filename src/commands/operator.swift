@@ -130,6 +130,10 @@ private struct CanvasLookupResponse: Encodable {
 // MARK: - Public Commands
 
 func doctorCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["doctor"], json: args.contains("--json"))
+        exit(0)
+    }
     guard args.allSatisfy({ $0 == "--json" }) else {
         exitError("Usage: aos doctor [--json]", code: "UNKNOWN_ARG")
     }
@@ -204,6 +208,10 @@ func doctorCommand(args: [String]) {
 }
 
 func permissionsCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["permissions"], json: args.contains("--json"))
+        exit(0)
+    }
     guard let sub = args.first else {
         exitError("Usage: aos permissions <check|preflight|setup> [--json]", code: "MISSING_SUBCOMMAND")
     }

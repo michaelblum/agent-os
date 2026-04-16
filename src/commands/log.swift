@@ -12,6 +12,10 @@ private let LOG_CANVAS_ID = "__log__"
 private let LOG_URL = "aos://toolkit/components/log-console/index.html"
 
 func logCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["log"], json: args.contains("--json"))
+        exit(0)
+    }
     let sub = args.first
 
     // Parse position

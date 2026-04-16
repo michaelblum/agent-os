@@ -11,6 +11,10 @@ private let INSPECTOR_CANVAS_ID = "__inspector__"
 private let INSPECTOR_URL = "aos://toolkit/components/inspector-panel/index.html"
 
 func inspectCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["inspect"], json: args.contains("--json"))
+        exit(0)
+    }
     ensureInteractivePreflight(command: "aos inspect")
 
     // Parse position (default: bottom-right corner of main display)

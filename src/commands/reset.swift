@@ -19,6 +19,10 @@ private struct ResetResponse: Encodable {
 }
 
 func resetCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["reset"], json: args.contains("--json"))
+        exit(0)
+    }
     let options = parseResetOptions(args)
     let response = runReset(mode: options.mode)
     if options.asJSON {

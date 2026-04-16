@@ -23,6 +23,10 @@ private struct ServiceStatusResponse: Encodable {
 }
 
 func serviceCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["service"], json: args.contains("--json"))
+        exit(0)
+    }
     guard let sub = args.first else {
         exitError("Usage: aos service <install|start|stop|restart|status|logs>", code: "MISSING_SUBCOMMAND")
     }
