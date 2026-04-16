@@ -7,6 +7,7 @@ import AppKit
 import Foundation
 
 class StatusItemManager {
+    private static let accessibilityLabel = "AOS status item"
     private let trackedLifecycleTimeout: TimeInterval = 1.0
     private let trackedVisibilityTimeout: TimeInterval = 1.2
 
@@ -44,6 +45,8 @@ class StatusItemManager {
         statusItem?.button?.target = self
         statusItem?.button?.action = #selector(handleClick(_:))
         statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        statusItem?.button?.toolTip = Self.accessibilityLabel
+        statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
     }
 
     func teardown() {

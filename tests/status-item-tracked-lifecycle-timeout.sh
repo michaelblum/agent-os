@@ -11,6 +11,8 @@ import AppKit
 import ApplicationServices
 import Foundation
 
+let expectedLabel = "AOS status item"
+
 func getAttr(_ el: AXUIElement, _ name: String) -> AnyObject? {
     var value: CFTypeRef?
     let result = AXUIElementCopyAttributeValue(el, name as CFString, &value)
@@ -34,9 +36,21 @@ var childrenRef: CFTypeRef?
 let childrenResult = AXUIElementCopyAttributeValue(extras, kAXChildrenAttribute as CFString, &childrenRef)
 guard childrenResult == .success,
       let childrenValue = childrenRef,
-      let children = childrenValue as? [AXUIElement],
-      let item = children.first else {
+      let children = childrenValue as? [AXUIElement] else {
     fputs("FAIL: missing status item\n", stderr)
+    exit(1)
+}
+
+func matchesExpectedItem(_ el: AXUIElement) -> Bool {
+    let title = getAttr(el, kAXTitleAttribute as String) as? String
+    let desc = getAttr(el, kAXDescriptionAttribute as String) as? String
+    let help = getAttr(el, kAXHelpAttribute as String) as? String
+    return [title, desc, help].contains(expectedLabel)
+}
+
+let item = children.first(where: matchesExpectedItem) ?? (children.count == 1 ? children.first : nil)
+guard let item else {
+    fputs("FAIL: matching status item not found\n", stderr)
     exit(1)
 }
 
