@@ -19,7 +19,7 @@ echo "Version: $VERSION ($BUILD_VERSION)"
 # ── 1. Build binaries ──────────────────────────────────────────────
 echo ""
 echo "Building aos..."
-bash build.sh
+bash build.sh --release --no-restart
 
 # ── 2. Assemble .app bundle ────────────────────────────────────────
 echo ""

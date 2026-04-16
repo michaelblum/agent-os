@@ -24,7 +24,7 @@ SIGNED_IDENTITY="${AOS_SIGN_IDENTITY:-auto}"
 mkdir -p "$DIST_DIR"
 
 echo "Packaging $APP_NAME.app..."
-bash "$REPO_ROOT/build.sh"
+bash "$REPO_ROOT/build.sh" --release --no-restart
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
