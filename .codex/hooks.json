@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.agents/hooks/session-start.sh\"",
+            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/session-start.sh\"",
             "statusMessage": "Loading agent-os session context",
             "timeout": 10
           },
@@ -26,6 +26,30 @@
             "command": "echo 'CAVEMAN MODE ACTIVE. Rules: Drop articles/filler/pleasantries/hedging. Fragments OK. Short synonyms. Pattern: [thing] [action] [reason]. [next step]. Not: Sure! I would be happy to help you with that. Yes: Bug in auth middleware. Fix: Code/commits/security: write normal. User says stop caveman or normal mode to deactivate.'",
             "timeout": 5,
             "statusMessage": "Loading caveman mode"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/check-messages.sh\"",
+            "statusMessage": "Checking coordination messages",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/session-stop.sh\"",
+            "statusMessage": "Clearing session presence",
+            "timeout": 5
           }
         ]
       }

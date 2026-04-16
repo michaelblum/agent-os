@@ -73,10 +73,13 @@ class CoordinationBus {
         }
     }
 
-    func unregisterSession(name: String) {
+    func unregisterSession(name: String) -> [String: Any] {
         lock.lock()
         defer { lock.unlock() }
-        sessions.removeValue(forKey: name)
+        if sessions.removeValue(forKey: name) == nil {
+            return ["error": "Session not found: \(name)", "code": "SESSION_NOT_FOUND"]
+        }
+        return ["status": "ok", "name": name]
     }
 
     func sessionExists(_ name: String) -> Bool {

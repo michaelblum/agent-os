@@ -4,20 +4,35 @@
 set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
+HOOK_INPUT="$(cat || true)"
+
+# shellcheck source=/dev/null
+source "$(dirname "$0")/session-common.sh"
 
 # --- Session Communication Layer ---
-SESSION_NAME="${AOS_SESSION_NAME:-}"
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+SESSION_HARNESS="$(aos_detect_harness)"
+SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_SOURCE="$(aos_session_name_source "$SESSION_ID")"
+REGISTRATION_STATUS="skipped"
 
-if [ -n "$SESSION_NAME" ]; then
-  echo ""
-  echo "## Gateway Registration"
-  echo "Register this session: name=\"${SESSION_NAME}\" harness=\"claude-code\" role=\"worker\""
-  echo "Call register_session(name='${SESSION_NAME}', harness='claude-code', role='worker') now."
+if [ -x "$AOS" ] && [ -n "$SESSION_NAME" ]; then
+  if "$AOS" tell --register "$SESSION_NAME" --role worker --harness "$SESSION_HARNESS" >/dev/null 2>&1; then
+    REGISTRATION_STATUS="ok"
+  else
+    REGISTRATION_STATUS="failed"
+  fi
+fi
+
+echo ""
+echo "## Session Identity"
+if [ -n "$SESSION_ID" ]; then
+  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
 else
-  echo ""
-  echo "## Session Name"
-  echo "No AOS_SESSION_NAME set. Name this session early:"
-  echo "  Use /rename and then register with the gateway via register_session()."
+  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
+fi
+if [ "$SESSION_SOURCE" = "generated" ]; then
+  echo "Rename later with: scripts/session-name --name <meaningful-name>"
 fi
 
 if [ -n "$SESSION_NAME" ] && [ -f "/tmp/aos-handoff-${SESSION_NAME}.json" ]; then
@@ -113,4 +128,3 @@ echo "## Shared Handoff Method"
 echo "When handing off, post the brief to the gateway handoff channel and emit one ready-to-run continuation path for the active runtime."
 echo ""
 echo "--- end session context ---"
-

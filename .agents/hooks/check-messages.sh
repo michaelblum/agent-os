@@ -1,62 +1,61 @@
 #!/bin/bash
 # .agents/hooks/check-messages.sh
-# PostToolUse hook — thin gateway message check.
+# PostToolUse hook — thin coordination message check.
 # Returns empty (no tokens consumed) or a short notification.
 
-SESSION_NAME="${AOS_SESSION_NAME:-}"
+set -euo pipefail
 
-# Fallback: check for a name file written by the agent for manual sessions.
-# The hook receives a JSON payload on stdin with session_id.
-if [ -z "$SESSION_NAME" ]; then
-  # Read stdin into a variable (hook payload)
-  HOOK_INPUT=$(cat)
-  SESSION_ID=$(echo "$HOOK_INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null || true)
-  if [ -n "$SESSION_ID" ]; then
-    SESSION_NAME=$(cat "/tmp/aos-session-name-${SESSION_ID}" 2>/dev/null || true)
-  fi
-fi
+ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
+AOS="$ROOT/aos"
+HOOK_INPUT="$(cat || true)"
+
+# shellcheck source=/dev/null
+source "$(dirname "$0")/session-common.sh"
+
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+SESSION_HARNESS="$(aos_detect_harness)"
+SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
 
 [ -z "$SESSION_NAME" ] && exit 0
 
-# Guard: reject session names containing path separators
-[[ "$SESSION_NAME" == */* ]] && exit 0
+[ ! -x "$AOS" ] && exit 0
 
-# Gateway DB location
-GATEWAY_DB="$HOME/.config/aos-gateway/gateway.db"
-[ -f "$GATEWAY_DB" ] || exit 0
+STATE_FILE="$(aos_session_cursor_file "$SESSION_NAME")"
+SINCE="$(cat "$STATE_FILE" 2>/dev/null || echo "")"
 
-# Read last-seen cursor from state file
-STATE_FILE="/tmp/aos-session-cursor-${SESSION_NAME}"
-SINCE=$(cat "$STATE_FILE" 2>/dev/null || echo "")
-
-# Safely quote values for SQL (escape single quotes)
-SAFE_NAME=$(printf '%s' "$SESSION_NAME" | sed "s/'/''/g")
-SAFE_SINCE=$(printf '%s' "$SINCE" | sed "s/'/''/g")
-
+LISTEN_ARGS=(listen "$SESSION_NAME" --limit 5)
 if [ -n "$SINCE" ]; then
-  WHERE_CLAUSE="channel = '${SAFE_NAME}' AND id > '${SAFE_SINCE}'"
-else
-  WHERE_CLAUSE="channel = '${SAFE_NAME}'"
+  LISTEN_ARGS+=(--since "$SINCE")
 fi
 
-RESULT=$(sqlite3 "$GATEWAY_DB" "
-  SELECT id, from_session, substr(payload, 1, 80)
-  FROM messages
-  WHERE ${WHERE_CLAUSE}
-  ORDER BY id ASC
-  LIMIT 5;
-" 2>/dev/null || true)
+LISTEN_JSON="$("$AOS" "${LISTEN_ARGS[@]}" 2>/dev/null || true)"
+[ -z "$LISTEN_JSON" ] && exit 0
 
-[ -z "$RESULT" ] && exit 0
+PARSED="$(printf '%s' "$LISTEN_JSON" | python3 -c 'import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+messages = payload.get("messages", [])
+if not messages:
+    raise SystemExit(0)
+latest = messages[-1].get("id", "")
+senders = sorted({(msg.get("from") or "unknown") for msg in messages})
+print(len(messages))
+print(",".join(senders))
+print(latest)
+')"
+[ -z "$PARSED" ] && exit 0
 
-# Update cursor to latest message ID
-LATEST=$(echo "$RESULT" | tail -1 | cut -d'|' -f1)
-echo "$LATEST" > "${STATE_FILE}.tmp" 2>/dev/null && mv "${STATE_FILE}.tmp" "$STATE_FILE" 2>/dev/null
+COUNT="$(printf '%s\n' "$PARSED" | sed -n '1p')"
+SENDERS="$(printf '%s\n' "$PARSED" | sed -n '2p' | sed 's/,/, /g')"
+LATEST="$(printf '%s\n' "$PARSED" | sed -n '3p')"
 
-# Count and summarize
-COUNT=$(echo "$RESULT" | wc -l | tr -d ' ')
-SENDERS=$(echo "$RESULT" | cut -d'|' -f2 | sort -u | tr '\n' ', ' | sed 's/,$//')
+if [ -n "$LATEST" ]; then
+  printf '%s\n' "$LATEST" > "${STATE_FILE}.tmp"
+  mv "${STATE_FILE}.tmp" "$STATE_FILE"
+fi
 
 echo "## Inbound Messages"
 echo "${COUNT} new message(s) from ${SENDERS} on channel '${SESSION_NAME}'."
-echo "Use read_stream(channel='${SESSION_NAME}') to read them."
+echo "Use ./aos listen ${SESSION_NAME} to read them."

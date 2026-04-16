@@ -1036,6 +1036,14 @@ class UnifiedDaemon {
             let result = coordination.registerSession(name: name, role: role, harness: harness)
             sendResponseJSON(to: clientFD, result)
 
+        case "coord-unregister":
+            guard let name = json["name"] as? String else {
+                sendResponseJSON(to: clientFD, ["error": "name required", "code": "MISSING_ARG"])
+                return
+            }
+            let result = coordination.unregisterSession(name: name)
+            sendResponseJSON(to: clientFD, result)
+
         case "coord-who":
             let sessions = coordination.whoIsOnline()
             sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions])

@@ -4,6 +4,7 @@
 //   aos tell <audience> "message"       Post text to audience(s)
 //   aos tell <audience> --json <data>   Post structured JSON to audience(s)
 //   aos tell --register <name>          Register session presence
+//   aos tell --unregister <name>        Remove session presence
 //   aos tell --who                      List online sessions
 //
 // Audiences: human, <channel-name>, <session-name>, comma-separated mix
@@ -24,6 +25,13 @@ func tellCommand(args: [String]) {
         let role = tellGetArg(args, "--role") ?? "worker"
         let harness = tellGetArg(args, "--harness") ?? "unknown"
         tellRegister(name: name, role: role, harness: harness)
+        return
+    }
+    if let idx = args.firstIndex(of: "--unregister") {
+        guard idx + 1 < args.count else {
+            exitError("--unregister requires a session name", code: "MISSING_ARG")
+        }
+        tellUnregister(name: args[idx + 1])
         return
     }
 
@@ -116,6 +124,20 @@ private func tellRegister(name: String, role: String, harness: String) {
         "name": name,
         "role": role,
         "harness": harness
+    ]
+    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+        exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
+       let s = String(data: data, encoding: .utf8) {
+        print(s)
+    }
+}
+
+private func tellUnregister(name: String) {
+    let request: [String: Any] = [
+        "action": "coord-unregister",
+        "name": name
     ]
     guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")

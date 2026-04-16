@@ -82,6 +82,10 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   canvas manually.
 - If display work starts from stale daemons or orphaned canvases, run
   `aos clean` first and report what was cleaned.
+- Sessions should register themselves on startup so `aos tell --who` reflects
+  live collaborators. If no explicit `AOS_SESSION_NAME` is provided at launch,
+  accept the harness-generated fallback name first and rename later with
+  `scripts/session-name --name <meaningful-name>` once the task is clear.
 - Default repo work to `main` unless the user explicitly asks for branch-based
   work. Temporary worktrees or helper branches are fine when they materially
   reduce risk or enable parallelism, but they should stay temporary: land the
