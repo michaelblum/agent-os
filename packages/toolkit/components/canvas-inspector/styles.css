@@ -103,6 +103,11 @@
   font-family: var(--font-mono);
 }
 .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn.active {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: rgba(138, 180, 255, 0.18);
+}
 .btn.disabled { opacity: 0.4; cursor: not-allowed; }
 
 .empty-state {

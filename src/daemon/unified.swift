@@ -155,6 +155,9 @@ class UnifiedDaemon {
                 case "canvas.remove":
                     self.handleCanvasRemove(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "canvas.eval":
+                    self.handleCanvasEval(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "canvas.send":
                     self.handleCanvasSend(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -549,6 +552,14 @@ class UnifiedDaemon {
         canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
     }
 
+    private func canvasMutationPermitted(callerID: String, targetID: String) -> Bool {
+        if targetID == callerID { return true }
+        canvasSubscriptionLock.lock()
+        defer { canvasSubscriptionLock.unlock() }
+        if let owner = canvasCreatedBy[targetID] { return owner == callerID }
+        return true  // no recorded owner = CLI-origin = open per mutation-api rule 3
+    }
+
     private func handleCanvasCreate(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
 
@@ -625,15 +636,7 @@ class UnifiedDaemon {
         let providedID = payload["id"] as? String
         let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
 
-        // Permission check. `true` = allowed.
-        let permitted: Bool = {
-            if targetID == callerID { return true }
-            canvasSubscriptionLock.lock()
-            defer { canvasSubscriptionLock.unlock() }
-            if let owner = canvasCreatedBy[targetID] { return owner == callerID }
-            return true  // no recorded owner = CLI-origin = open per spec rule 3
-        }()
-        guard permitted else {
+        guard canvasMutationPermitted(callerID: callerID, targetID: targetID) else {
             fputs("[canvas-mut] update forbidden caller=\(callerID) target=\(targetID)\n", stderr)
             return
         }
@@ -680,15 +683,7 @@ class UnifiedDaemon {
         let providedID = payload["id"] as? String
         let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
 
-        // Permission check — identical rule to update.
-        let permitted: Bool = {
-            if targetID == callerID { return true }
-            canvasSubscriptionLock.lock()
-            defer { canvasSubscriptionLock.unlock() }
-            if let owner = canvasCreatedBy[targetID] { return owner == callerID }
-            return true
-        }()
-        guard permitted else {
+        guard canvasMutationPermitted(callerID: callerID, targetID: targetID) else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "FORBIDDEN",
                 message: "caller \(callerID) may not remove \(targetID)")
@@ -713,6 +708,50 @@ class UnifiedDaemon {
                     message: "target \(targetID) still exists after remove")
             } else {
                 self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
+            }
+        }
+    }
+
+    private func handleCanvasEval(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let providedID = payload["id"] as? String
+        let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
+
+        guard canvasMutationPermitted(callerID: callerID, targetID: targetID) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "FORBIDDEN",
+                message: "caller \(callerID) may not eval \(targetID)")
+            return
+        }
+        guard let js = payload["js"] as? String else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_JS",
+                message: "canvas.eval requires js")
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let req = CanvasRequest(
+                action: "eval",
+                id: targetID,
+                at: nil,
+                anchorWindow: nil, anchorChannel: nil, offset: nil,
+                html: nil, url: nil,
+                interactive: nil,
+                focus: nil, ttl: nil, js: js, scope: nil,
+                autoProject: nil, channel: nil, data: nil
+            )
+            let response = self.canvasManager.handle(req)
+            if response.status == "success" {
+                var extra: [String: Any] = [:]
+                if let result = response.result { extra["result"] = result }
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "ok", extra: extra)
+            } else {
+                fputs("[canvas-mut] eval fail caller=\(callerID) target=\(targetID) code=\(response.code ?? "?") err=\(response.error ?? "?")\n", stderr)
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: response.code, message: response.error)
             }
         }
     }

@@ -1,7 +1,7 @@
 // canvas.js — JS-side ergonomics over the canvas mutation API.
 //
-// spawnChild and removeSelf use request_id round-trips for ack; mutateSelf
-// is fire-and-forget (matches daemon semantics from the 2026-04-11 spec).
+// spawnChild/removeSelf/evalCanvas use request_id round-trips for ack; mutateSelf
+// is fire-and-forget (matches daemon semantics from the mutation-api spec).
 
 import { emit, wireBridge } from './bridge.js'
 
@@ -18,7 +18,7 @@ function installResponseRouter() {
     if (!entry) return
     pending.delete(rid)
     clearTimeout(entry.timer)
-    if (msg.status === 'ok') entry.resolve({ id: msg.id })
+    if (msg.status === 'ok') entry.resolve(msg)
     else entry.reject(new Error(`${msg.code || 'ERROR'}: ${msg.message || 'unknown'}`))
   })
 }
@@ -27,7 +27,7 @@ function nextRequestId() {
   return 'r-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36)
 }
 
-function rpc(type, payload, timeoutMs = 5000) {
+function rpc(type, payload, { timeoutMs = 5000, mapResult = (msg) => msg } = {}) {
   installResponseRouter()
   const request_id = nextRequestId()
   return new Promise((resolve, reject) => {
@@ -35,14 +35,24 @@ function rpc(type, payload, timeoutMs = 5000) {
       pending.delete(request_id)
       reject(new Error(`TIMEOUT: ${type} (${timeoutMs}ms)`))
     }, timeoutMs)
-    pending.set(request_id, { resolve, reject, timer })
+    pending.set(request_id, {
+      timer,
+      resolve(msg) {
+        resolve(mapResult(msg))
+      },
+      reject,
+    })
     emit(type, { ...payload, request_id })
   })
 }
 
 export function spawnChild(opts) {
   // opts: { id, url, at: [x,y,w,h], interactive?: bool }
-  return rpc('canvas.create', opts)
+  return rpc('canvas.create', opts, {
+    mapResult(msg) {
+      return { id: msg.id }
+    },
+  })
 }
 
 export function mutateSelf(opts) {
@@ -53,11 +63,26 @@ export function mutateSelf(opts) {
 
 export function removeSelf(opts = {}) {
   // opts: { orphan_children?: bool }
-  return rpc('canvas.remove', opts)
+  return rpc('canvas.remove', opts, {
+    mapResult() {
+      return undefined
+    },
+  })
 }
 
 export function setInteractive(interactive) {
   mutateSelf({ interactive: !!interactive })
+}
+
+export function evalCanvas(id, js, opts = {}) {
+  const payload = { js }
+  if (id) payload.id = id
+  return rpc('canvas.eval', payload, {
+    timeoutMs: opts.timeoutMs ?? 5000,
+    mapResult(msg) {
+      return msg.result
+    },
+  })
 }
 
 export function move(dx, dy) {

@@ -57,6 +57,7 @@ import {
   mutateSelf,
   removeSelf,
   setInteractive,
+  evalCanvas,
   move,
   declareManifest,
   emitReady,
@@ -136,6 +137,18 @@ Removes the current canvas and resolves after daemon ack.
 ### `setInteractive(boolean)`
 
 Convenience wrapper over `mutateSelf({ interactive })`.
+
+### `evalCanvas(id, js, options?)`
+
+Evaluates JavaScript inside another canvas and resolves with the daemon's eval result string.
+
+```js
+await evalCanvas('avatar-main', 'document.title')
+```
+
+Options:
+
+- `timeoutMs`: override the default 5000ms request timeout
 
 ### `move(dx, dy)`
 
@@ -336,6 +349,7 @@ Current host surface:
 | `emit(type, payload?)` | emit a message, auto-prefixed by `channelPrefix` when present |
 | `subscribe(events)` | subscribe to daemon streams |
 | `spawnChild(opts)` | create a child canvas |
+| `evalCanvas(id, js)` | run JS in another canvas |
 
 ## Styling Boundary
 

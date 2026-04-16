@@ -5,8 +5,40 @@
 // to stay current. Subscribes via the host's manifest.requires entry.
 
 import { esc, emit } from '../../runtime/bridge.js'
+import { evalCanvas } from '../../runtime/canvas.js'
 
 const SELF_ID = 'canvas-inspector'
+const TINT_COLORS = [
+  'rgba(80, 190, 255, 0.28)',
+  'rgba(80, 255, 120, 0.26)',
+  'rgba(255, 200, 60, 0.24)',
+  'rgba(200, 80, 255, 0.24)',
+  'rgba(255, 140, 60, 0.24)',
+]
+const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
+
+function buildTintEvalScript(color) {
+  const colorLiteral = color == null ? 'null' : JSON.stringify(color)
+  return `(() => {
+    const existing = document.getElementById(${JSON.stringify(TINT_OVERLAY_ID)})
+    if (existing) existing.remove()
+    const color = ${colorLiteral}
+    if (!color) return true
+    const overlay = document.createElement('div')
+    overlay.id = ${JSON.stringify(TINT_OVERLAY_ID)}
+    overlay.setAttribute('aria-hidden', 'true')
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'pointer-events:none',
+      'z-index:2147483647',
+      'background:' + color,
+      'box-shadow:inset 0 0 0 3px ' + color
+    ].join(';')
+    ;(document.body || document.documentElement).appendChild(overlay)
+    return true
+  })()`
+}
 
 function normalizeDisplay(display = {}) {
   const bounds = display.bounds || {}
@@ -79,12 +111,21 @@ export default function CanvasInspector() {
   let contentEl = null
   let displays = []
   let canvases = []
+  let tintedIds = new Set()
+  let tintMap = new Map()
+  let tintIndex = 0
   let eventCount = 0
   let resizeObserver = null
   let lastMinimapWidth = 0
 
   function syncDebugState() {
-    window.__canvasInspectorState = { displays, canvases, eventCount }
+    window.__canvasInspectorState = {
+      displays,
+      canvases,
+      eventCount,
+      tintedIds: [...tintedIds],
+      tintMap: Object.fromEntries(tintMap),
+    }
   }
 
   function rerender() {
@@ -113,8 +154,10 @@ export default function CanvasInspector() {
       html += `</div>`
     }
     for (const { canvas: c, x, y, w, h, isSelf } of layout.canvases) {
-      const cls = isSelf ? 'minimap-canvas self' : 'minimap-canvas'
-      html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" title="${esc(c.id)}"></div>`
+      const tint = tintMap.get(c.id)
+      const cls = isSelf ? 'minimap-canvas self' : (tint ? 'minimap-canvas tinted' : 'minimap-canvas')
+      const tintStyle = tint ? `background:${esc(tint)};border-color:${esc(tint)};` : ''
+      html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${tintStyle}" title="${esc(c.id)}"></div>`
     }
     html += `</div>`
     return html
@@ -136,8 +179,8 @@ export default function CanvasInspector() {
       if (c.interactive) html += `<span class="flag interactive">int</span>`
       if (c.scope === 'connection') html += `<span class="flag scoped">conn</span>`
       if (c.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
-      // Tint disabled in v1 — see issue #62 (daemon canvas.eval support).
-      html += `<button class="btn disabled" disabled title="tint requires daemon canvas.eval (issue #62)">tint</button>`
+      const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
+      html += `<button class="${tintClass}" data-id="${esc(c.id)}">tint</button>`
       html += `<button class="btn remove-btn" data-id="${esc(c.id)}">\u2715</button>`
       html += `</span>`
       html += `</div>`
@@ -151,6 +194,38 @@ export default function CanvasInspector() {
   }
 
   function bindListEvents() {
+    for (const btn of contentEl.querySelectorAll('.tint-btn')) {
+      btn.addEventListener('click', async (e) => {
+        const id = e.target.dataset.id
+        const wasTinted = tintedIds.has(id)
+        const priorColor = tintMap.get(id) || null
+        let color = null
+        if (wasTinted) {
+          tintedIds.delete(id)
+          tintMap.delete(id)
+        } else {
+          color = TINT_COLORS[tintIndex % TINT_COLORS.length]
+          tintIndex++
+          tintedIds.add(id)
+          tintMap.set(id, color)
+        }
+        rerender()
+        try {
+          await evalCanvas(id, buildTintEvalScript(color))
+        } catch (error) {
+          if (wasTinted) {
+            tintedIds.add(id)
+            if (priorColor) tintMap.set(id, priorColor)
+          } else {
+            tintIndex = Math.max(0, tintIndex - 1)
+            tintedIds.delete(id)
+            tintMap.delete(id)
+          }
+          rerender()
+          console.error('[canvas-inspector] tint failed', id, error)
+        }
+      })
+    }
     for (const btn of contentEl.querySelectorAll('.remove-btn')) {
       btn.addEventListener('click', (e) => {
         const id = e.target.dataset.id
@@ -172,6 +247,8 @@ export default function CanvasInspector() {
       }
     } else if (action === 'removed') {
       canvases = canvases.filter(c => c.id !== canvas_id)
+      tintedIds.delete(canvas_id)
+      tintMap.delete(canvas_id)
     }
   }
 

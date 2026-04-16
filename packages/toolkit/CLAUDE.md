@@ -24,7 +24,7 @@ Every WKWebView surface (panel or presence) imports from `runtime/`. Surfaces th
 runtime/                Layer 1a — universal canvas runtime
   bridge.js               wireBridge, emit, esc
   subscribe.js            subscribe, unsubscribe to daemon streams
-  canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive
+  canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas
   manifest.js             declareManifest, emitReady, emitLifecycleComplete, onReady
   index.js                re-exports
   _smoke/                 smoke harness

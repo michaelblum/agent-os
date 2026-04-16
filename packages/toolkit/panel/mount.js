@@ -5,7 +5,7 @@
 import { mountChrome } from './chrome.js'
 import { wireBridge, emit } from '../runtime/bridge.js'
 import { subscribe } from '../runtime/subscribe.js'
-import { spawnChild } from '../runtime/canvas.js'
+import { evalCanvas, spawnChild } from '../runtime/canvas.js'
 import { declareManifest, emitReady } from '../runtime/manifest.js'
 import { createRouter } from './router.js'
 
@@ -61,5 +61,6 @@ function makeHost(chrome, content) {
     },
     subscribe(events, options) { subscribe(events, options) },
     spawnChild(opts) { return spawnChild(opts) },
+    evalCanvas(id, js, options) { return evalCanvas(id, js, options) },
   }
 }
