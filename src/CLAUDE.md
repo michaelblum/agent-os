@@ -10,6 +10,29 @@ Unified binary for macOS perception, display, action, and voice.
 bash build.sh
 ```
 
+Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/`, or when
+the next verification step runs `./aos` directly. Do not rebuild before pure
+Node-based tests or package-local workflows.
+
+Examples that usually do **not** need `bash build.sh`:
+
+```bash
+node --test tests/studio/*.test.mjs
+node --test tests/renderer/*.test.mjs
+cd packages/gateway && npm test
+cd packages/host && npm test
+```
+
+Examples that **do** need a current `./aos` binary when relevant Swift files
+changed:
+
+```bash
+bash tests/wiki-seed.sh
+bash tests/content/wiki-list.test.sh
+./aos runtime status --json
+./aos show create --id demo --url aos://sigil/studio/index.html
+```
+
 Requires macOS 14+ and Accessibility permission.
 
 ## Setup

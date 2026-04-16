@@ -65,6 +65,16 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
 - `aos` CLI is the canonical interface for development inside agent-os. MCP tools
   exist as an optional adapter for external consumers, not for dev work.
 
+- Do not default to `bash build.sh` before every test or verification step.
+  Rebuild `./aos` only when the work changes Swift sources in `src/` or
+  `shared/swift/ipc/`, or when the command/test you are about to run executes
+  `./aos` directly.
+- Pure Node/TypeScript/package workflows should stay in their local loop unless
+  they explicitly depend on a fresh `./aos` binary. Examples: `packages/gateway`
+  build/test, `packages/host` test, and pure `node --test` suites under
+  `tests/studio/` and `tests/renderer/`.
+- Shell/integration tests under `tests/` that invoke `./aos` do require a fresh
+  build when relevant Swift code has changed.
 - Use `aos` as the real host when verifying display or toolkit behavior. Prefer
   `aos://...` canvases over raw browser pages unless the problem is purely DOM
   debugging.
