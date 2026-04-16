@@ -58,6 +58,12 @@ or `aos graph displays` before isolated tests finish writing required config lik
 `aos permissions check --json`, then start the isolated daemon explicitly and
 wait on the isolated socket helper in `tests/lib/isolated-daemon.sh`.
 
+Once the daemon is intentionally running, prefer the canonical readiness
+commands over ad hoc polling:
+
+- `aos content wait --root <name> ...`
+- `aos show wait --id <canvas> [--manifest <name>] [--js <condition>]`
+
 Examples:
 
 - `bash tests/capture-region-perception.sh`

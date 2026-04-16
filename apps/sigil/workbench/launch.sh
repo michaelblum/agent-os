@@ -15,55 +15,9 @@ AVATAR_ID="${AVATAR_ID:-avatar-main}"
 
 # --- helpers ----------------------------------------------------------------
 
-ensure_daemon() {
-  if "$AOS" show list --json >/dev/null 2>&1; then return 0; fi
-  "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
-  for _ in $(seq 1 30); do
-    "$AOS" show list --json >/dev/null 2>&1 && return 0
-    sleep 0.2
-  done
-  echo "Failed to reach the AOS daemon." >&2
-  return 1
-}
-
 ensure_content_roots() {
   "$AOS" set content.roots.toolkit packages/toolkit >/dev/null
   "$AOS" set content.roots.sigil apps/sigil >/dev/null
-}
-
-content_roots_live() {
-  "$AOS" content status --json 2>/dev/null | python3 -c '
-import json, sys
-try:
-    payload = json.load(sys.stdin)
-except Exception:
-    raise SystemExit(1)
-port = int(payload.get("port") or 0)
-roots = payload.get("roots") or {}
-raise SystemExit(0 if port > 0 and "toolkit" in roots and "sigil" in roots else 1)
-'
-}
-
-wait_canvas_js() {
-  local canvas_id="$1"
-  local js_condition="$2"
-  local deadline="${3:-50}"
-  for _ in $(seq 1 "$deadline"); do
-    local ready_json
-    ready_json="$("$AOS" show eval --id "$canvas_id" --js "(function(){ return (${js_condition}) ? 'ready' : 'wait' })()" 2>/dev/null || true)"
-    if printf '%s' "$ready_json" | python3 -c '
-import json, sys
-try:
-    payload = json.load(sys.stdin)
-except Exception:
-    raise SystemExit(1)
-raise SystemExit(0 if payload.get("result") == "ready" else 1)
-' 2>/dev/null; then
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
 }
 
 # Encode a JSON string as base64 (for headsup.receive delivery).
@@ -156,8 +110,8 @@ PY
 
 main() {
   ensure_content_roots
-  ensure_daemon
-  if ! content_roots_live; then
+  "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
+  if ! "$AOS" content wait --root toolkit --root sigil --timeout 10s >/dev/null 2>&1; then
     echo "The running daemon does not have live toolkit+sigil content roots." >&2
     echo "Restart the daemon to apply content.roots.toolkit and content.roots.sigil, then rerun launch.sh." >&2
     return 1
@@ -180,9 +134,9 @@ main() {
     --at "$frame" --interactive --focus \
     --url 'aos://sigil/workbench/index.html' >/dev/null
 
-  wait_canvas_js "$AVATAR_ID" 'window.headsup && typeof window.headsup.receive === "function" && typeof window.liveJs === "object"' \
+  "$AOS" show wait --id "$AVATAR_ID" --js 'typeof window.liveJs === "object"' --timeout 5s >/dev/null \
     || { echo "Avatar canvas did not finish mounting." >&2; return 1; }
-  wait_canvas_js "$WORKBENCH_ID" 'window.headsup && typeof window.headsup.receive === "function" && !!document.querySelector(".surface-frame")' \
+  "$AOS" show wait --id "$WORKBENCH_ID" --js '!!document.querySelector(".surface-frame")' --timeout 5s >/dev/null \
     || { echo "Workbench canvas did not finish mounting." >&2; return 1; }
   stage_avatar "$avatar_home"
   bootstrap_tabs

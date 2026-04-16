@@ -163,6 +163,30 @@ func waitForCanvasBridge(
     return waitForCanvasCondition(session: session, canvasID: canvasID, jsCondition: condition, timeoutMs: timeoutMs)
 }
 
+func contentStatusIsReady(_ response: [String: Any], requiredRoots: [String] = []) -> Bool {
+    let port = response["port"] as? Int ?? 0
+    guard port > 0 else { return false }
+    let roots = response["roots"] as? [String: String] ?? [:]
+    return requiredRoots.allSatisfy { roots[$0] != nil }
+}
+
+func waitForContentStatus(
+    session: DaemonSession,
+    requiredRoots: [String] = [],
+    timeoutMs: Int = 10000,
+    pollMs: useconds_t = 100_000
+) -> [String: Any]? {
+    let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+    while Date() < deadline {
+        if let response = session.sendAndReceive(["action": "content_status"]),
+           contentStatusIsReady(response, requiredRoots: requiredRoots) {
+            return response
+        }
+        usleep(pollMs)
+    }
+    return nil
+}
+
 // MARK: - Process Helpers
 
 struct ProcessOutput {

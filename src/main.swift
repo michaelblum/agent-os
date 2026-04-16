@@ -47,6 +47,8 @@ struct AOS {
             switch contentArgs[0] {
             case "status":
                 runContentStatus(Array(contentArgs.dropFirst()))
+            case "wait":
+                runContentWait(Array(contentArgs.dropFirst()))
             default:
                 exitError("Unknown content command: \(contentArgs[0])", code: "UNKNOWN_COMMAND")
             }
@@ -278,6 +280,7 @@ func handleShow(args: [String]) {
     case "eval":     evalCommand(args: subArgs)
     case "listen":   listenCommand(args: subArgs)
     case "ping":     pingCommand(args: subArgs)
+    case "wait":     showWaitCommand(args: subArgs)
     case "exists":   showExistsCommand(args: subArgs)
     case "get":      showGetCommand(args: subArgs)
     case "to-front": toFrontCommand(args: subArgs)

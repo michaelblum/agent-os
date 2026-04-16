@@ -282,6 +282,22 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSON,
             examples: ["aos show ping"]),
+        InvocationForm(id: "show-wait", usage: "aos show wait --id <name> [--manifest <name>] [--js <condition>] [--timeout <dur>] [--auto-start] [--json]",
+            args: [
+                flag("id", "--id", "Canvas identifier", required: true),
+                flag("manifest", "--manifest", "Expected manifest name"),
+                flag("js", "--js", "Additional JavaScript readiness condition"),
+                flag("timeout", "--timeout", "Maximum wait duration", default: .string("5s")),
+                flag("auto-start", "--auto-start", "Auto-start the daemon if needed", type: .bool),
+                flag("json", "--json", "Emit JSON output", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSONFlag,
+            examples: [
+                "aos show wait --id canvas-inspector --manifest canvas-inspector",
+                "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
+            ]),
         InvocationForm(id: "show-exists", usage: "aos show exists --id <name>",
             args: [flag("id", "--id", "Canvas identifier", required: true)],
             stdin: nil, constraints: nil,
@@ -699,7 +715,21 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSONFlag,
-            examples: ["aos content status", "aos content status --json"])
+            examples: ["aos content status", "aos content status --json"]),
+        InvocationForm(id: "content-wait", usage: "aos content wait [--root <name> ...] [--timeout <dur>] [--auto-start] [--json]",
+            args: [
+                flag("root", "--root", "Required content root (repeatable)"),
+                flag("timeout", "--timeout", "Maximum wait duration", default: .string("10s")),
+                flag("auto-start", "--auto-start", "Auto-start the daemon if needed", type: .bool),
+                flag("json", "--json", "Emit JSON output", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSONFlag,
+            examples: [
+                "aos content wait --root toolkit --auto-start",
+                "aos content wait --root toolkit --root sigil --timeout 10s"
+            ])
     ]))
 
     // ── service ───────────────────────────────────────────

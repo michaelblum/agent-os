@@ -181,6 +181,8 @@ The daemon runs a local HTTP file server for serving HTML surfaces to WKWebView 
 ```bash
 aos set content.roots.sigil apps/sigil    # Register a content root
 aos content status [--json]               # Show server address and roots
+aos content wait --root sigil             # Wait until the daemon is serving that root
+aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifest are live
 ```
 
 Canvases load via URL: `aos://sigil/studio/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.

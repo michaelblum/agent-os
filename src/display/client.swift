@@ -11,44 +11,10 @@ class DaemonClient {
     }
 
     func ensureDaemon() -> Bool {
-        // Fast path: daemon already running
-        if let fd = connect() { close(fd); return true }
-
-        let currentMode = aosCurrentRuntimeMode()
-        let otherSocketPath = aosSocketPath(for: currentMode.other)
-        if socketIsReachable(otherSocketPath, timeoutMs: 250) {
-            return false
-        }
-
-        // Spawn child process
-        let selfPath = ProcessInfo.processInfo.arguments[0]
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: selfPath)
-        proc.arguments = ["serve", "--idle-timeout", "5m"]
-        proc.standardInput = FileHandle.nullDevice
-        proc.standardOutput = FileHandle.nullDevice
-
-        // Log to file instead of /dev/null
-        let logPath = aosDaemonLogPath()
-        try? FileManager.default.createDirectory(atPath: kDefaultSocketDir, withIntermediateDirectories: true)
-        FileManager.default.createFile(atPath: logPath, contents: nil)
-        if let logHandle = FileHandle(forWritingAtPath: logPath) {
-            logHandle.seekToEndOfFile()
-            proc.standardError = logHandle
-        } else {
-            proc.standardError = FileHandle.nullDevice
-        }
-
-        do { try proc.run() } catch { return false }
-
-        for _ in 0..<50 {
-            usleep(100_000)
-            if let fd = connect() {
-                close(fd)
-                return true
-            }
-        }
-        return false
+        let session = DaemonSession()
+        let ok = session.connectWithAutoStart(binaryPath: ProcessInfo.processInfo.arguments[0])
+        session.disconnect()
+        return ok
     }
 
     func send(_ request: CanvasRequest) -> CanvasResponse {
@@ -142,6 +108,14 @@ private func nextCanvasIntArg(_ args: [String], index: inout Int, invalidMessage
     let value = nextCanvasArg(args, index: &index, missingMessage: invalidMessage, code: "INVALID_ARG")
     guard let parsed = Int(value) else { exitError(invalidMessage, code: "INVALID_ARG") }
     return parsed
+}
+
+private func parseTimeoutMsArg(_ value: String, flagName: String) -> Int {
+    let seconds = parseDuration(value)
+    guard seconds.isFinite, seconds > 0 else {
+        exitError("\(flagName) must be a positive finite duration", code: "INVALID_ARG")
+    }
+    return Int(seconds * 1000)
 }
 
 private func parseCanvasQuad(_ value: String, invalidMessage: String) -> [CGFloat] {
@@ -381,6 +355,79 @@ func pingCommand(args: [String]) {
     close(fd)
     let response = client.send(request)
     outputResponse(response)
+}
+
+// MARK: - CLI Command: wait
+
+func showWaitCommand(args: [String]) {
+    var id: String? = nil
+    var manifest: String? = nil
+    var jsCondition: String? = nil
+    var autoStart = false
+    var asJSON = false
+    var timeoutMs = 5000
+
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--id":
+            i += 1; guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
+            id = args[i]
+        case "--manifest":
+            i += 1; guard i < args.count else { exitError("--manifest requires a value", code: "MISSING_ARG") }
+            manifest = args[i]
+        case "--js":
+            i += 1; guard i < args.count else { exitError("--js requires a value", code: "MISSING_ARG") }
+            jsCondition = args[i]
+        case "--timeout":
+            i += 1; guard i < args.count else { exitError("--timeout requires a duration", code: "MISSING_ARG") }
+            timeoutMs = parseTimeoutMsArg(args[i], flagName: "--timeout")
+        case "--auto-start":
+            autoStart = true
+        case "--json":
+            asJSON = true
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+
+    guard let canvasID = id else { exitError("wait requires --id <name>", code: "MISSING_ARG") }
+
+    let session = DaemonSession()
+    let connected = autoStart
+        ? session.connectWithAutoStart(binaryPath: ProcessInfo.processInfo.arguments[0])
+        : session.connect()
+    guard connected else {
+        exitError("Cannot connect to daemon", code: autoStart ? "CONNECT_ERROR" : "NO_DAEMON")
+    }
+    defer { session.disconnect() }
+
+    var condition = "window.headsup && typeof window.headsup.receive === 'function'"
+    if let manifest {
+        condition += " && window.headsup.manifest && window.headsup.manifest.name === \(jsStringLiteral(manifest))"
+    }
+    if let jsCondition {
+        condition += " && (\(jsCondition))"
+    }
+
+    guard waitForCanvasCondition(session: session, canvasID: canvasID, jsCondition: condition, timeoutMs: timeoutMs) else {
+        exitError("Canvas \(canvasID) did not become ready before timeout", code: "CANVAS_WAIT_TIMEOUT")
+    }
+
+    if asJSON {
+        let payload: [String: Any] = [
+            "status": "success",
+            "ready": true,
+            "id": canvasID
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+           let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+    } else {
+        print("ready")
+    }
 }
 
 // MARK: - CLI Command: eval

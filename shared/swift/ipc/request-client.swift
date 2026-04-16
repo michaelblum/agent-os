@@ -59,8 +59,17 @@ class DaemonSession {
         let binary = binaryPath
         proc.executableURL = URL(fileURLWithPath: binary)
         proc.arguments = ["serve", "--idle-timeout", "5m"]
+        proc.standardInput = FileHandle.nullDevice
         proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
+        let logPath = aosDaemonLogPath()
+        try? FileManager.default.createDirectory(atPath: kDefaultSocketDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+        if let logHandle = FileHandle(forWritingAtPath: logPath) {
+            logHandle.seekToEndOfFile()
+            proc.standardError = logHandle
+        } else {
+            proc.standardError = FileHandle.nullDevice
+        }
         try? proc.run()
 
         // Poll for socket (up to 3 seconds)

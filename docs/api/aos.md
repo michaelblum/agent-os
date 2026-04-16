@@ -111,11 +111,13 @@ aos show remove --id demo
 
 ```bash
 aos set content.roots.toolkit packages/toolkit
+aos content wait --root toolkit --auto-start
 aos show create \
   --id inspector \
   --at 100,100,320,250 \
   --interactive \
   --url 'aos://toolkit/components/inspector-panel/index.html'
+aos show wait --id inspector --manifest inspector-panel
 ```
 
 ## Subcommand Reference
