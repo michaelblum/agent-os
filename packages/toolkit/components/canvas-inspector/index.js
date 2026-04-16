@@ -8,6 +8,50 @@ import { esc, emit } from '../../runtime/bridge.js'
 
 const SELF_ID = 'canvas-inspector'
 
+export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, border = 1, inset = 2 } = {}) {
+  if (!displays || displays.length === 0) return null
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const d of displays) {
+    minX = Math.min(minX, d.bounds.x)
+    minY = Math.min(minY, d.bounds.y)
+    maxX = Math.max(maxX, d.bounds.x + d.bounds.w)
+    maxY = Math.max(maxY, d.bounds.y + d.bounds.h)
+  }
+
+  const totalW = maxX - minX
+  const totalH = maxY - minY
+  const contentW = Math.max(1, mapW - border * 2)
+  const innerW = Math.max(1, contentW - inset * 2)
+  const scale = innerW / totalW
+  const contentH = Math.round(totalH * scale) + inset * 2
+  const mapH = contentH + border * 2
+
+  return {
+    mapW,
+    mapH,
+    displays: displays.map((d) => ({
+      display: d,
+      x: inset + Math.round((d.bounds.x - minX) * scale),
+      y: inset + Math.round((d.bounds.y - minY) * scale),
+      w: Math.round(d.bounds.w * scale),
+      h: Math.round(d.bounds.h * scale),
+    })),
+    canvases: (list || []).flatMap((c) => {
+      if (!c.at || c.at.length < 4) return []
+      const [cx, cy, cw, ch] = c.at
+      return [{
+        canvas: c,
+        x: inset + Math.round((cx - minX) * scale),
+        y: inset + Math.round((cy - minY) * scale),
+        w: Math.max(2, Math.round(cw * scale)),
+        h: Math.max(2, Math.round(ch * scale)),
+        isSelf: c.id === selfId,
+      }]
+    }),
+  }
+}
+
 export default function CanvasInspector() {
   let contentEl = null
   let displays = []
@@ -31,42 +75,17 @@ export default function CanvasInspector() {
   function renderMinimap(list) {
     if (displays.length === 0) return ''
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const d of displays) {
-      minX = Math.min(minX, d.bounds.x)
-      minY = Math.min(minY, d.bounds.y)
-      maxX = Math.max(maxX, d.bounds.x + d.bounds.w)
-      maxY = Math.max(maxY, d.bounds.y + d.bounds.h)
-    }
-    const totalW = maxX - minX
-    const totalH = maxY - minY
-    const mapW = getMinimapWidth()
-    const border = 1
-    const inset = 2
-    const contentW = Math.max(1, mapW - border * 2)
-    const innerW = Math.max(1, contentW - inset * 2)
-    const scale = innerW / totalW
-    const contentH = Math.round(totalH * scale) + inset * 2
-    const mapH = contentH + border * 2
+    const layout = computeMinimapLayout(displays, list, getMinimapWidth())
+    if (!layout) return ''
 
-    let html = `<div class="minimap" style="width:${mapW}px;height:${mapH}px">`
-    for (const d of displays) {
-      const x = inset + Math.round((d.bounds.x - minX) * scale)
-      const y = inset + Math.round((d.bounds.y - minY) * scale)
-      const w = Math.round(d.bounds.w * scale)
-      const h = Math.round(d.bounds.h * scale)
+    let html = `<div class="minimap" style="width:${layout.mapW}px;height:${layout.mapH}px">`
+    for (const { display: d, x, y, w, h } of layout.displays) {
       html += `<div class="minimap-display" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">`
       html += `<span class="minimap-display-label">${d.is_main ? '\u2605 ' : ''}${d.width}\u00d7${d.height}</span>`
       html += `</div>`
     }
-    for (const c of list) {
-      if (!c.at || c.at.length < 4) continue
-      const [cx, cy, cw, ch] = c.at
-      const x = inset + Math.round((cx - minX) * scale)
-      const y = inset + Math.round((cy - minY) * scale)
-      const w = Math.max(2, Math.round(cw * scale))
-      const h = Math.max(2, Math.round(ch * scale))
-      const cls = c.id === SELF_ID ? 'minimap-canvas self' : 'minimap-canvas'
+    for (const { canvas: c, x, y, w, h, isSelf } of layout.canvases) {
+      const cls = isSelf ? 'minimap-canvas self' : 'minimap-canvas'
       html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px" title="${esc(c.id)}"></div>`
     }
     html += `</div>`

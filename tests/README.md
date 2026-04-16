@@ -16,6 +16,7 @@ Examples:
 - `bash tests/wiki-migrate.sh`
 - `bash tests/wiki-write-api.sh`
 - `bash tests/content/wiki-list.test.sh`
+- `bash tests/daemon-singleton.sh`
 - `./aos runtime status --json`
 - `./aos show create ...`
 
@@ -28,6 +29,7 @@ Examples:
 
 - `node --test tests/studio/*.test.mjs`
 - `node --test tests/renderer/*.test.mjs`
+- `node --test tests/toolkit/*.test.mjs`
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
 
@@ -38,3 +40,23 @@ If a change spans both Swift and JS/package surfaces:
 1. Run the smallest local tests first without rebuilding `./aos`.
 2. Rebuild once before the first `./aos`-backed verification step.
 3. Reuse that binary for the remaining `./aos` checks until Swift changes again.
+
+## Situational Hardware Tests
+
+Some display tests depend on real hardware topology and OS permissions. Those
+tests should skip cleanly when the environment does not qualify.
+
+These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
+own temp-root daemon state so they do not leave duplicate `aos` windows behind
+if a run is interrupted.
+
+Examples:
+
+- `bash tests/canvas-inspector-cross-display-drag.sh`
+
+## Recovery
+
+If an interrupted display/toolkit run leaves stale windows or extra non-launchd
+daemons behind, use:
+
+- `./aos clean`

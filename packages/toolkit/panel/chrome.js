@@ -46,7 +46,7 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
   }
 }
 
-function wireDrag(header, controlsEl) {
+export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
   header.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return
     if (e.target instanceof Node && controlsEl.contains(e.target)) return
@@ -60,7 +60,7 @@ function wireDrag(header, controlsEl) {
 
     const onMove = (ev) => {
       if (ev.pointerId !== pointerId) return
-      moveAbsolute(ev.screenX, ev.screenY, offsetX, offsetY)
+      move(ev.screenX, ev.screenY, offsetX, offsetY)
     }
 
     const onUp = (ev) => {

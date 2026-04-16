@@ -58,9 +58,16 @@ func aosLegacyStateDir() -> String {
     NSString(string: "~/.config/aos").expandingTildeInPath
 }
 
+func aosStateRoot() -> String {
+    if let override = ProcessInfo.processInfo.environment["AOS_STATE_ROOT"], !override.isEmpty {
+        return NSString(string: override).standardizingPath
+    }
+    return aosLegacyStateDir()
+}
+
 func aosStateDir(for mode: AOSRuntimeMode? = nil) -> String {
     let resolved = mode ?? aosCurrentRuntimeMode()
-    return "\(aosLegacyStateDir())/\(resolved.rawValue)"
+    return "\(aosStateRoot())/\(resolved.rawValue)"
 }
 
 func aosSocketPath(for mode: AOSRuntimeMode? = nil) -> String {
