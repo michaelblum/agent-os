@@ -55,6 +55,7 @@ const defaults = {
 
     // Geometry
     currentType: 12,
+    currentGeometryType: 12,
     stellationFactor: 0,
     z_depth: 1.0,
     baseScale: 1.0,
@@ -111,11 +112,24 @@ const defaults = {
         gamma: ['#ffffff', '#00ffcc'],
         accretion: ['#4488ff', '#0044aa'],
         neutrino: ['#ffffff', '#4488ff'],
+        lightning: ['#ffffff', '#00ffff'],
+        magnetic: ['#4488ff', '#0044aa'],
+        omegaFace: ['#4a2b6e', '#1a0b2e'],
+        omegaEdge: ['#bc13fe', '#4a2b6e'],
         grid: ['#224488', '#001133']
     },
 
     // --- Lightning ---
     lightning: [],
+    lightningStrikes: [],
+    lightningTimer: 0,
+    lightningOriginCenter: true,
+    lightningSolidBlock: false,
+    lightningBoltLength: 100,
+    lightningFrequency: 2.0,
+    lightningDuration: 0.8,
+    lightningBranching: 0.08,
+    lightningBrightness: 1.0,
     lightningBranchProbability: 0.2,
     lightningSegmentLength: 0.5,
     lightningWidth: 0.05,
@@ -123,9 +137,15 @@ const defaults = {
 
     // --- Magnetic Field ---
     magneticField: null,
+    magneticTentacleGroup: null,
+    magneticTentacles: [],
     magneticFieldLineCount: 20,
     magneticFieldRadius: 4.0,
     magneticFieldStrength: 1.0,
+    magneticTentacleCount: 10,
+    magneticTentacleSpeed: 1.0,
+    magneticWander: 3.0,
+    isMagneticEnabled: false,
     isMagneticFieldEnabled: false,
 
     // --- Omega (Secondary shape) ---
@@ -133,14 +153,25 @@ const defaults = {
     omegaDepthMesh: null,
     omegaCoreMesh: null,
     omegaWireframeMesh: null,
+    isOmegaEnabled: false,
     omegaType: 4,
+    omegaGeometryType: 4,
     omegaStellationFactor: 0,
+    omegaScale: 1.5,
     omegaOpacity: 0.3,
     omegaEdgeOpacity: 0.2,
     omegaIsSpecularEnabled: false,
     omegaIsMaskEnabled: false,
     omegaIsInteriorEdgesEnabled: true,
     omegaSkin: 'none',
+    omegaCounterSpin: false,
+    omegaLockPosition: false,
+    omegaInterDimensional: false,
+    omegaGhostCount: 10,
+    omegaGhostMode: 'fade',
+    omegaGhostDuration: 2.0,
+    omegaGhostTimer: 0,
+    omegaLagFactor: 0.05,
     omegaIsVisible: false,
 
     // Voxel flash

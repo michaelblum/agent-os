@@ -137,7 +137,7 @@ class UnifiedDaemon {
                 let inner = dict["payload"] as? [String: Any]
                 switch type {
                 case "subscribe", "unsubscribe":
-                    let events = (inner?["events"] as? [String]) ?? []
+                    let events = self.subscriptionEvents(from: inner)
                     let wantsSnapshot = (inner?["snapshot"] as? Bool) ?? false
                     self.handleCanvasSubscription(
                         canvasID: canvasID,
@@ -349,6 +349,17 @@ class UnifiedDaemon {
                 }
             }
         }
+    }
+
+    private func subscriptionEvents(from payload: [String: Any]?) -> [String] {
+        guard let payload else { return [] }
+        if let events = payload["events"] as? [String] {
+            return events.filter { !$0.isEmpty }
+        }
+        if let event = payload["event"] as? String, !event.isEmpty {
+            return [event]
+        }
+        return []
     }
 
     private func handleCanvasSubscription(canvasID: String, type: String, events: [String], snapshot: Bool) {

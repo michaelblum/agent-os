@@ -9,7 +9,7 @@ import { createMagneticField, animateMagneticField } from '../magnetic.js';
 import { createOmega, animateOmega } from '../omega.js';
 import { animateSkins } from '../skins.js';
 import { loadAgent } from '../agent-loader.js';
-import { applyAppearance } from '../appearance.js';
+import { applyAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
 import { createRenderLoopScheduler } from './render-loop.js';
 
@@ -28,8 +28,30 @@ const liveJs = {
 };
 window.liveJs = liveJs;
 window.state = state;
+window.__sigilBootTrace = [];
+window.__sigilBootError = null;
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+
+function recordBoot(stage, extra = {}) {
+    const entry = { ts: Date.now(), stage, ...extra };
+    window.__sigilBootTrace.push(entry);
+    if (window.__sigilBootTrace.length > 64) window.__sigilBootTrace.shift();
+    if (extra.error) window.__sigilBootError = entry;
+}
+
+function runBootStep(stage, fn) {
+    recordBoot(stage);
+    try {
+        return fn();
+    } catch (error) {
+        recordBoot(stage, {
+            error: String(error),
+            stack: error && error.stack ? String(error.stack) : null,
+        });
+        throw error;
+    }
+}
 
 function scheduleRenderFrame() {
     renderLoop.schedule(animate);
@@ -79,20 +101,20 @@ function onWindowResize() {
 }
 
 function init() {
-    initScene();
-    createAuraObjects();
-    createParticleObjects();
-    createPhenomena();
-    createLightning();
-    createMagneticField();
-    createOmega();
+    runBootStep('initScene', () => initScene());
+    runBootStep('createAuraObjects', () => createAuraObjects());
+    runBootStep('createParticleObjects', () => createParticleObjects());
+    runBootStep('createPhenomena', () => createPhenomena());
+    runBootStep('createLightning', () => createLightning());
+    runBootStep('createMagneticField', () => createMagneticField());
+    runBootStep('createOmega', () => createOmega());
 
-    updateGeometry(state.currentType);
-    updateAllColors();
+    runBootStep('updateGeometry', () => updateGeometry(state.currentGeometryType ?? state.currentType));
+    runBootStep('updateAllColors', () => updateAllColors());
 
     state.polyGroup.scale.set(state.z_depth, state.z_depth, state.z_depth);
 
-    setupLiveJs();
+    runBootStep('setupLiveJs', () => setupLiveJs());
     if (!rendererSuspended) {
         scheduleRenderFrame();
     }
@@ -222,12 +244,14 @@ function setupLiveJs() {
             }
         }
     };
-    postToHost('subscribe', { event: 'display_geometry' });
-    postToHost('subscribe', { event: 'wiki_page_changed' });
-    postToHost('subscribe', { event: 'input_event' });
+    postToHost('subscribe', { events: ['display_geometry', 'wiki_page_changed', 'input_event'] });
 }
 
 function handleLiveJsMessage(msg) {
+    const payload = (msg && typeof msg.payload === 'object' && msg.payload !== null)
+        ? msg.payload
+        : msg;
+
     // 1. In-memory Appearance Preview (Studio bypass)
     if (msg.type === 'live_appearance') {
         applyAppearance(msg.appearance);
@@ -267,13 +291,13 @@ function handleLiveJsMessage(msg) {
 
     // 3. System Events
     if (msg.type === 'display_geometry') {
-        liveJs.displays = msg.payload.displays || [];
+        liveJs.displays = payload.displays || [];
         if (liveJs._resolveFirstDisplayGeometry) {
             liveJs._resolveFirstDisplayGeometry(liveJs.displays);
             liveJs._resolveFirstDisplayGeometry = null;
         }
     } else if (msg.type === 'wiki_page_changed') {
-        if (liveJs.currentAgentId && msg.payload.path === `sigil/agents/${liveJs.currentAgentId}.md`) {
+        if (liveJs.currentAgentId && payload.path === `sigil/agents/${liveJs.currentAgentId}.md`) {
              // Debounce via IDLE state check (simplified)
              if (liveJs.currentState === 'IDLE') {
                  window.__sigilFlushReload();
@@ -323,12 +347,17 @@ async function getLastPositionFromDaemon(agentId) {
 }
 
 export async function boot() {
+    recordBoot('boot:start');
     const params = new URLSearchParams(window.location.search);
     const agentPath = params.get('agent') ?? 'sigil/agents/default';
     const currentAgentId = agentPath.split('/').pop();
 
+    // Seed canonical defaults before init so renderer-side boot doesn't depend
+    // on stale state.js mirrors for omega/colors/etc.
+    runBootStep('applyDefaultAppearance', () => applyAppearance(DEFAULT_APPEARANCE));
+
     // 1. Init Scene + Subscription
-    init();
+    runBootStep('init', () => init());
 
     // 2. Fetch Agent + Displays in Parallel
     const agentPromise = loadAgent(agentPath).catch((e) => {
@@ -338,6 +367,7 @@ export async function boot() {
     const displaysPromise = awaitFirstDisplayGeometry();
 
     const [agent, displays] = await Promise.all([agentPromise, displaysPromise]);
+    recordBoot('boot:agentAndDisplaysReady', { displays: displays.length });
     liveJs.currentAgentId = currentAgentId;
 
     // 3. Apply Appearance

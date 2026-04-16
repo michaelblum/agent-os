@@ -2,71 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/isolated-daemon.sh"
-
-press_status_item() {
-  local pid="$1"
-  for _ in $(seq 1 30); do
-    if swift - "$pid" <<'SWIFT'
-import AppKit
-import ApplicationServices
-import Foundation
-
-let expectedLabel = "AOS status item"
-
-func getAttr(_ el: AXUIElement, _ name: String) -> AnyObject? {
-    var value: CFTypeRef?
-    let result = AXUIElementCopyAttributeValue(el, name as CFString, &value)
-    guard result == .success else { return nil }
-    return value
-}
-
-guard CommandLine.arguments.count >= 2, let pidValue = Int32(CommandLine.arguments[1]) else {
-    fputs("FAIL: missing pid\n", stderr)
-    exit(1)
-}
-
-let app = AXUIElementCreateApplication(pidValue)
-guard let extrasValue = getAttr(app, kAXExtrasMenuBarAttribute as String) else {
-    fputs("FAIL: missing extras menu bar\n", stderr)
-    exit(1)
-}
-let extras = extrasValue as! AXUIElement
-
-var childrenRef: CFTypeRef?
-let childrenResult = AXUIElementCopyAttributeValue(extras, kAXChildrenAttribute as CFString, &childrenRef)
-guard childrenResult == .success,
-      let childrenValue = childrenRef,
-      let children = childrenValue as? [AXUIElement] else {
-    fputs("FAIL: missing status item\n", stderr)
-    exit(1)
-}
-
-func matchesExpectedItem(_ el: AXUIElement) -> Bool {
-    let title = getAttr(el, kAXTitleAttribute as String) as? String
-    let desc = getAttr(el, kAXDescriptionAttribute as String) as? String
-    let help = getAttr(el, kAXHelpAttribute as String) as? String
-    return [title, desc, help].contains(expectedLabel)
-}
-
-let item = children.first(where: matchesExpectedItem) ?? (children.count == 1 ? children.first : nil)
-guard let item else {
-    fputs("FAIL: matching status item not found\n", stderr)
-    exit(1)
-}
-
-let pressResult = AXUIElementPerformAction(item, kAXPressAction as CFString)
-guard pressResult == .success else {
-    fputs("FAIL: status item press failed\n", stderr)
-    exit(1)
-}
-SWIFT
-    then
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
+source "$(dirname "$0")/lib/status-item.sh"
 
 assert_canvas_state() {
   local canvas_id="$1"
@@ -161,7 +97,7 @@ run_case() (
   pid="$(aos_test_wait_for_lock_pid "$root")"
   [[ -n "$pid" ]] || { echo "FAIL: daemon pid missing"; exit 1; }
 
-  press_status_item "$pid"
+  press_aos_status_item "$pid"
   ./aos show wait \
     --id "$canvas_id" \
     --manifest runtime-lifecycle-timeout-smoke \
@@ -170,18 +106,18 @@ run_case() (
 
   case "$prefix" in
     *exit*)
-      press_status_item "$pid"
+      press_aos_status_item "$pid"
       sleep 1.5
       local state_file="$root/state.json"
       assert_canvas_state "$canvas_id" true "$state_file"
       assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 1
-      press_status_item "$pid"
+      press_aos_status_item "$pid"
       sleep 2.0
       assert_canvas_state "$canvas_id" false "$state_file"
       assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 1
       ;;
     *enter*)
-      press_status_item "$pid"
+      press_aos_status_item "$pid"
       local state_file="$root/state.json"
       for _ in $(seq 1 30); do
         if canvas_is_suspended "$canvas_id" "$state_file"; then
@@ -191,11 +127,11 @@ run_case() (
       done
       assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 1
 
-      press_status_item "$pid"
+      press_aos_status_item "$pid"
       sleep 2.4
       assert_canvas_state "$canvas_id" false "$state_file"
       assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 1
-      press_status_item "$pid"
+      press_aos_status_item "$pid"
       sleep 0.4
       assert_canvas_state "$canvas_id" true "$state_file"
       assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 2
