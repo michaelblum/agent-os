@@ -13,11 +13,19 @@ export default function CanvasInspector() {
   let displays = []
   let canvases = []
   let eventCount = 0
+  let resizeObserver = null
+  let lastMinimapWidth = 0
 
   function rerender() {
     if (!contentEl) return
-    contentEl.innerHTML = renderMinimap(canvases) + renderList(canvases)
+    contentEl.innerHTML = renderMinimap(canvases)
+      + `<div class="canvas-list-region">${renderList(canvases)}</div>`
+      + renderStatusBar()
     bindListEvents()
+  }
+
+  function getMinimapWidth() {
+    return Math.max(120, (contentEl?.clientWidth || 296) - 16)
   }
 
   function renderMinimap(list) {
@@ -32,14 +40,16 @@ export default function CanvasInspector() {
     }
     const totalW = maxX - minX
     const totalH = maxY - minY
-    const mapW = 280
-    const scale = mapW / totalW
-    const mapH = Math.round(totalH * scale)
+    const mapW = getMinimapWidth()
+    const inset = 2
+    const innerW = Math.max(1, mapW - inset * 2)
+    const scale = innerW / totalW
+    const mapH = Math.round(totalH * scale) + inset * 2
 
     let html = `<div class="minimap" style="width:${mapW}px;height:${mapH}px">`
     for (const d of displays) {
-      const x = Math.round((d.bounds.x - minX) * scale)
-      const y = Math.round((d.bounds.y - minY) * scale)
+      const x = inset + Math.round((d.bounds.x - minX) * scale)
+      const y = inset + Math.round((d.bounds.y - minY) * scale)
       const w = Math.round(d.bounds.w * scale)
       const h = Math.round(d.bounds.h * scale)
       html += `<div class="minimap-display" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">`
@@ -49,8 +59,8 @@ export default function CanvasInspector() {
     for (const c of list) {
       if (!c.at || c.at.length < 4) continue
       const [cx, cy, cw, ch] = c.at
-      const x = Math.round((cx - minX) * scale)
-      const y = Math.round((cy - minY) * scale)
+      const x = inset + Math.round((cx - minX) * scale)
+      const y = inset + Math.round((cy - minY) * scale)
       const w = Math.max(2, Math.round(cw * scale))
       const h = Math.max(2, Math.round(ch * scale))
       const cls = c.id === SELF_ID ? 'minimap-canvas self' : 'minimap-canvas'
@@ -63,7 +73,6 @@ export default function CanvasInspector() {
   function renderList(list) {
     if (list.length === 0) {
       return '<div class="empty-state">No canvases active</div>'
-        + `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>live</span></div>`
     }
     let html = '<div class="canvas-list">'
     for (const c of list) {
@@ -84,8 +93,11 @@ export default function CanvasInspector() {
       html += `</div>`
     }
     html += '</div>'
-    html += `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>live</span></div>`
     return html
+  }
+
+  function renderStatusBar() {
+    return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>live</span></div>`
   }
 
   function bindListEvents() {
@@ -124,10 +136,19 @@ export default function CanvasInspector() {
       defaultSize: { w: 320, h: 480 },
     },
 
-    render(_host) {
+    render(host) {
+      host.contentEl.style.overflow = 'hidden'
       contentEl = document.createElement('div')
       contentEl.className = 'canvas-inspector-body'
       contentEl.innerHTML = '<div class="empty-state">Waiting for canvases\u2026</div>'
+      resizeObserver = new ResizeObserver(() => {
+        const nextWidth = getMinimapWidth()
+        if (nextWidth !== lastMinimapWidth) {
+          lastMinimapWidth = nextWidth
+          rerender()
+        }
+      })
+      resizeObserver.observe(contentEl)
       return contentEl
     },
 

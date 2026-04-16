@@ -2,8 +2,17 @@
  * Canonical source for canvas-inspector visual presentation.
  * Host pages <link> this file; override via cascade as needed. */
 
+ .canvas-inspector-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* Minimap */
 .minimap {
+  flex-shrink: 0;
   position: relative;
   margin: 8px;
   border: 1px solid var(--border-subtle);
@@ -45,6 +54,12 @@
 .minimap-canvas.tinted { opacity: 0.85; }
 
 /* Canvas list */
+.canvas-list-region {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .canvas-list { padding: 0 8px 8px; }
 .canvas-item {
   display: flex;
@@ -91,6 +106,11 @@
 .btn.disabled { opacity: 0.4; cursor: not-allowed; }
 
 .empty-state {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
   text-align: center;
   padding: 16px;
