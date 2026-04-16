@@ -21,7 +21,8 @@ func wikiCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("Usage: aos wiki <create-plugin|add|rm|link|list|search|show|invoke|reindex|lint|seed|migrate-namespaces>", code: "MISSING_SUBCOMMAND")
+        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|add|rm|link|search|seed|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
     let subArgs = Array(args.dropFirst())
     switch sub {
@@ -207,7 +208,8 @@ func wikiReindexCommand(args: [String]) {
 func wikiCreatePluginCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     guard let name = args.first(where: { !$0.hasPrefix("-") }) else {
-        exitError("Usage: aos wiki create-plugin <name> [--json]", code: "MISSING_ARG")
+        exitError("wiki create-plugin requires a name. Usage: aos wiki create-plugin <name>",
+                  code: "MISSING_ARG")
     }
 
     let wikiDir = aosWikiDir()
@@ -282,7 +284,8 @@ func wikiAddCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     let nonFlags = args.filter { !$0.hasPrefix("-") }
     guard nonFlags.count >= 2 else {
-        exitError("Usage: aos wiki add <entity|concept> <name> [--json]", code: "MISSING_ARG")
+        exitError("wiki add requires <entity|concept> <name>. Usage: aos wiki add <entity|concept> <name> [--description <d>]",
+                  code: "MISSING_ARG")
     }
     let typeArg = nonFlags[0]
     let name = nonFlags[1]
@@ -345,7 +348,8 @@ func wikiAddCommand(args: [String]) {
 func wikiRmCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     guard let pathArg = args.first(where: { !$0.hasPrefix("-") }) else {
-        exitError("Usage: aos wiki rm <relative-path-or-name> [--json]", code: "MISSING_ARG")
+        exitError("wiki rm requires a path. Usage: aos wiki rm <path>",
+                  code: "MISSING_ARG")
     }
 
     let wikiDir = aosWikiDir()
@@ -462,7 +466,8 @@ func wikiSearchCommand(args: [String]) {
     let nonFlags = args.filter { !$0.hasPrefix("-") && $0 != getArg(args, "--type") }
 
     guard let query = nonFlags.first else {
-        exitError("Usage: aos wiki search <query> [--type <type>] [--json]", code: "MISSING_ARG")
+        exitError("wiki search requires a query. Usage: aos wiki search <query> [--type <t>] [--json]",
+                  code: "MISSING_ARG")
     }
 
     let index = openWikiIndex()
@@ -539,7 +544,8 @@ func wikiShowCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     let rawMode = hasFlag(args, "--raw")
     guard let pathArg = args.first(where: { !$0.hasPrefix("-") }) else {
-        exitError("Usage: aos wiki show <path-or-name> [--raw] [--json]", code: "MISSING_ARG")
+        exitError("wiki show requires a path. Usage: aos wiki show <path> [--raw] [--json]",
+                  code: "MISSING_ARG")
     }
 
     let wikiDir = aosWikiDir()
@@ -600,7 +606,8 @@ func wikiLinkCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     let nonFlags = args.filter { !$0.hasPrefix("-") }
     guard nonFlags.count >= 2 else {
-        exitError("Usage: aos wiki link <from-path> <to-path> [--json]", code: "MISSING_ARG")
+        exitError("wiki link requires <from> and <to>. Usage: aos wiki link <from> <to>",
+                  code: "MISSING_ARG")
     }
     let fromPath = nonFlags[0]
     let toPath = nonFlags[1]
@@ -814,7 +821,8 @@ func wikiLintCommand(args: [String]) {
 func wikiInvokeCommand(args: [String]) {
     let asJSON = hasFlag(args, "--json")
     guard let name = args.first(where: { !$0.hasPrefix("-") }) else {
-        exitError("Usage: aos wiki invoke <plugin-name> [--json]", code: "MISSING_ARG")
+        exitError("wiki invoke requires a plugin name. Usage: aos wiki invoke <name>",
+                  code: "MISSING_ARG")
     }
 
     let wikiDir = aosWikiDir()

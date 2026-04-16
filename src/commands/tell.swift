@@ -29,7 +29,8 @@ func tellCommand(args: [String]) {
 
     // Main form: aos tell <audience> [--json <data>] [text...]
     guard let audience = args.first, !audience.hasPrefix("--") else {
-        exitError("Usage: aos tell <audience> \"message\" | aos tell --register <name> | aos tell --who", code: "MISSING_ARG")
+        exitError("tell requires an audience. Usage: aos tell <audience> [text|--json <data>]",
+                  code: "MISSING_ARG")
     }
 
     let rest = Array(args.dropFirst())
@@ -68,7 +69,8 @@ func tellCommand(args: [String]) {
     }
 
     guard !text.isEmpty || jsonData != nil else {
-        exitError("Usage: aos tell <audience> \"message\"", code: "MISSING_TEXT")
+        exitError("tell requires text or --json. Usage: aos tell <audience> [text|--json <data>]",
+                  code: "MISSING_ARG")
     }
 
     // Build daemon request

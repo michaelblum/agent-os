@@ -57,7 +57,8 @@ func logCommand(args: [String]) {
     case "push":
         let message = args.dropFirst().filter { !$0.hasPrefix("--") && $0 != "push" }.joined(separator: " ")
         guard !message.isEmpty else {
-            exitError("Usage: aos log push <message>", code: "MISSING_TEXT")
+            exitError("log push requires a message. Usage: aos log push \"<message>\" [--level <lvl>]",
+                      code: "MISSING_ARG")
         }
         logPushMessage(message, level: level)
         return

@@ -54,7 +54,8 @@ func sayCommand(args: [String]) {
     }
 
     guard !text.isEmpty else {
-        exitError("Usage: aos say [--voice <id>] [--rate <wpm>] <text>", code: "MISSING_TEXT")
+        exitError("say requires text. Usage: aos say \"<text>\" [--voice <id>] [--rate <wpm>]",
+                  code: "MISSING_ARG")
     }
 
     // Initialize NSApplication (needed for NSSpeechSynthesizer and global event monitor)

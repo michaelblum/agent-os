@@ -854,7 +854,8 @@ func saveZones(_ zones: [String: ZoneEntry]) {
 
 func zoneCommand(args: [String]) {
     guard !args.isEmpty else {
-        exitError("Usage: aos see zone <save|define|list|delete> [args]", code: "MISSING_SUBCOMMAND")
+        exitError("zone requires a subcommand. Usage: aos see zone <list|save|define|remove> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
     switch args[0] {
     case "list":
@@ -863,7 +864,8 @@ func zoneCommand(args: [String]) {
 
     case "save":
         guard args.count >= 3 else {
-            exitError("Usage: aos see zone save <name> [--target <display>] [--bounds] <x,y,w,h>", code: "MISSING_ARG")
+            exitError("zone save requires <name> and <bounds>. Usage: aos see zone save <name> <x,y,w,h> [--target <d>]",
+                      code: "MISSING_ARG")
         }
         let name = args[1]
         var target = "main"
@@ -888,7 +890,8 @@ func zoneCommand(args: [String]) {
 
     case "define":
         guard args.count >= 2 else {
-            exitError("Usage: aos see zone define <name> [--target <display>]", code: "MISSING_ARG")
+            exitError("zone define requires <name>. Usage: aos see zone define <name> [--target <display>]",
+                      code: "MISSING_ARG")
         }
         let name = args[1]
         var target = "main"
@@ -916,7 +919,10 @@ func zoneCommand(args: [String]) {
         }
 
     case "delete":
-        guard args.count >= 2 else { exitError("Usage: aos see zone delete <name>", code: "MISSING_ARG") }
+        guard args.count >= 2 else {
+            exitError("zone delete requires <name>. Usage: aos see zone delete <name>",
+                      code: "MISSING_ARG")
+        }
         var zones = loadZones()
         guard zones.removeValue(forKey: args[1]) != nil else {
             exitError("Zone '\(args[1])' not found", code: "ZONE_NOT_FOUND")

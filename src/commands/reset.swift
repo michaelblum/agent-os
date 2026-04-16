@@ -65,7 +65,8 @@ private func parseResetOptions(_ args: [String]) -> ResetOptions {
             }
             mode = parsed
         default:
-            exitError("Usage: aos reset [--mode current|repo|installed|all] [--json]", code: "UNKNOWN_ARG")
+            exitError("Unknown flag: \(args[i]). Usage: aos reset [--mode current|repo|installed|all] [--json]",
+                      code: "UNKNOWN_FLAG")
         }
         i += 1
     }

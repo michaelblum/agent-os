@@ -28,7 +28,8 @@ func serviceCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("Usage: aos service <install|start|stop|restart|status|logs>", code: "MISSING_SUBCOMMAND")
+        exitError("service requires a subcommand. Usage: aos service <install|start|stop|restart|status|logs> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
 
     let subArgs = Array(args.dropFirst())
@@ -297,7 +298,7 @@ private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [S
             }
             tailCount = value
         default:
-            exitError("Usage: \(usage)", code: "UNKNOWN_ARG")
+            exitError("Unknown flag: \(args[i])", code: "UNKNOWN_FLAG")
         }
         i += 1
     }

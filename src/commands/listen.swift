@@ -17,7 +17,8 @@ func listenCommand_coord(args: [String]) {
     }
 
     guard let channel = args.first, !channel.hasPrefix("--") else {
-        exitError("Usage: aos listen <channel> [--follow] [--since <id>] [--limit <n>]", code: "MISSING_ARG")
+        exitError("listen requires a channel. Usage: aos listen <channel> [--follow|--since|--limit]",
+                  code: "MISSING_ARG")
     }
 
     let follow = args.contains("--follow") || args.contains("-f")

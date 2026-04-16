@@ -135,7 +135,8 @@ func doctorCommand(args: [String]) {
         exit(0)
     }
     guard args.allSatisfy({ $0 == "--json" }) else {
-        exitError("Usage: aos doctor [--json]", code: "UNKNOWN_ARG")
+        let unknown = args.first(where: { $0 != "--json" }) ?? ""
+        exitError("Unknown flag: \(unknown). Usage: aos doctor [--json]", code: "UNKNOWN_FLAG")
     }
 
     let permissions = currentPermissionsState()
@@ -213,7 +214,8 @@ func permissionsCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("Usage: aos permissions <check|preflight|setup> [--json]", code: "MISSING_SUBCOMMAND")
+        exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
     switch sub {
     case "check":
@@ -388,7 +390,8 @@ private func missingPermissionIDs(_ permissions: PermissionsState) -> [String] {
 
 private func permissionsCheckCommand(args: [String], usage: String) {
     guard args.allSatisfy({ $0 == "--json" }) else {
-        exitError("Usage: \(usage)", code: "UNKNOWN_ARG")
+        let unknown = args.first(where: { $0 != "--json" }) ?? ""
+        exitError("Unknown flag: \(unknown). Usage: \(usage)", code: "UNKNOWN_FLAG")
     }
 
     let permissions = currentPermissionsState()
@@ -644,7 +647,8 @@ private func parsePermissionsSetupArgs(_ args: [String]) -> PermissionsSetupOpti
         case "--once":
             once = true
         default:
-            exitError("Usage: aos permissions setup [--once] [--json]", code: "UNKNOWN_ARG")
+            exitError("Unknown flag: \(arg). Usage: aos permissions setup [--json] [--once]",
+                      code: "UNKNOWN_FLAG")
         }
     }
 

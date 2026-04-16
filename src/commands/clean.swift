@@ -38,7 +38,7 @@ func cleanCommand(args: [String]) {
         case "--dry-run": dryRun = true
         case "--json": asJSON = true
         default:
-            exitError("Usage: aos clean [--dry-run] [--json]", code: "UNKNOWN_ARG")
+            exitError("Unknown flag: \(arg)", code: "UNKNOWN_FLAG")
         }
     }
 

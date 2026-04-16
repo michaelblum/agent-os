@@ -21,7 +21,8 @@ func runtimeCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("Usage: aos runtime <install|status|path|sign|display-union>", code: "MISSING_SUBCOMMAND")
+        exitError("runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union> ...",
+                  code: "MISSING_SUBCOMMAND")
     }
 
     switch sub {
@@ -183,7 +184,7 @@ private func parseRuntimeJSONFlag(_ args: [String], usage: String) -> Bool {
         if arg == "--json" {
             asJSON = true
         } else {
-            exitError("Usage: \(usage)", code: "UNKNOWN_ARG")
+            exitError("Unknown flag: \(arg). Usage: \(usage)", code: "UNKNOWN_FLAG")
         }
     }
     return asJSON
