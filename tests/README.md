@@ -19,6 +19,7 @@ Examples:
 - `bash tests/daemon-singleton.sh`
 - `bash tests/capture-region-perception.sh`
 - `bash tests/capture-canvas-surface.sh`
+- `bash tests/capture-parallel.sh`
 - `./aos runtime status --json`
 - `./aos show create ...`
 
@@ -69,6 +70,7 @@ Examples:
 - `bash tests/capture-region-perception.sh`
 - `bash tests/capture-canvas-surface.sh`
 - `bash tests/capture-union-canvas-surface.sh`
+- `bash tests/capture-parallel.sh`
 - `bash tests/canvas-inspector-move-abs.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 

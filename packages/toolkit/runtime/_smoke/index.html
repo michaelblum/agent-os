@@ -32,8 +32,8 @@ wireBridge((msg) => {
 })
 say('bridge wired')
 
-subscribe(['display_geometry'])
-say('subscribed to display_geometry (expect a snapshot any moment)')
+subscribe(['display_geometry'], { snapshot: true })
+say('subscribed to display_geometry with snapshot replay')
 
 emitReady()
 say('emitted ready')

@@ -25,7 +25,7 @@ function HelloContent() {
         <div>pings received: <span id="cnt">0</span></div>
         <div>send a ping:
           <code style="background:#333;padding:2px 6px;border-radius:3px;">
-            ./aos show eval --id panel-smoke --js 'window.headsup.receive(btoa(JSON.stringify({type:"hello/ping",payload:{n:42}})))'
+            ./aos show post --id panel-smoke --event '{"type":"hello/ping","payload":{"n":42}}'
           </code>
         </div>
       `

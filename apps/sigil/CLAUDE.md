@@ -92,7 +92,7 @@ The chat canvas (`chat/index.html`) is a bidirectional conversational surface. A
 
 ### Sending to canvas
 
-Push messages via `evalCanvas('chat', 'headsup.receive("' + btoa(json) + '")')` or the coordination channel. Payload must be base64-encoded JSON.
+Push messages via `aos show post --id chat --event '<json>'` or the coordination channel.
 
 | Message | Payload | Effect |
 |---------|---------|--------|

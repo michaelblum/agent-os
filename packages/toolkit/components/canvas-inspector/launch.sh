@@ -42,37 +42,11 @@ $AOS show create --id "$CANVAS_ID" \
 
 $AOS show wait --id "$CANVAS_ID" --manifest canvas-inspector --timeout 5s >/dev/null
 
-# Seed initial canvas list + display info via prefixed bootstrap message.
-# (Channel router strips the canvas-inspector/ prefix and delivers
-# {type: 'bootstrap', payload: {...}} to the content's onMessage.)
-CANVAS_JSON=$($AOS show list --json 2>/dev/null || echo '{"canvases":[]}')
-
-TMPDIR_BS=$(mktemp -d)
-echo "$CANVAS_JSON" > "$TMPDIR_BS/canvases.json"
-echo "$DISPLAY_JSON" > "$TMPDIR_BS/displays.json"
-
-BOOTSTRAP_B64=$(python3 - "$TMPDIR_BS" <<'PYEOF'
-import json, sys, base64, os
-tmpdir = sys.argv[1]
-with open(os.path.join(tmpdir, 'canvases.json')) as f:
-    canvases = json.load(f).get('canvases', [])
-with open(os.path.join(tmpdir, 'displays.json')) as f:
-    raw = json.load(f)
-    displays = raw.get('displays', raw) if isinstance(raw, dict) else raw
-msg = {'type': 'canvas-inspector/bootstrap', 'payload': {'canvases': canvases, 'displays': displays}}
-print(base64.b64encode(json.dumps(msg).encode()).decode())
-PYEOF
-)
-rm -rf "$TMPDIR_BS"
-
-if [ -n "$BOOTSTRAP_B64" ]; then
-  $AOS show eval --id "$CANVAS_ID" --js "window.headsup.receive(\"$BOOTSTRAP_B64\")" >/dev/null 2>&1 || true
-  $AOS show wait \
-    --id "$CANVAS_ID" \
-    --manifest canvas-inspector \
-    --js '!!document.querySelector(".canvas-item.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-    --timeout 5s >/dev/null
-fi
+$AOS show wait \
+  --id "$CANVAS_ID" \
+  --manifest canvas-inspector \
+  --js '!!document.querySelector(".canvas-item.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
+  --timeout 5s >/dev/null
 
 echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H})"
-echo "Live lifecycle + display geometry updates flow via in-canvas subscribe — no subprocess needed."
+echo "Live lifecycle + display geometry updates flow via in-canvas subscribe snapshots — no manual bootstrap needed."

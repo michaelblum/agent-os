@@ -92,14 +92,20 @@ emit('log/append', { text: 'hello', level: 'info' })
 
 HTML-escape helper for rendering untrusted text into `innerHTML`.
 
-### `subscribe(events)` / `unsubscribe(events)`
+### `subscribe(events, options?)` / `unsubscribe(events)`
 
 Manage daemon event subscriptions.
 
 ```js
-subscribe(['canvas_lifecycle', 'display_geometry'])
+subscribe(['canvas_lifecycle', 'display_geometry'], { snapshot: true })
 unsubscribe('display_geometry')
 ```
+
+Options:
+
+- `snapshot: true` asks the daemon to replay the current state for supported
+  streams immediately after subscribing. Today that includes
+  `display_geometry` and `canvas_lifecycle`.
 
 ### `spawnChild(opts)`
 

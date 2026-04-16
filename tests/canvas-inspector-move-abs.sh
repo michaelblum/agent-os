@@ -60,7 +60,7 @@ if "aos:// content server unavailable" in text:
 PY
 
 python3 - <<'PY'
-import base64, json, subprocess, time
+import json, subprocess, time
 
 def run(*args):
     return json.loads(subprocess.check_output(["./aos", *args], text=True))
@@ -77,16 +77,6 @@ target_x = int(other["bounds"]["x"] + max(offset_x + 10, min(other["bounds"]["w"
 target_y = int(other["bounds"]["y"] + max(offset_y + 10, min(other["bounds"]["h"] - 10, 80)))
 mouse_x = target_x + offset_x
 mouse_y = target_y + offset_y
-
-bootstrap = {
-    "type": "canvas-inspector/bootstrap",
-    "payload": {
-        "canvases": run("show", "list", "--json")["canvases"],
-        "displays": displays,
-    },
-}
-b64 = base64.b64encode(json.dumps(bootstrap).encode()).decode()
-run("show", "eval", "--id", "canvas-inspector", "--js", f'window.headsup.receive("{b64}")')
 
 subprocess.run(["./aos", "do", "hover", f"{mouse_x},{mouse_y}"], check=True)
 run(

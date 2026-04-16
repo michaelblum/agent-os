@@ -138,7 +138,13 @@ class UnifiedDaemon {
                 switch type {
                 case "subscribe", "unsubscribe":
                     let events = (inner?["events"] as? [String]) ?? []
-                    self.handleCanvasSubscription(canvasID: canvasID, type: type, events: events)
+                    let wantsSnapshot = (inner?["snapshot"] as? Bool) ?? false
+                    self.handleCanvasSubscription(
+                        canvasID: canvasID,
+                        type: type,
+                        events: events,
+                        snapshot: wantsSnapshot
+                    )
                     return
                 case "canvas.create":
                     self.handleCanvasCreate(callerID: canvasID, payload: inner ?? [:])
@@ -337,18 +343,14 @@ class UnifiedDaemon {
         }
     }
 
-    private func handleCanvasSubscription(canvasID: String, type: String, events: [String]) {
+    private func handleCanvasSubscription(canvasID: String, type: String, events: [String], snapshot: Bool) {
         guard !events.isEmpty else { return }
-        var newlyAddedDisplayGeometry = false
 
         canvasSubscriptionLock.lock()
         if type == "subscribe" {
             var current = canvasEventSubscriptions[canvasID] ?? []
-            let before = current
             for ev in events { current.insert(ev) }
             canvasEventSubscriptions[canvasID] = current
-            newlyAddedDisplayGeometry =
-                events.contains("display_geometry") && !before.contains("display_geometry")
         } else {  // unsubscribe
             if var current = canvasEventSubscriptions[canvasID] {
                 for ev in events { current.remove(ev) }
@@ -359,16 +361,26 @@ class UnifiedDaemon {
                 }
             }
         }
-        let snapshot = canvasEventSubscriptions[canvasID]
+        let currentEvents = canvasEventSubscriptions[canvasID]
         canvasSubscriptionLock.unlock()
-        fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(snapshot ?? [])\n", stderr)
+        fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(currentEvents ?? [])\n", stderr)
 
-        if newlyAddedDisplayGeometry {
-            // Initial state-replay for this subscriber only. Dispatch async
-            // to avoid reentering the canvas message handler from inside
-            // the subscribe path.
-            DispatchQueue.main.async { [weak self] in
-                self?.broadcastDisplayGeometry(to: canvasID)
+        if type == "subscribe" && (snapshot || events.contains("display_geometry")) {
+            dispatchCanvasSubscriptionSnapshots(to: canvasID, events: events)
+        }
+    }
+
+    private func dispatchCanvasSubscriptionSnapshots(to canvasID: String, events: [String]) {
+        // Dispatch async to avoid reentering the canvas message handler from inside
+        // the subscribe path.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let requested = Set(events)
+            if requested.contains("display_geometry") {
+                self.broadcastDisplayGeometry(to: canvasID)
+            }
+            if requested.contains("canvas_lifecycle") {
+                self.broadcastCanvasLifecycleSnapshot(to: canvasID)
             }
         }
     }
@@ -382,13 +394,8 @@ class UnifiedDaemon {
 
         guard !targets.isEmpty else { return }
 
-        // Serialize once, base64 once, reuse across canvases.
-        guard let json = try? JSONSerialization.data(withJSONObject: data, options: []) else { return }
-        let b64 = json.base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-
         for canvasID in targets {
-            canvasManager.evalAsync(canvasID: canvasID, js: js)
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
         }
     }
 
@@ -406,12 +413,8 @@ class UnifiedDaemon {
 
         guard !targets.isEmpty else { return }
 
-        guard let json = try? JSONSerialization.data(withJSONObject: data, options: []) else { return }
-        let b64 = json.base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-
         for canvasID in targets {
-            canvasManager.evalAsync(canvasID: canvasID, js: js)
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
         }
     }
 
@@ -431,12 +434,22 @@ class UnifiedDaemon {
 
         var msg: [String: Any] = ["type": "canvas_lifecycle"]
         for (k, v) in data { msg[k] = v }
-        guard let json = try? JSONSerialization.data(withJSONObject: msg, options: []) else { return }
-        let b64 = json.base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
 
         for canvasID in targets {
-            canvasManager.evalAsync(canvasID: canvasID, js: js)
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        }
+    }
+
+    private func broadcastCanvasLifecycleSnapshot(to specificCanvas: String) {
+        let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
+        for info in infos {
+            let payload: [String: Any] = [
+                "type": "canvas_lifecycle",
+                "canvas_id": info.id,
+                "action": "created",
+                "at": info.at
+            ]
+            canvasManager.postMessageAsync(canvasID: specificCanvas, payload: payload)
         }
     }
 
@@ -460,12 +473,9 @@ class UnifiedDaemon {
         fputs("[canvas-sub] display_geometry change -> broadcasting to \(targets.count) canvas(es)\n", stderr)
 
         let snapshot = snapshotDisplayGeometry()
-        guard let json = try? JSONSerialization.data(withJSONObject: snapshot, options: []) else { return }
-        let b64 = json.base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
 
         for canvasID in targets {
-            canvasManager.evalAsync(canvasID: canvasID, js: js)
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: snapshot)
         }
     }
 
@@ -517,10 +527,7 @@ class UnifiedDaemon {
             }
             obj[k] = v
         }
-        guard let json = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return }
-        let b64 = json.base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-        canvasManager.evalAsync(canvasID: canvasID, js: js)
+        canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
     }
 
     private func handleCanvasCreate(callerID: String, payload: [String: Any]) {
@@ -698,12 +705,7 @@ class UnifiedDaemon {
         guard let message = payload["message"] else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            if let jsonData = try? JSONSerialization.data(withJSONObject: message),
-               let jsonStr = String(data: jsonData, encoding: .utf8) {
-                let b64 = Data(jsonStr.utf8).base64EncodedString()
-                let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-                self.canvasManager.evalAsync(canvasID: targetID, js: js)
-            }
+            self.canvasManager.postMessageAsync(canvasID: targetID, payload: message)
         }
     }
 
@@ -893,6 +895,8 @@ class UnifiedDaemon {
             let depth = json["depth"] as? Int ?? config.perception.default_depth
             let scope = json["scope"] as? String ?? "cursor"
             let rate = json["rate"] as? String ?? "on-settle"
+            let events = json["events"] as? [String] ?? []
+            let wantsSnapshot = (json["snapshot"] as? Bool) ?? false
             let channelID = perception.attention.addChannel(depth: depth, scope: scope, rate: rate)
             let wantsInputEvents = requestedInputEvents(json)
             subscriberLock.lock()
@@ -901,11 +905,14 @@ class UnifiedDaemon {
             subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         case "perceive":
             let depth = json["depth"] as? Int ?? config.perception.default_depth
             let scope = json["scope"] as? String ?? "cursor"
             let rate = json["rate"] as? String ?? "on-settle"
+            let events = json["events"] as? [String] ?? []
+            let wantsSnapshot = (json["snapshot"] as? Bool) ?? false
             let channelID = perception.attention.addChannel(depth: depth, scope: scope, rate: rate)
             let wantsInputEvents = requestedInputEvents(json)
             subscriberLock.lock()
@@ -914,6 +921,7 @@ class UnifiedDaemon {
             subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         case "sigil_input_mode":
             guard let mode = json["mode"] as? String, !mode.isEmpty else {
@@ -968,8 +976,27 @@ class UnifiedDaemon {
                 }
             }
 
-        // -- Channel post (relay to all subscribers) --
+        // -- Post: canvas delivery (preferred) or legacy channel relay --
         case "post":
+            if json["id"] != nil {
+                let requestData = lineData(from: json)
+                guard let request = CanvasRequest.from(requestData) else {
+                    sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
+                    return
+                }
+                let semaphore = DispatchSemaphore(value: 0)
+                var response = CanvasResponse.fail("Internal error", code: "INTERNAL")
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { semaphore.signal(); return }
+                    response = self.canvasManager.handle(request, connectionID: connectionID)
+                    semaphore.signal()
+                }
+                semaphore.wait()
+                if let data = response.toData() {
+                    sendResponse(to: clientFD, data)
+                }
+                return
+            }
             if let channel = json["channel"] as? String {
                 let payload = json["data"] as? String
                 relayChannelPost(channel: channel, dataStr: payload)
@@ -1204,6 +1231,34 @@ class UnifiedDaemon {
         }
         let eventData: [String: Any] = ["channel": channel, "payload": payload]
         broadcastEvent(service: "display", event: "channel_post", data: eventData)
+    }
+
+    private func sendSnapshotEvent(to fd: Int32, service: String, event: String, data: [String: Any]) {
+        guard let bytes = envelopeBytes(service: service, event: event, data: data) else { return }
+        let byteArray = [UInt8](bytes)
+        byteArray.withUnsafeBufferPointer { ptr in
+            _ = write(fd, ptr.baseAddress!, ptr.count)
+        }
+    }
+
+    private func sendSubscriberSnapshots(to fd: Int32, events: [String]) {
+        let requested = Set(events)
+        DispatchQueue.main.sync {
+            if requested.contains("display_geometry") {
+                sendSnapshotEvent(to: fd, service: "display", event: "display_geometry", data: snapshotDisplayGeometry())
+            }
+            if requested.contains("canvas_lifecycle") {
+                let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
+                for info in infos {
+                    sendSnapshotEvent(
+                        to: fd,
+                        service: "display",
+                        event: "canvas_lifecycle",
+                        data: ["canvas_id": info.id, "action": "created", "at": info.at]
+                    )
+                }
+            }
+        }
     }
 
     private func requestedInputEvents(_ json: [String: Any]) -> Bool {

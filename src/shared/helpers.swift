@@ -99,16 +99,16 @@ func jsStringLiteral(_ value: String) -> String {
 
 // MARK: - Canvas Bridge Helpers
 
-/// Deliver a JSON payload to a canvas via daemon `eval`. The payload is
-/// base64-encoded and passed to `window.headsup.receive(b64)`, where the
-/// Layer 1a bridge (`runtime/bridge.js`) decodes and routes it.
+/// Deliver a JSON payload to a canvas via the daemon's typed `post` action.
+/// The daemon serializes and dispatches the payload through the Layer 1a
+/// bridge (`runtime/bridge.js`) without the caller constructing raw JS.
 func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [String: Any]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
-    let b64 = data.base64EncodedString()
+    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+          let json = String(data: data, encoding: .utf8) else { return }
     session.sendOnly([
-        "action": "eval",
+        "action": "post",
         "id": canvasID,
-        "js": "window.headsup.receive(\"\(b64)\")"
+        "data": json
     ])
 }
 
@@ -116,12 +116,12 @@ func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [Stri
 /// Returns the raw response dict or nil if the daemon is unreachable.
 @discardableResult
 func sendHeadsupMessageOneShot(canvasID: String, payload: [String: Any]) -> [String: Any]? {
-    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return nil }
-    let b64 = data.base64EncodedString()
+    guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+          let json = String(data: data, encoding: .utf8) else { return nil }
     return daemonOneShot([
-        "action": "eval",
+        "action": "post",
         "id": canvasID,
-        "js": "window.headsup.receive(\"\(b64)\")"
+        "data": json
     ])
 }
 

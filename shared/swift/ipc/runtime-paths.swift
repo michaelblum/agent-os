@@ -78,6 +78,10 @@ func aosDaemonLockPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/daemon.lock"
 }
 
+func aosCaptureLockPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/capture.lock"
+}
+
 func aosConfigPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/config.json"
 }

@@ -60,7 +60,7 @@ export function Tabs(factories) {
 
         // Auto-subscribe to streams in manifest.requires
         const requires = c.manifest?.requires || []
-        if (requires.length > 0) subscribe(requires)
+        if (requires.length > 0) subscribe(requires, { snapshot: true })
       })
 
       // Manifest at the panel level: union of constituent manifests.
@@ -105,7 +105,7 @@ function makeHost(slotEl, content) {
       const fullType = prefix ? `${prefix}/${type}` : type
       emit(fullType, payload)
     },
-    subscribe(events) { subscribe(events) },
+    subscribe(events, options) { subscribe(events, options) },
     spawnChild(opts) { return spawnChild(opts) },
   }
 }

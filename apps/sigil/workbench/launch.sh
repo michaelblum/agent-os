@@ -20,13 +20,6 @@ ensure_content_roots() {
   "$AOS" set content.roots.sigil apps/sigil >/dev/null
 }
 
-# Encode a JSON string as base64 (for headsup.receive delivery).
-b64msg() { python3 -c "import base64,sys; print(base64.b64encode(sys.stdin.buffer.read()).decode())"; }
-
-# Eval a base64-encoded message inside a canvas ($2 must be base64 — safe to
-# embed in double quotes since the charset is [A-Za-z0-9+/=]).
-canvas_send() { "$AOS" show eval --id "$1" --js "window.headsup && window.headsup.receive && window.headsup.receive(\"$2\")" >/dev/null; }
-
 # --- geometry ---------------------------------------------------------------
 
 # Compute workbench frame + avatar home from display geometry.
@@ -86,24 +79,8 @@ JSEOF
 # --- bootstrap --------------------------------------------------------------
 
 bootstrap_tabs() {
-  local canvases_json displays_json
-  canvases_json="$("$AOS" show list --json 2>/dev/null || echo '{"canvases":[]}')"
-  displays_json="$("$AOS" graph displays --json 2>/dev/null || echo '{"displays":[]}')"
-
-  local b64
-  b64="$(CANVASES="$canvases_json" DISPLAYS="$displays_json" python3 <<'PY'
-import base64, json, os
-canvases = json.loads(os.environ["CANVASES"]).get("canvases", [])
-raw = json.loads(os.environ["DISPLAYS"])
-displays = raw.get("displays", raw) if isinstance(raw, dict) else raw
-msg = {"type": "canvas-inspector/bootstrap", "payload": {"canvases": canvases, "displays": displays}}
-print(base64.b64encode(json.dumps(msg).encode()).decode())
-PY
-)"
-  canvas_send "$WORKBENCH_ID" "$b64"
-
-  b64="$(printf '{"type":"log/append","payload":{"level":"info","text":"Workbench ready."}}' | b64msg)"
-  canvas_send "$WORKBENCH_ID" "$b64"
+  "$AOS" show post --id "$WORKBENCH_ID" \
+    --event '{"type":"log/append","payload":{"level":"info","text":"Workbench ready."}}' >/dev/null
 }
 
 # --- main -------------------------------------------------------------------

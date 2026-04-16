@@ -470,11 +470,19 @@ func evalCommand(args: [String]) {
 // MARK: - CLI Command: post
 
 func postCommand(args: [String]) {
+    var id: String? = nil
+    var event: String? = nil
     var channel: String? = nil
     var data: String? = nil
     var i = 0
     while i < args.count {
         switch args[i] {
+        case "--id":
+            i += 1; guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
+            id = args[i]
+        case "--event":
+            i += 1; guard i < args.count else { exitError("--event requires a JSON value", code: "MISSING_ARG") }
+            event = args[i]
         case "--channel":
             i += 1; guard i < args.count else { exitError("--channel requires a value", code: "MISSING_ARG") }
             channel = args[i]
@@ -486,11 +494,28 @@ func postCommand(args: [String]) {
         }
         i += 1
     }
-    guard let ch = channel else { exitError("post requires --channel <name>", code: "MISSING_ARG") }
+
+    if event != nil && id == nil {
+        exitError("post requires --id <name> when using --event", code: "MISSING_ARG")
+    }
+    if id != nil && event == nil {
+        exitError("post requires --event <json> when targeting a canvas", code: "MISSING_ARG")
+    }
+    if id == nil && channel == nil {
+        exitError("post requires --id <name> --event <json>", code: "MISSING_ARG")
+    }
+    if id != nil && channel != nil {
+        exitError("post accepts either canvas delivery (--id/--event) or legacy channel relay (--channel/--data), not both", code: "INVALID_ARG")
+    }
 
     var request = CanvasRequest(action: "post")
-    request.channel = ch
-    request.data = data
+    if let id {
+        request.id = id
+        request.data = event
+    } else {
+        request.channel = channel
+        request.data = data
+    }
 
     let client = DaemonClient()
     if !client.ensureDaemon() { exitError("Failed to start daemon", code: "DAEMON_START_FAILED") }

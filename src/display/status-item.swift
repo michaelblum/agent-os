@@ -137,6 +137,26 @@ class StatusItemManager {
         return canvas.suspended
     }
 
+    private func waitUntilCanvasVisible(timeout: TimeInterval = 0.5, poll: TimeInterval = 0.05, completion: @escaping () -> Void) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        func pollOnce() {
+            if !isCanvasSuspended() {
+                completion()
+                return
+            }
+            guard Date() < deadline else {
+                completion()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + poll) {
+                pollOnce()
+            }
+        }
+
+        pollOnce()
+    }
+
     // MARK: - Summon
 
     private func summonCanvas() {
@@ -208,10 +228,12 @@ class StatusItemManager {
         if toggleTrack != nil {
             // Tracked canvas: tell Sigil to animate back to icon, then suspend
             // after the animation completes (or after a timeout).
-            let msg = "{\"type\":\"lifecycle\",\"action\":\"exit\",\"origin_x\":\(Int(iconPos.x)),\"origin_y\":\(Int(iconPos.y))}"
-            let b64 = Data(msg.utf8).base64EncodedString()
-            let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-            canvasManager.evalAsync(canvasID: toggleId, js: js)
+            canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+                "type": "lifecycle",
+                "action": "exit",
+                "origin_x": Int(iconPos.x),
+                "origin_y": Int(iconPos.y),
+            ])
             updateIcon()
 
             // Suspend after animation duration + margin
@@ -236,15 +258,15 @@ class StatusItemManager {
         updateIcon()
 
         if toggleTrack != nil {
-            // Send enter animation after resume shows the window (250ms covers
-            // the 200ms ACK timeout + margin for first rAF).
             let iconPos = statusItemCGPosition()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            waitUntilCanvasVisible { [weak self] in
                 guard let self = self else { return }
-                let msg = "{\"type\":\"lifecycle\",\"action\":\"enter\",\"origin_x\":\(Int(iconPos.x)),\"origin_y\":\(Int(iconPos.y))}"
-                let b64 = Data(msg.utf8).base64EncodedString()
-                let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
-                self.canvasManager.evalAsync(canvasID: self.toggleId, js: js)
+                self.canvasManager.postMessageAsync(canvasID: self.toggleId, payload: [
+                    "type": "lifecycle",
+                    "action": "enter",
+                    "origin_x": Int(iconPos.x),
+                    "origin_y": Int(iconPos.y),
+                ])
             }
         }
     }

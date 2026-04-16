@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Get the actual live content server port (config.json has port=0 for dynamic assignment)
+# Get the actual live content server port via the canonical readiness path.
 AOS_BIN="${AOS_BIN:-$(dirname "$0")/../aos}"
-PORT=$("$AOS_BIN" content status --json 2>/dev/null | grep '"port"' | grep -oE '[0-9]+' | head -1)
+PORT=$("$AOS_BIN" content wait --timeout 5s --json 2>/dev/null | python3 -c "import sys, json; print(json.load(sys.stdin).get('port', ''))" || true)
 if [ -z "$PORT" ] || [ "$PORT" = "0" ]; then
     echo "SKIP: content server not running (port unknown)" >&2
     exit 0

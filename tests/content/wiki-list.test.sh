@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 # Integration test: wiki directory listing endpoint.
 # Assumes `./aos serve` is running in repo mode.
-# Port is read from ~/.config/aos/repo/content.port (if present) or
-# discovered via `./aos content status --json`.
+# Port is discovered via the canonical readiness path.
 set -euo pipefail
 
-# Try the port file first; fall back to aos content status
-PORT=$(cat "$HOME/.config/aos/repo/content.port" 2>/dev/null || true)
+PORT=$(./aos content wait --root sigil --timeout 5s --json 2>/dev/null | python3 -c "import sys, json; print(json.load(sys.stdin).get('port', ''))" || true)
 if [[ -z "$PORT" ]]; then
-  PORT=$(./aos content status --json 2>/dev/null | grep '"port"' | grep -o '[0-9]*' || true)
-fi
-if [[ -z "$PORT" ]]; then
-  echo "SKIP: aos daemon not running (no content.port)"; exit 0
+  echo "SKIP: aos daemon not running (content root not ready)"; exit 0
 fi
 
 # Seed two agent docs via PUT

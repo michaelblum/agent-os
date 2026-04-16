@@ -514,6 +514,7 @@ class CanvasManager {
         case "list":    return handleList()
         case "ping":    return handlePing()
         case "eval":    return handleEval(request)
+        case "post":    return handlePost(request)
         case "to-front": return handleToFront(request)
         case "suspend": return handleSuspend(request)
         case "resume":  return handleResume(request)
@@ -1074,6 +1075,43 @@ class CanvasManager {
         }
     }
 
+    private func headsupEvalJS(forBase64 b64: String) -> String {
+        "window.headsup && window.headsup.receive && window.headsup.receive(\(jsStringLiteral(b64)))"
+    }
+
+    @discardableResult
+    func postMessage(canvasID: String, payload: Any) -> CanvasResponse {
+        guard canvases[canvasID] != nil else {
+            return .fail("Canvas '\(canvasID)' not found", code: "NOT_FOUND")
+        }
+        guard JSONSerialization.isValidJSONObject(payload),
+              let json = try? JSONSerialization.data(withJSONObject: payload, options: []),
+              let payloadStr = String(data: json, encoding: .utf8) else {
+            return .fail("post payload must be valid JSON", code: "INVALID_JSON")
+        }
+        let b64 = Data(payloadStr.utf8).base64EncodedString()
+        evalAsync(canvasID: canvasID, js: headsupEvalJS(forBase64: b64))
+        return .ok()
+    }
+
+    func postMessageAsync(canvasID: String, payload: Any) {
+        _ = postMessage(canvasID: canvasID, payload: payload)
+    }
+
+    private func handlePost(_ req: CanvasRequest) -> CanvasResponse {
+        guard let id = req.id else {
+            return .fail("post requires --id", code: "MISSING_ID")
+        }
+        guard let dataStr = req.data, !dataStr.isEmpty else {
+            return .fail("post requires --event", code: "MISSING_EVENT")
+        }
+        guard let data = dataStr.data(using: .utf8),
+              let payload = try? JSONSerialization.jsonObject(with: data, options: []) else {
+            return .fail("post requires valid JSON payload", code: "INVALID_JSON")
+        }
+        return postMessage(canvasID: id, payload: payload)
+    }
+
     private func handleToFront(_ req: CanvasRequest) -> CanvasResponse {
         guard let id = req.id else {
             return .fail("to-front requires --id", code: "MISSING_ID")
@@ -1105,11 +1143,8 @@ class CanvasManager {
         }
 
         // Phase 2: notify renderers (async, best-effort, no ACK needed)
-        let suspendMsg = "{\"type\":\"lifecycle\",\"action\":\"suspend\"}"
-        let b64 = Data(suspendMsg.utf8).base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
         for cid in tree {
-            evalAsync(canvasID: cid, js: js)
+            postMessageAsync(canvasID: cid, payload: ["type": "lifecycle", "action": "suspend"])
         }
 
         onCanvasCountChanged?()
@@ -1149,11 +1184,8 @@ class CanvasManager {
         resumeCompletion = showWindows
 
         // Send lifecycle:resume to each renderer
-        let resumeMsg = "{\"type\":\"lifecycle\",\"action\":\"resume\"}"
-        let b64 = Data(resumeMsg.utf8).base64EncodedString()
-        let js = "window.headsup && window.headsup.receive && window.headsup.receive('\(b64)')"
         for cid in suspendedInTree {
-            evalAsync(canvasID: cid, js: js)
+            postMessageAsync(canvasID: cid, payload: ["type": "lifecycle", "action": "resume"])
         }
 
         // 200ms timeout — show windows even if ACKs don't arrive

@@ -8,6 +8,7 @@ import ScreenCaptureKit
 import UniformTypeIdentifiers
 import CoreText
 import ApplicationServices
+import Darwin
 
 // MARK: - Overlay Types
 
@@ -35,6 +36,52 @@ struct GridSpec {
 struct ZoneEntry: Codable {
     let target: String
     let crop: String
+}
+
+final class CaptureSessionLock {
+    private var fd: Int32 = -1
+
+    init(timeout: TimeInterval = 15.0) {
+        let mode = aosCurrentRuntimeMode()
+        let stateDir = aosStateDir(for: mode)
+        do {
+            try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
+        } catch {
+            exitError("Failed to prepare capture state dir: \(error.localizedDescription)", code: "LOCK_ERROR")
+        }
+
+        let lockPath = aosCaptureLockPath(for: mode)
+        let handle = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard handle >= 0 else {
+            exitError("open(\(lockPath)) failed: \(errno)", code: "LOCK_ERROR")
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while flock(handle, LOCK_EX | LOCK_NB) != 0 {
+            if errno != EWOULDBLOCK && errno != EAGAIN {
+                close(handle)
+                exitError("flock(\(lockPath)) failed: \(errno)", code: "LOCK_ERROR")
+            }
+            if Date() >= deadline {
+                close(handle)
+                exitError(
+                    "Another \(mode.rawValue) capture is already in progress. Wait for it to finish and retry.",
+                    code: "CAPTURE_BUSY"
+                )
+            }
+            usleep(50_000)
+        }
+
+        _ = fcntl(handle, F_SETFD, FD_CLOEXEC)
+        fd = handle
+    }
+
+    deinit {
+        guard fd >= 0 else { return }
+        _ = flock(fd, LOCK_UN)
+        close(fd)
+        fd = -1
+    }
 }
 
 // MARK: - Internal Display Model (capture pipeline)
@@ -1764,6 +1811,12 @@ func captureCommand(args: [String]) async {
     if opts.waitForClick {
         clickCGPos = waitForGlobalClick(timeout: opts.timeout)
     }
+
+    // ── Acquire ScreenCaptureKit session lock ──
+    // Concurrent ScreenCaptureKit sessions can wedge both callers. Serialize
+    // the capture session per runtime mode, similar to daemon singletoning.
+    let captureLock = CaptureSessionLock()
+    defer { _fixLifetime(captureLock) }
 
     // ── Permission pre-check ──
     checkScreenRecordingPermission()

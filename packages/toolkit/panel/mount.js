@@ -36,15 +36,16 @@ function mountSingle(chrome, content) {
   })
   wireBridge(router)
 
-  // Auto-subscribe to streams declared in manifest.requires
-  const requires = content.manifest?.requires || []
-  if (requires.length > 0) subscribe(requires)
-
   // Render
   const rendered = content.render(host)
   chrome.contentEl.innerHTML = ''
   if (rendered instanceof Node) chrome.contentEl.appendChild(rendered)
   else if (typeof rendered === 'string') chrome.contentEl.innerHTML = rendered
+
+  // Auto-subscribe to streams declared in manifest.requires. Render first so
+  // snapshot replays cannot land before the content has state + DOM ready.
+  const requires = content.manifest?.requires || []
+  if (requires.length > 0) subscribe(requires, { snapshot: true })
 
   emitReady()
 }
@@ -58,7 +59,7 @@ function makeHost(chrome, content) {
       const fullType = prefix ? `${prefix}/${type}` : type
       emit(fullType, payload)
     },
-    subscribe(events) { subscribe(events) },
+    subscribe(events, options) { subscribe(events, options) },
     spawnChild(opts) { return spawnChild(opts) },
   }
 }

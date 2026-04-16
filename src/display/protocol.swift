@@ -56,7 +56,7 @@ import Foundation
 
 struct CanvasRequest: Codable {
     let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval", "subscribe", "post"
-    var id: String?             // canvas ID (required for create/update/remove)
+    var id: String?             // canvas ID (required for create/update/remove/post)
     var at: [CGFloat]?          // [x, y, w, h] in global CG coords (Y-down)
     var anchorWindow: Int?      // CGWindowID to track
     var anchorChannel: String?  // focus channel ID — reads channel file, sets anchorWindow from target.window_id
@@ -72,7 +72,7 @@ struct CanvasRequest: Codable {
     var track: String?          // tracking target (e.g. "union") — bounds auto-resolve + auto-update
     var parent: String?         // parent canvas ID (nil = infer from source canvas)
     var cascade: Bool?          // lifecycle cascade from parent (default true; false = survive parent suspend/remove)
-    var channel: String?        // channel name (for "post" action)
+    var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
 }
 

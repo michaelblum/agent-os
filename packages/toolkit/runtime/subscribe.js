@@ -6,9 +6,11 @@
 
 import { emit } from './bridge.js'
 
-export function subscribe(events) {
+export function subscribe(events, options = {}) {
   const list = Array.isArray(events) ? events : [events]
-  emit('subscribe', { events: list })
+  const payload = { events: list }
+  if (options.snapshot !== undefined) payload.snapshot = !!options.snapshot
+  emit('subscribe', payload)
 }
 
 export function unsubscribe(events) {

@@ -41,6 +41,14 @@ Optional event filter (daemon may ignore if unsupported):
 {"action":"subscribe","events":["cursor_moved","element_focused"]}
 ```
 
+Optional initial replay for snapshot-capable streams:
+```json
+{"action":"subscribe","events":["display_geometry","canvas_lifecycle"],"snapshot":true}
+```
+
+Today `snapshot:true` replays current state for `display_geometry` and
+`canvas_lifecycle` immediately after the success response.
+
 ## Events by Service
 
 ### perceive

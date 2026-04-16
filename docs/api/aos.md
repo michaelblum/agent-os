@@ -118,6 +118,7 @@ aos show create \
   --interactive \
   --url 'aos://toolkit/components/inspector-panel/index.html'
 aos show wait --id inspector --manifest inspector-panel
+aos show post --id inspector --event '{"type":"inspector-panel/bootstrap","payload":{"note":"hello"}}'
 ```
 
 ## Subcommand Reference

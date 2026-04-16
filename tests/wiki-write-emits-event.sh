@@ -19,8 +19,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Resolve the content server's actual port (config default is 0 = OS-assigned).
-PORT=$("$AOS_BIN" content status --json | python3 -c "import sys, json; print(json.load(sys.stdin)['port'])")
+# Resolve the content server's actual port via the canonical readiness path.
+PORT=$("$AOS_BIN" content wait --timeout 5s --json | python3 -c "import sys, json; print(json.load(sys.stdin)['port'])")
 URL="http://127.0.0.1:${PORT}/wiki/${REL_PATH}"
 
 # Subscribe to wiki_page_changed via daemon socket.
@@ -35,6 +35,7 @@ s.connect(sock_path)
 s.sendall((json.dumps({"action": "subscribe"}) + "\n").encode())
 
 fifo = open(fifo_path, "w", buffering=1)
+ready_sent = False
 
 buf = b""
 while True:
@@ -47,6 +48,10 @@ while True:
             line, buf = buf.split(b"\n", 1)
             try:
                 obj = json.loads(line)
+                if obj.get("status") == "ok" and not ready_sent:
+                    fifo.write("__READY__\n")
+                    fifo.flush()
+                    ready_sent = True
                 if obj.get("event") == "wiki_page_changed":
                     fifo.write(line.decode() + "\n")
                     fifo.flush()
@@ -57,7 +62,10 @@ while True:
 PYEOF
 LISTENER_PID=$!
 
-sleep 0.4
+if ! read -t 2 READY < "$PIPE" || [ "$READY" != "__READY__" ]; then
+    echo "FAIL: subscriber did not become ready"
+    exit 1
+fi
 
 # Ensure the file doesn't exist to start (so PUT is unambiguously a 'created').
 rm -f "$TEST_FILE"
