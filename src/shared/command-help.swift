@@ -7,9 +7,22 @@ import Foundation
 /// The global registry. Populated in command-registry-data.swift.
 var commandRegistry: [CommandDescriptor] = []
 
-/// Look up a command by path. Returns nil if not found.
+/// Look up a command by path. Exact match first, then tries parent
+/// with form filtering for subcommand paths like ["show", "create"].
 func findCommand(path: [String]) -> CommandDescriptor? {
-    commandRegistry.first { $0.path == path }
+    // Exact match
+    if let cmd = commandRegistry.first(where: { $0.path == path }) {
+        return cmd
+    }
+    // Subcommand match: find parent, filter forms by subcommand prefix
+    guard path.count >= 2 else { return nil }
+    let parentPath = Array(path.dropLast())
+    let sub = path.last!
+    let formPrefix = parentPath.last! + "-" + sub  // e.g. "show-create"
+    guard let parent = commandRegistry.first(where: { $0.path == parentPath }) else { return nil }
+    let filtered = parent.forms.filter { $0.id.hasPrefix(formPrefix) }
+    guard !filtered.isEmpty else { return nil }
+    return CommandDescriptor(path: path, summary: parent.summary, forms: filtered)
 }
 
 // MARK: - Help Command Entry Point
@@ -40,26 +53,32 @@ func helpCommand(args: [String]) {
 }
 
 /// Called from handlers when --help is detected.
+///
+/// Behavior:
+/// - Empty path → full registry (honors `json`)
+/// - Path found  → per-command help (honors `json`)
+/// - Path not found → `exitError(UNKNOWN_COMMAND)` so bad input cannot
+///   masquerade as a successful help dump.
 func printCommandHelp(_ path: [String], json: Bool) {
+    if path.isEmpty {
+        if json {
+            printFullRegistryJSON()
+        } else {
+            printFullRegistryText()
+        }
+        return
+    }
     if let cmd = findCommand(path: path) {
         if json {
             printCommandJSON(cmd)
         } else {
             printCommandText(cmd)
         }
-    } else {
-        // Fallback: show parent if exact path not found
-        let parent = Array(path.dropLast())
-        if !parent.isEmpty, let cmd = findCommand(path: parent) {
-            if json {
-                printCommandJSON(cmd)
-            } else {
-                printCommandText(cmd)
-            }
-        } else {
-            printFullRegistryText()
-        }
+        return
     }
+    exitError(
+        "Unknown command: \(path.joined(separator: " ")). Run 'aos help --json' for full registry.",
+        code: "UNKNOWN_COMMAND")
 }
 
 // MARK: - JSON Output
