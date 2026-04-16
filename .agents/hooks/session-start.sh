@@ -13,11 +13,12 @@ source "$(dirname "$0")/session-common.sh"
 SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
 SESSION_HARNESS="$(aos_detect_harness)"
 SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
 SESSION_SOURCE="$(aos_session_name_source "$SESSION_ID")"
 REGISTRATION_STATUS="skipped"
 
 if [ -x "$AOS" ] && [ -n "$SESSION_NAME" ]; then
-  if "$AOS" tell --register "$SESSION_NAME" --role worker --harness "$SESSION_HARNESS" >/dev/null 2>&1; then
+  if aos_refresh_session_registration "$SESSION_ID" "$SESSION_NAME" "worker" "$SESSION_HARNESS" "$AOS"; then
     REGISTRATION_STATUS="ok"
   else
     REGISTRATION_STATUS="failed"
@@ -27,7 +28,7 @@ fi
 echo ""
 echo "## Session Identity"
 if [ -n "$SESSION_ID" ]; then
-  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
+  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} channel=${SESSION_CHANNEL} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
 else
   echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
 fi
@@ -125,6 +126,6 @@ echo "Open with a compact status preamble: branch, ahead/dirty, AOS runtime, sta
 echo "When verifying toolkit or display work, use real \`aos\` canvases and \`aos see\`, not a raw browser page."
 echo ""
 echo "## Shared Handoff Method"
-echo "When handing off, post the brief to the gateway handoff channel and emit one ready-to-run continuation path for the active runtime."
+echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and emit one ready-to-run continuation path for the active runtime."
 echo ""
 echo "--- end session context ---"

@@ -1,6 +1,7 @@
 #!/bin/bash
-# scripts/handoff — Post a structured handoff brief to the AOS gateway
-# and generate a short launcher command for the next Claude Code session.
+# scripts/handoff — Post a structured handoff brief to the daemon-native
+# coordination bus and generate a short launcher command for the next
+# Claude Code session.
 #
 # Usage:
 #   scripts/handoff --to <name> --from <name> --task "<description>"
@@ -16,7 +17,7 @@
 #
 # The launcher script sets AOS_SESSION_NAME and calls `claude -n "<name>"
 # "Bootstrap: /tmp/aos-handoff-<name>.json"`. The session-start hook reads
-# the bootstrap file automatically. The brief is also posted to the gateway
+# the bootstrap file automatically. The brief is also posted via `aos tell`
 # by the CALLING session (both 'handoff' and named channel) for turn-hook
 # detection if the target session is already running.
 #
@@ -100,7 +101,7 @@ if [[ -n "$CONTEXT" ]]; then
 ${CONTEXT}"
 fi
 
-# --- Build the gateway payload ---
+# --- Build the bootstrap payload ---
 PAYLOAD_FILE="/tmp/aos-handoff-${TO}.json"
 AOS_FROM="$FROM" AOS_TO="$TO" AOS_TASK="$TASK" AOS_BRIEF="$BRIEF" AOS_PAYLOAD="$PAYLOAD_FILE" \
   python3 -c "
@@ -164,7 +165,7 @@ fi
 
 echo "Handoff ready."
 echo ""
-echo "  Gateway payload: ${PAYLOAD_FILE}"
+echo "  Bootstrap payload: ${PAYLOAD_FILE}"
 echo "  Launcher:        ${LAUNCHER}"
 echo "  Clipboard:       bash ${LAUNCHER}"
 echo ""

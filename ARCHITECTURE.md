@@ -82,7 +82,7 @@ A single Swift binary using only Apple frameworks. Zero external dependencies. M
 | `aos` action | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
 | `aos` display | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
 | `aos` voice | **Audio** — `aos say` (TTS), daemon-driven announcements, config-driven voice/rate. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
-| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, presence), `aos listen` (inbound: STT, channels, stdin). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Planned (`say` ships as sugar for `tell human`) |
+| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
 
 All capability ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`). No per-capability standalone CLI escape hatches — new audio/perception/action functionality lands as subcommands on the existing subsystems.
 
@@ -116,7 +116,7 @@ aos tell <audience> "message"
          ├─→ both               (audience = human,channel)
          └─→ future sinks       (Slack, push, webhook)
 
-aos listen [--from <source>]
+aos listen <channel>|--session-id <canonical-session-id>
          ▲
       daemon (arbiter)
          ├── STT engine         (source = human)
@@ -130,6 +130,9 @@ The daemon routes based on config (`aos set voice.*`), presence (which sessions 
 ### Coordination Bus
 
 The daemon hosts the coordination bus natively — channels, messages, presence. No separate process required. `aos tell` and `aos listen` talk to the daemon over its existing Unix socket, the same way `aos see` and `aos show` do.
+
+Session presence is keyed by canonical `session_id` / thread id. Human-readable names remain ancillary metadata for `/who` output and operator ergonomics; direct session messaging should target the canonical session id channel.
+Presence is mirrored into the runtime state dir and restored on daemon restart. `/who` is advisory discovery; once a peer session id is known, direct `--session-id` routing is the stable coordination path.
 
 The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's communication bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
 

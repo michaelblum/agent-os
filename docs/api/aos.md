@@ -21,6 +21,8 @@ aos see cursor
 aos show create --id demo --at 100,100,300,200 --html '<div>hello</div>'
 aos do click 500,300
 aos say "Hello"
+aos tell handoff "task complete"
+aos listen handoff
 ```
 
 ### Success / Failure
@@ -54,6 +56,8 @@ The current top-level commands are:
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos say` | Voice output |
+| `aos tell` | Communication output: human, channel, or direct session routing |
+| `aos listen` | Communication input: channel or direct session reads/follow |
 | `aos set` | Runtime configuration |
 | `aos serve` | Unified daemon |
 | `aos content` | Content-server status |
@@ -119,6 +123,19 @@ aos show create \
   --url 'aos://toolkit/components/inspector-panel/index.html'
 aos show wait --id inspector --manifest inspector-panel
 aos show post --id inspector --event '{"type":"inspector-panel/bootstrap","payload":{"note":"hello"}}'
+```
+
+### 4. Coordinate Through Channels or Direct Session Messaging
+
+```bash
+aos tell handoff "task complete"
+aos tell handoff --from wiki-focus "task complete"
+aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
+echo 'queued update' | aos tell handoff
+aos tell --who
+aos listen handoff
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 ```
 
 ## Subcommand Reference
@@ -216,6 +233,58 @@ Voice output surface:
 aos say "Hello"
 aos say --list-voices
 ```
+
+`aos say` is sugar for `aos tell human ...`. Consumers that need one communication surface should prefer `aos tell`.
+
+## `aos tell`
+
+Primary public forms:
+
+| Form | Purpose |
+| --- | --- |
+| `<audience>\|--session-id <id> [--json <payload>] [--from <name>] [<text>]` | send text or JSON to `human`, a channel, a comma-separated mix, or one canonical session id |
+| `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | register session presence |
+| `--unregister [<legacy-name>] [--session-id <id>]` | remove session presence |
+| `--who` | list online sessions |
+
+Examples:
+
+```bash
+aos tell human "Hello"
+aos tell handoff "task complete"
+aos tell human,handoff "done"
+aos tell handoff --from wiki-focus "task complete"
+aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
+echo 'queued update' | aos tell handoff
+```
+
+If no text args and no `--json` payload are provided, `aos tell` reads plain text from `stdin`.
+
+Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
+Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
+
+## `aos listen`
+
+Primary public forms:
+
+| Form | Purpose |
+| --- | --- |
+| `<channel>\|--session-id <id> [--since id] [--limit N]` | read recent channel or direct-session messages |
+| `<channel>|--session-id <id> --follow [--since id]` | stream messages as NDJSON |
+| `--channels` | list known channels |
+
+Examples:
+
+```bash
+aos listen handoff
+aos listen handoff --limit 10
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
+aos listen --channels
+```
+
+One-shot reads return a JSON envelope with a `messages` array. `--follow` emits one message per line as NDJSON.
 
 ## Auxiliary Consumer Surfaces
 

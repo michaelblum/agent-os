@@ -1,14 +1,13 @@
 # Session Communication Layer — Design Spec
 
 **Date:** 2026-04-15
-**Branch:** canvas-lifecycle-brainstorm (will move to own branch for implementation)
-**Scope:** Claude Code only. Codex will self-scaffold its own hooks later, sharing the gateway protocol.
+**Status:** Shipped in the shared session hooks and daemon-native `aos tell` / `aos listen` flow. The bootstrap launcher helper still emits a Claude-specific command, but the session identity and messaging contract is shared across Claude Code and Codex.
 
 ## Problem
 
-Cross-session handoff is fragile. The current `scripts/handoff` posts a brief to the gateway and generates a seed prompt that says "read the gateway handoff channel." The new session has to figure out which MCP tool to call, with what args, on what channel. This is prompt-hope — it works sometimes, fails silently other times.
+Before this design shipped, cross-session handoff was fragile. The launcher prompt told the receiving session to go find a brief on the coordination bus, which meant the new session still had to discover the right tool and channel by inference. This was prompt-hope — it worked sometimes, failed silently other times.
 
-Parallel sessions have no way to coordinate. The gateway message bus exists but nothing checks it automatically. Sessions can't talk to each other unless an agent remembers to poll.
+Parallel sessions also relied on manual polling. The coordination bus existed, but nothing checked it automatically and direct session routing was not yet the default path.
 
 ## Design
 
@@ -17,16 +16,16 @@ Three components, layered:
 ```
 ┌─────────────────────────────────────────────┐
 │  scripts/handoff  (orchestration script)     │
-│  Writes bootstrap file + posts to gateway    │
+│  Writes bootstrap file + posts via aos tell  │
 │  Generates launcher with AOS_SESSION_NAME    │
 ├─────────────────────────────────────────────┤
 │  SessionStart hook  (cold start)             │
-│  Reads AOS_SESSION_NAME or prompts agent     │
-│  Registers with gateway                      │
+│  Resolves session_id / display name          │
+│  Registers with daemon coordination bus      │
 │  Reads bootstrap file if present             │
 ├─────────────────────────────────────────────┤
 │  Turn hook  (ongoing, lightweight)           │
-│  Checks gateway for inbound messages         │
+│  Checks direct inbox / channels via listen   │
 │  Thin notification only — no full injection  │
 └─────────────────────────────────────────────┘
 ```
@@ -37,21 +36,15 @@ Written by `scripts/handoff` to `/tmp/aos-handoff-<session-name>.json`.
 
 ```json
 {
-  "version": 1,
   "type": "session_handoff",
   "from": "lifecycle-impl",
   "to": "verify-lifecycle",
   "task": "Run Task 8: integration test",
-  "brief": "## Handoff: lifecycle-impl -> verify-lifecycle\n\n...",
-  "gateway": {
-    "channel": "handoff",
-    "message_id": "01KP8XC5..."
-  }
+  "brief": "## Handoff: lifecycle-impl -> verify-lifecycle\n\n..."
 }
 ```
 
 - `brief` is self-contained — everything the new session needs to start work.
-- `gateway` block is a back-pointer for ACK/reply. Optional for the session to use.
 - File is consumed (deleted) after the SessionStart hook reads it.
 
 ### 2. Launcher Script
@@ -65,7 +58,7 @@ export AOS_SESSION_NAME="verify-lifecycle"
 exec claude -n "verify-lifecycle" "Bootstrap: /tmp/aos-handoff-verify-lifecycle.json"
 ```
 
-Key: `AOS_SESSION_NAME` env var is set before `claude` launches. All hooks in that process tree inherit it.
+Key: `AOS_SESSION_NAME` env var is set before `claude` launches. All hooks in that process tree inherit it. Current helper output is Claude-oriented because `scripts/handoff` launches a new Claude Code session today; the shared hook contract itself is not Claude-specific.
 
 Clipboard gets: `bash /tmp/aos-handoff-verify-lifecycle`
 
@@ -75,31 +68,36 @@ HITL: open terminal, paste, press return.
 
 Extend `.agents/hooks/session-start.sh` to add three steps at the top, before existing context output:
 
-#### 3a. Resolve session name
+#### 3a. Resolve session identity
 
 ```bash
-SESSION_NAME="${AOS_SESSION_NAME:-}"
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+SESSION_HARNESS="$(aos_detect_harness)"
+SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
 ```
 
-If set (handoff-launched): use it.
-If unset (manual session): output a nudge:
+If handoff-launched, `AOS_SESSION_NAME` seeds the human-readable name. If manual, the hook still resolves a canonical `session_id` from provider input and generates a fallback display name such as `codex-019d985f-deb`.
 
 ```
-## Session Name
-No AOS_SESSION_NAME set. Name this session early:
-  Use /rename and then tell the agent to register with the gateway.
+## Session Identity
+name=wiki-focus harness=codex session_id=019d985f-deb8-7883-ba34-ba89aa402dc8 channel=019d985f-deb8-7883-ba34-ba89aa402dc8 source=env registered=ok
+Rename later with: scripts/session-name --name <meaningful-name>
 ```
 
-#### 3b. Register with gateway
+#### 3b. Register with the daemon coordination bus
 
-If session name is known, the hook outputs a directive telling the agent to register:
+If `./aos` is available and the hook resolved a name, it registers automatically:
 
+```bash
+if [[ -n "$SESSION_ID" ]]; then
+  "$AOS" tell --register --session-id "$SESSION_ID" --name "$SESSION_NAME" --role worker --harness "$SESSION_HARNESS"
+else
+  "$AOS" tell --register "$SESSION_NAME" --role worker --harness "$SESSION_HARNESS"
+fi
 ```
-## Gateway Registration
-Register this session: name="verify-lifecycle" harness="claude-code" role="worker"
-```
 
-The actual `register_session` MCP call must be made by the agent (hooks can't call MCP). The hook's job is to make the instruction unambiguous.
+No MCP round-trip. The CLI is the registration surface.
 
 #### 3c. Read bootstrap file
 
@@ -121,13 +119,13 @@ fi
 
 The brief lands in context as a system reminder. No prompt-hope. No MCP call needed for cold start.
 
-### 4. Turn Hook (New)
+### 4. Turn Hook
 
-A new hook on `PreToolUse` (or `PostToolUse`) that fires on every tool call.
+A new hook on `PostToolUse` that fires on every tool call.
 
 **Location:** `.agents/hooks/check-messages.sh`
 
-**Hook config addition to `.claude/settings.json`:**
+**Hook config:** provider-specific hook configuration points at the shared script. Today that includes `.claude/settings.json` and `.codex/hooks.json`.
 
 ```json
 {
@@ -141,76 +139,57 @@ A new hook on `PreToolUse` (or `PostToolUse`) that fires on every tool call.
 
 ```bash
 #!/bin/bash
-# Thin gateway message check. Returns empty (free) or one-line notification.
-SESSION_NAME="${AOS_SESSION_NAME:-}"
-[ -z "$SESSION_NAME" ] && exit 0
+# Thin daemon message check. Returns empty (free) or a short notification.
+source "$(dirname "$0")/session-common.sh"
 
-ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
-AOS="$ROOT/aos"
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+SESSION_HARNESS="$(aos_detect_harness)"
+SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
+[ -z "$SESSION_CHANNEL" ] && exit 0
 
-# Check for messages addressed to this session
-# Uses the gateway DB directly for speed (no MCP round-trip)
-GATEWAY_DB="$HOME/.config/aos-gateway/gateway.db"
-[ -f "$GATEWAY_DB" ] || exit 0
+STATE_FILE="$(aos_session_cursor_file "$SESSION_CHANNEL")"
+SINCE="$(cat "$STATE_FILE" 2>/dev/null || echo "")"
 
-# Read last-seen cursor from state file
-STATE_FILE="/tmp/aos-session-cursor-${SESSION_NAME}"
-SINCE=$(cat "$STATE_FILE" 2>/dev/null || echo "")
-
-# Query for new messages on the session's named channel
-# Use printf to safely quote the session name (no SQL injection from env)
-SAFE_NAME=$(printf '%s' "$SESSION_NAME" | sed "s/'/''/g")
-SAFE_SINCE=$(printf '%s' "$SINCE" | sed "s/'/''/g")
-
-if [ -n "$SINCE" ]; then
-  WHERE_CLAUSE="channel = '${SAFE_NAME}' AND id > '${SAFE_SINCE}'"
+if [[ -n "$SESSION_ID" ]]; then
+  LISTEN_ARGS=(listen --session-id "$SESSION_ID" --limit 5)
 else
-  WHERE_CLAUSE="channel = '${SAFE_NAME}'"
+  LISTEN_ARGS=(listen "$SESSION_NAME" --limit 5)
+fi
+if [ -n "$SINCE" ]; then
+  LISTEN_ARGS+=(--since "$SINCE")
 fi
 
-RESULT=$(sqlite3 "$GATEWAY_DB" "
-  SELECT id, from_session, substr(payload, 1, 80)
-  FROM messages
-  WHERE ${WHERE_CLAUSE}
-  ORDER BY id ASC
-  LIMIT 5;
-" 2>/dev/null || true)
+LISTEN_JSON="$("$AOS" "${LISTEN_ARGS[@]}" 2>/dev/null || true)"
+[ -z "$LISTEN_JSON" ] && exit 0
 
-[ -z "$RESULT" ] && exit 0
-
-# Update cursor to latest message ID
-LATEST=$(echo "$RESULT" | tail -1 | cut -d'|' -f1)
-echo "$LATEST" > "$STATE_FILE"
-
-# Count and summarize
-COUNT=$(echo "$RESULT" | wc -l | tr -d ' ')
-SENDERS=$(echo "$RESULT" | cut -d'|' -f2 | sort -u | tr '\n' ', ' | sed 's/,$//')
-
+# Parse count / senders / latest id, then update cursor
 echo "## Inbound Messages"
-echo "${COUNT} new message(s) from ${SENDERS} on channel '${SESSION_NAME}'."
-echo "Use read_stream(channel='${SESSION_NAME}') to read them."
+echo "${COUNT} new message(s) from ${SENDERS} on session '${SESSION_NAME}' (${SESSION_ID})."
+echo "Use ./aos listen --session-id ${SESSION_ID} to read them."
 ```
 
 **Key design decisions:**
 
-- **Direct SQLite read** instead of MCP call — hooks can't call MCP tools, and shelling out to the gateway would be slow. SQLite WAL mode supports concurrent readers safely.
-- **Per-session channel convention**: messages TO a session go on a channel named after that session. `post_message(channel="verify-lifecycle", ...)` reaches the verify-lifecycle session.
-- **Cursor file** at `/tmp/aos-session-cursor-<name>` tracks last-seen message ID. Only new messages trigger notifications.
+- **Use `./aos listen`** instead of gateway DB reads or MCP calls. The daemon is the source of truth.
+- **Canonical direct inbox**: messages TO a session should target the canonical `session_id` when available. Human-readable names remain metadata and a legacy fallback.
+- **Cursor file** lives under runtime-scoped session state (`~/.config/aos/{mode}/coordination/session-state/cursor-<session-key>`). Only new messages trigger notifications.
 - **Empty output = free** — no tokens consumed when no messages waiting.
 - **Thin notification** — just count + senders + instruction to pull. Agent decides when to engage.
 
 ### 5. Message Addressing Convention
 
-Current gateway uses free-form channel names. This design establishes a convention:
+Current coordination uses daemon channels plus direct session routing. This design establishes a convention:
 
 | Channel | Purpose |
 |---------|---------|
 | `handoff` | Broadcast handoff briefs (existing) |
-| `<session-name>` | Direct messages to a specific session |
+| `<canonical-session-id>` | Direct messages to a specific live session |
+| `<session-name>` | Human-readable alias / legacy fallback only |
 
 A session sending a message to another session uses:
 ```
-post_message(channel="verify-lifecycle", payload={...}, from="lifecycle-impl")
+./aos tell --session-id 019d985f-deb8-7883-ba34-ba89aa402dc8 "ready for review"
 ```
 
 The receiving session's turn hook picks it up automatically.
@@ -219,26 +198,18 @@ The receiving session's turn hook picks it up automatically.
 
 Sessions not launched via handoff:
 
-1. SessionStart hook sees no `AOS_SESSION_NAME`. Outputs nudge.
-2. Agent names itself (or user does via `/rename`).
-3. Agent calls `register_session(name=..., harness="claude-code", role="...")`.
-4. Agent sets its own env: not possible mid-process. **Workaround**: agent writes name to `/tmp/aos-session-name-<session_id>`. Turn hook reads this file as fallback when `AOS_SESSION_NAME` is unset, using `session_id` from stdin JSON.
+1. SessionStart hook resolves `session_id` from hook input or thread metadata.
+2. Hook generates a fallback display name if no `AOS_SESSION_NAME` exists.
+3. Hook auto-registers with `./aos tell --register ...`.
+4. Agent or operator can rename later with `scripts/session-name --name <meaningful-name>`.
+5. Turn hook keeps listening on the canonical `session_id` inbox; the renamed value is display metadata and fallback aliasing.
 
 ```bash
-# In check-messages.sh, resolve name:
-SESSION_NAME="${AOS_SESSION_NAME:-}"
-if [ -z "$SESSION_NAME" ]; then
-  SESSION_ID=$(cat /dev/stdin | python3 -c "import json,sys; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null || true)
-  if [ -n "$SESSION_ID" ]; then
-    SESSION_NAME=$(cat "/tmp/aos-session-name-${SESSION_ID}" 2>/dev/null || true)
-  fi
-fi
-[ -z "$SESSION_NAME" ] && exit 0
-```
+# Inspect current resolved identity
+scripts/session-name --current
 
-The agent writes this file once after naming:
-```bash
-echo "lifecycle-impl" > /tmp/aos-session-name-<session_id>
+# Rename current session after the task becomes clear
+scripts/session-name --name lifecycle-impl
 ```
 
 ### 7. scripts/handoff Changes
@@ -247,40 +218,41 @@ Minimal changes to existing script:
 
 - Add `AOS_SESSION_NAME` export to the launcher script (already partially there)
 - Seed prompt changes from `"Read the gateway handoff channel..."` to `"Bootstrap: /tmp/aos-handoff-<name>.json"`
-- Also post to the session's named channel (not just `handoff`) so the turn hook can detect it if the session is already running (resume case)
-- Add `--resume` flag support: uses `claude --resume` and posts to named channel instead of writing bootstrap file
+- Keep bootstrap files keyed by human-readable name for launch ergonomics
+- `--resume` support stays launcher-level; ongoing peer-to-peer coordination should switch to `./aos tell --session-id <peer_session_id>` after discovery via `./aos tell --who`
 
 ### 8. What HITL Does
 
 **Sequential handoff (A finishes, B starts):**
 1. Session A runs handoff script
-2. Session A posts to gateway
+2. Session A writes bootstrap file and posts the brief to `handoff` via `./aos tell`
 3. HITL opens terminal, pastes, presses return
 
 **Parallel coordination (A and B both running):**
-1. Session A posts message to B's channel: `post_message(channel="session-b", ...)`
-2. B's turn hook picks it up on next tool call
-3. B reads full message when ready
-4. B replies to A's channel
+1. Session A discovers B via `./aos tell --who`
+2. Session A posts directly: `./aos tell --session-id <session-b-id> "..."`
+3. B's turn hook picks it up on next tool call
+4. B reads full message when ready
+5. B replies with `./aos tell --session-id <session-a-id> "..."`
 
 **Cross-runtime (Claude Code <-> Codex):**
 1. HITL informs the session: "the other session is Codex, not Claude Code"
-2. Gateway protocol is the same — both runtimes can read/write messages
-3. Bootstrap file format is the same — Codex reads it via its own mechanism
+2. Daemon protocol is the same — both runtimes can read/write messages through `./aos tell` / `./aos listen`
+3. Bootstrap file format is the same — both runtimes enter through the shared session hooks
 
 ## Non-Goals
 
 - **Automatic session discovery**: Sessions must be explicitly named and registered. No magic.
 - **Guaranteed delivery**: Best-effort via turn hook polling. If a session isn't checking, messages queue.
-- **Codex hook implementation**: Codex will scaffold its own hooks using this same gateway protocol.
+- **Harness-specific launcher generation**: `scripts/handoff` still emits a Claude launcher instead of auto-selecting a target harness.
 - **Message encryption or auth**: Internal to one machine, one user. Trust the filesystem.
 
 ## File Changes Summary
 
 | File | Change |
 |------|--------|
-| `scripts/handoff` | Add `AOS_SESSION_NAME` to launcher, new seed prompt, post to named channel |
-| `.agents/hooks/session-start.sh` | Add name resolution, gateway registration directive, bootstrap file reading |
+| `scripts/handoff` | Add `AOS_SESSION_NAME` to launcher, new seed prompt, post to `handoff` |
+| `.agents/hooks/session-start.sh` | Add identity resolution, daemon registration, bootstrap file reading |
 | `.agents/hooks/check-messages.sh` | New file — turn hook for thin message notifications |
 | `.claude/settings.json` | Add PostToolUse hook entry for check-messages.sh |
 
