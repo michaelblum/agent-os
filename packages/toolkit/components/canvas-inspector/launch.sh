@@ -1,8 +1,7 @@
 #!/bin/bash
 # launch.sh — Create the canvas inspector and seed it with initial state.
-# Live updates flow via in-canvas subscribe('canvas_lifecycle'); no external
-# subprocess needed (Task 1 of the toolkit foundation plan added daemon-side
-# fan-out of canvas_lifecycle to subscribed canvases).
+# Live updates flow via in-canvas subscriptions (`canvas_lifecycle` +
+# `display_geometry`); no external subprocess needed.
 
 set -euo pipefail
 
@@ -10,6 +9,36 @@ AOS="${AOS:-./aos}"
 CANVAS_ID="canvas-inspector"
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
+
+for _ in $(seq 1 150); do
+  CONTENT_JSON=$($AOS content status --json 2>/dev/null || true)
+  if printf '%s' "$CONTENT_JSON" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+port = int(payload.get("port") or 0)
+roots = payload.get("roots") or {}
+raise SystemExit(0 if port > 0 and "toolkit" in roots else 1)
+' 2>/dev/null; then
+    break
+  fi
+  sleep 0.1
+done
+if ! printf '%s' "${CONTENT_JSON:-}" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+port = int(payload.get("port") or 0)
+roots = payload.get("roots") or {}
+raise SystemExit(0 if port > 0 and "toolkit" in roots else 1)
+' 2>/dev/null; then
+  echo "Canvas inspector launch failed: toolkit content root not ready in daemon" >&2
+  exit 1
+fi
 
 # Position bottom-right of main display
 DISPLAY_JSON=$($AOS graph displays --json 2>/dev/null || echo '{"displays":[]}')
@@ -83,8 +112,28 @@ PYEOF
 rm -rf "$TMPDIR_BS"
 
 if [ -n "$BOOTSTRAP_B64" ]; then
-  $AOS show eval --id "$CANVAS_ID" --js "window.headsup.receive(\"$BOOTSTRAP_B64\")"
+  for _ in $(seq 1 30); do
+    $AOS show eval --id "$CANVAS_ID" --js "window.headsup.receive(\"$BOOTSTRAP_B64\")" >/dev/null 2>&1 || true
+    READY_JSON=$($AOS show eval --id "$CANVAS_ID" --js '
+      JSON.stringify({
+        hasSelf: !!document.querySelector(".canvas-item.self .canvas-dims"),
+        hasDisplay: !!document.querySelector(".minimap-display")
+      })
+    ' 2>/dev/null || true)
+    if printf '%s' "$READY_JSON" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+    state = json.loads(payload.get("result") or "{}")
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if state.get("hasSelf") and state.get("hasDisplay") else 1)
+' 2>/dev/null; then
+      break
+    fi
+    sleep 0.1
+  done
 fi
 
 echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H})"
-echo "Live lifecycle updates flow via in-canvas subscribe — no subprocess needed."
+echo "Live lifecycle + display geometry updates flow via in-canvas subscribe — no subprocess needed."

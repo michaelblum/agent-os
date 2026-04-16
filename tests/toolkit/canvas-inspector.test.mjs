@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeMinimapLayout } from '../../packages/toolkit/components/canvas-inspector/index.js';
+import { computeMinimapLayout, normalizeDisplays } from '../../packages/toolkit/components/canvas-inspector/index.js';
 
 const displays = [
   {
@@ -57,4 +57,42 @@ test('computeMinimapLayout keeps self canvases marked and scaled into the same b
   assert.ok(self.x >= 2 && self.y >= 2);
   assert.ok(self.x + self.w < layout.mapW);
   assert.ok(self.y + self.h < layout.mapH);
+});
+
+test('normalizeDisplays accepts display_geometry payloads', () => {
+  const normalized = normalizeDisplays([
+    {
+      display_id: 3,
+      is_main: false,
+      bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      scale_factor: 1,
+    },
+    {
+      display_id: 1,
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      scale_factor: 2,
+    },
+  ]);
+
+  assert.deepEqual(normalized, [
+    {
+      display_id: 3,
+      id: 3,
+      is_main: false,
+      bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      scale_factor: 1,
+      width: 1920,
+      height: 1080,
+    },
+    {
+      display_id: 1,
+      id: 1,
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      scale_factor: 2,
+      width: 1512,
+      height: 982,
+    },
+  ]);
 });

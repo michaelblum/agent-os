@@ -8,6 +8,29 @@ import { esc, emit } from '../../runtime/bridge.js'
 
 const SELF_ID = 'canvas-inspector'
 
+function normalizeDisplay(display = {}) {
+  const bounds = display.bounds || {}
+  const width = display.width ?? bounds.w ?? bounds.width ?? 0
+  const height = display.height ?? bounds.h ?? bounds.height ?? 0
+  return {
+    ...display,
+    id: display.id ?? display.ordinal ?? display.display_id ?? display.cgID,
+    width,
+    height,
+    is_main: Boolean(display.is_main),
+    bounds: {
+      x: bounds.x ?? 0,
+      y: bounds.y ?? 0,
+      w: bounds.w ?? bounds.width ?? width,
+      h: bounds.h ?? bounds.height ?? height,
+    },
+  }
+}
+
+export function normalizeDisplays(list) {
+  return (list || []).map((display) => normalizeDisplay(display))
+}
+
 export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, border = 1, inset = 2 } = {}) {
   if (!displays || displays.length === 0) return null
 
@@ -60,12 +83,17 @@ export default function CanvasInspector() {
   let resizeObserver = null
   let lastMinimapWidth = 0
 
+  function syncDebugState() {
+    window.__canvasInspectorState = { displays, canvases, eventCount }
+  }
+
   function rerender() {
     if (!contentEl) return
     contentEl.innerHTML = renderMinimap(canvases)
       + `<div class="canvas-list-region">${renderList(canvases)}</div>`
       + renderStatusBar()
     bindListEvents()
+    syncDebugState()
   }
 
   function getMinimapWidth() {
@@ -151,10 +179,10 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Canvas Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry'],
       emits: [],
       channelPrefix: 'canvas-inspector',
-      requires: ['canvas_lifecycle'],
+      requires: ['canvas_lifecycle', 'display_geometry'],
       defaultSize: { w: 320, h: 480 },
     },
 
@@ -171,14 +199,22 @@ export default function CanvasInspector() {
         }
       })
       resizeObserver.observe(contentEl)
+      window.__canvasInspectorMounted = true
+      syncDebugState()
       return contentEl
     },
 
     onMessage(msg, _host) {
       if (msg.type === 'bootstrap') {
         const p = msg.payload || msg
-        if (p.displays) displays = p.displays
+        if (p.displays) displays = normalizeDisplays(p.displays)
         if (p.canvases) canvases = p.canvases
+        rerender()
+        return
+      }
+      if (msg.type === 'display_geometry') {
+        const p = msg.payload || msg
+        if (p.displays) displays = normalizeDisplays(p.displays)
         rerender()
         return
       }

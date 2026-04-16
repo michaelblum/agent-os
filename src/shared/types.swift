@@ -44,8 +44,16 @@ func globalDisplayMaxY() -> CGFloat {
     globalDisplayBounds().maxY
 }
 
+func mainDisplayHeight() -> CGFloat {
+    getDisplays().first(where: \.isMain)?.bounds.height ?? 0
+}
+
 /// Convert NSEvent mouse coordinates (bottom-left origin) to CG coordinates (top-left origin).
 func mouseInCGCoords() -> CGPoint {
     let mouse = NSEvent.mouseLocation
-    return CGPoint(x: mouse.x, y: globalDisplayMaxY() - mouse.y)
+    let primaryHeight = mainDisplayHeight()
+    guard primaryHeight > 0 else {
+        return CGPoint(x: mouse.x, y: mouse.y)
+    }
+    return CGPoint(x: mouse.x, y: primaryHeight - mouse.y)
 }

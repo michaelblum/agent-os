@@ -30,16 +30,13 @@ wait_for_ping() {
 
 if ! python3 - <<'PY'
 import json, subprocess
-doctor = json.loads(subprocess.check_output(["./aos", "doctor", "--json"], text=True))
-perms = doctor.get("permissions", {})
+perms = json.loads(subprocess.check_output(["./aos", "permissions", "check", "--json"], text=True)).get("permissions", {})
 if not perms.get("accessibility") or not perms.get("screen_recording"):
     raise SystemExit(1)
-graph = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
-displays = graph.get("displays", [])
-raise SystemExit(0 if len(displays) >= 2 else 1)
+raise SystemExit(0)
 PY
 then
-  echo "SKIP: requires accessibility + screen recording + at least two displays"
+  echo "SKIP: requires accessibility + screen recording"
   exit 0
 fi
 
@@ -50,7 +47,30 @@ fi
 wait_for_ping || { echo "FAIL: isolated daemon did not become reachable"; exit 1; }
 DAEMON_PID="$(aos_test_wait_for_lock_pid "$ROOT")" || { echo "FAIL: isolated daemon lock pid did not appear"; exit 1; }
 
+if ! python3 - <<'PY'
+import json, subprocess
+graph = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
+displays = graph.get("displays", [])
+raise SystemExit(0 if len(displays) >= 2 else 1)
+PY
+then
+  echo "SKIP: requires at least two displays"
+  exit 0
+fi
+
 bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
+
+python3 - <<'PY'
+import json, subprocess
+payload = json.loads(subprocess.check_output([
+    "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+    'document.body.textContent.replace(/\\s+/g," ").trim()'
+], text=True))
+text = payload.get("result") or ""
+if "aos:// content server unavailable" in text:
+    print("FAIL: inspector loaded fallback content-server-unavailable page", flush=True)
+    raise SystemExit(1)
+PY
 
 PRE_DRAG_CAPTURE_PNG="$ARTIFACT_DIR/pre-drag-inspector.png"
 PRE_DRAG_CAPTURE_JSON="$ARTIFACT_DIR/pre-drag-inspector.json"
@@ -125,7 +145,7 @@ if not (ox <= new_x < ox + ow and oy <= new_y < oy + oh):
 
 layout = json.loads(run(
     "show", "eval", "--id", "canvas-inspector", "--js",
-    'JSON.stringify((() => { const map = document.querySelector(".minimap"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, displayRects: [...document.querySelectorAll(".minimap-display")].map(el => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10), width: parseInt(el.style.width, 10), height: parseInt(el.style.height, 10) })) }; })())'
+    'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfRect = document.querySelector(".minimap-canvas.self"); const selfDims = document.querySelector(".canvas-item.self .canvas-dims"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, self: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null, selfDims: selfDims?.textContent ?? null, displayRects: [...document.querySelectorAll(".minimap-display")].map(el => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10), width: parseInt(el.style.width, 10), height: parseInt(el.style.height, 10) })) }; })())'
 )["result"])
 
 for rect in layout["displayRects"]:
@@ -138,6 +158,23 @@ for rect in layout["displayRects"]:
     if rect["top"] + rect["height"] >= layout["mapH"]:
         print(f"FAIL: display rect touches bottom edge: {rect}", flush=True)
         raise SystemExit(1)
+
+expected_dims = f"{round(new_w)}×{round(new_h)} @ {round(new_x)},{round(new_y)}"
+if layout["selfDims"] != expected_dims:
+    print(f"FAIL: inspector row did not update after drag: expected '{expected_dims}', got '{layout['selfDims']}'", flush=True)
+    raise SystemExit(1)
+
+if not layout["self"]:
+    print("FAIL: inspector minimap is missing the self canvas rect", flush=True)
+    raise SystemExit(1)
+
+rect = layout["self"]
+if rect["left"] < 0 or rect["top"] < 0:
+    print(f"FAIL: self rect has invalid coordinates: {rect}", flush=True)
+    raise SystemExit(1)
+if rect["left"] + rect["width"] > layout["mapW"] or rect["top"] + rect["height"] > layout["mapH"]:
+    print(f"FAIL: self rect escapes minimap bounds: {rect}", flush=True)
+    raise SystemExit(1)
 
 print("PASS", flush=True)
 PY

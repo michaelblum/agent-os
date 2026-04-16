@@ -482,7 +482,8 @@ class UnifiedDaemon {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(displayGeometryCoalesceMs)) { [weak self] in
             guard let self = self else { return }
             self.displayGeometryBroadcastScheduled = false
-            self.canvasManager.retargetTrackedCanvases()
+            let retargeted = self.canvasManager.retargetTrackedCanvases()
+            self.canvasManager.syncCanvasFrames(excluding: retargeted)
             self.broadcastDisplayGeometry()
         }
     }
@@ -1170,15 +1171,24 @@ class UnifiedDaemon {
 
     // MARK: - Helpers
 
+    private func waitForContentServerPort(timeoutMs: Int = 10000, pollMs: Int = 25) -> UInt16? {
+        guard let server = contentServer else { return nil }
+        if server.assignedPort > 0 { return server.assignedPort }
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+        while server.assignedPort == 0 && Date() < deadline {
+            Thread.sleep(forTimeInterval: Double(pollMs) / 1000)
+        }
+        return server.assignedPort > 0 ? server.assignedPort : nil
+    }
+
     /// Rewrite `aos://` URLs to the content server's localhost address.
     func resolveContentURL(_ urlString: String) -> String {
         guard urlString.hasPrefix("aos://"),
-              let server = contentServer,
-              server.assignedPort > 0 else {
+              let port = waitForContentServerPort() else {
             return urlString
         }
         let path = String(urlString.dropFirst("aos://".count))
-        return "http://127.0.0.1:\(server.assignedPort)/\(path)"
+        return "http://127.0.0.1:\(port)/\(path)"
     }
 
     /// Convert a dictionary back to Data for CanvasRequest parsing.

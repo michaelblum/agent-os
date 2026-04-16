@@ -52,11 +52,17 @@ These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.
 
+Do not call daemon auto-starting commands such as `aos doctor` before isolated
+tests finish writing required config like `content.roots.toolkit`. Preflight
+checks should use non-daemon surfaces such as `aos permissions check --json`
+and `aos graph displays --json`, then start the isolated daemon explicitly.
+
 Examples:
 
 - `bash tests/capture-region-perception.sh`
 - `bash tests/capture-canvas-surface.sh`
 - `bash tests/capture-union-canvas-surface.sh`
+- `bash tests/canvas-inspector-move-abs.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 
 ## Recovery

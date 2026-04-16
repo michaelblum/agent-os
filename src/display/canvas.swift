@@ -15,6 +15,17 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
     private var stopped = Set<ObjectIdentifier>()
     private let lock = NSLock()
 
+    private func waitForPort(timeoutMs: Int = 10000, pollMs: Int = 25) -> UInt16 {
+        var port = portProvider()
+        if port > 0 { return port }
+        let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+        while port == 0 && Date() < deadline {
+            Thread.sleep(forTimeInterval: Double(pollMs) / 1000)
+            port = portProvider()
+        }
+        return port
+    }
+
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let taskID = ObjectIdentifier(urlSchemeTask as AnyObject)
 
@@ -23,7 +34,7 @@ class AosSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
 
-        let port = portProvider()
+        let port = waitForPort()
         guard port > 0 else {
             fputs("[aos-scheme] content server unavailable for \(url.absoluteString)\n", stderr)
             let html = "<html><body style=\"font-family:system-ui;color:#fff;background:#1a1a2e;padding:2em\"><h2>aos:// content server unavailable</h2><pre>aos content status --json</pre><p>\(url.absoluteString)</p></body></html>"
@@ -400,6 +411,26 @@ class CanvasManager {
     var hasAutoProjectCanvases: Bool { canvases.values.contains { $0.autoProjectMode != nil } }
     var hasTrackedCanvases: Bool { canvases.values.contains { $0.trackTarget != nil } }
 
+    private func framesDiffer(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 0.5) -> Bool {
+        abs(lhs.origin.x - rhs.origin.x) > tolerance ||
+        abs(lhs.origin.y - rhs.origin.y) > tolerance ||
+        abs(lhs.size.width - rhs.size.width) > tolerance ||
+        abs(lhs.size.height - rhs.size.height) > tolerance
+    }
+
+    private func lifecycleAtArray(_ cgRect: CGRect) -> [CGFloat] {
+        [cgRect.origin.x, cgRect.origin.y, cgRect.size.width, cgRect.size.height]
+    }
+
+    @discardableResult
+    private func moveCanvas(_ canvas: Canvas, to cgRect: CGRect) -> Bool {
+        let current = canvas.cgFrame
+        guard framesDiffer(current, cgRect) else { return false }
+        canvas.updatePosition(cgRect: cgRect)
+        onCanvasLifecycle?(canvas.id, "updated", lifecycleAtArray(cgRect))
+        return true
+    }
+
     /// Expose a canvas for external callers (daemon layer) that need to set parent.
     func canvas(forID id: String) -> Canvas? { canvases[id] }
 
@@ -421,23 +452,31 @@ class CanvasManager {
     /// handler on topology change. Failures on individual canvases are logged
     /// but never block the rest of the iteration — a broken canvas must not
     /// stall the topology-change broadcast.
-    func retargetTrackedCanvases() {
+    func retargetTrackedCanvases() -> Set<String> {
         let unionBounds = allDisplaysBounds()
         guard unionBounds.width > 0, unionBounds.height > 0 else {
             fputs("[canvas] retargetTrackedCanvases: no displays, skipping\n", stderr)
-            return
+            return []
         }
 
+        var updated: Set<String> = []
         for canvas in canvases.values {
             guard let target = canvas.trackTarget else { continue }
             switch target {
             case .union:
-                canvas.updatePosition(cgRect: unionBounds)
-                let atArr: [CGFloat] = [unionBounds.origin.x, unionBounds.origin.y, unionBounds.size.width, unionBounds.size.height]
-                onCanvasLifecycle?(canvas.id, "updated", atArr)
+                if moveCanvas(canvas, to: unionBounds) {
+                    updated.insert(canvas.id)
+                }
             case .none:
                 break  // no-op; .none is transient (used to temporarily untrack during animation)
             }
+        }
+        return updated
+    }
+
+    func syncCanvasFrames(excluding excludedIDs: Set<String> = []) {
+        for canvas in canvases.values where !excludedIDs.contains(canvas.id) {
+            onCanvasLifecycle?(canvas.id, "updated", lifecycleAtArray(canvas.cgFrame))
         }
     }
 
@@ -635,11 +674,11 @@ class CanvasManager {
                    let _ = dict["screenY"] as? Double,
                    let offsetX = dict["offsetX"] as? Double,
                    let offsetY = dict["offsetY"] as? Double {
-                    DispatchQueue.main.async {
-                        let mouse = NSEvent.mouseLocation
-                        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
+                        let mouse = mouseInCGCoords()
                         let cgMouseX = mouse.x
-                        let cgMouseY = primaryHeight - mouse.y
+                        let cgMouseY = mouse.y
                         let newX = cgMouseX - CGFloat(offsetX)
                         let newY = cgMouseY - CGFloat(offsetY)
                         let cg = canvas.cgFrame
@@ -647,7 +686,7 @@ class CanvasManager {
                         // No display-snap: let the canvas straddle displays freely,
                         // same as the avatar animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
-                        canvas.updatePosition(cgRect: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
+                        self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
                     }
                     return
                 }
@@ -656,11 +695,12 @@ class CanvasManager {
                 if type == "move",
                    let dx = dict["dx"] as? Double,
                    let dy = dict["dy"] as? Double {
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
                         var cg = canvas.cgFrame
                         cg.origin.x += CGFloat(dx)
                         cg.origin.y += CGFloat(dy)
-                        canvas.updatePosition(cgRect: cg)
+                        self.moveCanvas(canvas, to: cg)
                     }
                     return
                 }
@@ -735,7 +775,8 @@ class CanvasManager {
                 if type == "request_resize",
                    let w = dict["width"] as? Double,
                    let h = dict["height"] as? Double {
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self = self else { return }
                         let cg = canvas.cgFrame
                         let cx = cg.origin.x + cg.size.width / 2
                         let cy = cg.origin.y + cg.size.height / 2
@@ -745,7 +786,7 @@ class CanvasManager {
                             width: CGFloat(w),
                             height: CGFloat(h)
                         )
-                        canvas.updatePosition(cgRect: newFrame)
+                        self.moveCanvas(canvas, to: newFrame)
                     }
                     return
                 }
@@ -822,12 +863,10 @@ class CanvasManager {
 
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-            canvas.updatePosition(cgRect: newFrame)
+            moveCanvas(canvas, to: newFrame)
             canvas.anchorWindowID = nil
             canvas.anchorChannelID = nil
             canvas.offset = nil
-            let atArr: [CGFloat] = [at[0], at[1], at[2], at[3]]
-            onCanvasLifecycle?(id, "updated", atArr)
         }
 
         if let trackStr = req.track {
@@ -841,9 +880,7 @@ class CanvasManager {
             if t == .union {
                 let bounds = allDisplaysBounds()
                 if bounds.width > 0 && bounds.height > 0 {
-                    canvas.updatePosition(cgRect: bounds)
-                    let atArr: [CGFloat] = [bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height]
-                    onCanvasLifecycle?(id, "updated", atArr)
+                    moveCanvas(canvas, to: bounds)
                 }
             }
 
@@ -876,14 +913,10 @@ class CanvasManager {
                     y: winBounds.origin.y + off[1],
                     width: off[2], height: off[3]
                 )
-                canvas.updatePosition(cgRect: newFrame)
-                let atArr: [CGFloat] = [newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height]
-                onCanvasLifecycle?(id, "updated", atArr)
+                moveCanvas(canvas, to: newFrame)
             } else {
                 canvas.offset = CGRect(x: 0, y: 0, width: winBounds.width, height: winBounds.height)
-                canvas.updatePosition(cgRect: winBounds)
-                let atArr: [CGFloat] = [winBounds.origin.x, winBounds.origin.y, winBounds.size.width, winBounds.size.height]
-                onCanvasLifecycle?(id, "updated", atArr)
+                moveCanvas(canvas, to: winBounds)
             }
             startAnchorPolling()
         } else if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
@@ -896,9 +929,7 @@ class CanvasManager {
                     y: windowBounds.origin.y + off[1],
                     width: off[2], height: off[3]
                 )
-                canvas.updatePosition(cgRect: newFrame)
-                let atArr: [CGFloat] = [newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height]
-                onCanvasLifecycle?(id, "updated", atArr)
+                moveCanvas(canvas, to: newFrame)
             }
             startAnchorPolling()
         }
@@ -1228,7 +1259,7 @@ class CanvasManager {
                 width: offset.size.width,
                 height: offset.size.height
             )
-            canvas.updatePosition(cgRect: newFrame)
+            moveCanvas(canvas, to: newFrame)
         }
         if !anyAnchored && !anyAutoProject { stopAnchorPolling() }
     }
