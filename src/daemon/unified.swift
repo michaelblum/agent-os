@@ -1,6 +1,7 @@
 // unified.swift — UnifiedDaemon: single socket hosting perception + display
 
 import AppKit
+import Darwin
 import Foundation
 
 class UnifiedDaemon {
@@ -20,6 +21,7 @@ class UnifiedDaemon {
 
     // Socket server
     var serverFD: Int32 = -1
+    private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
 
@@ -100,6 +102,8 @@ class UnifiedDaemon {
         try? FileManager.default.createDirectory(
             atPath: (socketPath as NSString).deletingLastPathComponent,
             withIntermediateDirectories: true)
+
+        acquireDaemonLock(mode: mode)
 
         unlink(socketPath)
 
@@ -1328,6 +1332,7 @@ class UnifiedDaemon {
         fputs("aos daemon shutting down (idle)\n", stderr)
         spatial.stopPolling()
         unlink(socketPath)
+        releaseDaemonLock()
         exit(0)
     }
 
@@ -1339,5 +1344,52 @@ class UnifiedDaemon {
         signal(SIGPIPE, SIG_IGN)
         signal(SIGINT, handler)
         signal(SIGTERM, handler)
+    }
+
+    private func acquireDaemonLock(mode: AOSRuntimeMode) {
+        let lockPath = aosDaemonLockPath(for: mode)
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else {
+            exitError("open(\(lockPath)) failed: \(errno)", code: "LOCK_ERROR")
+        }
+        if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            let owner = daemonLockOwnerDescription(fd: fd)
+            close(fd)
+            exitError(
+                "Another \(mode.rawValue) daemon is already running\(owner). Stop it before starting a second \(mode.rawValue) daemon.",
+                code: "DAEMON_ALREADY_RUNNING"
+            )
+        }
+        _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+        daemonLockFD = fd
+        let payload = """
+        {"pid":\(getpid()),"mode":"\(mode.rawValue)","socket_path":"\(socketPath)"}
+        """
+        _ = ftruncate(fd, 0)
+        _ = lseek(fd, 0, SEEK_SET)
+        payload.withCString { ptr in
+            _ = write(fd, ptr, strlen(ptr))
+        }
+    }
+
+    private func releaseDaemonLock() {
+        guard daemonLockFD >= 0 else { return }
+        _ = flock(daemonLockFD, LOCK_UN)
+        close(daemonLockFD)
+        daemonLockFD = -1
+    }
+
+    private func daemonLockOwnerDescription(fd: Int32) -> String {
+        var buffer = [UInt8](repeating: 0, count: 256)
+        _ = lseek(fd, 0, SEEK_SET)
+        let n = read(fd, &buffer, buffer.count - 1)
+        guard n > 0 else { return "" }
+        let text = String(decoding: buffer.prefix(Int(n)), as: UTF8.self)
+        guard let data = text.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let pid = dict["pid"] as? Int else {
+            return ""
+        }
+        return " (pid \(pid))"
     }
 }
