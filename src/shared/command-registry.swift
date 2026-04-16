@@ -94,12 +94,11 @@ enum OutputMode: String { case json, text, ndjson, none }
 
 extension CommandDescriptor {
     func toJSON() -> [String: Any] {
-        var dict: [String: Any] = [
+        return [
             "path": path,
             "summary": summary,
             "forms": forms.map { $0.toJSON() }
         ]
-        return dict
     }
 }
 

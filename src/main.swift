@@ -40,7 +40,10 @@ struct AOS {
                 printCommandHelp(["content"], json: contentArgs.contains("--json"))
                 exit(0)
             }
-            guard contentArgs.count > 0 else { exitError("Usage: aos content status [--json]", code: "MISSING_SUBCOMMAND") }
+            guard contentArgs.count > 0 else {
+                printCommandHelp(["content"], json: false)
+                exit(0)
+            }
             switch contentArgs[0] {
             case "status":
                 runContentStatus(Array(contentArgs.dropFirst()))
@@ -94,6 +97,11 @@ struct AOS {
             default: exitError("Unknown graph subcommand: \(graphArgs[0])", code: "UNKNOWN_COMMAND")
             }
         case "daemon-snapshot":
+            let dsArgs = Array(args.dropFirst())
+            if dsArgs.contains("--help") || dsArgs.contains("-h") {
+                printCommandHelp(["daemon-snapshot"], json: dsArgs.contains("--json"))
+                exit(0)
+            }
             daemonSnapshotCommand()
         case "inspect":
             inspectCommand(args: Array(args.dropFirst()))
@@ -123,7 +131,7 @@ func handleDo(args: [String]) {
         exit(0)
     default:
         if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["do"], json: subArgs.contains("--json"))
+            printCommandHelp(["do", sub], json: subArgs.contains("--json"))
             exit(0)
         }
     }
@@ -255,7 +263,7 @@ func handleShow(args: [String]) {
         exit(0)
     default:
         if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["show"], json: subArgs.contains("--json"))
+            printCommandHelp(["show", sub], json: subArgs.contains("--json"))
             exit(0)
         }
     }

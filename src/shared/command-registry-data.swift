@@ -280,13 +280,28 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos show exists --id avatar --json"]),
+            examples: ["aos show exists --id avatar"]),
         InvocationForm(id: "show-get", usage: "aos show get --id <name>",
             args: [flag("id", "--id", "Canvas identifier", required: true)],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos show get --id avatar --json"])
+            examples: ["aos show get --id avatar"]),
+        InvocationForm(id: "show-to-front", usage: "aos show to-front --id <name>",
+            args: [flag("id", "--id", "Canvas identifier", required: true)],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos show to-front --id avatar"]),
+        InvocationForm(id: "show-post", usage: "aos show post --id <name> --event <json>",
+            args: [
+                flag("id", "--id", "Canvas identifier", required: true),
+                flag("event", "--event", "JSON event payload to post", type: .json, required: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos show post --id avatar --event '{\"type\":\"update\"}'"])
     ]))
 
     // ── do ────────────────────────────────────────────────
