@@ -7,6 +7,9 @@ import AppKit
 import Foundation
 
 class StatusItemManager {
+    private let trackedLifecycleTimeout: TimeInterval = 1.0
+    private let trackedVisibilityTimeout: TimeInterval = 1.2
+
     let canvasManager: CanvasManager
     var statusItem: NSStatusItem?
 
@@ -137,16 +140,27 @@ class StatusItemManager {
         return canvas.suspended
     }
 
-    private func waitUntilCanvasVisible(timeout: TimeInterval = 0.5, poll: TimeInterval = 0.05, completion: @escaping () -> Void) {
+    private func waitUntilCanvasVisible(
+        timeout: TimeInterval,
+        poll: TimeInterval = 0.05,
+        completion: @escaping () -> Void
+    ) {
         let deadline = Date().addingTimeInterval(timeout)
 
         func pollOnce() {
+            guard canvasManager.hasCanvas(toggleId) else {
+                isAnimating = false
+                updateIcon()
+                return
+            }
             if !isCanvasSuspended() {
                 completion()
                 return
             }
             guard Date() < deadline else {
-                completion()
+                fputs("[status-item] tracked canvas did not become visible before timeout\n", stderr)
+                isAnimating = false
+                updateIcon()
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + poll) {
@@ -226,8 +240,30 @@ class StatusItemManager {
         let iconPos = statusItemCGPosition()
 
         if toggleTrack != nil {
-            // Tracked canvas: tell Sigil to animate back to icon, then suspend
-            // after the animation completes (or after a timeout).
+            // Tracked canvas: wait on the renderer's real exit-complete ACK
+            // instead of guessing with a fixed sleep.
+            isAnimating = true
+            _ = canvasManager.awaitLifecycleCompletion(
+                canvasIDs: Set([toggleId]),
+                action: "exit",
+                timeout: trackedLifecycleTimeout
+            ) { [weak self] completed in
+                guard let self = self else { return }
+                guard self.canvasManager.hasCanvas(self.toggleId) else {
+                    self.isAnimating = false
+                    self.updateIcon()
+                    return
+                }
+                if !completed {
+                    fputs("[status-item] tracked exit lifecycle timeout; suspending anyway\n", stderr)
+                }
+                var req = CanvasRequest(action: "suspend")
+                req.id = self.toggleId
+                _ = self.canvasManager.handle(req)
+                self.isAnimating = false
+                self.updateIcon()
+            }
+
             canvasManager.postMessageAsync(canvasID: toggleId, payload: [
                 "type": "lifecycle",
                 "action": "exit",
@@ -235,14 +271,6 @@ class StatusItemManager {
                 "origin_y": Int(iconPos.y),
             ])
             updateIcon()
-
-            // Suspend after animation duration + margin
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
-                guard let self = self else { return }
-                var req = CanvasRequest(action: "suspend")
-                req.id = self.toggleId
-                _ = self.canvasManager.handle(req)
-            }
         } else {
             var req = CanvasRequest(action: "suspend")
             req.id = toggleId
@@ -252,6 +280,11 @@ class StatusItemManager {
     }
 
     private func resumeCanvas() {
+        if toggleTrack != nil {
+            isAnimating = true
+            updateIcon()
+        }
+
         var req = CanvasRequest(action: "resume")
         req.id = toggleId
         _ = canvasManager.handle(req)
@@ -259,8 +292,19 @@ class StatusItemManager {
 
         if toggleTrack != nil {
             let iconPos = statusItemCGPosition()
-            waitUntilCanvasVisible { [weak self] in
+            waitUntilCanvasVisible(timeout: trackedVisibilityTimeout) { [weak self] in
                 guard let self = self else { return }
+                _ = self.canvasManager.awaitLifecycleCompletion(
+                    canvasIDs: Set([self.toggleId]),
+                    action: "enter",
+                    timeout: self.trackedLifecycleTimeout
+                ) { [weak self] completed in
+                    if !completed {
+                        fputs("[status-item] tracked enter lifecycle timeout; clearing animation state\n", stderr)
+                    }
+                    self?.isAnimating = false
+                    self?.updateIcon()
+                }
                 self.canvasManager.postMessageAsync(canvasID: self.toggleId, payload: [
                     "type": "lifecycle",
                     "action": "enter",

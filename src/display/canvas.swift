@@ -96,10 +96,11 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - Coordinate Conversion
 
-/// Convert CG coordinates (top-left origin, Y-down) to NSScreen coordinates (bottom-left origin, Y-up).
+/// Convert AOS global coordinates (top-left of the primary display, Y-down)
+/// to AppKit global screen coordinates (bottom-left of the primary display, Y-up).
 func cgToScreen(_ cgRect: CGRect) -> NSRect {
-    let desktopMaxY = globalDisplayMaxY()
-    guard desktopMaxY > 0 else {
+    let primaryHeight = mainDisplayHeight()
+    guard primaryHeight > 0 else {
         return NSRect(
             x: cgRect.origin.x,
             y: cgRect.origin.y,
@@ -109,16 +110,16 @@ func cgToScreen(_ cgRect: CGRect) -> NSRect {
     }
     return NSRect(
         x: cgRect.origin.x,
-        y: desktopMaxY - cgRect.origin.y - cgRect.size.height,
+        y: primaryHeight - cgRect.origin.y - cgRect.size.height,
         width: cgRect.size.width,
         height: cgRect.size.height
     )
 }
 
-/// Convert NSScreen coordinates back to CG coordinates.
+/// Convert AppKit global screen coordinates back to AOS global coordinates.
 func screenToCG(_ nsRect: NSRect) -> CGRect {
-    let desktopMaxY = globalDisplayMaxY()
-    guard desktopMaxY > 0 else {
+    let primaryHeight = mainDisplayHeight()
+    guard primaryHeight > 0 else {
         return CGRect(
             x: nsRect.origin.x,
             y: nsRect.origin.y,
@@ -128,10 +129,33 @@ func screenToCG(_ nsRect: NSRect) -> CGRect {
     }
     return CGRect(
         x: nsRect.origin.x,
-        y: desktopMaxY - nsRect.origin.y - nsRect.size.height,
+        y: primaryHeight - nsRect.origin.y - nsRect.size.height,
         width: nsRect.size.width,
         height: nsRect.size.height
     )
+}
+
+/// AppKit appears to apply the primary display backing scale to the origin of
+/// a single NSWindow that spans mixed-DPI displays. Explicit single-display
+/// canvases do not show this drift, so only compensate mixed-scale spanning
+/// rects here and keep sizes in the shared AOS point space.
+func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
+    var screenFrame = cgToScreen(cgRect)
+    let displays = getDisplays()
+    let intersecting = displays.filter { display in
+        let intersection = cgRect.intersection(display.bounds)
+        return !intersection.isNull && intersection.width > 0 && intersection.height > 0
+    }
+    let scaleSet = Set(intersecting.map(\.scaleFactor))
+    guard intersecting.count > 1,
+          scaleSet.count > 1,
+          let primaryScale = displays.first(where: \.isMain)?.scaleFactor,
+          primaryScale > 1 else {
+        return screenFrame
+    }
+    screenFrame.origin.x /= primaryScale
+    screenFrame.origin.y /= primaryScale
+    return screenFrame
 }
 
 // MARK: - CanvasWindow (unconstrained NSWindow)
@@ -228,7 +252,25 @@ class Canvas {
     /// the rect in a screen-local coordinate space for spanning windows.
     private func applyScreenFrame(_ screenFrame: NSRect) {
         window.setContentSize(screenFrame.size)
-        window.setFrameOrigin(screenFrame.origin)
+        let topLeft = NSPoint(
+            x: screenFrame.origin.x,
+            y: screenFrame.origin.y + screenFrame.size.height
+        )
+        window.setFrameTopLeftPoint(topLeft)
+    }
+
+    private func schedulePlacementRetry(for cgRect: CGRect) {
+        pendingCGFrame = cgRect
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            guard let self, let pending = self.pendingCGFrame else { return }
+            self.pendingCGFrame = nil
+            let retry = canvasScreenFrame(pending)
+            self.applyScreenFrame(retry)
+            // Double-tap: some display transitions need two attempts.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.applyScreenFrame(retry)
+            }
+        }
     }
 
     func setTTL(_ seconds: Double?) {
@@ -254,8 +296,9 @@ class Canvas {
     init(id: String, cgFrame: CGRect, interactive: Bool, aosSchemeHandler: WKURLSchemeHandler? = nil) {
         self.id = id
         self.isInteractive = interactive
+        self.desiredCGFrame = cgFrame
 
-        let screenFrame = cgToScreen(cgFrame)
+        let screenFrame = canvasScreenFrame(cgFrame)
 
         let window = CanvasWindow(
             contentRect: screenFrame,
@@ -295,7 +338,11 @@ class Canvas {
 
         window.contentView = webView
         window.setContentSize(screenFrame.size)
-        window.setFrameOrigin(screenFrame.origin)
+        let topLeft = NSPoint(
+            x: screenFrame.origin.x,
+            y: screenFrame.origin.y + screenFrame.size.height
+        )
+        window.setFrameTopLeftPoint(topLeft)
 
         self.window = window
         self.webView = webView
@@ -315,6 +362,10 @@ class Canvas {
             window.makeKeyAndOrderFront(nil)
         } else {
             window.orderFront(nil)
+        }
+        let target = desiredCGFrame
+        DispatchQueue.main.async { [weak self] in
+            self?.updatePosition(cgRect: target)
         }
     }
 
@@ -337,25 +388,17 @@ class Canvas {
     }
 
     private var pendingCGFrame: CGRect?
+    private var desiredCGFrame: CGRect
 
     func updatePosition(cgRect: CGRect) {
-        let screenFrame = cgToScreen(cgRect)
+        desiredCGFrame = cgRect
+        let screenFrame = canvasScreenFrame(cgRect)
         applyScreenFrame(screenFrame)
         // macOS window server may reject cross-display moves on the first frame.
         // Store the intended position and retry on the next run loop cycle.
         let actual = screenToCG(window.frame)
         if abs(actual.origin.x - cgRect.origin.x) > 2 || abs(actual.origin.y - cgRect.origin.y) > 2 {
-            pendingCGFrame = cgRect
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                guard let self = self, let pending = self.pendingCGFrame else { return }
-                self.pendingCGFrame = nil
-                let retry = cgToScreen(pending)
-                self.applyScreenFrame(retry)
-                // Double-tap: some display transitions need two attempts
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.applyScreenFrame(retry)
-                }
-            }
+            schedulePlacementRetry(for: cgRect)
         }
     }
 
@@ -443,9 +486,74 @@ class CanvasManager {
         return result
     }
 
-    /// Pending resume ACKs: canvas IDs we're waiting on.
-    private var pendingResumeACKs: Set<String> = []
-    private var resumeCompletion: (() -> Void)?
+    private final class LifecycleWaiter {
+        let id = UUID()
+        let action: String
+        var pendingCanvasIDs: Set<String>
+        let completion: (Bool) -> Void
+        var timeoutWorkItem: DispatchWorkItem?
+
+        init(action: String, pendingCanvasIDs: Set<String>, completion: @escaping (Bool) -> Void) {
+            self.action = action
+            self.pendingCanvasIDs = pendingCanvasIDs
+            self.completion = completion
+        }
+    }
+
+    /// Lifecycle-complete waiters keyed by action. Renderers ACK transitions
+    /// with `lifecycle.complete`, letting daemon-side flows wait on real
+    /// transition completion instead of fixed sleeps.
+    private var lifecycleWaiters: [UUID: LifecycleWaiter] = [:]
+
+    @discardableResult
+    func awaitLifecycleCompletion(
+        canvasIDs: Set<String>,
+        action: String,
+        timeout: TimeInterval? = nil,
+        completion: @escaping (Bool) -> Void
+    ) -> UUID? {
+        guard !canvasIDs.isEmpty else {
+            completion(true)
+            return nil
+        }
+
+        let waiter = LifecycleWaiter(action: action, pendingCanvasIDs: canvasIDs, completion: completion)
+        lifecycleWaiters[waiter.id] = waiter
+
+        if let timeout, timeout.isFinite {
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self,
+                      let pending = self.lifecycleWaiters.removeValue(forKey: waiter.id) else { return }
+                pending.timeoutWorkItem = nil
+                pending.completion(false)
+            }
+            waiter.timeoutWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
+        }
+
+        return waiter.id
+    }
+
+    private func completeLifecycleWaiter(_ waiterID: UUID, success: Bool) {
+        guard let waiter = lifecycleWaiters.removeValue(forKey: waiterID) else { return }
+        waiter.timeoutWorkItem?.cancel()
+        waiter.timeoutWorkItem = nil
+        waiter.completion(success)
+    }
+
+    private func abandonLifecycleCompletions(forCanvasID canvasID: String) {
+        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
+            waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
+        }
+
+        for waiterID in waiterIDs {
+            guard let waiter = lifecycleWaiters[waiterID] else { continue }
+            waiter.pendingCanvasIDs.remove(canvasID)
+            if waiter.pendingCanvasIDs.isEmpty {
+                completeLifecycleWaiter(waiterID, success: false)
+            }
+        }
+    }
 
     /// Re-resolve bounds for every canvas with a tracking target and apply
     /// the new bounds. Called from the daemon's coalesced display_geometry
@@ -483,6 +591,7 @@ class CanvasManager {
     func removeByTTL(_ id: String) {
         guard let canvas = canvases.removeValue(forKey: id) else { return }
         canvas.close()
+        abandonLifecycleCompletions(forCanvasID: id)
         if !hasAnchoredCanvases { stopAnchorPolling() }
         onCanvasLifecycle?(id, "removed", nil)
         onCanvasCountChanged?()
@@ -496,6 +605,7 @@ class CanvasManager {
         for id in toRemove {
             if let canvas = canvases.removeValue(forKey: id) {
                 canvas.close()
+                abandonLifecycleCompletions(forCanvasID: id)
                 onCanvasLifecycle?(id, "removed", nil)
             }
         }
@@ -989,6 +1099,7 @@ class CanvasManager {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
         canvas.close()
+        abandonLifecycleCompletions(forCanvasID: id)
         if !hasAnchoredCanvases { stopAnchorPolling() }
         onCanvasCountChanged?()
         onCanvasLifecycle?(id, "removed", nil)
@@ -1001,6 +1112,9 @@ class CanvasManager {
             canvas.close()
         }
         canvases.removeAll()
+        for id in removedIds {
+            abandonLifecycleCompletions(forCanvasID: id)
+        }
         stopAnchorPolling()
         for id in removedIds {
             onCanvasLifecycle?(id, "removed", nil)
@@ -1164,45 +1278,55 @@ class CanvasManager {
         let tree = collectTree(id)
         let suspendedInTree = tree.filter { canvases[$0]?.suspended == true }
 
-        pendingResumeACKs = Set(suspendedInTree)
         let showWindows: () -> Void = { [weak self] in
             guard let self = self else { return }
-            self.pendingResumeACKs.removeAll()
-            self.resumeCompletion = nil
             // Phase 2: atomic show
             for cid in suspendedInTree {
                 guard let c = self.canvases[cid] else { continue }
-                if c.isInteractive {
-                    c.window.makeKeyAndOrderFront(nil)
-                } else {
-                    c.window.orderFront(nil)
-                }
+                c.show()
                 c.suspended = false
             }
             self.onCanvasCountChanged?()
         }
-        resumeCompletion = showWindows
+
+        _ = awaitLifecycleCompletion(
+            canvasIDs: Set(suspendedInTree),
+            action: "resume",
+            timeout: 1.0
+        ) { completed in
+            if !completed {
+                fputs("[canvas] resume lifecycle ACK timeout; showing windows anyway\n", stderr)
+            }
+            showWindows()
+        }
 
         // Send lifecycle:resume to each renderer
         for cid in suspendedInTree {
             postMessageAsync(canvasID: cid, payload: ["type": "lifecycle", "action": "resume"])
         }
 
-        // 200ms timeout — show windows even if ACKs don't arrive
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            guard let self = self, self.resumeCompletion != nil else { return }
-            fputs("[canvas] resume ACK timeout; showing windows anyway\n", stderr)
-            self.resumeCompletion?()
-        }
-
         return .ok()
     }
 
-    /// Called when a renderer sends lifecycle.ready ACK.
+    /// Back-compat alias for older renderers that still post lifecycle.ready.
     func receiveLifecycleReady(_ canvasID: String) {
-        pendingResumeACKs.remove(canvasID)
-        if pendingResumeACKs.isEmpty, let completion = resumeCompletion {
-            completion()
+        receiveLifecycleComplete(canvasID, action: "resume")
+    }
+
+    /// Called when a renderer sends lifecycle.complete ACK for an action.
+    func receiveLifecycleComplete(_ canvasID: String, action: String) {
+        guard !action.isEmpty else { return }
+
+        let waiterIDs = lifecycleWaiters.compactMap { id, waiter in
+            waiter.action == action && waiter.pendingCanvasIDs.contains(canvasID) ? id : nil
+        }
+
+        for waiterID in waiterIDs {
+            guard let waiter = lifecycleWaiters[waiterID] else { continue }
+            waiter.pendingCanvasIDs.remove(canvasID)
+            if waiter.pendingCanvasIDs.isEmpty {
+                completeLifecycleWaiter(waiterID, success: true)
+            }
         }
     }
 

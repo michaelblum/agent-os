@@ -8,4 +8,4 @@
 export { wireBridge, emit, esc } from './bridge.js'
 export { subscribe, unsubscribe } from './subscribe.js'
 export { spawnChild, mutateSelf, removeSelf, setInteractive, move } from './canvas.js'
-export { declareManifest, emitReady, onReady } from './manifest.js'
+export { declareManifest, emitReady, emitLifecycleComplete, onReady } from './manifest.js'

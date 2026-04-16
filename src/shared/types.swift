@@ -40,15 +40,12 @@ func globalDisplayBounds() -> CGRect {
     }
 }
 
-func globalDisplayMaxY() -> CGFloat {
-    globalDisplayBounds().maxY
-}
-
 func mainDisplayHeight() -> CGFloat {
     getDisplays().first(where: \.isMain)?.bounds.height ?? 0
 }
 
-/// Convert NSEvent mouse coordinates (bottom-left origin) to CG coordinates (top-left origin).
+/// Convert AppKit mouse coordinates (bottom-left origin on the primary display)
+/// into the shared AOS global coordinate space (top-left origin on the primary display).
 func mouseInCGCoords() -> CGPoint {
     let mouse = NSEvent.mouseLocation
     let primaryHeight = mainDisplayHeight()

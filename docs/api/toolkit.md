@@ -60,6 +60,7 @@ import {
   move,
   declareManifest,
   emitReady,
+  emitLifecycleComplete,
   onReady,
 } from 'aos://toolkit/runtime/index.js'
 ```
@@ -149,6 +150,18 @@ Declares the canvas manifest on `window.headsup.manifest`.
 ### `emitReady()`
 
 Signals that the canvas is loaded and ready for host-side post-load actions.
+
+### `emitLifecycleComplete(action, payload?)`
+
+Acknowledges that a renderer-managed lifecycle transition actually finished.
+
+```js
+emitLifecycleComplete('resume')
+emitLifecycleComplete('exit', { reason: 'animation_done' })
+```
+
+Use this for transition acks such as `resume`, `enter`, or `exit` when the
+daemon should wait on real renderer completion instead of a guessed delay.
 
 ### `onReady(handler)`
 

@@ -127,14 +127,16 @@ wake before windows appear:
 
 **Phase 1 — Renderer wake (async, gated).** The daemon sends a
 `lifecycle:resume` message to each suspended canvas in the tree (target +
-cascade-eligible descendants). Each renderer is expected to restart rAF, render
-at least one frame, and reply with a `lifecycle:ready` ACK via `postToHost`.
+cascade-eligible descendants). Each renderer is expected to restart rendering
+and reply with a `lifecycle.complete` ACK for the `resume` action via
+`postToHost`.
 
-The daemon waits for all ACKs with a single **200ms timeout** (wall-clock from
+The daemon waits for all ACKs with a single **1.0s timeout** (wall-clock from
 the first resume message sent). All canvases are resumed in parallel; the gate
 opens when every canvas has ACK'd or when the timeout fires, whichever comes
-first. This is generous for a single rAF tick (~16ms) but bounded so a broken
-renderer can't block the show path.
+first. The timeout is intentionally generous enough to cover a renderer that
+needs to restart and present a current frame, but still bounded so a broken
+renderer cannot block the show path indefinitely.
 
 **If the timeout fires:** The daemon shows the window anyway and logs a warning
 (`os_log .default` or equivalent). This ensures the user always gets a response
@@ -151,7 +153,7 @@ Resuming a non-suspended canvas is a no-op (return success).
 
 Suspend is hide-then-notify because instant visual response on dismiss matters.
 Resume is notify-then-show because flashing a stale frame is worse than a
-sub-200ms delay. The user sees: click to dismiss is instant; click to summon
+short bounded delay. The user sees: click to dismiss is instant; click to summon
 shows a current frame.
 
 #### Edge cases
@@ -209,8 +211,11 @@ Delivered via the existing `headsup.receive` bridge (base64-encoded JSON):
 Via `postToHost` (same channel as `canvas.create`, `canvas.remove`):
 
 ```js
-postToHost('lifecycle.ready', { reason: 'resume' });
+postToHost('lifecycle.complete', { action: 'resume' });
 ```
+
+The daemon may continue to accept `lifecycle.ready` as a temporary back-compat
+alias for `resume`, but `lifecycle.complete` is the canonical contract.
 
 #### Renderer implementation
 
@@ -231,12 +236,11 @@ frame. CPU/GPU utilization drops to zero. WebGL context and Three.js scene
 remain allocated in memory — this is intentional. The warm scene is what makes
 resume instant.
 
-On `lifecycle:resume`: set `suspended = false`, call
-`requestAnimationFrame(animate)` to restart the loop. After the first frame
-renders, send the ACK:
+On `lifecycle:resume`: set `suspended = false`, restart the animation loop if
+needed, and send the ACK after rendering resumes:
 
 ```js
-postToHost('lifecycle.ready', { reason: 'resume' });
+postToHost('lifecycle.complete', { action: 'resume' });
 ```
 
 #### Child canvases

@@ -169,6 +169,14 @@ class UnifiedDaemon {
                         self?.canvasManager.receiveLifecycleReady(canvasID)
                     }
                     return
+                case "lifecycle.complete":
+                    let action = (inner?["action"] as? String)
+                        ?? (inner?["reason"] as? String)
+                        ?? ""
+                    DispatchQueue.main.async { [weak self] in
+                        self?.canvasManager.receiveLifecycleComplete(canvasID, action: action)
+                    }
+                    return
                 case "position.get":
                     self.handlePositionGet(callerID: canvasID, payload: inner ?? [:])
                     return

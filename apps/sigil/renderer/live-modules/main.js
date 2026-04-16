@@ -11,6 +11,7 @@ import { animateSkins } from '../skins.js';
 import { loadAgent } from '../agent-loader.js';
 import { applyAppearance } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
+import { createRenderLoopScheduler } from './render-loop.js';
 
 // Global namespace for IPC bridge
 const liveJs = {
@@ -22,10 +23,17 @@ const liveJs = {
     displays: [],
     currentState: 'IDLE',
     currentAgentId: null,
-    _resolveFirstDisplayGeometry: null
+    _resolveFirstDisplayGeometry: null,
+    _pendingLifecycleComplete: null,
 };
 window.liveJs = liveJs;
 window.state = state;
+let rendererSuspended = false;
+const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+
+function scheduleRenderFrame() {
+    renderLoop.schedule(animate);
+}
 
 // Re-export applyAppearance for live-reload
 window.applyAppearance = applyAppearance;
@@ -85,12 +93,15 @@ function init() {
     state.polyGroup.scale.set(state.z_depth, state.z_depth, state.z_depth);
 
     setupLiveJs();
-    requestAnimationFrame(animate);
+    if (!rendererSuspended) {
+        scheduleRenderFrame();
+    }
 }
 
 // --- Main Render Loop ---
 function animate() {
-    requestAnimationFrame(animate);
+    if (rendererSuspended) return;
+
     const dt = 0.016;
 
     // Advance global turbulence clock
@@ -155,6 +166,7 @@ function animate() {
             liveJs._entrance = null;
             // Bug Fix: Persist appScale=0 if it was an exit animation
             if (!e.reverse) state.appScale = 1.0;
+            postToHost('lifecycle.complete', { action: e.reverse ? 'exit' : 'enter' });
         }
     }
 
@@ -179,6 +191,13 @@ function animate() {
     state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale);
 
     state.renderer.render(state.scene, state.camera);
+
+    if (liveJs._pendingLifecycleComplete) {
+        postToHost('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
+        liveJs._pendingLifecycleComplete = null;
+    }
+
+    scheduleRenderFrame();
 }
 
 // --- IPC / LiveJs ---
@@ -215,7 +234,7 @@ function handleLiveJsMessage(msg) {
         return;
     }
     
-    // 2. Lifecycle (Enter / Exit)
+    // 2. Lifecycle (enter / exit / suspend / resume)
     if (msg.type === 'lifecycle') {
         if (msg.action === 'enter') {
             const ox = msg.origin_x || liveJs.avatarPos.x;
@@ -234,6 +253,14 @@ function handleLiveJsMessage(msg) {
                 toX: ox, toY: oy,
                 elapsed: 0, duration: 0.6, reverse: true
             };
+        } else if (msg.action === 'suspend') {
+            rendererSuspended = true;
+            renderLoop.suspend();
+        } else if (msg.action === 'resume') {
+            rendererSuspended = false;
+            renderLoop.resume();
+            liveJs._pendingLifecycleComplete = 'resume';
+            scheduleRenderFrame();
         }
         return;
     }

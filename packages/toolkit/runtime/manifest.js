@@ -16,6 +16,10 @@ export function emitReady() {
   emit('ready', window.headsup?.manifest)
 }
 
+export function emitLifecycleComplete(action, payload = {}) {
+  emit('lifecycle.complete', { ...payload, action })
+}
+
 export function onReady(handler) {
   // Convenience: wire bridge + dispatch ready handler when daemon sends it back.
   // Most consumers won't need this; included for symmetry with emitReady.

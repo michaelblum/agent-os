@@ -18,7 +18,7 @@ window.headsup.receive = function(b64) {
             if (json.action === 'resume') {
                 // ACK immediately — no rAF loop to restart
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
-                    window.webkit.messageHandlers.headsup.postMessage({ type: 'lifecycle.ready', payload: { reason: 'resume' } });
+                    window.webkit.messageHandlers.headsup.postMessage({ type: 'lifecycle.complete', payload: { action: 'resume' } });
                 }
             }
             // suspend is a no-op — no render loop to pause
