@@ -1,10 +1,9 @@
 // chrome.js — pure-DOM panel scaffold (header + drag + content slot).
 //
 // Knows nothing about messaging or contents. Just builds the visual frame
-// and reports drag deltas via raw move postMessage (daemon-supported legacy
-// relative-move type that auto-targets the calling canvas).
+// and reports absolute drag updates through the runtime canvas helper.
 
-import { move } from '../runtime/canvas.js'
+import { moveAbsolute } from '../runtime/canvas.js'
 
 export function mountChrome(container, { title = 'AOS', draggable = true } = {}) {
   container.innerHTML = ''
@@ -48,23 +47,37 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
 }
 
 function wireDrag(header, controlsEl) {
-  header.addEventListener('mousedown', (e) => {
+  header.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
     if (e.target instanceof Node && controlsEl.contains(e.target)) return
-    let lastX = e.screenX, lastY = e.screenY
+    const pointerId = e.pointerId
+    const offsetX = e.clientX
+    const offsetY = e.clientY
     header.dataset.dragging = 'true'
+    e.preventDefault()
+
+    try { header.setPointerCapture(pointerId) } catch {}
+
     const onMove = (ev) => {
-      const dx = ev.screenX - lastX
-      const dy = ev.screenY - lastY
-      lastX = ev.screenX; lastY = ev.screenY
-      // Drag deltas → Layer 1a move helper (wraps daemon's legacy relative-move).
-      move(dx, dy)
+      if (ev.pointerId !== pointerId) return
+      moveAbsolute(ev.screenX, ev.screenY, offsetX, offsetY)
     }
-    const onUp = () => {
+
+    const onUp = (ev) => {
+      if (ev && ev.pointerId !== pointerId) return
       delete header.dataset.dragging
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      header.removeEventListener('pointermove', onMove)
+      header.removeEventListener('pointerup', onUp)
+      header.removeEventListener('pointercancel', onUp)
+      header.removeEventListener('lostpointercapture', onUp)
+      try {
+        if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
+      } catch {}
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+
+    header.addEventListener('pointermove', onMove)
+    header.addEventListener('pointerup', onUp)
+    header.addEventListener('pointercancel', onUp)
+    header.addEventListener('lostpointercapture', onUp)
   })
 }

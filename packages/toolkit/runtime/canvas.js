@@ -67,3 +67,15 @@ export function move(dx, dy) {
   // from mutateSelf({frame}) which requires absolute coordinates.
   window.webkit?.messageHandlers?.headsup?.postMessage({ type: 'move', dx, dy })
 }
+
+export function moveAbsolute(screenX, screenY, offsetX, offsetY) {
+  // Absolute drag path — the daemon derives the true global mouse position
+  // from AppKit and uses the provided in-canvas offset to position the window.
+  window.webkit?.messageHandlers?.headsup?.postMessage({
+    type: 'move_abs',
+    screenX,
+    screenY,
+    offsetX,
+    offsetY,
+  })
+}

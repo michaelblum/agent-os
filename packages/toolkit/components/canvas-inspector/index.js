@@ -41,10 +41,13 @@ export default function CanvasInspector() {
     const totalW = maxX - minX
     const totalH = maxY - minY
     const mapW = getMinimapWidth()
+    const border = 1
     const inset = 2
-    const innerW = Math.max(1, mapW - inset * 2)
+    const contentW = Math.max(1, mapW - border * 2)
+    const innerW = Math.max(1, contentW - inset * 2)
     const scale = innerW / totalW
-    const mapH = Math.round(totalH * scale) + inset * 2
+    const contentH = Math.round(totalH * scale) + inset * 2
+    const mapH = contentH + border * 2
 
     let html = `<div class="minimap" style="width:${mapW}px;height:${mapH}px">`
     for (const d of displays) {
