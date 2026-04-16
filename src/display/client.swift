@@ -108,9 +108,14 @@ func resolveHTML(htmlValue: String?, fileValue: String?) -> String? {
     return nil
 }
 
-// MARK: - CLI Command: create
+// MARK: - Canvas Mutation Parsing
 
-func createCommand(args: [String]) {
+private enum CanvasMutationKind {
+    case create
+    case update
+}
+
+private struct CanvasMutationOptions {
     var id: String? = nil
     var at: String? = nil
     var anchorWindow: Int? = nil
@@ -119,104 +124,152 @@ func createCommand(args: [String]) {
     var htmlValue: String? = nil
     var fileValue: String? = nil
     var urlValue: String? = nil
-    var interactive = false
-    var focus = false
+    var interactive: Bool? = nil
+    var focus: Bool? = nil
     var ttlValue: String? = nil
     var scope: String? = nil
     var autoProject: String? = nil
     var track: String? = nil
+}
 
+private func nextCanvasArg(_ args: [String], index: inout Int, missingMessage: String, code: String = "MISSING_ARG") -> String {
+    index += 1
+    guard index < args.count else { exitError(missingMessage, code: code) }
+    return args[index]
+}
+
+private func nextCanvasIntArg(_ args: [String], index: inout Int, invalidMessage: String) -> Int {
+    let value = nextCanvasArg(args, index: &index, missingMessage: invalidMessage, code: "INVALID_ARG")
+    guard let parsed = Int(value) else { exitError(invalidMessage, code: "INVALID_ARG") }
+    return parsed
+}
+
+private func parseCanvasQuad(_ value: String, invalidMessage: String) -> [CGFloat] {
+    let parts = value.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
+    guard parts.count == 4 else { exitError(invalidMessage, code: "INVALID_ARG") }
+    return parts
+}
+
+private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKind) -> CanvasMutationOptions {
+    var options = CanvasMutationOptions()
     var i = 0
+
     while i < args.count {
         switch args[i] {
         case "--id":
-            i += 1; guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
-            id = args[i]
+            options.id = nextCanvasArg(args, index: &i, missingMessage: "--id requires a value")
         case "--at":
-            i += 1; guard i < args.count else { exitError("--at requires x,y,w,h", code: "MISSING_ARG") }
-            at = args[i]
+            options.at = nextCanvasArg(args, index: &i, missingMessage: "--at requires x,y,w,h")
         case "--anchor-window":
-            i += 1; guard i < args.count, let w = Int(args[i]) else { exitError("--anchor-window requires an integer", code: "INVALID_ARG") }
-            anchorWindow = w
+            options.anchorWindow = nextCanvasIntArg(args, index: &i, invalidMessage: "--anchor-window requires an integer")
         case "--anchor-channel":
-            i += 1; guard i < args.count else { exitError("--anchor-channel requires a channel ID", code: "MISSING_ARG") }
-            anchorChannel = args[i]
+            options.anchorChannel = nextCanvasArg(args, index: &i, missingMessage: "--anchor-channel requires a channel ID")
         case "--offset":
-            i += 1; guard i < args.count else { exitError("--offset requires x,y,w,h", code: "MISSING_ARG") }
-            offset = args[i]
+            options.offset = nextCanvasArg(args, index: &i, missingMessage: "--offset requires x,y,w,h")
         case "--html":
-            i += 1; guard i < args.count else { exitError("--html requires a value", code: "MISSING_ARG") }
-            htmlValue = args[i]
+            options.htmlValue = nextCanvasArg(args, index: &i, missingMessage: "--html requires a value")
         case "--file":
-            i += 1; guard i < args.count else { exitError("--file requires a path", code: "MISSING_ARG") }
-            fileValue = args[i]
+            options.fileValue = nextCanvasArg(args, index: &i, missingMessage: "--file requires a path")
         case "--url":
-            i += 1; guard i < args.count else { exitError("--url requires a value", code: "MISSING_ARG") }
-            urlValue = args[i]
+            options.urlValue = nextCanvasArg(args, index: &i, missingMessage: "--url requires a value")
         case "--interactive":
-            interactive = true
+            options.interactive = true
+        case "--no-interactive":
+            guard kind == .update else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
+            options.interactive = false
         case "--focus":
-            focus = true
+            options.focus = true
+        case "--no-focus":
+            guard kind == .update else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
+            options.focus = false
         case "--ttl":
-            i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
-            ttlValue = args[i]
+            options.ttlValue = nextCanvasArg(args, index: &i, missingMessage: "--ttl requires a duration (e.g. 5s, 10m)")
         case "--scope":
-            i += 1; guard i < args.count else { exitError("--scope requires 'connection' or 'global'", code: "MISSING_ARG") }
-            scope = args[i]
+            guard kind == .create else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
+            let scope = nextCanvasArg(args, index: &i, missingMessage: "--scope requires 'connection' or 'global'")
             guard scope == "connection" || scope == "global" else {
                 exitError("--scope must be 'connection' or 'global'", code: "INVALID_ARG")
             }
+            options.scope = scope
         case "--auto-project":
-            i += 1; guard i < args.count else { exitError("--auto-project requires a mode (cursor_trail, highlight_focused, label_elements)", code: "MISSING_ARG") }
-            autoProject = args[i]
+            guard kind == .create else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
+            options.autoProject = nextCanvasArg(
+                args,
+                index: &i,
+                missingMessage: "--auto-project requires a mode (cursor_trail, highlight_focused, label_elements)"
+            )
         case "--track":
-            i += 1; guard i < args.count else { exitError("--track requires a target (e.g. 'union')", code: "MISSING_ARG") }
-            track = args[i]
-            // v1: only 'union' is supported
+            let track = nextCanvasArg(args, index: &i, missingMessage: "--track requires a target (e.g. 'union')")
             guard track == "union" else {
-                exitError("Unknown --track target: \(track ?? ""). Supported: union", code: "INVALID_ARG")
+                exitError("Unknown --track target: \(track). Supported: union", code: "INVALID_ARG")
             }
+            options.track = track
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
         i += 1
     }
 
-    guard let canvasID = id else { exitError("create requires --id <name>", code: "MISSING_ARG") }
+    return options
+}
 
-    var request = CanvasRequest(action: "create")
-    request.id = canvasID
-    request.interactive = interactive
-    if focus { request.focus = true }
-    request.scope = scope
-
-    if let ttlStr = ttlValue {
+private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to request: inout CanvasRequest, kind: CanvasMutationKind) {
+    if let ttlStr = options.ttlValue {
         request.ttl = parseDuration(ttlStr)
     }
 
-    if let atStr = at {
-        let parts = atStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
-        guard parts.count == 4 else { exitError("--at must be x,y,w,h (comma-separated)", code: "INVALID_ARG") }
-        request.at = parts
-    }
-    if track != nil && at != nil {
+    if options.track != nil && options.at != nil {
         exitError("cannot combine --at with --track (pick one)", code: "INVALID_ARG")
     }
-    if let aw = anchorWindow { request.anchorWindow = aw }
-    if let ac = anchorChannel { request.anchorChannel = ac }
-    if let offStr = offset {
-        let parts = offStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
-        guard parts.count == 4 else { exitError("--offset must be x,y,w,h (comma-separated)", code: "INVALID_ARG") }
-        request.offset = parts
-    }
-    if let ap = autoProject { request.autoProject = ap }
-    if let t = track { request.track = t }
 
-    if let url = urlValue {
-        request.url = url
-    } else if autoProject == nil {
-        request.html = resolveHTML(htmlValue: htmlValue, fileValue: fileValue)
+    if let atStr = options.at {
+        let invalidMessage = kind == .create
+            ? "--at must be x,y,w,h (comma-separated)"
+            : "--at must be x,y,w,h"
+        request.at = parseCanvasQuad(atStr, invalidMessage: invalidMessage)
     }
+
+    if let aw = options.anchorWindow { request.anchorWindow = aw }
+    if let ac = options.anchorChannel { request.anchorChannel = ac }
+
+    if let offStr = options.offset {
+        let invalidMessage = kind == .create
+            ? "--offset must be x,y,w,h (comma-separated)"
+            : "--offset must be x,y,w,h"
+        request.offset = parseCanvasQuad(offStr, invalidMessage: invalidMessage)
+    }
+
+    if let scope = options.scope { request.scope = scope }
+    if let autoProject = options.autoProject { request.autoProject = autoProject }
+    if let track = options.track { request.track = track }
+
+    if let url = options.urlValue {
+        request.url = url
+    } else {
+        switch kind {
+        case .create:
+            if options.autoProject == nil {
+                request.html = resolveHTML(htmlValue: options.htmlValue, fileValue: options.fileValue)
+            }
+        case .update:
+            if options.htmlValue != nil || options.fileValue != nil {
+                request.html = resolveHTML(htmlValue: options.htmlValue, fileValue: options.fileValue)
+            }
+        }
+    }
+}
+
+// MARK: - CLI Command: create
+
+func createCommand(args: [String]) {
+    let options = parseCanvasMutationOptions(args, kind: .create)
+    guard let canvasID = options.id else { exitError("create requires --id <name>", code: "MISSING_ARG") }
+
+    var request = CanvasRequest(action: "create")
+    request.id = canvasID
+    request.interactive = options.interactive ?? false
+    if options.focus == true { request.focus = true }
+    applyCanvasMutationOptions(options, to: &request, kind: .create)
 
     let client = DaemonClient()
     if !client.ensureDaemon() {
@@ -229,102 +282,14 @@ func createCommand(args: [String]) {
 // MARK: - CLI Command: update
 
 func updateCommand(args: [String]) {
-    var id: String? = nil
-    var at: String? = nil
-    var anchorWindow: Int? = nil
-    var anchorChannel: String? = nil
-    var offset: String? = nil
-    var htmlValue: String? = nil
-    var fileValue: String? = nil
-    var urlValue: String? = nil
-    var interactive: Bool? = nil
-    var focus: Bool? = nil
-    var ttlValue: String? = nil
-    var track: String? = nil
-
-    var i = 0
-    while i < args.count {
-        switch args[i] {
-        case "--id":
-            i += 1; guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
-            id = args[i]
-        case "--at":
-            i += 1; guard i < args.count else { exitError("--at requires x,y,w,h", code: "MISSING_ARG") }
-            at = args[i]
-        case "--anchor-window":
-            i += 1; guard i < args.count, let w = Int(args[i]) else { exitError("--anchor-window requires an integer", code: "INVALID_ARG") }
-            anchorWindow = w
-        case "--anchor-channel":
-            i += 1; guard i < args.count else { exitError("--anchor-channel requires a channel ID", code: "MISSING_ARG") }
-            anchorChannel = args[i]
-        case "--offset":
-            i += 1; guard i < args.count else { exitError("--offset requires x,y,w,h", code: "MISSING_ARG") }
-            offset = args[i]
-        case "--html":
-            i += 1; guard i < args.count else { exitError("--html requires a value", code: "MISSING_ARG") }
-            htmlValue = args[i]
-        case "--file":
-            i += 1; guard i < args.count else { exitError("--file requires a path", code: "MISSING_ARG") }
-            fileValue = args[i]
-        case "--url":
-            i += 1; guard i < args.count else { exitError("--url requires a value", code: "MISSING_ARG") }
-            urlValue = args[i]
-        case "--interactive":
-            interactive = true
-        case "--no-interactive":
-            interactive = false
-        case "--focus":
-            focus = true
-        case "--no-focus":
-            focus = false
-        case "--ttl":
-            i += 1; guard i < args.count else { exitError("--ttl requires a duration (e.g. 5s, 10m)", code: "MISSING_ARG") }
-            ttlValue = args[i]
-        case "--track":
-            i += 1; guard i < args.count else { exitError("--track requires a target (e.g. 'union')", code: "MISSING_ARG") }
-            track = args[i]
-            guard track == "union" else {
-                exitError("Unknown --track target: \(track ?? ""). Supported: union", code: "INVALID_ARG")
-            }
-        default:
-            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
-        }
-        i += 1
-    }
-
-    guard let canvasID = id else { exitError("update requires --id <name>", code: "MISSING_ARG") }
+    let options = parseCanvasMutationOptions(args, kind: .update)
+    guard let canvasID = options.id else { exitError("update requires --id <name>", code: "MISSING_ARG") }
 
     var request = CanvasRequest(action: "update")
     request.id = canvasID
-    request.interactive = interactive
-    request.focus = focus
-
-    if let ttlStr = ttlValue {
-        request.ttl = parseDuration(ttlStr)
-    }
-
-    if track != nil && at != nil {
-        exitError("cannot combine --at with --track (pick one)", code: "INVALID_ARG")
-    }
-
-    if let atStr = at {
-        let parts = atStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
-        guard parts.count == 4 else { exitError("--at must be x,y,w,h", code: "INVALID_ARG") }
-        request.at = parts
-    }
-    if let aw = anchorWindow { request.anchorWindow = aw }
-    if let ac = anchorChannel { request.anchorChannel = ac }
-    if let offStr = offset {
-        let parts = offStr.split(separator: ",").compactMap { CGFloat(Double($0) ?? 0) }
-        guard parts.count == 4 else { exitError("--offset must be x,y,w,h", code: "INVALID_ARG") }
-        request.offset = parts
-    }
-    if let url = urlValue {
-        request.url = url
-    } else if htmlValue != nil || fileValue != nil {
-        request.html = resolveHTML(htmlValue: htmlValue, fileValue: fileValue)
-    }
-    if let t = track { request.track = t }
+    request.interactive = options.interactive
+    request.focus = options.focus
+    applyCanvasMutationOptions(options, to: &request, kind: .update)
 
     let client = DaemonClient()
     guard let fd = client.connect() else {
