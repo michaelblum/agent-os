@@ -34,9 +34,9 @@ let outNone = OutputMeta(defaultMode: .none, streaming: false, supportsJsonFlag:
 let outFile = OutputMeta(defaultMode: .none, streaming: false, supportsJsonFlag: false, errorMode: "json_stderr")
 
 /// Shorthand for a simple flag arg
-func flag(_ id: String, _ token: String, _ summary: String, type: ValueType = .string, required: Bool = false, default defaultVal: JSONValue? = nil) -> ArgDescriptor {
+func flag(_ id: String, _ token: String, _ summary: String, type: ValueType = .string, required: Bool = false, default defaultVal: JSONValue? = nil, variadic: Bool = false, discovery: [DiscoverySource]? = nil) -> ArgDescriptor {
     ArgDescriptor(id: id, kind: .flag, token: token, summary: summary, valueType: type,
-                  required: required, defaultValue: defaultVal, variadic: false, discovery: nil)
+                  required: required, defaultValue: defaultVal, variadic: variadic, discovery: discovery)
 }
 
 /// Shorthand for a positional arg
@@ -455,6 +455,531 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos do profiles", "aos do profiles natural"])
     ]))
 
-    // ── continued in Task 4 ──
+    // ── say ───────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["say"], summary: "Voice — speak text aloud (sugar for tell human)", forms: [
+        InvocationForm(id: "say-text", usage: "aos say [--voice id] [--rate wpm] <text>",
+            args: [
+                flag("voice", "--voice", "Voice identifier", discovery: [.command(path: ["say"], formId: "say-list-voices")]),
+                flag("rate", "--rate", "Speech rate in WPM", type: .int),
+                pos("text", "Text to speak", required: false, variadic: true)
+            ],
+            stdin: StdinDescriptor(supported: true, usedWhen: "no text args provided", contentType: "text"),
+            constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos say \"Hello, I'm your agent\"", "echo 'status' | aos say"]),
+        InvocationForm(id: "say-list-voices", usage: "aos say --list-voices",
+            args: [flag("list-voices", "--list-voices", "List available system voices", type: .bool, required: true)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos say --list-voices"])
+    ]))
+
+    // ── tell ──────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["tell"], summary: "Communication — send to human, channel, or session", forms: [
+        InvocationForm(id: "tell-message", usage: "aos tell <audience> [--json <payload>] [--from <name>] [<text> | stdin]",
+            args: [
+                pos("audience", "Target: human, channel name, or session name", discovery: [
+                    .staticValues(["human"]),
+                    .command(path: ["listen"], formId: "listen-channels"),
+                    .command(path: ["tell"], formId: "tell-who")
+                ]),
+                flag("json", "--json", "Structured JSON payload", type: .json),
+                flag("from", "--from", "Sender name"),
+                pos("text", "Message text", required: false, variadic: true)
+            ],
+            stdin: StdinDescriptor(supported: true, usedWhen: "no text and no --json", contentType: "text"),
+            constraints: ConstraintSet(requires: nil, conflicts: nil, oneOf: [["text", "stdin", "json"]], implies: nil),
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: [
+                "aos tell human \"Found the bug\"",
+                "aos tell handoff \"task complete\" --from my-session",
+                "echo 'update' | aos tell handoff"
+            ]),
+        InvocationForm(id: "tell-register", usage: "aos tell --register <name> [--role <role>] [--harness <harness>]",
+            args: [
+                flag("register", "--register", "Register session presence with this name", required: true),
+                flag("role", "--role", "Session role",
+                     type: .enumeration([
+                        EnumValue(value: "worker", summary: "Default worker session"),
+                        EnumValue(value: "coordinator", summary: "Orchestrating session"),
+                        EnumValue(value: "observer", summary: "Read-only monitoring session")
+                     ]), default: .string("worker")),
+                flag("harness", "--harness", "Agent harness identifier", default: .string("unknown"))
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos tell --register my-session", "aos tell --register builder --role worker --harness claude-code"]),
+        InvocationForm(id: "tell-who", usage: "aos tell --who",
+            args: [flag("who", "--who", "List online sessions", type: .bool, required: true)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos tell --who"])
+    ]))
+
+    // ── listen ────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["listen"], summary: "Communication — receive from channels", forms: [
+        InvocationForm(id: "listen-read", usage: "aos listen <channel> [--since id] [--limit N]",
+            args: [
+                pos("channel", "Channel to read from", discovery: [.command(path: ["listen"], formId: "listen-channels")]),
+                flag("since", "--since", "Read messages after this ID"),
+                flag("limit", "--limit", "Max messages to return", type: .int, default: .int(50))
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos listen handoff", "aos listen handoff --limit 10"]),
+        InvocationForm(id: "listen-follow", usage: "aos listen <channel> --follow [--since id] [--limit N]",
+            args: [
+                pos("channel", "Channel to follow"),
+                flag("follow", "--follow", "Stream messages in real-time", type: .bool, required: true),
+                flag("since", "--since", "Start after this message ID"),
+                flag("limit", "--limit", "Initial backfill limit", type: .int, default: .int(50))
+            ],
+            stdin: nil, constraints: nil,
+            execution: execStreaming(daemon: true),
+            output: outNDJSON,
+            examples: ["aos listen handoff --follow"]),
+        InvocationForm(id: "listen-channels", usage: "aos listen --channels",
+            args: [flag("channels", "--channels", "List known channels", type: .bool, required: true)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos listen --channels"])
+    ]))
+
+    // ── set ───────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["set"], summary: "Configure autonomic settings", forms: [
+        InvocationForm(id: "set-value", usage: "aos set <key> <value>",
+            args: [
+                pos("key", "Config key (e.g. voice.enabled, perception.default_depth)"),
+                pos("value", "New value")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos set voice.enabled true", "aos set perception.default_depth 2"]),
+        InvocationForm(id: "set-dump", usage: "aos set",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos set"])
+    ]))
+
+    // ── focus ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["focus"], summary: "Focus channels — track window AX trees", forms: [
+        InvocationForm(id: "focus-create", usage: "aos focus create --id <name> --window <wid> [options]",
+            args: [
+                flag("id", "--id", "Channel name", required: true),
+                flag("window", "--window", "Window ID to track", type: .int, required: true),
+                flag("pid", "--pid", "Process ID", type: .int),
+                flag("depth", "--depth", "AX traversal depth", type: .int),
+                flag("subtree-role", "--subtree-role", "Filter by AX role"),
+                flag("subtree-title", "--subtree-title", "Filter by title"),
+                flag("subtree-identifier", "--subtree-identifier", "Filter by identifier")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos focus create --id work --window 1234 --depth 2"]),
+        InvocationForm(id: "focus-update", usage: "aos focus update --id <name> [options]",
+            args: [
+                flag("id", "--id", "Channel name", required: true),
+                flag("depth", "--depth", "New traversal depth", type: .int),
+                flag("subtree-role", "--subtree-role", "New role filter"),
+                flag("subtree-title", "--subtree-title", "New title filter"),
+                flag("subtree-identifier", "--subtree-identifier", "New identifier filter")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos focus update --id work --depth 3"]),
+        InvocationForm(id: "focus-list", usage: "aos focus list",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos focus list"]),
+        InvocationForm(id: "focus-remove", usage: "aos focus remove --id <name>",
+            args: [flag("id", "--id", "Channel name", required: true)],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos focus remove --id work"])
+    ]))
+
+    // ── graph ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["graph"], summary: "Graph navigation — display/window/depth control", forms: [
+        InvocationForm(id: "graph-displays", usage: "aos graph displays",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos graph displays"]),
+        InvocationForm(id: "graph-windows", usage: "aos graph windows [--display N]",
+            args: [flag("display", "--display", "Display index", type: .int)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos graph windows"]),
+        InvocationForm(id: "graph-deepen", usage: "aos graph deepen --id <id> [options]",
+            args: [
+                flag("id", "--id", "Node ID to expand", required: true),
+                flag("depth", "--depth", "Depth increment", type: .int),
+                flag("subtree-role", "--subtree-role", "Filter by role"),
+                flag("subtree-title", "--subtree-title", "Filter by title"),
+                flag("subtree-identifier", "--subtree-identifier", "Filter by identifier")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos graph deepen --id node-1 --depth 2"]),
+        InvocationForm(id: "graph-collapse", usage: "aos graph collapse --id <id> [--depth N]",
+            args: [
+                flag("id", "--id", "Node ID to collapse", required: true),
+                flag("depth", "--depth", "Depth decrement", type: .int)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos graph collapse --id node-1"])
+    ]))
+
+    // ── daemon-snapshot ───────────────────────────────────
+    reg.append(CommandDescriptor(path: ["daemon-snapshot"], summary: "Daemon state snapshot", forms: [
+        InvocationForm(id: "daemon-snapshot", usage: "aos daemon-snapshot",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos daemon-snapshot"])
+    ]))
+
+    // ── serve ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["serve"], summary: "Start the unified daemon", forms: [
+        InvocationForm(id: "serve", usage: "aos serve [--idle-timeout duration]",
+            args: [flag("idle-timeout", "--idle-timeout", "Idle timeout (e.g. 5m, none)", default: .string("5m"))],
+            stdin: nil, constraints: nil,
+            execution: ExecutionMeta(readOnly: false, mutatesState: true, interactive: false, streaming: true,
+                                     autoStartsDaemon: false, requiresPermissions: false, supportsDryRun: false),
+            output: outNone,
+            examples: ["aos serve", "aos serve --idle-timeout none"])
+    ]))
+
+    // ── content ───────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["content"], summary: "Content server management", forms: [
+        InvocationForm(id: "content-status", usage: "aos content status [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSONFlag,
+            examples: ["aos content status", "aos content status --json"])
+    ]))
+
+    // ── service ───────────────────────────────────────────
+    let serviceMode = flag("mode", "--mode", "Runtime mode",
+        type: .enumeration([
+            EnumValue(value: "repo", summary: "Development repo mode"),
+            EnumValue(value: "installed", summary: "Installed AOS.app mode")
+        ]))
+
+    reg.append(CommandDescriptor(path: ["service"], summary: "Manage the daemon as a launchd service", forms: [
+        InvocationForm(id: "service-install", usage: "aos service install [--mode repo|installed] [--json]",
+            args: [serviceMode],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos service install", "aos service install --mode repo --json"]),
+        InvocationForm(id: "service-start", usage: "aos service start [--mode repo|installed] [--json]",
+            args: [serviceMode],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos service start"]),
+        InvocationForm(id: "service-stop", usage: "aos service stop [--mode repo|installed] [--json]",
+            args: [serviceMode],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos service stop"]),
+        InvocationForm(id: "service-restart", usage: "aos service restart [--mode repo|installed] [--json]",
+            args: [serviceMode],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos service restart"]),
+        InvocationForm(id: "service-status", usage: "aos service status [--mode repo|installed] [--json]",
+            args: [serviceMode],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos service status --json"]),
+        InvocationForm(id: "service-logs", usage: "aos service logs [--mode repo|installed] [--tail N]",
+            args: [
+                serviceMode,
+                flag("tail", "--tail", "Number of lines to show", type: .int)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outText,
+            examples: ["aos service logs --tail 50"])
+    ]))
+
+    // ── runtime ───────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["runtime"], summary: "Package/sign/install the stable AOS.app runtime", forms: [
+        InvocationForm(id: "runtime-install", usage: "aos runtime install [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos runtime install"]),
+        InvocationForm(id: "runtime-status", usage: "aos runtime status [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos runtime status --json"]),
+        InvocationForm(id: "runtime-path", usage: "aos runtime path [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos runtime path"]),
+        InvocationForm(id: "runtime-sign", usage: "aos runtime sign",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outText,
+            examples: ["aos runtime sign"]),
+        InvocationForm(id: "runtime-display-union", usage: "aos runtime display-union",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outText,
+            examples: ["aos runtime display-union"])
+    ]))
+
+    // ── doctor ────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["doctor"], summary: "Runtime and permission health checks", forms: [
+        InvocationForm(id: "doctor", usage: "aos doctor [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos doctor --json"])
+    ]))
+
+    // ── reset ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["reset"], summary: "Deterministic cleanup for repo/installed runtime state", forms: [
+        InvocationForm(id: "reset", usage: "aos reset [--mode current|repo|installed|all] [--json]",
+            args: [
+                flag("mode", "--mode", "Cleanup scope",
+                     type: .enumeration([
+                        EnumValue(value: "current", summary: "Current runtime mode only"),
+                        EnumValue(value: "repo", summary: "Repo mode state"),
+                        EnumValue(value: "installed", summary: "Installed mode state"),
+                        EnumValue(value: "all", summary: "All modes")
+                     ]), default: .string("current"))
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos reset", "aos reset --mode all --json"])
+    ]))
+
+    // ── clean ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["clean"], summary: "Session-boundary cleanup (stale daemons, orphaned canvases)", forms: [
+        InvocationForm(id: "clean", usage: "aos clean [--dry-run] [--json]",
+            args: [flag("dry-run", "--dry-run", "Show what would be cleaned without doing it", type: .bool)],
+            stdin: nil, constraints: nil,
+            execution: execMutating(dryRun: true),
+            output: outJSONFlag,
+            examples: ["aos clean", "aos clean --dry-run --json"])
+    ]))
+
+    // ── permissions ───────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["permissions"], summary: "Permission preflight and one-time onboarding", forms: [
+        InvocationForm(id: "permissions-check", usage: "aos permissions check [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos permissions check --json"]),
+        InvocationForm(id: "permissions-preflight", usage: "aos permissions preflight [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos permissions preflight --json"]),
+        InvocationForm(id: "permissions-setup", usage: "aos permissions setup [--once] [--json]",
+            args: [flag("once", "--once", "Run only if not already completed", type: .bool)],
+            stdin: nil, constraints: nil,
+            execution: execInteractive(daemon: false),
+            output: outJSONFlag,
+            examples: ["aos permissions setup --once"])
+    ]))
+
+    // ── inspect ───────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["inspect"], summary: "Live AX element inspector overlay", forms: [
+        InvocationForm(id: "inspect", usage: "aos inspect [--at x,y,w,h] [--size w,h]",
+            args: [
+                flag("at", "--at", "Inspector position as x,y,w,h"),
+                flag("size", "--size", "Inspector size as w,h")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execInteractive(daemon: true, permissions: true),
+            output: outNDJSON,
+            examples: ["aos inspect", "aos inspect --at 0,0,400,300"])
+    ]))
+
+    // ── log ───────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["log"], summary: "Display log console panel", forms: [
+        InvocationForm(id: "log-stream", usage: "echo lines | aos log [--at x,y,w,h] [--level level]",
+            args: [
+                flag("at", "--at", "Log panel position as x,y,w,h"),
+                flag("level", "--level", "Log level filter",
+                     type: .enumeration([
+                        EnumValue(value: "debug", summary: "All messages"),
+                        EnumValue(value: "info", summary: "Info and above"),
+                        EnumValue(value: "warn", summary: "Warnings and errors"),
+                        EnumValue(value: "error", summary: "Errors only")
+                     ]))
+            ],
+            stdin: StdinDescriptor(supported: true, usedWhen: "streaming mode (default)", contentType: "text"),
+            constraints: nil,
+            execution: execStreaming(daemon: true),
+            output: outNDJSON,
+            examples: ["echo 'hello' | aos log", "tail -f /var/log/app.log | aos log"]),
+        InvocationForm(id: "log-push", usage: "aos log push <message> [--level level]",
+            args: [
+                pos("message", "Log message", variadic: true),
+                flag("level", "--level", "Log level",
+                     type: .enumeration([
+                        EnumValue(value: "debug", summary: "Debug level"),
+                        EnumValue(value: "info", summary: "Info level (default)"),
+                        EnumValue(value: "warn", summary: "Warning level"),
+                        EnumValue(value: "error", summary: "Error level")
+                     ]), default: .string("info"))
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos log push \"test message\"", "aos log push \"error occurred\" --level error"]),
+        InvocationForm(id: "log-clear", usage: "aos log clear",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos log clear"])
+    ]))
+
+    // ── wiki ──────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["wiki"], summary: "Knowledge base — browse, search, invoke workflow plugins", forms: [
+        InvocationForm(id: "wiki-create-plugin", usage: "aos wiki create-plugin <name> [--json]",
+            args: [pos("name", "Plugin name")],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki create-plugin my-flow"]),
+        InvocationForm(id: "wiki-add", usage: "aos wiki add <type> <name> [--json]",
+            args: [
+                pos("type", "Page type",
+                    type: .enumeration([
+                        EnumValue(value: "entity", summary: "Entity page (thing in the system)"),
+                        EnumValue(value: "concept", summary: "Concept page (idea or pattern)")
+                    ])),
+                pos("name", "Page name")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki add entity gateway"]),
+        InvocationForm(id: "wiki-rm", usage: "aos wiki rm <path> [--json]",
+            args: [pos("path", "Page path or name")],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki rm gateway"]),
+        InvocationForm(id: "wiki-list", usage: "aos wiki list [--type type] [--plugin name] [--links-to path] [--links-from path] [--orphans] [--json]",
+            args: [
+                flag("type", "--type", "Filter by page type"),
+                flag("plugin", "--plugin", "Filter by plugin"),
+                flag("links-to", "--links-to", "Pages linking to this path"),
+                flag("links-from", "--links-from", "Pages linked from this path"),
+                flag("orphans", "--orphans", "Show orphaned pages", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki list", "aos wiki list --type workflow --json"]),
+        InvocationForm(id: "wiki-search", usage: "aos wiki search <query> [--type type] [--json]",
+            args: [
+                pos("query", "Search query", variadic: true),
+                flag("type", "--type", "Filter by page type")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki search \"IPC protocol\""]),
+        InvocationForm(id: "wiki-show", usage: "aos wiki show <name> [--raw] [--json]",
+            args: [
+                pos("name", "Page path or name"),
+                flag("raw", "--raw", "Show raw markdown", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki show gateway --json"]),
+        InvocationForm(id: "wiki-link", usage: "aos wiki link <from> <to> [--json]",
+            args: [
+                pos("from", "Source page path"),
+                pos("to", "Target page path")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki link gateway daemon"]),
+        InvocationForm(id: "wiki-invoke", usage: "aos wiki invoke <plugin> [--json]",
+            args: [pos("plugin", "Plugin name to invoke")],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki invoke self-check"]),
+        InvocationForm(id: "wiki-reindex", usage: "aos wiki reindex [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki reindex"]),
+        InvocationForm(id: "wiki-lint", usage: "aos wiki lint [--fix] [--json]",
+            args: [flag("fix", "--fix", "Auto-fix issues", type: .bool)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki lint", "aos wiki lint --fix --json"]),
+        InvocationForm(id: "wiki-seed", usage: "aos wiki seed [--force] [--namespace ns] [--file name:path ...] [--json]",
+            args: [
+                flag("force", "--force", "Overwrite existing pages", type: .bool),
+                flag("namespace", "--namespace", "Target namespace"),
+                flag("file", "--file", "File mappings (name:path)", variadic: true),
+                flag("from", "--from", "Source directory path")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki seed", "aos wiki seed --force --namespace sigil"]),
+        InvocationForm(id: "wiki-migrate-namespaces", usage: "aos wiki migrate-namespaces",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki migrate-namespaces"])
+    ]))
+
     return reg
 }
