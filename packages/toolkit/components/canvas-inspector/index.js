@@ -16,8 +16,7 @@ export default function CanvasInspector() {
 
   function rerender() {
     if (!contentEl) return
-    const filtered = canvases.filter(c => c.id !== SELF_ID)
-    contentEl.innerHTML = renderMinimap(filtered) + renderList(filtered)
+    contentEl.innerHTML = renderMinimap(canvases) + renderList(canvases)
     bindListEvents()
   }
 
@@ -68,7 +67,7 @@ export default function CanvasInspector() {
     }
     let html = '<div class="canvas-list">'
     for (const c of list) {
-      const cls = 'canvas-item'
+      const cls = c.id === SELF_ID ? 'canvas-item self' : 'canvas-item'
       const [x, y, w, h] = c.at || [0, 0, 0, 0]
       const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
       html += `<div class="${cls}" data-id="${esc(c.id)}">`

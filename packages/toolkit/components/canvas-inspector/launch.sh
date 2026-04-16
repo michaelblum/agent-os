@@ -38,8 +38,26 @@ $AOS show create --id "$CANVAS_ID" \
   --interactive \
   --url 'aos://toolkit/components/canvas-inspector/index.html'
 
-# Wait for the page to wire its bridge
-sleep 0.5
+# Wait for the page to wire its bridge + manifest before seeding bootstrap.
+for _ in $(seq 1 30); do
+  READY_JSON=$($AOS show eval --id "$CANVAS_ID" --js '
+    (window.headsup &&
+     typeof window.headsup.receive === "function" &&
+     window.headsup.manifest &&
+     window.headsup.manifest.name === "canvas-inspector") ? "ready" : "wait"
+  ' 2>/dev/null || true)
+  if printf '%s' "$READY_JSON" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if payload.get("result") == "ready" else 1)
+' 2>/dev/null; then
+    break
+  fi
+  sleep 0.1
+done
 
 # Seed initial canvas list + display info via prefixed bootstrap message.
 # (Channel router strips the canvas-inspector/ prefix and delivers

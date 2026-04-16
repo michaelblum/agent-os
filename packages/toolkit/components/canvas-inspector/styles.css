@@ -13,6 +13,7 @@
 }
 .minimap-display {
   position: absolute;
+  box-sizing: border-box;
   border: 1px solid rgba(100, 100, 140, 0.3);
   border-radius: 2px;
   background: rgba(30, 30, 50, 0.4);
@@ -26,6 +27,7 @@
 }
 .minimap-canvas {
   position: absolute;
+  box-sizing: border-box;
   border: 1px solid var(--accent-blue);
   border-radius: 1px;
   background: rgba(138, 180, 255, 0.15);

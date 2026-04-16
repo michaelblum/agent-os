@@ -205,6 +205,13 @@ class Canvas {
     var cascadeFromParent: Bool = true
     var parent: String?
 
+    /// Apply a global NSScreen-space frame without letting AppKit reinterpret
+    /// the rect in a screen-local coordinate space for spanning windows.
+    private func applyScreenFrame(_ screenFrame: NSRect) {
+        window.setContentSize(screenFrame.size)
+        window.setFrameOrigin(screenFrame.origin)
+    }
+
     func setTTL(_ seconds: Double?) {
         ttlTimer?.cancel()
         ttlTimer = nil
@@ -268,6 +275,8 @@ class Canvas {
         webView.autoresizingMask = [.width, .height]
 
         window.contentView = webView
+        window.setContentSize(screenFrame.size)
+        window.setFrameOrigin(screenFrame.origin)
 
         self.window = window
         self.webView = webView
@@ -312,7 +321,7 @@ class Canvas {
 
     func updatePosition(cgRect: CGRect) {
         let screenFrame = cgToScreen(cgRect)
-        window.setFrame(screenFrame, display: true)
+        applyScreenFrame(screenFrame)
         // macOS window server may reject cross-display moves on the first frame.
         // Store the intended position and retry on the next run loop cycle.
         let actual = screenToCG(window.frame)
@@ -322,10 +331,10 @@ class Canvas {
                 guard let self = self, let pending = self.pendingCGFrame else { return }
                 self.pendingCGFrame = nil
                 let retry = cgToScreen(pending)
-                self.window.setFrame(retry, display: true)
+                self.applyScreenFrame(retry)
                 // Double-tap: some display transitions need two attempts
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                    self?.window.setFrame(retry, display: true)
+                    self?.applyScreenFrame(retry)
                 }
             }
         }
