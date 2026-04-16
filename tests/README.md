@@ -52,10 +52,11 @@ These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.
 
-Do not call daemon auto-starting commands such as `aos doctor` before isolated
-tests finish writing required config like `content.roots.toolkit`. Preflight
-checks should use non-daemon surfaces such as `aos permissions check --json`
-and `aos graph displays --json`, then start the isolated daemon explicitly.
+Do not call daemon auto-starting commands such as `aos doctor`, `aos show ping`,
+or `aos graph displays` before isolated tests finish writing required config like
+`content.roots.toolkit`. Preflight checks should use non-daemon surfaces such as
+`aos permissions check --json`, then start the isolated daemon explicitly and
+wait on the isolated socket helper in `tests/lib/isolated-daemon.sh`.
 
 Examples:
 

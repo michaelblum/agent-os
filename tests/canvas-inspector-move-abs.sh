@@ -15,16 +15,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wait_for_ping() {
-  for _ in $(seq 1 50); do
-    if ./aos show ping >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
 if ! python3 - <<'PY'
 import json, subprocess
 perms = json.loads(subprocess.check_output(["./aos", "permissions", "check", "--json"], text=True)).get("permissions", {})
@@ -41,7 +31,7 @@ fi
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
 
 ./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
-wait_for_ping || { echo "FAIL: isolated daemon did not become reachable"; exit 1; }
+aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
 
 if ! python3 - <<'PY'
 import json, subprocess

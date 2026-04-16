@@ -76,6 +76,27 @@ func aosRepoPath(_ relativePath: String) -> String {
     NSString(string: (findAgentOSRepoRoot() as NSString).appendingPathComponent(relativePath)).standardizingPath
 }
 
+func jsStringLiteral(_ value: String) -> String {
+    var out = "\""
+    for scalar in value.unicodeScalars {
+        switch scalar {
+        case "\"": out += "\\\""
+        case "\\": out += "\\\\"
+        case "\n": out += "\\n"
+        case "\r": out += "\\r"
+        case "\t": out += "\\t"
+        default:
+            if scalar.value < 0x20 {
+                out += String(format: "\\u%04X", scalar.value)
+            } else {
+                out.append(String(scalar))
+            }
+        }
+    }
+    out += "\""
+    return out
+}
+
 // MARK: - Canvas Bridge Helpers
 
 /// Deliver a JSON payload to a canvas via daemon `eval`. The payload is
@@ -102,6 +123,44 @@ func sendHeadsupMessageOneShot(canvasID: String, payload: [String: Any]) -> [Str
         "id": canvasID,
         "js": "window.headsup.receive(\"\(b64)\")"
     ])
+}
+
+func waitForCanvasCondition(
+    session: DaemonSession,
+    canvasID: String,
+    jsCondition: String,
+    timeoutMs: Int = 5000,
+    pollMs: useconds_t = 100_000
+) -> Bool {
+    let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+    let js = "(\(jsCondition)) ? 'ready' : 'wait'"
+
+    while Date() < deadline {
+        if let response = session.sendAndReceive([
+            "action": "eval",
+            "id": canvasID,
+            "js": js
+        ]),
+           let result = response["result"] as? String,
+           result == "ready" {
+            return true
+        }
+        usleep(pollMs)
+    }
+    return false
+}
+
+func waitForCanvasBridge(
+    session: DaemonSession,
+    canvasID: String,
+    manifestName: String? = nil,
+    timeoutMs: Int = 5000
+) -> Bool {
+    var condition = "window.headsup && typeof window.headsup.receive === 'function'"
+    if let manifestName = manifestName {
+        condition += " && window.headsup.manifest && window.headsup.manifest.name === \(jsStringLiteral(manifestName))"
+    }
+    return waitForCanvasCondition(session: session, canvasID: canvasID, jsCondition: condition, timeoutMs: timeoutMs)
 }
 
 // MARK: - Process Helpers

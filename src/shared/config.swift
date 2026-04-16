@@ -77,6 +77,17 @@ func saveConfig(_ config: AosConfig) {
     try? data.write(to: URL(fileURLWithPath: kAosConfigPath))
 }
 
+func ensureContentRootConfigured(name: String, path: String) {
+    guard !name.isEmpty else { return }
+    var config = loadConfig()
+    if config.content == nil {
+        config.content = AosConfig.ContentConfig(port: 0, roots: [:])
+    }
+    if config.content?.roots[name] == path { return }
+    config.content?.roots[name] = path
+    saveConfig(config)
+}
+
 /// Set a dotted key path in config. E.g. "voice.enabled" = "true"
 func setConfigValue(key: String, value: String) {
     var config = loadConfig()

@@ -26,12 +26,52 @@ ensure_daemon() {
   return 1
 }
 
+ensure_content_roots() {
+  "$AOS" set content.roots.toolkit packages/toolkit >/dev/null
+  "$AOS" set content.roots.sigil apps/sigil >/dev/null
+}
+
+content_roots_live() {
+  "$AOS" content status --json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+port = int(payload.get("port") or 0)
+roots = payload.get("roots") or {}
+raise SystemExit(0 if port > 0 and "toolkit" in roots and "sigil" in roots else 1)
+'
+}
+
+wait_canvas_js() {
+  local canvas_id="$1"
+  local js_condition="$2"
+  local deadline="${3:-50}"
+  for _ in $(seq 1 "$deadline"); do
+    local ready_json
+    ready_json="$("$AOS" show eval --id "$canvas_id" --js "(function(){ return (${js_condition}) ? 'ready' : 'wait' })()" 2>/dev/null || true)"
+    if printf '%s' "$ready_json" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if payload.get("result") == "ready" else 1)
+' 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
 # Encode a JSON string as base64 (for headsup.receive delivery).
 b64msg() { python3 -c "import base64,sys; print(base64.b64encode(sys.stdin.buffer.read()).decode())"; }
 
 # Eval a base64-encoded message inside a canvas ($2 must be base64 — safe to
 # embed in double quotes since the charset is [A-Za-z0-9+/=]).
-canvas_send() { "$AOS" show eval --id "$1" --js "window.headsup.receive(\"$2\")" >/dev/null; }
+canvas_send() { "$AOS" show eval --id "$1" --js "window.headsup && window.headsup.receive && window.headsup.receive(\"$2\")" >/dev/null; }
 
 # --- geometry ---------------------------------------------------------------
 
@@ -115,7 +155,13 @@ PY
 # --- main -------------------------------------------------------------------
 
 main() {
+  ensure_content_roots
   ensure_daemon
+  if ! content_roots_live; then
+    echo "The running daemon does not have live toolkit+sigil content roots." >&2
+    echo "Restart the daemon to apply content.roots.toolkit and content.roots.sigil, then rerun launch.sh." >&2
+    return 1
+  fi
   "$REPO_ROOT/apps/sigil/sigilctl-seed.sh" --mode "$MODE" >/dev/null
 
   "$AOS" show remove --id "$WORKBENCH_ID" >/dev/null 2>&1 || true
@@ -134,7 +180,10 @@ main() {
     --at "$frame" --interactive --focus \
     --url 'aos://sigil/workbench/index.html' >/dev/null
 
-  sleep 0.5
+  wait_canvas_js "$AVATAR_ID" 'window.headsup && typeof window.headsup.receive === "function" && typeof window.liveJs === "object"' \
+    || { echo "Avatar canvas did not finish mounting." >&2; return 1; }
+  wait_canvas_js "$WORKBENCH_ID" 'window.headsup && typeof window.headsup.receive === "function" && !!document.querySelector(".surface-frame")' \
+    || { echo "Workbench canvas did not finish mounting." >&2; return 1; }
   stage_avatar "$avatar_home"
   bootstrap_tabs
 

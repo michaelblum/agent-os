@@ -15,20 +15,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wait_for_ping() {
-  for _ in $(seq 1 50); do
-    if ./aos show ping >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 0.1
-  done
-  return 1
-}
-
 if ! python3 - <<'PY'
 import json, subprocess
-doctor = json.loads(subprocess.check_output(["./aos", "doctor", "--json"], text=True))
-perms = doctor.get("permissions", {})
+perms = json.loads(subprocess.check_output(["./aos", "permissions", "check", "--json"], text=True)).get("permissions", {})
 raise SystemExit(0 if perms.get("screen_recording") else 1)
 PY
 then
@@ -38,7 +27,7 @@ fi
 
 ./aos permissions setup --once >/dev/null
 ./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
-wait_for_ping || { echo "FAIL: isolated daemon did not become reachable"; exit 1; }
+aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
 
 ./aos show create \
   --id surface-probe \

@@ -16,6 +16,7 @@ func logCommand(args: [String]) {
         printCommandHelp(["log"], json: args.contains("--json"))
         exit(0)
     }
+    ensureContentRootConfigured(name: "toolkit", path: "packages/toolkit")
     let sub = args.first
 
     // Parse position
@@ -88,6 +89,10 @@ func logCommand(args: [String]) {
         "url": LOG_URL,
         "scope": "connection"
     ])
+
+    guard waitForCanvasBridge(session: session, canvasID: LOG_CANVAS_ID, manifestName: "log-console") else {
+        exitError("Log console did not finish mounting", code: "CANVAS_LOAD_TIMEOUT")
+    }
 
     fputs("Log console active. Reading stdin. Ctrl-C to stop.\n", stderr)
 

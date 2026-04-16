@@ -85,11 +85,56 @@ aos_test_cleanup_prefix() {
 
 aos_test_wait_for_lock_pid() {
   local root="$1"
+  local mode="${2:-repo}"
   for _ in $(seq 1 50); do
     local pid
-    pid="$(aos_test_lock_pid "$root")"
+    pid="$(aos_test_lock_pid "$root" "$mode")"
     if [[ -n "$pid" ]]; then
       echo "$pid"
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+aos_test_socket_path() {
+  local root="$1"
+  local mode="${2:-repo}"
+  printf '%s/%s/sock\n' "$root" "$mode"
+}
+
+aos_test_socket_reachable() {
+  local root="$1"
+  local mode="${2:-repo}"
+  python3 - "$root" "$mode" <<'PY'
+import pathlib, socket, sys
+
+root = pathlib.Path(sys.argv[1])
+mode = sys.argv[2]
+sock_path = root / mode / "sock"
+if not sock_path.exists():
+    raise SystemExit(1)
+
+sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+sock.settimeout(0.2)
+try:
+    sock.connect(str(sock_path))
+except OSError:
+    raise SystemExit(1)
+finally:
+    try:
+        sock.close()
+    except OSError:
+        pass
+PY
+}
+
+aos_test_wait_for_socket() {
+  local root="$1"
+  local mode="${2:-repo}"
+  for _ in $(seq 1 50); do
+    if aos_test_socket_reachable "$root" "$mode"; then
       return 0
     fi
     sleep 0.1

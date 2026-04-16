@@ -3,16 +3,11 @@ set -euo pipefail
 
 if ! python3 - <<'PY'
 import json, subprocess
-doctor = json.loads(subprocess.check_output(["./aos", "doctor", "--json"], text=True))
-perms = doctor.get("permissions", {})
-if not perms.get("screen_recording"):
-    raise SystemExit(1)
-graph = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
-displays = graph.get("displays", [])
-raise SystemExit(0 if len(displays) >= 1 else 1)
+perms = json.loads(subprocess.check_output(["./aos", "permissions", "check", "--json"], text=True)).get("permissions", {})
+raise SystemExit(0 if perms.get("screen_recording") else 1)
 PY
 then
-  echo "SKIP: requires screen recording and at least one display"
+  echo "SKIP: requires screen recording"
   exit 0
 fi
 

@@ -16,6 +16,7 @@ func inspectCommand(args: [String]) {
         exit(0)
     }
     ensureInteractivePreflight(command: "aos inspect")
+    ensureContentRootConfigured(name: "toolkit", path: "packages/toolkit")
 
     // Parse position (default: bottom-right corner of main display)
     var panelWidth: Double = 320
@@ -73,6 +74,10 @@ func inspectCommand(args: [String]) {
         "url": INSPECTOR_URL,
         "scope": "connection"
     ])
+
+    guard waitForCanvasBridge(session: session, canvasID: INSPECTOR_CANVAS_ID, manifestName: "inspector-panel") else {
+        exitError("Inspector panel did not finish mounting", code: "CANVAS_LOAD_TIMEOUT")
+    }
 
     // Subscribe to perception at depth 2
     session.sendAndReceive([
