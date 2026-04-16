@@ -25,7 +25,7 @@ runtime/                Layer 1a — universal canvas runtime
   bridge.js               wireBridge, emit, esc
   subscribe.js            subscribe, unsubscribe to daemon streams
   canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive
-  manifest.js             declareManifest, emitReady, onReady
+  manifest.js             declareManifest, emitReady, emitLifecycleComplete, onReady
   index.js                re-exports
   _smoke/                 smoke harness
 

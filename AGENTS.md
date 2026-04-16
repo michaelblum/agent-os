@@ -82,6 +82,14 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   canvas manually.
 - If display work starts from stale daemons or orphaned canvases, run
   `aos clean` first and report what was cleaned.
+- Default repo work to `main` unless the user explicitly asks for branch-based
+  work. Temporary worktrees or helper branches are fine when they materially
+  reduce risk or enable parallelism, but they should stay temporary: land the
+  final state back on `main`, then remove the transient worktree/branch refs
+  before handing the repo back.
+- Prune merged task-specific branch or worktree debris when you can classify it
+  confidently. Do not leave agent-created Git noise behind, and do not delete
+  substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
 
 ## Shared Surfaces
