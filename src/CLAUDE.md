@@ -77,6 +77,7 @@ aos voice list                    # Curated session voice bank
 aos voice leases                  # Active one-session-per-voice leases
 aos voice bind --session-id <id> --voice <voice-id>
 aos voice final-response --harness codex --session-id <id> < hook.json
+aos config get voice.controls.cancel.key_code
 aos config get voice.enabled      # Discoverable config read
 aos config set voice.enabled true # Discoverable config write
 aos tell human "Hello"             # Speak (same as aos say)
@@ -195,6 +196,8 @@ aos set voice.enabled false       # Mute
 
 When voice is enabled, the daemon announces canvas lifecycle events
 and other significant actions without the agent needing to call `aos say`.
+Voice attempts and final-response ingress failures are logged to
+`~/.config/aos/{mode}/voice-events.jsonl` without storing full message bodies.
 
 ### Config Keys
 

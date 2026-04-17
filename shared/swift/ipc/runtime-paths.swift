@@ -98,6 +98,10 @@ func aosCLIErrorLogPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/cli-errors.jsonl"
 }
 
+func aosVoiceEventLogPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/voice-events.jsonl"
+}
+
 func aosProfilesDir(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/profiles"
 }

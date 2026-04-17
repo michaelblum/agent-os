@@ -120,6 +120,14 @@ class SpeechEngine: NSObject, NSSpeechSynthesizerDelegate {
         NSSpeechSynthesizer.defaultVoice.rawValue
     }
 
+    static var resolvedDefaultVoiceID: String {
+        let systemDefault = defaultVoiceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !systemDefault.isEmpty {
+            return systemDefault
+        }
+        return availableVoices().first?.id ?? ""
+    }
+
     static func qualityTier(forVoiceID voiceID: String) -> String {
         let lower = voiceID.lowercased()
         if lower.contains(".premium.") || lower.contains("_premium") {

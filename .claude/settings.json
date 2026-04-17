@@ -44,14 +44,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/session-stop.sh\"",
-            "timeout": 5
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/final-response.sh\"",
+            "timeout": 30
           },
           {
             "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/final-response.sh\"",
-            "timeout": 30,
-            "async": true
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/session-stop.sh\"",
+            "timeout": 5
           }
         ]
       }

@@ -86,6 +86,7 @@ Examples:
 - `bash tests/voice-session-leases.sh`
 - `bash tests/voice-bind.sh`
 - `bash tests/voice-final-response.sh`
+- `bash tests/voice-telemetry.sh`
 - `bash tests/final-response-hook.sh`
 - `bash tests/config-surface.sh`
 - `bash tests/cli-error-log.sh`

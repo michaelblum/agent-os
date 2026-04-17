@@ -287,6 +287,10 @@ events; it resolves the final assistant text, applies the configured
 `final_response` speech policy, and speaks with the session's leased voice while
 keeping the daemon's voice-cancel controls active.
 
+Voice deliveries and final-response ingress failures append local JSONL records to
+`~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
+voice, purpose, and failure code were involved without storing full message bodies.
+
 ## `aos config`
 
 Discoverable configuration surface:

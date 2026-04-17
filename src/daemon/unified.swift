@@ -26,6 +26,7 @@ class UnifiedDaemon {
     private var daemonLockFD: Int32 = -1
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
+    private let voiceTelemetryLock = NSLock()
 
     // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
@@ -1255,16 +1256,89 @@ class UnifiedDaemon {
     func announce(_ text: String, voiceID: String? = nil) {
         guard currentConfig.voice.enabled, let engine = speechEngine else { return }
         DispatchQueue.main.async {
-            if let voiceID {
-                engine.setVoice(voiceID)
-            } else if let configuredVoice = self.currentConfig.voice.voice {
-                engine.setVoice(configuredVoice)
+            let resolvedVoiceID = voiceID ?? self.currentConfig.voice.voice ?? SpeechEngine.resolvedDefaultVoiceID
+            if !resolvedVoiceID.isEmpty {
+                engine.setVoice(resolvedVoiceID)
             }
             if let rate = self.currentConfig.voice.rate {
                 engine.setRate(rate)
             }
             engine.speak(text)
         }
+    }
+
+    private func appendVoiceTelemetry(_ payload: [String: Any]) {
+        guard JSONSerialization.isValidJSONObject(payload) else { return }
+        voiceTelemetryLock.lock()
+        defer { voiceTelemetryLock.unlock() }
+
+        let logPath = aosVoiceEventLogPath()
+        let dir = (logPath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
+        guard let handle = FileHandle(forWritingAtPath: logPath) ?? {
+            FileManager.default.createFile(atPath: logPath, contents: nil)
+            return FileHandle(forWritingAtPath: logPath)
+        }() else { return }
+        defer { handle.closeFile() }
+        do {
+            try handle.seekToEnd()
+            handle.write(data)
+            handle.write("\n".data(using: .utf8)!)
+        } catch {
+            return
+        }
+    }
+
+    private func recordVoiceTelemetry(
+        event: String,
+        session: [String: Any]? = nil,
+        voice: [String: Any]? = nil,
+        purpose: String? = nil,
+        rendered: VoiceRenderResult? = nil,
+        delivered: Bool? = nil,
+        reason: String? = nil,
+        source: [String: Any]? = nil,
+        code: String? = nil
+    ) {
+        var payload: [String: Any] = [
+            "event": event,
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+            "mode": aosCurrentRuntimeMode().rawValue
+        ]
+        if let sessionID = session?["session_id"] as? String {
+            payload["session_id"] = sessionID
+        }
+        if let sessionName = session?["name"] as? String {
+            payload["session_name"] = sessionName
+        }
+        if let harness = session?["harness"] as? String {
+            payload["harness"] = harness
+        } else if let sourceHarness = source?["harness"] as? String {
+            payload["harness"] = sourceHarness
+        }
+        if let purpose {
+            payload["purpose"] = purpose
+        }
+        if let rendered {
+            payload["rendered"] = rendered.dictionary()
+        }
+        if let delivered {
+            payload["delivered"] = delivered
+        }
+        if let reason {
+            payload["reason"] = reason
+        }
+        if let code {
+            payload["code"] = code
+        }
+        if let source, !source.isEmpty {
+            payload["source"] = source
+        }
+        if let voice, !voice.isEmpty {
+            payload["voice"] = voice
+        }
+        appendVoiceTelemetry(payload)
     }
 
     private func configureSpeechCancelTap() {
@@ -1321,7 +1395,7 @@ class UnifiedDaemon {
     ) -> [String: Any] {
         let rendered = renderSpeechText(rawText: rawText, purpose: purpose, config: currentConfig)
         let sessionVoice = sendingSession?["voice"] as? [String: Any]
-        let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice
+        let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice ?? SpeechEngine.resolvedDefaultVoiceID
         if currentConfig.voice.enabled {
             announce(rendered.text, voiceID: voiceID)
         }
@@ -1336,8 +1410,18 @@ class UnifiedDaemon {
         }
         if let sessionVoice {
             route["voice"] = sessionVoice
-        } else if let voiceID, let discovered = SpeechEngine.availableVoice(id: voiceID) {
+        } else if let discovered = SpeechEngine.availableVoice(id: voiceID) {
             route["voice"] = SessionVoiceDescriptor(voiceInfo: discovered).dictionary()
+        } else {
+            route["voice"] = SessionVoiceDescriptor(
+                provider: "system",
+                id: voiceID,
+                name: voiceID,
+                locale: "unknown",
+                gender: "unknown",
+                quality_tier: SpeechEngine.qualityTier(forVoiceID: voiceID),
+                available: false
+            ).dictionary()
         }
         if let source, !source.isEmpty {
             route["source"] = source
@@ -1345,6 +1429,16 @@ class UnifiedDaemon {
         if !currentConfig.voice.enabled {
             route["reason"] = "voice.enabled is false"
         }
+        recordVoiceTelemetry(
+            event: "voice_route",
+            session: sendingSession,
+            voice: route["voice"] as? [String: Any],
+            purpose: purpose,
+            rendered: rendered,
+            delivered: route["delivered"] as? Bool,
+            reason: route["reason"] as? String,
+            source: source
+        )
         return route
     }
 
@@ -1418,6 +1512,13 @@ class UnifiedDaemon {
         )
 
         guard let sessionID = ingress.sessionID, !sessionID.isEmpty else {
+            recordVoiceTelemetry(
+                event: "final_response_ingress_failed",
+                voice: nil,
+                purpose: "final_response",
+                source: ingress.dictionary(),
+                code: "MISSING_SESSION_ID"
+            )
             sendResponseJSON(to: clientFD, [
                 "error": "final-response event could not resolve a session_id",
                 "code": "MISSING_SESSION_ID",
@@ -1426,6 +1527,12 @@ class UnifiedDaemon {
             return
         }
         guard let sendingSession = coordination.sessionInfo(sessionID: sessionID) else {
+            recordVoiceTelemetry(
+                event: "final_response_ingress_failed",
+                purpose: "final_response",
+                source: ingress.dictionary(),
+                code: "SESSION_NOT_FOUND"
+            )
             sendResponseJSON(to: clientFD, [
                 "error": "session not found: \(sessionID)",
                 "code": "SESSION_NOT_FOUND",
@@ -1434,6 +1541,13 @@ class UnifiedDaemon {
             return
         }
         guard let message = ingress.message, !message.isEmpty else {
+            recordVoiceTelemetry(
+                event: "final_response_ingress_failed",
+                session: sendingSession,
+                purpose: "final_response",
+                source: ingress.dictionary(),
+                code: "FINAL_RESPONSE_UNAVAILABLE"
+            )
             sendResponseJSON(to: clientFD, [
                 "error": "final-response event did not contain readable assistant text",
                 "code": "FINAL_RESPONSE_UNAVAILABLE",
