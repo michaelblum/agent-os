@@ -540,7 +540,21 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice com.apple.voice.enhanced.en-US.Evan"])
+            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice com.apple.voice.enhanced.en-US.Evan"]),
+        InvocationForm(id: "voice-final-response", usage: "aos voice final-response [--session-id <id>] [--harness <name>]",
+            args: [
+                pos("final-response", "Relay a harness final-response event into the daemon speech system", required: false),
+                flag("session-id", "--session-id", "Canonical session id when known"),
+                flag("harness", "--harness", "Harness/provider name (for example: codex, claude-code, gemini)")
+            ],
+            stdin: StdinDescriptor(supported: true, usedWhen: "reading the raw hook JSON payload from stdin", contentType: "json"),
+            constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: [
+                "printf '%s' \"$HOOK_JSON\" | aos voice final-response --harness codex --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
+                "printf '%s' \"$HOOK_JSON\" | aos voice final-response --harness claude-code"
+            ])
     ]))
 
     // ── tell ──────────────────────────────────────────────

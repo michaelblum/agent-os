@@ -247,3 +247,212 @@ private func effectiveFinalResponsePolicy(_ config: AosConfig) -> (style: String
     let lastNChars = max(1, configured?.last_n_chars ?? 400)
     return (style, lastNChars)
 }
+
+struct FinalResponseIngress {
+    let sessionID: String?
+    let harness: String
+    let message: String?
+    let transcriptPath: String?
+    let messageSource: String?
+
+    func dictionary() -> [String: Any] {
+        var payload: [String: Any] = ["harness": harness]
+        if let sessionID {
+            payload["session_id"] = sessionID
+        }
+        if let transcriptPath {
+            payload["transcript_path"] = transcriptPath
+        }
+        if let messageSource {
+            payload["message_source"] = messageSource
+        }
+        return payload
+    }
+}
+
+private struct FinalResponseTranscriptResolution {
+    let text: String
+    let source: String
+}
+
+func resolveFinalResponseIngress(
+    explicitSessionID: String?,
+    explicitHarness: String?,
+    hookPayload: Any?
+) -> FinalResponseIngress {
+    let payload = hookPayload as? [String: Any] ?? [:]
+    let harness = (
+        normalizeNonEmpty(explicitHarness)
+        ?? extractString(payload, paths: [["harness"], ["provider"], ["payload", "harness"]])
+        ?? "unknown"
+    )
+    let transcriptPath = extractString(payload, paths: [["transcript_path"], ["payload", "transcript_path"]])
+    let sessionID = (
+        normalizeNonEmpty(explicitSessionID)
+        ?? extractString(payload, paths: [["session_id"], ["thread_id"], ["payload", "session_id"], ["payload", "thread_id"]])
+        ?? sessionIDFromTranscriptPath(transcriptPath)
+    )
+
+    if let directMessage = extractString(payload, paths: [
+        ["last_assistant_message"],
+        ["assistant_message"],
+        ["final_assistant_message"],
+        ["payload", "last_assistant_message"],
+        ["payload", "assistant_message"],
+        ["message", "text"],
+        ["last_message", "text"]
+    ]) {
+        return FinalResponseIngress(
+            sessionID: sessionID,
+            harness: harness,
+            message: directMessage,
+            transcriptPath: transcriptPath,
+            messageSource: "direct"
+        )
+    }
+
+    if let transcriptPath,
+       let resolved = resolveFinalResponseTranscript(path: transcriptPath, harness: harness) {
+        return FinalResponseIngress(
+            sessionID: sessionID,
+            harness: harness,
+            message: resolved.text,
+            transcriptPath: transcriptPath,
+            messageSource: resolved.source
+        )
+    }
+
+    return FinalResponseIngress(
+        sessionID: sessionID,
+        harness: harness,
+        message: nil,
+        transcriptPath: transcriptPath,
+        messageSource: nil
+    )
+}
+
+private func normalizeNonEmpty(_ value: String?) -> String? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+    return value
+}
+
+private func extractString(_ payload: [String: Any], paths: [[String]]) -> String? {
+    for path in paths {
+        if let value = nestedString(payload, path: path) {
+            return value
+        }
+    }
+    return nil
+}
+
+private func nestedString(_ payload: [String: Any], path: [String]) -> String? {
+    var current: Any = payload
+    for key in path {
+        guard let dict = current as? [String: Any], let next = dict[key] else { return nil }
+        current = next
+    }
+    guard let text = current as? String else { return nil }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+private func sessionIDFromTranscriptPath(_ transcriptPath: String?) -> String? {
+    guard let transcriptPath = normalizeNonEmpty(transcriptPath) else { return nil }
+    let pattern = #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+    let range = NSRange(transcriptPath.startIndex..<transcriptPath.endIndex, in: transcriptPath)
+    let matches = regex.matches(in: transcriptPath, options: [], range: range)
+    guard let match = matches.last, let swiftRange = Range(match.range, in: transcriptPath) else { return nil }
+    return String(transcriptPath[swiftRange])
+}
+
+private func resolveFinalResponseTranscript(path: String, harness: String) -> FinalResponseTranscriptResolution? {
+    switch harness {
+    case "codex":
+        return resolveCodexFinalResponseTranscript(path: path)
+    case "claude-code":
+        return resolveClaudeFinalResponseTranscript(path: path)
+    case "gemini":
+        return nil
+    default:
+        return resolveCodexFinalResponseTranscript(path: path) ?? resolveClaudeFinalResponseTranscript(path: path)
+    }
+}
+
+private func resolveCodexFinalResponseTranscript(path: String) -> FinalResponseTranscriptResolution? {
+    guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+
+    var lastAny: String?
+    var lastFinal: String?
+    var lastTaskComplete: String?
+
+    for rawLine in content.split(whereSeparator: \.isNewline) {
+        let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let payload = obj["payload"] as? [String: Any] else { continue }
+
+        if let type = obj["type"] as? String, type == "event_msg",
+           let payloadType = payload["type"] as? String, payloadType == "task_complete",
+           let text = normalizeNonEmpty(payload["last_agent_message"] as? String) {
+            lastTaskComplete = text
+            continue
+        }
+
+        guard let type = obj["type"] as? String, type == "response_item" else { continue }
+        guard let payloadType = payload["type"] as? String, payloadType == "message" else { continue }
+        guard let role = payload["role"] as? String, role == "assistant" else { continue }
+        guard let text = codexTranscriptContentText(payload["content"]) else { continue }
+
+        lastAny = text
+        if let phase = payload["phase"] as? String, phase == "final_answer" {
+            lastFinal = text
+        }
+    }
+
+    if let lastTaskComplete {
+        return FinalResponseTranscriptResolution(text: lastTaskComplete, source: "codex.task_complete")
+    }
+    if let lastFinal {
+        return FinalResponseTranscriptResolution(text: lastFinal, source: "codex.final_answer")
+    }
+    if let lastAny {
+        return FinalResponseTranscriptResolution(text: lastAny, source: "codex.assistant")
+    }
+    return nil
+}
+
+private func codexTranscriptContentText(_ content: Any?) -> String? {
+    guard let items = content as? [[String: Any]] else { return nil }
+    let parts = items.compactMap { item -> String? in
+        guard let type = item["type"] as? String, type == "output_text" else { return nil }
+        return normalizeNonEmpty(item["text"] as? String)
+    }
+    guard !parts.isEmpty else { return nil }
+    return parts.joined(separator: "\n")
+}
+
+private func resolveClaudeFinalResponseTranscript(path: String) -> FinalResponseTranscriptResolution? {
+    guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+    var lastAny: String?
+
+    for rawLine in content.split(whereSeparator: \.isNewline) {
+        let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+
+        if let type = obj["type"] as? String, type == "assistant",
+           let text = normalizeNonEmpty(obj["text"] as? String) {
+            lastAny = text
+        }
+
+        if let payload = obj["payload"] as? [String: Any],
+           let role = payload["role"] as? String, role == "assistant",
+           let text = normalizeNonEmpty(payload["text"] as? String) {
+            lastAny = text
+        }
+    }
+
+    guard let lastAny else { return nil }
+    return FinalResponseTranscriptResolution(text: lastAny, source: "claude.assistant")
+}

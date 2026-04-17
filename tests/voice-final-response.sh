@@ -39,6 +39,39 @@ if route.get("delivered") is not False or route.get("reason") != "voice.enabled 
     raise SystemExit(f"FAIL: expected disabled-voice acknowledgement without delivery, got {route}")
 PY
 
+TRANSCRIPT_PATH="$ROOT/rollout-2026-04-17T00-00-00-$SESSION_ID.jsonl"
+cat >"$TRANSCRIPT_PATH" <<'EOF'
+{"type":"response_item","payload":{"type":"message","role":"assistant","phase":"commentary","content":[{"type":"output_text","text":"Commentary text."}]}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"Transcript fallback sentence."}]}}
+{"type":"event_msg","payload":{"type":"task_complete","last_agent_message":"Task-complete fallback sentence."}}
+EOF
+
+HOOK_PAYLOAD="$(python3 - "$TRANSCRIPT_PATH" <<'PY'
+import json, sys
+print(json.dumps({"transcript_path": sys.argv[1]}))
+PY
+)"
+
+OUT="$(printf '%s' "$HOOK_PAYLOAD" | ./aos voice final-response --harness codex)"
+python3 - "$OUT" "$SESSION_ID" <<'PY'
+import json, sys
+
+payload = json.loads(sys.argv[1])
+session_id = sys.argv[2]
+route = payload.get("routes", [{}])[0]
+rendered = route.get("rendered", {})
+source = route.get("source", {})
+
+if payload.get("session_id") != session_id:
+    raise SystemExit(f"FAIL: expected final-response ingress to recover session id {session_id}, got {payload}")
+if rendered.get("text") != "Task-complete fallback sentence.":
+    raise SystemExit(f"FAIL: expected transcript task_complete fallback text, got {rendered}")
+if source.get("message_source") != "codex.task_complete":
+    raise SystemExit(f"FAIL: expected codex.task_complete source metadata, got {source}")
+if route.get("delivered") is not False or route.get("reason") != "voice.enabled is false":
+    raise SystemExit(f"FAIL: expected disabled-voice acknowledgement without delivery, got {route}")
+PY
+
 ./aos set voice.policies.final_response.style last_n_chars >/dev/null
 ./aos set voice.policies.final_response.last_n_chars 12 >/dev/null
 sleep 1
@@ -63,6 +96,16 @@ if OUT="$(./aos tell human --from-session-id 00000000-0000-0000-0000-00000000000
 else
   echo "$OUT" | grep -q '"code":"SESSION_NOT_FOUND"' || {
     echo "FAIL: expected SESSION_NOT_FOUND for invalid from-session-id: $OUT" >&2
+    exit 1
+  }
+fi
+
+if OUT="$(printf '%s' '{}' | ./aos voice final-response --harness codex 2>&1)"; then
+  echo "FAIL: expected missing-session final-response ingress to fail" >&2
+  exit 1
+else
+  echo "$OUT" | grep -q '"code":"MISSING_SESSION_ID"' || {
+    echo "FAIL: expected MISSING_SESSION_ID for missing-session final-response ingress: $OUT" >&2
     exit 1
   }
 fi

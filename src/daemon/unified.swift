@@ -1126,6 +1126,9 @@ class UnifiedDaemon {
             let result = coordination.bindVoice(sessionID: sessionID, voiceID: voiceID)
             sendResponseJSON(to: clientFD, result)
 
+        case "voice-final-response":
+            handleVoiceFinalResponseAction(json: json, clientFD: clientFD)
+
         case "coord-read":
             guard let channel = json["channel"] as? String else {
                 sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"])
@@ -1310,6 +1313,41 @@ class UnifiedDaemon {
 
     // MARK: - Tell (Coordination)
 
+    private func deliverHumanVoiceRoute(
+        rawText: String,
+        purpose: String?,
+        sendingSession: [String: Any]?,
+        source: [String: Any]? = nil
+    ) -> [String: Any] {
+        let rendered = renderSpeechText(rawText: rawText, purpose: purpose, config: currentConfig)
+        let sessionVoice = sendingSession?["voice"] as? [String: Any]
+        let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice
+        if currentConfig.voice.enabled {
+            announce(rendered.text, voiceID: voiceID)
+        }
+        var route: [String: Any] = [
+            "audience": "human",
+            "route": "voice",
+            "delivered": currentConfig.voice.enabled,
+            "rendered": rendered.dictionary()
+        ]
+        if let purpose {
+            route["purpose"] = purpose
+        }
+        if let sessionVoice {
+            route["voice"] = sessionVoice
+        } else if let voiceID, let discovered = SpeechEngine.availableVoice(id: voiceID) {
+            route["voice"] = SessionVoiceDescriptor(voiceInfo: discovered).dictionary()
+        }
+        if let source, !source.isEmpty {
+            route["source"] = source
+        }
+        if !currentConfig.voice.enabled {
+            route["reason"] = "voice.enabled is false"
+        }
+        return route
+    }
+
     private func handleTellAction(json: [String: Any], clientFD: Int32) {
         guard let audience = json["audience"] as? String, !audience.isEmpty else {
             sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"])
@@ -1345,30 +1383,7 @@ class UnifiedDaemon {
             if aud == "human" {
                 // Route to TTS
                 if let t = text {
-                    let rendered = renderSpeechText(rawText: t, purpose: purpose, config: currentConfig)
-                    let sessionVoice = sendingSession?["voice"] as? [String: Any]
-                    let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice
-                    if currentConfig.voice.enabled {
-                        announce(rendered.text, voiceID: voiceID)
-                    }
-                    var route: [String: Any] = [
-                        "audience": "human",
-                        "route": "voice",
-                        "delivered": currentConfig.voice.enabled
-                    ]
-                    if let purpose {
-                        route["purpose"] = purpose
-                    }
-                    route["rendered"] = rendered.dictionary()
-                    if let sessionVoice {
-                        route["voice"] = sessionVoice
-                    } else if let voiceID, let discovered = SpeechEngine.availableVoice(id: voiceID) {
-                        route["voice"] = SessionVoiceDescriptor(voiceInfo: discovered).dictionary()
-                    }
-                    if !currentConfig.voice.enabled {
-                        route["reason"] = "voice.enabled is false"
-                    }
-                    routes.append(route)
+                    routes.append(deliverHumanVoiceRoute(rawText: t, purpose: purpose, sendingSession: sendingSession))
                 }
             } else {
                 // Route to coordination bus channel
@@ -1391,6 +1406,53 @@ class UnifiedDaemon {
         }
 
         sendResponseJSON(to: clientFD, ["status": "ok", "routes": routes])
+    }
+
+    private func handleVoiceFinalResponseAction(json: [String: Any], clientFD: Int32) {
+        let explicitSessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let explicitHarness = (json["harness"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ingress = resolveFinalResponseIngress(
+            explicitSessionID: explicitSessionID?.isEmpty == false ? explicitSessionID : nil,
+            explicitHarness: explicitHarness?.isEmpty == false ? explicitHarness : nil,
+            hookPayload: json["hook_payload"]
+        )
+
+        guard let sessionID = ingress.sessionID, !sessionID.isEmpty else {
+            sendResponseJSON(to: clientFD, [
+                "error": "final-response event could not resolve a session_id",
+                "code": "MISSING_SESSION_ID",
+                "source": ingress.dictionary()
+            ])
+            return
+        }
+        guard let sendingSession = coordination.sessionInfo(sessionID: sessionID) else {
+            sendResponseJSON(to: clientFD, [
+                "error": "session not found: \(sessionID)",
+                "code": "SESSION_NOT_FOUND",
+                "source": ingress.dictionary()
+            ])
+            return
+        }
+        guard let message = ingress.message, !message.isEmpty else {
+            sendResponseJSON(to: clientFD, [
+                "error": "final-response event did not contain readable assistant text",
+                "code": "FINAL_RESPONSE_UNAVAILABLE",
+                "source": ingress.dictionary()
+            ])
+            return
+        }
+
+        let route = deliverHumanVoiceRoute(
+            rawText: message,
+            purpose: "final_response",
+            sendingSession: sendingSession,
+            source: ingress.dictionary()
+        )
+        sendResponseJSON(to: clientFD, [
+            "status": "ok",
+            "session_id": sessionID,
+            "routes": [route]
+        ])
     }
 
     // MARK: - Helpers

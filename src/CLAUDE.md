@@ -14,6 +14,16 @@ Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/`, or when
 the next verification step runs `./aos` directly. Do not rebuild before pure
 Node-based tests or package-local workflows.
 
+When an automated flow needs to rebuild and then immediately run an `./aos`
+command, prefer:
+
+```bash
+scripts/aos-after-build -- ./aos doctor --json
+```
+
+That wrapper waits for any in-flight rebuild, refreshes the binary if needed,
+then runs the `./aos` command.
+
 Examples that usually do **not** need `bash build.sh`:
 
 ```bash
@@ -66,6 +76,7 @@ aos say --list-voices             # List available voices
 aos voice list                    # Curated session voice bank
 aos voice leases                  # Active one-session-per-voice leases
 aos voice bind --session-id <id> --voice <voice-id>
+aos voice final-response --harness codex --session-id <id> < hook.json
 aos config get voice.enabled      # Discoverable config read
 aos config set voice.enabled true # Discoverable config write
 aos tell human "Hello"             # Speak (same as aos say)

@@ -266,6 +266,7 @@ Inspect the curated session voice bank and the active one-session-per-voice leas
 aos voice list
 aos voice leases
 aos voice bind --session-id <id> --voice <voice-id>
+printf '%s' "$HOOK_JSON" | aos voice final-response --harness codex --session-id <id>
 ```
 
 `aos voice list` returns the high-quality voice bank that agent-os will lease to
@@ -281,6 +282,10 @@ live sessions. Each entry includes:
 
 `aos voice leases` returns only the active session assignments.
 `aos voice bind` reassigns a live session to a specific unleased voice from the curated bank.
+`aos voice final-response` is the daemon-owned ingress for harness final-response
+events; it resolves the final assistant text, applies the configured
+`final_response` speech policy, and speaks with the session's leased voice while
+keeping the daemon's voice-cancel controls active.
 
 ## `aos config`
 

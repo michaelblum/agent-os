@@ -38,6 +38,10 @@ OUT="$(./aos config get voice.policies.final_response.last_n_chars)"
 [ "$OUT" = "321" ] || fail "expected last_n_chars=321, got '$OUT'"
 pass "config get reads nested scalar"
 
+OUT="$(./aos config get voice.controls.cancel.key_code)"
+[ "$OUT" = "53" ] || fail "expected default cancel key_code=53, got '$OUT'"
+pass "config get reads daemon-owned voice cancel key"
+
 OUT="$(./aos config get content.port)"
 [ "$OUT" = "null" ] || fail "expected unset optional content.port=null, got '$OUT'"
 pass "config get returns null for known but unset optional values"

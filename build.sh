@@ -7,6 +7,7 @@ OUTPUT_PATH="$REPO_ROOT/aos"
 BUILD_DIR="$REPO_ROOT/.build"
 MODULE_CACHE_DIR="$BUILD_DIR/clang-module-cache"
 MODE_FILE="$BUILD_DIR/aos-build-mode"
+LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
 
 BUILD_MODE="dev"
 FORCE_BUILD=0
@@ -65,6 +66,14 @@ fi
 mkdir -p "$BUILD_DIR" "$MODULE_CACHE_DIR"
 export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$MODULE_CACHE_DIR}"
 export SWIFT_MODULECACHE_PATH="${SWIFT_MODULECACHE_PATH:-$MODULE_CACHE_DIR}"
+exec 9> "$LOCK_PATH"
+python3 - <<'PY'
+import fcntl
+import sys
+
+fd = 9
+fcntl.flock(fd, fcntl.LOCK_EX)
+PY
 
 SWIFTC_FLAGS=(-parse-as-library -o "$OUTPUT_PATH" -lsqlite3)
 if [[ "$BUILD_MODE" == "release" ]]; then

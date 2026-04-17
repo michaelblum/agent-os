@@ -10,6 +10,13 @@ Rebuild with `bash build.sh` when both of these are true:
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
 
+If you are chaining build + `./aos` verification from automation, prefer:
+
+- `scripts/aos-after-build -- ./aos ...`
+
+That wrapper waits for any in-flight rebuild, ensures the binary is current,
+then runs the `./aos` command.
+
 Examples:
 
 - `bash tests/wiki-seed.sh`

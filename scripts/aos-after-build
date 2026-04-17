@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUILD_SCRIPT="${AOS_BUILD_SCRIPT:-$REPO_ROOT/build.sh}"
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/aos-after-build [build.sh args ...] -- <command> [args ...]
+
+Wait for any in-flight aos rebuild, ensure the binary is current, then run the
+given command.
+
+Examples:
+  scripts/aos-after-build -- ./aos tell --who
+  scripts/aos-after-build --no-restart -- ./aos doctor --json
+EOF
+}
+
+build_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --)
+      shift
+      break
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      build_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ $# -eq 0 ]]; then
+  echo "aos-after-build requires a command after --" >&2
+  usage >&2
+  exit 1
+fi
+
+if [[ ${#build_args[@]} -gt 0 ]]; then
+  bash "$BUILD_SCRIPT" "${build_args[@]}"
+else
+  bash "$BUILD_SCRIPT"
+fi
+exec "$@"

@@ -68,7 +68,7 @@ for key in ("session_id", "thread_id"):
 '
 }
 
-aos_resolve_last_assistant_message_from_input() {
+aos_resolve_transcript_path_from_input() {
   local hook_input="${1:-}"
   if [[ -z "$hook_input" ]]; then
     return 0
@@ -78,16 +78,232 @@ try:
     payload = json.load(sys.stdin)
 except Exception:
     raise SystemExit(0)
-value = payload.get("last_assistant_message")
+value = payload.get("transcript_path")
 if value:
     print(value)
 '
+}
+
+aos_resolve_session_id_from_transcript_path() {
+  local hook_input="${1:-}"
+  if [[ -z "$hook_input" ]]; then
+    return 0
+  fi
+  local transcript_path=""
+  transcript_path="$(aos_resolve_transcript_path_from_input "$hook_input")"
+  if [[ -z "$transcript_path" ]]; then
+    return 0
+  fi
+  python3 - "$transcript_path" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+matches = re.findall(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", path)
+if matches:
+    print(matches[-1])
+PY
+}
+
+aos_resolve_last_assistant_message_direct_from_input() {
+  local hook_input="${1:-}"
+  if [[ -z "$hook_input" ]]; then
+    return 0
+  fi
+  printf '%s' "$hook_input" | python3 -c 'import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+
+paths = (
+    ("last_assistant_message",),
+    ("assistant_message",),
+    ("final_assistant_message",),
+    ("payload", "last_assistant_message"),
+    ("payload", "assistant_message"),
+    ("message", "text"),
+    ("last_message", "text"),
+)
+
+def dig(obj, path):
+    cur = obj
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
+
+for path in paths:
+    value = dig(payload, path)
+    if isinstance(value, str) and value.strip():
+        print(value)
+        break
+'
+}
+
+aos_resolve_last_assistant_message_from_codex_transcript() {
+  local transcript_path="${1:-}"
+  if [[ -z "$transcript_path" ]] || [[ ! -f "$transcript_path" ]]; then
+    return 0
+  fi
+  python3 - "$transcript_path" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+last_any = None
+last_final = None
+last_task_complete = None
+
+def collect_text(content):
+    if not isinstance(content, list):
+        return None
+    parts = []
+    for item in content:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "output_text":
+            text = item.get("text")
+            if isinstance(text, str) and text.strip():
+                parts.append(text)
+    if parts:
+        return "\n".join(parts)
+    return None
+
+with open(path, "r", encoding="utf-8") as handle:
+    for raw in handle:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            obj = json.loads(raw)
+        except Exception:
+            continue
+        payload = obj.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        if obj.get("type") == "event_msg" and payload.get("type") == "task_complete":
+            text = payload.get("last_agent_message")
+            if isinstance(text, str) and text.strip():
+                last_task_complete = text
+            continue
+        if obj.get("type") != "response_item":
+            continue
+        if payload.get("type") != "message" or payload.get("role") != "assistant":
+            continue
+        text = collect_text(payload.get("content"))
+        if not text:
+            continue
+        last_any = text
+        if payload.get("phase") == "final_answer":
+            last_final = text
+
+if last_task_complete:
+    print(last_task_complete)
+elif last_final:
+    print(last_final)
+elif last_any:
+    print(last_any)
+PY
+}
+
+aos_resolve_last_assistant_message_from_claude_transcript() {
+  local transcript_path="${1:-}"
+  if [[ -z "$transcript_path" ]] || [[ ! -f "$transcript_path" ]]; then
+    return 0
+  fi
+  python3 - "$transcript_path" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+last_any = None
+for line in open(path, "r", encoding="utf-8"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        obj = json.loads(line)
+    except Exception:
+        continue
+    if obj.get("type") == "assistant":
+        text = obj.get("text")
+        if isinstance(text, str) and text.strip():
+            last_any = text
+    payload = obj.get("payload")
+    if isinstance(payload, dict) and payload.get("role") == "assistant":
+        text = payload.get("text")
+        if isinstance(text, str) and text.strip():
+            last_any = text
+if last_any:
+    print(last_any)
+PY
+}
+
+aos_resolve_last_assistant_message_from_gemini_transcript() {
+  # Reserved slot for a future Gemini transcript parser.
+  return 0
+}
+
+aos_resolve_last_assistant_message_from_transcript() {
+  local hook_input="${1:-}"
+  local harness="${2:-$(aos_detect_harness)}"
+  local transcript_path=""
+
+  transcript_path="$(aos_resolve_transcript_path_from_input "$hook_input")"
+  if [[ -z "$transcript_path" ]]; then
+    return 0
+  fi
+
+  case "$harness" in
+    codex)
+      aos_resolve_last_assistant_message_from_codex_transcript "$transcript_path"
+      ;;
+    claude-code)
+      aos_resolve_last_assistant_message_from_claude_transcript "$transcript_path"
+      ;;
+    gemini)
+      aos_resolve_last_assistant_message_from_gemini_transcript "$transcript_path"
+      ;;
+  esac
+}
+
+aos_resolve_last_assistant_message_from_input() {
+  local hook_input="${1:-}"
+  local harness="${2:-$(aos_detect_harness)}"
+  local value=""
+
+  value="$(aos_resolve_last_assistant_message_direct_from_input "$hook_input")"
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+    return
+  fi
+
+  value="$(aos_resolve_last_assistant_message_from_transcript "$hook_input" "$harness")"
+  if [[ -n "$value" ]]; then
+    printf '%s\n' "$value"
+  fi
+}
+
+aos_emit_stop_hook_success() {
+  local harness="${1:-$(aos_detect_harness)}"
+  case "$harness" in
+    codex)
+      printf '{"continue":true}\n'
+      ;;
+  esac
 }
 
 aos_resolve_session_id() {
   local hook_input="${1:-}"
   local session_id=""
   session_id="$(aos_resolve_session_id_from_input "$hook_input")"
+  if [[ -n "$session_id" ]]; then
+    printf '%s\n' "$session_id"
+    return
+  fi
+  session_id="$(aos_resolve_session_id_from_transcript_path "$hook_input")"
   if [[ -n "$session_id" ]]; then
     printf '%s\n' "$session_id"
     return

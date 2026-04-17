@@ -18,25 +18,32 @@ trap cleanup EXIT
 aos_test_start_daemon "$ROOT"
 
 SESSION_ID="019d99f2-0001-7000-b000-000000000001"
-PAYLOAD="$(python3 - <<'PY'
-import json
+
+TRANSCRIPT_PATH="$ROOT/rollout-2026-04-17T00-00-00-$SESSION_ID.jsonl"
+cat >"$TRANSCRIPT_PATH" <<'EOF'
+{"type":"response_item","payload":{"type":"message","role":"assistant","phase":"commentary","content":[{"type":"output_text","text":"Commentary text."}]}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"Transcript fallback sentence."}]}}
+{"type":"event_msg","payload":{"type":"task_complete","last_agent_message":"Task-complete fallback sentence."}}
+EOF
+
+FALLBACK_PAYLOAD="$(python3 - "$TRANSCRIPT_PATH" <<'PY'
+import json, sys
 print(json.dumps({
-    "session_id": "019d99f2-0001-7000-b000-000000000001",
-    "last_assistant_message": "First sentence. Second sentence."
+    "transcript_path": sys.argv[1]
 }))
 PY
 )"
 
-EXTRACTED="$(printf '%s' "$PAYLOAD" | bash -lc 'source .agents/hooks/session-common.sh; HOOK_INPUT="$(cat)"; aos_resolve_last_assistant_message_from_input "$HOOK_INPUT"')"
-if [[ "$EXTRACTED" != "First sentence. Second sentence." ]]; then
-  echo "FAIL: expected hook helper to extract last_assistant_message" >&2
-  exit 1
-fi
-
 ./aos tell --register --session-id "$SESSION_ID" --name "hook-voice" --role worker --harness codex >/dev/null
 WHO_BEFORE="$(./aos tell --who)"
 
-printf '%s' "$PAYLOAD" | AOS_SESSION_HARNESS=codex bash .agents/hooks/final-response.sh
+HOOK_STDOUT="$(printf '%s' "$FALLBACK_PAYLOAD" | AOS_SESSION_HARNESS=codex bash .agents/hooks/final-response.sh)"
+python3 - "$HOOK_STDOUT" <<'PY'
+import json, sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected codex Stop hook success JSON, got {payload}")
+PY
 
 WHO_AFTER="$(./aos tell --who)"
 python3 - "$WHO_BEFORE" "$WHO_AFTER" "$SESSION_ID" <<'PY'
