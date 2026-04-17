@@ -25,11 +25,11 @@ ensure_content_roots() {
 # Compute workbench frame + avatar home from display geometry.
 # Outputs two lines: frame "x,y,w,h" and avatar home "ax,ay".
 compute_geometry() {
-  echo "$1" | python3 - "${2:-32}" "${3:-28}" <<'PY'
-import json, sys
+  AOS_DISPLAY_JSON="$1" python3 - "${2:-32}" "${3:-28}" <<'PY'
+import json, os, sys
 
 margin_x, margin_y = int(sys.argv[1]), int(sys.argv[2])
-raw = json.load(sys.stdin)
+raw = json.loads(os.environ["AOS_DISPLAY_JSON"])
 displays = raw.get("displays", raw) if isinstance(raw, dict) else raw
 main = next((d for d in displays if d.get("is_main")), None)
 
@@ -63,14 +63,14 @@ stage_avatar() {
   liveJs.travel=null;
   liveJs.avatarPos=p; liveJs.currentCursor=p; liveJs.cursorTarget=p;
   if(typeof postLastPositionToDaemon==='function') postLastPositionToDaemon();
-  return JSON.stringify(p);
+  return 'staged';
 })()
 JSEOF
 )"
   for _ in $(seq 1 10); do
     local result
     result="$("$AOS" show eval --id "$AVATAR_ID" --js "$js" 2>/dev/null || true)"
-    printf '%s' "$result" | grep -q '"x"' && return 0
+    printf '%s' "$result" | grep -q '"result"[[:space:]]*:[[:space:]]*"staged"' && return 0
     sleep 0.2
   done
   echo "Warning: avatar staging timed out." >&2
