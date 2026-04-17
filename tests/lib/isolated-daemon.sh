@@ -141,3 +141,24 @@ aos_test_wait_for_socket() {
   done
   return 1
 }
+
+aos_test_start_daemon() {
+  local root="$1"
+  shift
+
+  local content_wait_args=()
+  while (( $# > 0 )); do
+    local name="$1"
+    local path="$2"
+    shift 2
+    ./aos set "content.roots.${name}" "$path" >/dev/null
+    content_wait_args+=(--root "$name")
+  done
+
+  ./aos serve --idle-timeout none >"$root/daemon.stdout" 2>"$root/daemon.stderr" &
+  aos_test_wait_for_socket "$root" || return 1
+
+  if (( ${#content_wait_args[@]} > 0 )); then
+    ./aos content wait "${content_wait_args[@]}" --timeout 10s >/dev/null
+  fi
+}

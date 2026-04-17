@@ -15,11 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos set content.roots.toolkit packages/toolkit >/dev/null
-./aos set content.roots.sigil apps/sigil >/dev/null
-./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
-aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
-./aos content wait --root toolkit --root sigil --timeout 10s >/dev/null
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
+  || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 AOS_BIN="$(pwd)/aos" AOS_RUNTIME_MODE=repo apps/sigil/sigilctl-seed.sh >/dev/null
 

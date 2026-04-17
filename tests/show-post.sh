@@ -15,9 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos set content.roots.toolkit packages/toolkit >/dev/null
-./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
-aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
+  || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 ./aos show create \
   --id post-smoke \
