@@ -56,8 +56,91 @@
 <body>
 <script type="module">
   import { mountPanel, Tabs } from '/toolkit/panel/index.js'
+  import { evalCanvas, subscribe, wireBridge } from '/toolkit/runtime/index.js'
   import CanvasInspector from '/toolkit/components/canvas-inspector/index.js'
   import LogConsole from '/toolkit/components/log-console/index.js'
+  import { resolveBirthplace } from '/sigil/renderer/birthplace-resolver.js'
+
+  const AVATAR_ID = 'avatar-main'
+  const workbenchState = {
+    activationCount: 0,
+    displays: [],
+    lastActivation: null,
+    lastStage: null,
+  }
+  window.__sigilWorkbenchState = workbenchState
+
+  function normalizeDisplay(display = {}) {
+    const visible = display.visible_bounds || display.bounds || {}
+    return {
+      ...display,
+      uuid: display.uuid ?? display.display_uuid ?? null,
+      is_main: Boolean(display.is_main),
+      visible_bounds: {
+        x: visible.x ?? 0,
+        y: visible.y ?? 0,
+        w: visible.w ?? visible.width ?? 0,
+        h: visible.h ?? visible.height ?? 0,
+      },
+    }
+  }
+
+  function syncWorkbenchState(patch = {}) {
+    Object.assign(workbenchState, patch)
+    window.__sigilWorkbenchState = workbenchState
+  }
+
+  async function restageAvatarToStudioHome() {
+    if (workbenchState.displays.length === 0) {
+      syncWorkbenchState({
+        lastStage: { status: 'no-displays', at: Date.now() },
+      })
+      return
+    }
+    const target = resolveBirthplace({
+      anchor: 'nonant',
+      nonant: 'top-left',
+      display: 'main',
+    }, workbenchState.displays)
+    syncWorkbenchState({
+      lastStage: { status: 'pending', target, at: Date.now() },
+    })
+    const js = `(() => {
+      if (!window.liveJs) return 'no-liveJs'
+      const p = { x: ${JSON.stringify(target.x)}, y: ${JSON.stringify(target.y)}, valid: true }
+      liveJs.travel = null
+      liveJs.avatarPos = p
+      liveJs.currentCursor = p
+      liveJs.cursorTarget = p
+      if (typeof postLastPositionToDaemon === 'function') postLastPositionToDaemon()
+      return JSON.stringify(p)
+    })()`
+    try {
+      const result = await evalCanvas(AVATAR_ID, js)
+      syncWorkbenchState({
+        lastStage: { status: 'ok', target, result, at: Date.now() },
+      })
+    } catch (error) {
+      syncWorkbenchState({
+        lastStage: {
+          status: 'error',
+          target,
+          message: String(error),
+          at: Date.now(),
+        },
+      })
+    }
+  }
+
+  wireBridge((msg) => {
+    if (msg?.type !== 'display_geometry') return
+    const payload = msg.payload || msg
+    syncWorkbenchState({
+      displays: (payload.displays || []).map(normalizeDisplay),
+      lastDisplayUpdateAt: Date.now(),
+    })
+  })
+  subscribe(['display_geometry'], { snapshot: true })
 
   function iframeContent({ name, title, src, description }) {
     return function SurfaceTab() {
@@ -131,7 +214,24 @@
       }),
       CanvasInspector,
       LogConsole,
-    ]),
+    ], {
+      onActivate(info) {
+        const previous = workbenchState.lastActivation
+        const activationCount = workbenchState.activationCount + 1
+        syncWorkbenchState({
+          activationCount,
+          lastActivation: {
+            index: info.index,
+            title: info.title,
+            name: info.manifest?.name ?? null,
+            at: Date.now(),
+          },
+        })
+        if (info.title === 'Studio' && activationCount > 1 && previous?.title !== 'Studio') {
+          void restageAvatarToStudioHome()
+        }
+      },
+    }),
   })
 </script>
 </body>
