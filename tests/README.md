@@ -77,6 +77,7 @@ Examples:
 - `bash tests/canvas-inspector-tint.sh`
 - `bash tests/panel-tabs-activation.sh`
 - `bash tests/sigil-workbench-studio-restage.sh`
+- `bash tests/sigil-workbench-launch.sh`
 
 ## Recovery
 
