@@ -257,13 +257,35 @@ aos say --list-voices
 
 `aos say` is sugar for `aos tell human ...`. Consumers that need one communication surface should prefer `aos tell`.
 
+## `aos voice`
+
+Inspect the curated session voice bank and the active one-session-per-voice leases:
+
+```bash
+aos voice list
+aos voice leases
+```
+
+`aos voice list` returns the high-quality voice bank that agent-os will lease to
+live sessions. Each entry includes:
+
+- `provider`
+- `id`
+- `name`
+- `locale`
+- `gender`
+- `quality_tier`
+- optional `lease_session_id` / `lease_session_name`
+
+`aos voice leases` returns only the active session assignments.
+
 ## `aos tell`
 
 Primary public forms:
 
 | Form | Purpose |
 | --- | --- |
-| `<audience>\|--session-id <id> [--json <payload>] [--from <name>] [<text>]` | send text or JSON to `human`, a channel, a comma-separated mix, or one canonical session id |
+| `<audience>\|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text>]` | send text or JSON to `human`, a channel, a comma-separated mix, or one canonical session id |
 | `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | register session presence |
 | `--unregister [<legacy-name>] [--session-id <id>]` | remove session presence |
 | `--who` | list online sessions |
@@ -272,6 +294,7 @@ Examples:
 
 ```bash
 aos tell human "Hello"
+aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response "Done."
 aos tell handoff "task complete"
 aos tell human,handoff "done"
 aos tell handoff --from wiki-focus "task complete"
@@ -281,6 +304,10 @@ echo 'queued update' | aos tell handoff
 ```
 
 If no text args and no `--json` payload are provided, `aos tell` reads plain text from `stdin`.
+
+For `human` delivery, `--from-session-id` lets the daemon resolve that
+session's leased voice, and `--purpose final_response` applies the configured
+final-response shaping policy before speaking.
 
 Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
 Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.

@@ -63,7 +63,10 @@ aos do click 500,300              # Click at coordinates
 aos do type "hello world"         # Type with natural cadence
 aos say "Hello, I'm your agent"   # Speak text aloud (sugar for tell human)
 aos say --list-voices             # List available voices
+aos voice list                    # Curated session voice bank
+aos voice leases                  # Active one-session-per-voice leases
 aos tell human "Hello"             # Speak (same as aos say)
+aos tell human --from-session-id <id> --purpose final_response "Done."
 aos tell handoff "task complete"    # Post to coordination channel
 aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name my-session
 aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "status update"
@@ -170,6 +173,9 @@ Config file: `~/.config/aos/{mode}/config.json` where mode is `repo` or `install
 aos set voice.enabled true        # Daemon starts speaking automatically
 aos set voice.voice "com.apple.voice.compact.en-US.Samantha"
 aos set voice.rate 200            # Words per minute
+aos set voice.policies.final_response.style last_sentence
+aos set voice.policies.final_response.last_n_chars 400
+aos set voice.controls.cancel.key_code 53
 aos set voice.enabled false       # Mute
 ```
 
@@ -184,6 +190,9 @@ and other significant actions without the agent needing to call `aos say`.
 | voice.announce_actions | bool | true | Announce canvas/action events |
 | voice.voice | string | system default | Voice identifier |
 | voice.rate | float | ~180 | Speech rate (WPM) |
+| voice.policies.final_response.style | string | last_sentence | Final-response shaping policy (`full`, `last_sentence`, `last_n_chars`) |
+| voice.policies.final_response.last_n_chars | int | 400 | Character tail used by the final-response fallback / `last_n_chars` style |
+| voice.controls.cancel.key_code | int\|none | 53 | Global speech-cancel key code (Esc by default) |
 | perception.default_depth | int | 1 | Default perception depth (0-3) |
 | perception.settle_threshold_ms | int | 200 | Cursor settle threshold |
 | feedback.visual | bool | true | Visual feedback overlays |

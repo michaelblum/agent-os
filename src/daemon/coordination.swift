@@ -37,6 +37,7 @@ class CoordinationBus {
         let harness: String
         let registeredAt: Date
         var lastHeartbeat: Date
+        var voice: SessionVoiceDescriptor?
     }
 
     struct ChannelMessage {
@@ -55,11 +56,15 @@ class CoordinationBus {
         let now = Date()
         pruneExpiredSessionsLocked(now: now)
         let normalizedName = normalizeName(name)
-        let registeredAt = sessions[sessionID]?.registeredAt ?? now
+        let existingSession = sessions[sessionID]
+        let registeredAt = existingSession?.registeredAt ?? now
+        let existingVoice = existingSession?.voice
 
-        if let oldName = sessions[sessionID]?.name, oldName != normalizedName {
+        if let oldName = existingSession?.name, oldName != normalizedName {
             sessionIDsByName.removeValue(forKey: oldName)
         }
+
+        let assignedVoice = assignVoiceLocked(existingVoice: existingVoice, excludingSessionID: sessionID)
 
         sessions[sessionID] = SessionInfo(
             sessionID: sessionID,
@@ -67,7 +72,8 @@ class CoordinationBus {
             role: role,
             harness: harness,
             registeredAt: registeredAt,
-            lastHeartbeat: now
+            lastHeartbeat: now,
+            voice: assignedVoice
         )
 
         if let normalizedName {
@@ -83,6 +89,9 @@ class CoordinationBus {
         ]
         if let normalizedName {
             response["name"] = normalizedName
+        }
+        if let voice = sessions[sessionID]?.voice {
+            response["voice"] = voice.dictionary()
         }
         return response
     }
@@ -122,6 +131,9 @@ class CoordinationBus {
                 if let name = s.name {
                     session["name"] = name
                 }
+                if let voice = s.voice {
+                    session["voice"] = voice.dictionary()
+                }
                 return session
         }
     }
@@ -147,6 +159,9 @@ class CoordinationBus {
         if let removedName = removed.name {
             response["name"] = removedName
         }
+        if let voice = removed.voice {
+            response["voice"] = voice.dictionary()
+        }
         return response
     }
 
@@ -171,7 +186,48 @@ class CoordinationBus {
         if let name = session.name {
             payload["name"] = name
         }
+        if let voice = session.voice {
+            payload["voice"] = voice.dictionary()
+        }
         return payload
+    }
+
+    func sessionDisplayName(sessionID: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        pruneExpiredSessionsLocked()
+        return sessions[sessionID]?.name ?? sessions[sessionID]?.sessionID
+    }
+
+    func voiceCatalog() -> [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        pruneExpiredSessionsLocked()
+        return SessionVoiceBank.curatedVoices().map { voice in
+            let lease = sessions.values.first { $0.voice?.id == voice.id }
+            return voice.withLease(sessionID: lease?.sessionID, sessionName: lease?.name).dictionary()
+        }
+    }
+
+    func voiceLeases() -> [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        pruneExpiredSessionsLocked()
+        return sessions.values.compactMap { session in
+            guard let voice = session.voice else { return nil }
+            var payload = voice.dictionary()
+            payload["session_id"] = session.sessionID
+            if let name = session.name {
+                payload["session_name"] = name
+            }
+            payload["role"] = session.role
+            payload["harness"] = session.harness
+            return payload
+        }.sorted {
+            let lhs = $0["session_id"] as? String ?? ""
+            let rhs = $1["session_id"] as? String ?? ""
+            return lhs < rhs
+        }
     }
 
     // MARK: - Messages
@@ -260,6 +316,9 @@ class CoordinationBus {
                 if let name = session.name {
                     payload["name"] = name
                 }
+                if let voice = session.voice {
+                    payload["voice"] = voice.dictionary()
+                }
                 return payload
             }.sorted {
                 let lhs = $0["session_id"] as? String ?? ""
@@ -315,7 +374,8 @@ class CoordinationBus {
                 role: role,
                 harness: harness,
                 registeredAt: registeredAt,
-                lastHeartbeat: lastHeartbeat
+                lastHeartbeat: lastHeartbeat,
+                voice: restoredVoice(payload["voice"])
             )
 
             if let normalizedName {
@@ -325,6 +385,7 @@ class CoordinationBus {
 
         sessions = restoredSessions
         sessionIDsByName = restoredIDsByName
+        repairVoiceLeasesLocked()
     }
 
     private func pruneExpiredSessionsLocked(now: Date = Date()) {
@@ -352,6 +413,67 @@ class CoordinationBus {
             return nil
         }
         return trimmed
+    }
+
+    private func assignVoiceLocked(existingVoice: SessionVoiceDescriptor?, excludingSessionID: String) -> SessionVoiceDescriptor? {
+        let availableVoices = SessionVoiceBank.curatedVoices()
+        if let existingVoice,
+           availableVoices.contains(where: { $0.id == existingVoice.id }) {
+            return existingVoice
+        }
+
+        let leasedIDs = Set(
+            sessions.values
+                .filter { $0.sessionID != excludingSessionID }
+                .compactMap { $0.voice?.id }
+        )
+
+        let unleasedVoices = availableVoices.filter { !leasedIDs.contains($0.id) }
+        guard let voice = unleasedVoices.randomElement() else {
+            return nil
+        }
+        return voice
+    }
+
+    private func repairVoiceLeasesLocked() {
+        let availableIDs = Set(SessionVoiceBank.curatedVoices().map(\.id))
+        let orderedIDs = sessions.values
+            .sorted { lhs, rhs in
+                if lhs.registeredAt != rhs.registeredAt {
+                    return lhs.registeredAt < rhs.registeredAt
+                }
+                return lhs.sessionID < rhs.sessionID
+            }
+            .map(\.sessionID)
+
+        var taken = Set<String>()
+        for sessionID in orderedIDs {
+            guard var session = sessions[sessionID] else { continue }
+            if let voice = session.voice, availableIDs.contains(voice.id), !taken.contains(voice.id) {
+                taken.insert(voice.id)
+            } else {
+                session.voice = nil
+            }
+            sessions[sessionID] = session
+        }
+
+        for sessionID in orderedIDs {
+            guard var session = sessions[sessionID], session.voice == nil else { continue }
+            if let voice = SessionVoiceBank.curatedVoices().first(where: { !taken.contains($0.id) }) {
+                session.voice = voice
+                sessions[sessionID] = session
+                taken.insert(voice.id)
+            }
+        }
+    }
+
+    private func restoredVoice(_ rawValue: Any?) -> SessionVoiceDescriptor? {
+        guard let payload = rawValue as? [String: Any],
+              let id = payload["id"] as? String,
+              let voice = SessionVoiceBank.voice(id: id) else {
+            return nil
+        }
+        return voice
     }
 
     private func dateValue(_ rawValue: Any?) -> Date? {

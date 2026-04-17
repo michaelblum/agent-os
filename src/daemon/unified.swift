@@ -16,6 +16,8 @@ class UnifiedDaemon {
     let spatial = SpatialModel()
     let canvasManager = CanvasManager()
     private var speechEngine: SpeechEngine?
+    private var speechCancelTap: CFMachPort?
+    private var speechCancelTapSource: CFRunLoopSource?
     private var contentServer: ContentServer?
     let coordination = CoordinationBus()
 
@@ -1094,6 +1096,24 @@ class UnifiedDaemon {
             let sessions = coordination.whoIsOnline()
             sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions])
 
+        case "voice-list":
+            let voices = coordination.voiceCatalog()
+            let leases = voices.filter { $0["lease_session_id"] != nil }
+            sendResponseJSON(to: clientFD, [
+                "status": "ok",
+                "voices": voices,
+                "voice_count": voices.count,
+                "leased_count": leases.count
+            ])
+
+        case "voice-leases":
+            let leases = coordination.voiceLeases()
+            sendResponseJSON(to: clientFD, [
+                "status": "ok",
+                "leases": leases,
+                "lease_count": leases.count
+            ])
+
         case "coord-read":
             guard let channel = json["channel"] as? String else {
                 sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"])
@@ -1186,6 +1206,9 @@ class UnifiedDaemon {
             if old.voice.rate != new.voice.rate, let rate = new.voice.rate {
                 speechEngine?.setRate(rate)
             }
+            if effectiveSpeechCancelKeyCode(config: old) != effectiveSpeechCancelKeyCode(config: new) {
+                configureSpeechCancelTap()
+            }
         }
         configChangeHandler?(new)
     }
@@ -1199,6 +1222,7 @@ class UnifiedDaemon {
             if let rate = self.currentConfig.voice.rate {
                 self.speechEngine?.setRate(rate)
             }
+            self.configureSpeechCancelTap()
             fputs("Voice engine initialized\n", stderr)
         }
     }
@@ -1206,17 +1230,70 @@ class UnifiedDaemon {
     private func stopSpeechEngine() {
         DispatchQueue.main.async { [weak self] in
             self?.speechEngine?.stop()
+            self?.teardownSpeechCancelTap()
             self?.speechEngine = nil
             fputs("Voice engine stopped\n", stderr)
         }
     }
 
     /// Speak text if voice is enabled. Non-blocking.
-    func announce(_ text: String) {
+    func announce(_ text: String, voiceID: String? = nil) {
         guard currentConfig.voice.enabled, let engine = speechEngine else { return }
         DispatchQueue.main.async {
+            if let voiceID {
+                engine.setVoice(voiceID)
+            } else if let configuredVoice = self.currentConfig.voice.voice {
+                engine.setVoice(configuredVoice)
+            }
+            if let rate = self.currentConfig.voice.rate {
+                engine.setRate(rate)
+            }
             engine.speak(text)
         }
+    }
+
+    private func configureSpeechCancelTap() {
+        teardownSpeechCancelTap()
+        guard speechEngine != nil else { return }
+        guard effectiveSpeechCancelKeyCode(config: currentConfig) != nil else { return }
+
+        let daemonRef = Unmanaged.passUnretained(self).toOpaque()
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
+                guard let refcon else { return Unmanaged.passUnretained(event) }
+                let daemon = Unmanaged<UnifiedDaemon>.fromOpaque(refcon).takeUnretainedValue()
+                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                if keyCode == effectiveSpeechCancelKeyCode(config: daemon.currentConfig) {
+                    daemon.speechEngine?.stop()
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: daemonRef
+        ) else {
+            fputs("Voice cancel tap unavailable\n", stderr)
+            return
+        }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .defaultMode)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        speechCancelTap = tap
+        speechCancelTapSource = source
+    }
+
+    private func teardownSpeechCancelTap() {
+        if let tap = speechCancelTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+        }
+        if let source = speechCancelTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .defaultMode)
+        }
+        speechCancelTapSource = nil
+        speechCancelTap = nil
     }
 
     // MARK: - Tell (Coordination)
@@ -1229,7 +1306,11 @@ class UnifiedDaemon {
 
         let text = json["text"] as? String
         let jsonPayload = json["payload"]  // structured data alternative
-        let from = json["from"] as? String ?? "cli"
+        let fromSessionID = json["from_session_id"] as? String
+        let purpose = json["purpose"] as? String
+        let from = json["from"] as? String
+            ?? fromSessionID.flatMap { coordination.sessionDisplayName(sessionID: $0) }
+            ?? "cli"
 
         guard text != nil || jsonPayload != nil else {
             sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"])
@@ -1242,13 +1323,31 @@ class UnifiedDaemon {
         for aud in audiences {
             if aud == "human" {
                 // Route to TTS
-                if currentConfig.voice.enabled, let t = text {
-                    announce(t)
-                    routes.append(["audience": "human", "route": "voice", "delivered": true])
-                } else if text != nil {
-                    // Voice disabled — still acknowledge but note no delivery
-                    routes.append(["audience": "human", "route": "voice", "delivered": false,
-                                   "reason": "voice.enabled is false"])
+                if let t = text {
+                    let rendered = renderSpeechText(rawText: t, purpose: purpose, config: currentConfig)
+                    let sessionVoice = fromSessionID.flatMap { coordination.sessionInfo(sessionID: $0)?["voice"] as? [String: Any] }
+                    let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice
+                    if currentConfig.voice.enabled {
+                        announce(rendered.text, voiceID: voiceID)
+                    }
+                    var route: [String: Any] = [
+                        "audience": "human",
+                        "route": "voice",
+                        "delivered": currentConfig.voice.enabled
+                    ]
+                    if let purpose {
+                        route["purpose"] = purpose
+                    }
+                    route["rendered"] = rendered.dictionary()
+                    if let sessionVoice {
+                        route["voice"] = sessionVoice
+                    } else if let voiceID, let discovered = SpeechEngine.availableVoice(id: voiceID) {
+                        route["voice"] = SessionVoiceDescriptor(voiceInfo: discovered).dictionary()
+                    }
+                    if !currentConfig.voice.enabled {
+                        route["reason"] = "voice.enabled is false"
+                    }
+                    routes.append(route)
                 }
             } else {
                 // Route to coordination bus channel

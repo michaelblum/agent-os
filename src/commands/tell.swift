@@ -4,6 +4,7 @@
 //   aos tell <audience> "message"                         Post text to audience(s)
 //   aos tell --session-id <id> "message"                 Post directly to a session channel
 //   aos tell <audience> --json <data>                    Post structured JSON to audience(s)
+//   aos tell human --from-session-id <id> --purpose final_response [text|stdin]
 //   aos tell --register --session-id <id> [--name <n>]   Register session presence
 //   aos tell --unregister --session-id <id>              Remove session presence
 //   aos tell --who                                       List online sessions
@@ -49,6 +50,8 @@ func tellCommand(args: [String]) {
     var jsonData: String? = nil
     var textParts: [String] = []
     var from: String? = nil
+    var fromSessionID: String? = nil
+    var purpose: String? = nil
 
     var i = 0
     while i < args.count {
@@ -61,6 +64,14 @@ func tellCommand(args: [String]) {
             i += 1
             guard i < args.count else { exitError("--from requires a value", code: "MISSING_ARG") }
             from = args[i]
+        case "--from-session-id":
+            i += 1
+            guard i < args.count else { exitError("--from-session-id requires a value", code: "MISSING_ARG") }
+            fromSessionID = args[i]
+        case "--purpose":
+            i += 1
+            guard i < args.count else { exitError("--purpose requires a value", code: "MISSING_ARG") }
+            purpose = args[i]
         case "--session-id":
             i += 1
             guard i < args.count else { exitError("--session-id requires a value", code: "MISSING_ARG") }
@@ -104,6 +115,8 @@ func tellCommand(args: [String]) {
     ]
     if !text.isEmpty { request["text"] = text }
     if let from = from { request["from"] = from }
+    if let fromSessionID = fromSessionID, !fromSessionID.isEmpty { request["from_session_id"] = fromSessionID }
+    if let purpose = purpose, !purpose.isEmpty { request["purpose"] = purpose }
     if let jd = jsonData {
         // Parse JSON string into object for structured payload
         if let data = jd.data(using: .utf8),

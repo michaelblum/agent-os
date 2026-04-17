@@ -514,9 +514,29 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos say --list-voices"])
     ]))
 
+    // ── voice ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["voice"], summary: "Voice system — inspect the curated session voice bank and active leases", forms: [
+        InvocationForm(id: "voice-list", usage: "aos voice list",
+            args: [
+                pos("list", "List the curated session voice bank", required: false)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos voice list"]),
+        InvocationForm(id: "voice-leases", usage: "aos voice leases",
+            args: [
+                pos("leases", "List active session voice leases", required: false)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos voice leases"])
+    ]))
+
     // ── tell ──────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["tell"], summary: "Communication — send to human, channel, or session", forms: [
-        InvocationForm(id: "tell-message", usage: "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [<text> | stdin]",
+        InvocationForm(id: "tell-message", usage: "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text> | stdin]",
             args: [
                 pos("audience", "Target: human, channel name, or canonical session id", discovery: [
                     .staticValues(["human"]),
@@ -526,6 +546,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("session-id", "--session-id", "Directly target a canonical session id"),
                 flag("json", "--json", "Structured JSON payload", type: .json),
                 flag("from", "--from", "Sender name"),
+                flag("from-session-id", "--from-session-id", "Canonical sending session id for human delivery or channel metadata"),
+                flag("purpose", "--purpose", "Delivery purpose (for example: final_response)"),
                 pos("text", "Message text", required: false, variadic: true)
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "no text and no --json", contentType: "text"),
@@ -534,6 +556,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             output: outJSON,
             examples: [
                 "aos tell human \"Found the bug\"",
+                "printf '%s' \"$FINAL\" | aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response",
                 "aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c \"status update\"",
                 "aos tell handoff \"task complete\" --from my-session",
                 "echo 'update' | aos tell handoff"

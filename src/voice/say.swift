@@ -66,24 +66,27 @@ func sayCommand(args: [String]) {
     if let r = rate { engine.setRate(r) }
 
     // Hotkey: cancel speech (default: ESC = keyCode 53) via CGEvent tap
-    let cancelKey = config.hotkeys?.cancel_speech ?? 53
+    let cancelKey = effectiveSpeechCancelKeyCode(config: config)
     let engineRef = Unmanaged.passUnretained(engine).toOpaque()
-    let tap = CGEvent.tapCreate(
-        tap: .cgSessionEventTap,
-        place: .headInsertEventTap,
-        options: .listenOnly,
-        eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
-        callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
-            guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
-            let eng = Unmanaged<SpeechEngine>.fromOpaque(refcon).takeUnretainedValue()
-            let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-            if keyCode == loadConfig().hotkeys?.cancel_speech ?? 53 {
-                eng.stop()
-            }
-            return Unmanaged.passUnretained(event)
-        },
-        userInfo: engineRef
-    )
+    let tap = cancelKey.flatMap { cancelKey in
+        CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .listenOnly,
+            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            callback: { _, _, event, refcon -> Unmanaged<CGEvent>? in
+                guard let refcon = refcon else { return Unmanaged.passUnretained(event) }
+                let eng = Unmanaged<SpeechEngine>.fromOpaque(refcon).takeUnretainedValue()
+                let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+                if let activeKey = effectiveSpeechCancelKeyCode(config: loadConfig()),
+                   keyCode == activeKey {
+                    eng.stop()
+                }
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: engineRef
+        )
+    }
     var tapSource: CFRunLoopSource?
     if let tap = tap {
         tapSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)

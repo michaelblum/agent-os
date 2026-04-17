@@ -23,6 +23,25 @@ struct AosConfig: Codable {
         var announce_actions: Bool
         var voice: String?       // Voice identifier (nil = system default)
         var rate: Float?         // Speech rate in words per minute (nil = default ~180)
+        var policies: VoicePoliciesConfig?
+        var controls: VoiceControlsConfig?
+    }
+
+    struct VoicePoliciesConfig: Codable {
+        var final_response: FinalResponsePolicyConfig?
+    }
+
+    struct FinalResponsePolicyConfig: Codable {
+        var style: String?
+        var last_n_chars: Int?
+    }
+
+    struct VoiceControlsConfig: Codable {
+        var cancel: VoiceKeyControlConfig?
+    }
+
+    struct VoiceKeyControlConfig: Codable {
+        var key_code: UInt16?
     }
 
     struct PerceptionConfig: Codable {
@@ -50,7 +69,18 @@ struct AosConfig: Codable {
     }
 
     static let defaults = AosConfig(
-        voice: VoiceConfig(enabled: false, announce_actions: true, voice: nil, rate: nil),
+        voice: VoiceConfig(
+            enabled: false,
+            announce_actions: true,
+            voice: nil,
+            rate: nil,
+            policies: VoicePoliciesConfig(
+                final_response: FinalResponsePolicyConfig(style: "last_sentence", last_n_chars: 400)
+            ),
+            controls: VoiceControlsConfig(
+                cancel: VoiceKeyControlConfig(key_code: 53)
+            )
+        ),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
         content: nil,
@@ -101,6 +131,36 @@ func setConfigValue(key: String, value: String) {
     case "voice.rate":
         if let n = Float(value), n > 0 { config.voice.rate = n }
         else { exitError("rate must be a positive number", code: "INVALID_VALUE") }
+    case "voice.policies.final_response.style":
+        if config.voice.policies == nil { config.voice.policies = AosConfig.VoicePoliciesConfig(final_response: nil) }
+        if config.voice.policies?.final_response == nil {
+            config.voice.policies?.final_response = AosConfig.FinalResponsePolicyConfig(style: nil, last_n_chars: nil)
+        }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = ["full", "last_sentence", "last_n_chars"]
+        guard allowed.contains(normalized) else {
+            exitError("voice.policies.final_response.style must be one of \(allowed.joined(separator: ", "))", code: "INVALID_VALUE")
+        }
+        config.voice.policies?.final_response?.style = normalized
+    case "voice.policies.final_response.last_n_chars":
+        if config.voice.policies == nil { config.voice.policies = AosConfig.VoicePoliciesConfig(final_response: nil) }
+        if config.voice.policies?.final_response == nil {
+            config.voice.policies?.final_response = AosConfig.FinalResponsePolicyConfig(style: nil, last_n_chars: nil)
+        }
+        if let n = Int(value), n > 0 {
+            config.voice.policies?.final_response?.last_n_chars = n
+        } else {
+            exitError("voice.policies.final_response.last_n_chars must be a positive integer", code: "INVALID_VALUE")
+        }
+    case "voice.controls.cancel.key_code":
+        if config.voice.controls == nil { config.voice.controls = AosConfig.VoiceControlsConfig(cancel: nil) }
+        if value == "none" || value == "disabled" {
+            config.voice.controls?.cancel = AosConfig.VoiceKeyControlConfig(key_code: nil)
+        } else if let n = UInt16(value) {
+            config.voice.controls?.cancel = AosConfig.VoiceKeyControlConfig(key_code: n)
+        } else {
+            exitError("voice.controls.cancel.key_code must be a macOS keyCode (integer) or 'none'", code: "INVALID_VALUE")
+        }
     case "perception.default_depth":
         if let n = Int(value), (0...3).contains(n) { config.perception.default_depth = n }
         else { exitError("depth must be 0-3", code: "INVALID_VALUE") }
@@ -164,8 +224,12 @@ func setConfigValue(key: String, value: String) {
         if config.hotkeys == nil { config.hotkeys = AosConfig.HotkeysConfig(cancel_speech: nil) }
         if value == "none" || value == "disabled" {
             config.hotkeys?.cancel_speech = nil
+            if config.voice.controls == nil { config.voice.controls = AosConfig.VoiceControlsConfig(cancel: nil) }
+            config.voice.controls?.cancel = AosConfig.VoiceKeyControlConfig(key_code: nil)
         } else if let n = UInt16(value) {
             config.hotkeys?.cancel_speech = n
+            if config.voice.controls == nil { config.voice.controls = AosConfig.VoiceControlsConfig(cancel: nil) }
+            config.voice.controls?.cancel = AosConfig.VoiceKeyControlConfig(key_code: n)
         } else {
             exitError("hotkeys.cancel_speech must be a macOS keyCode (integer) or 'none'", code: "INVALID_VALUE")
         }

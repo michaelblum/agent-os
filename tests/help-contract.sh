@@ -109,6 +109,26 @@ else
     fail "show eval help drifted from parser: $OUT"
 fi
 
+# --- 11. aos help voice --json exposes the first-class voice surface ---
+OUT=$(./aos help voice --json 2>/dev/null)
+if echo "$OUT" | grep -q '"path" : \[' &&
+   echo "$OUT" | grep -q '"voice-list"' &&
+   echo "$OUT" | grep -q '"voice-leases"'; then
+    pass "voice help exposes curated bank and lease forms"
+else
+    fail "voice help is missing bank/lease forms: $OUT"
+fi
+
+# --- 12. aos help tell --json exposes session-backed human delivery context ---
+OUT=$(./aos help tell --json 2>/dev/null)
+if echo "$OUT" | grep -q '"token" : "--from-session-id"' &&
+   echo "$OUT" | grep -q '"token" : "--purpose"' &&
+   echo "$OUT" | grep -q 'final_response'; then
+    pass "tell help exposes final-response relay flags"
+else
+    fail "tell help is missing final-response relay flags: $OUT"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"
