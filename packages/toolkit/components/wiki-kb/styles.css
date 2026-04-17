@@ -253,10 +253,23 @@
 .wiki-kb-scope-button.active,
 .wiki-kb-filter.active,
 .wiki-kb-tag-filter.active,
+.wiki-kb-mini-action.active,
 .wiki-kb-mini-action:hover,
 .wiki-kb-action-button:hover {
   background: rgba(60, 60, 90, 0.22);
   color: var(--text-primary);
+}
+
+.wiki-kb-mini-action:disabled,
+.wiki-kb-action-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.wiki-kb-mini-action:disabled:hover,
+.wiki-kb-action-button:disabled:hover {
+  color: var(--text-muted);
+  background: rgba(18, 18, 28, 0.78);
 }
 
 .wiki-kb-controls-range-row {
@@ -311,6 +324,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.wiki-kb-path-actions {
+  justify-content: flex-end;
 }
 
 .wiki-kb-action-button {

@@ -4,6 +4,7 @@ import {
   applyGraphUpdate,
   buildAdjacency,
   deriveGraphViewData,
+  findShortestPath,
   normalizeGraphViewConfig,
   normalizeGraphPayload,
   pickPrimaryNodeId,
@@ -106,7 +107,14 @@ test('normalizeGraphPayload includes configurable graph defaults', () => {
     config: {
       graphView: {
         controls: { collapsed: true },
-        defaults: { mode: 'local', depth: 3, activeTypes: ['entity'], frozen: true },
+        defaults: {
+          mode: 'local',
+          depth: 3,
+          labelMode: 'selection',
+          highlightNeighbors: false,
+          activeTypes: ['entity'],
+          frozen: true,
+        },
         limits: { maxDepth: 6 },
       },
     },
@@ -115,6 +123,8 @@ test('normalizeGraphPayload includes configurable graph defaults', () => {
   assert.equal(graph.config.graphView.controls.collapsed, true);
   assert.equal(graph.config.graphView.defaults.mode, 'local');
   assert.equal(graph.config.graphView.defaults.depth, 3);
+  assert.equal(graph.config.graphView.defaults.labelMode, 'selection');
+  assert.equal(graph.config.graphView.defaults.highlightNeighbors, false);
   assert.deepEqual(graph.config.graphView.defaults.activeTypes, ['entity']);
   assert.equal(graph.config.graphView.defaults.frozen, true);
   assert.equal(graph.config.graphView.limits.maxDepth, 6);
@@ -172,13 +182,49 @@ test('deriveGraphViewData supports local depth, tag filters, and isolated-node h
 
 test('normalizeGraphViewConfig clamps invalid defaults', () => {
   const config = normalizeGraphViewConfig({
-    defaults: { mode: 'weird', depth: 99, tagMatchMode: 'invalid' },
+    defaults: {
+      mode: 'weird',
+      depth: 99,
+      labelMode: 'loud',
+      highlightNeighbors: 'yes',
+      tagMatchMode: 'invalid',
+    },
+    features: { labels: false, neighbors: false, path: false, focus: false },
     limits: { minDepth: 3, maxDepth: 2 },
   });
 
   assert.equal(config.defaults.mode, 'global');
   assert.equal(config.defaults.depth, 3);
+  assert.equal(config.defaults.labelMode, 'all');
+  assert.equal(config.defaults.highlightNeighbors, true);
   assert.equal(config.defaults.tagMatchMode, 'any');
+  assert.equal(config.features.labels, false);
+  assert.equal(config.features.neighbors, false);
+  assert.equal(config.features.path, false);
+  assert.equal(config.features.focus, false);
   assert.equal(config.limits.minDepth, 3);
   assert.equal(config.limits.maxDepth, 3);
+});
+
+test('findShortestPath returns the shortest visible route when one exists', () => {
+  const adjacency = buildAdjacency(
+    [
+      { id: 'alpha' },
+      { id: 'beta' },
+      { id: 'gamma' },
+      { id: 'delta' },
+      { id: 'epsilon' },
+    ],
+    [
+      { source: 'alpha', target: 'beta' },
+      { source: 'beta', target: 'gamma' },
+      { source: 'alpha', target: 'delta' },
+      { source: 'delta', target: 'epsilon' },
+      { source: 'epsilon', target: 'gamma' },
+    ]
+  );
+
+  assert.deepEqual(findShortestPath(adjacency, 'alpha', 'gamma'), ['alpha', 'beta', 'gamma']);
+  assert.deepEqual(findShortestPath(adjacency, 'gamma', 'gamma'), ['gamma']);
+  assert.deepEqual(findShortestPath(adjacency, 'alpha', 'missing'), []);
 });

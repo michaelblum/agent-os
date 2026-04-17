@@ -71,7 +71,9 @@ Current reusable toolkit components include:
       "defaults": {
         "mode": "local",
         "depth": 2,
+        "labelMode": "selection",
         "showIsolated": true,
+        "highlightNeighbors": true,
         "activeTypes": ["entity", "concept"]
       }
     }
@@ -90,16 +92,25 @@ Incremental updates go to `wiki-kb/graph/update` and may include:
 consumer-facing fields:
 
 - `controls.enabled` / `controls.collapsed`
-- `features.search`, `features.types`, `features.tags`, `features.scope`, `features.depth`, `features.isolated`, `features.freeze`, `features.fit`, `features.reset`, `features.legend`
+- `features.search`, `features.types`, `features.tags`, `features.scope`, `features.depth`, `features.labels`, `features.isolated`, `features.neighbors`, `features.path`, `features.freeze`, `features.focus`, `features.fit`, `features.reset`, `features.legend`
 - `defaults.mode` (`global` or `local`)
 - `defaults.depth`
+- `defaults.labelMode` (`all`, `selection`, or `hover`)
 - `defaults.showIsolated`
+- `defaults.highlightNeighbors`
 - `defaults.frozen`
 - `defaults.activeTypes`
 - `defaults.activeTags`
 - `defaults.searchQuery`
 - `defaults.tagMatchMode` (`any` or `all`)
 - `limits.minDepth` / `limits.maxDepth`
+
+When enabled, the graph controls can also expose:
+
+- configurable label density (`all`, `selection`, `hover`)
+- one-hop neighbor highlighting around the current selection or hover target
+- shortest-path highlighting between a saved path start and the current selection
+- selection focus actions that fit the selected node plus its current highlight context
 
 ## Runtime API
 

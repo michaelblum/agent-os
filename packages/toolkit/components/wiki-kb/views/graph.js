@@ -1,9 +1,12 @@
 // Force-directed graph view for wiki-kb.
 
 import {
+  buildAdjacency,
   createViewport,
   deriveGraphViewData,
   drawEmptyState,
+  findShortestPath,
+  linkKey,
   nodeColor,
   nodeRadius,
   normalizeGraphViewConfig,
@@ -12,9 +15,12 @@ import {
 
 const COLORS = {
   edge: 'rgba(100, 100, 160, 0.35)',
+  edgeDim: 'rgba(100, 100, 160, 0.12)',
   edgeHighlight: 'rgba(138, 180, 255, 0.72)',
+  edgePath: 'rgba(255, 211, 127, 0.84)',
   nodeFill: 'rgba(18, 18, 28, 0.88)',
   label: '#999',
+  labelDim: 'rgba(153, 153, 153, 0.34)',
   labelHighlight: '#e0e0e0',
 }
 
@@ -199,14 +205,23 @@ export default function GraphView({ onSelectNode }) {
   let filteredGraph = deriveGraphViewData(graphData, {})
   let controlsOpen = true
   let selectedNodeId = null
+  let hoverNodeId = null
+  let pathStartId = null
   let searchQuery = ''
   let mode = 'global'
   let depth = 2
+  let labelMode = 'all'
   let showIsolated = true
+  let highlightNeighbors = true
   let frozen = false
   let tagMatchMode = 'any'
   let activeTypes = new Set()
   let activeTags = new Set()
+  let highlightAdjacency = Object.create(null)
+  let neighborIds = new Set()
+  let pathIds = []
+  let pathIdSet = new Set()
+  let pathEdgeKeys = new Set()
   let configSignature = ''
   const dom = {}
   const simulation = new ForceGraph()
@@ -217,8 +232,78 @@ export default function GraphView({ onSelectNode }) {
     return simulation.nodes.find((node) => node.id === selectedNodeId) || null
   }
 
+  function selectedNodeData() {
+    if (!selectedNodeId) return null
+    return graphData.nodes.find((node) => node.id === selectedNodeId) || null
+  }
+
+  function hoverNode() {
+    if (!hoverNodeId) return null
+    return simulation.nodes.find((node) => node.id === hoverNodeId) || null
+  }
+
+  function pathStartNodeData() {
+    if (!pathStartId) return null
+    return graphData.nodes.find((node) => node.id === pathStartId) || null
+  }
+
   function worldPoint(clientX, clientY) {
     return viewport.clientToWorld(canvas, clientX, clientY)
+  }
+
+  function collectFocusNodes() {
+    const selected = selectedNode()
+    if (!selected) return []
+
+    const focusIds = new Set([selected.id])
+    for (const nodeId of pathIdSet) focusIds.add(nodeId)
+    if (graphViewConfig.features.neighbors && highlightNeighbors) {
+      for (const nodeId of neighborIds) focusIds.add(nodeId)
+    }
+
+    return simulation.nodes.filter((node) => focusIds.has(node.id))
+  }
+
+  function syncHighlightState() {
+    highlightAdjacency = buildAdjacency(filteredGraph.nodes, filteredGraph.links)
+
+    const anchorId = selectedNodeId && highlightAdjacency[selectedNodeId]
+      ? selectedNodeId
+      : (hoverNodeId && highlightAdjacency[hoverNodeId] ? hoverNodeId : null)
+
+    neighborIds = new Set()
+    if (graphViewConfig.features.neighbors && highlightNeighbors && anchorId) {
+      for (const neighborId of highlightAdjacency[anchorId] || []) {
+        neighborIds.add(neighborId)
+      }
+    }
+
+    pathIds = graphViewConfig.features.path && pathStartId && selectedNodeId
+      ? findShortestPath(highlightAdjacency, pathStartId, selectedNodeId)
+      : []
+    pathIdSet = new Set(pathIds)
+    pathEdgeKeys = new Set()
+    for (let index = 1; index < pathIds.length; index += 1) {
+      pathEdgeKeys.add(linkKey({ source: pathIds[index - 1], target: pathIds[index] }))
+    }
+  }
+
+  function formatPathCaption() {
+    if (!graphViewConfig.features.path) return ''
+
+    const startNode = pathStartNodeData()
+    if (!startNode) return 'No path start selected.'
+
+    const currentNode = selectedNodeData()
+    if (!currentNode || currentNode.id === startNode.id) {
+      return `path start: ${startNode.name}`
+    }
+
+    if (pathIds.length > 1) {
+      return `${startNode.name} -> ${currentNode.name} · ${pathIds.length - 1} hops`
+    }
+
+    return `${startNode.name} -> ${currentNode.name} · no visible path`
   }
 
   function setControlsOpen(nextOpen) {
@@ -250,7 +335,9 @@ export default function GraphView({ onSelectNode }) {
       searchQuery = graphViewConfig.defaults.searchQuery
       mode = graphViewConfig.defaults.mode
       depth = graphViewConfig.defaults.depth
+      labelMode = graphViewConfig.defaults.labelMode
       showIsolated = graphViewConfig.defaults.showIsolated
+      highlightNeighbors = graphViewConfig.defaults.highlightNeighbors
       frozen = graphViewConfig.defaults.frozen
       tagMatchMode = graphViewConfig.defaults.tagMatchMode
       controlsOpen = graphViewConfig.controls.enabled ? !graphViewConfig.controls.collapsed : false
@@ -274,7 +361,10 @@ export default function GraphView({ onSelectNode }) {
     if (!graphViewConfig.features.search) searchQuery = ''
     if (!graphViewConfig.features.scope) mode = 'global'
     if (!graphViewConfig.features.depth) depth = graphViewConfig.defaults.depth
+    if (!graphViewConfig.features.labels) labelMode = 'all'
     if (!graphViewConfig.features.isolated) showIsolated = true
+    if (!graphViewConfig.features.neighbors) highlightNeighbors = false
+    if (!graphViewConfig.features.path) pathStartId = null
     if (!graphViewConfig.features.freeze) frozen = false
     if (!graphViewConfig.features.types) activeTypes = new Set(availableTypes)
     if (!graphViewConfig.features.tags) activeTags.clear()
@@ -292,7 +382,11 @@ export default function GraphView({ onSelectNode }) {
     for (const type of filteredGraph.availableTypes) {
       const item = document.createElement('div')
       item.className = 'wiki-kb-legend-item'
-      item.innerHTML = `<span class="wiki-kb-legend-dot" style="background:${nodeColor(type)}"></span>${type}`
+      const dot = document.createElement('span')
+      dot.className = 'wiki-kb-legend-dot'
+      dot.style.background = nodeColor(type)
+      item.appendChild(dot)
+      item.append(type)
       fragment.appendChild(item)
     }
     dom.legendEl.appendChild(fragment)
@@ -381,11 +475,33 @@ export default function GraphView({ onSelectNode }) {
       dom.depthValueEl.textContent = String(depth)
     }
 
+    if (dom.labelSectionEl) {
+      dom.labelSectionEl.toggleAttribute('hidden', !graphViewConfig.features.labels)
+      for (const button of dom.labelButtons) {
+        const isActive = button.dataset.labelMode === labelMode
+        button.classList.toggle('active', isActive)
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+      }
+    }
+
     dom.summaryEl.textContent = `${filteredGraph.stats.visibleNodes}/${filteredGraph.stats.totalNodes} nodes · ${filteredGraph.stats.visibleLinks}/${filteredGraph.stats.totalLinks} links`
     dom.isolatedToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.isolated)
     dom.showIsolatedInput.checked = showIsolated
+    dom.neighborToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.neighbors)
+    dom.highlightNeighborsInput.checked = highlightNeighbors
+    dom.highlightSectionEl.toggleAttribute(
+      'hidden',
+      !(graphViewConfig.features.neighbors || graphViewConfig.features.path)
+    )
+    dom.pathActionsEl.toggleAttribute('hidden', !graphViewConfig.features.path)
+    dom.pathCaptionEl.toggleAttribute('hidden', !graphViewConfig.features.path)
+    dom.pathCaptionEl.textContent = formatPathCaption()
+    dom.pathStartButton.disabled = !graphViewConfig.features.path || !selectedNodeId
+    dom.clearPathButton.disabled = !graphViewConfig.features.path || !pathStartId
     dom.freezeToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.freeze)
     dom.freezeInput.checked = frozen
+    dom.focusSelectionButton.toggleAttribute('hidden', !graphViewConfig.features.focus)
+    dom.focusSelectionButton.disabled = !selectedNodeId
     dom.fitButton.toggleAttribute('hidden', !graphViewConfig.features.fit)
     dom.resetViewButton.toggleAttribute('hidden', !graphViewConfig.features.reset)
     dom.resetFiltersButton.toggleAttribute('hidden', !graphViewConfig.features.reset)
@@ -406,6 +522,12 @@ export default function GraphView({ onSelectNode }) {
   }
 
   function applyDerivedState({ fit = false, alpha = 0.3 } = {}) {
+    const stickyNodeIds = []
+    if (selectedNodeId) stickyNodeIds.push(selectedNodeId)
+    if (graphViewConfig.features.path && pathStartId && pathStartId !== selectedNodeId) {
+      stickyNodeIds.push(pathStartId)
+    }
+
     filteredGraph = deriveGraphViewData(graphData, {
       searchQuery,
       mode,
@@ -415,9 +537,13 @@ export default function GraphView({ onSelectNode }) {
       activeTypes: [...activeTypes],
       activeTags: [...activeTags],
       anchorId: selectedNodeId,
-      stickyNodeIds: selectedNodeId ? [selectedNodeId] : [],
+      stickyNodeIds,
     })
     simulation.load(filteredGraph.nodes, filteredGraph.links)
+    if (hoverNodeId && !simulation.nodes.some((node) => node.id === hoverNodeId)) {
+      hoverNodeId = null
+    }
+    syncHighlightState()
     renderControls()
 
     if (fit && simulation.nodes.length > 0) {
@@ -432,7 +558,11 @@ export default function GraphView({ onSelectNode }) {
     searchQuery = graphViewConfig.features.search ? graphViewConfig.defaults.searchQuery : ''
     mode = graphViewConfig.features.scope ? graphViewConfig.defaults.mode : 'global'
     depth = graphViewConfig.features.depth ? graphViewConfig.defaults.depth : graphViewConfig.limits.minDepth
+    labelMode = graphViewConfig.features.labels ? graphViewConfig.defaults.labelMode : 'all'
     showIsolated = graphViewConfig.features.isolated ? graphViewConfig.defaults.showIsolated : true
+    highlightNeighbors = graphViewConfig.features.neighbors
+      ? graphViewConfig.defaults.highlightNeighbors
+      : false
     frozen = graphViewConfig.features.freeze ? graphViewConfig.defaults.frozen : false
     tagMatchMode = graphViewConfig.defaults.tagMatchMode
     activeTypes = new Set(
@@ -445,6 +575,7 @@ export default function GraphView({ onSelectNode }) {
         ? graphViewConfig.defaults.activeTags.filter((tag) => availableTags.includes(tag))
         : []
     )
+    if (graphViewConfig.features.path) pathStartId = null
     applyDerivedState({ fit, alpha: frozen ? 0 : 0.6 })
   }
 
@@ -457,6 +588,33 @@ export default function GraphView({ onSelectNode }) {
 
   function resetViewport() {
     viewport.reset()
+    draw()
+  }
+
+  function focusSelection() {
+    const focusNodes = collectFocusNodes()
+    if (focusNodes.length === 0) return
+
+    if (focusNodes.length === 1) {
+      const [node] = focusNodes
+      viewport.centerOn(size.width, size.height, node.x, node.y)
+      draw()
+      return
+    }
+
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    for (const node of focusNodes) {
+      minX = Math.min(minX, node.x - node.r)
+      minY = Math.min(minY, node.y - node.r)
+      maxX = Math.max(maxX, node.x + node.r)
+      maxY = Math.max(maxY, node.y + node.r)
+    }
+
+    viewport.fitBounds(size.width, size.height, { minX, minY, maxX, maxY }, { padding: 48 })
     draw()
   }
 
@@ -473,12 +631,24 @@ export default function GraphView({ onSelectNode }) {
     }
 
     const selected = selectedNode()
+    const hovered = hoverNode()
+    const anchorId = selected?.id || hovered?.id || null
+    const highlightQuery = searchQuery.toLowerCase()
+    const neighborHighlightActive =
+      graphViewConfig.features.neighbors && highlightNeighbors && Boolean(anchorId)
+    const pathHighlightActive = pathEdgeKeys.size > 0
+    const focusContextActive = neighborHighlightActive || pathHighlightActive
+
     ctx.save()
     viewport.apply(ctx)
 
     for (const edge of simulation.edges) {
-      const highlighted = selected && (edge.source.id === selected.id || edge.target.id === selected.id)
-      ctx.strokeStyle = highlighted ? COLORS.edgeHighlight : COLORS.edge
+      const highlighted = neighborHighlightActive &&
+        (edge.source.id === anchorId || edge.target.id === anchorId)
+      const onPath = pathEdgeKeys.has(linkKey({ source: edge.source.id, target: edge.target.id }))
+      ctx.strokeStyle = onPath
+        ? COLORS.edgePath
+        : (highlighted ? COLORS.edgeHighlight : (focusContextActive ? COLORS.edgeDim : COLORS.edge))
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.moveTo(edge.source.x, edge.source.y)
@@ -486,14 +656,25 @@ export default function GraphView({ onSelectNode }) {
       ctx.stroke()
     }
 
-    const highlightQuery = searchQuery.toLowerCase()
     for (const node of simulation.nodes) {
       const isSelected = selected?.id === node.id
-      const isHighlighted = highlightQuery && node.name.toLowerCase().includes(highlightQuery)
+      const isHovered = hovered?.id === node.id
+      const isPathStart = pathStartId === node.id
+      const isPathNode = pathIdSet.has(node.id)
+      const isNeighbor = neighborIds.has(node.id)
+      const isHighlighted = highlightQuery && (
+        node.name.toLowerCase().includes(highlightQuery) ||
+        node.description.toLowerCase().includes(highlightQuery) ||
+        node.tags.some((tag) => tag.toLowerCase().includes(highlightQuery))
+      )
+      const emphasized = isSelected || isHovered || isPathStart || isPathNode || isNeighbor || isHighlighted
+      const dimmed = focusContextActive && !emphasized
       const color = nodeColor(node.type)
 
-      if (isSelected) {
-        ctx.shadowColor = color
+      ctx.globalAlpha = dimmed ? 0.28 : 1
+
+      if (isSelected || isPathStart) {
+        ctx.shadowColor = isPathNode || isPathStart ? COLORS.edgePath : color
         ctx.shadowBlur = 12
       }
 
@@ -501,22 +682,37 @@ export default function GraphView({ onSelectNode }) {
       ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2)
       ctx.fillStyle = COLORS.nodeFill
       ctx.fill()
-      ctx.strokeStyle = isSelected ? color : (isHighlighted ? '#ffffff' : color)
-      ctx.lineWidth = isSelected ? 2 : 1
+      ctx.strokeStyle = isSelected
+        ? color
+        : (isPathNode || isPathStart
+          ? COLORS.edgePath
+          : (isNeighbor
+            ? COLORS.edgeHighlight
+            : ((isHovered || isHighlighted) ? '#ffffff' : color)))
+      ctx.lineWidth = isSelected ? 2.2 : ((isPathNode || isPathStart) ? 1.9 : ((isNeighbor || isHovered) ? 1.5 : 1))
       ctx.stroke()
 
       ctx.beginPath()
       ctx.arc(node.x, node.y, node.r * 0.38, 0, Math.PI * 2)
       ctx.fillStyle = color
-      ctx.globalAlpha = isSelected ? 1 : 0.55
+      ctx.globalAlpha = dimmed ? 0.22 : ((isSelected || isPathNode || isPathStart) ? 1 : 0.55)
       ctx.fill()
       ctx.globalAlpha = 1
       ctx.shadowBlur = 0
 
-      ctx.font = `${isSelected ? 600 : 400} 9px "SF Mono","Menlo",monospace`
-      ctx.fillStyle = isSelected ? COLORS.labelHighlight : COLORS.label
-      ctx.textAlign = 'center'
-      ctx.fillText(node.name, node.x, node.y + node.r + 10)
+      const shouldDrawLabel = labelMode === 'all'
+        || isSelected
+        || isHovered
+        || isHighlighted
+        || (labelMode === 'selection' && (isNeighbor || isPathNode || isPathStart))
+      if (shouldDrawLabel) {
+        ctx.font = `${isSelected || isHovered || isPathNode || isPathStart ? 600 : 400} 9px "SF Mono","Menlo",monospace`
+        ctx.fillStyle = isSelected || isHovered || isPathNode || isPathStart
+          ? COLORS.labelHighlight
+          : (dimmed ? COLORS.labelDim : COLORS.label)
+        ctx.textAlign = 'center'
+        ctx.fillText(node.name, node.x, node.y + node.r + 10)
+      }
     }
 
     ctx.restore()
@@ -556,13 +752,24 @@ export default function GraphView({ onSelectNode }) {
   }
 
   function onPointerMove(event) {
-    if (!pointerDown) return
+    const point = worldPoint(event.clientX, event.clientY)
+    const hit = simulation.nodeAt(point.x, point.y)
+    canvas.style.cursor = hit ? 'pointer' : 'default'
+
+    if (!pointerDown) {
+      const nextHoverNodeId = hit?.id || null
+      if (nextHoverNodeId !== hoverNodeId) {
+        hoverNodeId = nextHoverNodeId
+        syncHighlightState()
+        draw()
+      }
+      return
+    }
     if (Math.abs(event.clientX - pointerDown.clientX) > 3 || Math.abs(event.clientY - pointerDown.clientY) > 3) {
       pointerDown.moved = true
     }
 
     if (dragNode) {
-      const point = worldPoint(event.clientX, event.clientY)
       dragNode.x = point.x
       dragNode.y = point.y
       dragNode.vx = 0
@@ -591,6 +798,7 @@ export default function GraphView({ onSelectNode }) {
     const point = worldPoint(event.clientX, event.clientY)
     const hit = simulation.nodeAt(point.x, point.y)
     selectedNodeId = hit?.id || null
+    hoverNodeId = hit?.id || null
     onSelectNode(hit || null)
 
     if (mode === 'local') {
@@ -598,6 +806,14 @@ export default function GraphView({ onSelectNode }) {
       return
     }
 
+    syncHighlightState()
+    renderControls()
+    draw()
+  }
+
+  function onPointerLeave() {
+    hoverNodeId = null
+    syncHighlightState()
     draw()
   }
 
@@ -620,6 +836,13 @@ export default function GraphView({ onSelectNode }) {
     if (target.classList.contains('wiki-kb-scope-button')) {
       mode = target.dataset.mode === 'local' ? 'local' : 'global'
       applyDerivedState({ fit: mode === 'local', alpha: frozen ? 0 : 0.6 })
+      return
+    }
+
+    if (target.dataset.labelMode) {
+      labelMode = target.dataset.labelMode
+      renderControls()
+      draw()
       return
     }
 
@@ -654,6 +877,22 @@ export default function GraphView({ onSelectNode }) {
       case 'fit':
         fitGraph()
         break
+      case 'focus-selection':
+        focusSelection()
+        break
+      case 'set-path-start':
+        if (!selectedNodeId) break
+        pathStartId = selectedNodeId
+        syncHighlightState()
+        renderControls()
+        draw()
+        break
+      case 'clear-path':
+        pathStartId = null
+        syncHighlightState()
+        renderControls()
+        draw()
+        break
       case 'reset-view':
         resetViewport()
         break
@@ -684,6 +923,14 @@ export default function GraphView({ onSelectNode }) {
     if (target === dom.showIsolatedInput) {
       showIsolated = target.checked
       applyDerivedState({ alpha: frozen ? 0 : 0.5 })
+      return
+    }
+
+    if (target === dom.highlightNeighborsInput) {
+      highlightNeighbors = target.checked
+      syncHighlightState()
+      renderControls()
+      draw()
       return
     }
 
@@ -733,6 +980,16 @@ export default function GraphView({ onSelectNode }) {
               </div>
               <div class="wiki-kb-controls-caption" hidden></div>
             </div>
+            <div class="wiki-kb-controls-section wiki-kb-controls-section-labels">
+              <div class="wiki-kb-controls-label-row">
+                <span class="wiki-kb-controls-label">Labels</span>
+                <div class="wiki-kb-segmented">
+                  <button type="button" class="wiki-kb-mini-action active" data-label-mode="all" aria-pressed="true">All</button>
+                  <button type="button" class="wiki-kb-mini-action" data-label-mode="selection" aria-pressed="false">Selection</button>
+                  <button type="button" class="wiki-kb-mini-action" data-label-mode="hover" aria-pressed="false">Hover</button>
+                </div>
+              </div>
+            </div>
             <div class="wiki-kb-controls-section wiki-kb-controls-section-types">
               <div class="wiki-kb-controls-label-row">
                 <span class="wiki-kb-controls-label">Types</span>
@@ -748,6 +1005,20 @@ export default function GraphView({ onSelectNode }) {
               <div class="wiki-kb-tag-filters"></div>
               <div class="wiki-kb-controls-empty">No tags in the current graph.</div>
             </div>
+            <div class="wiki-kb-controls-section wiki-kb-controls-section-highlights">
+              <div class="wiki-kb-controls-label-row">
+                <span class="wiki-kb-controls-label">Highlights</span>
+                <div class="wiki-kb-filter-row wiki-kb-path-actions">
+                  <button type="button" class="wiki-kb-mini-action" data-action="set-path-start">Set Path Start</button>
+                  <button type="button" class="wiki-kb-mini-action" data-action="clear-path">Clear Path</button>
+                </div>
+              </div>
+              <label class="wiki-kb-check-row wiki-kb-check-row-neighbors">
+                <input class="wiki-kb-highlight-neighbors" type="checkbox" checked>
+                <span>Highlight neighbors</span>
+              </label>
+              <div class="wiki-kb-controls-caption wiki-kb-path-caption">No path start selected.</div>
+            </div>
             <div class="wiki-kb-controls-section wiki-kb-controls-section-toggles">
               <label class="wiki-kb-check-row wiki-kb-check-row-isolated">
                 <input class="wiki-kb-show-isolated" type="checkbox" checked>
@@ -759,6 +1030,7 @@ export default function GraphView({ onSelectNode }) {
               </label>
             </div>
             <div class="wiki-kb-controls-section wiki-kb-controls-section-actions">
+              <button type="button" class="wiki-kb-action-button" data-action="focus-selection">Focus Selection</button>
               <button type="button" class="wiki-kb-action-button" data-action="fit">Fit Graph</button>
               <button type="button" class="wiki-kb-action-button" data-action="reset-view">Reset View</button>
               <button type="button" class="wiki-kb-action-button" data-action="reset-filters">Reset Filters</button>
@@ -784,15 +1056,25 @@ export default function GraphView({ onSelectNode }) {
       dom.depthRange = rootEl.querySelector('.wiki-kb-depth-range')
       dom.depthValueEl = rootEl.querySelector('.wiki-kb-controls-value')
       dom.anchorCaptionEl = rootEl.querySelector('.wiki-kb-controls-caption')
+      dom.labelSectionEl = rootEl.querySelector('.wiki-kb-controls-section-labels')
+      dom.labelButtons = [...rootEl.querySelectorAll('[data-label-mode]')]
       dom.typeSectionEl = rootEl.querySelector('.wiki-kb-controls-section-types')
       dom.typeFiltersEl = rootEl.querySelector('.wiki-kb-type-filters')
       dom.tagSectionEl = rootEl.querySelector('.wiki-kb-controls-section-tags')
       dom.tagFiltersEl = rootEl.querySelector('.wiki-kb-tag-filters')
       dom.tagEmptyEl = rootEl.querySelector('.wiki-kb-controls-empty')
+      dom.highlightSectionEl = rootEl.querySelector('.wiki-kb-controls-section-highlights')
+      dom.pathActionsEl = rootEl.querySelector('.wiki-kb-path-actions')
+      dom.pathCaptionEl = rootEl.querySelector('.wiki-kb-path-caption')
+      dom.pathStartButton = rootEl.querySelector('[data-action="set-path-start"]')
+      dom.clearPathButton = rootEl.querySelector('[data-action="clear-path"]')
+      dom.neighborToggleRowEl = rootEl.querySelector('.wiki-kb-check-row-neighbors')
+      dom.highlightNeighborsInput = rootEl.querySelector('.wiki-kb-highlight-neighbors')
       dom.isolatedToggleRowEl = rootEl.querySelector('.wiki-kb-check-row-isolated')
       dom.showIsolatedInput = rootEl.querySelector('.wiki-kb-show-isolated')
       dom.freezeToggleRowEl = rootEl.querySelector('.wiki-kb-check-row-freeze')
       dom.freezeInput = rootEl.querySelector('.wiki-kb-freeze-layout')
+      dom.focusSelectionButton = rootEl.querySelector('[data-action="focus-selection"]')
       dom.fitButton = rootEl.querySelector('[data-action="fit"]')
       dom.resetViewButton = rootEl.querySelector('[data-action="reset-view"]')
       dom.resetFiltersButton = rootEl.querySelector('[data-action="reset-filters"]')
@@ -805,6 +1087,7 @@ export default function GraphView({ onSelectNode }) {
       canvas.addEventListener('pointermove', onPointerMove)
       canvas.addEventListener('pointerup', onPointerEnd)
       canvas.addEventListener('pointercancel', onPointerEnd)
+      canvas.addEventListener('pointerleave', onPointerLeave)
       canvas.addEventListener('wheel', onWheel, { passive: false })
 
       simulation.onTick = draw
@@ -818,6 +1101,8 @@ export default function GraphView({ onSelectNode }) {
     load(nextGraphData) {
       graphData = nextGraphData
       if (!graphData.nodes.some((node) => node.id === selectedNodeId)) selectedNodeId = null
+      if (!graphData.nodes.some((node) => node.id === pathStartId)) pathStartId = null
+      if (!graphData.nodes.some((node) => node.id === hoverNodeId)) hoverNodeId = null
       filteredGraph = deriveGraphViewData(graphData, {
         searchQuery,
         mode,
@@ -845,9 +1130,12 @@ export default function GraphView({ onSelectNode }) {
 
     clearSelection() {
       selectedNodeId = null
+      hoverNodeId = null
       if (mode === 'local') {
         applyDerivedState({ fit: true, alpha: frozen ? 0 : 0.4 })
       } else {
+        syncHighlightState()
+        renderControls()
         draw()
       }
     },

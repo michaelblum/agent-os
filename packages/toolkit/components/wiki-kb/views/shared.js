@@ -19,8 +19,12 @@ export const DEFAULT_GRAPH_VIEW_CONFIG = Object.freeze({
     tags: true,
     scope: true,
     depth: true,
+    labels: true,
     isolated: true,
+    neighbors: true,
+    path: true,
     freeze: true,
+    focus: true,
     fit: true,
     reset: true,
     legend: true,
@@ -28,7 +32,9 @@ export const DEFAULT_GRAPH_VIEW_CONFIG = Object.freeze({
   defaults: Object.freeze({
     mode: 'global',
     depth: 2,
+    labelMode: 'all',
     showIsolated: true,
+    highlightNeighbors: true,
     frozen: false,
     activeTypes: [],
     activeTags: [],
@@ -81,6 +87,10 @@ function normalizeText(value) {
 function normalizeBoolean(value, fallback) {
   if (typeof value === 'boolean') return value
   return fallback
+}
+
+function normalizeLabelMode(value, fallback) {
+  return ['all', 'selection', 'hover'].includes(value) ? value : fallback
 }
 
 function clampInteger(value, fallback, min, max) {
@@ -197,8 +207,15 @@ export function normalizeGraphViewConfig(rawConfig = {}) {
       tags: normalizeBoolean(merged.features?.tags, DEFAULT_GRAPH_VIEW_CONFIG.features.tags),
       scope: normalizeBoolean(merged.features?.scope, DEFAULT_GRAPH_VIEW_CONFIG.features.scope),
       depth: normalizeBoolean(merged.features?.depth, DEFAULT_GRAPH_VIEW_CONFIG.features.depth),
+      labels: normalizeBoolean(merged.features?.labels, DEFAULT_GRAPH_VIEW_CONFIG.features.labels),
       isolated: normalizeBoolean(merged.features?.isolated, DEFAULT_GRAPH_VIEW_CONFIG.features.isolated),
+      neighbors: normalizeBoolean(
+        merged.features?.neighbors,
+        DEFAULT_GRAPH_VIEW_CONFIG.features.neighbors
+      ),
+      path: normalizeBoolean(merged.features?.path, DEFAULT_GRAPH_VIEW_CONFIG.features.path),
       freeze: normalizeBoolean(merged.features?.freeze, DEFAULT_GRAPH_VIEW_CONFIG.features.freeze),
+      focus: normalizeBoolean(merged.features?.focus, DEFAULT_GRAPH_VIEW_CONFIG.features.focus),
       fit: normalizeBoolean(merged.features?.fit, DEFAULT_GRAPH_VIEW_CONFIG.features.fit),
       reset: normalizeBoolean(merged.features?.reset, DEFAULT_GRAPH_VIEW_CONFIG.features.reset),
       legend: normalizeBoolean(merged.features?.legend, DEFAULT_GRAPH_VIEW_CONFIG.features.legend),
@@ -211,9 +228,17 @@ export function normalizeGraphViewConfig(rawConfig = {}) {
         minDepth,
         maxDepth
       ),
+      labelMode: normalizeLabelMode(
+        merged.defaults?.labelMode,
+        DEFAULT_GRAPH_VIEW_CONFIG.defaults.labelMode
+      ),
       showIsolated: normalizeBoolean(
         merged.defaults?.showIsolated,
         DEFAULT_GRAPH_VIEW_CONFIG.defaults.showIsolated
+      ),
+      highlightNeighbors: normalizeBoolean(
+        merged.defaults?.highlightNeighbors,
+        DEFAULT_GRAPH_VIEW_CONFIG.defaults.highlightNeighbors
       ),
       frozen: normalizeBoolean(merged.defaults?.frozen, DEFAULT_GRAPH_VIEW_CONFIG.defaults.frozen),
       activeTypes: uniqueStrings(merged.defaults?.activeTypes),
@@ -422,6 +447,36 @@ export function buildAdjacency(nodes, links) {
     if (adjacency[link.target]) adjacency[link.target].push(link.source)
   }
   return adjacency
+}
+
+export function findShortestPath(adjacency, startId, endId) {
+  const start = normalizeId(startId)
+  const end = normalizeId(endId)
+  if (!start || !end || !adjacency[start] || !adjacency[end]) return []
+  if (start === end) return [start]
+
+  const parents = new Map([[start, null]])
+  const queue = [start]
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const currentId = queue[index]
+    for (const neighborId of adjacency[currentId] || []) {
+      if (parents.has(neighborId)) continue
+      parents.set(neighborId, currentId)
+      if (neighborId === end) {
+        const path = [end]
+        let cursor = currentId
+        while (cursor) {
+          path.push(cursor)
+          cursor = parents.get(cursor) || null
+        }
+        return path.reverse()
+      }
+      queue.push(neighborId)
+    }
+  }
+
+  return []
 }
 
 export function pickPrimaryNodeId(nodes, adjacency) {
