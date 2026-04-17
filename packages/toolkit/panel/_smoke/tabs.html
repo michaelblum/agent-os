@@ -46,7 +46,16 @@ mountPanel({
     makeContent('Alpha', 'First tab body. Basic stock tab shell only.'),
     makeContent('Beta', 'Second tab body. Click tabs to confirm activation behavior.'),
     makeContent('Gamma', 'Third tab body. Header drag should still work outside the tab strip.'),
-  ]),
+  ], {
+    onActivate(info) {
+      window.__tabsSmokeState = {
+        index: info.index,
+        title: info.title,
+        name: info.manifest?.name ?? null,
+      }
+      document.body.dataset.activeTab = info.title
+    },
+  }),
 })
 </script>
 </body>

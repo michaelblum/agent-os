@@ -9,10 +9,11 @@ import { evalCanvas, spawnChild } from '../../runtime/canvas.js'
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
 import { createRouter } from '../router.js'
 
-export function Tabs(factories) {
+export function Tabs(factories, options = {}) {
   if (!Array.isArray(factories) || factories.length === 0) {
     throw new Error('Tabs: requires a non-empty array of content factories')
   }
+  const onActivate = typeof options.onActivate === 'function' ? options.onActivate : null
 
   return {
     kind: 'tabs',
@@ -23,7 +24,7 @@ export function Tabs(factories) {
       const hostByContent = new Map()
       const elByContent = new Map()
       // Retained for future programmatic activation API (tear-off, keyboard nav).
-      let activeIdx = 0
+      let activeIdx = -1
 
       // Build tab strip in the header's controls slot.
       const tabStrip = document.createElement('div')
@@ -76,6 +77,7 @@ export function Tabs(factories) {
       wireBridge(router)
 
       function activate(idx) {
+        if (idx === activeIdx) return
         activeIdx = idx
         contents.forEach((c, i) => {
           const isActive = i === idx
@@ -86,6 +88,18 @@ export function Tabs(factories) {
           tabButtons[i].setAttribute('aria-selected', String(isActive))
           tabButtons[i].dataset.active = String(isActive)
         })
+        if (onActivate) {
+          const content = contents[idx]
+          try {
+            onActivate({
+              index: idx,
+              title: content.manifest?.title || content.manifest?.name || `tab ${idx + 1}`,
+              manifest: content.manifest || null,
+            }, hostByContent.get(content))
+          } catch (error) {
+            console.error('[panel/tabs] onActivate failed', error)
+          }
+        }
       }
 
       activate(0)

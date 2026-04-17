@@ -249,13 +249,39 @@ Options:
 
 Wraps one content unit.
 
-### `Tabs(factoriesOrContents)`
+### `Tabs(factoriesOrContents, options?)`
 
 Wraps multiple content units and shows one at a time.
+
+```js
+Tabs([
+  AlphaContent,
+  BetaContent,
+], {
+  onActivate(info, host) {
+    console.log(info.index, info.title)
+  },
+})
+```
+
+Options:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `onActivate` | `function` | optional callback invoked when the active tab changes, including the initial `0` activation |
+
+Activation callback info:
+
+| Field | Meaning |
+| --- | --- |
+| `index` | active tab index |
+| `title` | resolved tab label (`manifest.title`, then `manifest.name`) |
+| `manifest` | active content manifest or `null` |
 
 Important boundary:
 
 - `Tabs` provides structure and activation behavior
+- `Tabs` may notify consumers when activation changes through `onActivate(info, host)`
 - `Tabs` does **not** define a canonical visual design
 - consumers own the CSS for `.aos-tabs`, `.aos-tab`, `.aos-tab.active`, and `.aos-tab-content`
 - `Tabs` mounts its strip into `chrome.controlsEl`; consumers should treat slot refs as the behavioral API and `.aos-*` classes as styling hooks
