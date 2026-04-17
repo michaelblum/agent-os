@@ -1320,7 +1320,16 @@ class UnifiedDaemon {
         let jsonPayload = json["payload"]  // structured data alternative
         let fromSessionID = json["from_session_id"] as? String
         let purpose = json["purpose"] as? String
+        let sendingSession = fromSessionID.flatMap { coordination.sessionInfo(sessionID: $0) }
+        if let fromSessionID, sendingSession == nil {
+            sendResponseJSON(to: clientFD, [
+                "error": "from_session_id not found: \(fromSessionID)",
+                "code": "SESSION_NOT_FOUND"
+            ])
+            return
+        }
         let from = json["from"] as? String
+            ?? sendingSession?["name"] as? String
             ?? fromSessionID.flatMap { coordination.sessionDisplayName(sessionID: $0) }
             ?? "cli"
 
@@ -1337,7 +1346,7 @@ class UnifiedDaemon {
                 // Route to TTS
                 if let t = text {
                     let rendered = renderSpeechText(rawText: t, purpose: purpose, config: currentConfig)
-                    let sessionVoice = fromSessionID.flatMap { coordination.sessionInfo(sessionID: $0)?["voice"] as? [String: Any] }
+                    let sessionVoice = sendingSession?["voice"] as? [String: Any]
                     let voiceID = sessionVoice?["id"] as? String ?? currentConfig.voice.voice
                     if currentConfig.voice.enabled {
                         announce(rendered.text, voiceID: voiceID)

@@ -57,4 +57,14 @@ if rendered.get("text") != "opqrstuvwxyz":
     raise SystemExit(f"FAIL: expected 12-character tail, got {rendered}")
 PY
 
+if OUT="$(./aos tell human --from-session-id 00000000-0000-0000-0000-000000000000 --purpose final_response "bad session" 2>&1)"; then
+  echo "FAIL: expected invalid from-session-id to fail" >&2
+  exit 1
+else
+  echo "$OUT" | grep -q '"code":"SESSION_NOT_FOUND"' || {
+    echo "FAIL: expected SESSION_NOT_FOUND for invalid from-session-id: $OUT" >&2
+    exit 1
+  }
+fi
+
 echo "PASS"
