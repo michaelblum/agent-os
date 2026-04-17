@@ -10,6 +10,10 @@ class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
     private let trackedLifecycleTimeout: TimeInterval = 1.0
     private let trackedVisibilityTimeout: TimeInterval = 1.2
+    private let canvasInspectorId = "canvas-inspector"
+    private let logConsoleId = "__log__"
+    private let canvasInspectorUrl = "aos://toolkit/components/canvas-inspector/index.html"
+    private let logConsoleUrl = "aos://toolkit/components/log-console/index.html"
 
     let canvasManager: CanvasManager
     var statusItem: NSStatusItem?
@@ -105,7 +109,16 @@ class StatusItemManager {
         }
 
         // Daemon-owned items
+        let inspectorItem = NSMenuItem(title: "Canvas Inspector", action: #selector(menuCanvasInspector), keyEquivalent: "")
+        inspectorItem.target = self
+        menu.addItem(inspectorItem)
+
+        let logItem = NSMenuItem(title: "Log", action: #selector(menuLogConsole), keyEquivalent: "")
+        logItem.target = self
+        menu.addItem(logItem)
+
         if canvasManager.hasCanvas(toggleId) {
+            menu.addItem(NSMenuItem.separator())
             let removeItem = NSMenuItem(title: "Remove", action: #selector(menuRemove), keyEquivalent: "")
             removeItem.target = self
             menu.addItem(removeItem)
@@ -134,8 +147,75 @@ class StatusItemManager {
         dismissCanvas()
     }
 
+    @objc private func menuCanvasInspector() {
+        showOrFocusCanvas(
+            id: canvasInspectorId,
+            url: canvasInspectorUrl,
+            frame: canvasInspectorFrame()
+        )
+    }
+
+    @objc private func menuLogConsole() {
+        showOrFocusCanvas(
+            id: logConsoleId,
+            url: logConsoleUrl,
+            frame: logConsoleFrame()
+        )
+    }
+
     @objc private func menuQuit() {
         NSApp.terminate(nil)
+    }
+
+    private func showOrFocusCanvas(id: String, url: String, frame: [CGFloat]) {
+        if canvasManager.hasCanvas(id) {
+            var update = CanvasRequest(action: "update")
+            update.id = id
+            update.focus = true
+            _ = canvasManager.handle(update)
+            return
+        }
+
+        var req = CanvasRequest(action: "create")
+        req.id = id
+        req.url = urlResolver?(url) ?? url
+        req.at = frame
+        req.interactive = true
+        req.focus = true
+        _ = canvasManager.handle(req)
+    }
+
+    private func canvasInspectorFrame() -> [CGFloat] {
+        let visible = mainVisibleFrameInCG()
+        let width = min(CGFloat(360.0), max(CGFloat(320.0), visible.width * 0.26))
+        let height = min(CGFloat(520.0), max(CGFloat(420.0), visible.height * 0.55))
+        let x = visible.x + visible.width - width - 20.0
+        let y = visible.y + 20.0
+        return [x, y, width, height]
+    }
+
+    private func logConsoleFrame() -> [CGFloat] {
+        let visible = mainVisibleFrameInCG()
+        let width = min(CGFloat(520.0), max(CGFloat(420.0), visible.width * 0.32))
+        let height = min(CGFloat(320.0), max(CGFloat(260.0), visible.height * 0.32))
+        let x = visible.x + 20.0
+        let y = visible.y + visible.height - height - 20.0
+        return [x, y, width, height]
+    }
+
+    private func mainVisibleFrameInCG() -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return (0, 0, 1512, 875)
+        }
+        let visible = screen.visibleFrame
+        let screenHeight = screen.frame.height
+        let cgY = screenHeight - visible.origin.y - visible.height
+        return (
+            visible.origin.x,
+            cgY,
+            visible.width,
+            visible.height
+        )
     }
 
     private func isCanvasSuspended() -> Bool {
