@@ -1,0 +1,55 @@
+{
+  "type": "wiki-kb/graph",
+  "payload": {
+    "nodes": [
+      {
+        "id": "aos",
+        "name": "AOS",
+        "type": "entity",
+        "description": "Unified agent-os runtime.",
+        "tags": ["runtime", "daemon"],
+        "raw": "# AOS\n\nThe unified runtime that hosts canvases, perception, action, and coordination."
+      },
+      {
+        "id": "toolkit",
+        "name": "Toolkit",
+        "type": "concept",
+        "description": "Reusable canvas-layer UI primitives.",
+        "tags": ["ui", "panels", "components"],
+        "raw": "# Toolkit\n\nProvides runtime helpers, panel scaffolding, and reusable components."
+      },
+      {
+        "id": "wiki-kb",
+        "name": "Wiki KB",
+        "type": "plugin",
+        "description": "Knowledge browser component built on toolkit panels.",
+        "tags": ["wiki", "graph", "mindmap"],
+        "raw": "# Wiki KB\n\nA graph browser component for wiki-shaped data.\n\n- Force graph view\n- Mind map view"
+      },
+      {
+        "id": "sigil",
+        "name": "Sigil",
+        "type": "entity",
+        "description": "Consumer surface that can embed toolkit canvases.",
+        "tags": ["app", "avatar"],
+        "raw": "# Sigil\n\nAn app-level surface that consumes lower-level primitives and toolkit components."
+      },
+      {
+        "id": "coordination",
+        "name": "Coordination",
+        "type": "concept",
+        "description": "Session messaging and routing over tell/listen.",
+        "tags": ["sessions", "tell", "listen"],
+        "raw": "# Coordination\n\nMessages can flow through channels or direct session inboxes."
+      }
+    ],
+    "links": [
+      { "source": "toolkit", "target": "aos" },
+      { "source": "toolkit", "target": "wiki-kb" },
+      { "source": "toolkit", "target": "sigil" },
+      { "source": "toolkit", "target": "coordination" },
+      { "source": "aos", "target": "coordination" },
+      { "source": "wiki-kb", "target": "sigil" }
+    ]
+  }
+}
