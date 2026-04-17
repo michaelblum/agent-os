@@ -99,6 +99,16 @@ else
     fail "help registry still declares outText (should be outJSONFlag): $OUT"
 fi
 
+# --- 10. aos help show eval --json stays aligned with the real parser ---
+OUT=$(./aos help show eval --json 2>/dev/null)
+if echo "$OUT" | grep -q '"token" : "--js"' &&
+   echo "$OUT" | grep -q 'aos show eval --id <name> --js <javascript>' &&
+   ! echo "$OUT" | grep -q -- '--script'; then
+    pass "show eval help matches --js parser"
+else
+    fail "show eval help drifted from parser: $OUT"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"

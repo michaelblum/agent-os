@@ -261,15 +261,15 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(),
             output: outFile,
             examples: ["aos show render --html \"<h1>Hi</h1>\" --out /tmp/test.png"]),
-        InvocationForm(id: "show-eval", usage: "aos show eval --id <name> --script <javascript>",
+        InvocationForm(id: "show-eval", usage: "aos show eval --id <name> --js <javascript>",
             args: [
                 flag("id", "--id", "Canvas identifier", required: true),
-                flag("script", "--script", "JavaScript to execute", required: true)
+                flag("js", "--js", "JavaScript to execute", required: true)
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos show eval --id avatar --script \"document.title\""]),
+            examples: ["aos show eval --id avatar --js \"document.title\""]),
         InvocationForm(id: "show-listen", usage: "aos show listen",
             args: [],
             stdin: nil, constraints: nil,
