@@ -15,7 +15,15 @@ import {
 test('normalizeGraphPayload dedupes nodes and drops invalid links', () => {
   const graph = normalizeGraphPayload({
     nodes: [
-      { id: 'alpha', name: 'Alpha', type: 'entity', tags: ['one', 'one'], markdown: '# Alpha' },
+      {
+        id: 'alpha',
+        path: 'aos/entities/alpha.md',
+        name: 'Alpha',
+        type: 'entity',
+        tags: ['one', 'one'],
+        plugin: 'demo-plugin',
+        markdown: '# Alpha',
+      },
       { id: 'alpha', name: 'Duplicate' },
       { id: 'beta', title: 'Beta', type: 'concept' },
     ],
@@ -27,8 +35,24 @@ test('normalizeGraphPayload dedupes nodes and drops invalid links', () => {
   });
 
   assert.deepEqual(graph.nodes, [
-    { id: 'alpha', name: 'Alpha', type: 'entity', description: '', tags: ['one'] },
-    { id: 'beta', name: 'Beta', type: 'concept', description: '', tags: [] },
+    {
+      id: 'alpha',
+      path: 'aos/entities/alpha.md',
+      name: 'Alpha',
+      type: 'entity',
+      description: '',
+      tags: ['one'],
+      plugin: 'demo-plugin',
+    },
+    {
+      id: 'beta',
+      path: 'beta',
+      name: 'Beta',
+      type: 'concept',
+      description: '',
+      tags: [],
+      plugin: '',
+    },
   ]);
   assert.deepEqual(graph.links, [
     { source: 'alpha', target: 'beta' },
@@ -55,8 +79,8 @@ test('applyGraphUpdate supports upserts and removals', () => {
   });
 
   assert.deepEqual(updated.nodes, [
-    { id: 'beta', name: 'Beta', type: 'concept', description: '', tags: [] },
-    { id: 'gamma', name: 'Gamma', type: 'plugin', description: '', tags: [] },
+    { id: 'beta', path: 'beta', name: 'Beta', type: 'concept', description: '', tags: [], plugin: '' },
+    { id: 'gamma', path: 'gamma', name: 'Gamma', type: 'plugin', description: '', tags: [], plugin: '' },
   ]);
   assert.deepEqual(updated.links, [
     { source: 'beta', target: 'gamma' },

@@ -83,6 +83,7 @@ export default function WikiKB() {
     selectedNodeId = null
     dom.sidebarEl.classList.remove('open')
     dom.relatedListEl.replaceChildren()
+    host?.emit?.('selection', null)
   }
 
   function renderSidebarBody(node) {
@@ -173,7 +174,19 @@ export default function WikiKB() {
     view.instance.focusNode?.(node)
   }
 
-  function setSelection(node) {
+  function emitSelection(node) {
+    host?.emit?.('selection', node ? {
+      id: node.id,
+      path: node.path || node.id,
+      name: node.name,
+      type: node.type || 'unknown',
+      tags: [...node.tags],
+      plugin: node.plugin || null,
+    } : null)
+  }
+
+  function setSelection(node, options = {}) {
+    const { emitSelectionEvent = true } = options
     selectedNodeId = node?.id || null
     const selectedNode = currentNode()
     if (!selectedNode) {
@@ -182,6 +195,27 @@ export default function WikiKB() {
     }
     renderSidebar(selectedNode)
     focusActiveViewOnSelection()
+    if (emitSelectionEvent) emitSelection(selectedNode)
+  }
+
+  function clearSelection(options = {}) {
+    const { emitSelectionEvent = true } = options
+    selectedNodeId = null
+    dom.sidebarEl.classList.remove('open')
+    dom.relatedListEl.replaceChildren()
+    const activeView = viewInstances.get(activeViewId)
+    activeView?.instance.clearSelection?.()
+    if (emitSelectionEvent) emitSelection(null)
+  }
+
+  function resolveRevealTarget(payload) {
+    const directId = payload?.id || payload?.path
+    if (directId) return findNode(graphState.nodes, directId)
+
+    const byName = typeof payload?.name === 'string'
+      ? graphState.nodes.find((node) => node.name === payload.name)
+      : null
+    return byName || null
   }
 
   function feedViews() {
@@ -278,9 +312,7 @@ export default function WikiKB() {
     }
 
     if (event.target.closest('.wiki-kb-sidebar-close')) {
-      closeSidebar()
-      const activeView = viewInstances.get(activeViewId)
-      activeView?.instance.clearSelection?.()
+      clearSelection()
       return
     }
 
@@ -353,8 +385,8 @@ export default function WikiKB() {
     manifest: {
       name: 'wiki-kb',
       title: 'Wiki KB',
-      accepts: ['graph', 'graph/update'],
-      emits: [],
+      accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-view'],
+      emits: ['selection'],
       channelPrefix: 'wiki-kb',
       defaultSize: { w: 860, h: 580 },
     },
@@ -369,7 +401,27 @@ export default function WikiKB() {
 
     onMessage(msg) {
       const type = canonicalMessageType(msg?.type)
-      if (!type) return
+      if (!type) {
+        if (msg?.type === 'reveal') {
+          const payload = msg?.payload || {}
+          if (payload.view) switchView(payload.view)
+          const node = resolveRevealTarget(payload)
+          if (node) setSelection(node)
+          return
+        }
+        if (msg?.type === 'clear-selection') {
+          clearSelection()
+          return
+        }
+        if (msg?.type === 'set-view') {
+          const view = msg?.payload?.view || msg?.payload?.id || msg?.payload
+          if (typeof view === 'string' && VIEW_DEFS.some((entry) => entry.id === view)) {
+            switchView(view)
+          }
+          return
+        }
+        return
+      }
 
       const payload = msg?.payload || {}
       if (type === 'graph') applySnapshot(payload)

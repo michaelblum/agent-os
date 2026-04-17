@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Tabs } from '../../packages/toolkit/panel/layouts/tabs.js';
 
+function encodeMessage(message) {
+  return Buffer.from(JSON.stringify(message), 'utf8').toString('base64');
+}
+
 class FakeNode {}
 
 class FakeClassList {
@@ -185,5 +189,28 @@ test('Tabs onActivate fires for initial mount and active-tab changes only', asyn
   assert.equal(betaPanel.hidden, true);
   assert.equal(gammaPanel.hidden, false);
 
+  window.headsup.receive(encodeMessage({
+    type: 'tabs/activate',
+    payload: { name: 'beta' },
+  }));
+
+  assert.deepEqual(activations, [
+    { index: 0, title: 'Alpha', name: 'alpha' },
+    { index: 1, title: 'Beta', name: 'beta' },
+    { index: 2, title: 'Gamma', name: 'gamma' },
+    { index: 1, title: 'Beta', name: 'beta' },
+  ]);
+  assert.equal(betaBtn.classList.contains('active'), true);
+  assert.equal(gammaBtn.classList.contains('active'), false);
+  assert.equal(betaPanel.hidden, false);
+  assert.equal(gammaPanel.hidden, true);
+
+  const tabEvents = outbound.filter((message) => message.type === 'tabs/activated');
+  assert.deepEqual(tabEvents.map((message) => message.payload), [
+    { index: 0, title: 'Alpha', name: 'alpha' },
+    { index: 1, title: 'Beta', name: 'beta' },
+    { index: 2, title: 'Gamma', name: 'gamma' },
+    { index: 1, title: 'Beta', name: 'beta' },
+  ]);
   assert.equal(outbound.some((message) => message.type === 'ready'), true);
 });

@@ -64,17 +64,55 @@ export function Tabs(factories, options = {}) {
         if (requires.length > 0) subscribe(requires, { snapshot: true })
       })
 
+      function activateByPayload(payload = {}) {
+        if (Number.isInteger(payload.index) && payload.index >= 0 && payload.index < contents.length) {
+          activate(payload.index)
+          return true
+        }
+        if (typeof payload.index === 'number' && payload.index >= 0 && payload.index < contents.length) {
+          activate(Math.trunc(payload.index))
+          return true
+        }
+        if (typeof payload.name === 'string') {
+          const idx = contents.findIndex((content) => content.manifest?.name === payload.name)
+          if (idx >= 0) {
+            activate(idx)
+            return true
+          }
+        }
+        if (typeof payload.title === 'string') {
+          const idx = contents.findIndex((content) => (content.manifest?.title || content.manifest?.name) === payload.title)
+          if (idx >= 0) {
+            activate(idx)
+            return true
+          }
+        }
+        return false
+      }
+
       // Manifest at the panel level: union of constituent manifests.
       declareManifest({
         name: chrome.titleEl.textContent || 'tabs-panel',
-        accepts: contents.flatMap(c => (c.manifest?.accepts || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
-        emits: contents.flatMap(c => (c.manifest?.emits || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
+        accepts: [
+          'tabs/activate',
+          ...contents.flatMap(c => (c.manifest?.accepts || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
+        ],
+        emits: [
+          'tabs/activated',
+          ...contents.flatMap(c => (c.manifest?.emits || []).map(t => `${c.manifest?.channelPrefix}/${t}`)),
+        ],
         contents: contents.map(c => ({ name: c.manifest?.name, prefix: c.manifest?.channelPrefix })),
       })
 
       // Router: dispatch by manifest prefix
       const router = createRouter({ contents, hostByContent })
-      wireBridge(router)
+      wireBridge((msg) => {
+        if (msg?.type === 'tabs/activate') {
+          activateByPayload(msg.payload || {})
+          return
+        }
+        router(msg)
+      })
 
       function activate(idx) {
         if (idx === activeIdx) return
@@ -88,12 +126,18 @@ export function Tabs(factories, options = {}) {
           tabButtons[i].setAttribute('aria-selected', String(isActive))
           tabButtons[i].dataset.active = String(isActive)
         })
+        const content = contents[idx]
+        const activationInfo = {
+          index: idx,
+          title: content.manifest?.title || content.manifest?.name || `tab ${idx + 1}`,
+          name: content.manifest?.name || null,
+        }
+        emit('tabs/activated', activationInfo)
         if (onActivate) {
-          const content = contents[idx]
           try {
             onActivate({
-              index: idx,
-              title: content.manifest?.title || content.manifest?.name || `tab ${idx + 1}`,
+              index: activationInfo.index,
+              title: activationInfo.title,
               manifest: content.manifest || null,
             }, hostByContent.get(content))
           } catch (error) {

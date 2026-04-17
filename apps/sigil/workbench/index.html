@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/toolkit/panel/defaults.css">
 <link rel="stylesheet" href="/toolkit/components/canvas-inspector/styles.css">
 <link rel="stylesheet" href="/toolkit/components/log-console/styles.css">
+<link rel="stylesheet" href="/toolkit/components/wiki-kb/styles.css">
 <style>
 /* Iframe surfaces — workbench-specific content for Studio + Chat tabs */
 .surface-shell {
@@ -59,6 +60,7 @@
   import { evalCanvas, subscribe, wireBridge } from '/toolkit/runtime/index.js'
   import CanvasInspector from '/toolkit/components/canvas-inspector/index.js'
   import LogConsole from '/toolkit/components/log-console/index.js'
+  import WikiKB from '/toolkit/components/wiki-kb/index.js'
   import { resolveBirthplace } from '/sigil/renderer/birthplace-resolver.js'
 
   const AVATAR_ID = 'avatar-main'
@@ -197,6 +199,69 @@
     }
   }
 
+  function knowledgeBaseContent() {
+    const inner = WikiKB()
+    let refreshTimer = null
+    let innerHost = null
+
+    async function loadGraph(host) {
+      try {
+        const res = await fetch('/wiki/.graph?raw=1')
+        if (!res.ok) throw new Error(`wiki graph request failed: ${res.status}`)
+        const payload = await res.json()
+        inner.onMessage?.({ type: 'graph', payload }, host)
+        syncWorkbenchState({
+          wikiGraphLoadedAt: Date.now(),
+          wikiGraphError: null,
+        })
+      } catch (error) {
+        console.error('[sigil/workbench] failed to load wiki graph', error)
+        syncWorkbenchState({
+          wikiGraphLoadedAt: Date.now(),
+          wikiGraphError: String(error),
+        })
+      }
+    }
+
+    return {
+      manifest: {
+        ...inner.manifest,
+        name: 'wiki-kb',
+        title: 'Knowledge Base',
+        requires: ['wiki_page_changed'],
+      },
+
+      render(host) {
+        innerHost = {
+          ...host,
+          emit(type, payload) {
+            if (type === 'selection') {
+              syncWorkbenchState({
+                lastWikiSelection: payload || null,
+                lastWikiSelectionAt: Date.now(),
+              })
+            }
+            host.emit(type, payload)
+          },
+        }
+        const rendered = inner.render(innerHost)
+        void loadGraph(innerHost)
+        return rendered
+      },
+
+      onMessage(msg, host) {
+        if (msg?.type === 'wiki_page_changed') {
+          if (refreshTimer) window.clearTimeout(refreshTimer)
+          refreshTimer = window.setTimeout(() => {
+            void loadGraph(innerHost || host)
+          }, 150)
+          return
+        }
+        inner.onMessage?.(msg, innerHost || host)
+      },
+    }
+  }
+
   mountPanel({
     title: 'SIGIL',
     layout: Tabs([
@@ -212,6 +277,7 @@
         src: '/sigil/chat/index.html',
         description: 'Conversation surface.',
       }),
+      knowledgeBaseContent,
       CanvasInspector,
       LogConsole,
     ], {

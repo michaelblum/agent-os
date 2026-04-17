@@ -88,6 +88,16 @@ Incremental updates go to `wiki-kb/graph/update` and may include:
 - `replace`, `replaceLinks`, `clearRaw` for reset-style updates
 - `config.graphView` to update graph-view defaults and feature flags
 
+Additional semantic intents:
+
+- `wiki-kb/reveal` with `{ id | path | name, view?, openSidebar?, focus? }`
+- `wiki-kb/clear-selection`
+- `wiki-kb/set-view` with `{ view }`
+
+Current emitted semantic event:
+
+- `wiki-kb/selection` with `{ id, path, name, type, tags, plugin }` or `null`
+
 `config.graphView` is intentionally generic rather than app-specific. Current
 consumer-facing fields:
 
@@ -353,6 +363,11 @@ Important boundary:
 - `Tabs` provides structure and activation behavior
 - `Tabs` may notify consumers when activation changes through `onActivate(info, host)`
 - `Tabs` does **not** define a canonical visual design
+
+Panel-level control/event surface:
+
+- `tabs/activate` with `{ index }`, `{ name }`, or `{ title }`
+- `tabs/activated` emitted when activation changes with `{ index, title, name }`
 - consumers own the CSS for `.aos-tabs`, `.aos-tab`, `.aos-tab.active`, and `.aos-tab-content`
 - `Tabs` mounts its strip into `chrome.controlsEl`; consumers should treat slot refs as the behavioral API and `.aos-*` classes as styling hooks
 - active tab state is exposed via `.active`, `data-active`, `aria-selected`, and the `hidden` attribute on tab panels

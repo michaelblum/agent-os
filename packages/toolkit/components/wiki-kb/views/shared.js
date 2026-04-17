@@ -289,10 +289,12 @@ function normalizeNodesInput(nodes = []) {
 
     const node = {
       id,
+      path: normalizeText(candidate?.path ?? id) || id,
       name: normalizeText(candidate?.name ?? candidate?.title ?? id) || id,
       type: normalizeText(candidate?.type) || 'concept',
       description: normalizeText(candidate?.description ?? candidate?.summary),
       tags: normalizeTags(candidate?.tags),
+      plugin: normalizeText(candidate?.plugin) || '',
     }
 
     normalizedNodes.push(node)
