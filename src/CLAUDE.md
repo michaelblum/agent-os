@@ -65,6 +65,8 @@ aos say "Hello, I'm your agent"   # Speak text aloud (sugar for tell human)
 aos say --list-voices             # List available voices
 aos voice list                    # Curated session voice bank
 aos voice leases                  # Active one-session-per-voice leases
+aos config get voice.enabled      # Discoverable config read
+aos config set voice.enabled true # Discoverable config write
 aos tell human "Hello"             # Speak (same as aos say)
 aos tell human --from-session-id <id> --purpose final_response "Done."
 aos tell handoff "task complete"    # Post to coordination channel

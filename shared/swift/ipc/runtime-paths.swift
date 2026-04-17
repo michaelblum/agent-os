@@ -94,6 +94,10 @@ func aosCoordinationSessionsPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosCoordinationDir(for: mode))/sessions.json"
 }
 
+func aosCLIErrorLogPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/cli-errors.jsonl"
+}
+
 func aosProfilesDir(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/profiles"
 }

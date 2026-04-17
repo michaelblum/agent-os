@@ -119,7 +119,17 @@ else
     fail "voice help is missing bank/lease forms: $OUT"
 fi
 
-# --- 12. aos help tell --json exposes session-backed human delivery context ---
+# --- 12. aos help config --json exposes the discoverable config surface ---
+OUT=$(./aos help config --json 2>/dev/null)
+if echo "$OUT" | grep -q '"config-get"' &&
+   echo "$OUT" | grep -q '"config-set"' &&
+   echo "$OUT" | grep -q 'aos config get <key> \[--json\]'; then
+    pass "config help exposes get/set forms"
+else
+    fail "config help is missing get/set forms: $OUT"
+fi
+
+# --- 13. aos help tell --json exposes session-backed human delivery context ---
 OUT=$(./aos help tell --json 2>/dev/null)
 if echo "$OUT" | grep -q '"token" : "--from-session-id"' &&
    echo "$OUT" | grep -q '"token" : "--purpose"' &&

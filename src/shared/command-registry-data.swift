@@ -630,7 +630,34 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos listen --channels"])
     ]))
 
-    // ── set ───────────────────────────────────────────────
+    // ── config / set ──────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["config"], summary: "Configuration — inspect and mutate runtime config", forms: [
+        InvocationForm(id: "config-dump", usage: "aos config",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos config"]),
+        InvocationForm(id: "config-get", usage: "aos config get <key> [--json]",
+            args: [
+                pos("key", "Config key (for example: voice.enabled, content.port)"),
+                flag("json", "--json", "Emit JSON for the value", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos config get voice.enabled", "aos config get content.port --json"]),
+        InvocationForm(id: "config-set", usage: "aos config set <key> <value>",
+            args: [
+                pos("key", "Config key (for example: voice.enabled, perception.default_depth)"),
+                pos("value", "New value")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos config set voice.enabled true", "aos config set perception.default_depth 2"])
+    ]))
+
     reg.append(CommandDescriptor(path: ["set"], summary: "Configure autonomic settings", forms: [
         InvocationForm(id: "set-value", usage: "aos set <key> <value>",
             args: [

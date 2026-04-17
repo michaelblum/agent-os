@@ -58,6 +58,7 @@ The current top-level commands are:
 | `aos say` | Voice output |
 | `aos tell` | Communication output: human, channel, or direct session routing |
 | `aos listen` | Communication input: channel or direct session reads/follow |
+| `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
 | `aos serve` | Unified daemon |
 | `aos content` | Content-server status |
@@ -278,6 +279,25 @@ live sessions. Each entry includes:
 - optional `lease_session_id` / `lease_session_name`
 
 `aos voice leases` returns only the active session assignments.
+
+## `aos config`
+
+Discoverable configuration surface:
+
+```bash
+aos config
+aos config get voice.enabled
+aos config get content.port --json
+aos config set voice.enabled true
+```
+
+`aos config` dumps the current runtime config as JSON. `aos config get` defaults
+to shell-friendly scalar text and accepts `--json` when you want JSON output.
+`aos set <key> <value>` remains supported as the shorthand write form.
+
+Failed CLI invocations now append local JSONL records to
+`~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review
+discoverability misses like unknown commands or missing arguments over time.
 
 ## `aos tell`
 

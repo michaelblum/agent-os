@@ -17,7 +17,52 @@ func jsonCompact<T: Encodable>(_ value: T) -> String {
 
 // MARK: - Error Output
 
+private func recordCLIError(message: String, code: String) {
+    let env = ProcessInfo.processInfo.environment
+    let logPath = aosCLIErrorLogPath()
+    let dir = (logPath as NSString).deletingLastPathComponent
+    try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+    var record: [String: Any] = [
+        "timestamp": iso8601Now(),
+        "code": code,
+        "error": message,
+        "argv": CommandLine.arguments,
+        "cwd": FileManager.default.currentDirectoryPath,
+        "mode": aosCurrentRuntimeMode().rawValue,
+    ]
+    if let sessionID = env["AOS_SESSION_ID"], !sessionID.isEmpty {
+        record["session_id"] = sessionID
+    }
+    if let sessionName = env["AOS_SESSION_NAME"], !sessionName.isEmpty {
+        record["session_name"] = sessionName
+    }
+    if let harness = env["AOS_SESSION_HARNESS"], !harness.isEmpty {
+        record["harness"] = harness
+    }
+
+    guard JSONSerialization.isValidJSONObject(record),
+          let data = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) else {
+        return
+    }
+
+    if !FileManager.default.fileExists(atPath: logPath) {
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+    }
+
+    guard let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: logPath)) else { return }
+    defer { try? handle.close() }
+    do {
+        try handle.seekToEnd()
+        try handle.write(contentsOf: data)
+        try handle.write(contentsOf: Data("\n".utf8))
+    } catch {
+        return
+    }
+}
+
 func exitError(_ message: String, code: String) -> Never {
+    recordCLIError(message: message, code: code)
     let obj: [String: String] = ["error": message, "code": code]
     if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
        let s = String(data: data, encoding: .utf8) {

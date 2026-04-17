@@ -79,6 +79,8 @@ Examples:
 - `bash tests/voice-session-leases.sh`
 - `bash tests/voice-final-response.sh`
 - `bash tests/final-response-hook.sh`
+- `bash tests/config-surface.sh`
+- `bash tests/cli-error-log.sh`
 - `bash tests/sigil-avatar-interactions.sh`
 - `bash tests/sigil-workbench-studio-restage.sh`
 - `bash tests/sigil-workbench-launch.sh`
