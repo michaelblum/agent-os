@@ -3,6 +3,14 @@
 **Date:** 2026-04-15
 **Status:** Shipped in the shared session hooks and daemon-native `aos tell` / `aos listen` flow. The bootstrap launcher helper still emits a Claude-specific command, but the session identity and messaging contract is shared across Claude Code and Codex.
 
+## Current Shipped Snapshot
+
+- Shared identity and routing helpers live in `.agents/hooks/session-common.sh`.
+- Startup registration and inbound-message polling are wired in both `.claude/settings.json` and `.codex/hooks.json`.
+- Clean stop unregistering is currently Claude-specific via `.agents/hooks/session-stop.sh`; Codex intentionally omits a stop hook and relies on lease refresh plus startup/post-tool registration.
+- `scripts/session-name` renames human-readable display metadata while keeping the canonical inbox/channel on `session_id`.
+- `scripts/parallel-codex` creates paired display/wiki Codex launchers with embedded coordination guidance and clipboard priming.
+
 ## Problem
 
 Before this design shipped, cross-session handoff was fragile. The launcher prompt told the receiving session to go find a brief on the coordination bus, which meant the new session still had to discover the right tool and channel by inference. This was prompt-hope — it worked sometimes, failed silently other times.
@@ -135,6 +143,18 @@ A new hook on `PostToolUse` that fires on every tool call.
 }
 ```
 
+Startup + message polling are shared across Claude Code and Codex. Stop-time unregistering is only wired in `.claude/settings.json` today:
+
+```json
+{
+  "event": "Stop",
+  "command": "AOS_SESSION_HARNESS=claude-code bash .agents/hooks/session-stop.sh",
+  "timeout": 5000
+}
+```
+
+Codex intentionally does not call `session-stop.sh` on exit; the current contract is lease-based presence with re-registration on startup and during post-tool refresh.
+
 **Logic:**
 
 ```bash
@@ -220,6 +240,7 @@ Minimal changes to existing script:
 - Seed prompt changes from `"Read the gateway handoff channel..."` to `"Bootstrap: /tmp/aos-handoff-<name>.json"`
 - Keep bootstrap files keyed by human-readable name for launch ergonomics
 - `--resume` support stays launcher-level; ongoing peer-to-peer coordination should switch to `./aos tell --session-id <peer_session_id>` after discovery via `./aos tell --who`
+- `scripts/parallel-codex` builds a paired launcher set for display/wiki parallel sessions and primes the clipboard with the peer launcher command
 
 ### 8. What HITL Does
 
@@ -252,10 +273,17 @@ Minimal changes to existing script:
 | File | Change |
 |------|--------|
 | `scripts/handoff` | Add `AOS_SESSION_NAME` to launcher, new seed prompt, post to `handoff` |
+| `scripts/parallel-codex` | Create paired Codex launchers with embedded coordination guidance |
+| `scripts/session-name` | Inspect and rename the current session registration while preserving canonical `session_id` routing |
+| `.agents/hooks/session-common.sh` | Shared identity, naming, cursor, and bootstrap helpers |
 | `.agents/hooks/session-start.sh` | Add identity resolution, daemon registration, bootstrap file reading |
 | `.agents/hooks/check-messages.sh` | New file — turn hook for thin message notifications |
-| `.claude/settings.json` | Add PostToolUse hook entry for check-messages.sh |
+| `.agents/hooks/session-stop.sh` | Shared unregister helper used by Claude stop hooks |
+| `.claude/settings.json` | Wire SessionStart/PostToolUse/Stop hooks to the shared scripts |
+| `.codex/hooks.json` | Wire SessionStart/PostToolUse hooks to the shared scripts |
+| `tests/session-registration-startup.sh` | Verify canonical session ids, rename persistence, restore-after-restart, and direct inbox reads |
+| `tests/parallel-codex.sh` | Verify paired launcher generation and coordination guidance |
 
 ## Open Questions
 
-None — scope is tight. Codex adaptation is explicitly deferred to a Codex agent session.
+None for the shared session contract. The remaining future work is harness-aware launcher generation, not Codex hook support.

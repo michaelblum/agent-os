@@ -32,6 +32,21 @@
 
 set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
+AOS="$ROOT/aos"
+
+copy_to_clipboard() {
+  local content="$1"
+  if [[ -n "${AOS_CLIPBOARD_FILE:-}" ]]; then
+    printf '%s\n' "$content" > "$AOS_CLIPBOARD_FILE"
+    return 0
+  fi
+  if command -v pbcopy >/dev/null 2>&1; then
+    printf '%s\n' "$content" | pbcopy
+    return 0
+  fi
+  echo "warning: clipboard unavailable; command was not copied" >&2
+  return 1
+}
 
 # --- Parse args ---
 TO="" FROM="" TASK="" CONTEXT="" BRANCH="" RESUME=false DRY_RUN=false
@@ -60,7 +75,6 @@ DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 LAST_COMMITS=$(git -C "$ROOT" log --oneline -5 2>/dev/null || echo "unavailable")
 HEAD_SHA=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "?")
 
-AOS="$ROOT/aos"
 DAEMON_STATUS="unknown"
 if [[ -x "$AOS" ]]; then
   DAEMON_STATUS=$("$AOS" doctor --json 2>/dev/null | python3 -c "
@@ -153,24 +167,25 @@ LAUNCHEOF
 chmod +x "$LAUNCHER"
 
 # Copy short command to clipboard
-echo "bash ${LAUNCHER}" | pbcopy
+CLIPBOARD_COMMAND="bash ${LAUNCHER}"
+copy_to_clipboard "$CLIPBOARD_COMMAND" || true
 
 # --- Post to coordination channels via aos tell ---
-if command -v aos >/dev/null 2>&1; then
+if [[ -x "$AOS" ]]; then
   PAYLOAD_CONTENT=$(cat "$PAYLOAD_FILE")
-  aos tell handoff "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
-  aos tell "$TO" "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
-  echo "  Posted to 'handoff' and '${TO}' channels via aos tell."
+  "$AOS" tell handoff "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
+  "$AOS" tell "$TO" "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
+  echo "  Posted to 'handoff' and '${TO}' channels via $AOS."
 fi
 
 echo "Handoff ready."
 echo ""
 echo "  Bootstrap payload: ${PAYLOAD_FILE}"
 echo "  Launcher:        ${LAUNCHER}"
-echo "  Clipboard:       bash ${LAUNCHER}"
+echo "  Clipboard:       ${CLIPBOARD_COMMAND}"
 echo ""
-echo "  Channels posted via aos tell (handoff + ${TO})."
+echo "  Channels posted via $AOS tell (handoff + ${TO})."
 echo "  If daemon was unavailable, manually post:"
-echo "    aos tell handoff \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
-echo "    aos tell ${TO} \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
+echo "    ${AOS} tell handoff \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
+echo "    ${AOS} tell ${TO} \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
 echo "  Then paste the clipboard command in a new terminal to launch."

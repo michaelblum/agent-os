@@ -1,5 +1,14 @@
 # Command Registry Implementation Plan
 
+> **Status note:** The command registry is now shipped. Treat this file as an implementation log. The live source of truth is `src/shared/command-registry-data.swift`, and the most drift-prone surfaces are the coordination forms (`tell` / `listen`) that now prefer canonical `session_id` routing.
+
+## Current Shipped Snapshot
+
+- `aos help` and per-command `--help` are wired through the static registry.
+- `tell` supports `--session-id`, `--register --session-id/--name`, `--unregister`, `--from`, and stdin fallback.
+- `listen` supports either `<channel>` or `--session-id`.
+- `listen --follow` streams channel/direct inbox updates and currently uses `--since` rather than an initial `--limit` backfill.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a command registry and `aos help` command so agents can introspect all CLI commands, their invocation forms, execution safety, and output contracts via structured JSON.
@@ -1004,13 +1013,14 @@ Append inside `buildCommandRegistry()`, before the `return reg` line:
 
     // ── tell ──────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["tell"], summary: "Communication — send to human, channel, or session", forms: [
-        InvocationForm(id: "tell-message", usage: "aos tell <audience> [--json <payload>] [--from <name>] [<text> | stdin]",
+        InvocationForm(id: "tell-message", usage: "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [<text> | stdin]",
             args: [
-                pos("audience", "Target: human, channel name, or session name", discovery: [
+                pos("audience", "Target: human, channel name, or canonical session id", discovery: [
                     .staticValues(["human"]),
                     .command(path: ["listen"], formId: "listen-channels"),
                     .command(path: ["tell"], formId: "tell-who")
                 ]),
+                flag("session-id", "--session-id", "Directly target a canonical session id"),
                 flag("json", "--json", "Structured JSON payload", type: .json),
                 flag("from", "--from", "Sender name"),
                 pos("text", "Message text", required: false, variadic: true)
@@ -1021,12 +1031,15 @@ Append inside `buildCommandRegistry()`, before the `return reg` line:
             output: outJSON,
             examples: [
                 "aos tell human \"Found the bug\"",
+                "aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c \"status update\"",
                 "aos tell handoff \"task complete\" --from my-session",
                 "echo 'update' | aos tell handoff"
             ]),
-        InvocationForm(id: "tell-register", usage: "aos tell --register <name> [--role <role>] [--harness <harness>]",
+        InvocationForm(id: "tell-register", usage: "aos tell --register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]",
             args: [
-                flag("register", "--register", "Register session presence with this name", required: true),
+                flag("register", "--register", "Register session presence", required: true),
+                flag("session-id", "--session-id", "Canonical session id (preferred)"),
+                flag("name", "--name", "Human-readable display name"),
                 flag("role", "--role", "Session role",
                      type: .enumeration([
                         EnumValue(value: "worker", summary: "Default worker session"),
@@ -1038,7 +1051,16 @@ Append inside `buildCommandRegistry()`, before the `return reg` line:
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos tell --register my-session", "aos tell --register builder --role worker --harness claude-code"]),
+            examples: ["aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name canvas-runtime", "aos tell --register builder --role worker --harness claude-code"]),
+        InvocationForm(id: "tell-unregister", usage: "aos tell --unregister [<legacy-name>] [--session-id <id>]",
+            args: [
+                flag("unregister", "--unregister", "Remove session presence", required: true),
+                flag("session-id", "--session-id", "Canonical session id (preferred)")
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos tell --unregister --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos tell --unregister my-session"]),
         InvocationForm(id: "tell-who", usage: "aos tell --who",
             args: [flag("who", "--who", "List online sessions", type: .bool, required: true)],
             stdin: nil, constraints: nil,
@@ -1049,27 +1071,28 @@ Append inside `buildCommandRegistry()`, before the `return reg` line:
 
     // ── listen ────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["listen"], summary: "Communication — receive from channels", forms: [
-        InvocationForm(id: "listen-read", usage: "aos listen <channel> [--since id] [--limit N]",
+        InvocationForm(id: "listen-read", usage: "aos listen <channel>|--session-id <id> [--since id] [--limit N]",
             args: [
                 pos("channel", "Channel to read from", discovery: [.command(path: ["listen"], formId: "listen-channels")]),
+                flag("session-id", "--session-id", "Read direct messages for a canonical session id"),
                 flag("since", "--since", "Read messages after this ID"),
                 flag("limit", "--limit", "Max messages to return", type: .int, default: .int(50))
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
-            examples: ["aos listen handoff", "aos listen handoff --limit 10"]),
-        InvocationForm(id: "listen-follow", usage: "aos listen <channel> --follow [--since id] [--limit N]",
+            examples: ["aos listen handoff", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos listen handoff --limit 10"]),
+        InvocationForm(id: "listen-follow", usage: "aos listen <channel>|--session-id <id> --follow [--since id]",
             args: [
                 pos("channel", "Channel to follow"),
+                flag("session-id", "--session-id", "Follow direct messages for a canonical session id"),
                 flag("follow", "--follow", "Stream messages in real-time", type: .bool, required: true),
-                flag("since", "--since", "Start after this message ID"),
-                flag("limit", "--limit", "Initial backfill limit", type: .int, default: .int(50))
+                flag("since", "--since", "Start after this message ID")
             ],
             stdin: nil, constraints: nil,
             execution: execStreaming(daemon: true),
             output: outNDJSON,
-            examples: ["aos listen handoff --follow"]),
+            examples: ["aos listen handoff --follow", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"]),
         InvocationForm(id: "listen-channels", usage: "aos listen --channels",
             args: [flag("channels", "--channels", "List known channels", type: .bool, required: true)],
             stdin: nil, constraints: nil,

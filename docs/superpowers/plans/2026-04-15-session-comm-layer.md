@@ -1,14 +1,30 @@
 # Session Communication Layer — Implementation Plan
 
+> **Status note:** This plan started from a gateway/SQLite polling design. The shipped path now uses daemon-native `./aos tell` / `./aos listen`, canonical `session_id` direct inboxes, shared Claude/Codex startup + post-tool hooks, and hook-driven auto-registration. The detailed checkbox steps below are preserved as implementation archaeology and still contain gateway-era snippets; do not use them as the current contract.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make cross-session handoff deterministic and enable parallel session coordination via gateway message polling.
+**Goal:** Make cross-session handoff deterministic and enable parallel session coordination via daemon-native messaging.
 
-**Architecture:** Three layers — bootstrap file for reliable cold start (no MCP needed), SessionStart hook for name resolution + registration directives, and a PostToolUse turn hook that polls the gateway SQLite DB directly for thin inbound-message notifications.
+**Architecture:** Three layers — bootstrap file for reliable cold start, SessionStart hook for identity resolution + daemon registration, and a PostToolUse turn hook that polls `./aos listen` for thin inbound-message notifications.
 
-**Tech Stack:** Bash (hooks), SQLite3 CLI (direct DB reads), Python3 (JSON parsing in hooks), existing `scripts/handoff` shell script, Claude Code hook system.
+**Tech Stack:** Bash (hooks), `./aos` CLI, Python3 (JSON parsing in hooks), existing `scripts/handoff` shell script, Claude Code + Codex hook systems.
 
 **Spec:** `docs/superpowers/specs/2026-04-15-session-comm-layer-design.md`
+
+---
+
+## Current Shipped Snapshot
+
+- Canonical peer routing is `./aos tell --session-id <id> ...` plus `./aos listen --session-id <id>`.
+- Human-readable names are display metadata and legacy fallback aliases. The durable inbox/channel key is the canonical `session_id`.
+- Shared helpers in `.agents/hooks/session-common.sh` resolve session ids, display names, cursor files, bootstrap locations, and runtime-scoped coordination state.
+- `.agents/hooks/session-start.sh` auto-registers sessions for both Claude Code and Codex.
+- `.agents/hooks/check-messages.sh` refreshes registration and emits thin inbox notifications for both Claude Code and Codex.
+- `.agents/hooks/session-stop.sh` exists, but only Claude currently wires it as a Stop hook; Codex intentionally relies on lease refresh rather than explicit unregister-on-exit.
+- `scripts/session-name` renames a session without changing its canonical inbox.
+- `scripts/parallel-codex` creates paired display/wiki Codex launchers with embedded coordination guidance.
+- Verification lives in `tests/session-registration-startup.sh` and `tests/parallel-codex.sh`.
 
 ---
 
@@ -16,12 +32,21 @@
 
 | File | Action | Responsibility |
 |------|--------|----------------|
-| `scripts/handoff` | Modify | Add `AOS_SESSION_NAME` export to launcher, change seed prompt to point at bootstrap file, post to session's named channel |
-| `.agents/hooks/session-start.sh` | Modify | Add name resolution, gateway registration directive, bootstrap file reading at top of output |
-| `.agents/hooks/check-messages.sh` | Create | PostToolUse turn hook — thin gateway message notifications via direct SQLite read |
-| `.claude/settings.json` | Modify | Add PostToolUse hook entry for check-messages.sh |
+| `scripts/handoff` | Modify | Write bootstrap payload + launcher and seed the session with `AOS_SESSION_NAME` |
+| `scripts/parallel-codex` | Create | Emit paired display/wiki Codex launchers with coordination guidance |
+| `scripts/session-name` | Modify | Inspect and rename the current session registration |
+| `.agents/hooks/session-common.sh` | Create | Shared identity, cursor, bootstrap, and runtime-state helpers |
+| `.agents/hooks/session-start.sh` | Modify | Resolve identity, auto-register with daemon, read bootstrap payload |
+| `.agents/hooks/check-messages.sh` | Create | PostToolUse turn hook — thin daemon message notifications via `./aos listen` |
+| `.agents/hooks/session-stop.sh` | Create | Shared unregister helper for clean stop flows |
+| `.claude/settings.json` | Modify | Wire SessionStart/PostToolUse/Stop hooks to the shared scripts |
+| `.codex/hooks.json` | Modify | Wire SessionStart/PostToolUse hooks to the shared scripts |
+| `tests/session-registration-startup.sh` | Modify | Verify canonical ids, rename persistence, restore-after-restart, and direct inbox reads |
+| `tests/parallel-codex.sh` | Create | Verify paired Codex launcher generation and coordination instructions |
 
 ---
+
+> **Historical note:** The remaining task-by-task sections were written before the daemon-native session contract settled. They still reference gateway posting, SQLite polling, and manual registration prompts. Keep them only as an implementation log; for new work, follow the shipped snapshot above plus the companion spec and current source.
 
 ### Task 1: Create the turn hook (`check-messages.sh`)
 

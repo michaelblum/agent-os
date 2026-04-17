@@ -65,15 +65,37 @@ aos say "Hello, I'm your agent"   # Speak text aloud (sugar for tell human)
 aos say --list-voices             # List available voices
 aos tell human "Hello"             # Speak (same as aos say)
 aos tell handoff "task complete"    # Post to coordination channel
-aos tell --register my-session     # Register session presence
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name my-session
+aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "status update"
 aos tell --who                     # List online sessions
 aos listen handoff                 # Read channel messages
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen handoff --follow        # Stream messages in real-time
 aos listen --channels              # List known channels
 aos set voice.enabled true        # Configure settings
 aos inspect                       # Live AX element inspector overlay
 aos log push "message"            # Push to log console
 ```
+
+### Session Coordination
+
+Sessions register themselves on startup. Use the canonical `session_id` as the
+direct inbox/channel once a peer is discovered; human-readable names are display
+metadata and a fallback alias, not the primary routing key.
+
+```bash
+scripts/session-name --current                    # Inspect current session_id/name
+scripts/session-name --name wiki-focus            # Rename the current session
+./aos tell --who                                 # List live peers + canonical ids
+./aos tell --session-id <peer-id> "STEER: ..."   # Direct peer message
+./aos listen --session-id <this-session-id>      # Read this session's inbox
+scripts/parallel-codex                           # Prepare paired display/wiki launchers
+```
+
+Shared session hooks live under `.agents/hooks/`. Startup and message polling
+run in both Claude Code and Codex. Clean stop unregistering is currently wired
+through Claude's stop hook only; Codex relies on lease refresh plus
+re-registration on startup/post-tool use.
 
 ### Capture (aos see capture)
 

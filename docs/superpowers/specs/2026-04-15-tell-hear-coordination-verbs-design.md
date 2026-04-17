@@ -2,10 +2,11 @@
 
 **Date:** 2026-04-15 (revised)
 **Scope:** Two top-level `aos` verbs for all agent communication. Daemon-native routing, no MCP dependency.
+**Status:** Shipped. `aos tell` / `aos listen` are the native coordination surface; the gateway is now an optional adapter.
 
 ## Problem
 
-Session coordination (handoff, presence, messaging) currently requires the MCP gateway to be loaded. `scripts/handoff` does everything except gateway posting — that step requires the agent to manually call MCP tools. This means:
+Before this design shipped, session coordination (handoff, presence, messaging) required the MCP gateway to be loaded. `scripts/handoff` did everything except gateway posting — that step required the agent to manually call MCP tools. This meant:
 
 1. The MCP server must be configured and running for basic handoff to work
 2. Codex and other non-MCP stacks can't participate
@@ -53,7 +54,7 @@ The audience determines the route:
 |----------|-------|-----------|
 | `human` | Voice | TTS via SpeechEngine |
 | `<channel-name>` | Channel | Daemon coordination bus |
-| `<session-name>` | Direct message | Daemon coordination bus |
+| `--session-id <canonical-session-id>` | Direct message | Daemon coordination bus |
 | `human,handoff` | Mixed | TTS + channel post |
 
 ### `listen` — all inbound communication
@@ -61,13 +62,13 @@ The audience determines the route:
 ```
       daemon (arbiter)
          │
-         ├── STT engine (human speaking)
          ├── channel message (agent posted)
+         ├── direct session message
          ├── stdin pipe (bash command)
-         ├── future: webhook, file watch, etc.
+         ├── future: STT, webhook, file watch, etc.
          │
          ▼
-aos listen [--from <source>]
+aos listen <channel>|--session-id <canonical-session-id>
 ```
 
 All inbound language arrives through `listen`. The source metadata comes with the message, but the verb is the same regardless of origin.
@@ -95,9 +96,11 @@ The daemon routes communication based on:
 - **Config** — voice enabled? which voice? rate? (`aos set voice.*`)
 - **Presence** — which sessions are online? (`tell --who`)
 - **Channel state** — does the channel exist? who's subscribed?
-- **Audience type** — human, session name, channel name, mixed
+- **Audience type** — human, canonical session id, channel name, mixed
 
 The daemon already has all of this context. It manages voice config, runs the coordination bus, and tracks state. Routing is a natural extension, not a new responsibility.
+
+Direct session routing should target canonical `session_id` values. Human-readable names remain ancillary metadata for `/who` output and operator ergonomics.
 
 ### MCP gateway becomes an adapter
 
@@ -150,7 +153,7 @@ The scoping model (mode isolation + namespace convention) is already established
 
 Five core verbs, not six. The communication primitive is unified.
 
-## Usage (Planned)
+## Usage (Shipped)
 
 ```bash
 # Tell a human (TTS) — identical to current `aos say`
@@ -161,7 +164,7 @@ aos say "I found the bug in line 47"              # sugar, same thing
 aos tell handoff "task complete, see commit abc1234"
 
 # Tell a session directly
-aos tell hitl-visual-test "ready for your review"
+aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for your review"
 
 # Tell multiple audiences
 aos tell human,handoff "done — handing off to visual testing"
@@ -170,14 +173,16 @@ aos tell human,handoff "done — handing off to visual testing"
 aos tell sigil/events --json '{"type": "state_change", "state": "active"}'
 
 # Presence
-aos tell --register my-session-name
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name hitl-visual-test
 aos tell --who
 
 # Listen for messages
 aos listen handoff
-aos listen --from human                           # STT only
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen sigil/events --follow                  # stream
 ```
+
+Source-filtered `listen` inputs such as STT remain part of the long-term routing model, but the current coordination CLI exposes channel and direct-session reads first.
 
 ## Trigger: What Started This
 
@@ -191,10 +196,11 @@ The first answer was `tell`/`hear` as coordination-specific verbs (the 2×2). Bu
 |--------|-------|
 | `aos say "text"` | `aos tell human "text"` (or keep `say` as sugar) |
 | MCP `post_message` | `aos tell <channel> "message"` |
-| MCP `register_session` | `aos tell --register <name>` |
+| MCP `register_session` | `aos tell --register --session-id <id> --name <name>` |
 | MCP `who_is_online` | `aos tell --who` |
 | MCP `read_stream` | `aos listen <channel>` |
-| STT (#55) as separate verb | `aos listen --from human` |
+| Direct session inbox reads | `aos listen --session-id <id>` |
+| STT (#55) as separate verb | future `aos listen` source routing |
 | `scripts/handoff` + manual MCP | `scripts/handoff` calls `aos tell` internally |
 | 4 communication verbs | 2 verbs + routing |
 

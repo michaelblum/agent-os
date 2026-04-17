@@ -1,7 +1,7 @@
 # Command Registry: Agent-First CLI Introspection
 
 **Date:** 2026-04-15
-**Status:** Draft
+**Status:** Shipped in `aos help` plus the static registry under `src/shared/command-registry-data.swift`. The examples below are representative snapshots of the current wire contract.
 **Goal:** Let an agent choose a valid command form, know whether it's safe to run, know how to supply input, and know what kind of output to expect.
 
 ## Problem
@@ -140,6 +140,16 @@ enum OutputMode { case json, text, ndjson, none }
 | `aos help <command-path...> --json` | JSON for one command | Agent drilling (e.g. `aos help show create --json`) |
 | `aos <command-path...> --help` | Same as `aos help <command-path...>` | Muscle memory (e.g. `aos show create --help`) |
 
+## Current Coordination Snapshot
+
+For drift-prone coordination surfaces, the current shipped registry reflects:
+
+- `tell` supports direct `--session-id` routing, `--register --session-id/--name`, and `--unregister`
+- `listen` supports `<channel>` or `--session-id` for direct inbox reads
+- `listen --follow` streams channel or direct-session updates and currently uses `--since` rather than an initial `--limit` backfill parameter
+
+Treat `src/shared/command-registry-data.swift` as the definitive live snapshot when examples in this design doc need reconciliation.
+
 ## JSON Output Shape
 
 ```json
@@ -149,16 +159,16 @@ enum OutputMode { case json, text, ndjson, none }
   "commands": [
     {
       "path": ["tell"],
-      "summary": "Send or register coordination messages",
+      "summary": "Communication — send to human, channel, or session",
       "forms": [
         {
           "id": "tell-message",
-          "usage": "aos tell <audience> [--json <payload>] [--from <name>] [<text> | stdin]",
+          "usage": "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [<text> | stdin]",
           "args": [
             {
               "id": "audience",
               "kind": "positional",
-              "summary": "Target: human, channel name, or session name",
+              "summary": "Target: human, channel name, or canonical session id",
               "value_type": "string",
               "required": true,
               "discovery": [
@@ -166,6 +176,13 @@ enum OutputMode { case json, text, ndjson, none }
                 { "command": { "path": ["listen"], "form_id": "listen-channels" } },
                 { "command": { "path": ["tell"], "form_id": "tell-who" } }
               ]
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "token": "--session-id",
+              "summary": "Directly target a canonical session id",
+              "value_type": "string"
             },
             {
               "id": "json",
@@ -214,21 +231,36 @@ enum OutputMode { case json, text, ndjson, none }
           },
           "examples": [
             "aos tell human \"Found the bug\"",
+            "aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c \"status update\"",
             "aos tell handoff \"task complete\" --from my-session",
             "echo 'status update' | aos tell handoff"
           ]
         },
         {
           "id": "tell-register",
-          "usage": "aos tell --register <name> [--role <role>] [--harness <harness>]",
+          "usage": "aos tell --register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]",
           "args": [
             {
               "id": "register",
               "kind": "flag",
               "token": "--register",
-              "summary": "Register session presence with this name",
-              "value_type": "string",
+              "summary": "Register session presence",
+              "value_type": "bool",
               "required": true
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "token": "--session-id",
+              "summary": "Canonical session id (preferred)",
+              "value_type": "string"
+            },
+            {
+              "id": "name",
+              "kind": "flag",
+              "token": "--name",
+              "summary": "Human-readable display name",
+              "value_type": "string"
             },
             {
               "id": "role",
@@ -267,8 +299,48 @@ enum OutputMode { case json, text, ndjson, none }
             "error_mode": "json_stderr"
           },
           "examples": [
-            "aos tell --register my-session",
+            "aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name canvas-runtime",
             "aos tell --register builder --role worker --harness claude-code"
+          ]
+        },
+        {
+          "id": "tell-unregister",
+          "usage": "aos tell --unregister [<legacy-name>] [--session-id <id>]",
+          "args": [
+            {
+              "id": "unregister",
+              "kind": "flag",
+              "token": "--unregister",
+              "summary": "Remove session presence",
+              "value_type": "bool",
+              "required": true
+            },
+            {
+              "id": "session-id",
+              "kind": "flag",
+              "token": "--session-id",
+              "summary": "Canonical session id (preferred)",
+              "value_type": "string"
+            }
+          ],
+          "execution": {
+            "read_only": false,
+            "mutates_state": true,
+            "interactive": false,
+            "streaming": false,
+            "auto_starts_daemon": true,
+            "requires_permissions": false,
+            "supports_dry_run": false
+          },
+          "output": {
+            "default_mode": "json",
+            "streaming": false,
+            "supports_json_flag": false,
+            "error_mode": "json_stderr"
+          },
+          "examples": [
+            "aos tell --unregister --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",
+            "aos tell --unregister my-session"
           ]
         },
         {
