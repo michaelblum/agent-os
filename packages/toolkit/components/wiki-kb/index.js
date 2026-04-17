@@ -186,7 +186,7 @@ export default function WikiKB() {
 
   function feedViews() {
     for (const { instance } of viewInstances.values()) {
-      instance.load(graphState.nodes, graphState.links, graphState.raw)
+      instance.load(graphState)
     }
   }
 
@@ -209,7 +209,7 @@ export default function WikiKB() {
 
     const created = { instance, viewEl }
     viewInstances.set(id, created)
-    instance.load(graphState.nodes, graphState.links, graphState.raw)
+    instance.load(graphState)
     return created
   }
 

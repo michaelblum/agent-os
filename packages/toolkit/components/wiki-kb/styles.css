@@ -81,18 +81,99 @@
   inset: 0;
 }
 
-.wiki-kb-toolbar {
+.wiki-kb-controls-shell {
   position: absolute;
   top: 8px;
   left: 8px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  max-width: min(292px, calc(100% - 16px));
+}
+
+.wiki-kb-controls-shell[hidden] {
+  display: none;
+}
+
+.wiki-kb-controls-toggle {
+  appearance: none;
+  align-self: flex-start;
+  padding: 4px 9px;
+  border: 1px solid rgba(138, 180, 255, 0.22);
+  border-radius: 4px;
+  background: rgba(18, 18, 28, 0.9);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.wiki-kb-controls-toggle:hover {
+  border-color: rgba(138, 180, 255, 0.4);
+  color: #fff;
+}
+
+.wiki-kb-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(540px, calc(100vh - 120px));
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(100, 100, 140, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(18, 18, 28, 0.96), rgba(12, 12, 20, 0.95)),
+    radial-gradient(circle at top left, rgba(138, 180, 255, 0.08), transparent 42%);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.wiki-kb-controls-header,
+.wiki-kb-controls-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wiki-kb-controls-title {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+}
+
+.wiki-kb-controls-summary,
+.wiki-kb-controls-caption,
+.wiki-kb-controls-empty {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.wiki-kb-controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wiki-kb-controls-label {
+  color: var(--text-header);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
 }
 
 .wiki-kb-search {
-  width: 172px;
+  width: 100%;
   padding: 5px 8px;
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
@@ -112,11 +193,15 @@
   border-color: rgba(138, 180, 255, 0.45);
 }
 
-.wiki-kb-filter-row {
+.wiki-kb-segmented,
+.wiki-kb-filter-row,
+.wiki-kb-tag-filters {
   display: flex;
-  gap: 3px;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
+.wiki-kb-scope-button,
 .wiki-kb-filter {
   appearance: none;
   padding: 2px 6px;
@@ -132,13 +217,62 @@
   transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
+.wiki-kb-scope-button,
+.wiki-kb-mini-action,
+.wiki-kb-action-button,
+.wiki-kb-tag-filter {
+  appearance: none;
+  padding: 2px 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  background: rgba(18, 18, 28, 0.78);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.wiki-kb-scope-button {
+  padding: 3px 8px;
+}
+
 .wiki-kb-filter:hover {
   color: var(--text-secondary);
 }
 
-.wiki-kb-filter.active {
+.wiki-kb-scope-button:hover,
+.wiki-kb-mini-action:hover,
+.wiki-kb-action-button:hover,
+.wiki-kb-tag-filter:hover {
+  color: var(--text-secondary);
+}
+
+.wiki-kb-scope-button.active,
+.wiki-kb-filter.active,
+.wiki-kb-tag-filter.active,
+.wiki-kb-mini-action:hover,
+.wiki-kb-action-button:hover {
   background: rgba(60, 60, 90, 0.22);
   color: var(--text-primary);
+}
+
+.wiki-kb-controls-range-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wiki-kb-controls-value {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.wiki-kb-depth-range {
+  width: 100%;
 }
 
 .wiki-kb-filter[data-type="entity"].active {
@@ -154,6 +288,33 @@
 .wiki-kb-filter[data-type="plugin"].active {
   border-color: var(--accent-yellow);
   color: var(--accent-yellow);
+}
+
+.wiki-kb-tag-filter.active {
+  border-color: rgba(138, 180, 255, 0.55);
+}
+
+.wiki-kb-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+}
+
+.wiki-kb-check-row input {
+  margin: 0;
+}
+
+.wiki-kb-controls-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wiki-kb-action-button {
+  padding: 4px 8px;
 }
 
 .wiki-kb-legend,

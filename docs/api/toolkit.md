@@ -64,6 +64,17 @@ Current reusable toolkit components include:
   ],
   "raw": {
     "alpha": "# Alpha\n\nMarkdown body"
+  },
+  "config": {
+    "graphView": {
+      "controls": { "collapsed": false },
+      "defaults": {
+        "mode": "local",
+        "depth": 2,
+        "showIsolated": true,
+        "activeTypes": ["entity", "concept"]
+      }
+    }
   }
 }
 ```
@@ -73,6 +84,22 @@ Incremental updates go to `wiki-kb/graph/update` and may include:
 - `nodes`, `links`, `raw` for upserts
 - `removeNodes`, `removeLinks`, `removeRaw` for targeted removals
 - `replace`, `replaceLinks`, `clearRaw` for reset-style updates
+- `config.graphView` to update graph-view defaults and feature flags
+
+`config.graphView` is intentionally generic rather than app-specific. Current
+consumer-facing fields:
+
+- `controls.enabled` / `controls.collapsed`
+- `features.search`, `features.types`, `features.tags`, `features.scope`, `features.depth`, `features.isolated`, `features.freeze`, `features.fit`, `features.reset`, `features.legend`
+- `defaults.mode` (`global` or `local`)
+- `defaults.depth`
+- `defaults.showIsolated`
+- `defaults.frozen`
+- `defaults.activeTypes`
+- `defaults.activeTags`
+- `defaults.searchQuery`
+- `defaults.tagMatchMode` (`any` or `all`)
+- `limits.minDepth` / `limits.maxDepth`
 
 ## Runtime API
 

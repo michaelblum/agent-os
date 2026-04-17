@@ -27,12 +27,12 @@
         "raw": "# Wiki KB\n\nA graph browser component for wiki-shaped data.\n\n- Force graph view\n- Mind map view"
       },
       {
-        "id": "sigil",
-        "name": "Sigil",
+        "id": "consumer-app",
+        "name": "Consumer App",
         "type": "entity",
-        "description": "Consumer surface that can embed toolkit canvases.",
-        "tags": ["app", "avatar"],
-        "raw": "# Sigil\n\nAn app-level surface that consumes lower-level primitives and toolkit components."
+        "description": "An app-level surface that consumes toolkit canvases.",
+        "tags": ["app", "client"],
+        "raw": "# Consumer App\n\nAny app surface can embed toolkit components without changing the component contract."
       },
       {
         "id": "coordination",
@@ -46,10 +46,10 @@
     "links": [
       { "source": "toolkit", "target": "aos" },
       { "source": "toolkit", "target": "wiki-kb" },
-      { "source": "toolkit", "target": "sigil" },
+      { "source": "toolkit", "target": "consumer-app" },
       { "source": "toolkit", "target": "coordination" },
       { "source": "aos", "target": "coordination" },
-      { "source": "wiki-kb", "target": "sigil" }
+      { "source": "wiki-kb", "target": "consumer-app" }
     ]
   }
 }

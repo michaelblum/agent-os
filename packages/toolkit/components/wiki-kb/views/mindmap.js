@@ -300,9 +300,9 @@ export default function MindmapView({ onSelectNode }) {
       return rootEl
     },
 
-    load(nextNodes, nextLinks) {
-      nodes = nextNodes
-      links = nextLinks
+    load(nextGraphData) {
+      nodes = Array.isArray(nextGraphData?.nodes) ? nextGraphData.nodes : []
+      links = Array.isArray(nextGraphData?.links) ? nextGraphData.links : []
       nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]))
       adjacency = buildAdjacency(nodes, links)
 

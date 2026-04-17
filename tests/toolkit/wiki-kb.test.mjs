@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   applyGraphUpdate,
   buildAdjacency,
+  deriveGraphViewData,
+  normalizeGraphViewConfig,
   normalizeGraphPayload,
   pickPrimaryNodeId,
   renderMarkdown,
@@ -96,4 +98,87 @@ test('mindmap helpers prefer the highest-degree node as the root', () => {
   ]);
 
   assert.equal(pickPrimaryNodeId(nodes, adjacency), 'beta');
+});
+
+test('normalizeGraphPayload includes configurable graph defaults', () => {
+  const graph = normalizeGraphPayload({
+    nodes: [{ id: 'alpha', name: 'Alpha', type: 'entity' }],
+    config: {
+      graphView: {
+        controls: { collapsed: true },
+        defaults: { mode: 'local', depth: 3, activeTypes: ['entity'], frozen: true },
+        limits: { maxDepth: 6 },
+      },
+    },
+  });
+
+  assert.equal(graph.config.graphView.controls.collapsed, true);
+  assert.equal(graph.config.graphView.defaults.mode, 'local');
+  assert.equal(graph.config.graphView.defaults.depth, 3);
+  assert.deepEqual(graph.config.graphView.defaults.activeTypes, ['entity']);
+  assert.equal(graph.config.graphView.defaults.frozen, true);
+  assert.equal(graph.config.graphView.limits.maxDepth, 6);
+});
+
+test('applyGraphUpdate merges graph config updates', () => {
+  const base = normalizeGraphPayload({
+    nodes: [{ id: 'alpha', name: 'Alpha', type: 'entity' }],
+  });
+
+  const updated = applyGraphUpdate(base, {
+    config: {
+      graphView: {
+        features: { tags: false },
+        defaults: { mode: 'local', depth: 4 },
+      },
+    },
+  });
+
+  assert.equal(updated.config.graphView.features.tags, false);
+  assert.equal(updated.config.graphView.defaults.mode, 'local');
+  assert.equal(updated.config.graphView.defaults.depth, 4);
+  assert.equal(updated.config.graphView.features.search, true);
+});
+
+test('deriveGraphViewData supports local depth, tag filters, and isolated-node hiding', () => {
+  const graph = normalizeGraphPayload({
+    nodes: [
+      { id: 'alpha', name: 'Alpha', type: 'entity', tags: ['core'] },
+      { id: 'beta', name: 'Beta', type: 'concept', tags: ['core', 'docs'] },
+      { id: 'gamma', name: 'Gamma', type: 'plugin', tags: ['docs'] },
+      { id: 'delta', name: 'Delta', type: 'concept', tags: ['extra'] },
+    ],
+    links: [
+      { source: 'alpha', target: 'beta' },
+      { source: 'beta', target: 'gamma' },
+    ],
+  });
+
+  const local = deriveGraphViewData(graph, {
+    mode: 'local',
+    anchorId: 'beta',
+    depth: 1,
+    showIsolated: false,
+    activeTypes: ['entity', 'concept', 'plugin'],
+    activeTags: ['docs'],
+  });
+
+  assert.deepEqual(local.nodes.map((node) => node.id), ['beta', 'gamma']);
+  assert.deepEqual(local.links, [{ source: 'beta', target: 'gamma' }]);
+  assert.equal(local.anchorId, 'beta');
+  assert.equal(local.anchorName, 'Beta');
+  assert.deepEqual(local.availableTags.map((entry) => entry.value), ['core', 'docs', 'extra']);
+});
+
+test('normalizeGraphViewConfig clamps invalid defaults', () => {
+  const config = normalizeGraphViewConfig({
+    defaults: { mode: 'weird', depth: 99, tagMatchMode: 'invalid' },
+    limits: { minDepth: 3, maxDepth: 2 },
+  });
+
+  assert.equal(config.defaults.mode, 'global');
+  assert.equal(config.defaults.depth, 3);
+  assert.equal(config.defaults.tagMatchMode, 'any');
+  assert.equal(config.limits.minDepth, 3);
+  assert.equal(config.limits.maxDepth, 3);
 });

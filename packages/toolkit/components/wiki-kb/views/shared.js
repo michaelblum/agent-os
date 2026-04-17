@@ -8,6 +8,63 @@ const NODE_COLORS = Object.freeze({
 
 const SAFE_PROTOCOLS = new Set(['aos:', 'http:', 'https:', 'mailto:'])
 
+export const DEFAULT_GRAPH_VIEW_CONFIG = Object.freeze({
+  controls: Object.freeze({
+    enabled: true,
+    collapsed: false,
+  }),
+  features: Object.freeze({
+    search: true,
+    types: true,
+    tags: true,
+    scope: true,
+    depth: true,
+    isolated: true,
+    freeze: true,
+    fit: true,
+    reset: true,
+    legend: true,
+  }),
+  defaults: Object.freeze({
+    mode: 'global',
+    depth: 2,
+    showIsolated: true,
+    frozen: false,
+    activeTypes: [],
+    activeTags: [],
+    searchQuery: '',
+    tagMatchMode: 'any',
+  }),
+  limits: Object.freeze({
+    minDepth: 1,
+    maxDepth: 4,
+  }),
+})
+
+export const DEFAULT_WIKI_KB_CONFIG = Object.freeze({
+  graphView: DEFAULT_GRAPH_VIEW_CONFIG,
+})
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergePlainObjects(base, update) {
+  if (!isPlainObject(update)) return structuredClone(base)
+
+  const merged = { ...base }
+  for (const [key, value] of Object.entries(update)) {
+    if (isPlainObject(value) && isPlainObject(base[key])) {
+      merged[key] = mergePlainObjects(base[key], value)
+    } else if (Array.isArray(value)) {
+      merged[key] = [...value]
+    } else {
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
 function normalizeId(value) {
   if (typeof value === 'string' || typeof value === 'number') {
     const text = String(value).trim()
@@ -21,17 +78,170 @@ function normalizeText(value) {
   return String(value).trim()
 }
 
-function normalizeTags(tags) {
-  if (!Array.isArray(tags)) return []
+function normalizeBoolean(value, fallback) {
+  if (typeof value === 'boolean') return value
+  return fallback
+}
+
+function clampInteger(value, fallback, min, max) {
+  const candidate = Number.parseInt(value, 10)
+  if (!Number.isFinite(candidate)) return fallback
+  return Math.min(max, Math.max(min, candidate))
+}
+
+function uniqueStrings(values) {
+  if (!Array.isArray(values)) return []
   const seen = new Set()
   const normalized = []
-  for (const tag of tags) {
-    const text = normalizeText(tag)
+  for (const value of values) {
+    const text = normalizeText(value)
     if (!text || seen.has(text)) continue
     seen.add(text)
     normalized.push(text)
   }
   return normalized
+}
+
+function sortStats(entries) {
+  return entries.sort((left, right) => {
+    if (right.count !== left.count) return right.count - left.count
+    return left.value.localeCompare(right.value)
+  })
+}
+
+function collectCounts(values) {
+  const counts = new Map()
+  for (const value of values) {
+    counts.set(value, (counts.get(value) || 0) + 1)
+  }
+  return sortStats([...counts.entries()].map(([value, count]) => ({ value, count })))
+}
+
+function matchesQuery(node, query) {
+  if (!query) return true
+  return (
+    node.name.toLowerCase().includes(query) ||
+    node.description.toLowerCase().includes(query) ||
+    node.tags.some((tag) => tag.toLowerCase().includes(query))
+  )
+}
+
+function matchesTags(node, activeTags, tagMatchMode) {
+  if (activeTags.length === 0) return true
+  if (tagMatchMode === 'all') return activeTags.every((tag) => node.tags.includes(tag))
+  return activeTags.some((tag) => node.tags.includes(tag))
+}
+
+function buildDegreeMap(links) {
+  const degrees = new Map()
+  for (const link of links) {
+    degrees.set(link.source, (degrees.get(link.source) || 0) + 1)
+    degrees.set(link.target, (degrees.get(link.target) || 0) + 1)
+  }
+  return degrees
+}
+
+function collectNeighborhoodIds(adjacency, anchorId, depth) {
+  if (!anchorId || !adjacency[anchorId]) return new Set()
+  const visited = new Set([anchorId])
+  let frontier = [anchorId]
+
+  for (let level = 0; level < depth; level += 1) {
+    const next = []
+    for (const nodeId of frontier) {
+      for (const neighborId of adjacency[nodeId] || []) {
+        if (visited.has(neighborId)) continue
+        visited.add(neighborId)
+        next.push(neighborId)
+      }
+    }
+    if (next.length === 0) break
+    frontier = next
+  }
+
+  return visited
+}
+
+function resolveGraphViewConfig(rawConfig = {}) {
+  if (!isPlainObject(rawConfig)) return {}
+  if (isPlainObject(rawConfig.graphView)) return rawConfig.graphView
+  if (isPlainObject(rawConfig.graph)) return rawConfig.graph
+  if (isPlainObject(rawConfig.views?.graph)) return rawConfig.views.graph
+  return rawConfig
+}
+
+export function normalizeGraphViewConfig(rawConfig = {}) {
+  const merged = mergePlainObjects(DEFAULT_GRAPH_VIEW_CONFIG, resolveGraphViewConfig(rawConfig))
+  const minDepth = clampInteger(
+    merged.limits?.minDepth,
+    DEFAULT_GRAPH_VIEW_CONFIG.limits.minDepth,
+    1,
+    12
+  )
+  const rawMaxDepth = clampInteger(
+    merged.limits?.maxDepth,
+    DEFAULT_GRAPH_VIEW_CONFIG.limits.maxDepth,
+    1,
+    12
+  )
+  const maxDepth = Math.max(minDepth, rawMaxDepth)
+
+  return {
+    controls: {
+      enabled: normalizeBoolean(merged.controls?.enabled, DEFAULT_GRAPH_VIEW_CONFIG.controls.enabled),
+      collapsed: normalizeBoolean(merged.controls?.collapsed, DEFAULT_GRAPH_VIEW_CONFIG.controls.collapsed),
+    },
+    features: {
+      search: normalizeBoolean(merged.features?.search, DEFAULT_GRAPH_VIEW_CONFIG.features.search),
+      types: normalizeBoolean(merged.features?.types, DEFAULT_GRAPH_VIEW_CONFIG.features.types),
+      tags: normalizeBoolean(merged.features?.tags, DEFAULT_GRAPH_VIEW_CONFIG.features.tags),
+      scope: normalizeBoolean(merged.features?.scope, DEFAULT_GRAPH_VIEW_CONFIG.features.scope),
+      depth: normalizeBoolean(merged.features?.depth, DEFAULT_GRAPH_VIEW_CONFIG.features.depth),
+      isolated: normalizeBoolean(merged.features?.isolated, DEFAULT_GRAPH_VIEW_CONFIG.features.isolated),
+      freeze: normalizeBoolean(merged.features?.freeze, DEFAULT_GRAPH_VIEW_CONFIG.features.freeze),
+      fit: normalizeBoolean(merged.features?.fit, DEFAULT_GRAPH_VIEW_CONFIG.features.fit),
+      reset: normalizeBoolean(merged.features?.reset, DEFAULT_GRAPH_VIEW_CONFIG.features.reset),
+      legend: normalizeBoolean(merged.features?.legend, DEFAULT_GRAPH_VIEW_CONFIG.features.legend),
+    },
+    defaults: {
+      mode: merged.defaults?.mode === 'local' ? 'local' : 'global',
+      depth: clampInteger(
+        merged.defaults?.depth,
+        DEFAULT_GRAPH_VIEW_CONFIG.defaults.depth,
+        minDepth,
+        maxDepth
+      ),
+      showIsolated: normalizeBoolean(
+        merged.defaults?.showIsolated,
+        DEFAULT_GRAPH_VIEW_CONFIG.defaults.showIsolated
+      ),
+      frozen: normalizeBoolean(merged.defaults?.frozen, DEFAULT_GRAPH_VIEW_CONFIG.defaults.frozen),
+      activeTypes: uniqueStrings(merged.defaults?.activeTypes),
+      activeTags: uniqueStrings(merged.defaults?.activeTags),
+      searchQuery: normalizeText(merged.defaults?.searchQuery),
+      tagMatchMode: merged.defaults?.tagMatchMode === 'all' ? 'all' : 'any',
+    },
+    limits: {
+      minDepth,
+      maxDepth,
+    },
+  }
+}
+
+export function normalizeWikiKBConfig(rawConfig = {}) {
+  return {
+    graphView: normalizeGraphViewConfig(rawConfig),
+  }
+}
+
+export function mergeWikiKBConfig(baseConfig, updateConfig) {
+  const base = normalizeWikiKBConfig(baseConfig)
+  if (!isPlainObject(updateConfig)) return base
+  return normalizeWikiKBConfig(mergePlainObjects(base, updateConfig))
+}
+
+export function normalizeTags(tags) {
+  return uniqueStrings(tags)
 }
 
 function extractNodeRaw(node) {
@@ -121,7 +331,12 @@ export function normalizeGraphPayload(payload = {}) {
     }
   }
 
-  return { nodes, links, raw }
+  return {
+    nodes,
+    links,
+    raw,
+    config: normalizeWikiKBConfig(payload.config),
+  }
 }
 
 export function applyGraphUpdate(state, payload = {}) {
@@ -164,7 +379,7 @@ export function applyGraphUpdate(state, payload = {}) {
   const nextNodes = [...nodeMap.values()]
   const nextNodeIds = new Set(nextNodes.map((node) => node.id))
 
-  let linkMap = new Map()
+  const linkMap = new Map()
   if (payload.replaceLinks !== true) {
     for (const link of state.links) {
       if (!nextNodeIds.has(link.source) || !nextNodeIds.has(link.target)) continue
@@ -195,6 +410,7 @@ export function applyGraphUpdate(state, payload = {}) {
     nodes: nextNodes,
     links: [...linkMap.values()],
     raw: nextRaw,
+    config: mergeWikiKBConfig(state.config, payload.config),
   }
 }
 
@@ -221,6 +437,97 @@ export function pickPrimaryNodeId(nodes, adjacency) {
   }
 
   return bestNode?.id || null
+}
+
+export function collectNodeTypes(nodes) {
+  return collectCounts(nodes.map((node) => node.type)).map((entry) => entry.value)
+}
+
+export function collectTagStats(nodes) {
+  return collectCounts(nodes.flatMap((node) => node.tags))
+}
+
+export function deriveGraphViewData(graph, options = {}) {
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : []
+  const links = Array.isArray(graph?.links) ? graph.links : []
+  const query = normalizeText(options.searchQuery).toLowerCase()
+  const availableTypes = collectNodeTypes(nodes)
+  const desiredTypes = uniqueStrings(options.activeTypes)
+  const activeTypes = desiredTypes.length > 0
+    ? desiredTypes.filter((type) => availableTypes.includes(type))
+    : [...availableTypes]
+  const activeTypeSet = new Set(activeTypes)
+  const stickyNodeIds = new Set(uniqueStrings(options.stickyNodeIds))
+  const baseNodes = nodes.filter((node) => {
+    if (stickyNodeIds.has(node.id)) return true
+    if (activeTypeSet.size > 0 && !activeTypeSet.has(node.type)) return false
+    return matchesQuery(node, query)
+  })
+
+  const availableTags = collectTagStats(baseNodes)
+  const desiredTags = uniqueStrings(options.activeTags)
+  const availableTagSet = new Set(availableTags.map((entry) => entry.value))
+  const activeTags = desiredTags.filter((tag) => availableTagSet.has(tag))
+  const tagMatchMode = options.tagMatchMode === 'all' ? 'all' : 'any'
+  const filteredNodes = baseNodes.filter((node) => {
+    if (stickyNodeIds.has(node.id)) return true
+    return matchesTags(node, activeTags, tagMatchMode)
+  })
+
+  const filteredNodeIds = new Set(filteredNodes.map((node) => node.id))
+  let filteredLinks = links.filter(
+    (link) => filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target)
+  )
+
+  let visibleNodes = filteredNodes
+  let anchorId = normalizeId(options.anchorId)
+
+  if (options.mode === 'local' && filteredNodes.length > 0) {
+    const localAdjacency = buildAdjacency(filteredNodes, filteredLinks)
+    if (!anchorId || !filteredNodeIds.has(anchorId)) {
+      anchorId = pickPrimaryNodeId(filteredNodes, localAdjacency)
+    }
+    const neighborhoodIds = collectNeighborhoodIds(
+      localAdjacency,
+      anchorId,
+      clampInteger(options.depth, 2, 1, 12)
+    )
+    visibleNodes = filteredNodes.filter((node) => neighborhoodIds.has(node.id))
+    const visibleIds = new Set(visibleNodes.map((node) => node.id))
+    filteredLinks = filteredLinks.filter(
+      (link) => visibleIds.has(link.source) && visibleIds.has(link.target)
+    )
+  }
+
+  if (options.showIsolated === false) {
+    const degrees = buildDegreeMap(filteredLinks)
+    visibleNodes = visibleNodes.filter(
+      (node) => stickyNodeIds.has(node.id) || (degrees.get(node.id) || 0) > 0
+    )
+    const visibleIds = new Set(visibleNodes.map((node) => node.id))
+    filteredLinks = filteredLinks.filter(
+      (link) => visibleIds.has(link.source) && visibleIds.has(link.target)
+    )
+  }
+
+  const anchorNode = visibleNodes.find((node) => node.id === anchorId) || null
+
+  return {
+    nodes: visibleNodes,
+    links: filteredLinks,
+    availableTypes,
+    activeTypes,
+    availableTags,
+    activeTags,
+    anchorId: anchorNode?.id || null,
+    anchorName: anchorNode?.name || '',
+    stats: {
+      totalNodes: nodes.length,
+      totalLinks: links.length,
+      visibleNodes: visibleNodes.length,
+      visibleLinks: filteredLinks.length,
+    },
+  }
 }
 
 export function nodeColor(type) {
@@ -345,7 +652,7 @@ export function renderMarkdown(source) {
     }
   }
 
-  for (let index = 0; index < lines.length; index++) {
+  for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
 
     if (index === 0 && line.trim() === '---') {
@@ -453,6 +760,29 @@ export function createViewport({ minZoom = 0.2, maxZoom = 4 } = {}) {
     centerOn(width, height, x, y) {
       state.panX = width / 2 - x * state.zoom
       state.panY = height / 2 - y * state.zoom
+    },
+
+    fitBounds(width, height, bounds, { padding = 24 } = {}) {
+      if (!bounds || !Number.isFinite(bounds.minX) || !Number.isFinite(bounds.maxX) ||
+          !Number.isFinite(bounds.minY) || !Number.isFinite(bounds.maxY)) {
+        this.reset()
+        return
+      }
+
+      const boundsWidth = Math.max(1, bounds.maxX - bounds.minX)
+      const boundsHeight = Math.max(1, bounds.maxY - bounds.minY)
+      const availableWidth = Math.max(1, width - padding * 2)
+      const availableHeight = Math.max(1, height - padding * 2)
+      const zoom = Math.max(
+        minZoom,
+        Math.min(maxZoom, Math.min(availableWidth / boundsWidth, availableHeight / boundsHeight))
+      )
+      const centerX = bounds.minX + boundsWidth / 2
+      const centerY = bounds.minY + boundsHeight / 2
+
+      state.zoom = zoom
+      state.panX = width / 2 - centerX * zoom
+      state.panY = height / 2 - centerY * zoom
     },
 
     reset() {
