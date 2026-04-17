@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employer Brand Competitive Audit</title>
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tippy.js (tooltips / link previews) -->
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@microlink/vanilla@latest/dist/microlink.min.js"></script>
+  <!-- Ionicons -->
+  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+  <!-- Google Fonts: Barlow Condensed for headlines -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* === ROOT VARIABLES AND CORE STYLES === */
+    :root {
+      --clr-slate: #08203E;
+      --clr-purple: #712ACE;
+      --clr-blue: #2B8FF3;
+      --clr-orange: #F6861F;
+      --clr-yellow: #EAE851;
+      --clr-aqua: #48DEDA;
+      --clr-green: #34A853;
+      --clr-wine: #AC4560;
+      --clr-light: #F5F7FA;
+      --clr-dark: #334860;
+      --clr-bg-card: #FFFFFF;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: var(--clr-slate);
+      color: var(--clr-dark);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 300;
+      color: var(--clr-slate);
+    }
+
+    [x-cloak] { display: none !important; }
+
+    .card {
+      background: var(--clr-bg-card);
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+      padding: 1.5rem;
+    }
+
+    .gradient-bar {
+      height: 4px;
+      width: 100px;
+      background-image: linear-gradient(to right, var(--clr-purple), var(--clr-aqua));
+      border-radius: 2px;
+      margin-top: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    /* KILOS dimension sidebar labels */
+    .vbar {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      min-width: 28px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .dim-Kinship    { background: #F6861F; }
+    .dim-Impact     { background: #712ACE; }
+    .dim-Lifestyle  { background: #2B8FF3; }
+    .dim-Opportunity{ background: #34A853; }
+    .dim-Status     { background: #AC4560; }
+
+    /* Company logo headers in KILOS matrix */
+    .logo-header img {
+      max-width: 70px;
+      max-height: 32px;
+      margin: 0 auto;
+      filter: grayscale(20%);
+      transition: transform 0.2s;
+    }
+    .logo-header img:hover { transform: scale(1.1); filter: none; }
+
+    /* KILOS score pills */
+    .pill {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .pill-S { background: #2CB45F; color: #fff; }
+    .pill-P { background: var(--clr-blue); color: #fff; }
+    .pill-W { background: var(--clr-yellow); color: #1A1A1A; }
+    .pill-A { background: #C3CBDC; color: #1A1A1A; }
+
+    /* Citation badges */
+    .cite, .cite-more {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.2s ease-out;
+    }
+    .cite { background: var(--clr-purple); color: #fff !important; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+    .cite:hover { transform: scale(1.15); }
+    .cite-more { background: var(--clr-purple); color: #fff; }
+
+    /* Tone-of-voice scale bars */
+    .tone-bar-track {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      position: relative;
+    }
+    .tone-bar-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(to right, var(--clr-purple), var(--clr-aqua));
+    }
+    .tone-bar-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--clr-purple);
+      border: 2px solid white;
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
+    }
+
+    /* Tippy theme */
+    .tippy-box[data-theme~='light-border'] {
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    /* Sentiment rating circles */
+    .rating-circle {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: white;
+      background: var(--clr-purple);
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+
+<body x-data="brandAudit()" x-init="init()" class="antialiased bg-[--clr-slate]">
+
+  <!-- ===== LIGHTBOX ===== -->
+  <div
+    x-show="lightboxImage"
+    x-transition
+    @keydown.escape.window="lightboxImage = null"
+    class="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4"
+    x-cloak
+  >
+    <div @click.self="lightboxImage = null" class="absolute inset-0"></div>
+    <div class="relative bg-white p-2 rounded-lg max-w-5xl max-h-[90vh] overflow-auto">
+      <img :src="lightboxImage" alt="Zoomed evidence" class="max-w-none max-h-none">
+      <button
+        @click="lightboxImage = null"
+        class="absolute top-0 right-0 -mt-3 -mr-3 bg-white text-slate-800 rounded-full h-8 w-8 flex items-center justify-center text-2xl font-bold shadow-lg hover:scale-110 transition-transform"
+      >×</button>
+    </div>
+  </div>
+
+  <!-- ===== HEADER & NAVIGATION ===== -->
+  <header id="main-header" class="bg-slate-900/90 backdrop-blur-lg sticky top-0 z-50 shadow-lg text-white">
+    <div class="container mx-auto px-4 md:px-8">
+      <nav class="flex justify-between items-center">
+        <div class="flex items-center space-x-4 md:space-x-6 -mb-px">
+          <button
+            @click="setView('overview')"
+            :class="{ 'border-b-2 border-[--clr-aqua] text-white': activeView === 'overview', 'text-slate-400 hover:text-white': activeView !== 'overview' }"
+            class="py-4 font-bold transition-colors text-sm md:text-base"
+          >Overview</button>
+          <button
+            @click="setView('summary')"
+            :class="{ 'border-b-2 border-[--clr-aqua] text-white': activeView === 'summary', 'text-slate-400 hover:text-white': activeView !== 'summary' }"
+            class="py-4 font-bold transition-colors text-sm md:text-base"
+          >Executive Summary</button>
+          <button
+            @click="setView('competition')"
+            :class="{ 'border-b-2 border-[--clr-aqua] text-white': activeView === 'competition', 'text-slate-400 hover:text-white': activeView !== 'competition' }"
+            class="py-4 font-bold transition-colors text-sm md:text-base"
+          >Competition</button>
+          <button
+            @click="setView('competition', '#kilos-matrix')"
+            :class="{ 'border-b-2 border-[--clr-aqua] text-white': activeView === 'kilos', 'text-slate-400 hover:text-white': activeView !== 'kilos' }"
+            class="py-4 font-bold transition-colors text-sm md:text-base"
+          >KILOS</button>
+          <button
+            @click="setView('deepdives', '#' + slug(reportData.client.companyName))"
+            :class="{ 'border-b-2 border-[--clr-aqua] text-white': activeView === 'deepdives', 'text-slate-400 hover:text-white': activeView !== 'deepdives' }"
+            class="py-4 font-bold transition-colors text-sm md:text-base"
+            x-text="reportData.client.companyName"
+          ></button>
+        </div>
+        <a href="https://symphonytalent.com" target="_blank" rel="noopener">
+          <img :src="lUrl(reportData.reportMeta.symphonyTalentLogo)" alt="Symphony Talent" class="h-8 object-contain">
+        </a>
+      </nav>
+    </div>
+    <!-- Sub-nav: deep dive company tabs -->
+    <div
+      id="sub-nav-container"
+      x-show="showDeepDiveNav"
+      x-transition
+      class="bg-slate-800/80 border-t border-slate-700"
+    >
+      <!-- Populated by JS -->
+    </div>
+  </header>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="flex-grow">
+
+    <!-- === OVERVIEW === -->
+    <section
+      x-show="activeView === 'overview'"
+      x-transition
+      id="overview-view"
+      class="h-[calc(100vh-60px)] min-h-[700px] bg-cover bg-center flex flex-col"
+      x-cloak
+    >
+      <!-- Populated by JS -->
+    </section>
+
+    <!-- === EXECUTIVE SUMMARY === -->
+    <section
+      x-show="activeView === 'summary'"
+      x-transition
+      id="summary-view"
+      class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed flex flex-col"
+      x-cloak
+    >
+      <div id="summary-content-wrapper" class="flex-grow flex items-center justify-center container mx-auto w-full px-4 md:px-8 py-8">
+        <!-- Populated by JS -->
+      </div>
+      <footer class="text-center p-4 bg-slate-900/60 text-white text-sm" x-text="reportData.reportMeta.footerText"></footer>
+    </section>
+
+    <!-- === COMPETITION + KILOS MATRIX === -->
+    <section
+      x-show="activeView === 'competition'"
+      x-transition
+      id="competition-view"
+      class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed"
+      x-cloak
+    >
+      <div id="competition-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-8">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- === DEEP DIVES === -->
+    <section
+      x-show="activeView === 'deepdives'"
+      x-transition
+      id="deepdives-view"
+      class="min-h-[calc(100vh-108px)] bg-cover bg-center bg-fixed"
+      x-cloak
+    >
+      <div id="deepdives-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-16">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================= -->
+  <!-- === REPORT DATA — REPLACE THIS BLOCK === -->
+  <!-- Insert: const reportData = { ... }; -->
+  <!-- The full JSON from report-data.json goes here as a JS assignment. -->
+  <!-- Example: -->
+  <!--
+  <script>
+    const reportData = {
+      "reportMeta": { ... },
+      "introContent": { ... },
+      "client": { ... },
+      "competitors": [ ... ],
+      "comparison": { ... }
+    };
+  </script>
+  -->
+  <!-- ============================= -->
+
+  <!-- ===== APPLICATION SCRIPT ===== -->
+  <script>
+  function brandAudit() {
+    return {
+      reportData,          // injected above
+      activeView: 'overview',
+      activeDeepDive: null,
+      showDeepDiveNav: false,
+      lightboxImage: null,
+      citationMap: new Map(),
+      allCarouselData: {},
+      allCompanies: [],
+      themeColorMap: {},
+      sortedThemes: [],
+
+      // ── Init ──────────────────────────────────────────────────────────────
+      init() {
+        if (!this.reportData || !this.reportData.client || !this.reportData.comparison) {
+          document.body.innerHTML = `
+            <div class="h-screen w-full flex items-center justify-center bg-red-50 text-red-800 p-8">
+              <div class="text-center">
+                <h1 class="text-4xl mb-4">Data Error</h1>
+                <p class="text-xl">reportData is missing or incomplete. Check the data script block.</p>
+              </div>
+            </div>`;
+          return;
+        }
+
+        this.allCompanies = [this.reportData.client, ...this.reportData.competitors];
+        document.title = this.reportData.reportMeta.reportTitle || 'Employer Brand Audit';
+
+        this.buildCitationMap();
+        this.buildThemeColorMap();
+        this._prepareCarouselData();
+        this.renderAllViews();
+        this.observeHeaderResize();
+        this.$nextTick(() => this.initTooltips());
+      },
+
+      // ── Navigation ───────────────────────────────────────────────────────
+      setView(view, anchor = null) {
+        this.activeView = view;
+        this.showDeepDiveNav = (view === 'deepdives');
+        this.activeDeepDive = anchor ? anchor.substring(1) : null;
+        this.$nextTick(() => {
+          if (anchor) {
+            const el = document.querySelector(anchor);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        });
+      },
+
+      observeHeaderResize() {
+        const header = document.getElementById('main-header');
+        if (!header) return;
+        const update = () => {
+          document.documentElement.style.scrollPaddingTop = `${header.offsetHeight + 16}px`;
+        };
+        new ResizeObserver(update).observe(header);
+      },
+
+      // ── Image path helper ─────────────────────────────────────────────────
+      // For local use: returns path as-is.
+      // For CDN: prepend imageBase from reportMeta.
+      lUrl(path) {
+        if (!path) return 'assets/images/_system/placeholder.png';
+        const base = (this.reportData?.reportMeta?.imageBase || '').replace(/\/$/, '');
+        return base ? `${base}/${path}` : path;
+      },
+
+      // ── Citations ─────────────────────────────────────────────────────────
+      buildCitationMap() {
+        const urls = new Set();
+        const walk = (obj) => {
+          if (!obj || typeof obj !== 'object') return;
+          for (const [k, v] of Object.entries(obj)) {
+            if ((k === 'sourceURL' || k === 'sourceURLs') && v) {
+              if (Array.isArray(v)) v.forEach(u => u && urls.add(u));
+              else urls.add(v);
+            }
+            walk(v);
+          }
+        };
+        walk(this.reportData);
+        let i = 1;
+        Array.from(urls).sort().forEach(u => this.citationMap.set(u, i++));
+      },
+
+      cite(url) {
+        if (!url || !this.citationMap.has(url)) return '';
+        const num = this.citationMap.get(url);
+        return `<a href="${url}" target="_blank" rel="noopener" class="cite" title="Source ${num}">${num}</a>`;
+      },
+
+      citeList(arr) {
+        if (!arr?.length) return '';
+        const uniq = [...new Set(arr.filter(Boolean))].filter(u => this.citationMap.has(u));
+        if (!uniq.length) return '';
+        if (uniq.length <= 3) {
+          return `<span class="ml-2 inline-flex items-center gap-1.5 flex-wrap">${uniq.map(u => this.cite(u)).join('')}</span>`;
+        }
+        const first = this.cite(uniq[0]);
+        const last  = this.cite(uniq.at(-1));
+        const mid   = uniq.slice(1, -1).map(u => this.cite(u)).join('');
+        return `<span x-data="{open:false}" class="ml-2 inline-flex items-center gap-0.5">
+          ${first}
+          <span class="cite-more" @click="open=!open" :title="open ? 'Hide sources' : 'Show all sources'">+</span>
+          <span x-show="open" x-transition class="inline-flex items-center gap-1.5 flex-wrap">${mid}</span>
+          ${last}
+        </span>`;
+      },
+
+      // ── KILOS theme colour map ────────────────────────────────────────────
+      buildThemeColorMap() {
+        const colorMap = {
+          Kinship: '#F6861F', Impact: '#712ACE',
+          Lifestyle: '#2B8FF3', Opportunity: '#34A853', Status: '#AC4560',
+        };
+        (this.reportData.comparison?.kilosMessagingMatrix || []).forEach(item => {
+          if (item.theme && item.dimension && colorMap[item.dimension]) {
+            this.themeColorMap[item.theme] = colorMap[item.dimension];
+          }
+        });
+        this.sortedThemes = Object.keys(this.themeColorMap).sort((a, b) => b.length - a.length);
+      },
+
+      highlightThemes(text) {
+        if (!text || typeof text !== 'string' || !this.sortedThemes.length) return text;
+        let out = text;
+        this.sortedThemes.forEach(theme => {
+          const color = this.themeColorMap[theme];
+          const re = new RegExp(`\\b(${theme.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+          out = out.replace(re, `<span class="font-semibold" style="color:${color}">$1</span>`);
+        });
+        return out;
+      },
+
+      escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); },
+
+      // ── Carousel data ─────────────────────────────────────────────────────
+      _prepareCarouselData() {
+        this.allCompanies.forEach(c => {
+          if (!c.companyEvidence) return;
+          const cs = this.slug(c.companyName);
+          Object.entries(c.companyEvidence).forEach(([domain, data]) => {
+            const key = `${cs}-${this.slug(domain)}`;
+            this.allCarouselData[key] = (data.images || []).map(img => ({
+              ...img,
+              src: this.lUrl(img.localPath),
+            }));
+          });
+        });
+      },
+
+      getCarouselData(dataKey) {
+        const d = this.allCarouselData[dataKey] || [];
+        return {
+          activeImage: -1, images: d,
+          init() {
+            if (d.length > 0) { this.activeImage = 0; this.$dispatch('image-changed', { image: d[0] }); }
+            this.$watch('activeImage', v => this.$dispatch('image-changed', { image: d[v] || null }));
+          },
+          next() { if (d.length > 1) this.activeImage = (this.activeImage + 1) % d.length; },
+          prev() { if (d.length > 1) this.activeImage = (this.activeImage - 1 + d.length) % d.length; },
+        };
+      },
+
+      // ── Utilities ─────────────────────────────────────────────────────────
+      slug(t) { return (t || '').toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, ''); },
+
+      pill(v) {
+        const map = { Strong: 'S', Present: 'P', Weak: 'W', Absent: 'A' };
+        const code = map[v];
+        return code
+          ? `<span class="pill pill-${code}">${code}</span>`
+          : `<span class="pill pill-A">–</span>`;
+      },
+
+      // ── Tooltips ──────────────────────────────────────────────────────────
+      initTooltips() {
+        if (typeof tippy !== 'function' || typeof microlink !== 'function') return;
+        tippy('.cite', {
+          allowHTML: true, interactive: true,
+          theme: 'light-border', placement: 'bottom', animation: 'shift-away-subtle',
+          content: 'Loading…',
+          onShow(instance) {
+            const url = instance.reference.href;
+            const card = document.createElement('div');
+            card.style.width = '400px';
+            instance.setContent(card);
+            microlink(card, { url, size: 'large', media: ['image', 'logo'] });
+          },
+        });
+      },
+
+      // ── Render all views ──────────────────────────────────────────────────
+      renderAllViews() {
+        this.renderOverview();
+        this.renderSummary();
+        this.renderCompetition();
+        this.renderDeepDives();
+        this.renderSubNav();
+      },
+
+      // ── Overview ──────────────────────────────────────────────────────────
+      renderOverview() {
+        const el = document.getElementById('overview-view');
+        if (!el) return;
+        const meta = this.reportData.reportMeta;
+        const intro = this.reportData.introContent;
+        el.style.backgroundImage = `url('${this.lUrl(meta.backgroundHero)}')`;
+
+        const focusAreasHtml = (intro.methodologyFocusAreas || [])
+          .map(a => `<li>${a}</li>`).join('');
+
+        el.innerHTML = `
+          <div class="relative flex-grow flex items-center">
+            <div class="absolute inset-0 bg-slate-900/60"></div>
+            <div class="relative container mx-auto p-8 grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
+
+              <!-- Left: branding + title -->
+              <div class="lg:col-span-2 flex flex-col justify-center text-left text-white">
+                <img src="${this.lUrl(meta.symphonyTalentLogo)}" alt="Symphony Talent" class="h-16 mb-8 w-auto self-start object-contain">
+                <h1 class="text-5xl lg:text-7xl leading-tight text-white">${meta.reportTitle}</h1>
+                <h2 class="text-xl lg:text-2xl text-[--clr-aqua] mt-4">${meta.reportSubtitle || ''}</h2>
+              </div>
+
+              <!-- Right: methodology -->
+              <div class="lg:col-span-3 text-white/90 relative">
+                ${meta.kilosWatermark ? `<img src="${this.lUrl(meta.kilosWatermark)}" alt="" class="absolute top-1/2 left-1/2 -translate-x-[45%] -translate-y-1/2 w-full max-w-lg opacity-10 pointer-events-none">` : ''}
+                <h3 class="text-3xl mb-1 text-slate-100">${intro.title || ''}</h3>
+                <div class="gradient-bar !w-24"></div>
+                <p class="mb-6 text-lg text-white/80 leading-relaxed">${intro.introduction || ''}</p>
+                <h4 class="text-2xl font-semibold mb-2">${intro.methodologyTitle || 'Methodology'}</h4>
+                <p class="text-white/80 leading-relaxed">${intro.methodology || ''}</p>
+                ${focusAreasHtml ? `<ul class="list-disc list-outside mt-2 ml-2 pl-4 space-y-1 text-white/80">${focusAreasHtml}</ul>` : ''}
+                ${intro.closing ? `<p class="text-white/80 leading-relaxed mt-6">${intro.closing}</p>` : ''}
+              </div>
+
+            </div>
+          </div>`;
+      },
+
+      // ── Executive Summary ─────────────────────────────────────────────────
+      renderSummary() {
+        const wrapper = document.getElementById('summary-content-wrapper');
+        const view    = document.getElementById('summary-view');
+        if (!wrapper || !view) return;
+        view.style.backgroundImage = `url('${this.lUrl(this.reportData.reportMeta.backgroundContent)}')`;
+        const s = this.reportData.comparison.executiveSummary;
+        const sections = [
+          { key: 'sharedThemes',           label: 'Shared Themes' },
+          { key: 'keyDifferentiators',      label: 'Key Differentiators' },
+          { key: 'whiteSpaceOpportunities', label: 'White Space Opportunities' },
+        ];
+        wrapper.innerHTML = `
+          <div class="card max-w-4xl mx-auto">
+            <h2 class="text-3xl text-center">Executive Summary</h2>
+            <div class="gradient-bar mx-auto !w-32"></div>
+            ${sections.map(({ key, label }) => s[key] ? `
+              <div class="mt-8">
+                <h3 class="text-2xl font-semibold mb-2">${label}</h3>
+                <p class="leading-relaxed">${this.highlightThemes(s[key])}${this.citeList(s.sourceURLs)}</p>
+              </div>` : '').join('')}
+          </div>`;
+      },
+
+      // ── Competition + KILOS Matrix ────────────────────────────────────────
+      renderCompetition() {
+        const wrapper = document.getElementById('competition-content-wrapper');
+        const view    = document.getElementById('competition-view');
+        if (!wrapper || !view) return;
+        view.style.backgroundImage = `url('${this.lUrl(this.reportData.reportMeta.backgroundHero)}')`;
+
+        const companies = this.allCompanies;
+
+        // Competitive landscape grid
+        const gridHtml = `
+          <div class="card">
+            <h2 class="text-3xl mb-6 text-center">Competitive Landscape</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4">
+              ${companies.map(c => `
+                <a @click.prevent="setView('deepdives','#${this.slug(c.companyName)}')"
+                   href="#${this.slug(c.companyName)}"
+                   class="group p-4 bg-gradient-to-br from-slate-50/20 to-slate-50/10 rounded-lg border border-white/10 hover:border-white/30 shadow-inner hover:shadow-lg hover:from-slate-50/30 transition flex justify-center items-center h-24 backdrop-blur-sm">
+                  <img src="${this.lUrl(c.logo)}" title="Go to ${c.companyName}" class="max-h-12 w-auto group-hover:scale-105 transition-transform object-contain">
+                </a>`).join('')}
+            </div>
+          </div>`;
+
+        // Comparative positioning snapshots
+        const snaps = this.reportData.comparison.comparativePositioningSnapshots || [];
+        const snapsHtml = snaps.length ? `
+          <div class="card">
+            <h2 class="text-3xl mb-6 text-center">Positioning Snapshots</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              ${snaps.map(s => `
+                <div class="p-4 border border-slate-200 rounded-lg">
+                  <p class="font-semibold text-sm text-slate-500 uppercase tracking-wider mb-2">${s.companyName}</p>
+                  <p class="text-xl font-bold text-[--clr-slate] mb-2">"${s.careersHeadline}"</p>
+                  <p class="text-slate-600 text-sm leading-relaxed">${s.cultureExcerpt}</p>
+                  ${s.sourceURL ? `<div class="mt-2">${this.cite(s.sourceURL)}</div>` : ''}
+                </div>`).join('')}
+            </div>
+          </div>` : '';
+
+        // KILOS messaging matrix
+        const dims = ['Kinship', 'Impact', 'Lifestyle', 'Opportunity', 'Status'];
+        const colorCls = { Kinship: 'dim-Kinship', Impact: 'dim-Impact', Lifestyle: 'dim-Lifestyle', Opportunity: 'dim-Opportunity', Status: 'dim-Status' };
+        const grouped = {};
+        (this.reportData.comparison.kilosMessagingMatrix || []).forEach(r => {
+          (grouped[r.dimension] ??= []).push(r);
+        });
+
+        const headerCells = companies.map(c =>
+          `<th class="text-center logo-header p-1">
+            <a @click.prevent="setView('deepdives','#${this.slug(c.companyName)}')" href="#${this.slug(c.companyName)}">
+              <img src="${this.lUrl(c.logo)}" alt="${c.companyName}" title="${c.companyName}">
+            </a>
+          </th>`).join('');
+
+        let tableRows = '';
+        dims.forEach(dim => {
+          if (!grouped[dim]) return;
+          const group = grouped[dim];
+          group.forEach((row, i) => {
+            const themeColor = this.themeColorMap[row.theme] || '#334860';
+            tableRows += `<tr class="border-b border-slate-100">
+              ${i === 0 ? `<td class="vbar ${colorCls[dim]}" rowspan="${group.length}">${dim}</td>` : ''}
+              <td class="p-1 font-semibold" style="color:${themeColor}">${row.theme}</td>
+              ${companies.map(c => `<td class="p-1 text-center">${this.pill(row.companyScores?.[c.companyName])}</td>`).join('')}
+            </tr>`;
+          });
+        });
+
+        const kilosKey = `
+          <div class="flex items-center justify-center gap-x-4 gap-y-2 flex-wrap text-xs p-2 rounded-md bg-slate-50 border border-slate-200">
+            <span class="font-bold">Key:</span>
+            <div class="flex items-center gap-1.5"><span>Strong</span><span class="pill pill-S">S</span></div>
+            <div class="flex items-center gap-1.5"><span>Present</span><span class="pill pill-P">P</span></div>
+            <div class="flex items-center gap-1.5"><span>Weak</span><span class="pill pill-W">W</span></div>
+            <div class="flex items-center gap-1.5"><span>Absent</span><span class="pill pill-A">A</span></div>
+          </div>`;
+
+        const kilosHtml = `
+          <div id="kilos-matrix" class="card">
+            <div class="flex flex-col items-center gap-4 mb-6">
+              <div class="text-center">
+                <h2 class="text-3xl">KILOS Messaging Matrix</h2>
+                <div class="gradient-bar mx-auto !mb-0"></div>
+              </div>
+              ${kilosKey}
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm border-collapse">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="w-7 p-1"></th>
+                    <th class="text-left p-1">Theme</th>
+                    ${headerCells}
+                  </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>
+          </div>`;
+
+        wrapper.innerHTML = gridHtml + snapsHtml + kilosHtml;
+      },
+
+      // ── Sub-nav (deep dive company logos) ─────────────────────────────────
+      renderSubNav() {
+        const container = document.getElementById('sub-nav-container');
+        if (!container) return;
+        container.innerHTML = `
+          <div class="container mx-auto px-4 md:px-8 py-2 flex items-center space-x-6 overflow-x-auto">
+            <span class="font-bold text-sm text-slate-400 whitespace-nowrap">DEEP DIVES:</span>
+            <div class="flex items-center space-x-4">
+              ${this.allCompanies.map(c => `
+                <a @click.prevent="setView('deepdives','#${this.slug(c.companyName)}')"
+                   href="#${this.slug(c.companyName)}"
+                   class="block p-1 hover:bg-slate-700 rounded-md transition"
+                   :class="{ 'bg-slate-700': activeDeepDive === '${this.slug(c.companyName)}' }">
+                  <img src="${this.lUrl(c.logo)}" alt="${c.companyName}" class="h-7 object-contain">
+                </a>`).join('')}
+            </div>
+          </div>`;
+      },
+
+      // ── Deep Dives ────────────────────────────────────────────────────────
+      renderDeepDives() {
+        const wrapper = document.getElementById('deepdives-content-wrapper');
+        const view    = document.getElementById('deepdives-view');
+        if (!wrapper || !view) return;
+        view.style.backgroundImage = `url('${this.lUrl(this.reportData.reportMeta.backgroundContent)}')`;
+        wrapper.innerHTML = this.allCompanies.map(c => this._renderCompanyDeepDive(c)).join('');
+      },
+
+      _renderCompanyDeepDive(company) {
+        const { companyName, logo, analysis, companyEvidence } = company;
+        const compSlug = this.slug(companyName);
+
+        // ── EVP ─────────────────────────────────────────────────────────────
+        const evp = analysis?.employerValueProposition;
+        const evpHtml = evp ? `
+          <div class="mb-8">
+            <h3 class="text-2xl mb-4">Employer Value Proposition</h3>
+            <div class="gradient-bar"></div>
+            <div class="pl-4 border-l-4 border-[--clr-orange]">
+              <h4 class="text-xl font-bold mb-2">
+                ${this.highlightThemes(evp.primaryHeadline?.text || '')}
+                ${this.citeList([evp.primaryHeadline?.sourceURL])}
+              </h4>
+              ${evp.keyPillarStatements?.length ? `
+                <ul class="list-disc list-outside mt-2 ml-2 pl-4 space-y-2">
+                  ${evp.keyPillarStatements.map(p => `
+                    <li>${this.highlightThemes(p.statement)} ${this.citeList([p.sourceURL])}</li>`).join('')}
+                </ul>` : ''}
+              ${evp.summary ? `<p class="mt-3">${this.highlightThemes(evp.summary)}${this.citeList(evp.sourceURLs)}</p>` : ''}
+            </div>
+          </div>` : '';
+
+        // ── KILOS Analysis ──────────────────────────────────────────────────
+        const kilos = analysis?.kilosFrameworkAnalysis;
+        const kilosHtml = kilos ? `
+          <div class="mb-8" x-data="{ openKilos: '' }">
+            <h3 class="text-2xl mb-4">KILOS Framework Analysis</h3>
+            <div class="gradient-bar"></div>
+            <div class="space-y-2">
+              ${Object.entries(kilos).filter(([, d]) => d.presence).map(([dim, data]) => `
+                <div>
+                  <button
+                    @click="openKilos = openKilos === '${dim}' ? '' : '${dim}'"
+                    class="w-full text-left flex justify-between items-center p-3 bg-slate-100 hover:bg-slate-200 rounded-md transition">
+                    <span class="font-semibold text-lg text-[--clr-slate]">${dim}</span>
+                    <ion-icon name="chevron-down-outline" class="transition-transform text-xl" :class="openKilos === '${dim}' && 'rotate-180'"></ion-icon>
+                  </button>
+                  <div x-cloak x-show="openKilos === '${dim}'" x-transition class="p-4 border border-t-0 border-slate-200 rounded-b-md">
+                    <p class="mb-4">${this.highlightThemes(data.summary || '')}${this.citeList(data.sourceURLs)}</p>
+                    ${data.supportingEvidence?.length ? `
+                      <h5 class="font-semibold mt-4 mb-2 text-slate-600">Supporting Evidence:</h5>
+                      <ul class="space-y-3">
+                        ${data.supportingEvidence.map(ev => `
+                          <li class="p-3 bg-slate-50 rounded">
+                            <blockquote class="italic text-slate-700 border-l-4 border-slate-300 pl-3">
+                              "${this.highlightThemes(ev.evidenceText)}"
+                            </blockquote>
+                            <span class="text-right text-sm mt-1 text-slate-500 block">
+                              ${this.highlightThemes(ev.theme)} ${this.citeList([ev.sourceURL])}
+                            </span>
+                          </li>`).join('')}
+                      </ul>` : ''}
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>` : '';
+
+        // ── Brand Voice ─────────────────────────────────────────────────────
+        const bv = analysis?.brandVoiceAnalysis;
+        const brandVoiceHtml = bv ? `
+          <div class="mb-8">
+            <h3 class="text-2xl mb-4">Brand Voice</h3>
+            <div class="gradient-bar"></div>
+            <div class="space-y-4">
+              ${(bv.toneAnchors || []).map(anchor => {
+                const pct = ((anchor.rating - 1) / 4) * 100;
+                const [left, right] = anchor.scale.split('↔').map(s => s.trim());
+                return `
+                  <div>
+                    <div class="flex justify-between text-sm font-medium text-slate-500 mb-1">
+                      <span>${left}</span><span>${right}</span>
+                    </div>
+                    <div class="tone-bar-track">
+                      <div class="tone-bar-fill" style="width:${pct}%"></div>
+                      <div class="tone-bar-dot" style="left:${pct}%"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">${anchor.justification || ''} ${this.citeList(anchor.sourceURLs)}</p>
+                  </div>`;
+              }).join('')}
+            </div>
+            ${bv.summary ? `<p class="mt-4 leading-relaxed">${bv.summary}${this.citeList(bv.sourceURLs)}</p>` : ''}
+          </div>` : '';
+
+        // ── Employee Sentiment ──────────────────────────────────────────────
+        const sent = analysis?.employeeSentimentAnalysis;
+        const sentimentHtml = sent ? `
+          <div class="mb-8">
+            <h3 class="text-2xl mb-4">Employee Sentiment</h3>
+            <div class="gradient-bar"></div>
+
+            ${sent.quantitativeSummary?.length ? `
+              <div class="space-y-4 mb-6">
+                ${sent.quantitativeSummary.map(platform => `
+                  <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <div class="flex items-center gap-4 mb-3">
+                      <div class="rating-circle">${platform.overallRating}</div>
+                      <div>
+                        <p class="font-bold">${platform.platform}</p>
+                        ${platform.numReviews ? `<p class="text-sm text-slate-500">${platform.numReviews.toLocaleString()} reviews</p>` : ''}
+                      </div>
+                      <div class="ml-auto text-right text-sm">
+                        ${platform.recommendToFriendPercent != null ? `<p><span class="font-semibold">${platform.recommendToFriendPercent}%</span> recommend</p>` : ''}
+                        ${platform.ceoApprovalPercent != null ? `<p><span class="font-semibold">${platform.ceoApprovalPercent}%</span> CEO approval</p>` : ''}
+                      </div>
+                      ${this.citeList([platform.sourceURL])}
+                    </div>
+                    ${platform.categoryRatings ? `
+                      <div class="grid grid-cols-2 gap-2 text-sm">
+                        ${Object.entries(platform.categoryRatings).map(([cat, score]) => `
+                          <div class="flex justify-between">
+                            <span class="text-slate-600">${cat}</span>
+                            <span class="font-semibold">${score}</span>
+                          </div>`).join('')}
+                      </div>` : ''}
+                  </div>`).join('')}
+              </div>` : ''}
+
+            ${sent.qualitativeThemes_Pros?.length ? `
+              <h5 class="font-semibold mb-2 text-slate-700">Pros</h5>
+              <ul class="space-y-2 mb-4">
+                ${sent.qualitativeThemes_Pros.map(r => `
+                  <li class="p-3 bg-green-50 rounded border border-green-100">
+                    <blockquote class="italic text-slate-700">"${r.reviewQuote}"</blockquote>
+                    <span class="text-xs text-slate-500 mt-1 block">${r.theme} — ${r.sourceContext} ${this.citeList([r.sourceURL])}</span>
+                  </li>`).join('')}
+              </ul>` : ''}
+
+            ${sent.qualitativeThemes_Cons?.length ? `
+              <h5 class="font-semibold mb-2 text-slate-700">Cons</h5>
+              <ul class="space-y-2">
+                ${sent.qualitativeThemes_Cons.map(r => `
+                  <li class="p-3 bg-red-50 rounded border border-red-100">
+                    <blockquote class="italic text-slate-700">"${r.reviewQuote}"</blockquote>
+                    <span class="text-xs text-slate-500 mt-1 block">${r.theme} — ${r.sourceContext} ${this.citeList([r.sourceURL])}</span>
+                  </li>`).join('')}
+              </ul>` : ''}
+          </div>` : '';
+
+        // ── Evidence Gallery ────────────────────────────────────────────────
+        const evidence = companyEvidence || {};
+        const domains = Object.keys(evidence);
+        const firstDomain = domains[0] || '';
+
+        const carouselHtml = domains.length > 0 ? `
+          <div class="card h-full" x-data="{ activeTab: '${firstDomain}', currentImage: null }"
+               @image-changed.window="if ('${compSlug}' === activeDeepDive) { currentImage = $event.detail.image }">
+            <h3 class="text-2xl mb-4">Evidence Gallery</h3>
+
+            <!-- Domain tabs -->
+            <div class="border-b border-slate-200 mb-4">
+              <nav class="-mb-px flex space-x-4 overflow-x-auto">
+                ${domains.map(domain => `
+                  <button @click="activeTab = '${domain}'; currentImage = null"
+                    :class="{ 'border-[--clr-purple] text-[--clr-purple]': activeTab === '${domain}', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== '${domain}' }"
+                    class="whitespace-nowrap py-2 px-1 border-b-2 font-semibold text-sm transition-colors duration-200">
+                    ${evidence[domain].sourceDomain}
+                  </button>`).join('')}
+              </nav>
+            </div>
+
+            <!-- Carousels -->
+            <div class="relative">
+              ${domains.map(domain => {
+                const dataKey = `${compSlug}-${this.slug(domain)}`;
+                return `
+                  <div x-cloak x-show="activeTab === '${domain}'"
+                       x-data="getCarouselData('${dataKey}')"
+                       x-init="if(activeTab === '${domain}') init()">
+                    <template x-if="activeImage > -1">
+                      <div>
+                        <div class="relative w-full h-80 bg-slate-200 rounded-md overflow-hidden flex items-center justify-center">
+                          <img :src="images[activeImage].src" class="w-full h-full object-contain" :alt="images[activeImage].description">
+                          <div @click="lightboxImage = images[activeImage].src"
+                               class="absolute inset-0 flex items-center justify-between px-2 z-20 cursor-zoom-in" title="Click to enlarge">
+                            <button @click.stop="prev()" class="bg-black/40 text-white rounded-full h-8 w-8 flex items-center justify-center hover:bg-black/60 transition cursor-pointer">
+                              <ion-icon name="chevron-back-outline"></ion-icon>
+                            </button>
+                            <button @click.stop="next()" class="bg-black/40 text-white rounded-full h-8 w-8 flex items-center justify-center hover:bg-black/60 transition cursor-pointer">
+                              <ion-icon name="chevron-forward-outline"></ion-icon>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="mt-2 text-center">
+                          <p class="text-sm text-slate-600" x-text="images[activeImage].description"></p>
+                        </div>
+                      </div>
+                    </template>
+                    <template x-if="activeImage === -1">
+                      <p class="text-center text-slate-500 py-10">No images for this domain.</p>
+                    </template>
+                  </div>`;
+              }).join('')}
+
+              <!-- Citation badge for current image -->
+              <template x-if="currentImage && currentImage.sourceURL">
+                <div x-html="cite(currentImage.sourceURL)" class="absolute bottom-14 right-6 z-30"></div>
+              </template>
+            </div>
+          </div>` : `<div class="card"><h3 class="text-2xl">No Evidence Provided</h3></div>`;
+
+        // ── Assemble company section ────────────────────────────────────────
+        return `
+          <section id="${compSlug}" class="card">
+            <div class="flex items-center gap-4 mb-8">
+              <img src="${this.lUrl(logo)}" class="h-16 object-contain" alt="${companyName} Logo">
+              <h2 class="text-4xl !mb-0">${companyName}</h2>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div class="analysis-column space-y-0">
+                ${evpHtml}
+                ${kilosHtml}
+                ${brandVoiceHtml}
+                ${sentimentHtml}
+              </div>
+              <div class="evidence-column">
+                ${carouselHtml}
+              </div>
+            </div>
+          </section>`;
+      },
+
+    }; // end return
+  }   // end brandAudit()
+  </script>
+
+</body>
+</html>

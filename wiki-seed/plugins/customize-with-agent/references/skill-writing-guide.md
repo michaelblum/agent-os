@@ -57,7 +57,7 @@ The description field determines whether an agent invokes the plugin. Write it t
 
 Link to wiki entity and concept pages from your SKILL.md and references:
 ```markdown
-See [Gateway](../../entities/gateway.md) for tool documentation.
+See [Gateway](../../../entities/gateway.md) for tool documentation.
 ```
 
 This connects the plugin to the broader knowledge graph and helps agents find relevant context during execution.
@@ -75,7 +75,7 @@ This connects the plugin to the broader knowledge graph and helps agents find re
 
 **Decision trees:** For branching logic, use explicit if/then:
 ```markdown
-- If build fails → check [Build Troubleshooting](references/build-troubleshooting.md)
+- If build fails -> add a troubleshooting reference or point to an existing diagnostic workflow
 - If tests pass → proceed to deployment step
 ```
 
