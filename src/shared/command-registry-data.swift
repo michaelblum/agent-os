@@ -531,7 +531,16 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
-            examples: ["aos voice leases"])
+            examples: ["aos voice leases"]),
+        InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> --voice <voice-id>",
+            args: [
+                flag("session-id", "--session-id", "Canonical session id", required: true),
+                flag("voice", "--voice", "Voice identifier from `aos voice list`", required: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice com.apple.voice.enhanced.en-US.Evan"])
     ]))
 
     // ── tell ──────────────────────────────────────────────

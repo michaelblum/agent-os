@@ -1114,6 +1114,18 @@ class UnifiedDaemon {
                 "lease_count": leases.count
             ])
 
+        case "voice-bind":
+            guard let sessionID = json["session_id"] as? String, !sessionID.isEmpty else {
+                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"])
+                return
+            }
+            guard let voiceID = json["voice_id"] as? String, !voiceID.isEmpty else {
+                sendResponseJSON(to: clientFD, ["error": "voice_id required", "code": "MISSING_ARG"])
+                return
+            }
+            let result = coordination.bindVoice(sessionID: sessionID, voiceID: voiceID)
+            sendResponseJSON(to: clientFD, result)
+
         case "coord-read":
             guard let channel = json["channel"] as? String else {
                 sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"])

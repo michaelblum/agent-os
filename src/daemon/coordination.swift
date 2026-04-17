@@ -230,6 +230,44 @@ class CoordinationBus {
         }
     }
 
+    func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        pruneExpiredSessionsLocked()
+
+        guard var session = sessions[sessionID] else {
+            return ["error": "Session not found: \(sessionID)", "code": "SESSION_NOT_FOUND"]
+        }
+        guard let voice = SessionVoiceBank.voice(id: voiceID) else {
+            return ["error": "Voice not found in curated bank: \(voiceID)", "code": "VOICE_NOT_FOUND"]
+        }
+        if let owner = sessions.values.first(where: { $0.sessionID != sessionID && $0.voice?.id == voiceID }) {
+            var payload: [String: Any] = [
+                "error": "Voice already leased: \(voiceID)",
+                "code": "VOICE_IN_USE",
+                "session_id": owner.sessionID
+            ]
+            if let name = owner.name {
+                payload["session_name"] = name
+            }
+            return payload
+        }
+
+        session.voice = voice
+        sessions[sessionID] = session
+        persistSessionsLocked()
+
+        var response: [String: Any] = [
+            "status": "ok",
+            "session_id": sessionID,
+            "voice": voice.dictionary()
+        ]
+        if let name = session.name {
+            response["name"] = name
+        }
+        return response
+    }
+
     // MARK: - Messages
 
     /// Post a message to a channel. Returns the message.
