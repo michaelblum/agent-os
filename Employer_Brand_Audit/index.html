@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employer Brand Competitive Audit</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@microlink/vanilla@latest/dist/microlink.min.js"></script>
+  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+
+  <link rel="stylesheet" href="./styles/audit.css" />
+</head>
+<body x-data="brandAudit()" x-init="init()" class="antialiased bg-[--clr-slate]">
+  <div x-show="lightboxImage" x-transition @keydown.escape.window="lightboxImage = null" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4" x-cloak>
+    <div @click.self="lightboxImage = null" class="absolute inset-0"></div>
+    <div x-show="lightboxImage" x-transition class="relative bg-white p-2 rounded-lg max-w-4xl max-h-[90vh] overflow-auto">
+      <img :src="lightboxImage" alt="Zoomed Evidence" class="max-w-none max-h-none">
+      <button @click="lightboxImage = null" class="absolute top-0 right-0 -mt-3 -mr-3 bg-white text-slate-800 rounded-full h-8 w-8 flex items-center justify-center text-2xl font-bold shadow-lg hover:scale-110 transition-transform">×</button>
+    </div>
+  </div>
+
+  <header id="main-header" class="bg-slate-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg text-white">
+    <div class="container mx-auto px-4 md:px-8">
+      <nav class="flex justify-between items-center gap-4">
+        <div class="flex items-center space-x-4 md:space-x-6 -mb-px overflow-x-auto">
+          <button @click="setViewAndScroll('overview')" :class="{'border-b-2 border-[--clr-aqua] text-white': activeView === 'overview', 'text-slate-400 hover:text-white': activeView !== 'overview'}" class="py-4 font-bold transition-colors whitespace-nowrap">Overview</button>
+          <button @click="setViewAndScroll('summary')" :class="{'border-b-2 border-[--clr-aqua] text-white': activeView === 'summary', 'text-slate-400 hover:text-white': activeView !== 'summary'}" class="py-4 font-bold transition-colors whitespace-nowrap">Executive Summary</button>
+          <button @click="setViewAndScroll('competition')" :class="{'border-b-2 border-[--clr-aqua] text-white': activeView === 'competition', 'text-slate-400 hover:text-white': activeView !== 'competition'}" class="py-4 font-bold transition-colors whitespace-nowrap">Competition</button>
+          <button @click="setViewAndScroll('kilos', '#kilos-matrix')" :class="{'border-b-2 border-[--clr-aqua] text-white': activeView === 'kilos', 'text-slate-400 hover:text-white': activeView !== 'kilos'}" class="py-4 font-bold transition-colors whitespace-nowrap">KILOS</button>
+          <button @click="setViewAndScroll('deepdives', `#${slug(client.companyName)}`)" :class="{'border-b-2 border-[--clr-aqua] text-white': activeView === 'deepdives' && activeDeepDive === slug(client.companyName), 'text-slate-400 hover:text-white': activeView !== 'deepdives'}" class="py-4 font-bold transition-colors whitespace-nowrap" x-text="client.companyName || 'Client Company'"></button>
+        </div>
+        <a href="https://symphonytalent.com" target="_blank" rel="noopener" class="shrink-0">
+          <img :src="assetUrl(templateMeta.headerLogo, 'Symphony Talent Logo', 280, 72, '#08203E', '#FFFFFF')" alt="Symphony Talent Logo" class="h-8 object-contain">
+        </a>
+      </nav>
+    </div>
+    <div id="sub-nav-container" x-show="showDeepDiveNav" x-transition class="bg-slate-800/80 border-t border-slate-700">
+    </div>
+  </header>
+
+  <main class="flex-grow">
+    <section x-show="activeView === 'overview'" x-transition id="overview-view" class="h-[calc(100vh-60px)] min-h-[700px] bg-cover bg-center flex flex-col" x-cloak>
+    </section>
+
+    <section x-show="activeView === 'summary'" x-transition id="summary-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed flex flex-col" x-cloak>
+      <div id="summary-content-wrapper" class="flex-grow flex items-center justify-center container mx-auto w-full px-4 md:px-8 py-8">
+      </div>
+      <footer class="text-center p-4 bg-slate-900/50 text-white text-sm" x-text="templateMeta.footerText || 'Replace footer text in scripts/report-data.template.js'"></footer>
+    </section>
+
+    <section x-show="activeView === 'competition' || activeView === 'kilos'" x-transition id="competition-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed" x-cloak>
+      <div id="competition-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-8">
+      </div>
+    </section>
+
+    <section x-show="activeView === 'deepdives'" x-transition id="deepdives-view" class="min-h-[calc(100vh-108px)] bg-cover bg-center bg-fixed" x-cloak>
+      <div id="deepdives-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-16">
+      </div>
+    </section>
+  </main>
+
+  <script src="./scripts/report-data.template.js"></script>
+  <script src="./scripts/app.js"></script>
+</body>
+</html>
