@@ -50,8 +50,9 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 
 | Path | Role |
 |------|------|
-| `renderer/index.html` | Live avatar renderer — Three.js scene + Sigil-1 state machine (IDLE / PRESS / DRAG / GOTO), fast-travel animation, display-union clamping, wiki live-reload. Loaded as a full-display passthrough canvas. |
-| `renderer/*.js` | Renderer boot imports `agent-loader`, `appearance`, `birthplace-resolver`, `state` as ES modules. Most rendering logic currently lives inlined in a single large classic `<script>` in `index.html`; Studio consumes the companion modules (`geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`) as ES modules. See #48 for the inline-bundle vs. ES-module reconciliation. |
+| `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
+| `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/DRAG/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
+| `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
 | `studio/` | Stageless control surface for designing the avatar's appearance and managing the agent roster. No in-Studio 3D canvas — the live desktop avatar is the preview. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
 | `workbench/` | Multi-tab operator workstation that embeds Studio + Chat and warms debug tabs (canvas inspector + log) in one canvas. |
@@ -59,13 +60,13 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `radial-menu-config.json` | Menu items (deferred, to be reimplemented). |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
-| `tests/` | Manual verification pages (agent-loader, appearance roundtrip, birthplace resolver) and subsystem harnesses (`cursor/`, `mutation/`, `input-events/`, `display-geometry/`). Launched via `./aos show create --url aos://sigil/tests/...`. No runner yet. |
+| `tests/` | Manual verification pages plus shell smokes for renderer boot, status-item lifecycle, workbench launch/restage, and avatar interactions. Manual pages launch via `./aos show create --url aos://sigil/tests/...`; shell tests live under repo `tests/`. |
 
 ## Canvas Model
 
-The renderer runs on full-screen transparent canvases (`ignoresMouseEvents = true`), one per display. The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full screen with zero impact on user interaction (cursor shapes, clicks all pass through).
+The renderer runs on a transparent passthrough canvas (typically launched with `--track union`). The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full display union with zero impact on user interaction until Sigil intentionally enables its child hit-target.
 
-- **Renderer**: `aos://sigil/renderer/index.html` — owns the state machine, subscribes to the daemon's `input_event`, `display_geometry`, and `wiki_page_changed` streams via the `headsup.receive` bridge.
+- **Renderer**: `aos://sigil/renderer/index.html` — owns the interaction state machine, subscribes to `input_event`, `display_geometry`, `wiki_page_changed`, and `canvas_lifecycle`, and spawns the `avatar-hit` child canvas when needed.
 - **Studio**: `aos://sigil/studio/index.html` — stageless control surface. Agent docs live at `sigil/agents/*.md` in the wiki; Studio lists them via `GET /wiki/sigil/agents/`.
 - **Config per agent**: the renderer loads `sigil/agents/<id>.md` via the content server's `/wiki` REST surface. Live-edits to that doc trigger a `wiki_page_changed` broadcast, which the renderer flushes on the next IDLE frame.
 
