@@ -91,8 +91,8 @@ run_case() (
   ./aos set status_item.toggle_url "$toggle_url" >/dev/null
   ./aos set status_item.toggle_track union >/dev/null
 
-  ./aos serve --idle-timeout none >"$root/daemon.stdout" 2>"$root/daemon.stderr" &
-  aos_test_wait_for_socket "$root" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
+  aos_test_start_daemon "$root" toolkit packages/toolkit \
+    || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
   local pid
   pid="$(aos_test_wait_for_lock_pid "$root")"
   [[ -n "$pid" ]] || { echo "FAIL: daemon pid missing"; exit 1; }
