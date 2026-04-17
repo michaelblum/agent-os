@@ -278,10 +278,17 @@ live sessions. Each entry includes:
 - `locale`
 - `gender`
 - `quality_tier`
-- optional `lease_session_id` / `lease_session_name`
+- optional `assigned_session_ids`
+- optional `lease_session_ids`
+
+Agent-os persists a durable `session_id -> voice_id` mapping under
+`~/.config/aos/{mode}/coordination/voice-assignments.json`. New sessions are
+assigned in round-robin order across the curated bank, wrapping when the bank is
+exhausted. If a session id already has a stored assignment, that voice is reused
+when the session returns.
 
 `aos voice leases` returns only the active session assignments.
-`aos voice bind` reassigns a live session to a specific unleased voice from the curated bank.
+`aos voice bind` reassigns a live session to a specific voice from the curated bank and updates the durable mapping.
 `aos voice final-response` is the daemon-owned ingress for harness final-response
 events; it resolves the final assistant text, applies the configured
 `final_response` speech policy, and speaks with the session's leased voice while

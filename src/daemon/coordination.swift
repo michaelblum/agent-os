@@ -9,10 +9,15 @@ import Foundation
 class CoordinationBus {
     private let lock = NSLock()
     private let sessionsPath: String
+    private let voiceAssignmentsPath: String
     private let sessionExpiryInterval: TimeInterval
 
     // Sessions: canonical session_id → SessionInfo
     private var sessions: [String: SessionInfo] = [:]
+
+    // Durable voice ownership: canonical session_id → voice_id
+    private var voiceAssignments: [String: String] = [:]
+    private var nextVoiceAssignmentIndex: Int = 0
 
     // Secondary lookup: human-readable name → canonical session_id
     private var sessionIDsByName: [String: String] = [:]
@@ -22,12 +27,19 @@ class CoordinationBus {
 
     private let maxMessagesPerChannel = 1000
 
-    init(sessionsPath: String = aosCoordinationSessionsPath(), sessionExpiryInterval: TimeInterval = 24 * 60 * 60) {
+    init(
+        sessionsPath: String = aosCoordinationSessionsPath(),
+        voiceAssignmentsPath: String = aosVoiceAssignmentsPath(),
+        sessionExpiryInterval: TimeInterval = 24 * 60 * 60
+    ) {
         self.sessionsPath = sessionsPath
+        self.voiceAssignmentsPath = voiceAssignmentsPath
         self.sessionExpiryInterval = sessionExpiryInterval
+        restoreVoiceAssignments()
         restoreSessionsSnapshot()
         pruneExpiredSessionsLocked()
         persistSessionsLocked()
+        persistVoiceAssignmentsLocked()
     }
 
     struct SessionInfo {
@@ -81,6 +93,7 @@ class CoordinationBus {
         }
 
         persistSessionsLocked()
+        persistVoiceAssignmentsLocked()
 
         var response: [String: Any] = [
             "status": "ok",
@@ -204,8 +217,22 @@ class CoordinationBus {
         defer { lock.unlock() }
         pruneExpiredSessionsLocked()
         return SessionVoiceBank.curatedVoices().map { voice in
-            let lease = sessions.values.first { $0.voice?.id == voice.id }
-            return voice.withLease(sessionID: lease?.sessionID, sessionName: lease?.name).dictionary()
+            let assignedOwners = voiceAssignments
+                .filter { $0.value == voice.id }
+                .map(\.key)
+                .sorted()
+            let leaseOwners = sessions.values
+                .filter { $0.voice?.id == voice.id }
+                .map(\.sessionID)
+                .sorted()
+            var payload = voice.dictionary()
+            if !assignedOwners.isEmpty {
+                payload["assigned_session_ids"] = assignedOwners
+            }
+            if !leaseOwners.isEmpty {
+                payload["lease_session_ids"] = leaseOwners
+            }
+            return payload
         }
     }
 
@@ -241,21 +268,11 @@ class CoordinationBus {
         guard let voice = SessionVoiceBank.voice(id: voiceID) else {
             return ["error": "Voice not found in curated bank: \(voiceID)", "code": "VOICE_NOT_FOUND"]
         }
-        if let owner = sessions.values.first(where: { $0.sessionID != sessionID && $0.voice?.id == voiceID }) {
-            var payload: [String: Any] = [
-                "error": "Voice already leased: \(voiceID)",
-                "code": "VOICE_IN_USE",
-                "session_id": owner.sessionID
-            ]
-            if let name = owner.name {
-                payload["session_name"] = name
-            }
-            return payload
-        }
-
+        voiceAssignments[sessionID] = voiceID
         session.voice = voice
         sessions[sessionID] = session
         persistSessionsLocked()
+        persistVoiceAssignmentsLocked()
 
         var response: [String: Any] = [
             "status": "ok",
@@ -366,6 +383,41 @@ class CoordinationBus {
         )
     }
 
+    private func persistVoiceAssignmentsLocked() {
+        let fm = FileManager.default
+        let directory = (voiceAssignmentsPath as NSString).deletingLastPathComponent
+        try? fm.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: nil)
+
+        let snapshot = voiceAssignments
+            .map { ["session_id": $0.key, "voice_id": $0.value] as [String: Any] }
+            .sorted {
+                let lhs = $0["session_id"] as? String ?? ""
+                let rhs = $1["session_id"] as? String ?? ""
+                return lhs < rhs
+            }
+
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: [
+                "assignments": snapshot,
+                "next_index": nextVoiceAssignmentIndex
+            ],
+            options: [.sortedKeys]
+        ) else {
+            return
+        }
+
+        let tmp = voiceAssignmentsPath + ".tmp"
+        do {
+            try data.write(to: URL(fileURLWithPath: tmp), options: .atomic)
+            if fm.fileExists(atPath: voiceAssignmentsPath) {
+                try? fm.removeItem(atPath: voiceAssignmentsPath)
+            }
+            try fm.moveItem(atPath: tmp, toPath: voiceAssignmentsPath)
+        } catch {
+            try? fm.removeItem(atPath: tmp)
+        }
+    }
+
     private func persistSessionsSnapshot(_ snapshot: [[String: Any]]) {
         let fm = FileManager.default
         let directory = (sessionsPath as NSString).deletingLastPathComponent
@@ -405,6 +457,11 @@ class CoordinationBus {
             let harness = normalizeName(payload["harness"] as? String) ?? "unknown"
             let registeredAt = dateValue(payload["registered_at"]) ?? Date()
             let lastHeartbeat = dateValue(payload["last_heartbeat"]) ?? registeredAt
+            let assignedVoiceID = voiceAssignments[sessionID]
+            let restored = restoredVoice(payload["voice"])
+            if assignedVoiceID == nil, let restored {
+                voiceAssignments[sessionID] = restored.id
+            }
 
             restoredSessions[sessionID] = SessionInfo(
                 sessionID: sessionID,
@@ -413,7 +470,7 @@ class CoordinationBus {
                 harness: harness,
                 registeredAt: registeredAt,
                 lastHeartbeat: lastHeartbeat,
-                voice: restoredVoice(payload["voice"])
+                voice: assignedVoiceID.flatMap(SessionVoiceBank.voice(id:)) ?? restored
             )
 
             if let normalizedName {
@@ -424,6 +481,27 @@ class CoordinationBus {
         sessions = restoredSessions
         sessionIDsByName = restoredIDsByName
         repairVoiceLeasesLocked()
+    }
+
+    private func restoreVoiceAssignments() {
+        guard let data = FileManager.default.contents(atPath: voiceAssignmentsPath),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let snapshot = root["assignments"] as? [[String: Any]] else {
+            return
+        }
+
+        var restored: [String: String] = [:]
+        let restoredNextIndex = root["next_index"] as? Int
+        for payload in snapshot {
+            guard let sessionID = normalizeSessionID(payload["session_id"] as? String),
+                  let voiceID = normalizeName(payload["voice_id"] as? String) else {
+                continue
+            }
+            restored[sessionID] = voiceID
+        }
+        voiceAssignments = restored
+        nextVoiceAssignmentIndex = restoredNextIndex ?? restored.count
+        repairVoiceAssignmentsLocked()
     }
 
     private func pruneExpiredSessionsLocked(now: Date = Date()) {
@@ -454,27 +532,30 @@ class CoordinationBus {
     }
 
     private func assignVoiceLocked(existingVoice: SessionVoiceDescriptor?, excludingSessionID: String) -> SessionVoiceDescriptor? {
-        let availableVoices = SessionVoiceBank.curatedVoices()
+        if let assignedVoiceID = voiceAssignments[excludingSessionID],
+           let assignedVoice = SessionVoiceBank.voice(id: assignedVoiceID) {
+            return assignedVoice
+        }
         if let existingVoice,
-           availableVoices.contains(where: { $0.id == existingVoice.id }) {
+           SessionVoiceBank.hasVoice(id: existingVoice.id),
+           voiceAssignments[excludingSessionID] == nil {
+            voiceAssignments[excludingSessionID] = existingVoice.id
             return existingVoice
         }
 
-        let leasedIDs = Set(
-            sessions.values
-                .filter { $0.sessionID != excludingSessionID }
-                .compactMap { $0.voice?.id }
-        )
-
-        let unleasedVoices = availableVoices.filter { !leasedIDs.contains($0.id) }
-        guard let voice = unleasedVoices.randomElement() else {
+        let availableVoices = SessionVoiceBank.curatedVoices()
+        guard !availableVoices.isEmpty else {
             return nil
         }
+        let index = nextVoiceAssignmentIndex % availableVoices.count
+        let voice = availableVoices[index]
+        nextVoiceAssignmentIndex += 1
+        voiceAssignments[excludingSessionID] = voice.id
         return voice
     }
 
     private func repairVoiceLeasesLocked() {
-        let availableIDs = Set(SessionVoiceBank.curatedVoices().map(\.id))
+        repairVoiceAssignmentsLocked()
         let orderedIDs = sessions.values
             .sorted { lhs, rhs in
                 if lhs.registeredAt != rhs.registeredAt {
@@ -484,24 +565,23 @@ class CoordinationBus {
             }
             .map(\.sessionID)
 
-        var taken = Set<String>()
         for sessionID in orderedIDs {
             guard var session = sessions[sessionID] else { continue }
-            if let voice = session.voice, availableIDs.contains(voice.id), !taken.contains(voice.id) {
-                taken.insert(voice.id)
+            if let assignedVoiceID = voiceAssignments[sessionID],
+               let voice = SessionVoiceBank.voice(id: assignedVoiceID) {
+                session.voice = voice
             } else {
                 session.voice = nil
             }
             sessions[sessionID] = session
         }
+    }
 
-        for sessionID in orderedIDs {
-            guard var session = sessions[sessionID], session.voice == nil else { continue }
-            if let voice = SessionVoiceBank.curatedVoices().first(where: { !taken.contains($0.id) }) {
-                session.voice = voice
-                sessions[sessionID] = session
-                taken.insert(voice.id)
-            }
+    private func repairVoiceAssignmentsLocked() {
+        let repaired = voiceAssignments.filter { SessionVoiceBank.hasVoice(id: $0.value) }
+        voiceAssignments = repaired
+        if nextVoiceAssignmentIndex < 0 {
+            nextVoiceAssignmentIndex = 0
         }
     }
 

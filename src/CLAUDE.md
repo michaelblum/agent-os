@@ -198,6 +198,9 @@ When voice is enabled, the daemon announces canvas lifecycle events
 and other significant actions without the agent needing to call `aos say`.
 Voice attempts and final-response ingress failures are logged to
 `~/.config/aos/{mode}/voice-events.jsonl` without storing full message bodies.
+Voice assignments persist in `~/.config/aos/{mode}/coordination/voice-assignments.json`.
+New sessions take the next curated voice in round-robin order and wrap when the
+bank is exhausted; explicit `aos voice bind` updates that durable mapping.
 
 ### Config Keys
 

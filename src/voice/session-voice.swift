@@ -157,7 +157,8 @@ enum SessionVoiceBank {
             }
 
         ordered.append(contentsOf: remaining)
-        return ordered.map { SessionVoiceDescriptor(voiceInfo: $0) }
+        let descriptors = ordered.map { SessionVoiceDescriptor(voiceInfo: $0) }
+        return applyTestBankOverride(descriptors)
     }
 
     static func hasVoice(id: String) -> Bool {
@@ -177,6 +178,20 @@ enum SessionVoiceBank {
         default:
             return 1
         }
+    }
+
+    private static func applyTestBankOverride(_ voices: [SessionVoiceDescriptor]) -> [SessionVoiceDescriptor] {
+        guard let raw = ProcessInfo.processInfo.environment["AOS_TEST_VOICE_BANK_IDS"]?
+            .split(separator: ",")
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .filter({ !$0.isEmpty }),
+              !raw.isEmpty else {
+            return voices
+        }
+
+        let allowed = Set(raw)
+        let filtered = voices.filter { allowed.contains($0.id) }
+        return filtered.isEmpty ? voices : filtered
     }
 }
 
