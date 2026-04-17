@@ -1,5 +1,9 @@
 #!/bin/bash
 # Shared session identity helpers for provider hooks and local scripts.
+# Hook launchers may run with a cwd outside the repo. Pass the repo root into
+# the launcher explicitly (for example via AOS_HOOK_REPO_ROOT or a checked-in
+# absolute fallback in .codex/hooks.json) instead of resolving it with a plain
+# `git rev-parse --show-toplevel` at launch time.
 
 aos_session_runtime_mode() {
   if [[ -n "${AOS_RUNTIME_MODE:-}" ]]; then
@@ -61,6 +65,22 @@ for key in ("session_id", "thread_id"):
     if value:
         print(value)
         break
+'
+}
+
+aos_resolve_last_assistant_message_from_input() {
+  local hook_input="${1:-}"
+  if [[ -z "$hook_input" ]]; then
+    return 0
+  fi
+  printf '%s' "$hook_input" | python3 -c 'import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+value = payload.get("last_assistant_message")
+if value:
+    print(value)
 '
 }
 

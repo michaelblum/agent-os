@@ -135,10 +135,16 @@ A new hook on `PostToolUse` that fires on every tool call.
 
 **Hook config:** provider-specific hook configuration points at the shared script. Today that includes `.claude/settings.json` and `.codex/hooks.json`.
 
+Important operational note: some providers invoke hooks from a cwd outside the
+repo. The launcher should therefore pass the repo root explicitly instead of
+assuming `git rev-parse --show-toplevel` will succeed at hook start. In Codex,
+use `AOS_HOOK_REPO_ROOT` or a checked-in absolute fallback in `.codex/hooks.json`;
+if the repo moves, update that fallback or export the env var.
+
 ```json
 {
   "event": "PostToolUse",
-  "command": "bash .agents/hooks/check-messages.sh",
+  "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/abs/path/to/agent-os}\"; bash \"$ROOT/.agents/hooks/check-messages.sh\"",
   "timeout": 3000
 }
 ```
@@ -153,7 +159,7 @@ Startup + message polling are shared across Claude Code and Codex. Stop-time unr
 }
 ```
 
-Codex intentionally does not call `session-stop.sh` on exit; the current contract is lease-based presence with re-registration on startup and during post-tool refresh.
+Codex intentionally does not call `session-stop.sh` on exit; the current contract is lease-based presence with re-registration on startup and during post-tool refresh. Codex may still use a `Stop` hook for local UX actions such as reading the final response aloud, but those hooks must not unregister session presence.
 
 **Logic:**
 

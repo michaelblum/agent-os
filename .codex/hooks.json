@@ -6,13 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/session-start.sh\"",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/session-start.sh\"",
             "statusMessage": "Loading agent-os session context",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.agents/hooks/git-health.sh\"",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/git-health.sh\"",
             "statusMessage": "Checking git health",
             "timeout": 10
           }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/check-messages.sh\"",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/check-messages.sh\"",
             "statusMessage": "Checking coordination messages",
             "timeout": 3
           }
@@ -48,9 +48,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.agents/hooks/pre-tool-use.sh\"",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/pre-tool-use.sh\"",
             "statusMessage": "Checking command policy",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/final-response.sh\"",
+            "statusMessage": "Reading final response aloud",
+            "timeout": 30
           }
         ]
       }
