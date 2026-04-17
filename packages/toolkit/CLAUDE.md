@@ -48,6 +48,8 @@ components/             Layer 2 — reusable Content units
     styles.css              canonical component styles (link, don't copy)
   log-console/            scrolling timestamped log (driven by `aos log push`)
     styles.css              canonical component styles (link, don't copy)
+  wiki-kb/                wiki graph browser with graph + mind-map views
+    styles.css              canonical component styles (link, don't copy)
   _dev/                   developer demos
     tabs-demo/            all three components in one Tabs panel
 ```

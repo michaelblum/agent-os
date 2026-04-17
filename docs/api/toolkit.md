@@ -42,6 +42,38 @@ aos show create \
 
 Within toolkit HTML, imports typically use relative module paths.
 
+## Stock Components Snapshot
+
+Current reusable toolkit components include:
+
+- `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
+- `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
+- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector
+- `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+
+`wiki-kb` accepts a graph snapshot on `wiki-kb/graph` (and tolerates raw
+`wiki/graph` messages for imported-prototype compatibility). Canonical payload:
+
+```json
+{
+  "nodes": [
+    { "id": "alpha", "name": "Alpha", "type": "entity", "description": "..." }
+  ],
+  "links": [
+    { "source": "alpha", "target": "beta" }
+  ],
+  "raw": {
+    "alpha": "# Alpha\n\nMarkdown body"
+  }
+}
+```
+
+Incremental updates go to `wiki-kb/graph/update` and may include:
+
+- `nodes`, `links`, `raw` for upserts
+- `removeNodes`, `removeLinks`, `removeRaw` for targeted removals
+- `replace`, `replaceLinks`, `clearRaw` for reset-style updates
+
 ## Runtime API
 
 Convenience re-export:
