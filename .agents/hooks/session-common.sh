@@ -1,8 +1,31 @@
 #!/bin/bash
 # Shared session identity helpers for provider hooks and local scripts.
 
+aos_session_runtime_mode() {
+  if [[ -n "${AOS_RUNTIME_MODE:-}" ]]; then
+    printf '%s\n' "$AOS_RUNTIME_MODE"
+    return
+  fi
+  if [[ -n "${AOS:-}" ]] && [[ "$AOS" == *".app/Contents/MacOS/"* ]]; then
+    printf 'installed\n'
+    return
+  fi
+  printf 'repo\n'
+}
+
+aos_session_runtime_state_dir() {
+  local root="${AOS_STATE_ROOT:-$HOME/.config/aos}"
+  printf '%s/%s\n' "$root" "$(aos_session_runtime_mode)"
+}
+
 aos_session_state_dir() {
-  local dir="${AOS_SESSION_STATE_DIR:-${TMPDIR:-/tmp}/aos-session-state}"
+  local dir="${AOS_SESSION_STATE_DIR:-$(aos_session_runtime_state_dir)/coordination/session-state}"
+  mkdir -p "$dir"
+  printf '%s\n' "$dir"
+}
+
+aos_session_bootstrap_dir() {
+  local dir="${AOS_SESSION_BOOTSTRAP_DIR:-$(aos_session_runtime_state_dir)/coordination/bootstrap}"
   mkdir -p "$dir"
   printf '%s\n' "$dir"
 }
@@ -76,8 +99,24 @@ aos_session_name_file() {
 }
 
 aos_session_cursor_file() {
+  local session_key="$1"
+  printf '%s/cursor-%s\n' "$(aos_session_state_dir)" "$(aos_sanitize_token "$session_key")"
+}
+
+aos_session_bootstrap_payload_file() {
   local session_name="$1"
-  printf '%s/cursor-%s\n' "$(aos_session_state_dir)" "$(aos_sanitize_token "$session_name")"
+  printf '%s/payload-%s.json\n' "$(aos_session_bootstrap_dir)" "$(aos_sanitize_token "$session_name")"
+}
+
+aos_session_bootstrap_launcher_file() {
+  local session_name="$1"
+  printf '%s/launch-%s\n' "$(aos_session_bootstrap_dir)" "$(aos_sanitize_token "$session_name")"
+}
+
+aos_prune_session_bootstrap_dir() {
+  local dir
+  dir="$(aos_session_bootstrap_dir)"
+  find "$dir" -type f -mtime +1 -delete 2>/dev/null || true
 }
 
 aos_default_session_name() {
@@ -94,15 +133,20 @@ aos_default_session_name() {
   printf '%s\n' "${prefix}-${short}"
 }
 
+aos_session_channel() {
+  local session_id="${1:-}"
+  local session_name="${2:-}"
+  if [[ -n "$session_id" ]]; then
+    printf '%s\n' "$session_id"
+    return
+  fi
+  printf '%s\n' "$session_name"
+}
+
 aos_resolve_session_name() {
   local session_id="${1:-}"
   local harness="${2:-unknown}"
   local name_file
-
-  if [[ -n "${AOS_SESSION_NAME:-}" ]]; then
-    printf '%s\n' "$AOS_SESSION_NAME"
-    return
-  fi
 
   if [[ -n "$session_id" ]]; then
     name_file="$(aos_session_name_file "$session_id")"
@@ -116,17 +160,22 @@ aos_resolve_session_name() {
     fi
   fi
 
+  if [[ -n "${AOS_SESSION_NAME:-}" ]]; then
+    printf '%s\n' "$AOS_SESSION_NAME"
+    return
+  fi
+
   aos_default_session_name "$session_id" "$harness"
 }
 
 aos_session_name_source() {
   local session_id="${1:-}"
-  if [[ -n "${AOS_SESSION_NAME:-}" ]]; then
-    printf 'env\n'
-    return
-  fi
   if [[ -n "$session_id" ]] && [[ -f "$(aos_session_name_file "$session_id")" ]]; then
     printf 'override\n'
+    return
+  fi
+  if [[ -n "${AOS_SESSION_NAME:-}" ]]; then
+    printf 'env\n'
     return
   fi
   printf 'generated\n'
@@ -144,4 +193,27 @@ aos_write_session_name_override() {
   name_file="$(aos_session_name_file "$session_id")"
   printf '%s\n' "$name" > "${name_file}.tmp"
   mv "${name_file}.tmp" "$name_file"
+}
+
+aos_refresh_session_registration() {
+  local session_id="${1:-}"
+  local session_name="${2:-}"
+  local session_role="${3:-worker}"
+  local session_harness="${4:-unknown}"
+  local aos_bin="${5:-}"
+
+  [[ -n "$aos_bin" ]] || return 1
+  [[ -x "$aos_bin" ]] || return 1
+
+  if [[ -n "$session_id" ]]; then
+    "$aos_bin" tell --register --session-id "$session_id" --name "$session_name" --role "$session_role" --harness "$session_harness" >/dev/null 2>&1
+    return $?
+  fi
+
+  if [[ -n "$session_name" ]]; then
+    "$aos_bin" tell --register "$session_name" --role "$session_role" --harness "$session_harness" >/dev/null 2>&1
+    return $?
+  fi
+
+  return 1
 }

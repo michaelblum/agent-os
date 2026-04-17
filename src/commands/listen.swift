@@ -1,9 +1,11 @@
 // listen.swift — aos listen: inbound communication command
 //
 // Usage:
-//   aos listen <channel>                Read recent messages from channel
-//   aos listen <channel> --follow       Stream messages in real-time
-//   aos listen --channels               List known channels
+//   aos listen <channel>                      Read recent messages from channel
+//   aos listen --session-id <id>             Read direct session messages
+//   aos listen <channel> --follow            Stream messages in real-time
+//   aos listen --session-id <id> --follow    Stream direct session messages
+//   aos listen --channels                    List known channels
 //
 // Messages are output as newline-delimited JSON.
 
@@ -16,19 +18,48 @@ func listenCommand_coord(args: [String]) {
         return
     }
 
-    guard let channel = args.first, !channel.hasPrefix("--") else {
-        exitError("listen requires a channel. Usage: aos listen <channel> [--follow|--since|--limit]",
+    var channel: String? = nil
+    var explicitSessionID: String? = nil
+    var follow = false
+    var since: String? = nil
+    var limit = 50
+
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--follow", "-f":
+            follow = true
+        case "--since":
+            i += 1
+            guard i < args.count else { exitError("--since requires a value", code: "MISSING_ARG") }
+            since = args[i]
+        case "--limit":
+            i += 1
+            guard i < args.count else { exitError("--limit requires a value", code: "MISSING_ARG") }
+            guard let parsed = Int(args[i]) else { exitError("Invalid --limit: \(args[i])", code: "INVALID_ARG") }
+            limit = parsed
+        case "--session-id":
+            i += 1
+            guard i < args.count else { exitError("--session-id requires a value", code: "MISSING_ARG") }
+            explicitSessionID = args[i]
+        default:
+            if !args[i].hasPrefix("--") && channel == nil {
+                channel = args[i]
+            }
+        }
+        i += 1
+    }
+
+    let resolvedChannel = explicitSessionID ?? channel
+    guard let resolvedChannel, !resolvedChannel.isEmpty else {
+        exitError("listen requires a channel. Usage: aos listen <channel>|--session-id <id> [--follow|--since|--limit]",
                   code: "MISSING_ARG")
     }
 
-    let follow = args.contains("--follow") || args.contains("-f")
-    let since = listenGetArg(args, "--since")
-    let limit = listenGetArg(args, "--limit").flatMap(Int.init) ?? 50
-
     if follow {
-        listenFollow(channel: channel, since: since)
+        listenFollow(channel: resolvedChannel, since: since)
     } else {
-        listenRead(channel: channel, since: since, limit: limit)
+        listenRead(channel: resolvedChannel, since: since, limit: limit)
     }
 }
 
@@ -138,9 +169,4 @@ private func listenChannels() {
        let s = String(data: data, encoding: .utf8) {
         print(s)
     }
-}
-
-private func listenGetArg(_ args: [String], _ key: String) -> String? {
-    guard let idx = args.firstIndex(of: key), idx + 1 < args.count else { return nil }
-    return args[idx + 1]
 }

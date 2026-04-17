@@ -42,18 +42,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "AOS_SESSION_HARNESS=codex bash \"$(git rev-parse --show-toplevel)/.agents/hooks/session-stop.sh\"",
-            "statusMessage": "Clearing session presence",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

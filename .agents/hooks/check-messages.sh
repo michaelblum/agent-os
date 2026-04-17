@@ -15,15 +15,22 @@ source "$(dirname "$0")/session-common.sh"
 SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
 SESSION_HARNESS="$(aos_detect_harness)"
 SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
 
-[ -z "$SESSION_NAME" ] && exit 0
+[ -z "$SESSION_CHANNEL" ] && exit 0
 
 [ ! -x "$AOS" ] && exit 0
 
-STATE_FILE="$(aos_session_cursor_file "$SESSION_NAME")"
+aos_refresh_session_registration "$SESSION_ID" "$SESSION_NAME" "worker" "$SESSION_HARNESS" "$AOS" || true
+
+STATE_FILE="$(aos_session_cursor_file "$SESSION_CHANNEL")"
 SINCE="$(cat "$STATE_FILE" 2>/dev/null || echo "")"
 
-LISTEN_ARGS=(listen "$SESSION_NAME" --limit 5)
+if [[ -n "$SESSION_ID" ]]; then
+  LISTEN_ARGS=(listen --session-id "$SESSION_ID" --limit 5)
+else
+  LISTEN_ARGS=(listen "$SESSION_NAME" --limit 5)
+fi
 if [ -n "$SINCE" ]; then
   LISTEN_ARGS+=(--since "$SINCE")
 fi
@@ -57,5 +64,10 @@ if [ -n "$LATEST" ]; then
 fi
 
 echo "## Inbound Messages"
-echo "${COUNT} new message(s) from ${SENDERS} on channel '${SESSION_NAME}'."
-echo "Use ./aos listen ${SESSION_NAME} to read them."
+if [[ -n "$SESSION_ID" ]]; then
+  echo "${COUNT} new message(s) from ${SENDERS} on session '${SESSION_NAME}' (${SESSION_ID})."
+  echo "Use ./aos listen --session-id ${SESSION_ID} to read them."
+else
+  echo "${COUNT} new message(s) from ${SENDERS} on channel '${SESSION_NAME}'."
+  echo "Use ./aos listen ${SESSION_NAME} to read them."
+fi

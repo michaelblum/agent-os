@@ -14,6 +14,10 @@ SESSION_HARNESS="$(aos_detect_harness)"
 SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
 
 [ -x "$AOS" ] || exit 0
-[ -n "$SESSION_NAME" ] || exit 0
+[ -n "$SESSION_ID" ] || [ -n "$SESSION_NAME" ] || exit 0
 
-"$AOS" tell --unregister "$SESSION_NAME" >/dev/null 2>&1 || true
+if [[ -n "$SESSION_ID" ]]; then
+  "$AOS" tell --unregister --session-id "$SESSION_ID" >/dev/null 2>&1 || true
+else
+  "$AOS" tell --unregister "$SESSION_NAME" >/dev/null 2>&1 || true
+fi

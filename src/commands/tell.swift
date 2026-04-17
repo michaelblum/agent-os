@@ -1,13 +1,14 @@
 // tell.swift — aos tell: outbound communication command
 //
 // Usage:
-//   aos tell <audience> "message"       Post text to audience(s)
-//   aos tell <audience> --json <data>   Post structured JSON to audience(s)
-//   aos tell --register <name>          Register session presence
-//   aos tell --unregister <name>        Remove session presence
-//   aos tell --who                      List online sessions
+//   aos tell <audience> "message"                         Post text to audience(s)
+//   aos tell --session-id <id> "message"                 Post directly to a session channel
+//   aos tell <audience> --json <data>                    Post structured JSON to audience(s)
+//   aos tell --register --session-id <id> [--name <n>]   Register session presence
+//   aos tell --unregister --session-id <id>              Remove session presence
+//   aos tell --who                                       List online sessions
 //
-// Audiences: human, <channel-name>, <session-name>, comma-separated mix
+// Audiences: human, <channel-name>, <session-id>, comma-separated mix
 
 import Foundation
 
@@ -18,51 +19,66 @@ func tellCommand(args: [String]) {
         return
     }
     if let idx = args.firstIndex(of: "--register") {
-        guard idx + 1 < args.count else {
-            exitError("--register requires a session name", code: "MISSING_ARG")
-        }
-        let name = args[idx + 1]
+        let legacyName = tellLegacyValue(args, flagIndex: idx)
+        let sessionID = tellGetArg(args, "--session-id") ??
+            ProcessInfo.processInfo.environment["AOS_SESSION_ID"] ??
+            legacyName
+        let name = tellGetArg(args, "--name") ?? legacyName
         let role = tellGetArg(args, "--role") ?? "worker"
         let harness = tellGetArg(args, "--harness") ?? "unknown"
-        tellRegister(name: name, role: role, harness: harness)
+        guard sessionID != nil || name != nil else {
+            exitError("--register requires --session-id <id> or a legacy name argument", code: "MISSING_ARG")
+        }
+        tellRegister(sessionID: sessionID, name: name, role: role, harness: harness)
         return
     }
     if let idx = args.firstIndex(of: "--unregister") {
-        guard idx + 1 < args.count else {
-            exitError("--unregister requires a session name", code: "MISSING_ARG")
+        let legacyName = tellLegacyValue(args, flagIndex: idx)
+        let sessionID = tellGetArg(args, "--session-id") ??
+            ProcessInfo.processInfo.environment["AOS_SESSION_ID"]
+        guard sessionID != nil || legacyName != nil else {
+            exitError("--unregister requires --session-id <id> or a legacy name argument", code: "MISSING_ARG")
         }
-        tellUnregister(name: args[idx + 1])
+        tellUnregister(sessionID: sessionID, name: legacyName)
         return
     }
 
     // Main form: aos tell <audience> [--json <data>] [text...]
-    guard let audience = args.first, !audience.hasPrefix("--") else {
-        exitError("tell requires an audience. Usage: aos tell <audience> [text|--json <data>]",
-                  code: "MISSING_ARG")
-    }
-
-    let rest = Array(args.dropFirst())
+    let explicitSessionAudience = tellGetArg(args, "--session-id")
+    var audience: String? = explicitSessionAudience
     var jsonData: String? = nil
     var textParts: [String] = []
     var from: String? = nil
 
     var i = 0
-    while i < rest.count {
-        switch rest[i] {
+    while i < args.count {
+        switch args[i] {
         case "--json":
             i += 1
-            guard i < rest.count else { exitError("--json requires a value", code: "MISSING_ARG") }
-            jsonData = rest[i]
+            guard i < args.count else { exitError("--json requires a value", code: "MISSING_ARG") }
+            jsonData = args[i]
         case "--from":
             i += 1
-            guard i < rest.count else { exitError("--from requires a value", code: "MISSING_ARG") }
-            from = rest[i]
+            guard i < args.count else { exitError("--from requires a value", code: "MISSING_ARG") }
+            from = args[i]
+        case "--session-id":
+            i += 1
+            guard i < args.count else { exitError("--session-id requires a value", code: "MISSING_ARG") }
         default:
-            if !rest[i].hasPrefix("--") {
-                textParts.append(rest[i])
+            if !args[i].hasPrefix("--") {
+                if explicitSessionAudience == nil && audience == nil {
+                    audience = args[i]
+                } else {
+                    textParts.append(args[i])
+                }
             }
         }
         i += 1
+    }
+
+    guard let audience, !audience.isEmpty else {
+        exitError("tell requires an audience. Usage: aos tell <audience>|--session-id <id> [text|--json <data>]",
+                  code: "MISSING_ARG")
     }
 
     // Check stdin if no text args and no --json
@@ -77,7 +93,7 @@ func tellCommand(args: [String]) {
     }
 
     guard !text.isEmpty || jsonData != nil else {
-        exitError("tell requires text or --json. Usage: aos tell <audience> [text|--json <data>]",
+        exitError("tell requires text or --json. Usage: aos tell <audience>|--session-id <id> [text|--json <data>]",
                   code: "MISSING_ARG")
     }
 
@@ -118,13 +134,18 @@ func tellCommand(args: [String]) {
 
 // MARK: - Subcommands
 
-private func tellRegister(name: String, role: String, harness: String) {
-    let request: [String: Any] = [
+private func tellRegister(sessionID: String?, name: String?, role: String, harness: String) {
+    var request: [String: Any] = [
         "action": "coord-register",
-        "name": name,
         "role": role,
         "harness": harness
     ]
+    if let sessionID, !sessionID.isEmpty {
+        request["session_id"] = sessionID
+    }
+    if let name, !name.isEmpty {
+        request["name"] = name
+    }
     guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
@@ -134,11 +155,16 @@ private func tellRegister(name: String, role: String, harness: String) {
     }
 }
 
-private func tellUnregister(name: String) {
-    let request: [String: Any] = [
+private func tellUnregister(sessionID: String?, name: String?) {
+    var request: [String: Any] = [
         "action": "coord-unregister",
-        "name": name
     ]
+    if let sessionID, !sessionID.isEmpty {
+        request["session_id"] = sessionID
+    }
+    if let name, !name.isEmpty {
+        request["name"] = name
+    }
     guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
@@ -163,4 +189,11 @@ private func tellWho() {
 private func tellGetArg(_ args: [String], _ key: String) -> String? {
     guard let idx = args.firstIndex(of: key), idx + 1 < args.count else { return nil }
     return args[idx + 1]
+}
+
+private func tellLegacyValue(_ args: [String], flagIndex: Int) -> String? {
+    let valueIndex = flagIndex + 1
+    guard valueIndex < args.count else { return nil }
+    let value = args[valueIndex]
+    return value.hasPrefix("--") ? nil : value
 }

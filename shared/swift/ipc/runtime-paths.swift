@@ -86,6 +86,14 @@ func aosConfigPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/config.json"
 }
 
+func aosCoordinationDir(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/coordination"
+}
+
+func aosCoordinationSessionsPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosCoordinationDir(for: mode))/sessions.json"
+}
+
 func aosProfilesDir(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/profiles"
 }

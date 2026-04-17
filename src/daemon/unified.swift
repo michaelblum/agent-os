@@ -1066,21 +1066,28 @@ class UnifiedDaemon {
             handleTellAction(json: json, clientFD: clientFD)
 
         case "coord-register":
-            guard let name = json["name"] as? String else {
-                sendResponseJSON(to: clientFD, ["error": "name required", "code": "MISSING_ARG"])
+            let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let legacyName = name?.isEmpty == false ? name : nil
+            guard let canonicalSessionID = sessionID?.isEmpty == false ? sessionID : legacyName else {
+                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"])
                 return
             }
             let role = json["role"] as? String ?? "worker"
             let harness = json["harness"] as? String ?? "unknown"
-            let result = coordination.registerSession(name: name, role: role, harness: harness)
+            let result = coordination.registerSession(sessionID: canonicalSessionID, name: legacyName, role: role, harness: harness)
             sendResponseJSON(to: clientFD, result)
 
         case "coord-unregister":
-            guard let name = json["name"] as? String else {
-                sendResponseJSON(to: clientFD, ["error": "name required", "code": "MISSING_ARG"])
+            let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedName = name?.isEmpty == false ? name : nil
+            let normalizedSessionID = sessionID?.isEmpty == false ? sessionID : nil
+            guard normalizedSessionID != nil || normalizedName != nil else {
+                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"])
                 return
             }
-            let result = coordination.unregisterSession(name: name)
+            let result = coordination.unregisterSession(sessionID: normalizedSessionID, name: normalizedName)
             sendResponseJSON(to: clientFD, result)
 
         case "coord-who":
@@ -1255,7 +1262,11 @@ class UnifiedDaemon {
                     "payload": msg.payload,
                     "created_at": msg.createdAt
                 ])
-                routes.append(["audience": aud, "route": "channel", "delivered": true, "id": msg.id])
+                var route: [String: Any] = ["audience": aud, "route": "channel", "delivered": true, "id": msg.id]
+                if let session = coordination.sessionInfo(sessionID: aud) {
+                    route["session"] = session
+                }
+                routes.append(route)
             }
         }
 
