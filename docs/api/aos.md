@@ -10,6 +10,23 @@ Use this doc when you are:
 
 For architecture and philosophy, see [ARCHITECTURE.md](../../ARCHITECTURE.md).
 
+## Repo Development Entry Points
+
+When you are developing inside the `agent-os` repo, invoke the binary as
+`./aos`, not bare `aos`.
+
+Start here:
+
+```bash
+./aos status
+./aos help <command> [--json]
+./aos introspect review
+```
+
+`./aos status` is the primary runtime/session entrypoint. Use `doctor`,
+`daemon-snapshot`, and `clean` when you need deeper diagnostics or explicit
+cleanup, not as the default first move.
+
 ## Contract
 
 `aos` is a single binary with Unix-style subcommand groups.
@@ -21,8 +38,8 @@ aos see cursor
 aos show create --id demo --at 100,100,300,200 --html '<div>hello</div>'
 aos do click 500,300
 aos say "Hello"
-aos tell handoff "task complete"
-aos listen handoff
+aos tell human "Done."
+aos listen ops --limit 10
 ```
 
 ### Success / Failure
@@ -52,28 +69,31 @@ The current top-level commands are:
 
 | Command | Role |
 | --- | --- |
+| `aos status` | primary runtime/session status entrypoint |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
-| `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
+| `aos show` | Projection: canvas create/update/remove/list/eval/render |
+| `aos focus` | Focus-channel management |
+| `aos graph` | Display/window graph queries |
+| `aos introspect` | Session self-review over recent `./aos` usage |
+| `aos help` | Registry and command-specific help |
 | `aos say` | Voice output |
-| `aos tell` | Communication output: human, channel, or direct session routing |
-| `aos listen` | Communication input: channel or direct session reads/follow |
+| `aos tell` | Manual communication output: human, channel, or direct session routing |
+| `aos listen` | Manual communication input: channel or direct session reads/follow |
+| `aos wiki` | local knowledge-base workflows |
 | `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
-| `aos serve` | Unified daemon |
 | `aos content` | Content-server status |
+| `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos runtime` | packaged runtime utilities |
-| `aos doctor` | health and runtime diagnostics |
-| `aos reset` | cleanup/reset workflows |
-| `aos clean` | stale daemon / canvas cleanup |
 | `aos permissions` | preflight and onboarding |
-| `aos focus` | focus-channel management |
-| `aos graph` | display/window graph queries |
+| `aos doctor` | detailed runtime and permission diagnostics |
+| `aos clean` | explicit stale daemon / canvas cleanup |
+| `aos reset` | cleanup/reset workflows |
 | `aos daemon-snapshot` | daemon state snapshot |
 | `aos inspect` | live AX inspector overlay |
 | `aos log` | log overlay |
-| `aos wiki` | local knowledge-base workflows |
 
 ## Core Usage Patterns
 
@@ -126,18 +146,18 @@ aos show wait --id inspector --manifest inspector-panel
 aos show post --id inspector --event '{"type":"inspector-panel/bootstrap","payload":{"note":"hello"}}'
 ```
 
-### 4. Coordinate Through Channels or Direct Session Messaging
+### 4. Manual Communication and Debugging
 
 ```bash
-aos tell handoff "task complete"
-aos tell handoff --from wiki-focus "task complete"
+aos tell human "Done."
 aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
-aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
-echo 'queued update' | aos tell handoff
-aos tell --who
-aos listen handoff
-aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
+aos listen ops --limit 10
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 ```
+
+`aos tell` / `aos listen` remain available for explicit operator workflows and
+debugging. They are not part of the default Codex or Claude hook stack in
+agent-os.
 
 ## Subcommand Reference
 
@@ -319,26 +339,26 @@ discoverability misses like unknown commands or missing arguments over time.
 
 ## `aos tell`
 
+Manual / advanced communication surface. Use this when you explicitly want the
+daemon to route a message or inspect session-facing communication. Do not treat
+it as required session plumbing for normal harness operation.
+
 Primary public forms:
 
 | Form | Purpose |
 | --- | --- |
 | `<audience>\|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text>]` | send text or JSON to `human`, a channel, a comma-separated mix, or one canonical session id |
-| `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | register session presence |
-| `--unregister [<legacy-name>] [--session-id <id>]` | remove session presence |
-| `--who` | list online sessions |
+| `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | advanced: register session presence manually |
+| `--unregister [<legacy-name>] [--session-id <id>]` | advanced: remove session presence manually |
+| `--who` | advanced: list online sessions |
 
 Examples:
 
 ```bash
 aos tell human "Hello"
 aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response "Done."
-aos tell handoff "task complete"
-aos tell human,handoff "done"
-aos tell handoff --from wiki-focus "task complete"
 aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
-aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
-echo 'queued update' | aos tell handoff
+echo 'queued update' | aos tell ops
 ```
 
 If no text args and no `--json` payload are provided, `aos tell` reads plain text from `stdin`.
@@ -347,10 +367,17 @@ For `human` delivery, `--from-session-id` lets the daemon resolve that
 session's leased voice, and `--purpose final_response` applies the configured
 final-response shaping policy before speaking.
 
-Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
-Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
+Direct routing should prefer canonical session ids. Human-readable names remain
+display metadata for `aos tell --who` and operator ergonomics.
+Presence registration exists for advanced/manual workflows. Normal Codex and
+Claude usage in agent-os does not depend on automatic `tell --register`,
+`tell --unregister`, or `tell --who` hook activity.
 
 ## `aos listen`
+
+Manual / advanced communication surface for reading channel or direct-session
+messages. This is useful for debugging or explicit operator workflows, not as a
+default polling mechanism in harness hooks.
 
 Primary public forms:
 
@@ -363,8 +390,8 @@ Primary public forms:
 Examples:
 
 ```bash
-aos listen handoff
-aos listen handoff --limit 10
+aos listen ops
+aos listen ops --limit 10
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 aos listen --channels
@@ -400,7 +427,9 @@ These are still public, but they are more specialized:
 | `aos inspect` | you want the built-in live AX overlay |
 | `aos log` | you want the built-in log console overlay |
 | `aos permissions` | you need machine-readable readiness checks |
-| `aos doctor` | you need a fuller runtime health snapshot |
+| `aos doctor` | you need a fuller runtime health snapshot than `aos status` |
+| `aos clean` | `aos status` reports stale resources and you want explicit cleanup |
+| `aos daemon-snapshot` | you need the low-level spatial snapshot directly |
 | `aos focus` / `aos graph` | you are consuming focus channels / display-window topology |
 | `aos wiki` | you are consuming the local wiki/plugin system |
 

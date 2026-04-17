@@ -29,6 +29,41 @@ struct AOSRuntimeIdentity: Encodable {
     let bundle_build: String?
 }
 
+func aosCurrentSessionHarness() -> String {
+    let env = ProcessInfo.processInfo.environment
+    if let harness = env["AOS_SESSION_HARNESS"], !harness.isEmpty {
+        return harness
+    }
+    if let _ = env["CODEX_THREAD_ID"] {
+        return "codex"
+    }
+    if let _ = env["CLAUDE_CODE_SSE_PORT"] {
+        return "claude-code"
+    }
+    return "unknown"
+}
+
+func aosSanitizeSessionComponent(_ value: String) -> String {
+    value.replacingOccurrences(of: #"[^A-Za-z0-9._-]"#, with: "_", options: .regularExpression)
+}
+
+func aosCurrentSessionKey() -> String {
+    let env = ProcessInfo.processInfo.environment
+    if let sessionID = env["AOS_SESSION_ID"], !sessionID.isEmpty {
+        return aosSanitizeSessionComponent(sessionID)
+    }
+    if let threadID = env["CODEX_THREAD_ID"], !threadID.isEmpty {
+        return aosSanitizeSessionComponent("codex-\(threadID)")
+    }
+    if let name = env["AOS_SESSION_NAME"], !name.isEmpty {
+        return aosSanitizeSessionComponent("name-\(name)")
+    }
+    if let port = env["CLAUDE_CODE_SSE_PORT"], !port.isEmpty {
+        return aosSanitizeSessionComponent("claude-port-\(port)")
+    }
+    return aosSanitizeSessionComponent("pid-\(getpid())")
+}
+
 func aosHomeDir() -> String {
     FileManager.default.homeDirectoryForCurrentUser.path
 }
@@ -100,6 +135,22 @@ func aosVoiceAssignmentsPath(for mode: AOSRuntimeMode? = nil) -> String {
 
 func aosCLIErrorLogPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/cli-errors.jsonl"
+}
+
+func aosAgentIntrospectionDir(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/agent-introspection"
+}
+
+func aosAgentUsageLogPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosAgentIntrospectionDir(for: mode))/aos-usage.jsonl"
+}
+
+func aosAgentSessionStateDir(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosAgentIntrospectionDir(for: mode))/sessions"
+}
+
+func aosAgentSessionStatePath(sessionKey: String, mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosAgentSessionStateDir(for: mode))/\(sessionKey).json"
 }
 
 func aosVoiceEventLogPath(for mode: AOSRuntimeMode? = nil) -> String {

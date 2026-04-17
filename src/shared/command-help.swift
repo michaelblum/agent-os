@@ -7,6 +7,44 @@ import Foundation
 /// The global registry. Populated in command-registry-data.swift.
 var commandRegistry: [CommandDescriptor] = []
 
+func aosInvocationDisplayName() -> String {
+    let raw = CommandLine.arguments.first ?? "aos"
+    if raw == "aos" {
+        return "aos"
+    }
+    if raw == "./aos" {
+        return "./aos"
+    }
+
+    let standardized = NSString(string: raw).standardizingPath
+    if standardized == "aos" && !raw.contains("/") {
+        return "aos"
+    }
+
+    let cwdAOS = (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent("aos")
+    if standardized == NSString(string: cwdAOS).standardizingPath {
+        return "./aos"
+    }
+
+    if let repoRoot = aosCurrentRepoRoot() {
+        let repoAOS = (repoRoot as NSString).appendingPathComponent("aos")
+        if standardized == NSString(string: repoAOS).standardizingPath {
+            return "./aos"
+        }
+    }
+
+    if standardized.hasSuffix("/aos") {
+        return standardized
+    }
+
+    return raw
+}
+
+private func renderInvocationText(_ value: String) -> String {
+    let prefix = aosInvocationDisplayName()
+    return value.replacingOccurrences(of: "aos ", with: "\(prefix) ")
+}
+
 /// Look up a command by path. Exact match first, then tries parent
 /// with form filtering for subcommand paths like ["show", "create"].
 func findCommand(path: [String]) -> CommandDescriptor? {
@@ -47,7 +85,10 @@ func helpCommand(args: [String]) {
                 printCommandText(cmd)
             }
         } else {
-            exitError("Unknown command: \(pathArgs.joined(separator: " ")). Run 'aos help --json' for full registry.", code: "UNKNOWN_COMMAND")
+            exitError(
+                "Unknown command: \(pathArgs.joined(separator: " ")). Run '\(aosInvocationDisplayName()) help --json' for full registry.",
+                code: "UNKNOWN_COMMAND"
+            )
         }
     }
 }
@@ -77,7 +118,7 @@ func printCommandHelp(_ path: [String], json: Bool) {
         return
     }
     exitError(
-        "Unknown command: \(path.joined(separator: " ")). Run 'aos help --json' for full registry.",
+        "Unknown command: \(path.joined(separator: " ")). Run '\(aosInvocationDisplayName()) help --json' for full registry.",
         code: "UNKNOWN_COMMAND")
 }
 
@@ -105,9 +146,10 @@ func printCommandJSON(_ cmd: CommandDescriptor) {
 // MARK: - Text Output
 
 func printFullRegistryText() {
+    let prefix = aosInvocationDisplayName()
     var lines: [String] = []
-    lines.append("aos — agent operating system\n")
-    lines.append("Usage: aos <command> [options]\n")
+    lines.append("\(prefix) — agent operating system\n")
+    lines.append("Usage: \(prefix) <command> [options]\n")
     lines.append("Commands:")
 
     // Group by top-level verb
@@ -117,7 +159,37 @@ func printFullRegistryText() {
         verbs[verb, default: []].append(cmd)
     }
 
-    for verb in verbs.keys.sorted() {
+    let preferredVerbOrder = [
+        "status",
+        "see",
+        "do",
+        "show",
+        "focus",
+        "graph",
+        "introspect",
+        "wiki",
+        "tell",
+        "listen",
+        "say",
+        "voice",
+        "config",
+        "set",
+        "content",
+        "serve",
+        "service",
+        "runtime",
+        "permissions",
+        "doctor",
+        "clean",
+        "reset",
+        "daemon-snapshot",
+        "inspect",
+        "log",
+    ]
+    let orderedVerbs = preferredVerbOrder.filter { verbs[$0] != nil } +
+        verbs.keys.filter { !preferredVerbOrder.contains($0) }.sorted()
+
+    for verb in orderedVerbs {
         let cmds = verbs[verb]!
         // Show top-level summary from first entry
         let topLevel = cmds.first { $0.path.count == 1 }
@@ -134,18 +206,19 @@ func printFullRegistryText() {
         }
     }
 
-    lines.append("\nRun 'aos help <command> [--json]' for details on a specific command.")
-    lines.append("Run 'aos help --json' for machine-readable full registry.")
+    lines.append("\nRun '\(prefix) help <command> [--json]' for details on a specific command.")
+    lines.append("Run '\(prefix) help --json' for machine-readable full registry.")
     print(lines.joined(separator: "\n"))
 }
 
 func printCommandText(_ cmd: CommandDescriptor) {
+    let prefix = aosInvocationDisplayName()
     var lines: [String] = []
-    let cmdName = "aos \(cmd.path.joined(separator: " "))"
+    let cmdName = "\(prefix) \(cmd.path.joined(separator: " "))"
     lines.append("\(cmdName) — \(cmd.summary)\n")
 
     for form in cmd.forms {
-        lines.append("  \(form.usage)")
+        lines.append("  \(renderInvocationText(form.usage))")
         if !form.args.isEmpty {
             lines.append("")
             for arg in form.args {
@@ -174,7 +247,7 @@ func printCommandText(_ cmd: CommandDescriptor) {
         if !form.examples.isEmpty {
             lines.append("\n  Examples:")
             for ex in form.examples {
-                lines.append("    \(ex)")
+                lines.append("    \(renderInvocationText(ex))")
             }
         }
         lines.append("")
