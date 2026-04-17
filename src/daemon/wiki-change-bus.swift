@@ -19,6 +19,13 @@ final class WikiChangeBus {
     weak var daemon: UnifiedDaemon?
 
     func emit(path: String, op: WikiChangeOp) {
+        switch op {
+        case .deleted:
+            WikiIndexHooks.remove(path: path)
+        case .created, .updated:
+            WikiIndexHooks.reindex(path: path)
+        }
+
         guard let daemon = daemon else { return }
 
         var type: String? = nil
@@ -64,10 +71,10 @@ extension WikiFrontmatter {
 /// routed through the daemon's index manager.
 enum WikiIndexHooks {
     static func reindex(path: String) {
-        // no-op stub — Task 5 wires in daemon-held WikiIndex instance
+        reindexWikiEntry(path: path)
     }
 
     static func remove(path: String) {
-        // no-op stub — Task 5 wires in daemon-held WikiIndex instance
+        removeWikiEntry(path: path)
     }
 }

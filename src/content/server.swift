@@ -184,6 +184,7 @@ class ContentServer {
 
         let rawPath = String(parts[1])
         let path = rawPath.components(separatedBy: "?").first ?? rawPath
+        let queryItems = URLComponents(string: "http://127.0.0.1\(rawPath)")?.queryItems ?? []
 
         guard let decoded = path.removingPercentEncoding else {
             return httpResponse(status: 400, statusText: "Bad Request", body: "Bad path encoding")
@@ -252,6 +253,31 @@ class ContentServer {
             guard !relativePath.isEmpty, !relativePath.contains(".."), !relativePath.hasPrefix("/") else {
                 return httpResponse(status: 400, statusText: "Bad Request", body: "Invalid wiki path")
             }
+
+            if relativePath == ".graph" {
+                guard method == "GET" || method == "HEAD" else {
+                    return httpResponse(status: 405, statusText: "Method Not Allowed", body: "Method Not Allowed")
+                }
+                let includeRaw = queryItems.contains { item in
+                    item.name == "raw" && ["1", "true", "yes"].contains((item.value ?? "").lowercased())
+                }
+                do {
+                    let data = try wikiGraphJSONData(wikiRoot: wikiRoot, includeRaw: includeRaw)
+                    return httpResponse(
+                        status: 200,
+                        statusText: "OK",
+                        contentType: "application/json",
+                        body: method == "HEAD" ? nil : data
+                    )
+                } catch {
+                    return httpResponse(
+                        status: 500,
+                        statusText: "Internal Server Error",
+                        body: "Failed to encode wiki graph: \(error.localizedDescription)"
+                    )
+                }
+            }
+
             let filePath = (wikiRoot as NSString).appendingPathComponent(relativePath)
             let resolvedPath = (filePath as NSString).standardizingPath
             let resolvedRoot = (wikiRoot as NSString).standardizingPath
@@ -307,7 +333,6 @@ class ContentServer {
                 let isNew = !FileManager.default.fileExists(atPath: resolvedPath)
                 do {
                     try bodyData.write(to: URL(fileURLWithPath: resolvedPath))
-                    WikiIndexHooks.reindex(path: relativePath)
                     WikiChangeBus.shared.emit(path: relativePath, op: isNew ? .created : .updated)
                     return httpResponse(status: 200, statusText: "OK", body: "OK")
                 } catch {
@@ -320,7 +345,6 @@ class ContentServer {
                 }
                 do {
                     try FileManager.default.removeItem(atPath: resolvedPath)
-                    WikiIndexHooks.remove(path: relativePath)
                     WikiChangeBus.shared.emit(path: relativePath, op: .deleted)
                     return httpResponse(status: 200, statusText: "OK", body: "OK")
                 } catch {

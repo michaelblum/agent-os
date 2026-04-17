@@ -307,6 +307,25 @@ aos listen --channels
 
 One-shot reads return a JSON envelope with a `messages` array. `--follow` emits one message per line as NDJSON.
 
+## `aos wiki`
+
+Primary public verbs for knowledge-base consumers:
+
+| Subcommand | Purpose |
+| --- | --- |
+| `list` | enumerate indexed wiki entries |
+| `show` | fetch one page by path or bare name |
+| `graph` | emit the canonical `wiki-kb` graph payload |
+| `search` | full-text search across indexed pages |
+| `invoke` | invoke a workflow/plugin entry |
+
+`aos wiki graph --json` is the canonical graph projection for KB surfaces. It returns:
+
+- `nodes`
+- `links`
+- optional `raw` page bodies when `--raw` is requested
+- `config` for default graph-view behavior
+
 ## Auxiliary Consumer Surfaces
 
 These are still public, but they are more specialized:
@@ -354,6 +373,11 @@ aos show create \
   --interactive \
   --url 'aos://toolkit/components/canvas-inspector/index.html'
 ```
+
+Read-only virtual wiki graph endpoint:
+
+- `GET /wiki/.graph`
+- `GET /wiki/.graph?raw=1`
 
 ## Guidance For Consumers
 

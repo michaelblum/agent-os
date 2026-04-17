@@ -1004,6 +1004,14 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(),
             output: outJSONFlag,
             examples: ["aos wiki show gateway --json"]),
+        InvocationForm(id: "wiki-graph", usage: "aos wiki graph [--raw] [--json]",
+            args: [
+                flag("raw", "--raw", "Include raw markdown content for each page", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos wiki graph --json", "aos wiki graph --raw --json"]),
         InvocationForm(id: "wiki-link", usage: "aos wiki link <from> <to> [--json]",
             args: [
                 pos("from", "Source page path"),

@@ -13,6 +13,32 @@ func aosWikiDbPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosWikiDir(for: mode))/wiki.db"
 }
 
+let aosWikiPlatformNamespace = "aos"
+
+func wikiNamespacedDir(_ dirType: String) -> String {
+    "\(aosWikiPlatformNamespace)/\(dirType)"
+}
+
+func wikiCandidateDirs(for dirType: String, wikiDir: String) -> [String] {
+    let fm = FileManager.default
+    return [wikiNamespacedDir(dirType), dirType].filter { relativeDir in
+        var isDir: ObjCBool = false
+        let absoluteDir = "\(wikiDir)/\(relativeDir)"
+        return fm.fileExists(atPath: absoluteDir, isDirectory: &isDir) && isDir.boolValue
+    }
+}
+
+func wikiBareNameCandidates(_ arg: String) -> [String] {
+    [
+        "\(wikiNamespacedDir("entities"))/\(arg).md",
+        "\(wikiNamespacedDir("concepts"))/\(arg).md",
+        "\(wikiNamespacedDir("plugins"))/\(arg)/SKILL.md",
+        "entities/\(arg).md",
+        "concepts/\(arg).md",
+        "plugins/\(arg)/SKILL.md"
+    ]
+}
+
 // MARK: - Command Router
 
 func wikiCommand(args: [String]) {
@@ -21,7 +47,7 @@ func wikiCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|add|rm|link|search|seed|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
+        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|graph|add|rm|link|search|seed|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
                   code: "MISSING_SUBCOMMAND")
     }
     let subArgs = Array(args.dropFirst())
@@ -40,6 +66,8 @@ func wikiCommand(args: [String]) {
         wikiSearchCommand(args: subArgs)
     case "show":
         wikiShowCommand(args: subArgs)
+    case "graph":
+        wikiGraphCommand(args: subArgs)
     case "link":
         wikiLinkCommand(args: subArgs)
     case "lint":
@@ -64,7 +92,7 @@ func wikiReindexCommand(args: [String]) {
     // Ensure directory structure exists
     for sub in ["plugins", "entities", "concepts"] {
         try? FileManager.default.createDirectory(
-            atPath: "\(wikiDir)/\(sub)",
+            atPath: "\(wikiDir)/\(wikiNamespacedDir(sub))",
             withIntermediateDirectories: true
         )
     }
@@ -80,76 +108,80 @@ func wikiReindexCommand(args: [String]) {
     var pluginCount = 0
 
     // Scan plugins/
-    let pluginsDir = "\(wikiDir)/plugins"
-    if let pluginDirs = try? fm.contentsOfDirectory(atPath: pluginsDir) {
-        for pluginName in pluginDirs {
-            let pluginPath = "\(pluginsDir)/\(pluginName)"
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: pluginPath, isDirectory: &isDir), isDir.boolValue else { continue }
+    var indexedPlugins = Set<String>()
+    for pluginsRelativeDir in wikiCandidateDirs(for: "plugins", wikiDir: wikiDir) {
+        let pluginsDir = "\(wikiDir)/\(pluginsRelativeDir)"
+        if let pluginDirs = try? fm.contentsOfDirectory(atPath: pluginsDir) {
+            for pluginName in pluginDirs.sorted() where !pluginName.hasPrefix(".") {
+                guard indexedPlugins.insert(pluginName).inserted else { continue }
+                let pluginPath = "\(pluginsDir)/\(pluginName)"
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: pluginPath, isDirectory: &isDir), isDir.boolValue else { continue }
 
-            let skillPath = "\(pluginPath)/SKILL.md"
-            guard let skillContent = try? String(contentsOfFile: skillPath, encoding: .utf8) else { continue }
+                let skillPath = "\(pluginPath)/SKILL.md"
+                guard let skillContent = try? String(contentsOfFile: skillPath, encoding: .utf8) else { continue }
 
-            let page = parseWikiPage(content: skillContent)
-            let relativePath = "plugins/\(pluginName)/SKILL.md"
-            let mtime = fileModTime(skillPath)
+                let page = parseWikiPage(content: skillContent)
+                let relativePath = "\(pluginsRelativeDir)/\(pluginName)/SKILL.md"
+                let mtime = fileModTime(skillPath)
 
-            // Index the plugin itself
-            index.upsertPlugin(
-                name: pluginName,
-                version: page.frontmatter.version,
-                author: page.frontmatter.author,
-                description: page.frontmatter.description,
-                triggers: page.frontmatter.triggers,
-                requires: page.frontmatter.requires,
-                modifiedAt: mtime
-            )
-            pluginCount += 1
+                // Index the plugin itself
+                index.upsertPlugin(
+                    name: pluginName,
+                    version: page.frontmatter.version,
+                    author: page.frontmatter.author,
+                    description: page.frontmatter.description,
+                    triggers: page.frontmatter.triggers,
+                    requires: page.frontmatter.requires,
+                    modifiedAt: mtime
+                )
+                pluginCount += 1
 
-            // Index SKILL.md as a workflow page
-            index.upsertPage(
-                path: relativePath,
-                type: "workflow",
-                name: page.frontmatter.name ?? pluginName,
-                description: page.frontmatter.description,
-                tags: page.frontmatter.tags,
-                plugin: pluginName,
-                modifiedAt: mtime
-            )
-            pageCount += 1
+                // Index SKILL.md as a workflow page
+                index.upsertPage(
+                    path: relativePath,
+                    type: "workflow",
+                    name: page.frontmatter.name ?? pluginName,
+                    description: page.frontmatter.description,
+                    tags: page.frontmatter.tags,
+                    plugin: pluginName,
+                    modifiedAt: mtime
+                )
+                pageCount += 1
 
-            // Extract and index links
-            let links = extractMarkdownLinks(from: page.body, relativeTo: "plugins/\(pluginName)")
-            for target in links {
-                index.upsertLink(source: relativePath, target: target)
-                linkCount += 1
-            }
+                // Extract and index links
+                let links = extractMarkdownLinks(from: page.body, relativeTo: "\(pluginsRelativeDir)/\(pluginName)")
+                for target in links {
+                    index.upsertLink(source: relativePath, target: target)
+                    linkCount += 1
+                }
 
-            // Scan references/ within the plugin
-            let refsDir = "\(pluginPath)/references"
-            if let refFiles = try? fm.contentsOfDirectory(atPath: refsDir) {
-                for refFile in refFiles where refFile.hasSuffix(".md") {
-                    let refPath = "\(refsDir)/\(refFile)"
-                    guard let refContent = try? String(contentsOfFile: refPath, encoding: .utf8) else { continue }
-                    let refPage = parseWikiPage(content: refContent)
-                    let refRelPath = "plugins/\(pluginName)/references/\(refFile)"
-                    let refMtime = fileModTime(refPath)
+                // Scan references/ within the plugin
+                let refsDir = "\(pluginPath)/references"
+                if let refFiles = try? fm.contentsOfDirectory(atPath: refsDir) {
+                    for refFile in refFiles.sorted() where refFile.hasSuffix(".md") {
+                        let refPath = "\(refsDir)/\(refFile)"
+                        guard let refContent = try? String(contentsOfFile: refPath, encoding: .utf8) else { continue }
+                        let refPage = parseWikiPage(content: refContent)
+                        let refRelPath = "\(pluginsRelativeDir)/\(pluginName)/references/\(refFile)"
+                        let refMtime = fileModTime(refPath)
 
-                    index.upsertPage(
-                        path: refRelPath,
-                        type: refPage.frontmatter.type ?? "concept",
-                        name: refPage.frontmatter.name ?? refFile.replacingOccurrences(of: ".md", with: ""),
-                        description: refPage.frontmatter.description,
-                        tags: refPage.frontmatter.tags,
-                        plugin: pluginName,
-                        modifiedAt: refMtime
-                    )
-                    pageCount += 1
+                        index.upsertPage(
+                            path: refRelPath,
+                            type: refPage.frontmatter.type ?? "concept",
+                            name: refPage.frontmatter.name ?? refFile.replacingOccurrences(of: ".md", with: ""),
+                            description: refPage.frontmatter.description,
+                            tags: refPage.frontmatter.tags,
+                            plugin: pluginName,
+                            modifiedAt: refMtime
+                        )
+                        pageCount += 1
 
-                    let refLinks = extractMarkdownLinks(from: refPage.body, relativeTo: "plugins/\(pluginName)/references")
-                    for target in refLinks {
-                        index.upsertLink(source: refRelPath, target: target)
-                        linkCount += 1
+                        let refLinks = extractMarkdownLinks(from: refPage.body, relativeTo: "\(pluginsRelativeDir)/\(pluginName)/references")
+                        for target in refLinks {
+                            index.upsertLink(source: refRelPath, target: target)
+                            linkCount += 1
+                        }
                     }
                 }
             }
@@ -158,31 +190,35 @@ func wikiReindexCommand(args: [String]) {
 
     // Scan entities/ and concepts/
     for dirType in ["entities", "concepts"] {
-        let typeDir = "\(wikiDir)/\(dirType)"
-        guard let files = try? fm.contentsOfDirectory(atPath: typeDir) else { continue }
-        for file in files where file.hasSuffix(".md") {
-            let filePath = "\(typeDir)/\(file)"
-            guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else { continue }
-            let page = parseWikiPage(content: content)
-            let relativePath = "\(dirType)/\(file)"
-            let mtime = fileModTime(filePath)
-            let inferredType = dirType == "entities" ? "entity" : "concept"
+        var indexedFiles = Set<String>()
+        for typeRelativeDir in wikiCandidateDirs(for: dirType, wikiDir: wikiDir) {
+            let typeDir = "\(wikiDir)/\(typeRelativeDir)"
+            guard let files = try? fm.contentsOfDirectory(atPath: typeDir) else { continue }
+            for file in files.sorted() where file.hasSuffix(".md") && !file.hasPrefix(".") {
+                guard indexedFiles.insert(file).inserted else { continue }
+                let filePath = "\(typeDir)/\(file)"
+                guard let content = try? String(contentsOfFile: filePath, encoding: .utf8) else { continue }
+                let page = parseWikiPage(content: content)
+                let relativePath = "\(typeRelativeDir)/\(file)"
+                let mtime = fileModTime(filePath)
+                let inferredType = dirType == "entities" ? "entity" : "concept"
 
-            index.upsertPage(
-                path: relativePath,
-                type: page.frontmatter.type ?? inferredType,
-                name: page.frontmatter.name ?? file.replacingOccurrences(of: ".md", with: ""),
-                description: page.frontmatter.description,
-                tags: page.frontmatter.tags,
-                plugin: nil,
-                modifiedAt: mtime
-            )
-            pageCount += 1
+                index.upsertPage(
+                    path: relativePath,
+                    type: page.frontmatter.type ?? inferredType,
+                    name: page.frontmatter.name ?? file.replacingOccurrences(of: ".md", with: ""),
+                    description: page.frontmatter.description,
+                    tags: page.frontmatter.tags,
+                    plugin: nil,
+                    modifiedAt: mtime
+                )
+                pageCount += 1
 
-            let links = extractMarkdownLinks(from: page.body, relativeTo: dirType)
-            for target in links {
-                index.upsertLink(source: relativePath, target: target)
-                linkCount += 1
+                let links = extractMarkdownLinks(from: page.body, relativeTo: typeRelativeDir)
+                for target in links {
+                    index.upsertLink(source: relativePath, target: target)
+                    linkCount += 1
+                }
             }
         }
     }
@@ -213,7 +249,7 @@ func wikiCreatePluginCommand(args: [String]) {
     }
 
     let wikiDir = aosWikiDir()
-    let pluginDir = "\(wikiDir)/plugins/\(name)"
+    let pluginDir = "\(wikiDir)/\(wikiNamespacedDir("plugins"))/\(name)"
     let skillPath = "\(pluginDir)/SKILL.md"
 
     if FileManager.default.fileExists(atPath: skillPath) {
@@ -253,20 +289,8 @@ func wikiCreatePluginCommand(args: [String]) {
     """
     try? template.write(toFile: skillPath, atomically: true, encoding: .utf8)
 
-    // Update index
-    let index = openWikiIndex()
-    let page = parseWikiPage(content: template)
-    let relativePath = "plugins/\(name)/SKILL.md"
-    index.upsertPage(
-        path: relativePath, type: "workflow", name: name,
-        description: page.frontmatter.description, tags: [],
-        plugin: name, modifiedAt: Int(Date().timeIntervalSince1970)
-    )
-    index.upsertPlugin(
-        name: name, version: "0.1.0", author: nil, description: page.frontmatter.description,
-        triggers: [], requires: [], modifiedAt: Int(Date().timeIntervalSince1970)
-    )
-    index.close()
+    let relativePath = "\(wikiNamespacedDir("plugins"))/\(name)/SKILL.md"
+    reindexWikiEntry(path: relativePath)
 
     if asJSON {
         let payload: [String: Any] = ["status": "ok", "plugin": name, "path": pluginDir]
@@ -295,7 +319,7 @@ func wikiAddCommand(args: [String]) {
     }
 
     let wikiDir = aosWikiDir()
-    let dirName = typeArg == "entity" ? "entities" : "concepts"
+    let dirName = wikiNamespacedDir(typeArg == "entity" ? "entities" : "concepts")
     let filePath = "\(wikiDir)/\(dirName)/\(name).md"
 
     if FileManager.default.fileExists(atPath: filePath) {
@@ -324,15 +348,8 @@ func wikiAddCommand(args: [String]) {
     """
     try? template.write(toFile: filePath, atomically: true, encoding: .utf8)
 
-    // Update index
-    let index = openWikiIndex()
     let relativePath = "\(dirName)/\(name).md"
-    index.upsertPage(
-        path: relativePath, type: typeArg, name: displayName,
-        description: nil, tags: [], plugin: nil,
-        modifiedAt: Int(Date().timeIntervalSince1970)
-    )
-    index.close()
+    reindexWikiEntry(path: relativePath)
 
     if asJSON {
         let payload: [String: Any] = ["status": "ok", "type": typeArg, "name": name, "path": filePath]
@@ -353,39 +370,23 @@ func wikiRmCommand(args: [String]) {
     }
 
     let wikiDir = aosWikiDir()
-    let fullPath: String
-    let relativePath: String
-
-    // Resolve: could be a relative path or a bare name
-    if pathArg.contains("/") {
-        relativePath = pathArg
-        fullPath = "\(wikiDir)/\(pathArg)"
-    } else {
-        // Search for it
-        let candidates = ["entities/\(pathArg).md", "concepts/\(pathArg).md"]
-        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: "\(wikiDir)/\($0)") }) {
-            relativePath = found
-            fullPath = "\(wikiDir)/\(found)"
-        } else {
-            exitError("Page '\(pathArg)' not found", code: "WIKI_NOT_FOUND")
-        }
+    guard let resolved = resolveWikiPath(wikiDir: wikiDir, arg: pathArg) else {
+        exitError("Page '\(pathArg)' not found", code: "WIKI_NOT_FOUND")
     }
-
-    guard FileManager.default.fileExists(atPath: fullPath) else {
-        exitError("File not found: \(fullPath)", code: "WIKI_NOT_FOUND")
-    }
+    let relativePath = resolved.relative
+    let fullPath = resolved.absolute
 
     // Check for incoming links
     let index = openWikiIndex()
     let incoming = index.linksTo(path: relativePath)
+    index.close()
     if !incoming.isEmpty && !asJSON {
         print("Warning: \(incoming.count) page(s) link to this page:")
         for link in incoming { print("  \(link.source_path)") }
     }
 
     try? FileManager.default.removeItem(atPath: fullPath)
-    index.deletePage(path: relativePath)
-    index.close()
+    removeWikiEntry(path: relativePath)
 
     if asJSON {
         let payload: [String: Any] = ["status": "ok", "removed": relativePath, "broken_links": incoming.count]
@@ -498,33 +499,36 @@ func searchFileContent(wikiDir: String, query: String, excluding: Set<String>) -
     let fm = FileManager.default
     let lowerQuery = query.lowercased()
 
+    var seen = Set<String>()
     for dirType in ["plugins", "entities", "concepts"] {
-        let dirPath = "\(wikiDir)/\(dirType)"
-        guard let enumerator = fm.enumerator(atPath: dirPath) else { continue }
-        while let relativePath = enumerator.nextObject() as? String {
-            guard relativePath.hasSuffix(".md") else { continue }
-            let fullRelative = "\(dirType)/\(relativePath)"
-            guard !excluding.contains(fullRelative) else { continue }
-            let fullPath = "\(dirPath)/\(relativePath)"
-            guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else { continue }
-            if content.lowercased().contains(lowerQuery) {
-                let page = parseWikiPage(content: content)
-                let inferredType: String
-                switch dirType {
-                case "plugins":  inferredType = "workflow"
-                case "entities": inferredType = "entity"
-                case "concepts": inferredType = "concept"
-                default:         inferredType = dirType
+        for relativeDir in wikiCandidateDirs(for: dirType, wikiDir: wikiDir) {
+            let dirPath = "\(wikiDir)/\(relativeDir)"
+            guard let enumerator = fm.enumerator(atPath: dirPath) else { continue }
+            while let relativePath = enumerator.nextObject() as? String {
+                guard relativePath.hasSuffix(".md") else { continue }
+                let fullRelative = "\(relativeDir)/\(relativePath)"
+                guard !excluding.contains(fullRelative), seen.insert(fullRelative).inserted else { continue }
+                let fullPath = "\(dirPath)/\(relativePath)"
+                guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else { continue }
+                if content.lowercased().contains(lowerQuery) {
+                    let page = parseWikiPage(content: content)
+                    let inferredType: String
+                    switch dirType {
+                    case "plugins":  inferredType = "workflow"
+                    case "entities": inferredType = "entity"
+                    case "concepts": inferredType = "concept"
+                    default:         inferredType = dirType
+                    }
+                    results.append(WikiIndex.PageRow(
+                        path: fullRelative,
+                        type: page.frontmatter.type ?? inferredType,
+                        name: page.frontmatter.name ?? relativePath.replacingOccurrences(of: ".md", with: ""),
+                        description: page.frontmatter.description,
+                        tags: page.frontmatter.tags,
+                        plugin: nil,
+                        modified_at: fileModTime(fullPath)
+                    ))
                 }
-                results.append(WikiIndex.PageRow(
-                    path: fullRelative,
-                    type: page.frontmatter.type ?? inferredType,
-                    name: page.frontmatter.name ?? relativePath.replacingOccurrences(of: ".md", with: ""),
-                    description: page.frontmatter.description,
-                    tags: page.frontmatter.tags,
-                    plugin: nil,
-                    modified_at: fileModTime(fullPath)
-                ))
             }
         }
     }
@@ -549,26 +553,11 @@ func wikiShowCommand(args: [String]) {
     }
 
     let wikiDir = aosWikiDir()
-    let fullPath: String
-    let relativePath: String
-
-    if pathArg.contains("/") || pathArg.contains(".md") {
-        relativePath = pathArg
-        fullPath = "\(wikiDir)/\(pathArg)"
-    } else {
-        // Search by name across all directories
-        let candidates = [
-            "entities/\(pathArg).md",
-            "concepts/\(pathArg).md",
-            "plugins/\(pathArg)/SKILL.md"
-        ]
-        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: "\(wikiDir)/\($0)") }) {
-            relativePath = found
-            fullPath = "\(wikiDir)/\(found)"
-        } else {
-            exitError("Page '\(pathArg)' not found. Try 'aos wiki list' to see available pages.", code: "WIKI_NOT_FOUND")
-        }
+    guard let resolved = resolveWikiPath(wikiDir: wikiDir, arg: pathArg) else {
+        exitError("Page '\(pathArg)' not found. Try 'aos wiki list' to see available pages.", code: "WIKI_NOT_FOUND")
     }
+    let relativePath = resolved.relative
+    let fullPath = resolved.absolute
 
     guard let content = try? String(contentsOfFile: fullPath, encoding: .utf8) else {
         exitError("Could not read \(fullPath)", code: "WIKI_READ_ERROR")
@@ -626,25 +615,26 @@ func wikiLinkCommand(args: [String]) {
         exitError("Target page '\(toPath)' not found", code: "WIKI_NOT_FOUND")
     }
 
-    // Add link to index
-    let index = openWikiIndex()
-    index.upsertLink(source: fromFull.relative, target: toFull.relative)
-    index.close()
-
     // Append to Related section in source file
     let relativeLink = makeRelativeLink(from: fromFull.relative, to: toFull.relative)
-    if var content = try? String(contentsOfFile: fromFull.absolute, encoding: .utf8) {
-        let toPage = parseWikiPage(content: (try? String(contentsOfFile: toFull.absolute, encoding: .utf8)) ?? "")
-        let linkName = toPage.frontmatter.name ?? toPath
-        let linkLine = "- [\(linkName)](\(relativeLink))"
-
-        if content.contains("## Related") {
-            content = content.replacingOccurrences(of: "## Related\n", with: "## Related\n\(linkLine)\n")
-        } else {
-            content += "\n## Related\n\(linkLine)\n"
-        }
-        try? content.write(toFile: fromFull.absolute, atomically: true, encoding: .utf8)
+    guard var content = try? String(contentsOfFile: fromFull.absolute, encoding: .utf8) else {
+        exitError("Could not read \(fromFull.absolute)", code: "WIKI_READ_ERROR")
     }
+    let toPage = parseWikiPage(content: (try? String(contentsOfFile: toFull.absolute, encoding: .utf8)) ?? "")
+    let linkName = toPage.frontmatter.name ?? toPath
+    let linkLine = "- [\(linkName)](\(relativeLink))"
+
+    if content.contains("## Related") {
+        content = content.replacingOccurrences(of: "## Related\n", with: "## Related\n\(linkLine)\n")
+    } else {
+        content += "\n## Related\n\(linkLine)\n"
+    }
+    do {
+        try content.write(toFile: fromFull.absolute, atomically: true, encoding: .utf8)
+    } catch {
+        exitError("Could not write \(fromFull.absolute): \(error.localizedDescription)", code: "WIKI_WRITE_ERROR")
+    }
+    reindexWikiEntry(path: fromFull.relative)
 
     if asJSON {
         print(jsonString(["status": "ok", "from": fromFull.relative, "to": toFull.relative]))
@@ -658,19 +648,30 @@ struct ResolvedPath {
     let absolute: String
 }
 
+func resolveWikiPluginSkillPath(wikiDir: String, name: String) -> ResolvedPath? {
+    for relativePath in [
+        "\(wikiNamespacedDir("plugins"))/\(name)/SKILL.md",
+        "plugins/\(name)/SKILL.md"
+    ] {
+        let absolutePath = "\(wikiDir)/\(relativePath)"
+        if FileManager.default.fileExists(atPath: absolutePath) {
+            return ResolvedPath(relative: relativePath, absolute: absolutePath)
+        }
+    }
+    return nil
+}
+
 func resolveWikiPath(wikiDir: String, arg: String) -> ResolvedPath? {
     if arg.contains("/") || arg.contains(".md") {
         let abs = "\(wikiDir)/\(arg)"
         if FileManager.default.fileExists(atPath: abs) { return ResolvedPath(relative: arg, absolute: abs) }
         return nil
     }
-    let candidates = [
-        ("entities/\(arg).md", "\(wikiDir)/entities/\(arg).md"),
-        ("concepts/\(arg).md", "\(wikiDir)/concepts/\(arg).md"),
-        ("plugins/\(arg)/SKILL.md", "\(wikiDir)/plugins/\(arg)/SKILL.md")
-    ]
-    for (rel, abs) in candidates {
-        if FileManager.default.fileExists(atPath: abs) { return ResolvedPath(relative: rel, absolute: abs) }
+    for relativePath in wikiBareNameCandidates(arg) {
+        let absolutePath = "\(wikiDir)/\(relativePath)"
+        if FileManager.default.fileExists(atPath: absolutePath) {
+            return ResolvedPath(relative: relativePath, absolute: absolutePath)
+        }
     }
     return nil
 }
@@ -756,17 +757,18 @@ func wikiLintCommand(args: [String]) {
     // 4. Malformed plugins
     let plugins = index.listPlugins()
     for plugin in plugins {
-        let skillPath = "\(wikiDir)/plugins/\(plugin.name)/SKILL.md"
-        if !FileManager.default.fileExists(atPath: skillPath) {
+        let resolvedSkill = resolveWikiPluginSkillPath(wikiDir: wikiDir, name: plugin.name)
+        if resolvedSkill == nil {
             issues.append(LintIssue(
                 severity: "error", category: "malformed_plugin",
-                path: "plugins/\(plugin.name)", message: "Plugin directory exists but SKILL.md is missing"
+                path: "\(wikiNamespacedDir("plugins"))/\(plugin.name)", message: "Plugin directory exists but SKILL.md is missing"
             ))
         }
         if plugin.description == nil || plugin.description?.isEmpty == true {
             issues.append(LintIssue(
                 severity: "warning", category: "malformed_plugin",
-                path: "plugins/\(plugin.name)/SKILL.md", message: "Plugin has no description (will not trigger reliably)"
+                path: resolvedSkill?.relative ?? "\(wikiNamespacedDir("plugins"))/\(plugin.name)/SKILL.md",
+                message: "Plugin has no description (will not trigger reliably)"
             ))
         }
     }
@@ -774,15 +776,17 @@ func wikiLintCommand(args: [String]) {
     // 5. Index drift: files on disk not in the index
     let fm = FileManager.default
     for dirType in ["entities", "concepts"] {
-        let dirPath = "\(wikiDir)/\(dirType)"
-        guard let files = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
-        for file in files where file.hasSuffix(".md") {
-            let relative = "\(dirType)/\(file)"
-            if !allPagePaths.contains(relative) {
-                issues.append(LintIssue(
-                    severity: "warning", category: "index_drift",
-                    path: relative, message: "File exists on disk but not in index (run 'aos wiki reindex')"
-                ))
+        for relativeDir in wikiCandidateDirs(for: dirType, wikiDir: wikiDir) {
+            let dirPath = "\(wikiDir)/\(relativeDir)"
+            guard let files = try? fm.contentsOfDirectory(atPath: dirPath) else { continue }
+            for file in files where file.hasSuffix(".md") && !file.hasPrefix(".") {
+                let relative = "\(relativeDir)/\(file)"
+                if !allPagePaths.contains(relative) {
+                    issues.append(LintIssue(
+                        severity: "warning", category: "index_drift",
+                        path: relative, message: "File exists on disk but not in index (run 'aos wiki reindex')"
+                    ))
+                }
             }
         }
     }
@@ -826,8 +830,11 @@ func wikiInvokeCommand(args: [String]) {
     }
 
     let wikiDir = aosWikiDir()
-    let pluginDir = "\(wikiDir)/plugins/\(name)"
-    let skillPath = "\(pluginDir)/SKILL.md"
+    guard let resolvedPlugin = resolveWikiPluginSkillPath(wikiDir: wikiDir, name: name) else {
+        exitError("Plugin '\(name)' not found", code: "WIKI_NOT_FOUND")
+    }
+    let pluginDir = (resolvedPlugin.absolute as NSString).deletingLastPathComponent
+    let skillPath = resolvedPlugin.absolute
 
     guard let skillContent = try? String(contentsOfFile: skillPath, encoding: .utf8) else {
         exitError("Plugin '\(name)' not found at \(pluginDir)", code: "WIKI_NOT_FOUND")
@@ -922,9 +929,11 @@ func wikiSeedCommand(args: [String]) {
 
     // Check if wiki already has content
     let fm = FileManager.default
-    let hasContent = ["plugins", "entities", "concepts"].contains { dir in
-        let dirPath = "\(wikiDir)/\(dir)"
-        return (try? fm.contentsOfDirectory(atPath: dirPath))?.contains(where: { $0.hasSuffix(".md") || !$0.hasPrefix(".") }) ?? false
+    let hasContent = ["plugins", "entities", "concepts"].contains { dirType in
+        wikiCandidateDirs(for: dirType, wikiDir: wikiDir).contains { relativeDir in
+            let dirPath = "\(wikiDir)/\(relativeDir)"
+            return (try? fm.contentsOfDirectory(atPath: dirPath))?.contains(where: { !$0.hasPrefix(".") }) ?? false
+        }
     }
 
     if hasContent && !force {
@@ -954,7 +963,7 @@ func wikiSeedCommand(args: [String]) {
     var copied = 0
     for subDir in ["plugins", "entities", "concepts"] {
         let srcDir = "\(sourceDir)/\(subDir)"
-        let dstDir = "\(wikiDir)/\(subDir)"
+        let dstDir = "\(wikiDir)/\(wikiNamespacedDir(subDir))"
         guard let enumerator = fm.enumerator(atPath: srcDir) else { continue }
         while let relativePath = enumerator.nextObject() as? String {
             let srcPath = "\(srcDir)/\(relativePath)"
@@ -966,7 +975,10 @@ func wikiSeedCommand(args: [String]) {
             if isDir.boolValue {
                 try? fm.createDirectory(atPath: dstPath, withIntermediateDirectories: true)
             } else {
-                if !force && fm.fileExists(atPath: dstPath) { continue }
+                if fm.fileExists(atPath: dstPath) {
+                    if !force { continue }
+                    try? fm.removeItem(atPath: dstPath)
+                }
                 let dstParent = (dstPath as NSString).deletingLastPathComponent
                 try? fm.createDirectory(atPath: dstParent, withIntermediateDirectories: true)
                 try? fm.copyItem(atPath: srcPath, toPath: dstPath)

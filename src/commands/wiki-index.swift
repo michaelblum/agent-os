@@ -154,6 +154,12 @@ class WikiIndex {
         }
     }
 
+    func deletePlugin(name: String) {
+        execBind("DELETE FROM plugins WHERE name = ?") { stmt in
+            sqlite3_bind_text(stmt, 1, name, -1, SQLITE_TRANSIENT)
+        }
+    }
+
     // MARK: - Queries
 
     struct PageRow: Encodable {
@@ -233,6 +239,14 @@ class WikiIndex {
                 LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
             }
         )
+    }
+
+    func listLinks() -> [LinkRow] {
+        query(
+            "SELECT source_path, target_path FROM links ORDER BY source_path, target_path"
+        ) { stmt in
+            LinkRow(source_path: col(stmt, 0), target_path: col(stmt, 1))
+        }
     }
 
     func orphanPages() -> [PageRow] {

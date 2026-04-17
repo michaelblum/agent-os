@@ -63,6 +63,16 @@ echo "--- search ---"
 OUTPUT=$($AOS wiki search "MCP server" --json)
 echo "$OUTPUT" | grep -q "gateway" && pass "search finds gateway" || fail "search"
 
+# Test: graph
+echo ""
+echo "--- graph ---"
+OUTPUT=$($AOS wiki graph --json)
+echo "$OUTPUT" | grep -q '"graphView"' && echo "$OUTPUT" | grep -q 'gateway.md' && pass "graph payload" || fail "graph payload"
+
+# Test: graph --raw
+OUTPUT=$($AOS wiki graph --raw --json)
+echo "$OUTPUT" | grep -q '"raw"' && echo "$OUTPUT" | grep -q 'gateway.md' && pass "graph --raw" || fail "graph --raw"
+
 # Test: create-plugin
 echo ""
 echo "--- create-plugin ---"
@@ -80,7 +90,7 @@ OUTPUT=$($AOS wiki link test-entity gateway --json)
 echo "$OUTPUT" | grep -q '"status" : "ok"' && pass "link" || fail "link"
 
 # Test: list --links-to
-OUTPUT=$($AOS wiki list --links-to entities/gateway.md --json)
+OUTPUT=$($AOS wiki list --links-to aos/entities/gateway.md --json)
 echo "$OUTPUT" | grep -q "test-entity" && pass "list --links-to" || fail "list --links-to"
 
 # Test: invoke
@@ -103,7 +113,7 @@ OUTPUT=$($AOS wiki rm test-entity --json)
 echo "$OUTPUT" | grep -q '"status" : "ok"' && pass "rm" || fail "rm"
 
 # Cleanup test plugin
-rm -rf "$WIKI_DIR/plugins/test-workflow"
+rm -rf "$WIKI_DIR/aos/plugins/test-workflow"
 $AOS wiki reindex > /dev/null 2>&1
 
 echo ""
