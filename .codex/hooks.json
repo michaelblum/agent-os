@@ -37,7 +37,7 @@
             "type": "command",
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/check-messages.sh\"",
             "statusMessage": "Checking coordination messages",
-            "timeout": 3
+            "timeout": 10
           }
         ]
       }
