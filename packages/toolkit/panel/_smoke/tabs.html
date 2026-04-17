@@ -48,7 +48,9 @@ mountPanel({
     makeContent('Gamma', 'Third tab body. Header drag should still work outside the tab strip.'),
   ], {
     onActivate(info) {
+      const count = (window.__tabsSmokeState?.count || 0) + 1
       window.__tabsSmokeState = {
+        count,
         index: info.index,
         title: info.title,
         name: info.manifest?.name ?? null,

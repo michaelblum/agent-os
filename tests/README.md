@@ -74,6 +74,7 @@ Examples:
 - `bash tests/canvas-inspector-move-abs.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 - `bash tests/canvas-inspector-tint.sh`
+- `bash tests/panel-tabs-activation.sh`
 
 ## Recovery
 
