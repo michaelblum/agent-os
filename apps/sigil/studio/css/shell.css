@@ -40,6 +40,34 @@ html, body {
   -webkit-app-region: drag;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.header-btn {
+  padding: 8px 12px;
+  background: #171726;
+  color: var(--shell-fg);
+  border: 1px solid var(--shell-border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.header-btn.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.header-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* Agent chip --- identity pill */
 #agent-chip {
   flex: 1;
@@ -85,6 +113,7 @@ html, body {
   background: #3fbd6f;
   transition: background-color 150ms;
 }
+#agent-chip .sync[data-state='dirty'] .dot { background: #e5a11a; }
 #agent-chip .sync[data-state='saving'] .dot { background: #e5a11a; }
 #agent-chip .sync[data-state='error'] .dot { background: #d94e4e; }
 

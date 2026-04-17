@@ -81,9 +81,12 @@ export function animateTrails(dt) {
         if (i < state.trailPositions.length) {
             state.trailSprites[i].visible = true;
             state.trailSprites[i].position.copy(state.trailPositions[i]);
-            let progress = i / state.trailPositions.length;
-            state.trailSprites[i].material.opacity = state.currentOpacity * (1.0 - progress);
-            let tScale = state.z_depth * 0.5 * (1.0 - progress * 0.5);
+            const progress = i / Math.max(1, state.trailPositions.length);
+            const fadeWindow = Math.max(0.016, (state.trailFadeMs ?? 400) / 1000);
+            const ageAlpha = Math.max(0, 1.0 - ((i * dt) / fadeWindow));
+            const styleScale = state.trailStyle === 'omega' ? 1.0 : 0.8;
+            state.trailSprites[i].material.opacity = state.trailOpacity * state.currentOpacity * ageAlpha;
+            const tScale = state.z_depth * 0.5 * styleScale * (1.0 - progress * 0.5);
             state.trailSprites[i].scale.set(tScale, tScale, 1);
         } else {
             state.trailSprites[i].visible = false;

@@ -29,7 +29,7 @@ const overlay = createInteractionOverlay();
 const hitTarget = createHitTargetController({
     runtime: host,
     url: 'aos://sigil/renderer/hit-area.html',
-    size: 80,
+    size: state.avatarHitRadius * 2,
 });
 
 const liveJs = {
@@ -43,11 +43,11 @@ const liveJs = {
     currentState: 'IDLE',
     state: 'IDLE',
     currentAgentId: null,
-    avatarHitRadius: 40,
-    dragThreshold: 6,
-    dragCancelRadius: 40,
-    gotoRingRadius: 60,
-    menuRingRadius: 120,
+    avatarHitRadius: state.avatarHitRadius,
+    dragThreshold: state.dragThreshold,
+    dragCancelRadius: state.dragCancelRadius,
+    gotoRingRadius: state.gotoRingRadius,
+    menuRingRadius: state.menuRingRadius,
     travel: null,
     mousedownPos: null,
     mousedownAvatarPos: null,
@@ -513,10 +513,7 @@ function animate() {
     }
 
     if (liveJs.avatarPos.valid) {
-        const hoverY = liveJs.currentState === 'IDLE' && !liveJs.travel
-            ? Math.sin(performance.now() * 0.001 * 1.5) * 10
-            : 0;
-        const projected = projectAvatarToScene(liveJs.avatarPos.x, liveJs.avatarPos.y, hoverY);
+        const projected = projectAvatarToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
     }
@@ -553,6 +550,7 @@ function animate() {
     animateTrails(dt);
 
     if (liveJs.avatarPos.valid) {
+        hitTarget.setSize(state.avatarHitRadius * 2)
         hitTarget.sync(liveJs.avatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
     }
     overlay.draw({

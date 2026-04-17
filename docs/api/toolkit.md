@@ -368,6 +368,7 @@ Panel-level control/event surface:
 
 - `tabs/activate` with `{ index }`, `{ name }`, or `{ title }`
 - `tabs/activated` emitted when activation changes with `{ index, title, name }`
+- the returned layout object also exposes `activate(payload)` for same-canvas programmatic activation
 - consumers own the CSS for `.aos-tabs`, `.aos-tab`, `.aos-tab.active`, and `.aos-tab-content`
 - `Tabs` mounts its strip into `chrome.controlsEl`; consumers should treat slot refs as the behavioral API and `.aos-*` classes as styling hooks
 - active tab state is exposed via `.active`, `data-active`, `aria-selected`, and the `hidden` attribute on tab panels

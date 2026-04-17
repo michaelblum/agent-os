@@ -69,7 +69,10 @@
     displays: [],
     lastActivation: null,
     lastStage: null,
+    studioReady: false,
+    pendingStudioAgentId: null,
   }
+  let studioFrame = null
   window.__sigilWorkbenchState = workbenchState
 
   function normalizeDisplay(display = {}) {
@@ -144,6 +147,29 @@
   })
   subscribe(['display_geometry'], { snapshot: true })
 
+  function extractAgentIdFromPath(path) {
+    if (typeof path !== 'string' || !path.startsWith('sigil/agents/')) return null
+    return path.replace(/^sigil\/agents\//, '').replace(/\.md$/, '')
+  }
+
+  function flushStudioSelection() {
+    if (!studioFrame?.contentWindow) return false
+    if (!workbenchState.studioReady) return false
+    if (!workbenchState.pendingStudioAgentId) return false
+    studioFrame.contentWindow.postMessage({
+      type: 'studio/select-agent',
+      agentId: workbenchState.pendingStudioAgentId,
+    }, window.location.origin)
+    return true
+  }
+
+  window.addEventListener('message', (event) => {
+    if (event.source !== studioFrame?.contentWindow) return
+    if (event.data?.type !== 'studio/ready') return
+    syncWorkbenchState({ studioReady: true })
+    flushStudioSelection()
+  })
+
   function iframeContent({ name, title, src, description }) {
     return function SurfaceTab() {
       let frame = null
@@ -184,6 +210,13 @@
           frame = document.createElement('iframe')
           frame.className = 'surface-frame'
           frame.src = src
+          if (name === 'sigil-studio') {
+            studioFrame = frame
+            syncWorkbenchState({ studioReady: false })
+            frame.addEventListener('load', () => {
+              syncWorkbenchState({ studioReady: false })
+            })
+          }
           wrap.appendChild(frame)
 
           pathEl = document.createElement('div')
@@ -203,6 +236,15 @@
     const inner = WikiKB()
     let refreshTimer = null
     let innerHost = null
+
+    function routeSelectionToStudio(payload) {
+      const agentId = extractAgentIdFromPath(payload?.path)
+      if (!agentId) return false
+      syncWorkbenchState({ pendingStudioAgentId: agentId })
+      workbenchLayout.activate({ name: 'sigil-studio' })
+      flushStudioSelection()
+      return true
+    }
 
     async function loadGraph(host) {
       try {
@@ -240,6 +282,10 @@
                 lastWikiSelection: payload || null,
                 lastWikiSelectionAt: Date.now(),
               })
+              if (routeSelectionToStudio(payload)) {
+                inner.onMessage?.({ type: 'clear-selection' }, innerHost)
+                return
+              }
             }
             host.emit(type, payload)
           },
@@ -262,42 +308,47 @@
     }
   }
 
+  const workbenchLayout = Tabs([
+    iframeContent({
+      name: 'sigil-studio',
+      title: 'Studio',
+      src: '/sigil/studio/index.html',
+      description: 'Roster, geometry, color, effects, agent state.',
+    }),
+    iframeContent({
+      name: 'sigil-chat',
+      title: 'Chat',
+      src: '/sigil/chat/index.html',
+      description: 'Conversation surface.',
+    }),
+    knowledgeBaseContent,
+    CanvasInspector,
+    LogConsole,
+  ], {
+    onActivate(info) {
+      const previous = workbenchState.lastActivation
+      const activationCount = workbenchState.activationCount + 1
+      syncWorkbenchState({
+        activationCount,
+        lastActivation: {
+          index: info.index,
+          title: info.title,
+          name: info.manifest?.name ?? null,
+          at: Date.now(),
+        },
+      })
+      if (info.title === 'Studio' && activationCount > 1 && previous?.title !== 'Studio') {
+        void restageAvatarToStudioHome()
+      }
+      if (info.manifest?.name === 'sigil-studio') {
+        flushStudioSelection()
+      }
+    },
+  })
+
   mountPanel({
     title: 'SIGIL',
-    layout: Tabs([
-      iframeContent({
-        name: 'sigil-studio',
-        title: 'Studio',
-        src: '/sigil/studio/index.html',
-        description: 'Roster, geometry, color, effects, agent state.',
-      }),
-      iframeContent({
-        name: 'sigil-chat',
-        title: 'Chat',
-        src: '/sigil/chat/index.html',
-        description: 'Conversation surface.',
-      }),
-      knowledgeBaseContent,
-      CanvasInspector,
-      LogConsole,
-    ], {
-      onActivate(info) {
-        const previous = workbenchState.lastActivation
-        const activationCount = workbenchState.activationCount + 1
-        syncWorkbenchState({
-          activationCount,
-          lastActivation: {
-            index: info.index,
-            title: info.title,
-            name: info.manifest?.name ?? null,
-            at: Date.now(),
-          },
-        })
-        if (info.title === 'Studio' && activationCount > 1 && previous?.title !== 'Studio') {
-          void restageAvatarToStudioHome()
-        }
-      },
-    }),
+    layout: workbenchLayout,
   })
 </script>
 </body>

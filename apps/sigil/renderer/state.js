@@ -78,6 +78,11 @@ const defaults = {
     auraIntensity: 1.0,
     auraReach: 1.0,
     auraPulseRate: 0.002,
+    auraDepthOffset: 5.0,
+    auraBaseScale: 4.0,
+    auraPulseAmplitude: 0.4,
+    auraCoreFade: 0.6,
+    auraSpikeDecay: 0.92,
     auraSpike: 0,
     spikeMultiplier: 2.5,
 
@@ -94,6 +99,16 @@ const defaults = {
     isNeutrinosEnabled: false,
     isTrailEnabled: false,
     trailLength: 20,
+    trailOpacity: 0.5,
+    trailFadeMs: 400,
+    trailStyle: 'omega',
+
+    // Interaction tuning
+    avatarHitRadius: 40,
+    dragThreshold: 6,
+    dragCancelRadius: 40,
+    gotoRingRadius: 60,
+    menuRingRadius: 120,
 
     // Turbulence Configs (value, speed, mode)
     turbState: {

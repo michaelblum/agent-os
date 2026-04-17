@@ -18,6 +18,14 @@ import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
 import { applySkin } from './skins.js';
 
+const REF_BASE = 300;
+const REF_SCALE = 1.1;
+const REF_HEIGHT = 1080;
+
+function computeBaseScale(base) {
+    return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
+}
+
 // -----------------------------------------------------------------------------
 // DEFAULT_APPEARANCE — the canonical zero-state blob.
 // Mirrors the initial values in state.js and the plan's example fixture.
@@ -51,7 +59,26 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     },
 
     // Aura
-    aura: { enabled: true, reach: 1.0, intensity: 1.0, pulseRate: 0.005, spikeMultiplier: 1.5 },
+    aura: {
+        enabled: true,
+        reach: 1.0,
+        intensity: 1.0,
+        pulseRate: 0.005,
+        spikeMultiplier: 1.5,
+        depthOffset: 5.0,
+        baseScale: 4.0,
+        pulseAmplitude: 0.4,
+        coreFade: 0.6,
+        spikeDecay: 0.92,
+    },
+
+    interaction: {
+        hitRadius: 40,
+        dragThreshold: 6,
+        dragCancelRadius: 40,
+        gotoRingRadius: 60,
+        menuRingRadius: 120,
+    },
 
     // Colors (all gradient pairs)
     colors: {
@@ -184,6 +211,7 @@ export function applyAppearance(blob) {
     // Size
     const size = blob.size ?? D.size;
     state.avatarBase = size.base ?? D.size.base;
+    state.baseScale = computeBaseScale(state.avatarBase);
     state.avatarMin = size.min ?? D.size.min;
     state.avatarMax = size.max ?? D.size.max;
 
@@ -226,6 +254,18 @@ export function applyAppearance(blob) {
     state.auraIntensity = aura.intensity ?? D.aura.intensity;
     state.auraPulseRate = aura.pulseRate ?? D.aura.pulseRate;
     state.spikeMultiplier = aura.spikeMultiplier ?? D.aura.spikeMultiplier;
+    state.auraDepthOffset = aura.depthOffset ?? D.aura.depthOffset;
+    state.auraBaseScale = aura.baseScale ?? D.aura.baseScale;
+    state.auraPulseAmplitude = aura.pulseAmplitude ?? D.aura.pulseAmplitude;
+    state.auraCoreFade = aura.coreFade ?? D.aura.coreFade;
+    state.auraSpikeDecay = aura.spikeDecay ?? D.aura.spikeDecay;
+
+    const interaction = blob.interaction ?? D.interaction;
+    state.avatarHitRadius = interaction.hitRadius ?? D.interaction.hitRadius;
+    state.dragThreshold = interaction.dragThreshold ?? D.interaction.dragThreshold;
+    state.dragCancelRadius = interaction.dragCancelRadius ?? D.interaction.dragCancelRadius;
+    state.gotoRingRadius = interaction.gotoRingRadius ?? D.interaction.gotoRingRadius;
+    state.menuRingRadius = interaction.menuRingRadius ?? D.interaction.menuRingRadius;
 
     // Colors — replace the whole map so stale keys go away.
     const colors = blob.colors ?? D.colors;
@@ -326,6 +366,14 @@ export function applyAppearance(blob) {
     state.trailFadeMs = tr.fadeMs ?? D.trails.fadeMs;
     state.trailStyle = tr.style ?? D.trails.style;
 
+    if (window.liveJs) {
+        window.liveJs.avatarHitRadius = state.avatarHitRadius;
+        window.liveJs.dragThreshold = state.dragThreshold;
+        window.liveJs.dragCancelRadius = state.dragCancelRadius;
+        window.liveJs.gotoRingRadius = state.gotoRingRadius;
+        window.liveJs.menuRingRadius = state.menuRingRadius;
+    }
+
     // Trigger renderer update hooks that need mesh/material rebuilds.
     // Guarded: in headless/test contexts groups/materials may not exist yet,
     // and in pre-init contexts (e.g. Studio applyAppearance(DEFAULT) called
@@ -403,7 +451,20 @@ export function snapshotAppearance() {
             reach: state.auraReach,
             intensity: state.auraIntensity,
             pulseRate: state.auraPulseRate,
-            spikeMultiplier: state.spikeMultiplier
+            spikeMultiplier: state.spikeMultiplier,
+            depthOffset: state.auraDepthOffset,
+            baseScale: state.auraBaseScale,
+            pulseAmplitude: state.auraPulseAmplitude,
+            coreFade: state.auraCoreFade,
+            spikeDecay: state.auraSpikeDecay,
+        },
+
+        interaction: {
+            hitRadius: state.avatarHitRadius,
+            dragThreshold: state.dragThreshold,
+            dragCancelRadius: state.dragCancelRadius,
+            gotoRingRadius: state.gotoRingRadius,
+            menuRingRadius: state.menuRingRadius,
         },
 
         colors: (() => {

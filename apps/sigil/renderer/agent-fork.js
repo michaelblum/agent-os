@@ -33,7 +33,7 @@ function defaultDoc(id, name) {
     appearance: {},
     minds: { skills: [], tools: [], workflows: [] },
     instance: {
-      home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
+      birthplace: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
       size: 180,
     },
   };

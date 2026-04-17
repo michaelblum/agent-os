@@ -15,9 +15,14 @@ export function Tabs(factories, options = {}) {
   }
   const onActivate = typeof options.onActivate === 'function' ? options.onActivate : null
 
+  let activateByPayloadRef = null
+
   return {
     kind: 'tabs',
     factories,
+    activate(payload = {}) {
+      return activateByPayloadRef ? activateByPayloadRef(payload) : false
+    },
     mount(chrome) {
       // Instantiate all contents up front (they live for the panel's lifetime).
       const contents = factories.map(f => typeof f === 'function' ? f() : f)
@@ -89,6 +94,8 @@ export function Tabs(factories, options = {}) {
         }
         return false
       }
+
+      activateByPayloadRef = activateByPayload
 
       // Manifest at the panel level: union of constituent manifests.
       declareManifest({

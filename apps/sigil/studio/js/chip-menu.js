@@ -3,15 +3,17 @@
 // fork-flow.js, rename-flow.js, delete-flow.js, and undo handler in ui.js.
 
 import { getActiveAgent } from './active-agent.js';
-import { undoLastSave } from './undo-handler.js';
+import { getSessionState } from './studio-session.js';
 
 export function openChipMenu(anchor) {
   const menu = document.getElementById('chip-menu');
-  const canUndo = undoLastSave.canUndo(getActiveAgent()?.id);
+  const { dirty, baselinePersisted } = getSessionState();
   menu.innerHTML = `
+    <div class="item" data-act="save" ${dirty ? '' : 'style="opacity:0.4;pointer-events:none"'}>Save</div>
+    <div class="item" data-act="revert" ${dirty || !baselinePersisted ? '' : 'style="opacity:0.4;pointer-events:none"'}>Revert</div>
+    <div class="sep"></div>
     <div class="item" data-act="save-as">Save as…</div>
     <div class="item" data-act="rename">Rename</div>
-    <div class="item" data-act="undo" ${canUndo ? '' : 'style="opacity:0.4;pointer-events:none"'}>Undo last save</div>
     <div class="sep"></div>
     <div class="item danger" data-act="delete">Delete…</div>
   `;

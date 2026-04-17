@@ -48,6 +48,12 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
         runtime.canvasUpdate(update);
     }
 
+    function setSize(size) {
+        const nextSize = Math.max(1, Math.round(size));
+        if (nextSize === hit.size) return;
+        hit.size = nextSize;
+    }
+
     async function remove() {
         if (!hit.ready && !hit.creating) return;
         try {
@@ -65,6 +71,7 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
         hit,
         ensureCreated,
         sync,
+        setSize,
         remove,
     };
 }

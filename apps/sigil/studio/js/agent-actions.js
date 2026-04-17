@@ -1,128 +1,90 @@
-// agent-actions.js — flows that change agent destination (fork/rename/delete/undo).
-// Each flow is wired to a custom event emitted by chip-menu or roster.
+// agent-actions.js — draft-first agent lifecycle flows.
 
 import { forkAgent } from '../../renderer/agent-fork.js';
-import { listAgents, loadAgentDoc, putAgentDoc, deleteAgent } from './agent-api.js';
-import { parseAgentDoc } from '../../renderer/agent-loader.js';
-import { applyAppearance } from '../../renderer/appearance.js';
-import { getActiveAgent, setActiveAgent } from './active-agent.js';
-import { undoLastSave } from './undo-handler.js';
+import { getActiveAgent } from './active-agent.js';
+import { deleteAgent, listAgents, loadAgentDoc } from './agent-api.js';
+import { serializeDraftAgent } from './agent-doc.js';
+import { showFormModal } from './modal.js';
+import {
+  createUnsavedDraft,
+  deleteActiveAgentAndFallback,
+  readCurrentDraft,
+  revertActiveDraft,
+  saveActiveDraft,
+  updateDraftIdentity,
+} from './studio-session.js';
 
-// --- Modal prompt helper ---
-function prompt({ title, fields, confirmLabel = 'OK', danger = false }) {
-  return new Promise((resolve) => {
-    const host = document.getElementById('modal-host');
-    const fieldHtml = fields.map(f => `
-      <label>${f.label}</label>
-      <input data-key="${f.key}" value="${f.value ?? ''}" ${f.pattern ? `pattern="${f.pattern}"` : ''}>
-    `).join('');
-    host.innerHTML = `
-      <div class="modal">
-        <h3>${title}</h3>
-        ${fieldHtml}
-        <div class="buttons">
-          <button data-act="cancel">Cancel</button>
-          <button data-act="ok" class="primary ${danger ? 'danger' : ''}">${confirmLabel}</button>
-        </div>
-      </div>
-    `;
-    host.hidden = false;
-    const firstInput = host.querySelector('input');
-    firstInput?.focus();
-    firstInput?.select();
-    host.addEventListener('click', (e) => {
-      const act = e.target?.dataset?.act;
-      if (act === 'cancel') { close(null); }
-      else if (act === 'ok') {
-        const values = {};
-        for (const input of host.querySelectorAll('input')) values[input.dataset.key] = input.value.trim();
-        close(values);
-      }
-    });
-    function close(result) { host.hidden = true; host.innerHTML = ''; resolve(result); }
+async function promptAgentIdentity({ title, confirmLabel = 'OK', defaults = {} }) {
+  return showFormModal({
+    title,
+    confirmLabel,
+    fields: [
+      { key: 'id', label: 'Id (lowercase, no spaces)', value: defaults.id ?? '', pattern: '[a-z0-9_-]+' },
+      { key: 'name', label: 'Display name', value: defaults.name ?? '' },
+    ],
   });
 }
 
-// --- Fork (save-as / + new / clone) ---
-async function doFork(sourceId) {
-  const source = sourceId ? await loadAgentDoc(sourceId) : '';
-  const result = await prompt({
-    title: sourceId ? `Fork "${sourceId}"` : 'Create new agent',
+async function promptDisplayName({ title, currentName }) {
+  return showFormModal({
+    title,
+    confirmLabel: 'Rename',
     fields: [
-      { key: 'id', label: 'Id (lowercase, no spaces)', value: '', pattern: '[a-z0-9_-]+' },
-      { key: 'name', label: 'Display name', value: '' },
+      { key: 'name', label: 'Display name', value: currentName ?? '' },
     ],
+  });
+}
+
+async function doFork(sourceId) {
+  const active = getActiveAgent();
+  const sourceMarkdown = sourceId && sourceId === active?.id
+    ? serializeDraftAgent(readCurrentDraft())
+    : (sourceId ? await loadAgentDoc(sourceId) : '');
+
+  const result = await promptAgentIdentity({
+    title: sourceId ? `Fork "${sourceId}"` : 'Create new agent',
     confirmLabel: 'Create',
   });
-  if (!result || !result.id || !result.name) return;
+  if (!result?.id || !result?.name) return;
+
   const existing = await listAgents();
   if (existing.includes(result.id)) {
     alert(`Agent id "${result.id}" already exists.`);
     return;
   }
-  const newDoc = forkAgent(source, result.id, result.name);
-  await putAgentDoc(result.id, newDoc);
-  const parsed = parseAgentDoc(newDoc); parsed.id = result.id;
-  applyAppearance(parsed.appearance);
-  setActiveAgent(parsed);
-  document.dispatchEvent(new CustomEvent('roster:refresh'));
+
+  const newDoc = forkAgent(sourceMarkdown || '', result.id, result.name);
+  await createUnsavedDraft({ id: result.id, name: result.name, sourceMarkdown: newDoc });
 }
 
-// --- Rename ---
-async function doRename(id) {
-  const md = await loadAgentDoc(id);
-  if (!md) return;
-  const m = md.match(/^---\n([\s\S]*?)\n---/);
-  const currentName = m ? (m[1].match(/^name:\s*(.+)$/m)?.[1] ?? id) : id;
-  const result = await prompt({
-    title: `Rename "${id}"`,
-    fields: [{ key: 'name', label: 'Display name', value: currentName }],
-    confirmLabel: 'Rename',
-  });
-  if (!result || !result.name) return;
-  const updated = md.replace(/^name:\s*.+$/m, `name: ${result.name}`);
-  await putAgentDoc(id, updated);
+async function doRename() {
   const active = getActiveAgent();
-  if (active?.id === id) setActiveAgent({ ...active, name: result.name });
-  document.dispatchEvent(new CustomEvent('roster:refresh'));
+  if (!active?.id) return;
+  const result = await promptDisplayName({
+    title: `Rename "${active.id}"`,
+    currentName: active.name ?? active.id,
+  });
+  if (!result?.name) return;
+  const input = document.getElementById('agentDisplayName');
+  if (input) input.value = result.name;
+  updateDraftIdentity({ name: result.name });
+  document.dispatchEvent(new CustomEvent('studio:draft-input'));
 }
 
-// --- Delete ---
-async function doDelete(id) {
-  const confirmed = await prompt({
-    title: `Delete "${id}"?`,
-    fields: [],
+async function doDelete() {
+  const active = getActiveAgent();
+  if (!active?.id) return;
+  const confirmed = await showFormModal({
+    title: `Delete "${active.id}"?`,
     confirmLabel: 'Delete',
     danger: true,
+    fields: [],
   });
   if (!confirmed) return;
-  await deleteAgent(id);
-  const active = getActiveAgent();
-  if (active?.id === id) {
-    const remaining = await listAgents();
-    const fallback = remaining.find(x => x === 'default') ?? remaining[0];
-    if (fallback) {
-      const md = await loadAgentDoc(fallback);
-      const parsed = parseAgentDoc(md); parsed.id = fallback;
-      applyAppearance(parsed.appearance);
-      setActiveAgent(parsed);
-    }
-  }
+  await deleteActiveAgentAndFallback();
   document.dispatchEvent(new CustomEvent('roster:refresh'));
 }
 
-// --- Undo ---
-async function doUndo() {
-  const id = getActiveAgent()?.id;
-  if (!id) return;
-  const entry = undoLastSave.buffer.undo(id);
-  if (!entry) return;
-  applyAppearance(entry.appearance);
-  document.dispatchEvent(new CustomEvent('undo:applied'));
-  document.dispatchEvent(new CustomEvent('persist:request'));
-}
-
-// --- Roster kebab menu ---
 function openRosterKebab(id, anchor) {
   const menu = document.getElementById('chip-menu');
   menu.innerHTML = `
@@ -135,49 +97,64 @@ function openRosterKebab(id, anchor) {
   menu.style.left = `${rect.left}px`;
   menu.style.top = `${rect.bottom + 4}px`;
   menu.hidden = false;
+
   const onClick = async (e) => {
     const act = e.target?.dataset?.act;
     if (!act) return;
-    menu.hidden = true;
-    menu.removeEventListener('click', onClick);
-    if (act === 'rename') doRename(id);
-    else if (act === 'clone') doFork(id);
-    else if (act === 'delete') doDelete(id);
-  };
-  const onDoc = (e) => {
-    if (!menu.contains(e.target)) {
-      menu.hidden = true;
-      document.removeEventListener('click', onDoc, true);
-      menu.removeEventListener('click', onClick);
+    closeMenu();
+    if (act === 'rename') {
+      if (getActiveAgent()?.id === id) await doRename();
+      else {
+        const md = await loadAgentDoc(id);
+        if (!md) return;
+        const currentName = md.match(/^name:\s*(.+)$/m)?.[1] ?? id;
+        const result = await promptDisplayName({ title: `Rename "${id}"`, currentName });
+        if (!result?.name) return;
+        await createUnsavedDraft({ id, name: result.name, sourceMarkdown: md.replace(/^name:\s*.+$/m, `name: ${result.name}`) });
+      }
+    } else if (act === 'clone') {
+      await doFork(id);
+    } else if (act === 'delete') {
+      if (getActiveAgent()?.id !== id) {
+        const confirmed = await showFormModal({
+          title: `Delete "${id}"?`,
+          confirmLabel: 'Delete',
+          danger: true,
+          fields: [],
+        });
+        if (!confirmed) return;
+        await deleteAgent(id);
+        document.dispatchEvent(new CustomEvent('roster:refresh'));
+        return;
+      }
+      await doDelete();
     }
   };
+
+  const onDoc = (e) => {
+    if (!menu.contains(e.target)) closeMenu();
+  };
+
+  function closeMenu() {
+    menu.hidden = true;
+    document.removeEventListener('click', onDoc, true);
+    menu.removeEventListener('click', onClick);
+  }
+
   setTimeout(() => {
     menu.addEventListener('click', onClick);
     document.addEventListener('click', onDoc, true);
   }, 0);
 }
 
-// --- Inline rename (from Agent panel name input — no prompt) ---
-async function doRenameInline(id, newName) {
-  const md = await loadAgentDoc(id);
-  if (!md) return;
-  const updated = md.replace(/^name:\s*.+$/m, `name: ${newName}`);
-  await putAgentDoc(id, updated);
-  const active = getActiveAgent();
-  if (active?.id === id) setActiveAgent({ ...active, name: newName });
-  document.dispatchEvent(new CustomEvent('roster:refresh'));
-}
-
 export function setupAgentActions() {
-  document.addEventListener('chip:save-as', () => doFork(getActiveAgent()?.id));
-  document.addEventListener('chip:rename', () => doRename(getActiveAgent()?.id));
-  document.addEventListener('chip:rename-inline', async (e) => {
-    const active = getActiveAgent();
-    if (!active?.id || !e.detail?.name) return;
-    await doRenameInline(active.id, e.detail.name);
-  });
-  document.addEventListener('chip:delete', () => doDelete(getActiveAgent()?.id));
-  document.addEventListener('chip:undo', doUndo);
-  document.addEventListener('roster:new', () => doFork(null));
+  document.addEventListener('chip:save', () => { void saveActiveDraft(); });
+  document.addEventListener('chip:revert', () => { revertActiveDraft(); });
+  document.addEventListener('chip:save-as', () => { void doFork(getActiveAgent()?.id); });
+  document.addEventListener('chip:rename', () => { void doRename(); });
+  document.addEventListener('chip:delete', () => { void doDelete(); });
+  document.addEventListener('roster:new', () => { void doFork(null); });
   document.addEventListener('roster:kebab', (e) => openRosterKebab(e.detail.id, e.detail.anchor));
+  document.getElementById('btn-save')?.addEventListener('click', () => { void saveActiveDraft(); });
+  document.getElementById('btn-revert')?.addEventListener('click', () => { revertActiveDraft(); });
 }

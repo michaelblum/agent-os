@@ -21,6 +21,10 @@
       </div>
       <span class="caret">▾</span>
     </div>
+    <div class="header-actions">
+      <button id="btn-revert" class="header-btn" type="button">Revert</button>
+      <button id="btn-save" class="header-btn primary" type="button">Save</button>
+    </div>
     <button id="btn-reroll" aria-haspopup="dialog">🎲 Reroll ▾</button>
   </div>
 
@@ -481,6 +485,31 @@
                             <button class="btn-action" id="btn-spike" style="flex-grow: 1;">Spike Amplitude</button>
                             <input type="number" id="spikeMultiplier" value="1.5" min="1.1" max="50" step="0.1" class="edit-input" style="width: 50px; margin-left: 8px;" title="Spike Size Multiplier">
                         </div>
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Depth Offset</label>
+                            <div class="val-display"><span id="auraDepthOffsetVal">5.0</span></div>
+                        </div>
+                        <input type="range" id="auraDepthOffsetSlider" min="0" max="20" step="0.5" value="5.0">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Base Scale</label>
+                            <div class="val-display"><span id="auraBaseScaleVal">4.0</span></div>
+                        </div>
+                        <input type="range" id="auraBaseScaleSlider" min="0.5" max="10" step="0.1" value="4.0">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Pulse Amplitude</label>
+                            <div class="val-display"><span id="auraPulseAmplitudeVal">0.40</span></div>
+                        </div>
+                        <input type="range" id="auraPulseAmplitudeSlider" min="0" max="2" step="0.01" value="0.4">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Core Fade</label>
+                            <div class="val-display"><span id="auraCoreFadeVal">0.60</span></div>
+                        </div>
+                        <input type="range" id="auraCoreFadeSlider" min="0" max="1.5" step="0.01" value="0.6">
+                        <div class="control-row" style="margin-top: 5px;">
+                            <label>Spike Decay</label>
+                            <div class="val-display"><span id="auraSpikeDecayVal">0.92</span></div>
+                        </div>
+                        <input type="range" id="auraSpikeDecaySlider" min="0.5" max="0.99" step="0.01" value="0.92">
                     </div>
                 </div>
 
@@ -558,6 +587,31 @@
                         <span style="position:relative; z-index:2; pointer-events:none;">HOLD TO SUPER NOVA</span>
                     </div>
                 </div>
+
+                <h2 style="font-size:0.9rem;">Trails</h2>
+                <div class="control-group">
+                    <label class="checkbox-label"><input type="checkbox" id="trailToggle" checked> Enable Motion Trails</label>
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label>Count</label>
+                        <div class="val-display"><span id="trailLengthVal">6</span></div>
+                    </div>
+                    <input type="range" id="trailLengthSlider" min="1" max="24" step="1" value="6">
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label>Opacity</label>
+                        <div class="val-display"><span id="trailOpacityVal">0.50</span></div>
+                    </div>
+                    <input type="range" id="trailOpacitySlider" min="0" max="1" step="0.01" value="0.5">
+                    <div class="control-row" style="margin-top: 5px;">
+                        <label>Fade</label>
+                        <div class="val-display"><span id="trailFadeVal">400</span></div>
+                    </div>
+                    <input type="range" id="trailFadeSlider" min="100" max="2000" step="50" value="400">
+                    <label style="margin-top: 8px;">Style</label>
+                    <select id="trailStyleSelect">
+                        <option value="omega" selected>Omega</option>
+                        <option value="soft">Soft</option>
+                    </select>
+                </div>
       </div>
 
       <!-- Agent panel (was Environment/Avatar placeholder) -->
@@ -592,6 +646,34 @@
         <input type="range" id="minSizeSlider" min="50" max="400" step="10" value="100">
         <label>Max Size <span id="maxSizeVal">800</span></label>
         <input type="range" id="maxSizeSlider" min="200" max="1200" step="10" value="800">
+        <h2 style="font-size:0.9rem; margin-top:14px;">Interaction</h2>
+        <div class="control-group">
+          <div class="control-row">
+            <label>Hit Radius</label>
+            <div class="val-display"><span id="avatarHitRadiusVal">40</span></div>
+          </div>
+          <input type="range" id="avatarHitRadiusSlider" min="20" max="120" step="1" value="40">
+          <div class="control-row">
+            <label>Drag Threshold</label>
+            <div class="val-display"><span id="dragThresholdVal">6</span></div>
+          </div>
+          <input type="range" id="dragThresholdSlider" min="1" max="32" step="1" value="6">
+          <div class="control-row">
+            <label>Drag Cancel Radius</label>
+            <div class="val-display"><span id="dragCancelRadiusVal">40</span></div>
+          </div>
+          <input type="range" id="dragCancelRadiusSlider" min="10" max="160" step="1" value="40">
+          <div class="control-row">
+            <label>Goto Ring</label>
+            <div class="val-display"><span id="gotoRingRadiusVal">60</span></div>
+          </div>
+          <input type="range" id="gotoRingRadiusSlider" min="20" max="200" step="1" value="60">
+          <div class="control-row">
+            <label>Menu Ring</label>
+            <div class="val-display"><span id="menuRingRadiusVal">120</span></div>
+          </div>
+          <input type="range" id="menuRingRadiusSlider" min="40" max="260" step="1" value="120">
+        </div>
       </div>
     </div>
   </div>

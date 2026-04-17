@@ -80,10 +80,9 @@ export async function loadAgent(wikiPath) {
     const text = await res.text();
     const agent = parseAgentDoc(text);
 
-    // Migration: if the doc has `home` but not `birthplace`, rewrite on disk
-    // and upgrade the in-memory agent. If both are present, `birthplace` wins
-    // and `home` is left orphaned (logged advisory, no rewrite — we don't
-    // mutate docs on a read path when both fields are present).
+    // Migration: if the doc has `home` but not `birthplace`, upgrade in memory
+    // only. Studio is responsible for persisting the normalized field on an
+    // explicit save; reads must not rewrite wiki content.
     const inst = agent.instance ?? {};
     const hasBirthplace = inst.birthplace != null;
     const hasHome = inst.home != null;
@@ -94,28 +93,8 @@ export async function loadAgent(wikiPath) {
     }
 
     if (!hasBirthplace && hasHome) {
-      // In-place rename. `agent.instance` already came from parseAgentDoc,
-      // which returned a fresh object — safe to mutate.
       agent.instance = { ...inst, birthplace: inst.home };
       delete agent.instance.home;
-
-      // Rewrite the wiki doc so `home` no longer appears on disk. Best-effort:
-      // if the PUT fails we keep the in-memory rewrite and the next load will
-      // retry. Construct the new body by replacing the `home` key token in
-      // the JSON block — simpler and safer than round-tripping through the
-      // full frontmatter + JSON serializer.
-      const rewritten = text.replace(/"home"\s*:/g, '"birthplace":');
-      try {
-        const putRes = await fetch(url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'text/markdown' },
-          body: rewritten,
-        });
-        if (!putRes.ok) throw new Error(`PUT HTTP ${putRes.status}`);
-        console.log('[agent-loader] migrated home → birthplace in', wikiPath);
-      } catch (e) {
-        console.warn('[agent-loader] migration PUT failed; keeping in-memory rewrite:', e);
-      }
       return agent;
     }
 

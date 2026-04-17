@@ -5,8 +5,8 @@
 
 import { listAgents, loadAgentDoc } from './agent-api.js';
 import { parseAgentDoc } from '../../renderer/agent-loader.js';
-import { applyAppearance } from '../../renderer/appearance.js';
-import { getActiveAgent, setActiveAgent, onActiveAgentChange } from './active-agent.js';
+import { getActiveAgent, onActiveAgentChange } from './active-agent.js';
+import { loadAgentIntoStudio } from './studio-session.js';
 
 function renderTile(agent, active) {
   const tile = document.createElement('div');
@@ -43,10 +43,7 @@ function renderNewTile() {
 async function switchToAgent(id) {
   const markdown = await loadAgentDoc(id);
   if (markdown === null) { console.warn('[roster] missing', id); return; }
-  const agent = parseAgentDoc(markdown);
-  agent.id = id;
-  applyAppearance(agent.appearance);
-  setActiveAgent(agent);
+  await loadAgentIntoStudio(id);
 }
 
 export async function setupRoster() {

@@ -19,7 +19,7 @@ export function computeAuraPosition() {
     let auraScaleMult = 1.0;
 
     if (state.isMaskEnabled) {
-        const pushBackDist = 5.0;
+        const pushBackDist = state.auraDepthOffset;
         if (state.camera.isPerspectiveCamera) {
             const sightLine = new THREE.Vector3().subVectors(state.polyGroup.position, state.camera.position).normalize();
             auraPos.addScaledVector(sightLine, pushBackDist);
@@ -39,9 +39,9 @@ export function computeAuraPosition() {
 export function animateAura(dt) {
     const { auraPos, auraScaleMult } = computeAuraPosition();
 
-    state.auraSpike *= 0.92;
-    const baseScale = 4.0 * state.auraReach * state.z_depth;
-    const pulseOffset = Math.sin(Date.now() * state.auraPulseRate) * (0.4 * state.auraReach) * state.z_depth;
+    state.auraSpike *= state.auraSpikeDecay;
+    const baseScale = state.auraBaseScale * state.auraReach * state.z_depth;
+    const pulseOffset = Math.sin(Date.now() * state.auraPulseRate) * (state.auraPulseAmplitude * state.auraReach) * state.z_depth;
     const spikeBonus = baseScale * (state.spikeMultiplier - 1.0) * state.auraSpike;
     const reachScale = baseScale + pulseOffset + spikeBonus;
 
@@ -63,7 +63,7 @@ export function animateAura(dt) {
         let iFactor = state.auraIntensity / 3.0;
         let ciScale = (0.2 + 1.8 * iFactor) * state.z_depth * auraScaleMult * state.appScale;
         state.coreSprite.scale.set(ciScale, ciScale, 1);
-        state.coreSprite.material.opacity = 1.0 - 0.6 * iFactor;
+        state.coreSprite.material.opacity = 1.0 - state.auraCoreFade * iFactor;
     } else if (state.coreSprite) {
         state.coreSprite.visible = false;
     }

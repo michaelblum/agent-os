@@ -19,7 +19,7 @@ of the main display at boot.
     "maskEnabled": true,
     "interiorEdges": true,
     "specular": true,
-    "aura": { "enabled": true, "reach": 1.0, "intensity": 1.0, "pulseRate": 0.005 },
+    "aura": { "enabled": true, "reach": 0.75, "intensity": 1.0, "pulseRate": 0.0025 },
     "colors": {
       "face": ["#bc13fe", "#4a2b6e"],
       "edge": ["#bc13fe", "#4a2b6e"],

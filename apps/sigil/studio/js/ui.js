@@ -7,10 +7,8 @@ import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from
 export { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { applySkin } from '../../renderer/skins.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
-import { loadAgent } from '../../renderer/agent-loader.js';
 import { randomizeAll } from './randomize.js';
-import { undoLastSave } from './undo-handler.js';
-import { setActiveAgent, getActiveAgent, onActiveAgentChange } from './active-agent.js';
+import { loadAgentIntoStudio, markDraftChanged, setupStudioSession, updateDraftIdentity } from './studio-session.js';
 
 // Inlined from deleted scene.js — converts pixel base size to Three.js scene scale.
 const REF_BASE = 300;
@@ -135,11 +133,19 @@ function getConfig() {
         showPath: state.isShowPathEnabled,
         trail: state.isTrailEnabled,
         trailLength: state.trailLength,
+        trailOpacity: state.trailOpacity,
+        trailFadeMs: state.trailFadeMs,
+        trailStyle: state.trailStyle,
         speed: state.pathSpeed,
         aura: state.isAuraEnabled,
         auraReach: state.auraReach,
         auraIntensity: state.auraIntensity,
         pulseRate: state.auraPulseRate,
+        auraDepthOffset: state.auraDepthOffset,
+        auraBaseScale: state.auraBaseScale,
+        auraPulseAmplitude: state.auraPulseAmplitude,
+        auraCoreFade: state.auraCoreFade,
+        auraSpikeDecay: state.auraSpikeDecay,
         pulsar: state.isPulsarEnabled,
         accretion: state.isAccretionEnabled,
         gamma: state.isGammaEnabled,
@@ -214,7 +220,12 @@ function getConfig() {
         // Box
         boxWidth: state.boxWidth,
         boxHeight: state.boxHeight,
-        boxDepth: state.boxDepth
+        boxDepth: state.boxDepth,
+        avatarHitRadius: state.avatarHitRadius,
+        dragThreshold: state.dragThreshold,
+        dragCancelRadius: state.dragCancelRadius,
+        gotoRingRadius: state.gotoRingRadius,
+        menuRingRadius: state.menuRingRadius,
     };
 }
 
@@ -284,11 +295,19 @@ function applyConfig(c) {
     if (c.showPath !== undefined) setUI('showPathToggle', c.showPath);
     if (c.trail !== undefined) setUI('trailToggle', c.trail);
     if (c.trailLength !== undefined) setUI('trailLengthSlider', c.trailLength, c.trailLength);
+    if (c.trailOpacity !== undefined) setUI('trailOpacitySlider', c.trailOpacity, c.trailOpacity.toFixed(2));
+    if (c.trailFadeMs !== undefined) setUI('trailFadeSlider', c.trailFadeMs, String(c.trailFadeMs));
+    if (c.trailStyle !== undefined) setUI('trailStyleSelect', c.trailStyle);
     if (c.speed !== undefined) setUI('speedSlider', c.speed, c.speed.toFixed(1));
     if (c.aura !== undefined) setUI('auraToggle', c.aura);
     if (c.auraReach !== undefined) setUI('auraReachSlider', c.auraReach, c.auraReach.toFixed(2));
     if (c.auraIntensity !== undefined) setUI('auraIntensitySlider', c.auraIntensity, c.auraIntensity.toFixed(2));
     if (c.pulseRate !== undefined) setUI('pulseRateSlider', c.pulseRate, c.pulseRate.toFixed(3));
+    if (c.auraDepthOffset !== undefined) setUI('auraDepthOffsetSlider', c.auraDepthOffset, c.auraDepthOffset.toFixed(1));
+    if (c.auraBaseScale !== undefined) setUI('auraBaseScaleSlider', c.auraBaseScale, c.auraBaseScale.toFixed(1));
+    if (c.auraPulseAmplitude !== undefined) setUI('auraPulseAmplitudeSlider', c.auraPulseAmplitude, c.auraPulseAmplitude.toFixed(2));
+    if (c.auraCoreFade !== undefined) setUI('auraCoreFadeSlider', c.auraCoreFade, c.auraCoreFade.toFixed(2));
+    if (c.auraSpikeDecay !== undefined) setUI('auraSpikeDecaySlider', c.auraSpikeDecay, c.auraSpikeDecay.toFixed(2));
     if (c.pulsar !== undefined) setUI('pulsarToggle', c.pulsar);
     if (c.accretion !== undefined) setUI('accretionToggle', c.accretion);
     if (c.gamma !== undefined) setUI('gammaToggle', c.gamma);
@@ -380,6 +399,11 @@ function applyConfig(c) {
     if (c.boxWidth !== undefined) { state.boxWidth = c.boxWidth; setUI('boxWidthSlider', c.boxWidth, c.boxWidth.toFixed(2)); }
     if (c.boxHeight !== undefined) { state.boxHeight = c.boxHeight; setUI('boxHeightSlider', c.boxHeight, c.boxHeight.toFixed(2)); }
     if (c.boxDepth !== undefined) { state.boxDepth = c.boxDepth; setUI('boxDepthSlider', c.boxDepth, c.boxDepth.toFixed(2)); }
+    if (c.avatarHitRadius !== undefined) setUI('avatarHitRadiusSlider', c.avatarHitRadius, String(c.avatarHitRadius));
+    if (c.dragThreshold !== undefined) setUI('dragThresholdSlider', c.dragThreshold, String(c.dragThreshold));
+    if (c.dragCancelRadius !== undefined) setUI('dragCancelRadiusSlider', c.dragCancelRadius, String(c.dragCancelRadius));
+    if (c.gotoRingRadius !== undefined) setUI('gotoRingRadiusSlider', c.gotoRingRadius, String(c.gotoRingRadius));
+    if (c.menuRingRadius !== undefined) setUI('menuRingRadiusSlider', c.menuRingRadius, String(c.menuRingRadius));
 
     updateAllColors();
 }
@@ -459,6 +483,11 @@ export function syncUIFromState() {
     setVal('auraIntensitySlider', state.auraIntensity, state.auraIntensity.toFixed(2));
     setVal('pulseRateSlider', state.auraPulseRate, state.auraPulseRate.toFixed(3));
     setVal('spikeMultiplier', state.spikeMultiplier);
+    setVal('auraDepthOffsetSlider', state.auraDepthOffset, state.auraDepthOffset.toFixed(1));
+    setVal('auraBaseScaleSlider', state.auraBaseScale, state.auraBaseScale.toFixed(1));
+    setVal('auraPulseAmplitudeSlider', state.auraPulseAmplitude, state.auraPulseAmplitude.toFixed(2));
+    setVal('auraCoreFadeSlider', state.auraCoreFade, state.auraCoreFade.toFixed(2));
+    setVal('auraSpikeDecaySlider', state.auraSpikeDecay, state.auraSpikeDecay.toFixed(2));
 
     // Colors — component gradient pickers (keys match renderer state.colors)
     const colorKeys = Object.keys(state.colors || {});
@@ -540,6 +569,20 @@ export function syncUIFromState() {
     setVal('grid3dProbeToggle', state.grid3dShowProbe);
     setVal('grid3dRelativeToggle', state.grid3dRelativeMotion);
     setVal('grid3dTimeSlider', state.grid3dTimeScale, state.grid3dTimeScale.toFixed(1));
+
+    // Trails
+    setVal('trailToggle', state.isTrailEnabled);
+    setVal('trailLengthSlider', state.trailLength, String(state.trailLength));
+    setVal('trailOpacitySlider', state.trailOpacity, state.trailOpacity.toFixed(2));
+    setVal('trailFadeSlider', state.trailFadeMs, String(state.trailFadeMs));
+    setVal('trailStyleSelect', state.trailStyle);
+
+    // Interaction
+    setVal('avatarHitRadiusSlider', state.avatarHitRadius, String(state.avatarHitRadius));
+    setVal('dragThresholdSlider', state.dragThreshold, String(state.dragThreshold));
+    setVal('dragCancelRadiusSlider', state.dragCancelRadius, String(state.dragCancelRadius));
+    setVal('gotoRingRadiusSlider', state.gotoRingRadius, String(state.gotoRingRadius));
+    setVal('menuRingRadiusSlider', state.menuRingRadius, String(state.menuRingRadius));
 }
 
 function buildFxGrid() {
@@ -722,77 +765,6 @@ export function setupUI() {
         }
     });
 
-    // --- Agent persistence (wiki PUT) ---
-    //
-    // Studio persists appearance edits by writing the active agent's wiki
-    // document via `PUT /wiki/sigil/agents/<id>.md`. The daemon emits
-    // `wiki_page_changed`; if a live avatar is running and subscribed, it
-    // re-fetches and re-applies the appearance (apps/sigil/renderer Task 9).
-    //
-    // We preserve frontmatter, prose, and the non-appearance fields (`minds`,
-    // `instance`, `version`) in the JSON block — only the `appearance` key is
-    // replaced.
-    const studioParams = new URLSearchParams(location.search);
-    const activeAgentId = studioParams.get('agent') ?? 'default';
-    const AGENT_PATH = `sigil/agents/${activeAgentId}.md`;
-
-    function showStudioError(msg) {
-        console.error('[studio]', msg);
-        try { alert(msg); } catch (e) {}
-    }
-
-    function initialAgentDoc(agentId) {
-        const body = JSON.stringify({
-            version: 1,
-            appearance: snapshotAppearance(),
-            minds: { skills: [], tools: [], workflows: [] },
-            instance: {
-                home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                size: 180
-            }
-        }, null, 2);
-        return `---\ntype: agent\nid: ${agentId}\nname: ${agentId}\ntags: [sigil]\n---\n\n`
-            + `Sigil agent: ${agentId}.\n\n`
-            + '```json\n' + body + '\n```\n';
-    }
-
-    function replaceAppearanceInDoc(markdown, appearance) {
-        // Find ```json ... ``` block, parse, replace .appearance, reserialize.
-        const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
-        if (!match) {
-            // Append a fresh block
-            const body = JSON.stringify({
-                version: 1,
-                appearance,
-                minds: { skills: [], tools: [], workflows: [] },
-                instance: {
-                    home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                    size: 180
-                }
-            }, null, 2);
-            return markdown + `\n\`\`\`json\n${body}\n\`\`\`\n`;
-        }
-        let parsed;
-        try {
-            parsed = JSON.parse(match[1]);
-        } catch (e) {
-            console.warn('[studio] agent doc JSON malformed; rewriting block', e);
-            parsed = {
-                version: 1,
-                minds: { skills: [], tools: [], workflows: [] },
-                instance: {
-                    home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' },
-                    size: 180
-                }
-            };
-        }
-        parsed.appearance = appearance;
-        const newBlock = JSON.stringify(parsed, null, 2);
-        return markdown.replace(match[0], '```json\n' + newBlock + '\n```');
-    }
-
-    // Push appearance directly to the live renderer for instant preview,
-    // then persist to wiki as the durable write.
     function pushLivePreview(appearance) {
         const headsup = window.webkit?.messageHandlers?.headsup;
         if (!headsup) return;
@@ -805,96 +777,59 @@ export function setupUI() {
         });
     }
 
-    async function persistAgent() {
-        const activeId = getActiveAgent()?.id ?? activeAgentId;
-        document.dispatchEvent(new CustomEvent('sync:saving'));
-        // Snapshot previous appearance for undo before mutating.
-        const prevAppearance = snapshotAppearance();
-        undoLastSave.buffer.record(activeId, prevAppearance);
-        const appearance = snapshotAppearance();
-
-        // Instant preview — no wiki round-trip needed for visual feedback
-        pushLivePreview(appearance);
-
-        // Persist to wiki as durable storage
-        let doc;
-        try {
-            const res = await fetch(`/wiki/sigil/agents/${activeId}.md`);
-            doc = res.ok ? await res.text() : initialAgentDoc(activeId);
-        } catch { doc = initialAgentDoc(activeId); }
-        const updated = replaceAppearanceInDoc(doc, appearance);
-        try {
-            const put = await fetch(`/wiki/sigil/agents/${activeId}.md`, {
-                method: 'PUT', headers: { 'Content-Type': 'text/markdown' }, body: updated,
-            });
-            if (!put.ok) throw new Error(`HTTP ${put.status}`);
-            document.dispatchEvent(new CustomEvent('sync:saved'));
-        } catch (e) {
-            document.dispatchEvent(new CustomEvent('sync:error', { detail: { message: String(e.message ?? e) } }));
-        }
-    }
-
-    function replaceJsonBlock(markdown, mutator) {
-        const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
-        let body = match ? JSON.parse(match[1] || '{}') : {
-            version: 1, appearance: {}, minds: { skills: [], tools: [], workflows: [] },
-            instance: { home: { anchor: 'nonant', nonant: 'bottom-right', display: 'main' }, size: 180 },
-        };
-        body = mutator(body) ?? body;
-        const ser = JSON.stringify(body, null, 2);
-        if (match) return markdown.replace(match[0], '```json\n' + ser + '\n```');
-        return markdown + `\n\`\`\`json\n${ser}\n\`\`\`\n`;
-    }
-
-    async function persistAgentInstance(patch) {
-        const id = getActiveAgent()?.id;
-        if (!id) return;
-        document.dispatchEvent(new CustomEvent('sync:saving'));
-        try {
-            const res = await fetch(`/wiki/sigil/agents/${id}.md`);
-            const doc = res.ok ? await res.text() : initialAgentDoc(id);
-            const updated = replaceJsonBlock(doc, (body) => {
-                body.instance = { ...(body.instance ?? {}), ...patch };
-                return body;
-            });
-            const put = await fetch(`/wiki/sigil/agents/${id}.md`, {
-                method: 'PUT', headers: { 'Content-Type': 'text/markdown' }, body: updated,
-            });
-            if (!put.ok) throw new Error(`HTTP ${put.status}`);
-            document.dispatchEvent(new CustomEvent('sync:saved'));
-        } catch (e) {
-            document.dispatchEvent(new CustomEvent('sync:error', { detail: { message: String(e.message ?? e) } }));
-        }
-    }
-
-    // --- Agent panel — identity, home, size ---
+    // --- Agent panel — draft identity + birthplace ---
     const agentNameInput = document.getElementById('agentDisplayName');
     const agentAnchorSel = document.getElementById('agentHomeAnchor');
     const agentNonantSel = document.getElementById('agentHomeNonant');
     const agentDisplaySel = document.getElementById('agentHomeDisplay');
-
-    function hydrateAgentPanel(agent) {
-        if (!agent) return;
-        if (agentNameInput) agentNameInput.value = agent.name ?? agent.id ?? '';
-        const home = agent.instance?.home ?? {};
-        if (agentAnchorSel) agentAnchorSel.value = home.anchor ?? 'nonant';
-        if (agentNonantSel) agentNonantSel.value = home.nonant ?? 'bottom-right';
-        if (agentDisplaySel) agentDisplaySel.value = home.display ?? 'main';
-    }
-    onActiveAgentChange(hydrateAgentPanel);
-
-    agentNameInput?.addEventListener('change', (e) => {
-        document.dispatchEvent(new CustomEvent('chip:rename-inline', { detail: { name: e.target.value } }));
-    });
-    [agentAnchorSel, agentNonantSel, agentDisplaySel].forEach(el => el?.addEventListener('change', () => {
-        persistAgentInstance({
-            home: { anchor: agentAnchorSel.value, nonant: agentNonantSel.value, display: agentDisplaySel.value },
-        });
-    }));
-
-    // --- Size sliders ---
     const baseSizeSlider = document.getElementById('baseSizeSlider');
     const baseSizeVal = document.getElementById('baseSizeVal');
+    const minSizeSlider = document.getElementById('minSizeSlider');
+    const minSizeVal = document.getElementById('minSizeVal');
+    const maxSizeSlider = document.getElementById('maxSizeSlider');
+    const maxSizeVal = document.getElementById('maxSizeVal');
+
+    function writeAgentPanel(agent) {
+        if (!agent) return;
+        if (agentNameInput) agentNameInput.value = agent.name ?? agent.id ?? '';
+        const birthplace = agent.instance?.birthplace ?? agent.instance?.home ?? {};
+        if (agentAnchorSel) agentAnchorSel.value = birthplace.anchor ?? 'nonant';
+        if (agentNonantSel) agentNonantSel.value = birthplace.nonant ?? 'bottom-right';
+        if (agentDisplaySel) agentDisplaySel.value = birthplace.display ?? 'main';
+    }
+
+    function readAgentPanel() {
+        return {
+            name: agentNameInput?.value?.trim() || '',
+            instance: {
+                birthplace: {
+                    anchor: agentAnchorSel?.value || 'nonant',
+                    nonant: agentNonantSel?.value || 'bottom-right',
+                    display: agentDisplaySel?.value || 'main',
+                },
+                size: parseInt(baseSizeSlider?.value || `${state.avatarBase}`, 10),
+            },
+        };
+    }
+
+    agentNameInput?.addEventListener('input', (e) => {
+        updateDraftIdentity({ name: e.target.value.trim() });
+    });
+
+    if (minSizeSlider) {
+        minSizeSlider.addEventListener('input', (e) => {
+            state.avatarMin = parseFloat(e.target.value);
+            if (minSizeVal) minSizeVal.innerText = Math.round(state.avatarMin);
+        });
+    }
+
+    if (maxSizeSlider) {
+        maxSizeSlider.addEventListener('input', (e) => {
+            state.avatarMax = parseFloat(e.target.value);
+            if (maxSizeVal) maxSizeVal.innerText = Math.round(state.avatarMax);
+        });
+    }
+
     if (baseSizeSlider) {
         baseSizeSlider.addEventListener('input', (e) => {
             const v = parseFloat(e.target.value);
@@ -902,48 +837,14 @@ export function setupUI() {
             state.baseScale = computeBaseScale(v);
             if (baseSizeVal) baseSizeVal.innerText = Math.round(v);
         });
-        baseSizeSlider.addEventListener('change', (e) => {
-            persistAgent();
-            persistAgentInstance({ size: parseInt(e.target.value, 10) });
-        });
     }
 
-    const minSizeSlider = document.getElementById('minSizeSlider');
-    const minSizeVal = document.getElementById('minSizeVal');
-    if (minSizeSlider) {
-        minSizeSlider.addEventListener('input', (e) => {
-            state.avatarMin = parseFloat(e.target.value);
-            if (minSizeVal) minSizeVal.innerText = Math.round(state.avatarMin);
-        });
-        minSizeSlider.addEventListener('change', persistAgent);
-    }
-
-    const maxSizeSlider = document.getElementById('maxSizeSlider');
-    const maxSizeVal = document.getElementById('maxSizeVal');
-    if (maxSizeSlider) {
-        maxSizeSlider.addEventListener('input', (e) => {
-            state.avatarMax = parseFloat(e.target.value);
-            if (maxSizeVal) maxSizeVal.innerText = Math.round(state.avatarMax);
-        });
-        maxSizeSlider.addEventListener('change', persistAgent);
-    }
-
-    // Delegated appearance persistence. Sliders, toggles, selects, and color
-    // pickers inside the appearance panels fire `change` on commit (release /
-    // toggle / picker close), which is the right beat to snapshot → wiki.
-    // Scrub-during-drag lives on `input` and intentionally doesn't persist —
-    // see #39 for the live-preview follow-on. Context-menu inputs proxy via
-    // dispatchEvent('change') on the sidebar element, which is inside one of
-    // these panels, so those bubble through here too.
-    let persistTimer = null;
-    function debouncedPersist() {
-        clearTimeout(persistTimer);
-        persistTimer = setTimeout(() => persistAgent(), 150);
-    }
-    ['panel-geom', 'panel-colors', 'panel-anim'].forEach(id => {
+    const draftPanels = ['panel-geom', 'panel-colors', 'panel-anim', 'panel-env'];
+    draftPanels.forEach(id => {
         const panel = document.getElementById(id);
         if (!panel) return;
-        panel.addEventListener('change', debouncedPersist);
+        panel.addEventListener('input', () => markDraftChanged({ preview: true }));
+        panel.addEventListener('change', () => markDraftChanged({ preview: true }));
     });
 
     // Seed state from the canonical appearance defaults before any UI listener
@@ -952,17 +853,15 @@ export function setupUI() {
     applyAppearance(DEFAULT_APPEARANCE);
     syncUIFromState();
 
-    // Load the active agent's appearance on startup via the wiki. Falls back
-    // silently to DEFAULT_APPEARANCE (already seeded above) on any failure;
-    // loadAgent parses frontmatter + ```json block and never throws — see
-    // apps/sigil/renderer/agent-loader.js.
-    loadAgent(`sigil/agents/${activeAgentId}`).then(agent => {
-        if (agent && agent.appearance) {
-            applyAppearance(agent.appearance);
-            syncUIFromState();
-        }
-        setActiveAgent({ id: activeAgentId, name: agent?.name, appearance: agent?.appearance });
-    }).catch(err => console.warn('[studio] agent load failed:', err));
+    setupStudioSession({
+        syncUIFromState,
+        writeAgentPanel,
+        readAgentPanel,
+        pushLivePreview,
+    });
+
+    const activeAgentId = new URLSearchParams(location.search).get('agent') ?? 'default';
+    void loadAgentIntoStudio(activeAgentId, { force: true });
 
     const btnShare = document.getElementById('btn-share');
     if (btnShare) {
@@ -999,9 +898,8 @@ export function setupUI() {
         });
     }
 
-    // Save button removed — appearance persists via slider `change` events
-    // (persistAgent) and chip-menu "Save as". File import/export also moved
-    // off the header; chip-menu owns agent lifecycle in the stageless shell.
+    // Header save/revert controls are owned by the draft session; share/snapshot
+    // remain optional local tools when the embedded preview exists.
 
     // Master Gradient color pickers
     const colorKeys = ['face', 'edge', 'aura', 'pulsar', 'accretion', 'gamma', 'neutrino', 'lightning', 'magnetic'];
@@ -1738,15 +1636,75 @@ export function setupUI() {
     });
     document.getElementById('btn-spike').addEventListener('click', () => { state.auraSpike = 1.0; });
     document.getElementById('spikeMultiplier').addEventListener('input', (e) => { state.spikeMultiplier = parseFloat(e.target.value); });
+    document.getElementById('auraDepthOffsetSlider').addEventListener('input', (e) => {
+        state.auraDepthOffset = parseFloat(e.target.value);
+        document.getElementById('auraDepthOffsetVal').innerText = state.auraDepthOffset.toFixed(1);
+    });
+    document.getElementById('auraBaseScaleSlider').addEventListener('input', (e) => {
+        state.auraBaseScale = parseFloat(e.target.value);
+        document.getElementById('auraBaseScaleVal').innerText = state.auraBaseScale.toFixed(1);
+    });
+    document.getElementById('auraPulseAmplitudeSlider').addEventListener('input', (e) => {
+        state.auraPulseAmplitude = parseFloat(e.target.value);
+        document.getElementById('auraPulseAmplitudeVal').innerText = state.auraPulseAmplitude.toFixed(2);
+    });
+    document.getElementById('auraCoreFadeSlider').addEventListener('input', (e) => {
+        state.auraCoreFade = parseFloat(e.target.value);
+        document.getElementById('auraCoreFadeVal').innerText = state.auraCoreFade.toFixed(2);
+    });
+    document.getElementById('auraSpikeDecaySlider').addEventListener('input', (e) => {
+        state.auraSpikeDecay = parseFloat(e.target.value);
+        document.getElementById('auraSpikeDecayVal').innerText = state.auraSpikeDecay.toFixed(2);
+    });
 
     // Super Charge button removed with the 3D preview — the charge gesture
     // only made sense against the in-app canvas. Desktop avatar is the
     // preview now; charge is triggered via agent channel events if needed.
 
+    document.getElementById('trailToggle').addEventListener('change', (e) => {
+        state.isTrailEnabled = e.target.checked;
+    });
+    document.getElementById('trailLengthSlider').addEventListener('input', (e) => {
+        state.trailLength = parseInt(e.target.value, 10);
+        document.getElementById('trailLengthVal').innerText = state.trailLength;
+    });
+    document.getElementById('trailOpacitySlider').addEventListener('input', (e) => {
+        state.trailOpacity = parseFloat(e.target.value);
+        document.getElementById('trailOpacityVal').innerText = state.trailOpacity.toFixed(2);
+    });
+    document.getElementById('trailFadeSlider').addEventListener('input', (e) => {
+        state.trailFadeMs = parseInt(e.target.value, 10);
+        document.getElementById('trailFadeVal').innerText = state.trailFadeMs;
+    });
+    document.getElementById('trailStyleSelect').addEventListener('change', (e) => {
+        state.trailStyle = e.target.value;
+    });
+
     // Z-Depth scale
     document.getElementById('zDepthSlider').addEventListener('input', (e) => {
         state.z_depth = parseFloat(e.target.value);
         document.getElementById('zDepthVal').innerText = state.z_depth.toFixed(2);
+    });
+
+    document.getElementById('avatarHitRadiusSlider').addEventListener('input', (e) => {
+        state.avatarHitRadius = parseInt(e.target.value, 10);
+        document.getElementById('avatarHitRadiusVal').innerText = state.avatarHitRadius;
+    });
+    document.getElementById('dragThresholdSlider').addEventListener('input', (e) => {
+        state.dragThreshold = parseInt(e.target.value, 10);
+        document.getElementById('dragThresholdVal').innerText = state.dragThreshold;
+    });
+    document.getElementById('dragCancelRadiusSlider').addEventListener('input', (e) => {
+        state.dragCancelRadius = parseInt(e.target.value, 10);
+        document.getElementById('dragCancelRadiusVal').innerText = state.dragCancelRadius;
+    });
+    document.getElementById('gotoRingRadiusSlider').addEventListener('input', (e) => {
+        state.gotoRingRadius = parseInt(e.target.value, 10);
+        document.getElementById('gotoRingRadiusVal').innerText = state.gotoRingRadius;
+    });
+    document.getElementById('menuRingRadiusSlider').addEventListener('input', (e) => {
+        state.menuRingRadius = parseInt(e.target.value, 10);
+        document.getElementById('menuRingRadiusVal').innerText = state.menuRingRadius;
     });
 
     // --- URL query string handling ---
@@ -1761,9 +1719,6 @@ export function setupUI() {
         } catch (e) { console.warn('Invalid config param', e); }
     }
 
-    // Allow agent-actions.js (and any other module) to trigger a persist without
-    // importing ui.js directly — e.g. after an undo restores appearance state.
-    document.addEventListener('persist:request', () => { persistAgent(); });
 }
 
 export function setupEditableLabels() {
