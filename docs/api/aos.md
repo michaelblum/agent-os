@@ -218,6 +218,27 @@ Primary public verbs:
 | `press` | semantic AX press |
 | `set-value` | semantic AX set-value |
 | `focus` | semantic AX focus |
+
+## `aos graph`
+
+Primary public verbs:
+
+| Subcommand | Purpose |
+| --- | --- |
+| `displays` | enumerate displays with logical `bounds`, `visible_bounds`, scale, and main-display marker |
+| `windows` | enumerate visible windows, optionally scoped to one display |
+| `deepen` | expand one focus-channel subtree |
+| `collapse` | collapse one focus-channel subtree |
+
+Example:
+
+```bash
+aos graph displays --json
+```
+
+`displays[].visible_bounds` uses the same top-left-origin logical coordinate
+space as `bounds`, but reflects the usable display area after macOS menu bar /
+dock insets.
 | `raise` | raise an app/window |
 | `move` | move a window |
 | `resize` | resize a window |

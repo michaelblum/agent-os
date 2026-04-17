@@ -200,14 +200,17 @@ class SpatialModel {
 
     func enumerateDisplays() -> [SpatialDisplayInfo] {
         let displays = getDisplays()
+        let screensByNumber = screenIndexByDisplayNumber()
         return displays.map { d in
-            SpatialDisplayInfo(
+            let visible = visibleBounds(for: d.id, fallback: d.bounds, screens: screensByNumber)
+            return SpatialDisplayInfo(
                 id: d.ordinal,
                 cgID: Int(d.id),
                 width: Int(d.bounds.width),
                 height: Int(d.bounds.height),
                 scale_factor: d.scaleFactor,
                 bounds: ChannelBounds(from: d.bounds),
+                visible_bounds: ChannelBounds(from: visible),
                 is_main: d.isMain
             )
         }
@@ -754,7 +757,36 @@ struct SpatialDisplayInfo: Codable {
     let height: Int
     let scale_factor: Double
     let bounds: ChannelBounds
+    let visible_bounds: ChannelBounds
     let is_main: Bool
+}
+
+private func screenIndexByDisplayNumber() -> [CGDirectDisplayID: NSScreen] {
+    var map: [CGDirectDisplayID: NSScreen] = [:]
+    for screen in NSScreen.screens {
+        if let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
+            map[CGDirectDisplayID(num.uint32Value)] = screen
+        }
+    }
+    return map
+}
+
+private func visibleBounds(
+    for id: CGDirectDisplayID,
+    fallback: CGRect,
+    screens: [CGDirectDisplayID: NSScreen]
+) -> CGRect {
+    guard let screen = screens[id] else { return fallback }
+    let visibleBottomLeft = screen.visibleFrame
+    let fullBottomLeft = screen.frame
+    let topInset = fullBottomLeft.maxY - visibleBottomLeft.maxY
+    let leftInset = visibleBottomLeft.minX - fullBottomLeft.minX
+    return CGRect(
+        x: fallback.origin.x + leftInset,
+        y: fallback.origin.y + topInset,
+        width: visibleBottomLeft.width,
+        height: visibleBottomLeft.height
+    )
 }
 
 struct SpatialWindowInfo: Codable {

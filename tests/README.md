@@ -18,6 +18,7 @@ Examples:
 - `bash tests/content/wiki-list.test.sh`
 - `bash tests/daemon-singleton.sh`
 - `bash tests/capture-region-perception.sh`
+- `bash tests/graph-displays-visible-bounds.sh`
 - `bash tests/capture-canvas-surface.sh`
 - `bash tests/capture-parallel.sh`
 - `./aos runtime status --json`
