@@ -38,7 +38,7 @@ if not main:
     print("240,180")
     sys.exit(0)
 
-b = main["bounds"]
+b = main.get("visible_bounds") or main["bounds"]
 usable_w = max(480, int(b["w"]) - margin_x * 2)
 usable_h = max(360, int(b["h"]) - margin_y * 2)
 w = max(480, round(usable_w * 2 / 3))
