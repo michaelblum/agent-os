@@ -1651,18 +1651,9 @@ class UnifiedDaemon {
 
     /// Rewrite `aos://` URLs to the content server's localhost address.
     func resolveContentURL(_ urlString: String) -> String {
-        guard urlString.hasPrefix("aos://") else {
+        guard urlString.hasPrefix("aos://"),
+              let port = waitForContentServerPort() else {
             return urlString
-        }
-        let started = Date()
-        guard let port = waitForContentServerPort() else {
-            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
-            fputs("[content] resolveContentURL timeout after \(elapsedMs)ms for \(urlString)\n", stderr)
-            return urlString
-        }
-        let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
-        if elapsedMs >= 50 {
-            fputs("[content] resolveContentURL waited \(elapsedMs)ms for port \(port) (\(urlString))\n", stderr)
         }
         let path = String(urlString.dropFirst("aos://".count))
         return "http://127.0.0.1:\(port)/\(path)"
