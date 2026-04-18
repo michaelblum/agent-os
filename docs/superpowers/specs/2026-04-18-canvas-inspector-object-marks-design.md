@@ -244,7 +244,7 @@ if (msg.type === 'canvas_object.marks') {
     - Else: create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0, seq: 0, inflight: false }` (transition from URL/shape to capture — no prior in-flight request could exist).
   - If the new side is a URL or `shape`: delete any `tier3Timers` entry for this key (transition away from capture — pending captures, if any, still fail the liveness check because the mark's `iconSig` no longer matches `"capture"`).
 
-`iconSig` is stored alongside the `iconCache` entry so we never resolve the same icon twice and always evict on meaningful change. The combined `(iconSig, gen)` pair is what Tier 3 capture requests and responses use for the stale-response guard.
+`iconSig` is stored alongside the `iconCache` entry so we never resolve the same icon twice and always evict on meaningful change. The `(iconSig, gen, seq)` triple is what Tier 3 capture requests and responses use for the stale-response guard — `iconSig` + `gen` catch signature changes, `seq` catches same-signature in-flight races.
 
 **On parent canvas removal** (`canvas_lifecycle action:"removed"`): drop the `marksByCanvas` entry and evict every `iconCache` / `tier3Timers` entry prefixed with `${canvas_id}:`. Tear down the tick if that leaves `marksByCanvas` empty.
 
@@ -253,7 +253,7 @@ if (msg.type === 'canvas_object.marks') {
 Event-driven rerender alone does not expire marks or honor `icon_hz`. Inspector runs a single `setInterval` tick at 100 ms while any live marks exist; the tick is torn down when `marksByCanvas` is empty and re-armed on the next emit. The tick performs three jobs:
 
 1. **TTL sweep:** for every entry in `marksByCanvas`, if `expiresAt < now` → drop it and call the same eviction path as parent-canvas removal.
-2. **Tier 3 schedule:** for every live Tier 3 mark, if `now >= tier3Timers.get(key).nextAt`, issue a capture request, then set `nextAt = now + 1000 / icon_hz`. New capture marks and region/icon changes are seeded by `diffAndReconcile` with `nextAt = 0` for immediate capture on the next tick.
+2. **Tier 3 schedule:** for every live Tier 3 mark, if `now >= tier3Timers.get(key).nextAt && !tier3Timers.get(key).inflight`, bump `seq`, set `inflight = true`, issue a capture request tagged `(iconSig, gen, seq)`, then set `nextAt = now + 1000 / icon_hz`. If `inflight` is true the tick is skipped for this mark — no queueing. New capture marks and region/icon changes are seeded by `diffAndReconcile` with `nextAt = 0` for immediate capture on the next eligible tick.
 3. **Rerender gate:** if anything changed, call `scheduleRerender()`; otherwise no-op so the tick is effectively free.
 
 100 ms granularity matches the max `icon_hz` of 10 exactly. `setInterval` is torn down when the last mark is dropped so the inspector is idle-cheap when no consumers are publishing.
