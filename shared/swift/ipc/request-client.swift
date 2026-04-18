@@ -179,3 +179,37 @@ func daemonOneShotRaw(_ jsonString: String, socketPath: String = kDefaultSocketP
     _ = readWithTimeout(fd, &buf, buf.count)
     close(fd)
 }
+
+// MARK: - Envelope Request (v1)
+
+/// Send a v1 envelope request and return the parsed response as a dictionary.
+/// - Parameters:
+///   - service: The namespace (see, do, show, tell, listen, session, voice, system).
+///   - action: The verb within the namespace.
+///   - data: Action payload. Pass `[:]` for no payload.
+///   - ref: Optional correlation id echoed back in the response.
+///   - socketPath: Optional override of the daemon socket path.
+///   - timeoutMs: Socket I/O timeout.
+/// - Returns: The parsed response JSON, or nil on connection/parse failure.
+@discardableResult
+func sendEnvelopeRequest(
+    service: String,
+    action: String,
+    data: [String: Any],
+    ref: String? = nil,
+    socketPath: String = kDefaultSocketPath,
+    timeoutMs: Int32 = 3000
+) -> [String: Any]? {
+    var payload: [String: Any] = [
+        "v": 1,
+        "service": service,
+        "action": action,
+        "data": data
+    ]
+    if let ref = ref { payload["ref"] = ref }
+    let session = DaemonSession(socketPath: socketPath)
+    guard session.connect(timeoutMs: timeoutMs) else { return nil }
+    defer { session.disconnect() }
+    session.sendOnly(payload)
+    return session.readOneJSON(timeoutMs: timeoutMs)
+}
