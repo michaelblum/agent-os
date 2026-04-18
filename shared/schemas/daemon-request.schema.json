@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/daemon-request.schema.json",
+  "title": "Daemon Request Envelope",
+  "description": "Wire contract for requests sent to the aos daemon over its Unix socket. Newline-delimited JSON. See docs/superpowers/specs/2026-04-17-daemon-ipc-request-schema-v1-design.md.",
+  "type": "object",
+  "required": ["v", "service", "action", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "v": { "const": 1 },
+    "service": {
+      "type": "string",
+      "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system"]
+    },
+    "action": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "data": { "type": "object" },
+    "ref": { "type": "string" }
+  },
+  "$defs": {}
+}
