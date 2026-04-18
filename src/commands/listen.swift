@@ -66,18 +66,14 @@ func listenCommand_coord(args: [String]) {
 // MARK: - One-shot read
 
 private func listenRead(channel: String, since: String?, limit: Int) {
-    var request: [String: Any] = [
-        "action": "coord-read",
-        "channel": channel,
-        "limit": limit
-    ]
-    if let s = since { request["since"] = s }
+    var data: [String: Any] = ["channel": channel, "limit": limit]
+    if let s = since { data["since"] = s }
 
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    guard let response = sendEnvelopeRequest(service: "listen", action: "read", data: data) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
-    if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
-       let s = String(data: data, encoding: .utf8) {
+    if let responseData = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
+       let s = String(data: responseData, encoding: .utf8) {
         if response["error"] != nil {
             FileHandle.standardError.write(s.data(using: .utf8)!)
             FileHandle.standardError.write("\n".data(using: .utf8)!)
@@ -161,8 +157,7 @@ private func listenFollow(channel: String, since: String?) {
 // MARK: - List channels
 
 private func listenChannels() {
-    let request: [String: Any] = ["action": "coord-channels"]
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    guard let response = sendEnvelopeRequest(service: "listen", action: "channels", data: [:]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
