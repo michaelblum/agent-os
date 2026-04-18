@@ -70,6 +70,18 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         pulseAmplitude: 0.4,
         coreFade: 0.6,
         spikeDecay: 0.92,
+        wobble: {
+            count: 3,
+            scaleX: 0.66,
+            scaleY: 0.66,
+            opacity: 0.7,
+            orbitRadius: 0.32,
+            radiusScalar: 0.5,
+            xyRatioScalar: 2.0,
+            speed: 2.0,
+            chaos: 0.35,
+            mode: 'random',
+        },
     },
 
     interaction: {
@@ -259,6 +271,17 @@ export function applyAppearance(blob) {
     state.auraPulseAmplitude = aura.pulseAmplitude ?? D.aura.pulseAmplitude;
     state.auraCoreFade = aura.coreFade ?? D.aura.coreFade;
     state.auraSpikeDecay = aura.spikeDecay ?? D.aura.spikeDecay;
+    const wobble = aura.wobble ?? D.aura.wobble;
+    state.wobbleCount = wobble.count ?? D.aura.wobble.count;
+    state.wobbleScaleX = wobble.scaleX ?? D.aura.wobble.scaleX;
+    state.wobbleScaleY = wobble.scaleY ?? D.aura.wobble.scaleY;
+    state.wobbleOpacity = wobble.opacity ?? D.aura.wobble.opacity;
+    state.wobbleOrbitRadius = wobble.orbitRadius ?? D.aura.wobble.orbitRadius;
+    state.wobbleRadiusScalar = wobble.radiusScalar ?? D.aura.wobble.radiusScalar;
+    state.wobbleXYRatioScalar = wobble.xyRatioScalar ?? D.aura.wobble.xyRatioScalar;
+    state.wobbleSpeed = wobble.speed ?? D.aura.wobble.speed;
+    state.wobbleChaos = wobble.chaos ?? D.aura.wobble.chaos;
+    state.wobbleMode = wobble.mode ?? D.aura.wobble.mode;
 
     const interaction = blob.interaction ?? D.interaction;
     state.avatarHitRadius = interaction.hitRadius ?? D.interaction.hitRadius;
@@ -457,6 +480,18 @@ export function snapshotAppearance() {
             pulseAmplitude: state.auraPulseAmplitude,
             coreFade: state.auraCoreFade,
             spikeDecay: state.auraSpikeDecay,
+            wobble: {
+                count: state.wobbleCount,
+                scaleX: state.wobbleScaleX,
+                scaleY: state.wobbleScaleY,
+                opacity: state.wobbleOpacity,
+                orbitRadius: state.wobbleOrbitRadius,
+                radiusScalar: state.wobbleRadiusScalar,
+                xyRatioScalar: state.wobbleXYRatioScalar,
+                speed: state.wobbleSpeed,
+                chaos: state.wobbleChaos,
+                mode: state.wobbleMode,
+            },
         },
 
         interaction: {

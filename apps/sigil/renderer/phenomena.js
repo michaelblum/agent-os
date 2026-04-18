@@ -1,29 +1,14 @@
 import state from './state.js';
-
-// --- Turbulence noise ---
-export function getTurbulence(time, speed, mode, index, count, seed) {
-    let t = time * speed;
-    let phase = 0;
-    if (mode === 'staggered') {
-        phase = count > 1 ? index * (Math.PI * 2 / count) : 0;
-    } else if (mode === 'random') {
-        phase = seed * Math.PI * 2;
-    }
-    return (Math.sin(t + phase) + Math.sin(1.72 * t + phase * 1.5 + 1.2) + Math.sin(2.31 * t + phase * 0.7 + 2.5)) / 3.0;
-}
+import { balancedDirectionForIndex, getTurbulence, syncInstanceCount } from './effect-utils.js';
 
 // --- Fibonacci hemisphere distribution ---
 function distributeGroupChildren(group, count) {
     if (!group) return;
-    const phi = Math.PI * (3.0 - Math.sqrt(5.0));
     for (let i = 0; i < group.children.length; i++) {
         let child = group.children[i];
         if (i < count) {
             child.visible = true;
-            let y = 1.0 - (i / count);
-            let radius = Math.sqrt(1 - y * y);
-            let theta = phi * i;
-            let dir = new THREE.Vector3(radius * Math.cos(theta), y, radius * Math.sin(theta)).normalize();
+            let dir = balancedDirectionForIndex(i, count);
             child.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         } else {
             child.visible = false;
@@ -36,13 +21,16 @@ function distributeGroupChildren(group, count) {
  */
 function syncGroupInstanceCount(group, count, createItemFn) {
     if (!group) return;
-    while (group.children.length < count) {
-        let item = createItemFn();
+    syncInstanceCount(() => group.children.length, count, () => {
+        const item = createItemFn();
         if (item) {
             item.userData.seed = Math.random();
             group.add(item);
         }
-    }
+    }, (item) => {
+        const last = group.children[group.children.length - 1];
+        if (last) group.remove(last);
+    });
     distributeGroupChildren(group, count);
 }
 

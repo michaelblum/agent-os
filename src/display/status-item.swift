@@ -1,15 +1,16 @@
-// status-item.swift — Generic menu bar icon that toggles a canvas on/off.
+// status-item.swift — Generic menu bar icon for a warm target canvas.
 //
 // Config-driven: status_item.enabled, toggle_id, toggle_url, toggle_at, toggle_track, icon.
-// The daemon creates/removes a canvas. The canvas handles its own behaviors.
+// Left-click sends toggle intent to a persistent canvas instead of managing
+// the canvas lifecycle itself.
 
 import AppKit
 import Foundation
 
 class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
-    private let trackedLifecycleTimeout: TimeInterval = 1.0
-    private let trackedVisibilityTimeout: TimeInterval = 1.2
+    private let lifecycleTimeout: TimeInterval = 1.0
+    private let visibilityTimeout: TimeInterval = 1.2
     private let canvasInspectorId = "canvas-inspector"
     private let logConsoleId = "__log__"
     private let canvasInspectorUrl = "aos://toolkit/components/canvas-inspector/index.html"
@@ -28,7 +29,9 @@ class StatusItemManager {
 
     // handleClick is always called on main; isAnimating is read/written on main only.
     private var isAnimating = false
+    private var persistentVisible = false
     private let positionFile: String
+    private let utilityStateFile: String
     private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
 
     init(canvasManager: CanvasManager, config: AosConfig.StatusItemConfig) {
@@ -41,6 +44,9 @@ class StatusItemManager {
         self.positionFile = (kAosConfigPath as NSString)
             .deletingLastPathComponent
             .appending("/status-item-position.json")
+        self.utilityStateFile = (kAosConfigPath as NSString)
+            .deletingLastPathComponent
+            .appending("/status-item-utility-panels.json")
     }
 
     func setup() {
@@ -51,6 +57,7 @@ class StatusItemManager {
         statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem?.button?.toolTip = Self.accessibilityLabel
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
+        restoreUtilityPanels()
     }
 
     func teardown() {
@@ -66,14 +73,30 @@ class StatusItemManager {
         toggleAt = config.toggle_at
         toggleTrack = config.toggle_track
         iconStyle = config.icon
+        if !usesPersistentCanvas {
+            persistentVisible = canvasManager.hasCanvas(toggleId) && !isCanvasSuspended()
+        } else if !canvasManager.hasCanvas(toggleId) {
+            persistentVisible = false
+        }
         updateIcon()
     }
 
     @objc func handleClick(_ sender: Any?) {
         guard !isAnimating else { return }
+        let event = NSApp.currentEvent
 
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if event?.type == .rightMouseUp {
             showContextMenu()
+            return
+        }
+
+        if event?.modifierFlags.contains(.option) == true {
+            showContextMenu()
+            return
+        }
+
+        if usesPersistentCanvas {
+            togglePersistentCanvas()
             return
         }
 
@@ -90,6 +113,39 @@ class StatusItemManager {
 
     func setMenuItems(_ items: [[String: String]]) {
         customMenuItems = items
+    }
+
+    func setPersistentVisible(_ visible: Bool) {
+        persistentVisible = visible
+        updateIcon()
+    }
+
+    var usesPersistentCanvas: Bool {
+        toggleTrack != nil
+    }
+
+    private func togglePersistentCanvas() {
+        if !canvasManager.hasCanvas(toggleId) {
+            fputs("[status-item] toggle target '\(toggleId)' is missing; recreating warm canvas\n", stderr)
+            summonCanvas()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.showPersistentCanvas()
+            }
+            return
+        }
+        if persistentVisible { hidePersistentCanvas() }
+        else { showPersistentCanvas() }
+    }
+
+    private func sendToggleIntent(targetState: String, origin: CGPoint) {
+        canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+            "type": "status_item.toggle",
+            "target_state": targetState,
+            "source": "status_item",
+            "origin_x": Int(origin.x),
+            "origin_y": Int(origin.y),
+            "modifiers": currentModifierNames(),
+        ])
     }
 
     private func showContextMenu() {
@@ -109,13 +165,15 @@ class StatusItemManager {
         }
 
         // Daemon-owned items
+        let logItem = NSMenuItem(title: "Console Log", action: #selector(menuLogConsole), keyEquivalent: "")
+        logItem.target = self
+        logItem.state = isUtilityCanvasVisible(id: logConsoleId) ? .on : .off
+        menu.addItem(logItem)
+
         let inspectorItem = NSMenuItem(title: "Canvas Inspector", action: #selector(menuCanvasInspector), keyEquivalent: "")
         inspectorItem.target = self
+        inspectorItem.state = isUtilityCanvasVisible(id: canvasInspectorId) ? .on : .off
         menu.addItem(inspectorItem)
-
-        let logItem = NSMenuItem(title: "Log", action: #selector(menuLogConsole), keyEquivalent: "")
-        logItem.target = self
-        menu.addItem(logItem)
 
         if canvasManager.hasCanvas(toggleId) {
             menu.addItem(NSMenuItem.separator())
@@ -148,7 +206,7 @@ class StatusItemManager {
     }
 
     @objc private func menuCanvasInspector() {
-        showOrFocusCanvas(
+        toggleUtilityCanvas(
             id: canvasInspectorId,
             url: canvasInspectorUrl,
             frame: canvasInspectorFrame()
@@ -156,7 +214,7 @@ class StatusItemManager {
     }
 
     @objc private func menuLogConsole() {
-        showOrFocusCanvas(
+        toggleUtilityCanvas(
             id: logConsoleId,
             url: logConsoleUrl,
             frame: logConsoleFrame()
@@ -167,12 +225,12 @@ class StatusItemManager {
         NSApp.terminate(nil)
     }
 
-    private func showOrFocusCanvas(id: String, url: String, frame: [CGFloat]) {
+    private func toggleUtilityCanvas(id: String, url: String, frame: [CGFloat], restoring: Bool = false) {
         if canvasManager.hasCanvas(id) {
-            var update = CanvasRequest(action: "update")
-            update.id = id
-            update.focus = true
-            _ = canvasManager.handle(update)
+            var remove = CanvasRequest(action: "remove")
+            remove.id = id
+            _ = canvasManager.handle(remove)
+            persistUtilityCanvasVisible(id: id, visible: false)
             return
         }
 
@@ -181,8 +239,52 @@ class StatusItemManager {
         req.url = urlResolver?(url) ?? url
         req.at = frame
         req.interactive = true
-        req.focus = true
+        req.focus = !restoring
         _ = canvasManager.handle(req)
+        persistUtilityCanvasVisible(id: id, visible: true)
+    }
+
+    private func restoreUtilityPanels() {
+        let state = loadUtilityPanelState()
+        if state[logConsoleId] == true {
+            toggleUtilityCanvas(
+                id: logConsoleId,
+                url: logConsoleUrl,
+                frame: logConsoleFrame(),
+                restoring: true
+            )
+        }
+        if state[canvasInspectorId] == true {
+            toggleUtilityCanvas(
+                id: canvasInspectorId,
+                url: canvasInspectorUrl,
+                frame: canvasInspectorFrame(),
+                restoring: true
+            )
+        }
+    }
+
+    private func isUtilityCanvasVisible(id: String) -> Bool {
+        canvasManager.hasCanvas(id)
+    }
+
+    private func loadUtilityPanelState() -> [String: Bool] {
+        guard let data = FileManager.default.contents(atPath: utilityStateFile),
+              let dict = try? JSONDecoder().decode([String: Bool].self, from: data) else {
+            return [:]
+        }
+        return dict
+    }
+
+    private func persistUtilityCanvasVisible(id: String, visible: Bool) {
+        var dict = loadUtilityPanelState()
+        dict[id] = visible
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(dict) {
+            try? data.write(to: URL(fileURLWithPath: utilityStateFile))
+        }
     }
 
     private func canvasInspectorFrame() -> [CGFloat] {
@@ -241,7 +343,7 @@ class StatusItemManager {
                 return
             }
             guard Date() < deadline else {
-                fputs("[status-item] tracked canvas did not become visible before timeout\n", stderr)
+                fputs("[status-item] canvas did not become visible before timeout\n", stderr)
                 isAnimating = false
                 updateIcon()
                 return
@@ -258,6 +360,18 @@ class StatusItemManager {
 
     private func summonCanvas() {
         guard !toggleUrl.isEmpty else { return }
+
+        if usesPersistentCanvas {
+            var req = CanvasRequest(action: "create")
+            req.id = toggleId
+            req.url = toggleUrl
+            req.interactive = false
+            if let track = toggleTrack { req.track = track }
+            _ = canvasManager.handle(req)
+            persistentVisible = false
+            updateIcon()
+            return
+        }
 
         let iconPos = statusItemCGPosition()
         let resolvedUrl = urlResolver?(toggleUrl) ?? toggleUrl
@@ -315,6 +429,22 @@ class StatusItemManager {
         }
     }
 
+    // MARK: - Persistent Intent Flow
+
+    private func showPersistentCanvas() {
+        let iconPos = statusItemCGPosition()
+        persistentVisible = true
+        updateIcon()
+        sendToggleIntent(targetState: "visible", origin: iconPos)
+    }
+
+    private func hidePersistentCanvas() {
+        let iconPos = statusItemCGPosition()
+        persistentVisible = false
+        updateIcon()
+        sendToggleIntent(targetState: "hidden", origin: iconPos)
+    }
+
     // MARK: - Suspend / Resume
 
     private func suspendCanvas() {
@@ -329,7 +459,7 @@ class StatusItemManager {
             _ = canvasManager.awaitLifecycleCompletion(
                 canvasIDs: Set([toggleId]),
                 action: "exit",
-                timeout: trackedLifecycleTimeout
+                timeout: lifecycleTimeout
             ) { [weak self] completed in
                 guard let self = self else { return }
                 guard self.canvasManager.hasCanvas(self.toggleId) else {
@@ -338,7 +468,7 @@ class StatusItemManager {
                     return
                 }
                 if !completed {
-                    fputs("[status-item] tracked exit lifecycle timeout; suspending anyway\n", stderr)
+                    fputs("[status-item] exit lifecycle timeout; suspending anyway\n", stderr)
                 }
                 var req = CanvasRequest(action: "suspend")
                 req.id = self.toggleId
@@ -375,15 +505,15 @@ class StatusItemManager {
 
         if toggleTrack != nil {
             let iconPos = statusItemCGPosition()
-            waitUntilCanvasVisible(timeout: trackedVisibilityTimeout) { [weak self] in
+            waitUntilCanvasVisible(timeout: visibilityTimeout) { [weak self] in
                 guard let self = self else { return }
                 _ = self.canvasManager.awaitLifecycleCompletion(
                     canvasIDs: Set([self.toggleId]),
                     action: "enter",
-                    timeout: self.trackedLifecycleTimeout
+                    timeout: self.lifecycleTimeout
                 ) { [weak self] completed in
                     if !completed {
-                        fputs("[status-item] tracked enter lifecycle timeout; clearing animation state\n", stderr)
+                        fputs("[status-item] enter lifecycle timeout; clearing animation state\n", stderr)
                     }
                     self?.isAnimating = false
                     self?.updateIcon()
@@ -622,7 +752,21 @@ class StatusItemManager {
         return CGPoint(x: frame.midX, y: primaryHeight - frame.midY)
     }
 
+    private func currentModifierNames() -> [String] {
+        guard let flags = NSApp.currentEvent?.modifierFlags else { return [] }
+        var names: [String] = []
+        if flags.contains(.command) { names.append("command") }
+        if flags.contains(.option) { names.append("option") }
+        if flags.contains(.control) { names.append("control") }
+        if flags.contains(.shift) { names.append("shift") }
+        return names
+    }
+
     func updateIcon() {
+        if usesPersistentCanvas {
+            statusItem?.button?.image = drawHexagonIcon(filled: persistentVisible || isAnimating)
+            return
+        }
         let exists = canvasManager.hasCanvas(toggleId)
         let suspended = isCanvasSuspended()
         // Filled = active or animating. Unfilled = suspended, absent, or idle.
