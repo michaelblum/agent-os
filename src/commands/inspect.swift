@@ -79,12 +79,12 @@ func inspectCommand(args: [String]) {
         exitError("Inspector panel did not finish mounting", code: "CANVAS_LOAD_TIMEOUT")
     }
 
-    // Subscribe to perception at depth 2
+    // Subscribe to perception at depth 2 via v1 envelope see.observe
     session.sendAndReceive([
-        "action": "perceive",
-        "depth": 2,
-        "scope": "cursor",
-        "rate": "on-settle"
+        "v": 1,
+        "service": "see",
+        "action": "observe",
+        "data": ["depth": 2, "scope": "cursor", "rate": "on-settle"]
     ])
 
     fputs("Inspector active. Move cursor to inspect elements. Ctrl-C to stop.\n", stderr)

@@ -30,22 +30,20 @@ func observeCommand(args: [String]) {
     }
 
     // Connect to daemon
-    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard fd >= 0 else { exitError("socket() failed", code: "SOCKET_ERROR") }
-
-    let connectResult = withSocketAddress(kDefaultSocketPath) { addr, len in connect(fd, addr, len) }
-    guard connectResult == 0 else {
+    let session = DaemonSession()
+    guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon at \(kDefaultSocketPath). Is 'aos serve' running?", code: "CONNECT_ERROR")
     }
 
-    // Send perceive request
-    let request: [String: Any] = ["action": "perceive", "depth": depth, "scope": "cursor", "rate": rate]
-    guard let reqData = try? JSONSerialization.data(withJSONObject: request, options: [.sortedKeys]) else {
-        exitError("Failed to encode request", code: "ENCODE_ERROR")
-    }
-    var reqBytes = reqData
-    reqBytes.append(contentsOf: "\n".utf8)
-    reqBytes.withUnsafeBytes { ptr in _ = write(fd, ptr.baseAddress!, ptr.count) }
+    // Send v1 envelope see.observe request
+    var data: [String: Any] = [:]
+    data["depth"] = depth
+    data["scope"] = "cursor"
+    data["rate"] = rate
+    let envelope: [String: Any] = ["v": 1, "service": "see", "action": "observe", "data": data]
+    session.sendOnly(envelope)
+    // Read and discard the subscription ack (channel_id response)
+    _ = session.readOneJSON(timeoutMs: 3000)
 
     // Read and print events until interrupted
     var buffer = Data()
@@ -55,7 +53,7 @@ func observeCommand(args: [String]) {
     setbuf(stdout, nil)
 
     while true {
-        let bytesRead = read(fd, &chunk, chunk.count)
+        let bytesRead = read(session.fd, &chunk, chunk.count)
         guard bytesRead > 0 else {
             fputs("Daemon connection closed.\n", stderr)
             break
@@ -72,5 +70,5 @@ func observeCommand(args: [String]) {
         }
     }
 
-    close(fd)
+    session.disconnect()
 }
