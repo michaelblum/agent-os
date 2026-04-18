@@ -3,15 +3,10 @@
 import Foundation
 
 func runContentStatus(_ args: [String]) {
-    let session = DaemonSession()
-    guard session.connect() else {
+    guard let raw = sendEnvelopeRequest(service: "content", action: "status", data: [:]) else {
         exitError("Cannot connect to daemon — is 'aos serve' running?", code: "NO_DAEMON")
     }
-    defer { session.disconnect() }
-
-    guard let response = session.sendAndReceive(["action": "content_status"]) else {
-        exitError("No response from daemon", code: "NO_RESPONSE")
-    }
+    let response = (raw["data"] as? [String: Any]) ?? raw
 
     if args.contains("--json") {
         if let data = try? JSONSerialization.data(withJSONObject: response, options: [.prettyPrinted, .sortedKeys]),

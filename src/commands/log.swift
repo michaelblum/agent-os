@@ -82,13 +82,16 @@ func logCommand(args: [String]) {
     signal(SIGTERM) { _ in exit(0) }
 
     // Create connection-scoped log canvas
-    session.sendAndReceive([
-        "action": "create",
-        "id": LOG_CANVAS_ID,
-        "at": [panelX!, panelY!, panelWidth, panelHeight],
-        "url": LOG_URL,
-        "scope": "connection"
-    ])
+    session.sendOnly(buildEnvelopePayload(
+        service: "show", action: "create",
+        data: [
+            "id": LOG_CANVAS_ID,
+            "at": [panelX!, panelY!, panelWidth, panelHeight],
+            "url": LOG_URL,
+            "scope": "connection"
+        ]
+    ))
+    _ = session.readOneJSON()
 
     guard waitForCanvasBridge(session: session, canvasID: LOG_CANVAS_ID, manifestName: "log-console") else {
         exitError("Log console did not finish mounting", code: "CANVAS_LOAD_TIMEOUT")

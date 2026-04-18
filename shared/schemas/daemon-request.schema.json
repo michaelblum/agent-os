@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "v": { "const": 1 },
-    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph"] },
+    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph", "content"] },
     "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
     "ref": { "type": "string" }
@@ -69,7 +69,9 @@
     { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "deepen" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/GraphDeepenData" } } } },
     { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "collapse" } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/GraphCollapseData" } } } }
+      "then": { "properties": { "data": { "$ref": "#/$defs/GraphCollapseData" } } } },
+    { "if": { "properties": { "service": { "const": "content" }, "action": { "const": "status" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } }
   ],
   "$defs": {
     "Empty": { "type": "object", "additionalProperties": true },

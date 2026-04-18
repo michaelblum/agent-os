@@ -67,13 +67,16 @@ func inspectCommand(args: [String]) {
     signal(SIGTERM) { _ in exit(0) }
 
     // Create connection-scoped inspector canvas
-    session.sendAndReceive([
-        "action": "create",
-        "id": INSPECTOR_CANVAS_ID,
-        "at": [panelX!, panelY!, panelWidth, panelHeight],
-        "url": INSPECTOR_URL,
-        "scope": "connection"
-    ])
+    session.sendOnly(buildEnvelopePayload(
+        service: "show", action: "create",
+        data: [
+            "id": INSPECTOR_CANVAS_ID,
+            "at": [panelX!, panelY!, panelWidth, panelHeight],
+            "url": INSPECTOR_URL,
+            "scope": "connection"
+        ]
+    ))
+    _ = session.readOneJSON()
 
     guard waitForCanvasBridge(session: session, canvasID: INSPECTOR_CANVAS_ID, manifestName: "inspector-panel") else {
         exitError("Inspector panel did not finish mounting", code: "CANVAS_LOAD_TIMEOUT")

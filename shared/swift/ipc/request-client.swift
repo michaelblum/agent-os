@@ -192,6 +192,27 @@ func daemonOneShotRaw(_ jsonString: String, socketPath: String = kDefaultSocketP
     close(fd)
 }
 
+// MARK: - Envelope Helpers
+
+/// Build a v1 envelope payload dict from (service, action, data, ref?).
+/// For use by callers that hold a persistent DaemonSession and can't use the
+/// one-shot sendEnvelopeRequest helper.
+func buildEnvelopePayload(
+    service: String,
+    action: String,
+    data: [String: Any],
+    ref: String? = nil
+) -> [String: Any] {
+    var payload: [String: Any] = [
+        "v": 1,
+        "service": service,
+        "action": action,
+        "data": data
+    ]
+    if let ref = ref { payload["ref"] = ref }
+    return payload
+}
+
 // MARK: - Envelope Request (v1)
 
 /// Send a v1 envelope request and return the parsed response as a dictionary.

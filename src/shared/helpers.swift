@@ -200,14 +200,13 @@ func waitForCanvasCondition(
     let js = "(\(jsCondition)) ? 'ready' : 'wait'"
 
     while Date() < deadline {
-        if let response = session.sendAndReceive([
-            "action": "eval",
-            "id": canvasID,
-            "js": js
-        ]),
-           let result = response["result"] as? String,
-           result == "ready" {
-            return true
+        if let response = session.sendAndReceive(buildEnvelopePayload(
+            service: "show", action: "eval",
+            data: ["id": canvasID, "js": js]
+        )) {
+            let body = (response["data"] as? [String: Any]) ?? response
+            let result = (body["result"] as? String) ?? (response["result"] as? String)
+            if result == "ready" { return true }
         }
         usleep(pollMs)
     }
@@ -242,9 +241,13 @@ func waitForContentStatus(
 ) -> [String: Any]? {
     let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
     while Date() < deadline {
-        if let response = session.sendAndReceive(["action": "content_status"]),
-           contentStatusIsReady(response, requiredRoots: requiredRoots) {
-            return response
+        if let raw = session.sendAndReceive(buildEnvelopePayload(
+            service: "content", action: "status", data: [:]
+        )) {
+            let response = (raw["data"] as? [String: Any]) ?? raw
+            if contentStatusIsReady(response, requiredRoots: requiredRoots) {
+                return response
+            }
         }
         usleep(pollMs)
     }

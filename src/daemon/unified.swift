@@ -987,6 +987,8 @@ class UnifiedDaemon {
         case ("voice", "bind"):               return "voice-bind"
         case ("voice", "final_response"):     return "voice-final-response"
         case ("system", "ping"):              return "ping"
+        // Content server actions
+        case ("content", "status"):           return "content_status"
         // Focus channel actions
         case ("focus", "list"):               return "focus-list"
         case ("focus", "create"):             return "focus-create"
@@ -1066,7 +1068,7 @@ class UnifiedDaemon {
                 return
             }
             // Check that the service is one of the known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph"]
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph", "content"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: clientFD, envelopeError(
                     error: "Unknown service: \(env.service)",

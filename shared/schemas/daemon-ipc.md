@@ -55,6 +55,7 @@ Error response:
 | `graph.windows` | Window topology graph. | (none; optional `display`). |
 | `graph.deepen` | Expand a graph node. | `id`. |
 | `graph.collapse` | Collapse a graph node. | `id`. |
+| `content.status` | Query content server status (port + roots). | (none) |
 
 ## Error Codes
 
