@@ -15,21 +15,21 @@ func voiceCommand(args: [String]) {
         exit(0)
     }
 
-    let request: [String: Any]
+    let response: [String: Any]?
     switch subcommand {
     case "list":
-        request = ["action": "voice-list"]
+        response = sendEnvelopeRequest(service: "voice", action: "list", data: [:])
     case "leases":
-        request = ["action": "voice-leases"]
+        response = sendEnvelopeRequest(service: "voice", action: "leases", data: [:])
     case "bind":
-        request = voiceBindRequest(args: Array(args.dropFirst()))
+        response = voiceBindEnvelope(args: Array(args.dropFirst()))
     case "final-response":
-        request = voiceFinalResponseRequest(args: Array(args.dropFirst()))
+        response = voiceFinalResponseEnvelope(args: Array(args.dropFirst()))
     default:
         exitError("Unknown voice command: \(subcommand)", code: "UNKNOWN_COMMAND")
     }
 
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    guard let response else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
 
@@ -45,7 +45,7 @@ func voiceCommand(args: [String]) {
     }
 }
 
-private func voiceBindRequest(args: [String]) -> [String: Any] {
+private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
     var sessionID: String?
     var voiceID: String?
 
@@ -72,14 +72,13 @@ private func voiceBindRequest(args: [String]) -> [String: Any] {
     guard let voiceID, !voiceID.isEmpty else {
         exitError("bind requires --voice <id>", code: "MISSING_ARG")
     }
-    return [
-        "action": "voice-bind",
+    return sendEnvelopeRequest(service: "voice", action: "bind", data: [
         "session_id": sessionID,
         "voice_id": voiceID
-    ]
+    ])
 }
 
-private func voiceFinalResponseRequest(args: [String]) -> [String: Any] {
+private func voiceFinalResponseEnvelope(args: [String]) -> [String: Any]? {
     var sessionID: String?
     var harness: String?
 
@@ -100,27 +99,29 @@ private func voiceFinalResponseRequest(args: [String]) -> [String: Any] {
         i += 1
     }
 
-    var request: [String: Any] = ["action": "voice-final-response"]
-    if let sessionID, !sessionID.isEmpty {
-        request["session_id"] = sessionID
-    }
-    if let harness, !harness.isEmpty {
-        request["harness"] = harness
-    }
-
+    var hookPayload: Any = [String: Any]()
     if let stdinData = try? FileHandle.standardInput.availableData,
        !stdinData.isEmpty {
         guard let stdinText = String(data: stdinData, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !stdinText.isEmpty else {
-            return request
+            // empty stdin — keep empty dict
+            hookPayload = [String: Any]()
+            return buildFinalResponseEnvelope(hookPayload: hookPayload, sessionID: sessionID, harness: harness)
         }
         guard let payloadData = stdinText.data(using: .utf8),
-              let payload = try? JSONSerialization.jsonObject(with: payloadData) else {
+              let parsed = try? JSONSerialization.jsonObject(with: payloadData) else {
             exitError("voice final-response requires JSON hook payload on stdin", code: "INVALID_JSON")
         }
-        request["hook_payload"] = payload
+        hookPayload = parsed
     }
 
-    return request
+    return buildFinalResponseEnvelope(hookPayload: hookPayload, sessionID: sessionID, harness: harness)
+}
+
+private func buildFinalResponseEnvelope(hookPayload: Any, sessionID: String?, harness: String?) -> [String: Any]? {
+    var data: [String: Any] = ["hook_payload": hookPayload]
+    if let sid = sessionID, !sid.isEmpty { data["session_id"] = sid }
+    if let h = harness, !h.isEmpty { data["harness"] = h }
+    return sendEnvelopeRequest(service: "voice", action: "final_response", data: data)
 }
