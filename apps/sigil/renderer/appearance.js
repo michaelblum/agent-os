@@ -39,7 +39,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     size: { base: 180, min: 40, max: 400 },
 
     // Primary geometry
-    shape: 6,
+    shape: 94,
     stellation: 0.0,
     opacity: 0.25,
     edgeOpacity: 1.0,
@@ -136,7 +136,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     // Omega (secondary shape)
     omega: {
         enabled: false,
-        shape: 6,
+        shape: 94,
         stellation: 0.0,
         scale: 1.5,
         opacity: 0.15,
