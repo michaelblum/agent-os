@@ -232,12 +232,17 @@ if (msg.type === 'canvas_object.marks') {
 
 `diffAndReconcile(canvas_id, prevObjects, nextObjects)` handles BOTH eviction of gone state and seeding of new state:
 
-- **Removed mark** (`prev.id` not in `next`): evict `iconCache` and `tier3Timers` entries keyed `${canvas_id}:${id}`.
-- **New mark** (`next.id` not in `prev`): if `icon === "capture"`, create `tier3Timers[key] = { nextAt: 0, icon_region }` so the next tick captures immediately. No iconCache entry until the first successful fetch.
-- **Existing mark, same icon signature:** no-op. `iconSig` = hash of `(icon, icon_region, icon_hz)`.
-- **Existing mark, changed icon signature:** evict the mark's `iconCache` entry. If the new side is `icon === "capture"`, reset or create `tier3Timers[key] = { nextAt: 0, icon_region }` so the next tick re-captures; if the new side is a URL / shape, delete any `tier3Timers` entry for this key.
+- **Removed mark** (`prev.id` not in `next`): evict `iconCache` and `tier3Timers` entries keyed `${canvas_id}:${id}`. (Any later response for that key fails the liveness check and is dropped.)
+- **New mark** (`next.id` not in `prev`): if `icon === "capture"`, create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0 }` so the next tick captures immediately and the first request carries `gen: 0`. No iconCache entry until the first successful fetch.
+- **Existing mark, same icon signature:** no-op. `iconSig` = hash of `(icon, icon_region, icon_hz)`. `tier3Timers[key].gen` unchanged.
+- **Existing mark, changed icon signature:**
+  - Evict the mark's `iconCache` entry.
+  - If the new side is `icon === "capture"`:
+    - If `tier3Timers[key]` exists: `tier3Timers[key].gen++`, set `nextAt = 0`, set `icon_region = next.icon_region`. Any in-flight request carrying the pre-bump `gen` will be rejected on arrival.
+    - Else: create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0 }` (transition from URL/shape to capture — no prior in-flight request could exist).
+  - If the new side is a URL or `shape`: delete any `tier3Timers` entry for this key (transition away from capture — pending captures, if any, still fail the liveness check because the mark's `iconSig` no longer matches `"capture"`).
 
-`iconSig` is stored alongside the cache entry so we never resolve the same icon twice and we always evict on meaningful change.
+`iconSig` is stored alongside the `iconCache` entry so we never resolve the same icon twice and always evict on meaningful change. The combined `(iconSig, gen)` pair is what Tier 3 capture requests and responses use for the stale-response guard.
 
 **On parent canvas removal** (`canvas_lifecycle action:"removed"`): drop the `marksByCanvas` entry and evict every `iconCache` / `tier3Timers` entry prefixed with `${canvas_id}:`. Tear down the tick if that leaves `marksByCanvas` empty.
 
