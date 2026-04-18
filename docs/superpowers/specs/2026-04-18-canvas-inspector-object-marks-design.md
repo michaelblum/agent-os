@@ -208,31 +208,42 @@ if (msg.type === 'canvas_object.marks') {
   const { canvas_id, objects } = msg.payload || msg;
   const prev = marksByCanvas.get(canvas_id);
   const normalized = normalizeMarks(canvas_id, objects); // drops id-less, sanitizes shape
-  diffAndEvict(canvas_id, prev?.objects, normalized);    // prune iconCache + tier3Timers
-  marksByCanvas.set(canvas_id, {
-    objects: normalized,
-    expiresAt: Date.now() + 10_000,
-  });
-  ensureTick();
+  diffAndReconcile(canvas_id, prev?.objects, normalized);  // evict + seed caches/timers
+
+  if (normalized.length === 0) {
+    // Explicit clear: delete the entry outright (not a 10s-delayed empty entry)
+    marksByCanvas.delete(canvas_id);
+    if (marksByCanvas.size === 0) teardownTick();
+  } else {
+    marksByCanvas.set(canvas_id, {
+      objects: normalized,
+      expiresAt: Date.now() + 10_000,
+    });
+    ensureTick();
+  }
   scheduleRerender();
 }
 ```
 
 `normalizeMarks` drops entries without `id` (with one-shot warn per source canvas), derives stable random color per `id`, applies defaults (size 20, name → id), and runs the SVG sanitizer for `shape`.
 
-`diffAndEvict(canvas_id, prevObjects, nextObjects)`:
-- For each `prev.id` not in `next` → evict `iconCache` + `tier3Timers` entries keyed `${canvas_id}:${id}`.
-- For each `next.id` with a different `icon` signature than the prev entry (different URL, transitioned to/from `"capture"`, or changed `icon_region`) → evict that mark's `iconCache` entry so the next render re-fetches.
-- `iconSig` is a hash of `(icon, icon_region, icon_hz)` — stored alongside the cache entry so we never resolve the same icon twice and we always evict on meaningful change.
+`diffAndReconcile(canvas_id, prevObjects, nextObjects)` handles BOTH eviction of gone state and seeding of new state:
 
-**On parent canvas removal** (`canvas_lifecycle action:"removed"`): drop the `marksByCanvas` entry and evict every `iconCache` / `tier3Timers` entry prefixed with `${canvas_id}:`.
+- **Removed mark** (`prev.id` not in `next`): evict `iconCache` and `tier3Timers` entries keyed `${canvas_id}:${id}`.
+- **New mark** (`next.id` not in `prev`): if `icon === "capture"`, create `tier3Timers[key] = { nextAt: 0, icon_region }` so the next tick captures immediately. No iconCache entry until the first successful fetch.
+- **Existing mark, same icon signature:** no-op. `iconSig` = hash of `(icon, icon_region, icon_hz)`.
+- **Existing mark, changed icon signature:** evict the mark's `iconCache` entry. If the new side is `icon === "capture"`, reset or create `tier3Timers[key] = { nextAt: 0, icon_region }` so the next tick re-captures; if the new side is a URL / shape, delete any `tier3Timers` entry for this key.
+
+`iconSig` is stored alongside the cache entry so we never resolve the same icon twice and we always evict on meaningful change.
+
+**On parent canvas removal** (`canvas_lifecycle action:"removed"`): drop the `marksByCanvas` entry and evict every `iconCache` / `tier3Timers` entry prefixed with `${canvas_id}:`. Tear down the tick if that leaves `marksByCanvas` empty.
 
 ### Scheduler — TTL + Tier 3 cadence
 
 Event-driven rerender alone does not expire marks or honor `icon_hz`. Inspector runs a single `setInterval` tick at 100 ms while any live marks exist; the tick is torn down when `marksByCanvas` is empty and re-armed on the next emit. The tick performs three jobs:
 
 1. **TTL sweep:** for every entry in `marksByCanvas`, if `expiresAt < now` → drop it and call the same eviction path as parent-canvas removal.
-2. **Tier 3 schedule:** for every live Tier 3 mark, if `now >= tier3Timers.get(key).nextAt`, issue a capture request, then set `nextAt = now + 1000 / icon_hz`. Region changes detected by `diffAndEvict` zero out `nextAt` for immediate capture on the next tick.
+2. **Tier 3 schedule:** for every live Tier 3 mark, if `now >= tier3Timers.get(key).nextAt`, issue a capture request, then set `nextAt = now + 1000 / icon_hz`. New capture marks and region/icon changes are seeded by `diffAndReconcile` with `nextAt = 0` for immediate capture on the next tick.
 3. **Rerender gate:** if anything changed, call `scheduleRerender()`; otherwise no-op so the tick is effectively free.
 
 100 ms granularity matches the max `icon_hz` of 10 exactly. `setInterval` is torn down when the last mark is dropped so the inspector is idle-cheap when no consumers are publishing.
@@ -289,7 +300,8 @@ function emitMarks() {
 ## Testing
 
 **Unit (Node, no WebView):**
-- `normalizeMarks` default assignment: id fill-in, color determinism, size clamp, name fallback.
+- `normalizeMarks`: drops entries without `id` (asserts one-shot warn fires once per source canvas); stable color determinism per `id`; size clamp; name fallback to `id`.
+- `diffAndReconcile`: removed marks evict both caches; new `icon: "capture"` marks seed `tier3Timers` with `nextAt: 0`; changed icon signature resets timer; iconSig change evicts `iconCache`.
 - Sanitizer: strips `<script>`, event handlers, external refs; preserves benign SVG.
 - TTL sweep: expired entries removed; non-expired entries untouched.
 - Precedence: `icon` > `shape` > default.
