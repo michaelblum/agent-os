@@ -2,22 +2,209 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/daemon-request.schema.json",
   "title": "Daemon Request Envelope",
-  "description": "Wire contract for requests sent to the aos daemon over its Unix socket. Newline-delimited JSON. See docs/superpowers/specs/2026-04-17-daemon-ipc-request-schema-v1-design.md.",
+  "description": "Wire contract for requests sent to the aos daemon over its Unix socket. Newline-delimited JSON.",
   "type": "object",
   "required": ["v", "service", "action", "data"],
   "additionalProperties": false,
   "properties": {
     "v": { "const": 1 },
-    "service": {
-      "type": "string",
-      "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system"]
-    },
-    "action": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9_]*$"
-    },
+    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system"] },
+    "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
     "ref": { "type": "string" }
   },
-  "$defs": {}
+  "allOf": [
+    { "if": { "properties": { "service": { "const": "see" }, "action": { "const": "observe" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SeeObserveData" } } } },
+    { "if": { "properties": { "service": { "const": "see" }, "action": { "const": "snapshot" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "create" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowCreateData" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "update" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowUpdateData" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "eval" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowEvalData" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "remove" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowRemoveData" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "remove_all" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "list" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowListData" } } } },
+    { "if": { "properties": { "service": { "const": "show" }, "action": { "const": "post" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ShowPostData" } } } },
+    { "if": { "properties": { "service": { "const": "tell" }, "action": { "const": "send" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/TellSendData" } } } },
+    { "if": { "properties": { "service": { "const": "listen" }, "action": { "const": "read" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/ListenReadData" } } } },
+    { "if": { "properties": { "service": { "const": "listen" }, "action": { "const": "channels" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "session" }, "action": { "const": "register" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SessionRegisterData" } } } },
+    { "if": { "properties": { "service": { "const": "session" }, "action": { "const": "unregister" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SessionUnregisterData" } } } },
+    { "if": { "properties": { "service": { "const": "session" }, "action": { "const": "who" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "list" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "leases" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "bind" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/VoiceBindData" } } } },
+    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "final_response" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/VoiceFinalResponseData" } } } },
+    { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "ping" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } }
+  ],
+  "$defs": {
+    "Empty": { "type": "object", "additionalProperties": true },
+    "SeeObserveData": {
+      "type": "object",
+      "properties": {
+        "depth": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "scope": { "type": "string" },
+        "rate": { "type": "string" },
+        "events": { "type": "array", "items": { "type": "string" } },
+        "snapshot": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "ShowCreateData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "at": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
+        "anchor_window": { "type": "integer" },
+        "anchor_channel": { "type": "string" },
+        "offset": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
+        "html": { "type": "string" },
+        "url": { "type": "string" },
+        "interactive": { "type": "boolean" },
+        "focus": { "type": "boolean" },
+        "ttl": { "type": "number" },
+        "scope": { "enum": ["connection", "global"] },
+        "auto_project": { "type": "string" },
+        "track": { "type": "string" },
+        "parent": { "type": "string" },
+        "cascade": { "type": "boolean" },
+        "suspended": { "type": "boolean" }
+      },
+      "oneOf": [
+        { "required": ["at"] },
+        { "required": ["track"] },
+        { "required": ["anchor_window", "offset"] },
+        { "required": ["anchor_channel", "offset"] }
+      ],
+      "additionalProperties": true
+    },
+    "ShowUpdateData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "at": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
+        "html": { "type": "string" },
+        "url": { "type": "string" },
+        "interactive": { "type": "boolean" },
+        "ttl": { "type": ["number", "null"] },
+        "track": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "ShowEvalData": {
+      "type": "object",
+      "required": ["id", "js"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "js": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "ShowRemoveData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string", "minLength": 1 } },
+      "additionalProperties": true
+    },
+    "ShowListData": {
+      "type": "object",
+      "properties": { "scope": { "enum": ["connection", "global"] } },
+      "additionalProperties": true
+    },
+    "ShowPostData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": { "id": { "type": "string", "minLength": 1 } },
+      "additionalProperties": true
+    },
+    "TellSendData": {
+      "type": "object",
+      "required": ["audience"],
+      "properties": {
+        "audience": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        "text": { "type": "string" },
+        "payload": { "type": "object" },
+        "from_session_id": { "type": "string" },
+        "from": { "type": "string" },
+        "purpose": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["text"] },
+        { "required": ["payload"] }
+      ],
+      "additionalProperties": true
+    },
+    "ListenReadData": {
+      "type": "object",
+      "required": ["channel"],
+      "properties": {
+        "channel": { "type": "string", "minLength": 1 },
+        "since": { "type": "string" },
+        "limit": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "SessionRegisterData": {
+      "type": "object",
+      "required": ["session_id"],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "harness": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "SessionUnregisterData": {
+      "type": "object",
+      "anyOf": [
+        { "required": ["session_id"] },
+        { "required": ["name"] }
+      ],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "VoiceBindData": {
+      "type": "object",
+      "required": ["session_id", "voice_id"],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "voice_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "VoiceFinalResponseData": {
+      "type": "object",
+      "required": ["hook_payload"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "harness": { "type": "string" },
+        "hook_payload": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
 }
