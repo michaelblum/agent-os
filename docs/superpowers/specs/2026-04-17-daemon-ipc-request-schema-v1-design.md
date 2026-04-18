@@ -32,7 +32,7 @@ This spec formalizes the request/response wire contract, normalizes the action v
 
 - No code generation (no TS SDK, no CLI generator, no MCP adapter work).
 - No CLI rename. Top-level verb surface in `src/main.swift` is untouched by this spec. Renames happen in a later spec if pursued.
-- No event envelope change. The existing `daemon-event.schema.json` v1 stays in place with its legacy `service` values (`perceive`, `display`, `act`, `voice`). Asymmetry between request and event services is documented below.
+- No event envelope change. The existing `daemon-event.schema.json` v1 stays in place. The schema file currently lists the `service` enum as `perceive|display|act|voice`, but the live daemon already emits additional event services (`system` for config changes in `src/daemon/unified.swift:1207`, `coordination` for channel messages in `src/daemon/unified.swift:1487`, and `wiki` for wiki changes in `src/daemon/wiki-change-bus.swift:41`). That drift between the event schema and live traffic predates this spec and is out of scope. Asymmetry between request and event service values is documented below.
 - No new capabilities. No aspirational fields. If the daemon does not already implement a behavior, the schema does not expose it.
 - No deprecation shim for legacy action names. Unknown action names return a structured error. The same PR that introduces the schema updates the CLI to emit the new names.
 
@@ -100,7 +100,7 @@ This spec formalizes the request/response wire contract, normalizes the action v
 
 The event envelope (`daemon-event.schema.json` v1) uses the same top-level shape (`v`, `service`, `ts`, `data`, `ref`) and replaces `action` with `event`. Request and event envelopes are structurally symmetric except that the event envelope has `ts` and no `status`/`error`/`code`.
 
-The event envelope's `service` field retains its shipped values (`perceive`, `display`, `act`, `voice`). This spec does not renormalize them. Consumers should be prepared for request namespaces (`see`, `show`, `do`, `tell`, `listen`, `session`, `voice`, `system`) and event services (`perceive`, `display`, `act`, `voice`) to differ. A future v2 event envelope may close this gap.
+The event envelope's `service` field is unchanged by this spec. The schema file's existing enum (`perceive`, `display`, `act`, `voice`) is already understated relative to live traffic: the daemon emits `system`, `coordination`, and `wiki` event services today (see the Non-goals section). Consumers should be prepared for request namespaces (`see`, `show`, `do`, `tell`, `listen`, `session`, `voice`, `system`) and event services (current schema enum plus the live additions noted above) to differ. A future v2 event envelope may reconcile both the schema/live-traffic drift and the request/event asymmetry.
 
 ### Why not JSON-RPC 2.0
 
@@ -119,22 +119,22 @@ The request vocabulary has eight namespaces: seven carry v1 actions, and `do` is
 |-----------|---------|
 | `see`     | `observe` |
 | `do`      | *(reserved, no v1 actions)* |
-| `show`    | `create`, `update`, `eval`, `remove`, `remove_all`, `list`, `wait` |
+| `show`    | `create`, `update`, `eval`, `remove`, `remove_all`, `list` |
 | `tell`    | `send` |
 | `listen`  | `read`, `channels` |
 | `session` | `register`, `unregister`, `who` |
 | `voice`   | `list`, `leases`, `bind`, `final_response` |
-| `system`  | `ping`, `subscribe` |
+| `system`  | `ping` |
 
-Total: 20 actions across 7 namespaces.
+Total: 17 actions across 7 active namespaces (plus `do` reserved).
 
 ### Migration table from legacy action names
 
 | Legacy action | Normalized `(service, action)` | Notes |
 |---------------|--------------------------------|-------|
-| `subscribe` | `system.subscribe` | Generic event-stream subscription with optional filter and snapshot. |
-| `perceive` | removed | Duplicate handler of `subscribe`. Removed in v1. `see.observe` replaces the perception-attention semantics that were muxed into this action. |
-| `post` (canvas branch, `id` present) | `show.create` / `show.update` / `show.remove` / `show.eval` / `show.remove_all` / `show.list` / `show.wait` | The branch was already dispatching on the canvas request's inner `action`. v1 flattens: the outer action is the canvas verb. |
+| `subscribe` | `see.observe` | Current handler opens a perception attention channel and subscribes the connection. `see.observe` preserves that combined behavior. |
+| `perceive` | `see.observe` | Duplicate of the `subscribe` handler. Both collapse into `see.observe` in v1. |
+| `post` (canvas branch, `id` present) | `show.create` / `show.update` / `show.remove` / `show.eval` / `show.remove_all` / `show.list` | The branch was already dispatching on the canvas request's inner `action`. v1 flattens: the outer action is the canvas verb. |
 | `post` (channel branch, `channel` present) | `tell.send` with `audience: [<channel>]` and `payload` / `text` | Absorbed into unified emit. |
 | `create`, `update`, `remove`, `remove-all`, `list`, `eval` (direct forms) | `show.create`, `show.update`, `show.remove`, `show.remove_all`, `show.list`, `show.eval` | Simple rename. |
 | `tell` | `tell.send` | The handler (`handleTellAction`) stays; only the envelope changes. |
@@ -151,7 +151,7 @@ Total: 20 actions across 7 namespaces.
 
 ### Actions removed in v1
 
-- `perceive` — duplicate of `subscribe`. Its handler is deleted.
+- The duplicate `perceive` / `subscribe` handler pair is collapsed: only one handler remains, exposed as `see.observe`. The other dispatch case is deleted.
 - `post` — both branches are reabsorbed into `show.*` and `tell.send`.
 
 Any request with `service` and `action` not listed in the catalog returns `code: "UNKNOWN_ACTION"`.
@@ -162,7 +162,7 @@ Each action is specified with its request `data` shape, its response `data` shap
 
 ### `see.observe`
 
-Opens a perception attention channel for the connection and subscribes it to pushed events.
+Opens a perception attention channel for the connection and subscribes it to pushed events. This is the normalized form of the legacy `subscribe` and `perceive` handlers, which are identical in `src/daemon/unified.swift:955` and `src/daemon/unified.swift:971` and collapse into one in v1.
 
 Request `data`:
 
@@ -171,7 +171,7 @@ Request `data`:
 | `depth` | int (0–3) | `config.perception.default_depth` | |
 | `scope` | string | `"cursor"` | |
 | `rate` | string | `"on-settle"` | |
-| `events` | array of string | `[]` | Optional event-name filter for the subscription. |
+| `events` | array of string | `[]` | Optional event-name filter for the snapshot replay. Does not filter the live stream today. |
 | `snapshot` | bool | `false` | Replay current state for snapshot-capable streams after the success response. |
 
 Response `data`: `{ "channel_id": string }`.
@@ -241,12 +241,6 @@ Response `data`: `{}`.
 
 Request `data`: `{ "scope"?: "connection" | "global" }`.
 Response `data`: `{ "canvases": [CanvasInfo] }`.
-
-### `show.wait`
-
-Request `data`: `{ "id": string (required), "manifest"?: string }`.
-Blocks until the canvas's bridge (and optional manifest) is ready, then returns.
-Response `data`: `{}`.
 
 ### `tell.send`
 
@@ -342,7 +336,7 @@ Request `data`:
 |-------|------|----------|-------|
 | `session_id` | string | no | Canonical id of the session whose final response this is. If omitted, the daemon attempts to recover it from the hook payload. |
 | `harness` | string | no | `"codex"` or `"claude-code"`. Selects the hook-payload extractor. |
-| `hook` | object | yes | Raw harness hook JSON. |
+| `hook_payload` | object | yes | Raw harness hook JSON. Field name matches `src/daemon/unified.swift:1511`. |
 
 Response `data`: `{ "delivered": bool, "session_id": string }`.
 
@@ -350,19 +344,6 @@ Response `data`: `{ "delivered": bool, "session_id": string }`.
 
 Request `data`: `{}`.
 Response `data`: `{ "uptime": number, "perception_channels": int, ...daemon health fields }`.
-
-### `system.subscribe`
-
-Subscribes the connection to the daemon event stream. After the success response, events per the event envelope arrive on the same connection.
-
-Request `data`:
-
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `events` | array of string | no | `[]` (no filter) |
-| `snapshot` | bool | no | `false` |
-
-Response `data`: `{}`.
 
 ## Error Codes
 
@@ -373,7 +354,7 @@ The daemon emits `code` from this stable vocabulary. Consumers should branch on 
 | `MISSING_ARG` | A required field in `data` was absent or empty. |
 | `INVALID_ARG` | A field was present but had an unacceptable value or type. |
 | `UNKNOWN_ACTION` | `(service, action)` pair is not in the catalog. |
-| `UNKNOWN_SERVICE` | `service` is not one of the seven known namespaces. |
+| `UNKNOWN_SERVICE` | `service` is not one of the eight known namespaces. |
 | `PARSE_ERROR` | The request could not be parsed as JSON, or the envelope failed schema validation. |
 | `SESSION_NOT_FOUND` | A referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | The daemon could not resolve a session id for an action that requires one (used today by `voice.final_response` when extraction from the hook payload fails). |
@@ -415,10 +396,12 @@ These files are the intended artifacts of the implementation plan that follows t
 
 ## Out of Scope (Future Work)
 
-- Event envelope renormalization (v2).
+- Event envelope renormalization plus reconciliation of the schema's `service` enum with the live traffic superset (`system`, `coordination`, `wiki`). Deferred to a v2 event envelope.
 - TypeScript SDK generation from the schema.
 - CLI generation from the schema.
 - MCP adapter regeneration.
+- Daemon-side `show.wait`. Today `aos show wait` polls client-side in `src/display/client.swift:362`. Promoting it to a daemon action is deferred until there is a concrete consumer that benefits from blocking on the server.
+- A daemon-side event-stream-only subscription distinct from `see.observe`. Adding a subscribe action that does not open a perception attention channel would be a new capability.
 - `do.*` IPC actions for daemon-mediated input synthesis (if desired).
 - Capability declarations on `session.register`.
 - Deprecation shim for legacy action names (explicitly rejected in favor of atomic rename alongside CLI update).
