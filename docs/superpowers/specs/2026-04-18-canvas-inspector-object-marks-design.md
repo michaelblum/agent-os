@@ -40,7 +40,7 @@ Consumer canvases push full-list snapshots for the objects they own. Inspector s
 
 ```jsonc
 {
-  "id":     "avatar",                    // optional; default: "obj-<N>" auto-assigned by inspector
+  "id":     "avatar",                    // REQUIRED, stable per object (same id across emits for same logical object)
   "x":      942,                         // required, desktop CG points (same space as canvas.at)
   "y":      540,                         // required, desktop CG points
   "size":   20,                          // optional, minimap pixels, default 20
@@ -55,6 +55,8 @@ Consumer canvases push full-list snapshots for the objects they own. Inspector s
 ```
 
 Stateless on inspector: every emit replaces the prior list for that `canvas_id`. To clear marks, emit `objects: []`. To partially update, emit the full desired list.
+
+**`id` is required and must be stable per logical object.** Because snapshots replace the full list, an auto-assigned fallback counter would reassign ids on every emit — breaking color stability, TTL-per-mark, and the Tier 3 capture cache. Consumers without a natural id should synthesize a stable one (e.g. `"obj-" + sceneObject.uuid`). Malformed marks lacking `id` are dropped with a single logged warning per source canvas.
 
 ### Lifecycle + TTL
 
@@ -140,11 +142,11 @@ For consumers that don't render pixels themselves, or when the interesting visua
 
 Inspector:
 
-1. Per-mark timer, at most `icon_hz` captures/sec (default 1, clamped to 10).
-2. If `icon_region` unchanged since last capture and cached TTL not expired, skip.
+1. Time-based recapture: every `1 / icon_hz` seconds per mark, regardless of whether `icon_region` changed. `icon_hz` default 1, clamped to `[0.1, 10]`. This is the actual refresh rate — terminals, avatars, progress UIs see fresh pixels at the requested cadence.
+2. `icon_region` change invalidates the cache immediately (next tick captures).
 3. Issue a daemon request equivalent to `aos see capture --region x,y,w,h --base64 --format jpg --quality low`.
-4. Cache the returned base64 string keyed by `(canvas_id, id)`; render as `<img src="data:image/jpeg;base64,...">`.
-5. On capture error, log once per mark, fall through to `shape` / default.
+4. Cache the returned base64 string keyed by `(canvas_id, mark.id)`; render as `<img src="data:image/jpeg;base64,...">`. Cache entry evicted when the mark is dropped (TTL expiry, explicit replacement, or parent-canvas removal).
+5. On capture error, log once per mark, fall through to `shape` / default until the next successful capture.
 
 **Cost:** ScreenCaptureKit @ jpg@low on a ~80×80 region ≈ 5-10ms per capture, including daemon IPC. At default 1 Hz for a handful of marks, fraction of a percent CPU.
 
@@ -187,9 +189,10 @@ For Tier 3 capture, the inspector issues a capture request through the existing 
 ```js
 // inside the CanvasInspector component:
 marksByCanvas = new Map(); // canvas_id -> { objects, expiresAt }
-iconCache    = new Map();  // key: normalized icon URL OR "capture:<canvas_id>:<id>"
-                           // value: { src, capturedAt }
-nextObjIndex = new Map();  // canvas_id -> running counter for default 'obj-N' names
+iconCache    = new Map();  // key: `${canvas_id}:${mark.id}` (not icon-URL)
+                           // value: { src, capturedAt, iconSig }
+tier3Timers  = new Map();  // key: `${canvas_id}:${mark.id}` -> { nextAt, icon_region }
+tickHandle   = null;       // single setInterval handle driving TTL + Tier 3 cadence
 ```
 
 Subscribe alongside existing subscriptions:
@@ -203,15 +206,36 @@ Apply on message:
 ```js
 if (msg.type === 'canvas_object.marks') {
   const { canvas_id, objects } = msg.payload || msg;
+  const prev = marksByCanvas.get(canvas_id);
+  const normalized = normalizeMarks(canvas_id, objects); // drops id-less, sanitizes shape
+  diffAndEvict(canvas_id, prev?.objects, normalized);    // prune iconCache + tier3Timers
   marksByCanvas.set(canvas_id, {
-    objects: normalizeMarks(canvas_id, objects),
+    objects: normalized,
     expiresAt: Date.now() + 10_000,
   });
+  ensureTick();
   scheduleRerender();
 }
 ```
 
-`normalizeMarks` assigns default ids (`obj-N`), default color (stable random per id), default size (20), and runs the light SVG sanitizer for `shape`. Sweep expired entries on each rerender tick.
+`normalizeMarks` drops entries without `id` (with one-shot warn per source canvas), derives stable random color per `id`, applies defaults (size 20, name → id), and runs the SVG sanitizer for `shape`.
+
+`diffAndEvict(canvas_id, prevObjects, nextObjects)`:
+- For each `prev.id` not in `next` → evict `iconCache` + `tier3Timers` entries keyed `${canvas_id}:${id}`.
+- For each `next.id` with a different `icon` signature than the prev entry (different URL, transitioned to/from `"capture"`, or changed `icon_region`) → evict that mark's `iconCache` entry so the next render re-fetches.
+- `iconSig` is a hash of `(icon, icon_region, icon_hz)` — stored alongside the cache entry so we never resolve the same icon twice and we always evict on meaningful change.
+
+**On parent canvas removal** (`canvas_lifecycle action:"removed"`): drop the `marksByCanvas` entry and evict every `iconCache` / `tier3Timers` entry prefixed with `${canvas_id}:`.
+
+### Scheduler — TTL + Tier 3 cadence
+
+Event-driven rerender alone does not expire marks or honor `icon_hz`. Inspector runs a single `setInterval` tick at 100 ms while any live marks exist; the tick is torn down when `marksByCanvas` is empty and re-armed on the next emit. The tick performs three jobs:
+
+1. **TTL sweep:** for every entry in `marksByCanvas`, if `expiresAt < now` → drop it and call the same eviction path as parent-canvas removal.
+2. **Tier 3 schedule:** for every live Tier 3 mark, if `now >= tier3Timers.get(key).nextAt`, issue a capture request, then set `nextAt = now + 1000 / icon_hz`. Region changes detected by `diffAndEvict` zero out `nextAt` for immediate capture on the next tick.
+3. **Rerender gate:** if anything changed, call `scheduleRerender()`; otherwise no-op so the tick is effectively free.
+
+100 ms granularity matches the max `icon_hz` of 10 exactly. `setInterval` is torn down when the last mark is dropped so the inspector is idle-cheap when no consumers are publishing.
 
 ### Consumer example (Sigil)
 
