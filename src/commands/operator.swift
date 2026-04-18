@@ -127,7 +127,135 @@ private struct CanvasLookupResponse: Encodable {
     let notes: [String]
 }
 
+private struct GitStatusState: Encodable {
+    let branch: String
+    let ahead_of_origin_main: Int?
+    let dirty_files: Int
+    let worktrees: Int
+}
+
+private struct StatusStaleResources: Encodable {
+    let status: String
+    let stale_daemons: Int
+    let canvases: [String]
+    let notes: [String]
+}
+
+private struct StatusResponse: Encodable {
+    let status: String
+    let identity: RuntimeIdentityState
+    let runtime: RuntimeState
+    let permissions: PermissionsState
+    let permissions_setup: PermissionsSetupState
+    let daemon_snapshot: SpatialSnapshotData?
+    let stale_resources: StatusStaleResources
+    let git: GitStatusState?
+    let recommended_entrypoints: [String]
+    let notes: [String]
+}
+
 // MARK: - Public Commands
+
+func statusCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["status"], json: args.contains("--json"))
+        exit(0)
+    }
+    guard args.allSatisfy({ $0 == "--json" }) else {
+        let unknown = args.first(where: { $0 != "--json" }) ?? ""
+        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) status [--json]", code: "UNKNOWN_FLAG")
+    }
+
+    let prefix = aosInvocationDisplayName()
+    let permissions = currentPermissionsState()
+    let permissionsSetup = currentPermissionsSetupState(permissions: permissions)
+    let runtime = currentRuntimeState()
+    let identity = aosCurrentRuntimeIdentity(program: "aos")
+    let snapshotResult = currentSpatialSnapshot()
+    let cleanReport = runClean(dryRun: true)
+    let git = currentGitStatus()
+
+    var notes: [String] = []
+    if !runtime.daemon_running {
+        notes.append("Daemon is not running.")
+    } else if !runtime.socket_reachable {
+        notes.append("Daemon process appears to be running, but the socket is not reachable.")
+    }
+    if !permissions.accessibility {
+        notes.append("Accessibility permission is not granted.")
+    }
+    if !permissions.screen_recording {
+        notes.append("Screen Recording permission is not granted.")
+    }
+    if !permissionsSetup.setup_completed, let command = permissionsSetup.recommended_command {
+        notes.append("Run '\(command)' before interactive testing.")
+    }
+    if cleanReport.status == "dirty" {
+        let canvasIDs = cleanReport.canvases.map(\.id)
+        if !canvasIDs.isEmpty {
+            notes.append("Stale canvas cleanup recommended: \(canvasIDs.joined(separator: ", ")).")
+        }
+        if !cleanReport.stale_daemons.isEmpty {
+            notes.append("Stale daemon cleanup recommended: \(cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")).")
+        }
+    }
+    notes.append(contentsOf: snapshotResult.notes)
+
+    let response = StatusResponse(
+        status: notes.isEmpty ? "ok" : "degraded",
+        identity: RuntimeIdentityState(
+            program: identity.program,
+            mode: identity.mode,
+            executable_path: identity.executable_path,
+            state_dir: identity.state_dir,
+            socket_path: identity.socket_path,
+            build_timestamp: identity.build_timestamp,
+            repo_root: identity.repo_root,
+            git_commit: identity.git_commit,
+            bundle_version: identity.bundle_version,
+            bundle_build: identity.bundle_build
+        ),
+        runtime: runtime,
+        permissions: permissions,
+        permissions_setup: permissionsSetup,
+        daemon_snapshot: snapshotResult.snapshot,
+        stale_resources: StatusStaleResources(
+            status: cleanReport.status,
+            stale_daemons: cleanReport.stale_daemons.count,
+            canvases: cleanReport.canvases.map(\.id),
+            notes: cleanReport.notes
+        ),
+        git: git,
+        recommended_entrypoints: [
+            "\(prefix) help <command> [--json]",
+            "\(prefix) introspect review",
+            "\(prefix) clean"
+        ],
+        notes: notes
+    )
+
+    if args.contains("--json") {
+        print(jsonString(response))
+        return
+    }
+
+    let focusedApp = snapshotResult.snapshot?.focused_app ?? "?"
+    let displays = snapshotResult.snapshot?.displays ?? 0
+    let windows = snapshotResult.snapshot?.windows ?? 0
+    let channels = snapshotResult.snapshot?.channels ?? 0
+    let staleCanvasCount = cleanReport.canvases.count
+    let daemonState = runtime.socket_reachable ? "reachable" : (runtime.daemon_running ? "running" : "down")
+    var line = "status=\(response.status) mode=\(runtime.mode) daemon=\(daemonState) pid=\(runtime.daemon_pid.map { String($0) } ?? "?") focused_app=\(focusedApp) displays=\(displays) windows=\(windows) channels=\(channels) stale_canvases=\(staleCanvasCount)"
+    if let git {
+        let ahead = git.ahead_of_origin_main.map { String($0) } ?? "?"
+        line += " branch=\(git.branch) ahead=\(ahead) dirty=\(git.dirty_files)"
+    }
+    print(line)
+    for note in response.notes {
+        print(note)
+    }
+    print("Next: \(prefix) help <command> | \(prefix) introspect review")
+}
 
 func doctorCommand(args: [String]) {
     if args.contains("--help") || args.contains("-h") {
@@ -136,7 +264,7 @@ func doctorCommand(args: [String]) {
     }
     guard args.allSatisfy({ $0 == "--json" }) else {
         let unknown = args.first(where: { $0 != "--json" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: aos doctor [--json]", code: "UNKNOWN_FLAG")
+        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) doctor [--json]", code: "UNKNOWN_FLAG")
     }
 
     let permissions = currentPermissionsState()
@@ -312,6 +440,11 @@ private struct CanvasSnapshot {
     let notes: [String]
 }
 
+private struct SpatialSnapshotResult {
+    let snapshot: SpatialSnapshotData?
+    let notes: [String]
+}
+
 private func parseCanvasLookupArgs(_ args: [String]) -> CanvasLookupOptions {
     var id: String? = nil
     var i = 0
@@ -331,6 +464,27 @@ private func parseCanvasLookupArgs(_ args: [String]) -> CanvasLookupOptions {
 
     guard let canvasID = id else { exitError("Missing required argument: --id <name>", code: "MISSING_ARG") }
     return CanvasLookupOptions(id: canvasID)
+}
+
+private func currentGitStatus() -> GitStatusState? {
+    guard let repoRoot = aosCurrentRepoRoot() else { return nil }
+    let branch = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "branch", "--show-current"])
+        .stdout
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let aheadRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "rev-list", "--count", "origin/main..HEAD"])
+        .stdout
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let dirtyRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "status", "--porcelain"])
+        .stdout
+    let worktreesRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "worktree", "list"])
+        .stdout
+
+    return GitStatusState(
+        branch: branch.isEmpty ? "?" : branch,
+        ahead_of_origin_main: Int(aheadRaw),
+        dirty_files: dirtyRaw.split(whereSeparator: \.isNewline).count,
+        worktrees: max(worktreesRaw.split(whereSeparator: \.isNewline).count, 1)
+    )
 }
 
 private func currentPermissionsState() -> PermissionsState {
@@ -492,6 +646,21 @@ private func fetchCanvasSnapshot() -> CanvasSnapshot {
     )
 }
 
+private func currentSpatialSnapshot() -> SpatialSnapshotResult {
+    guard let response = daemonOneShot(["action": "snapshot"], autoStartBinary: aosExecutablePath()) else {
+        return SpatialSnapshotResult(snapshot: nil, notes: ["Daemon snapshot is unavailable."])
+    }
+    if let error = response["error"] as? String {
+        return SpatialSnapshotResult(snapshot: nil, notes: [error])
+    }
+    guard let snapshotDict = response["snapshot"] as? [String: Any],
+          let data = try? JSONSerialization.data(withJSONObject: snapshotDict, options: [.sortedKeys]),
+          let snapshot = try? JSONDecoder().decode(SpatialSnapshotData.self, from: data) else {
+        return SpatialSnapshotResult(snapshot: nil, notes: ["Failed to decode daemon snapshot."])
+    }
+    return SpatialSnapshotResult(snapshot: snapshot, notes: [])
+}
+
 private func daemonProcessID() -> Int? {
     if let pid = launchdProcessID(label: aosServiceLabel()) {
         return pid
@@ -520,10 +689,7 @@ private func launchdProcessID(label: String) -> Int? {
 }
 
 private func fetchDaemonUptime() -> Double? {
-    let session = DaemonSession(socketPath: kDefaultSocketPath)
-    guard session.connect(timeoutMs: 250) else { return nil }
-    defer { session.disconnect() }
-    guard let response = session.sendAndReceive(["action": "ping"]) else { return nil }
+    guard let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: kDefaultSocketPath, timeoutMs: 250) else { return nil }
     return response["uptime"] as? Double
 }
 
