@@ -129,6 +129,50 @@ export function createTetartoid(size, a, b, c) {
     return geo;
 }
 
+export function createTesseractGeometry(size) {
+  // Tesseract (4D hypercube projection): outer cube + inner cube (0.5× scale) + 8 connecting edges
+  const positions = [];
+  const s = size; // outer
+  const si = size * 0.5; // inner
+
+  // Outer cube vertices (8)
+  const outer = [
+    [-s, -s, -s], [ s, -s, -s], [ s,  s, -s], [-s,  s, -s],
+    [-s, -s,  s], [ s, -s,  s], [ s,  s,  s], [-s,  s,  s]
+  ];
+  // Inner cube vertices (8)
+  const inner = [
+    [-si, -si, -si], [ si, -si, -si], [ si,  si, -si], [-si,  si, -si],
+    [-si, -si,  si], [ si, -si,  si], [ si,  si,  si], [-si,  si,  si]
+  ];
+
+  // 12 outer edges
+  const outerEdges = [
+    [0,1],[1,2],[2,3],[3,0], [4,5],[5,6],[6,7],[7,4], [0,4],[1,5],[2,6],[3,7]
+  ];
+  // 12 inner edges
+  const innerEdges = [
+    [0,1],[1,2],[2,3],[3,0], [4,5],[5,6],[6,7],[7,4], [0,4],[1,5],[2,6],[3,7]
+  ];
+  // 8 connecting edges (outer vertex i → inner vertex i)
+  const connectors = [[0,0],[1,1],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7]];
+
+  // Build line segments
+  for (const [a, b] of outerEdges) {
+    positions.push(...outer[a], ...outer[b]);
+  }
+  for (const [a, b] of innerEdges) {
+    positions.push(...inner[a], ...inner[b]);
+  }
+  for (const [oi, ii] of connectors) {
+    positions.push(...outer[oi], ...inner[ii]);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 /**
  * DRY: Shared builder for poly geometries (depth + core + wireframe).
  * Config: { group, depthKey, coreKey, wireKey, opacity, edgeOpacity, 
@@ -168,6 +212,7 @@ function buildShapeHierarchy(type, config) {
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
         default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
     }
+          case 94: baseGeometry = createTesseractGeometry(size); break;
 
     const finalGeometry = createStellatedGeometry(baseGeometry, config.stellation);
 
