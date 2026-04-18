@@ -779,7 +779,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     ]))
 
     // ── daemon-snapshot ───────────────────────────────────
-    reg.append(CommandDescriptor(path: ["daemon-snapshot"], summary: "Daemon state snapshot", forms: [
+    reg.append(CommandDescriptor(path: ["daemon-snapshot"], summary: "Detailed daemon spatial snapshot", forms: [
         InvocationForm(id: "daemon-snapshot", usage: "aos daemon-snapshot",
             args: [],
             stdin: nil, constraints: nil,
@@ -906,8 +906,18 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos runtime display-union"])
     ]))
 
+    // ── status ────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["status"], summary: "Primary runtime/session status entrypoint", forms: [
+        InvocationForm(id: "status", usage: "aos status [--json]",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos status", "aos status --json"])
+    ]))
+
     // ── doctor ────────────────────────────────────────────
-    reg.append(CommandDescriptor(path: ["doctor"], summary: "Runtime and permission health checks", forms: [
+    reg.append(CommandDescriptor(path: ["doctor"], summary: "Detailed runtime and permission diagnostics", forms: [
         InvocationForm(id: "doctor", usage: "aos doctor [--json]",
             args: [],
             stdin: nil, constraints: nil,
@@ -935,13 +945,23 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     ]))
 
     // ── clean ─────────────────────────────────────────────
-    reg.append(CommandDescriptor(path: ["clean"], summary: "Session-boundary cleanup (stale daemons, orphaned canvases)", forms: [
+    reg.append(CommandDescriptor(path: ["clean"], summary: "Explicit stale-resource cleanup (stale daemons, orphaned canvases)", forms: [
         InvocationForm(id: "clean", usage: "aos clean [--dry-run] [--json]",
             args: [flag("dry-run", "--dry-run", "Show what would be cleaned without doing it", type: .bool)],
             stdin: nil, constraints: nil,
             execution: execMutating(dryRun: true),
             output: outJSONFlag,
             examples: ["aos clean", "aos clean --dry-run --json"])
+    ]))
+
+    // ── introspect ────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["introspect"], summary: "Review recent ./aos usage for this session", forms: [
+        InvocationForm(id: "introspect-review", usage: "aos introspect review [--session <key>] [--json]",
+            args: [flag("session", "--session", "Override session key for review")],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos introspect review", "aos introspect review --json"])
     ]))
 
     // ── permissions ───────────────────────────────────────

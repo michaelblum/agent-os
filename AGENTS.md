@@ -64,6 +64,13 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
 
 - `aos` CLI is the canonical interface for development inside agent-os. MCP tools
   exist as an optional adapter for external consumers, not for dev work.
+- In repo mode, start with `./aos status`. That is the primary runtime/session
+  entrypoint for agent work inside this repo.
+- Use `./aos introspect review` for self-review or recovery after repeated failed
+  `./aos` attempts.
+- The startup hook already handles daemon bring-up and stale-resource detection.
+  Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
+  the first move.
 
 - Do not default to `bash build.sh` before every test or verification step.
   Rebuild `./aos` only when the work changes Swift sources in `src/` or
@@ -75,13 +82,13 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   `tests/studio/` and `tests/renderer/`.
 - Shell/integration tests under `tests/` that invoke `./aos` do require a fresh
   build when relevant Swift code has changed.
-- Use `aos` as the real host when verifying display or toolkit behavior. Prefer
-  `aos://...` canvases over raw browser pages unless the problem is purely DOM
-  debugging.
-- Use `aos see` for visual verification before asking the user to inspect a
+- Use `./aos` as the real host when verifying display or toolkit behavior.
+  Prefer `aos://...` canvases over raw browser pages unless the problem is
+  purely DOM debugging.
+- Use `./aos see` for visual verification before asking the user to inspect a
   canvas manually.
 - If display work starts from stale daemons or orphaned canvases, run
-  `aos clean` first and report what was cleaned.
+  `./aos clean` first and report what was cleaned.
 - Sessions should register themselves on startup so `aos tell --who` reflects
   live collaborators. If no explicit `AOS_SESSION_NAME` is provided at launch,
   accept the harness-generated fallback name first and rename later with
