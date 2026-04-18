@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/daemon-response.schema.json",
+  "title": "Daemon Response Envelope",
+  "description": "Wire contract for responses emitted by the aos daemon. Newline-delimited JSON.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["v", "status", "data"],
+      "additionalProperties": false,
+      "properties": {
+        "v": { "const": 1 },
+        "status": { "const": "success" },
+        "data": { "type": "object" },
+        "ref": { "type": "string" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["v", "status", "error", "code"],
+      "additionalProperties": false,
+      "properties": {
+        "v": { "const": 1 },
+        "status": { "const": "error" },
+        "error": { "type": "string" },
+        "code": {
+          "type": "string",
+          "enum": [
+            "MISSING_ARG",
+            "INVALID_ARG",
+            "UNKNOWN_ACTION",
+            "UNKNOWN_SERVICE",
+            "PARSE_ERROR",
+            "SESSION_NOT_FOUND",
+            "MISSING_SESSION_ID",
+            "CANVAS_NOT_FOUND",
+            "PERMISSION_DENIED",
+            "INTERNAL"
+          ]
+        },
+        "ref": { "type": "string" }
+      }
+    }
+  ]
+}
