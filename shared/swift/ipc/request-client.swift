@@ -99,16 +99,28 @@ class DaemonSession {
 
     /// Read one JSON response from the fd. Used after sendOnly() when the caller
     /// wants to read the response later, or for reading event loop messages.
+    ///
+    /// Reads in a loop until a complete newline-delimited JSON object is available,
+    /// so large responses (> 4 KiB) are handled correctly. Each iteration uses the
+    /// full `timeoutMs` budget (only the first call waits; subsequent reads use a
+    /// shorter poll so we don't double-count time for mid-message continuations).
     func readOneJSON(timeoutMs: Int32 = 2000) -> [String: Any]? {
         guard fd >= 0 else { return nil }
         // Check if we already have a buffered line
         if let json = reader.nextJSON() { return json }
-        // Read more bytes
+        // Read chunks until we accumulate a complete newline-terminated line.
+        // First chunk uses the caller's full timeout; continuation chunks use a
+        // shorter poll (100 ms) so we yield quickly if data stops arriving.
+        var firstRead = true
         var buf = [UInt8](repeating: 0, count: 4096)
-        let n = readWithTimeout(fd, &buf, buf.count, timeoutMs: timeoutMs)
-        guard n > 0 else { return nil }
-        reader.append(buf, count: n)
-        return reader.nextJSON()
+        while true {
+            let pollMs: Int32 = firstRead ? timeoutMs : 100
+            let n = readWithTimeout(fd, &buf, buf.count, timeoutMs: pollMs)
+            guard n > 0 else { return nil }
+            reader.append(buf, count: n)
+            if let json = reader.nextJSON() { return json }
+            firstRead = false
+        }
     }
 
     /// Drain any buffered responses without blocking.

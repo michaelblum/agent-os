@@ -653,7 +653,9 @@ private func currentSpatialSnapshot() -> SpatialSnapshotResult {
     if let error = response["error"] as? String {
         return SpatialSnapshotResult(snapshot: nil, notes: [error])
     }
-    guard let snapshotDict = response["snapshot"] as? [String: Any],
+    let snapshotDict = (response["data"] as? [String: Any])?["snapshot"] as? [String: Any]
+        ?? response["snapshot"] as? [String: Any]
+    guard let snapshotDict,
           let data = try? JSONSerialization.data(withJSONObject: snapshotDict, options: [.sortedKeys]),
           let snapshot = try? JSONDecoder().decode(SpatialSnapshotData.self, from: data) else {
         return SpatialSnapshotResult(snapshot: nil, notes: ["Failed to decode daemon snapshot."])

@@ -1,6 +1,6 @@
 // focus-commands.swift — CLI commands for focus channels and graph navigation
 //
-// These commands talk to the aos unified daemon via daemonOneShot().
+// These commands talk to the aos unified daemon via sendEnvelopeRequest().
 
 import Foundation
 
@@ -28,18 +28,18 @@ func focusCreateCommand(args: [String]) {
     let depth = getArg(args, "--depth").flatMap(Int.init)
     let pid = getArg(args, "--pid").flatMap(Int.init)
 
-    var req: [String: Any] = ["action": "focus-create", "id": id, "window_id": wid]
-    if let pid = pid { req["pid"] = pid }
-    if let depth = depth { req["depth"] = depth }
+    var data: [String: Any] = ["id": id, "window_id": wid]
+    if let pid = pid { data["pid"] = pid }
+    if let depth = depth { data["depth"] = depth }
     if let sub = subtree {
         var subDict: [String: Any] = [:]
         if let r = sub.role { subDict["role"] = r }
         if let t = sub.title { subDict["title"] = t }
         if let i = sub.identifier { subDict["identifier"] = i }
-        req["subtree"] = subDict
+        data["subtree"] = subDict
     }
 
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "focus", action: "create", data: data, autoStartBinary: aosExecutablePath()))
 }
 
 func focusUpdateCommand(args: [String]) {
@@ -49,45 +49,42 @@ func focusUpdateCommand(args: [String]) {
     let subtree = parseSubtreeArgs(args)
     let depth = getArg(args, "--depth").flatMap(Int.init)
 
-    var req: [String: Any] = ["action": "focus-update", "id": id]
-    if let depth = depth { req["depth"] = depth }
+    var data: [String: Any] = ["id": id]
+    if let depth = depth { data["depth"] = depth }
     if let sub = subtree {
         var subDict: [String: Any] = [:]
         if let r = sub.role { subDict["role"] = r }
         if let t = sub.title { subDict["title"] = t }
         if let i = sub.identifier { subDict["identifier"] = i }
-        req["subtree"] = subDict
+        data["subtree"] = subDict
     }
 
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "focus", action: "update", data: data, autoStartBinary: aosExecutablePath()))
 }
 
 func focusListCommand() {
-    let req: [String: Any] = ["action": "focus-list"]
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "focus", action: "list", data: [:], autoStartBinary: aosExecutablePath()))
 }
 
 func focusRemoveCommand(args: [String]) {
     guard let id = getArg(args, "--id") else {
         exitError("--id is required", code: "MISSING_ARG")
     }
-    let req: [String: Any] = ["action": "focus-remove", "id": id]
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "focus", action: "remove", data: ["id": id], autoStartBinary: aosExecutablePath()))
 }
 
 // MARK: - Graph Commands
 
 func graphDisplaysCommand() {
-    let req: [String: Any] = ["action": "graph-displays"]
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "displays", data: [:], autoStartBinary: aosExecutablePath()))
 }
 
 func graphWindowsCommand(args: [String]) {
-    var req: [String: Any] = ["action": "graph-windows"]
+    var data: [String: Any] = [:]
     if let displayStr = getArg(args, "--display"), let d = Int(displayStr) {
-        req["display"] = d
+        data["display"] = d
     }
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "windows", data: data, autoStartBinary: aosExecutablePath()))
 }
 
 func graphDeepenCommand(args: [String]) {
@@ -97,17 +94,17 @@ func graphDeepenCommand(args: [String]) {
     let subtree = parseSubtreeArgs(args)
     let depth = getArg(args, "--depth").flatMap(Int.init)
 
-    var req: [String: Any] = ["action": "graph-deepen", "id": id]
-    if let depth = depth { req["depth"] = depth }
+    var data: [String: Any] = ["id": id]
+    if let depth = depth { data["depth"] = depth }
     if let sub = subtree {
         var subDict: [String: Any] = [:]
         if let r = sub.role { subDict["role"] = r }
         if let t = sub.title { subDict["title"] = t }
         if let i = sub.identifier { subDict["identifier"] = i }
-        req["subtree"] = subDict
+        data["subtree"] = subDict
     }
 
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "deepen", data: data, autoStartBinary: aosExecutablePath()))
 }
 
 func graphCollapseCommand(args: [String]) {
@@ -116,15 +113,14 @@ func graphCollapseCommand(args: [String]) {
     }
     let depth = getArg(args, "--depth").flatMap(Int.init)
 
-    var req: [String: Any] = ["action": "graph-collapse", "id": id]
-    if let depth = depth { req["depth"] = depth }
+    var data: [String: Any] = ["id": id]
+    if let depth = depth { data["depth"] = depth }
 
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "collapse", data: data, autoStartBinary: aosExecutablePath()))
 }
 
 func daemonSnapshotCommand() {
-    let req: [String: Any] = ["action": "snapshot"]
-    printDaemonResult(daemonOneShot(req, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendEnvelopeRequest(service: "see", action: "snapshot", data: [:], autoStartBinary: aosExecutablePath()))
 }
 
 // MARK: - Response Output

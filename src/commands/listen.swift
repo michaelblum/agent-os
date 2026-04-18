@@ -69,7 +69,7 @@ private func listenRead(channel: String, since: String?, limit: Int) {
     var data: [String: Any] = ["channel": channel, "limit": limit]
     if let s = since { data["since"] = s }
 
-    guard let response = sendEnvelopeRequest(service: "listen", action: "read", data: data) else {
+    guard let response = sendEnvelopeRequest(service: "listen", action: "read", data: data, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let responseData = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
@@ -103,8 +103,9 @@ private func listenFollow(channel: String, since: String?) {
         if let s = since { readData["since"] = s }
         let readReq: [String: Any] = ["v": 1, "service": "listen", "action": "read", "data": readData]
         session.sendOnly(readReq)
-        if let response = session.readOneJSON(timeoutMs: 2000),
-           let msgs = response["messages"] as? [[String: Any]] {
+        if let response = session.readOneJSON(timeoutMs: 2000) {
+            let body = (response["data"] as? [String: Any]) ?? response
+            let msgs = body["messages"] as? [[String: Any]] ?? []
             for msg in msgs {
                 if let data = try? JSONSerialization.data(withJSONObject: msg, options: [.sortedKeys]),
                    let s = String(data: data, encoding: .utf8) {
@@ -158,7 +159,7 @@ private func listenFollow(channel: String, since: String?) {
 // MARK: - List channels
 
 private func listenChannels() {
-    guard let response = sendEnvelopeRequest(service: "listen", action: "channels", data: [:]) else {
+    guard let response = sendEnvelopeRequest(service: "listen", action: "channels", data: [:], autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),

@@ -987,8 +987,34 @@ class UnifiedDaemon {
         case ("voice", "bind"):               return "voice-bind"
         case ("voice", "final_response"):     return "voice-final-response"
         case ("system", "ping"):              return "ping"
+        // Focus channel actions
+        case ("focus", "list"):               return "focus-list"
+        case ("focus", "create"):             return "focus-create"
+        case ("focus", "update"):             return "focus-update"
+        case ("focus", "remove"):             return "focus-remove"
+        // Graph navigation actions
+        case ("graph", "displays"):           return "graph-displays"
+        case ("graph", "windows"):            return "graph-windows"
+        case ("graph", "deepen"):             return "graph-deepen"
+        case ("graph", "collapse"):           return "graph-collapse"
         default:                               return nil
         }
+    }
+
+    /// Convert a CanvasResponse to a plain dictionary suitable for sendResponseJSON.
+    private func canvasResponseDict(_ r: CanvasResponse) -> [String: Any] {
+        var d: [String: Any] = [:]
+        if let status = r.status { d["status"] = status }
+        if let error = r.error   { d["error"] = error }
+        if let code = r.code     { d["code"] = code }
+        if let result = r.result { d["result"] = result }
+        if let uptime = r.uptime { d["uptime"] = uptime }
+        if let canvases = r.canvases,
+           let data = try? JSONEncoder().encode(canvases),
+           let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            d["canvases"] = arr
+        }
+        return d
     }
 
     /// Build an envelope error response dict.
@@ -1039,8 +1065,8 @@ class UnifiedDaemon {
                 ))
                 return
             }
-            // Check that the service is one of the eight known namespaces.
-            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system"]
+            // Check that the service is one of the known namespaces.
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph"]
             if !knownServices.contains(env.service) {
                 sendResponseJSON(to: clientFD, envelopeError(
                     error: "Unknown service: \(env.service)",
@@ -1120,9 +1146,7 @@ class UnifiedDaemon {
             }
             semaphore.wait()
 
-            if let data = response.toData() {
-                sendResponse(to: clientFD, data)
-            }
+            sendResponseJSON(to: clientFD, canvasResponseDict(response), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
             // Announce display actions
             if currentConfig.voice.enabled && currentConfig.voice.announce_actions {
@@ -1160,9 +1184,7 @@ class UnifiedDaemon {
                 postSemaphore.signal()
             }
             postSemaphore.wait()
-            if let data = postResponse.toData() {
-                sendResponse(to: clientFD, data)
-            }
+            sendResponseJSON(to: clientFD, canvasResponseDict(postResponse), envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Coordination actions --
         case "tell":

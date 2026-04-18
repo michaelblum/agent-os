@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "v": { "const": 1 },
-    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system"] },
+    "service": { "enum": ["see", "do", "show", "tell", "listen", "session", "voice", "system", "focus", "graph"] },
     "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
     "data": { "type": "object" },
     "ref": { "type": "string" }
@@ -53,7 +53,23 @@
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "final_response" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceFinalResponseData" } } } },
     { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "ping" } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } }
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "list" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "create" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/FocusCreateData" } } } },
+    { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "update" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/FocusUpdateData" } } } },
+    { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "remove" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/FocusRemoveData" } } } },
+    { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "displays" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "windows" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/GraphWindowsData" } } } },
+    { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "deepen" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/GraphDeepenData" } } } },
+    { "if": { "properties": { "service": { "const": "graph" }, "action": { "const": "collapse" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/GraphCollapseData" } } } }
   ],
   "$defs": {
     "Empty": { "type": "object", "additionalProperties": true },
@@ -203,6 +219,71 @@
         "session_id": { "type": "string" },
         "harness": { "type": "string" },
         "hook_payload": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "FocusSubtree": {
+      "type": "object",
+      "properties": {
+        "role": { "type": "string" },
+        "title": { "type": "string" },
+        "identifier": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "FocusCreateData": {
+      "type": "object",
+      "required": ["id", "window_id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "window_id": { "type": "integer" },
+        "pid": { "type": "integer" },
+        "depth": { "type": "integer" },
+        "subtree": { "$ref": "#/$defs/FocusSubtree" }
+      },
+      "additionalProperties": true
+    },
+    "FocusUpdateData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "depth": { "type": "integer" },
+        "subtree": { "$ref": "#/$defs/FocusSubtree" }
+      },
+      "additionalProperties": true
+    },
+    "FocusRemoveData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "GraphWindowsData": {
+      "type": "object",
+      "properties": {
+        "display": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "GraphDeepenData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "depth": { "type": "integer" },
+        "subtree": { "$ref": "#/$defs/FocusSubtree" }
+      },
+      "additionalProperties": true
+    },
+    "GraphCollapseData": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "depth": { "type": "integer" }
       },
       "additionalProperties": true
     }

@@ -128,7 +128,7 @@ func tellCommand(args: [String]) {
     }
 
     // Send to daemon via v1 envelope
-    guard let response = sendEnvelopeRequest(service: "tell", action: "send", data: data) else {
+    guard let response = sendEnvelopeRequest(service: "tell", action: "send", data: data, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
 
@@ -150,7 +150,7 @@ func tellCommand(args: [String]) {
 private func tellRegister(sessionID: String, name: String?, role: String, harness: String) {
     var data: [String: Any] = ["session_id": sessionID, "role": role, "harness": harness]
     if let name, !name.isEmpty { data["name"] = name }
-    guard let response = sendEnvelopeRequest(service: "session", action: "register", data: data) else {
+    guard let response = sendEnvelopeRequest(service: "session", action: "register", data: data, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
@@ -163,7 +163,7 @@ private func tellUnregister(sessionID: String?, name: String?) {
     var data: [String: Any] = [:]
     if let sid = sessionID, !sid.isEmpty { data["session_id"] = sid }
     if let name, !name.isEmpty { data["name"] = name }
-    guard let response = sendEnvelopeRequest(service: "session", action: "unregister", data: data) else {
+    guard let response = sendEnvelopeRequest(service: "session", action: "unregister", data: data, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
@@ -173,7 +173,7 @@ private func tellUnregister(sessionID: String?, name: String?) {
 }
 
 private func tellWho() {
-    guard let response = sendEnvelopeRequest(service: "session", action: "who", data: [:]) else {
+    guard let response = sendEnvelopeRequest(service: "session", action: "who", data: [:], autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
     if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),

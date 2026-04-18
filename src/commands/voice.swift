@@ -18,9 +18,9 @@ func voiceCommand(args: [String]) {
     let response: [String: Any]?
     switch subcommand {
     case "list":
-        response = sendEnvelopeRequest(service: "voice", action: "list", data: [:])
+        response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
-        response = sendEnvelopeRequest(service: "voice", action: "leases", data: [:])
+        response = sendEnvelopeRequest(service: "voice", action: "leases", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "bind":
         response = voiceBindEnvelope(args: Array(args.dropFirst()))
     case "final-response":
@@ -75,7 +75,7 @@ private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
     return sendEnvelopeRequest(service: "voice", action: "bind", data: [
         "session_id": sessionID,
         "voice_id": voiceID
-    ])
+    ], autoStartBinary: CommandLine.arguments[0])
 }
 
 private func voiceFinalResponseEnvelope(args: [String]) -> [String: Any]? {
@@ -123,5 +123,5 @@ private func buildFinalResponseEnvelope(hookPayload: Any, sessionID: String?, ha
     var data: [String: Any] = ["hook_payload": hookPayload]
     if let sid = sessionID, !sid.isEmpty { data["session_id"] = sid }
     if let h = harness, !h.isEmpty { data["harness"] = h }
-    return sendEnvelopeRequest(service: "voice", action: "final_response", data: data)
+    return sendEnvelopeRequest(service: "voice", action: "final_response", data: data, autoStartBinary: CommandLine.arguments[0])
 }

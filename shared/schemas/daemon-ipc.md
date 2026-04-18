@@ -47,6 +47,14 @@ Error response:
 | `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id`. |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
 | `system.ping` | Daemon health + uptime. | (none) |
+| `focus.list` | List focus channels. | (none) |
+| `focus.create` | Create a focus channel. | `id`, `window_id`. |
+| `focus.update` | Update a focus channel. | `id`. |
+| `focus.remove` | Remove a focus channel. | `id`. |
+| `graph.displays` | Display topology graph. | (none) |
+| `graph.windows` | Window topology graph. | (none; optional `display`). |
+| `graph.deepen` | Expand a graph node. | `id`. |
+| `graph.collapse` | Collapse a graph node. | `id`. |
 
 ## Error Codes
 
