@@ -58,6 +58,8 @@ Stateless on inspector: every emit replaces the prior list for that `canvas_id`.
 
 **`id` is required and must be stable per logical object.** Because snapshots replace the full list, an auto-assigned fallback counter would reassign ids on every emit — breaking color stability, TTL-per-mark, and the Tier 3 capture cache. Consumers without a natural id should synthesize a stable one (e.g. `"obj-" + sceneObject.uuid`). Malformed marks lacking `id` are dropped with a single logged warning per source canvas.
 
+**`id` must also be unique within a single snapshot** (per `canvas_id`). Cache and timer state are keyed by `${canvas_id}:${mark.id}`, so duplicates would clobber each other. `normalizeMarks` enforces first-occurrence-wins: the first entry with a given `id` is kept, later duplicates are dropped with a one-shot warn per `(canvas_id, id)` pair.
+
 ### Lifecycle + TTL
 
 - **Idle TTL:** 10 seconds after last emit for a given `canvas_id` → inspector drops all marks for that canvas. Handles consumer crash / dev-inspector-only paths.
@@ -300,8 +302,10 @@ function emitMarks() {
 ## Testing
 
 **Unit (Node, no WebView):**
-- `normalizeMarks`: drops entries without `id` (asserts one-shot warn fires once per source canvas); stable color determinism per `id`; size clamp; name fallback to `id`.
+- `normalizeMarks`: drops entries without `id` (asserts one-shot warn fires once per source canvas); enforces id-uniqueness within a snapshot (first-occurrence-wins, warn once per `(canvas_id, id)` collision); stable color determinism per `id`; size clamp; name fallback to `id`.
 - `diffAndReconcile`: removed marks evict both caches; new `icon: "capture"` marks seed `tier3Timers` with `nextAt: 0`; changed icon signature resets timer; iconSig change evicts `iconCache`.
+- Scheduler lifecycle: tick is torn down after the last mark is cleared (via `objects: []`, TTL expiry, or parent canvas removal); tick is re-armed on the next emit.
+- Tier 3 immediate recapture: after an icon-signature change on an existing mark (e.g. `icon_region` moves), the next tick issues a capture even if less than `1/icon_hz` seconds have passed since the prior capture.
 - Sanitizer: strips `<script>`, event handlers, external refs; preserves benign SVG.
 - TTL sweep: expired entries removed; non-expired entries untouched.
 - Precedence: `icon` > `shape` > default.
