@@ -13,11 +13,12 @@ export function createAuraObjects() {
     }));
     state.scene.add(state.coreSprite);
 
-      // 3. Wobbly Core (small opaque white sphere at center)
-  const coreGeo = new THREE.IcosahedronGeometry(0.15, 2);
-  const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 1.0, transparent: false });
-  state.wobbleCoreMesh = new THREE.Mesh(coreGeo, coreMat);
-  state.scene.add(state.wobbleCoreMesh);
+    // 3. Wobbly Core (small opaque white sphere at center)
+    const coreGeo = new THREE.IcosahedronGeometry(0.15, 2);
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff, opacity: 1.0, transparent: false });
+    state.wobbleCoreMesh = new THREE.Mesh(coreGeo, coreMat);
+    state.wobbleCoreBasePositions = Float32Array.from(coreGeo.attributes.position.array);
+    state.scene.add(state.wobbleCoreMesh);
 }
 
 export function computeAuraPosition() {
@@ -73,25 +74,26 @@ export function animateAura(dt) {
     } else if (state.coreSprite) {
         state.coreSprite.visible = false;
     }
-    
-  // Wobbly Core (animated vertex displacement)
-  if (state.isAuraEnabled && state.wobbleCoreMesh) {
-    state.wobbleCoreMesh.visible = true;
-    state.wobbleCoreMesh.position.copy(auraPos);
-    
-    // Animate vertices with noise
-    const positions = state.wobbleCoreMesh.geometry.attributes.position;
-    const time = Date.now() * 0.002;
-    for (let i = 0; i < positions.count; i++) {
-      const x = positions.getX(i);
-      const y = positions.getY(i);
-      const z = positions.getZ(i);
-      const noise = Math.sin(x * 10 + time) * Math.cos(y * 10 + time * 1.3) * Math.sin(z * 10 + time * 0.7);
-      const scale = 1.0 + noise * 0.1;
-      positions.setXYZ(i, x * scale, y * scale, z * scale);
+    if (state.isAuraEnabled && state.wobbleCoreMesh && state.wobbleCoreBasePositions) {
+        state.wobbleCoreMesh.visible = true;
+        state.wobbleCoreMesh.position.copy(auraPos);
+
+        // Recompute from cached rest positions so the wobble oscillates in place.
+        const positions = state.wobbleCoreMesh.geometry.attributes.position;
+        const rest = state.wobbleCoreBasePositions;
+        const time = Date.now() * 0.002;
+
+        for (let i = 0; i < positions.count; i++) {
+            const offset = i * 3;
+            const x = rest[offset];
+            const y = rest[offset + 1];
+            const z = rest[offset + 2];
+            const noise = Math.sin(x * 10 + time) * Math.cos(y * 10 + time * 1.3) * Math.sin(z * 10 + time * 0.7);
+            const scale = 1.0 + (noise * 0.1);
+            positions.setXYZ(i, x * scale, y * scale, z * scale);
+        }
+        positions.needsUpdate = true;
+    } else if (state.wobbleCoreMesh) {
+        state.wobbleCoreMesh.visible = false;
     }
-    positions.needsUpdate = true;
-  } else if (state.wobbleCoreMesh) {
-    state.wobbleCoreMesh.visible = false;
-  }
 }

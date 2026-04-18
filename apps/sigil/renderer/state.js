@@ -8,6 +8,8 @@ const defaults = {
     polyGroup: null,
     glowSprite: null,
     coreSprite: null,
+    wobbleCoreMesh: null,
+    wobbleCoreBasePositions: null,
     coreMesh: null,
     wireframeMesh: null,
     depthMesh: null,

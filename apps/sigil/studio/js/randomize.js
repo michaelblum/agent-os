@@ -31,7 +31,7 @@ function setUI(id, val, strVal) {
 }
 
 function randomizeShape(rng) {
-  const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 100];
+  const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 94, 100];
   setUI('shapeSelect', shapes[Math.floor(rng() * shapes.length)]);
   const stellation = (rng() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
   const opacity = rng().toFixed(2); setUI('opacitySlider', opacity, opacity);
@@ -73,7 +73,8 @@ function randomizeEffects(rng, deps) {
   setUI('lightningToggle', rng() > 0.7);
   setUI('magneticToggle', rng() > 0.7);
   if (state.isOmegaEnabled) {
-    setUI('omegaShapeSelect', [4, 6, 8, 12, 20, 90, 100][Math.floor(rng() * 7)]);
+    const omegaShapes = [4, 6, 8, 12, 20, 90, 94, 100];
+    setUI('omegaShapeSelect', omegaShapes[Math.floor(rng() * omegaShapes.length)]);
     setUI('omegaStellationSlider', (rng() * 3 - 1), (rng() * 3 - 1).toFixed(2));
     setUI('omegaOpacitySlider', rng(), rng().toFixed(2));
     setUI('omegaEdgeOpacitySlider', rng(), rng().toFixed(2));

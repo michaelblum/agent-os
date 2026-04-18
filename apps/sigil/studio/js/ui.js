@@ -1138,7 +1138,7 @@ export function setupUI() {
     // Avatar roster — persisted via content server state endpoint, localStorage fallback
     const ROSTER_KEY = 'sigil-avatar-roster';
     const ROSTER_URL = '/_state/avatar-roster.json';
-    const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 100: 'Sphere' };
+    const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 94: 'Tesseract', 100: 'Sphere' };
 
     // In-memory cache — loaded async at startup, sync reads thereafter
     let _rosterCache = [];

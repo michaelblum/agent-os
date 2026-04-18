@@ -130,47 +130,74 @@ export function createTetartoid(size, a, b, c) {
 }
 
 export function createTesseractGeometry(size) {
-  // Tesseract (4D hypercube projection): outer cube + inner cube (0.5× scale) + 8 connecting edges
-  const positions = [];
-  const s = size; // outer
-  const si = size * 0.5; // inner
+    const s = size;
+    const si = size * 0.5;
+    const vertices = [
+        new THREE.Vector3(-s, -s, -s), new THREE.Vector3(s, -s, -s),
+        new THREE.Vector3(s, s, -s), new THREE.Vector3(-s, s, -s),
+        new THREE.Vector3(-s, -s, s), new THREE.Vector3(s, -s, s),
+        new THREE.Vector3(s, s, s), new THREE.Vector3(-s, s, s),
+        new THREE.Vector3(-si, -si, -si), new THREE.Vector3(si, -si, -si),
+        new THREE.Vector3(si, si, -si), new THREE.Vector3(-si, si, -si),
+        new THREE.Vector3(-si, -si, si), new THREE.Vector3(si, -si, si),
+        new THREE.Vector3(si, si, si), new THREE.Vector3(-si, si, si)
+    ];
+    const positions = [];
+    const indices = [];
+    const cubeFaces = [
+        [0, 3, 2, 1], [4, 5, 6, 7],
+        [0, 4, 7, 3], [1, 2, 6, 5],
+        [0, 1, 5, 4], [3, 7, 6, 2]
+    ];
+    const edgePairs = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7]
+    ];
+    const ab = new THREE.Vector3();
+    const ac = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+    const centroid = new THREE.Vector3();
 
-  // Outer cube vertices (8)
-  const outer = [
-    [-s, -s, -s], [ s, -s, -s], [ s,  s, -s], [-s,  s, -s],
-    [-s, -s,  s], [ s, -s,  s], [ s,  s,  s], [-s,  s,  s]
-  ];
-  // Inner cube vertices (8)
-  const inner = [
-    [-si, -si, -si], [ si, -si, -si], [ si,  si, -si], [-si,  si, -si],
-    [-si, -si,  si], [ si, -si,  si], [ si,  si,  si], [-si,  si,  si]
-  ];
+    function pushQuad(a, b, c, d, desiredSign = 1) {
+        const vA = vertices[a];
+        const vB = vertices[b];
+        const vC = vertices[c];
+        const vD = vertices[d];
 
-  // 12 outer edges
-  const outerEdges = [
-    [0,1],[1,2],[2,3],[3,0], [4,5],[5,6],[6,7],[7,4], [0,4],[1,5],[2,6],[3,7]
-  ];
-  // 12 inner edges
-  const innerEdges = [
-    [0,1],[1,2],[2,3],[3,0], [4,5],[5,6],[6,7],[7,4], [0,4],[1,5],[2,6],[3,7]
-  ];
-  // 8 connecting edges (outer vertex i → inner vertex i)
-  const connectors = [[0,0],[1,1],[2,2],[3,3],[4,4],[5,5],[6,6],[7,7]];
+        ab.subVectors(vB, vA);
+        ac.subVectors(vC, vA);
+        normal.crossVectors(ab, ac);
+        centroid.copy(vA).add(vB).add(vC).add(vD).multiplyScalar(0.25);
 
-  // Build line segments
-  for (const [a, b] of outerEdges) {
-    positions.push(...outer[a], ...outer[b]);
-  }
-  for (const [a, b] of innerEdges) {
-    positions.push(...inner[a], ...inner[b]);
-  }
-  for (const [oi, ii] of connectors) {
-    positions.push(...outer[oi], ...inner[ii]);
-  }
+        if ((normal.dot(centroid) * desiredSign) < 0) {
+            indices.push(a, d, c, a, c, b);
+            return;
+        }
+        indices.push(a, b, c, a, c, d);
+    }
 
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  return geo;
+    for (const vertex of vertices) {
+        positions.push(vertex.x, vertex.y, vertex.z);
+    }
+
+    for (const face of cubeFaces) {
+        pushQuad(face[0], face[1], face[2], face[3], 1);
+    }
+
+    for (const face of cubeFaces) {
+        pushQuad(face[0] + 8, face[1] + 8, face[2] + 8, face[3] + 8, -1);
+    }
+
+    for (const [a, b] of edgePairs) {
+        pushQuad(a, b, b + 8, a + 8, 1);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
 }
 
 /**
@@ -209,10 +236,10 @@ function buildShapeHierarchy(type, config) {
         case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
         case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
         case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides); break;
+        case 94: baseGeometry = createTesseractGeometry(size); break;
         case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
         default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
     }
-          case 94: baseGeometry = createTesseractGeometry(size); break;
 
     const finalGeometry = createStellatedGeometry(baseGeometry, config.stellation);
 

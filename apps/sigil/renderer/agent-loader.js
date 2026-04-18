@@ -10,7 +10,7 @@ export const MINIMAL_DEFAULT = Object.freeze({
   id: 'default',
   name: 'Default',
   appearance: {
-    shape: 6,
+    shape: 94,
     opacity: 0.25,
     edgeOpacity: 1.0,
     maskEnabled: true,
