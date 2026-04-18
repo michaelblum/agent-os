@@ -948,8 +948,13 @@ class UnifiedDaemon {
 
     // MARK: - Envelope Helpers (v1 IPC)
 
-    /// Detect envelope form `{v:1, service, action, data, ref?}`.
-    /// Returns `(service, action, data, ref)` if envelope, `nil` otherwise.
+    /// Returns true if the JSON has the v:1 version marker that signals an envelope request.
+    private func isEnvelopeShape(_ json: [String: Any]) -> Bool {
+        return json["v"] as? Int == 1
+    }
+
+    /// Strict parser for a v1 envelope `{v:1, service, action, data, ref?}`.
+    /// Returns `(service, action, data, ref)` if all required fields are valid, `nil` if any field is malformed.
     private func parseEnvelope(_ json: [String: Any]) -> (service: String, action: String, data: [String: Any], ref: String?)? {
         guard let v = json["v"] as? Int, v == 1 else { return nil }
         guard let service = json["service"] as? String, !service.isEmpty else { return nil }
@@ -999,7 +1004,25 @@ class UnifiedDaemon {
         // (service, action) to the legacy flat action string and reshape `data`
         // back into the top-level JSON the legacy handlers expect. This keeps
         // the handler bodies untouched while we migrate callers.
-        if let env = parseEnvelope(json) {
+        if isEnvelopeShape(json) {
+            guard let env = parseEnvelope(json) else {
+                sendResponseJSON(to: clientFD, envelopeError(
+                    error: "Request envelope has v:1 but malformed fields",
+                    code: "PARSE_ERROR",
+                    ref: json["ref"] as? String
+                ))
+                return
+            }
+            // Check that the service is one of the eight known namespaces.
+            let knownServices: Set<String> = ["see", "do", "show", "tell", "listen", "session", "voice", "system"]
+            if !knownServices.contains(env.service) {
+                sendResponseJSON(to: clientFD, envelopeError(
+                    error: "Unknown service: \(env.service)",
+                    code: "UNKNOWN_SERVICE",
+                    ref: env.ref
+                ))
+                return
+            }
             let legacyAction = legacyActionName(service: env.service, action: env.action)
             guard let legacy = legacyAction else {
                 sendResponseJSON(to: clientFD, envelopeError(
