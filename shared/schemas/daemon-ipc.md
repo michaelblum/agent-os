@@ -64,7 +64,7 @@ Error response:
 | `MISSING_ARG` | Required field absent or empty. |
 | `INVALID_ARG` | Field has unacceptable value. |
 | `UNKNOWN_ACTION` | `(service, action)` not in catalog. |
-| `UNKNOWN_SERVICE` | `service` not one of the eight namespaces. |
+| `UNKNOWN_SERVICE` | `service` not one of the eleven known namespaces. |
 | `PARSE_ERROR` | Request not JSON, schema violation, or legacy flat-string request. |
 | `SESSION_NOT_FOUND` | Referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | Daemon could not resolve a session id for an action that requires one. |

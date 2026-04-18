@@ -53,7 +53,7 @@ This spec formalizes the request/response wire contract, normalizes the action v
 | Field    | Type   | Required | Description |
 |----------|--------|----------|-------------|
 | `v`      | int    | yes      | Envelope version. Integer, not semver. Currently `1`. Bumped only on breaking wire changes. |
-| `service`| string | yes      | Top-level namespace. One of `see`, `do`, `show`, `tell`, `listen`, `session`, `voice`, `system`. |
+| `service`| string | yes      | Top-level namespace. One of `see`, `do`, `show`, `tell`, `listen`, `session`, `voice`, `system`, `focus`, `graph`, `content`. |
 | `action` | string | yes      | Verb within the namespace. Snake_case. See action catalog below. |
 | `data`   | object | yes      | Action-specific payload. Always an object, never null. An action with no parameters uses `{}`. |
 | `ref`    | string | no       | Optional correlation ID. If present, the response and any correlated events echo it back. |
@@ -113,20 +113,23 @@ JSON-RPC 2.0 was considered. The decision is to mirror the existing aos event en
 
 ## Namespaces and Actions
 
-The request vocabulary has eight namespaces: seven carry v1 actions, and `do` is reserved with none. `aos do` is implemented today as client-side CGEvent and AppleScript calls that do not require the daemon. `do` is kept in the `service` enum so that adding `do.*` actions in the future is additive.
+The request vocabulary has eleven namespaces: ten carry v1 actions, and `do` is reserved with none. `aos do` is implemented today as client-side CGEvent and AppleScript calls that do not require the daemon. `do` is kept in the `service` enum so that adding `do.*` actions in the future is additive.
 
 | Namespace | Actions |
 |-----------|---------|
-| `see`     | `observe` |
+| `see`     | `observe`, `snapshot` |
 | `do`      | *(reserved, no v1 actions)* |
-| `show`    | `create`, `update`, `eval`, `remove`, `remove_all`, `list` |
+| `show`    | `create`, `update`, `eval`, `remove`, `remove_all`, `list`, `post` |
 | `tell`    | `send` |
 | `listen`  | `read`, `channels` |
 | `session` | `register`, `unregister`, `who` |
 | `voice`   | `list`, `leases`, `bind`, `final_response` |
 | `system`  | `ping` |
+| `focus`   | `list`, `create`, `update`, `remove` |
+| `graph`   | `displays`, `windows`, `deepen`, `collapse` |
+| `content` | `status` |
 
-Total: 17 actions across 7 active namespaces (plus `do` reserved).
+Total: 28 actions across 10 active namespaces (plus `do` reserved).
 
 ### Migration table from legacy action names
 
@@ -148,6 +151,17 @@ Total: 17 actions across 7 active namespaces (plus `do` reserved).
 | `voice-bind` | `voice.bind` | |
 | `voice-final-response` | `voice.final_response` | Retained as its own action in v1 because the payload is a harness-specific hook JSON, not agent-authored text. Future convergence with `tell.send` (purpose `final_response`) is possible in v2. |
 | `ping` | `system.ping` | |
+| `focus-list` | `focus.list` | |
+| `focus-create` | `focus.create` | |
+| `focus-update` | `focus.update` | |
+| `focus-remove` | `focus.remove` | |
+| `graph-displays` | `graph.displays` | |
+| `graph-windows` | `graph.windows` | |
+| `graph-deepen` | `graph.deepen` | |
+| `graph-collapse` | `graph.collapse` | |
+| `content_status` | `content.status` | |
+| `snapshot` | `see.snapshot` | |
+| `post` (canvas branch, `show.post` invocation) | `show.post` | Dedicated action for `sendHeadsupMessage`; distinct from the earlier `post → show.create/update/…` pattern which covered dispatch-on-inner-action. |
 
 ### Actions removed in v1
 
@@ -353,6 +367,107 @@ Response `data`: `{ "delivered": bool, "session_id": string }`.
 Request `data`: `{}`.
 Response `data`: `{ "uptime": number, "perception_channels": int, ...daemon health fields }`.
 
+### `see.snapshot`
+
+Requests an immediate spatial snapshot from the daemon, returning display and window topology along with active focus channel count.
+
+Request `data`: `{}`.
+Response `data`: `{ "displays": int, "windows": int, "channels": int }`.
+
+### `show.post`
+
+Posts a message to a canvas via `sendHeadsupMessage`. This is a dedicated canvas-messaging action, distinct from the `show.create`/`show.update`/… dispatch pattern that replaced the old `post`-with-inner-action form.
+
+Request `data`:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `id` | string | yes | Canvas id to post to. |
+| Additional fields | — | varies | Message payload fields forwarded to the canvas. |
+
+Response `data`: `{}`.
+
+### `focus.list`
+
+Lists all active focus channels.
+
+Request `data`: `{}`.
+Response `data`: `{ "channels": [SpatialChannelSummary] }`.
+
+### `focus.create`
+
+Creates a new focus channel tracking a specific window.
+
+Request `data`:
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `id` | string | yes | Channel id. |
+| `window_id` | int | yes | CGWindowID to track. |
+| `pid` | int | no | Process id hint. |
+| `subtree` | object | no | AX subtree filter. |
+| `depth` | int | no | Traversal depth. |
+
+Response `data`: `{}`.
+
+### `focus.update`
+
+Updates subtree or depth settings for an existing focus channel.
+
+Request `data`:
+
+| Field | Type | Required |
+|-------|------|----------|
+| `id` | string | yes |
+| `subtree` | object | no |
+| `depth` | int | no |
+
+Response `data`: `{}`.
+
+### `focus.remove`
+
+Removes a focus channel by id.
+
+Request `data`: `{ "id": string (required) }`.
+Response `data`: `{}`.
+
+### `graph.displays`
+
+Returns the current display topology.
+
+Request `data`: `{}`.
+Response `data`: `{ "displays": [SpatialDisplayInfo] }`.
+
+### `graph.windows`
+
+Returns the current window topology, optionally filtered to a display.
+
+Request `data`: `{ "display"?: int }`.
+Response `data`: `{ "windows": [SpatialWindowInfo] }`.
+
+### `graph.deepen`
+
+Expands a focus channel node to a deeper AX traversal.
+
+Request `data`: `{ "id": string (required), "subtree"?: object, "depth"?: int }`.
+Response `data`: `{ "elements_count"?: int }`.
+
+### `graph.collapse`
+
+Collapses a focus channel node to a shallower AX traversal.
+
+Request `data`: `{ "id": string (required), "depth"?: int }`.
+Response `data`: `{ "elements_count"?: int }`.
+
+### `content.status`
+
+Queries the daemon's content server for its current port and registered roots.
+
+Request `data`: `{}`.
+Response `data`: `{ "port": int, "roots": { [name: string]: string }, "note"?: string }`.
+
+When the content server is not configured, returns `port: 0`, empty `roots`, and a `note` explaining the state.
+
 ## Error Codes
 
 The daemon emits `code` from this stable vocabulary. Consumers should branch on `code`, never on the prose in `error`. New codes can be added in subsequent schema revisions without bumping the envelope version.
@@ -362,7 +477,7 @@ The daemon emits `code` from this stable vocabulary. Consumers should branch on 
 | `MISSING_ARG` | A required field in `data` was absent or empty. |
 | `INVALID_ARG` | A field was present but had an unacceptable value or type. |
 | `UNKNOWN_ACTION` | `(service, action)` pair is not in the catalog. |
-| `UNKNOWN_SERVICE` | `service` is not one of the eight known namespaces. |
+| `UNKNOWN_SERVICE` | `service` is not one of the eleven known namespaces. |
 | `PARSE_ERROR` | The request could not be parsed as JSON, or the envelope failed schema validation. |
 | `SESSION_NOT_FOUND` | A referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | The daemon could not resolve a session id for an action that requires one (used today by `voice.final_response` when extraction from the hook payload fails). |
