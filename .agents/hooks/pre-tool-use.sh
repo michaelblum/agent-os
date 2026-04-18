@@ -5,15 +5,17 @@
 set -euo pipefail
 INPUT=$(cat)
 CMD=$(echo "$INPUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 echo "$CMD" | grep -qE 'rm -rf /|git push.*--force.*main|git reset --hard' && {
   echo "Blocked: destructive command on main" >&2
   exit 2
 }
 
+printf '%s' "$INPUT" | python3 "$ROOT/.agents/hooks/aos-agent-policy.py" pre || exit $?
+
 echo "$CMD" | grep -q 'git commit' || exit 0
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || exit 0)"
 cd "$ROOT"
 
 SECRETS=$(git diff --cached --name-only 2>/dev/null | grep -iE '\.env$|\.env\.|credentials|\.pem$|\.key$|secret.*\.json' || true)
@@ -40,4 +42,3 @@ if [ -n "$BAD_PATHS" ]; then
 fi
 
 exit 0
-

@@ -37,6 +37,16 @@
             "type": "command",
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/check-messages.sh\"",
             "statusMessage": "Checking coordination messages",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/post-tool-use.sh\"",
             "timeout": 10
           }
         ]

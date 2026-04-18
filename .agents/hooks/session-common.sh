@@ -242,7 +242,6 @@ PY
 }
 
 aos_resolve_last_assistant_message_from_gemini_transcript() {
-  # Reserved slot for a future Gemini transcript parser.
   return 0
 }
 
