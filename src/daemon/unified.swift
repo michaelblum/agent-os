@@ -1089,22 +1089,6 @@ class UnifiedDaemon {
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
-        case "perceive":
-            let depth = json["depth"] as? Int ?? config.perception.default_depth
-            let scope = json["scope"] as? String ?? "cursor"
-            let rate = json["rate"] as? String ?? "on-settle"
-            let events = json["events"] as? [String] ?? []
-            let wantsSnapshot = (json["snapshot"] as? Bool) ?? false
-            let channelID = perception.attention.addChannel(depth: depth, scope: scope, rate: rate)
-            let wantsInputEvents = requestedInputEvents(json)
-            subscriberLock.lock()
-            subscribers[connectionID]?.perceptionChannelIDs.insert(channelID)
-            subscribers[connectionID]?.isSubscribed = true
-            subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
-            subscriberLock.unlock()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-            if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
-
         case "sigil_input_mode":
             guard let mode = json["mode"] as? String, !mode.isEmpty else {
                 sendResponseJSON(to: clientFD, ["error": "sigil_input_mode requires mode", "code": "INVALID_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
@@ -1158,32 +1142,27 @@ class UnifiedDaemon {
                 }
             }
 
-        // -- Post: canvas delivery (preferred) or legacy channel relay --
+        // -- Post: canvas message delivery --
+        // Reachable only via the show.post -> "post" legacyActionName mapping,
+        // which is exercised by sendHeadsupMessage / sendHeadsupMessageOneShot
+        // in helpers.swift. Channel relay was removed; use tell.send for channels.
         case "post":
-            if json["id"] != nil {
-                let requestData = lineData(from: json)
-                guard let request = CanvasRequest.from(requestData) else {
-                    sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                    return
-                }
-                let semaphore = DispatchSemaphore(value: 0)
-                var response = CanvasResponse.fail("Internal error", code: "INTERNAL")
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { semaphore.signal(); return }
-                    response = self.canvasManager.handle(request, connectionID: connectionID)
-                    semaphore.signal()
-                }
-                semaphore.wait()
-                if let data = response.toData() {
-                    sendResponse(to: clientFD, data)
-                }
+            let requestData = lineData(from: json)
+            guard let request = CanvasRequest.from(requestData) else {
+                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
-            if let channel = json["channel"] as? String {
-                let payload = json["data"] as? String
-                relayChannelPost(channel: channel, dataStr: payload)
+            let postSemaphore = DispatchSemaphore(value: 0)
+            var postResponse = CanvasResponse.fail("Internal error", code: "INTERNAL")
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { postSemaphore.signal(); return }
+                postResponse = self.canvasManager.handle(request, connectionID: connectionID)
+                postSemaphore.signal()
             }
-            sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            postSemaphore.wait()
+            if let data = postResponse.toData() {
+                sendResponse(to: clientFD, data)
+            }
 
         // -- Coordination actions --
         case "tell":
