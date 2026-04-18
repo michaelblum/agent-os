@@ -7,7 +7,7 @@
 
 import Foundation
 
-private struct CleanReport: Encodable {
+struct CleanReport: Encodable {
     let status: String
     let stale_daemons: [StaleDaemonInfo]
     let canvases: [CleanCanvasEntry]
@@ -15,12 +15,12 @@ private struct CleanReport: Encodable {
     let notes: [String]
 }
 
-private struct StaleDaemonInfo: Encodable {
+struct StaleDaemonInfo: Encodable {
     let pid: Int
     let args: String
 }
 
-private struct CleanCanvasEntry: Encodable {
+struct CleanCanvasEntry: Encodable {
     let id: String
     let mode: String
 }
@@ -66,7 +66,7 @@ func cleanCommand(args: [String]) {
     }
 }
 
-private func runClean(dryRun: Bool) -> CleanReport {
+func runClean(dryRun: Bool) -> CleanReport {
     var actions: [String] = []
     var notes: [String] = []
     let mode = aosCurrentRuntimeMode()

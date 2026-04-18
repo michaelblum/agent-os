@@ -60,6 +60,8 @@ struct AOS {
             serviceCommand(args: Array(args.dropFirst()))
         case "runtime":
             runtimeCommand(args: Array(args.dropFirst()))
+        case "status":
+            statusCommand(args: Array(args.dropFirst()))
         case "doctor":
             doctorCommand(args: Array(args.dropFirst()))
         case "reset":
@@ -113,12 +115,14 @@ struct AOS {
             inspectCommand(args: Array(args.dropFirst()))
         case "log":
             logCommand(args: Array(args.dropFirst()))
+        case "introspect":
+            introspectCommand(args: Array(args.dropFirst()))
         case "wiki":
             wikiCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:
-            exitError("Unknown command: \(command). Run 'aos --help' for usage.", code: "UNKNOWN_COMMAND")
+            exitError("Unknown command: \(command). Run '\(aosInvocationDisplayName()) --help' for usage.", code: "UNKNOWN_COMMAND")
         }
     }
 }

@@ -10,6 +10,23 @@ Use this doc when you are:
 
 For architecture and philosophy, see [ARCHITECTURE.md](../../ARCHITECTURE.md).
 
+## Repo Development Entry Points
+
+When you are developing inside the `agent-os` repo, invoke the binary as
+`./aos`, not bare `aos`.
+
+Start here:
+
+```bash
+./aos status
+./aos help <command> [--json]
+./aos introspect review
+```
+
+`./aos status` is the primary runtime/session entrypoint. Use `doctor`,
+`daemon-snapshot`, and `clean` when you need deeper diagnostics or explicit
+cleanup, not as the default first move.
+
 ## Contract
 
 `aos` is a single binary with Unix-style subcommand groups.
@@ -52,28 +69,31 @@ The current top-level commands are:
 
 | Command | Role |
 | --- | --- |
+| `aos status` | primary runtime/session status entrypoint |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
-| `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
+| `aos show` | Projection: canvas create/update/remove/list/eval/render |
+| `aos focus` | Focus-channel management |
+| `aos graph` | Display/window graph queries |
+| `aos introspect` | Session self-review over recent `./aos` usage |
+| `aos help` | Registry and command-specific help |
 | `aos say` | Voice output |
 | `aos tell` | Communication output: human, channel, or direct session routing |
 | `aos listen` | Communication input: channel or direct session reads/follow |
+| `aos wiki` | local knowledge-base workflows |
 | `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
-| `aos serve` | Unified daemon |
 | `aos content` | Content-server status |
+| `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos runtime` | packaged runtime utilities |
-| `aos doctor` | health and runtime diagnostics |
-| `aos reset` | cleanup/reset workflows |
-| `aos clean` | stale daemon / canvas cleanup |
 | `aos permissions` | preflight and onboarding |
-| `aos focus` | focus-channel management |
-| `aos graph` | display/window graph queries |
+| `aos doctor` | detailed runtime and permission diagnostics |
+| `aos clean` | explicit stale daemon / canvas cleanup |
+| `aos reset` | cleanup/reset workflows |
 | `aos daemon-snapshot` | daemon state snapshot |
 | `aos inspect` | live AX inspector overlay |
 | `aos log` | log overlay |
-| `aos wiki` | local knowledge-base workflows |
 
 ## Core Usage Patterns
 
@@ -400,7 +420,9 @@ These are still public, but they are more specialized:
 | `aos inspect` | you want the built-in live AX overlay |
 | `aos log` | you want the built-in log console overlay |
 | `aos permissions` | you need machine-readable readiness checks |
-| `aos doctor` | you need a fuller runtime health snapshot |
+| `aos doctor` | you need a fuller runtime health snapshot than `aos status` |
+| `aos clean` | `aos status` reports stale resources and you want explicit cleanup |
+| `aos daemon-snapshot` | you need the low-level spatial snapshot directly |
 | `aos focus` / `aos graph` | you are consuming focus channels / display-window topology |
 | `aos wiki` | you are consuming the local wiki/plugin system |
 
