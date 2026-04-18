@@ -1,6 +1,30 @@
 import state from './state.js';
 import { balancedDirectionForIndex, getTurbulence, syncInstanceCount } from './effect-utils.js';
 
+function rangeSample(minValue, maxValue, seed = Math.random()) {
+    const low = Math.min(minValue, maxValue);
+    const high = Math.max(minValue, maxValue);
+    return low + (high - low) * seed;
+}
+
+function configureBeamMesh(mesh, { minHeight, maxHeight, width, widthVariance }) {
+    const seed = mesh.userData.seed ?? Math.random();
+    const beamHeight = Math.max(0.1, rangeSample(minHeight, maxHeight, seed));
+    const widthMin = Math.max(0.001, width - widthVariance);
+    const widthMax = Math.max(widthMin, width + widthVariance);
+    const beamWidth = rangeSample(widthMin, widthMax, (seed * 1.73) % 1);
+
+    if (mesh.geometry) mesh.geometry.dispose();
+    mesh.geometry = new THREE.CylinderGeometry(beamWidth, beamWidth, beamHeight, 16, 16, true);
+    const pos = mesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        const taper = 1.0 - 0.5 * (Math.abs(pos.getY(i)) / Math.max(beamHeight / 2, 0.001));
+        pos.setX(i, pos.getX(i) * taper);
+        pos.setZ(i, pos.getZ(i) * taper);
+    }
+    mesh.geometry.computeVertexNormals();
+}
+
 // --- Fibonacci hemisphere distribution ---
 function distributeGroupChildren(group, count) {
     if (!group) return;
@@ -37,16 +61,36 @@ function syncGroupInstanceCount(group, count, createItemFn) {
 // --- Multi-instance update functions ---
 export function updatePulsars(count) {
     syncGroupInstanceCount(state.pulsarGroup, count, () => {
-        if (!state.pulsarGeo || !state.beamMat) return null;
-        return new THREE.Mesh(state.pulsarGeo, state.beamMat);
+        if (!state.beamMat) return null;
+        const mesh = new THREE.Mesh(new THREE.BufferGeometry(), state.beamMat);
+        return mesh;
     });
+    state.pulsarGroup?.children.forEach((mesh) => configureBeamMesh(mesh, {
+        minHeight: state.pulsarMinHeight,
+        maxHeight: state.pulsarMaxHeight,
+        width: state.pulsarWidth,
+        widthVariance: state.pulsarWidthVariance,
+    }));
+    if (state.pulsarGroup) {
+        state.pulsarGroup.visible = state.isPulsarEnabled && count > 0;
+    }
 }
 
 export function updateGammaRays(count) {
     syncGroupInstanceCount(state.gammaRaysGroup, count, () => {
-        if (!state.gammaGeo || !state.gammaBeamMat) return null;
-        return new THREE.Mesh(state.gammaGeo, state.gammaBeamMat);
+        if (!state.gammaBeamMat) return null;
+        const mesh = new THREE.Mesh(new THREE.BufferGeometry(), state.gammaBeamMat);
+        return mesh;
     });
+    state.gammaRaysGroup?.children.forEach((mesh) => configureBeamMesh(mesh, {
+        minHeight: state.gammaMinHeight,
+        maxHeight: state.gammaMaxHeight,
+        width: state.gammaWidth,
+        widthVariance: state.gammaWidthVariance,
+    }));
+    if (state.gammaRaysGroup) {
+        state.gammaRaysGroup.visible = state.isGammaEnabled && count > 0;
+    }
 }
 
 export function updateAccretion(count) {
@@ -62,17 +106,31 @@ export function updateAccretion(count) {
                 transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
             }));
             rMesh.rotation.x = Math.PI / 2;
-            rMesh.position.y = 0.01 + (i * 0.002);
             singleDiskGroup.add(rMesh);
             state.accretionRings.push({
                 mesh: rMesh,
                 radius: 4.0 * (i / 10),
-                targetW: 4.0 * (0.1 + Math.random() * 0.2),
+                targetW: 0,
                 targetOp: 0.5 + Math.random() * 0.25
             });
         }
         return singleDiskGroup;
     });
+    const minH = Math.min(state.accretionMinHeight, state.accretionMaxHeight);
+    const maxH = Math.max(state.accretionMinHeight, state.accretionMaxHeight);
+    const baseWidth = Math.max(0.01, state.accretionWidth);
+    const widthVariance = Math.max(0, state.accretionWidthVariance);
+    state.accretionRings.forEach((ring, index) => {
+        const seed = ring.mesh?.parent?.userData?.seed ?? ((index % 10) / 10);
+        ring.targetW = Math.max(0.01, baseWidth + (((seed * 2) - 1) * widthVariance));
+        if (ring.mesh) {
+            const y = minH + (maxH - minH) * ((index % 10) / 9);
+            ring.mesh.position.y = y;
+        }
+    });
+    if (state.accretionGroup) {
+        state.accretionGroup.visible = state.isAccretionEnabled && count > 0;
+    }
 }
 
 export function updateNeutrinos(count) {
@@ -103,15 +161,6 @@ export function createPhenomena() {
     state.pulsarGroup = new THREE.Group();
     state.pulsarGroup.visible = false;
 
-    state.pulsarGeo = new THREE.CylinderGeometry(0.15, 0.15, 4.0, 16, 16, true);
-    const beamPos = state.pulsarGeo.attributes.position;
-    for (let i = 0; i < beamPos.count; i++) {
-        let scale = 1.0 - 0.5 * (Math.abs(beamPos.getY(i)) / 2.0);
-        beamPos.setX(i, beamPos.getX(i) * scale);
-        beamPos.setZ(i, beamPos.getZ(i) * scale);
-    }
-    state.pulsarGeo.computeVertexNormals();
-
     state.beamMat = new THREE.MeshBasicMaterial({
         transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
     });
@@ -125,7 +174,6 @@ export function createPhenomena() {
     state.gammaBeamMat = new THREE.MeshBasicMaterial({
         transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
     });
-    state.gammaGeo = new THREE.CylinderGeometry(0.02, 0.02, 15.0, 16, 1, true);
     state.polyGroup.add(state.gammaRaysGroup);
     updateGammaRays(state.gammaRayCount);
 
@@ -179,6 +227,9 @@ export function animatePhenomena(dt) {
     };
 
     applyTurbulence(state.pulsarGroup, turb.p, 3.0, 0.5);
+    if (state.pulsarGroup && state.isPulsarEnabled && state.pulsarCounterRevolveSpeed !== 0) {
+        state.pulsarGroup.rotation.y -= dt * state.pulsarCounterRevolveSpeed;
+    }
     applyTurbulence(state.gammaRaysGroup, turb.g, 5.0);
 
     // --- Accretion disk turbulence + ring animation ---

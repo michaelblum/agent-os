@@ -1,5 +1,5 @@
 import state from '../state.js';
-import { updateGeometry } from '../geometry.js';
+import { updateGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
 import { createAuraObjects, animateAura } from '../aura.js';
 import { createPhenomena, animatePhenomena } from '../phenomena.js';
@@ -8,7 +8,6 @@ import { createLightning, animateLightning } from '../lightning.js';
 import { createMagneticField, animateMagneticField } from '../magnetic.js';
 import { createOmega, animateOmega } from '../omega.js';
 import { animateSkins } from '../skins.js';
-import { loadAgent } from '../agent-loader.js';
 import { applyAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
 import { createRenderLoopScheduler } from './render-loop.js';
@@ -17,9 +16,7 @@ import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
 import {
     clampPointToDisplays,
-    computeDisplayNonant,
     computeDisplayUnion,
-    computeWorkbenchFrame,
     normalizeDisplays,
 } from './display-utils.js';
 import { startFastTravel, tickFastTravel } from './fast-travel.js';
@@ -42,7 +39,7 @@ const liveJs = {
     displays: [],
     currentState: 'IDLE',
     state: 'IDLE',
-    currentAgentId: null,
+    currentAgentId: 'default',
     avatarHitRadius: state.avatarHitRadius,
     dragThreshold: state.dragThreshold,
     dragCancelRadius: state.dragCancelRadius,
@@ -51,12 +48,10 @@ const liveJs = {
     travel: null,
     mousedownPos: null,
     mousedownAvatarPos: null,
-    pendingReload: false,
-    workbenchVisible: false,
-    preWorkbenchPos: null,
+    avatarVisible: false,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
-    _entrance: null,
+    _visibility: null,
 };
 
 window.liveJs = liveJs;
@@ -64,6 +59,7 @@ window.state = state;
 window.applyAppearance = applyAppearance;
 window.__sigilBootTrace = [];
 window.__sigilBootError = null;
+window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
@@ -73,6 +69,22 @@ function recordBoot(stage, extra = {}) {
     window.__sigilBootTrace.push(entry);
     if (window.__sigilBootTrace.length > 64) window.__sigilBootTrace.shift();
     if (extra.error) window.__sigilBootError = entry;
+    if (stage.startsWith('boot:')) {
+        console.debug('[sigil][boot]', stage, entry);
+    }
+}
+
+function bootElapsedMs() {
+    const first = window.__sigilBootTrace[0];
+    return first ? Date.now() - first.ts : 0;
+}
+
+function recordBootDuration(stage, startedAt, extra = {}) {
+    recordBoot(stage, {
+        ...extra,
+        duration_ms: Math.round(performance.now() - startedAt),
+        boot_elapsed_ms: bootElapsedMs(),
+    });
 }
 
 function runBootStep(stage, fn) {
@@ -152,10 +164,7 @@ function setInteractionState(next, reason) {
     console.log('[sigil] state:', liveJs.currentState, '→', next, reason ? '(' + reason + ')' : '');
     liveJs.currentState = next;
     liveJs.state = next;
-    if (next === 'IDLE' && !liveJs.travel) {
-        flushReload();
-        postLastPositionToDaemon();
-    }
+    if (next === 'IDLE' && !liveJs.travel) postLastPositionToDaemon();
 }
 
 function postLastPositionToDaemon() {
@@ -169,7 +178,7 @@ window.postLastPositionToDaemon = postLastPositionToDaemon;
 window.postToHost = host.post;
 
 function isOnAvatar(x, y) {
-    if (!liveJs.avatarPos.valid) return false;
+    if (!liveJs.avatarPos.valid || state.appScale <= 0.05) return false;
     const dx = x - liveJs.avatarPos.x;
     const dy = y - liveJs.avatarPos.y;
     return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
@@ -188,63 +197,55 @@ function queueFastTravel(x, y) {
     startFastTravel(liveJs, liveJs.displays, x, y);
 }
 
-function flushReload() {
-    if (!liveJs.pendingReload) return;
-    if (liveJs.currentState !== 'IDLE') return;
-    if (liveJs.travel) return;
-    if (typeof window.__sigilFlushReload !== 'function') return;
-    liveJs.pendingReload = false;
-    window.__sigilFlushReload().catch((error) => {
-        console.error('[sigil] flushReload failed:', error);
-        liveJs.pendingReload = true;
+function emitStatusItemState() {
+    host.post('status_item.state', {
+        visible: liveJs.avatarVisible,
     });
+}
+
+function setAvatarVisibility(visible) {
+    const next = !!visible;
+    if (liveJs.avatarVisible === next && !liveJs._visibility) return;
+    liveJs.avatarVisible = next;
+    if (!next) {
+        clearGestureState();
+        liveJs.currentState = 'IDLE';
+        liveJs.state = 'IDLE';
+    }
+    emitStatusItemState();
+}
+
+function animateVisibility(visible, lifecycleAction = null) {
+    const targetVisible = !!visible;
+    const startScale = Number.isFinite(state.appScale) ? state.appScale : (targetVisible ? 0 : 1);
+    liveJs._visibility = {
+        fromScale: startScale,
+        toScale: targetVisible ? 1 : 0,
+        elapsed: 0,
+        duration: 0.18,
+        targetVisible,
+        lifecycleAction,
+    };
+    if (targetVisible) setAvatarVisibility(true);
+}
+
+function toggleAvatarVisibility() {
+    animateVisibility(!liveJs.avatarVisible);
+}
+
+function setAvatarPosition(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const next = liveJs.displays.length > 0
+        ? clampPointToDisplays(liveJs.displays, x, y)
+        : { x, y };
+    liveJs.avatarPos = { x: next.x, y: next.y, valid: true };
+    postLastPositionToDaemon();
 }
 
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
     clearGestureState();
     setInteractionState('IDLE', reason);
-}
-
-function showWorkbench() {
-    if (!liveJs.avatarPos.valid) return;
-    const frame = computeWorkbenchFrame(liveJs.displays, liveJs.avatarPos);
-    if (!frame) return;
-
-    liveJs.preWorkbenchPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
-    liveJs.workbenchVisible = true;
-
-    void host.canvasCreate({
-        id: 'sigil-workbench',
-        url: 'aos://sigil/workbench/index.html',
-        frame,
-        interactive: true,
-        focus: true,
-    }).catch((error) => {
-        console.error('[sigil] failed to create workbench:', error);
-        const restorePos = liveJs.preWorkbenchPos;
-        liveJs.workbenchVisible = false;
-        liveJs.preWorkbenchPos = null;
-        if (restorePos) queueFastTravel(restorePos.x, restorePos.y);
-    });
-
-    const home = computeDisplayNonant(liveJs.displays, liveJs.avatarPos, 'top-left');
-    if (home) queueFastTravel(home.x, home.y);
-}
-
-function dismissWorkbench() {
-    const restorePos = liveJs.preWorkbenchPos;
-    liveJs.workbenchVisible = false;
-    liveJs.preWorkbenchPos = null;
-    void host.canvasRemove({ id: 'sigil-workbench' }).catch((error) => {
-        console.warn('[sigil] failed to remove workbench:', error);
-    });
-    if (restorePos) queueFastTravel(restorePos.x, restorePos.y);
-}
-
-function toggleWorkbench() {
-    if (liveJs.workbenchVisible) dismissWorkbench();
-    else showWorkbench();
 }
 
 function handleLeftMouseDown(x, y) {
@@ -325,10 +326,6 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
-            if (liveJs.currentState === 'IDLE' && isOnAvatar(msg.x, msg.y)) {
-                toggleWorkbench();
-                return;
-            }
             cancelInteraction('right-click');
             return;
         case 'key_down':
@@ -354,32 +351,45 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'status_item.toggle') {
+        if (msg.target_state === 'visible') animateVisibility(true, 'enter');
+        else if (msg.target_state === 'hidden') animateVisibility(false, 'exit');
+        else toggleAvatarVisibility();
+        return;
+    }
+
+    if (msg.type === 'status_item.show') {
+        animateVisibility(true);
+        return;
+    }
+
+    if (msg.type === 'status_item.hide') {
+        animateVisibility(false);
+        return;
+    }
+
+    if (msg.type === 'sigil.set_position') {
+        setAvatarPosition(Number(msg.x), Number(msg.y));
+        return;
+    }
+
+    if (msg.type === 'sigil.set_effects') {
+        if (typeof msg.paused === 'boolean') state.isPaused = msg.paused;
+        return;
+    }
+
+    if (msg.type === 'sigil.set_geometry') {
+        if (Number.isFinite(Number(msg.geometry))) {
+            updateGeometry(Number(msg.geometry));
+        }
+        return;
+    }
+
     if (msg.type === 'lifecycle') {
         if (msg.action === 'enter') {
-            const originX = msg.origin_x ?? liveJs.avatarPos.x;
-            const originY = msg.origin_y ?? liveJs.avatarPos.y;
-            state.appScale = 0;
-            liveJs._entrance = {
-                fromX: originX,
-                fromY: originY,
-                toX: liveJs.avatarPos.x,
-                toY: liveJs.avatarPos.y,
-                elapsed: 0,
-                duration: 0.6,
-                reverse: false,
-            };
+            animateVisibility(true, 'enter');
         } else if (msg.action === 'exit') {
-            const originX = msg.origin_x ?? liveJs.avatarPos.x;
-            const originY = msg.origin_y ?? liveJs.avatarPos.y;
-            liveJs._entrance = {
-                fromX: liveJs.avatarPos.x,
-                fromY: liveJs.avatarPos.y,
-                toX: originX,
-                toY: originY,
-                elapsed: 0,
-                duration: 0.6,
-                reverse: true,
-            };
+            animateVisibility(false, 'exit');
         } else if (msg.action === 'suspend') {
             rendererSuspended = true;
             renderLoop.suspend();
@@ -398,6 +408,7 @@ function handleHostMessage(rawMsg) {
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
             const resolve = liveJs._resolveFirstDisplayGeometry;
             liveJs._resolveFirstDisplayGeometry = null;
+            recordBoot('boot:firstDisplayGeometry', { displays: liveJs.displays.length, boot_elapsed_ms: bootElapsedMs() });
             resolve(liveJs.displays);
         }
         if (liveJs.avatarPos.valid && liveJs.globalBounds.w > 0 && liveJs.globalBounds.h > 0) {
@@ -414,39 +425,12 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
-    if (msg.type === 'wiki_page_changed') {
-        if (!liveJs.currentAgentId) return;
-        if (msg.path !== `sigil/agents/${liveJs.currentAgentId}.md`) return;
-        liveJs.pendingReload = true;
-        flushReload();
-        return;
-    }
-
-    if (msg.type === 'canvas_lifecycle') {
-        if (msg.canvas_id === 'sigil-workbench' && msg.action === 'removed' && liveJs.workbenchVisible) {
-            const restorePos = liveJs.preWorkbenchPos;
-            liveJs.workbenchVisible = false;
-            liveJs.preWorkbenchPos = null;
-            if (restorePos) queueFastTravel(restorePos.x, restorePos.y);
-        }
-        return;
-    }
-
-    if (msg.type === 'behavior' && msg.slot === 'dismissed') {
-        void hitTarget.remove();
-        if (liveJs.workbenchVisible) {
-            liveJs.workbenchVisible = false;
-            liveJs.preWorkbenchPos = null;
-            void host.canvasRemove({ id: 'sigil-workbench' }).catch(() => {});
-        }
-        return;
-    }
-
     handleInputEvent(msg);
 }
 
 function awaitFirstDisplayGeometry() {
     if (liveJs.displays.length > 0) return Promise.resolve(liveJs.displays);
+    recordBoot('boot:awaitFirstDisplayGeometry');
     return new Promise((resolve) => {
         liveJs._resolveFirstDisplayGeometry = resolve;
     });
@@ -461,24 +445,11 @@ async function getLastPositionFromDaemon(agentId) {
     }
 }
 
-async function sigilReloadCurrentAgent() {
-    if (!liveJs.currentAgentId) {
-        throw new Error('sigilReloadCurrentAgent: currentAgentId not set');
-    }
-    const agentPath = `sigil/agents/${liveJs.currentAgentId}`;
-    const agent = await loadAgent(agentPath);
-    applyAppearance(agent.appearance);
-    liveJs.avatarSize = agent.instance?.size ?? liveJs.avatarSize;
-    console.log('[sigil] live-reloaded agent:', liveJs.currentAgentId);
-}
-
-window.__sigilFlushReload = sigilReloadCurrentAgent;
-
 function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
     overlay.mount();
-    host.subscribe(['display_geometry', 'wiki_page_changed', 'input_event', 'canvas_lifecycle'], { snapshot: true });
+    host.subscribe(['display_geometry', 'input_event'], { snapshot: true });
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
     });
@@ -507,7 +478,6 @@ function animate() {
 
     if (liveJs.travel) {
         tickFastTravel(liveJs, () => {
-            flushReload();
             postLastPositionToDaemon();
         });
     }
@@ -518,20 +488,20 @@ function animate() {
         state.pointLight.position.copy(state.polyGroup.position);
     }
 
-    if (liveJs._entrance) {
-        const entrance = liveJs._entrance;
-        entrance.elapsed += dt;
-        let progress = entrance.elapsed / entrance.duration;
+    if (liveJs._visibility) {
+        const transition = liveJs._visibility;
+        transition.elapsed += dt;
+        let progress = transition.elapsed / transition.duration;
         if (progress > 1.0) progress = 1.0;
         const ease = progress * progress * (3 - (2 * progress));
-        state.appScale = entrance.reverse ? (1 - ease) : ease;
-        liveJs.avatarPos.x = entrance.fromX + ((entrance.toX - entrance.fromX) * ease);
-        liveJs.avatarPos.y = entrance.fromY + ((entrance.toY - entrance.fromY) * ease);
-        liveJs.avatarPos.valid = true;
+        state.appScale = transition.fromScale + ((transition.toScale - transition.fromScale) * ease);
         if (progress >= 1.0) {
-            liveJs._entrance = null;
-            if (!entrance.reverse) state.appScale = 1.0;
-            host.post('lifecycle.complete', { action: entrance.reverse ? 'exit' : 'enter' });
+            liveJs._visibility = null;
+            state.appScale = transition.toScale;
+            setAvatarVisibility(transition.targetVisible);
+            if (transition.lifecycleAction) {
+                host.post('lifecycle.complete', { action: transition.lifecycleAction });
+            }
         }
     }
 
@@ -548,6 +518,8 @@ function animate() {
     animateOmega(dt);
     animateSkins(dt);
     animateTrails(dt);
+    updateInnerEdgePulse(false);
+    updateInnerEdgePulse(true);
 
     if (liveJs.avatarPos.valid) {
         hitTarget.setSize(state.avatarHitRadius * 2)
@@ -562,6 +534,10 @@ function animate() {
         dragCancelRadius: liveJs.dragCancelRadius,
     });
 
+    if (window.__sigilBootFirstFrameAt === null) {
+        window.__sigilBootFirstFrameAt = Date.now();
+        recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
+    }
     state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale);
     state.renderer.render(state.scene, state.camera);
 
@@ -583,7 +559,7 @@ window.__sigilDebug = {
             state: liveJs.currentState,
             avatarPos: liveJs.avatarPos,
             travel: liveJs.travel,
-            workbenchVisible: liveJs.workbenchVisible,
+            avatarVisible: liveJs.avatarVisible,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
         };
@@ -592,46 +568,35 @@ window.__sigilDebug = {
 
 export async function boot() {
     recordBoot('boot:start');
-    const params = new URLSearchParams(window.location.search);
-    const agentPath = params.get('agent') ?? 'sigil/agents/default';
-    const currentAgentId = agentPath.split('/').pop();
 
     runBootStep('applyDefaultAppearance', () => applyAppearance(DEFAULT_APPEARANCE));
     runBootStep('init', () => init());
 
-    const agentPromise = loadAgent(agentPath).catch(async (error) => {
-        console.error('[sigil] loadAgent threw:', error);
-        const mod = await import('../agent-loader.js');
-        return { ...mod.MINIMAL_DEFAULT };
+    const displaysStartedAt = performance.now();
+    const displaysPromise = awaitFirstDisplayGeometry().then((displays) => {
+        recordBootDuration('boot:awaitFirstDisplayGeometry', displaysStartedAt, { displays: displays.length });
+        return displays;
     });
-    const displaysPromise = awaitFirstDisplayGeometry();
-    const [agent, displays] = await Promise.all([agentPromise, displaysPromise]);
+    const displays = await displaysPromise;
 
-    recordBoot('boot:agentAndDisplaysReady', { displays: displays.length });
-    liveJs.currentAgentId = currentAgentId;
-    applyAppearance(agent.appearance);
-    liveJs.avatarSize = agent.instance?.size ?? liveJs.avatarSize;
+    recordBoot('boot:displayReady', { displays: displays.length });
 
-    let position = await getLastPositionFromDaemon(currentAgentId);
-    if (!position) position = resolveBirthplace(agent.instance.birthplace, displays);
-
-    const originX = params.get('origin_x');
-    const originY = params.get('origin_y');
-    if (originX !== null && originY !== null) {
-        const ox = parseFloat(originX);
-        const oy = parseFloat(originY);
-        liveJs.avatarPos = { x: ox, y: oy, valid: true };
-        state.appScale = 0;
-        liveJs._entrance = {
-            fromX: ox,
-            fromY: oy,
-            toX: position.x,
-            toY: position.y,
-            elapsed: 0,
-            duration: 0.6,
-            reverse: false,
-        };
-    } else {
-        liveJs.avatarPos = { x: position.x, y: position.y, valid: true };
+    let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
+    if (!position) {
+        position = resolveBirthplace({
+            anchor: 'nonant',
+            nonant: 'bottom-right',
+            display: 'main',
+        }, displays);
     }
+    liveJs.avatarPos = { x: position.x, y: position.y, valid: true };
+    state.appScale = 0;
+    setAvatarVisibility(false);
+
+    recordBoot('boot:avatarPositionReady', {
+        x: Math.round(liveJs.avatarPos.x),
+        y: Math.round(liveJs.avatarPos.y),
+        boot_elapsed_ms: bootElapsedMs(),
+    });
+    emitStatusItemState();
 }

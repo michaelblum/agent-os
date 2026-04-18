@@ -200,13 +200,38 @@ export function createTesseractGeometry(size) {
     return geo;
 }
 
+function createTesseractInnerEdgeGeometry(size) {
+    const si = size * 0.5;
+    const vertices = [
+        new THREE.Vector3(-si, -si, -si), new THREE.Vector3(si, -si, -si),
+        new THREE.Vector3(si, si, -si), new THREE.Vector3(-si, si, -si),
+        new THREE.Vector3(-si, -si, si), new THREE.Vector3(si, -si, si),
+        new THREE.Vector3(si, si, si), new THREE.Vector3(-si, si, si),
+    ];
+    const edgePairs = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7]
+    ];
+    const positions = [];
+    for (const [a, b] of edgePairs) {
+        const vA = vertices[a];
+        const vB = vertices[b];
+        positions.push(vA.x, vA.y, vA.z, vB.x, vB.y, vB.z);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return geo;
+}
+
 /**
  * DRY: Shared builder for poly geometries (depth + core + wireframe).
- * Config: { group, depthKey, coreKey, wireKey, opacity, edgeOpacity, 
+ * Config: { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, opacity, edgeOpacity,
  *           stellation, isInterior, isSpecular, isMask, colors, skin, isOmega }
  */
 function buildShapeHierarchy(type, config) {
-    const { group, depthKey, coreKey, wireKey, isOmega } = config;
+    const { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, isOmega } = config;
 
     // Dispose old
     if (state[coreKey]) {
@@ -218,6 +243,16 @@ function buildShapeHierarchy(type, config) {
         group.remove(state[wireKey]);
         state[wireKey].geometry.dispose();
         state[wireKey].material.dispose();
+    }
+    if (state[innerWireKey]) {
+        group.remove(state[innerWireKey]);
+        state[innerWireKey].geometry.dispose();
+        state[innerWireKey].material.dispose();
+    }
+    if (state[innerHighlightWireKey]) {
+        group.remove(state[innerHighlightWireKey]);
+        state[innerHighlightWireKey].geometry.dispose();
+        state[innerHighlightWireKey].material.dispose();
     }
     if (state[depthKey]) {
         group.remove(state[depthKey]);
@@ -277,10 +312,93 @@ function buildShapeHierarchy(type, config) {
     state[wireKey].renderOrder = 4;
     group.add(state[wireKey]);
 
+    if (type === 94) {
+        const innerEdgeMat = new THREE.LineBasicMaterial({
+            linewidth: 2,
+            depthTest: true,
+            depthWrite: false,
+            transparent: true,
+            opacity: Math.min(1, config.edgeOpacity * 0.35),
+            color: new THREE.Color(config.edgeColors[0]).lerp(new THREE.Color(config.edgeColors[1]), 0.4)
+        });
+        state[innerWireKey] = new THREE.LineSegments(createTesseractInnerEdgeGeometry(size), innerEdgeMat);
+        state[innerWireKey].renderOrder = 5;
+        state[innerWireKey].scale.setScalar(state.innerEdgeInsetScale);
+        state[innerWireKey].visible = config.isInterior && config.edgeOpacity > 0;
+        group.add(state[innerWireKey]);
+
+        const highlightMat = new THREE.LineBasicMaterial({
+            linewidth: 2,
+            depthTest: true,
+            depthWrite: false,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            opacity: 0,
+            color: 0xffffff
+        });
+        state[innerHighlightWireKey] = new THREE.LineSegments(createTesseractInnerEdgeGeometry(size), highlightMat);
+        state[innerHighlightWireKey].renderOrder = 6;
+        state[innerHighlightWireKey].scale.setScalar(state.innerEdgeHighlightInsetScale);
+        state[innerHighlightWireKey].visible = false;
+        group.add(state[innerHighlightWireKey]);
+    } else {
+        state[innerWireKey] = null;
+        state[innerHighlightWireKey] = null;
+    }
+
     // Apply vertex colors and skins
     applyGradientVertexColors(state[coreKey], config.faceColors);
     applyGradientVertexColors(state[wireKey], config.edgeColors);
     if (config.skin !== 'none') applySkin(config.skin, isOmega);
+}
+
+export function updateInnerEdgePulse(isOmega = false) {
+    const wireKey = isOmega ? 'omegaInnerWireframeMesh' : 'innerWireframeMesh';
+    const highlightKey = isOmega ? 'omegaInnerHighlightWireframeMesh' : 'innerHighlightWireframeMesh';
+    const opacityKey = isOmega ? 'omegaEdgeOpacity' : 'currentEdgeOpacity';
+    const enabledKey = isOmega ? 'omegaIsInteriorEdgesEnabled' : 'isInteriorEdgesEnabled';
+    const colors = isOmega ? state.colors.omegaEdge : state.colors.edge;
+    const mesh = state[wireKey];
+    const highlightMesh = state[highlightKey];
+    if (!mesh?.material) return;
+
+    const gammaConfig = state.turbState?.g ?? { val: 0, spd: 1.0 };
+    const gammaEnabled = !!(state.isGammaEnabled && state.gammaRayCount > 0);
+    const gammaPulse = gammaEnabled
+        ? Math.max(0, Math.sin(state.globalTime * Math.max(0.001, gammaConfig.spd * state.innerEdgePulseRate)))
+        : 0;
+    const gammaTurbulence = Math.max(0, gammaConfig.val ?? 0);
+    const gammaSpeed = Math.max(0.001, gammaConfig.spd ?? 1.0);
+    const peakPulse = gammaPulse > state.innerEdgePeakThreshold
+        ? (gammaPulse - state.innerEdgePeakThreshold) / Math.max(0.001, 1 - state.innerEdgePeakThreshold)
+        : 0;
+    const activity = Math.min(1.6, 0.55 + (gammaTurbulence * 2.6));
+    const flickerRate = state.innerEdgeFlickerRate * (0.8 + (gammaSpeed * 0.6));
+    const flickerNoise = peakPulse > 0
+        ? (0.5 + (0.5 * Math.sin((state.globalTime * flickerRate) + 1.7)))
+            * (0.5 + (0.5 * Math.sin((state.globalTime * (flickerRate * 1.73)) + 0.31)))
+        : 0;
+    const flickerBoost = peakPulse > 0
+        ? ((1 - state.innerEdgeFlickerAmount) + (flickerNoise * state.innerEdgeFlickerAmount))
+        : 0;
+    const geometryActive = isOmega ? state.omegaGeometryType === 94 : state.currentGeometryType === 94;
+    const visible = state[enabledKey] && state[opacityKey] > 0.001 && geometryActive;
+    const baseColor = new THREE.Color(colors[0]).lerp(new THREE.Color(colors[1]), 0.35);
+    mesh.material.color.copy(baseColor);
+    mesh.material.opacity = visible
+        ? Math.min(1, state[opacityKey] * (0.26 + (gammaPulse * 0.1) + (gammaTurbulence * 0.08)))
+        : 0;
+    mesh.visible = visible;
+    mesh.scale.setScalar(state.innerEdgeInsetScale);
+
+    if (!highlightMesh?.material) return;
+    const highlightColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.5);
+    highlightMesh.material.color.copy(highlightColor);
+    highlightMesh.material.opacity = visible
+        ? Math.min(1, state[opacityKey] * peakPulse * activity * flickerBoost * (state.innerEdgePulseAmount * 0.65))
+        : 0;
+    highlightMesh.visible = visible && peakPulse > 0.001;
+    highlightMesh.scale.setScalar(state.innerEdgeHighlightInsetScale);
 }
 
 export function updateGeometry(type) {
@@ -289,6 +407,8 @@ export function updateGeometry(type) {
         depthKey: 'depthMesh',
         coreKey: 'coreMesh',
         wireKey: 'wireframeMesh',
+        innerWireKey: 'innerWireframeMesh',
+        innerHighlightWireKey: 'innerHighlightWireframeMesh',
         opacity: state.currentOpacity,
         edgeOpacity: state.currentEdgeOpacity,
         stellation: state.stellationFactor,
@@ -308,6 +428,8 @@ export function updateOmegaGeometry(type) {
         depthKey: 'omegaDepthMesh',
         coreKey: 'omegaCoreMesh',
         wireKey: 'omegaWireframeMesh',
+        innerWireKey: 'omegaInnerWireframeMesh',
+        innerHighlightWireKey: 'omegaInnerHighlightWireframeMesh',
         opacity: state.omegaOpacity,
         edgeOpacity: state.omegaEdgeOpacity,
         stellation: state.omegaStellationFactor,

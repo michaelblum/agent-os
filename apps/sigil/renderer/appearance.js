@@ -36,7 +36,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     version: 1,
 
     // Size (logical pixels)
-    size: { base: 180, min: 40, max: 400 },
+    size: { base: 153, min: 40, max: 400 },
 
     // Primary geometry
     shape: 94,
@@ -71,14 +71,14 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         coreFade: 0.6,
         spikeDecay: 0.92,
         wobble: {
-            count: 3,
+            count: 1,
             scaleX: 0.66,
             scaleY: 0.66,
             opacity: 0.7,
             orbitRadius: 0.32,
             radiusScalar: 0.5,
-            xyRatioScalar: 2.0,
-            speed: 2.0,
+            xyRatioScalar: 1.45,
+            speed: 9.0,
             chaos: 0.35,
             mode: 'random',
         },
@@ -111,9 +111,9 @@ export const DEFAULT_APPEARANCE = Object.freeze({
 
     // Cosmic phenomena
     phenomena: {
-        pulsar: { enabled: false, count: 1 },
-        accretion: { enabled: false, count: 1 },
-        gamma: { enabled: false, count: 1 },
+        pulsar: { enabled: false, count: 1, counterRevolveSpeed: 0, minHeight: 2.5, maxHeight: 4.5, width: 0.15, widthVariance: 0.04 },
+        accretion: { enabled: false, count: 1, minHeight: 0.01, maxHeight: 0.03, width: 0.7, widthVariance: 0.18 },
+        gamma: { enabled: false, count: 3, minHeight: 1.05, maxHeight: 1.35, width: 0.017, widthVariance: 0.0035 },
         neutrino: { enabled: false, count: 1 }
     },
 
@@ -121,7 +121,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     turbulence: {
         p: { val: 0, spd: 1.0, mod: 'uniform' },
         a: { val: 0, spd: 1.0, mod: 'uniform' },
-        g: { val: 0, spd: 1.0, mod: 'uniform' },
+        g: { val: 0, spd: 0.55, mod: 'uniform' },
         n: { val: 0, spd: 1.0, mod: 'uniform' }
     },
 
@@ -302,10 +302,23 @@ export function applyAppearance(blob) {
     const ph = blob.phenomena ?? D.phenomena;
     state.isPulsarEnabled = ph.pulsar?.enabled ?? D.phenomena.pulsar.enabled;
     state.pulsarRayCount = ph.pulsar?.count ?? D.phenomena.pulsar.count;
+    state.pulsarCounterRevolveSpeed = ph.pulsar?.counterRevolveSpeed ?? D.phenomena.pulsar.counterRevolveSpeed;
+    state.pulsarMinHeight = ph.pulsar?.minHeight ?? D.phenomena.pulsar.minHeight;
+    state.pulsarMaxHeight = ph.pulsar?.maxHeight ?? D.phenomena.pulsar.maxHeight;
+    state.pulsarWidth = ph.pulsar?.width ?? D.phenomena.pulsar.width;
+    state.pulsarWidthVariance = ph.pulsar?.widthVariance ?? D.phenomena.pulsar.widthVariance;
     state.isAccretionEnabled = ph.accretion?.enabled ?? D.phenomena.accretion.enabled;
     state.accretionDiskCount = ph.accretion?.count ?? D.phenomena.accretion.count;
+    state.accretionMinHeight = ph.accretion?.minHeight ?? D.phenomena.accretion.minHeight;
+    state.accretionMaxHeight = ph.accretion?.maxHeight ?? D.phenomena.accretion.maxHeight;
+    state.accretionWidth = ph.accretion?.width ?? D.phenomena.accretion.width;
+    state.accretionWidthVariance = ph.accretion?.widthVariance ?? D.phenomena.accretion.widthVariance;
     state.isGammaEnabled = ph.gamma?.enabled ?? D.phenomena.gamma.enabled;
     state.gammaRayCount = ph.gamma?.count ?? D.phenomena.gamma.count;
+    state.gammaMinHeight = ph.gamma?.minHeight ?? D.phenomena.gamma.minHeight;
+    state.gammaMaxHeight = ph.gamma?.maxHeight ?? D.phenomena.gamma.maxHeight;
+    state.gammaWidth = ph.gamma?.width ?? D.phenomena.gamma.width;
+    state.gammaWidthVariance = ph.gamma?.widthVariance ?? D.phenomena.gamma.widthVariance;
     state.isNeutrinosEnabled = ph.neutrino?.enabled ?? D.phenomena.neutrino.enabled;
     state.neutrinoJetCount = ph.neutrino?.count ?? D.phenomena.neutrino.count;
 
@@ -512,9 +525,9 @@ export function snapshotAppearance() {
         })(),
 
         phenomena: {
-            pulsar: { enabled: state.isPulsarEnabled, count: state.pulsarRayCount },
-            accretion: { enabled: state.isAccretionEnabled, count: state.accretionDiskCount },
-            gamma: { enabled: state.isGammaEnabled, count: state.gammaRayCount },
+            pulsar: { enabled: state.isPulsarEnabled, count: state.pulsarRayCount, counterRevolveSpeed: state.pulsarCounterRevolveSpeed, minHeight: state.pulsarMinHeight, maxHeight: state.pulsarMaxHeight, width: state.pulsarWidth, widthVariance: state.pulsarWidthVariance },
+            accretion: { enabled: state.isAccretionEnabled, count: state.accretionDiskCount, minHeight: state.accretionMinHeight, maxHeight: state.accretionMaxHeight, width: state.accretionWidth, widthVariance: state.accretionWidthVariance },
+            gamma: { enabled: state.isGammaEnabled, count: state.gammaRayCount, minHeight: state.gammaMinHeight, maxHeight: state.gammaMaxHeight, width: state.gammaWidth, widthVariance: state.gammaWidthVariance },
             neutrino: { enabled: state.isNeutrinosEnabled, count: state.neutrinoJetCount }
         },
 
