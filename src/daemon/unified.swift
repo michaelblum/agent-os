@@ -1035,10 +1035,14 @@ class UnifiedDaemon {
             // Reshape: merge `data` into a flat dict and set `action`.
             var flat = env.data
             flat["action"] = legacy
-            if let ref = env.ref { flat["__ref"] = ref }  // pass ref through for response wrapping
+            flat["__envelope_ref"] = env.ref ?? ""
+            flat["__envelope_active"] = true
             routeAction(legacy, json: flat, clientFD: clientFD, connectionID: connectionID)
             return
         }
+
+        let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
+        let envelopeRef = json["__envelope_ref"] as? String
 
         switch action {
 
@@ -1056,7 +1060,7 @@ class UnifiedDaemon {
             subscribers[connectionID]?.isSubscribed = true
             subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         case "perceive":
@@ -1072,22 +1076,22 @@ class UnifiedDaemon {
             subscribers[connectionID]?.isSubscribed = true
             subscribers[connectionID]?.wantsInputEvents = wantsInputEvents
             subscriberLock.unlock()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         case "sigil_input_mode":
             guard let mode = json["mode"] as? String, !mode.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "sigil_input_mode requires mode", "code": "INVALID_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "sigil_input_mode requires mode", "code": "INVALID_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             setSigilInputMode(mode)
-            sendResponseJSON(to: clientFD, ["status": "ok", "mode": mode])
+            sendResponseJSON(to: clientFD, ["status": "ok", "mode": mode], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
             guard var request = CanvasRequest.from(requestData) else {
-                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
+                sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
 
@@ -1133,7 +1137,7 @@ class UnifiedDaemon {
             if json["id"] != nil {
                 let requestData = lineData(from: json)
                 guard let request = CanvasRequest.from(requestData) else {
-                    sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"])
+                    sendResponseJSON(to: clientFD, ["error": "Failed to parse request", "code": "PARSE_ERROR"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                     return
                 }
                 let semaphore = DispatchSemaphore(value: 0)
@@ -1153,7 +1157,7 @@ class UnifiedDaemon {
                 let payload = json["data"] as? String
                 relayChannelPost(channel: channel, dataStr: payload)
             }
-            sendResponseJSON(to: clientFD, ["status": "ok"])
+            sendResponseJSON(to: clientFD, ["status": "ok"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Coordination actions --
         case "tell":
@@ -1163,14 +1167,14 @@ class UnifiedDaemon {
             let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let canonicalSessionID = sessionID, !canonicalSessionID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "session_id required for registration", "code": "MISSING_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "session_id required for registration", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let legacyName = name?.isEmpty == false ? name : nil
             let role = json["role"] as? String ?? "worker"
             let harness = json["harness"] as? String ?? "unknown"
             let result = coordination.registerSession(sessionID: canonicalSessionID, name: legacyName, role: role, harness: harness)
-            sendResponseJSON(to: clientFD, result)
+            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-unregister":
             let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1178,15 +1182,15 @@ class UnifiedDaemon {
             let normalizedName = name?.isEmpty == false ? name : nil
             let normalizedSessionID = sessionID?.isEmpty == false ? sessionID : nil
             guard normalizedSessionID != nil || normalizedName != nil else {
-                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let result = coordination.unregisterSession(sessionID: normalizedSessionID, name: normalizedName)
-            sendResponseJSON(to: clientFD, result)
+            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-who":
             let sessions = coordination.whoIsOnline()
-            sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions])
+            sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-list":
             let voices = coordination.voiceCatalog()
@@ -1196,7 +1200,7 @@ class UnifiedDaemon {
                 "voices": voices,
                 "voice_count": voices.count,
                 "leased_count": leases.count
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-leases":
             let leases = coordination.voiceLeases()
@@ -1204,36 +1208,36 @@ class UnifiedDaemon {
                 "status": "ok",
                 "leases": leases,
                 "lease_count": leases.count
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-bind":
             guard let sessionID = json["session_id"] as? String, !sessionID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             guard let voiceID = json["voice_id"] as? String, !voiceID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "voice_id required", "code": "MISSING_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "voice_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let result = coordination.bindVoice(sessionID: sessionID, voiceID: voiceID)
-            sendResponseJSON(to: clientFD, result)
+            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-final-response":
             handleVoiceFinalResponseAction(json: json, clientFD: clientFD)
 
         case "coord-read":
             guard let channel = json["channel"] as? String else {
-                sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"])
+                sendResponseJSON(to: clientFD, ["error": "channel required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
             let since = json["since"] as? String
             let limit = json["limit"] as? Int ?? 50
             let msgs = coordination.readMessages(channel: channel, since: since, limit: limit)
-            sendResponseJSON(to: clientFD, ["status": "ok", "channel": channel, "messages": msgs])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channel": channel, "messages": msgs], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "coord-channels":
             let channels = coordination.listChannels()
-            sendResponseJSON(to: clientFD, ["status": "ok", "channels": channels])
+            sendResponseJSON(to: clientFD, ["status": "ok", "channels": channels], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         // -- Unified ping --
         case "ping":
@@ -1251,15 +1255,15 @@ class UnifiedDaemon {
             if let port = contentServer?.assignedPort, port > 0 {
                 response["content_port"] = Int(port)
             }
-            sendResponseJSON(to: clientFD, response)
+            sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "content_status":
             if let server = contentServer {
                 var result = server.statusDict()
                 result["status"] = "ok"
-                sendResponseJSON(to: clientFD, result)
+                sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             } else {
-                sendResponseJSON(to: clientFD, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any])
+                sendResponseJSON(to: clientFD, ["status": "ok", "port": 0, "roots": [String: String](), "note": "content server not configured"] as [String: Any], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             }
 
         // -- Spatial / focus / graph actions --
@@ -1267,10 +1271,10 @@ class UnifiedDaemon {
              "graph-displays", "graph-windows", "graph-deepen", "graph-collapse",
              "snapshot":
             let response = spatial.handleAction(action, json: json)
-            sendResponseJSON(to: clientFD, response)
+            sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         default:
-            sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"])
+            sendResponseJSON(to: clientFD, ["error": "Unknown action: \(action)", "code": "UNKNOWN_ACTION"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
         }
     }
 
@@ -1534,6 +1538,8 @@ class UnifiedDaemon {
     }
 
     private func handleTellAction(json: [String: Any], clientFD: Int32) {
+        let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
+        let envelopeRef = json["__envelope_ref"] as? String
         // Accept audience as [String] array (v1 envelope) or comma-string (legacy).
         let audiences: [String]
         if let arr = json["audience"] as? [String], !arr.isEmpty {
@@ -1541,7 +1547,7 @@ class UnifiedDaemon {
         } else if let str = json["audience"] as? String, !str.isEmpty {
             audiences = str.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         } else {
-            sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"])
+            sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
 
@@ -1554,7 +1560,7 @@ class UnifiedDaemon {
             sendResponseJSON(to: clientFD, [
                 "error": "from_session_id not found: \(fromSessionID)",
                 "code": "SESSION_NOT_FOUND"
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
         let from = json["from"] as? String
@@ -1563,7 +1569,7 @@ class UnifiedDaemon {
             ?? "cli"
 
         guard text != nil || jsonPayload != nil else {
-            sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"])
+            sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
         var routes: [[String: Any]] = []
@@ -1594,10 +1600,12 @@ class UnifiedDaemon {
             }
         }
 
-        sendResponseJSON(to: clientFD, ["status": "ok", "routes": routes])
+        sendResponseJSON(to: clientFD, ["status": "ok", "routes": routes], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
     private func handleVoiceFinalResponseAction(json: [String: Any], clientFD: Int32) {
+        let envelopeActive = (json["__envelope_active"] as? Bool) ?? false
+        let envelopeRef = json["__envelope_ref"] as? String
         let explicitSessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let explicitHarness = (json["harness"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let ingress = resolveFinalResponseIngress(
@@ -1618,7 +1626,7 @@ class UnifiedDaemon {
                 "error": "final-response event could not resolve a session_id",
                 "code": "MISSING_SESSION_ID",
                 "source": ingress.dictionary()
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
         guard let sendingSession = coordination.sessionInfo(sessionID: sessionID) else {
@@ -1632,7 +1640,7 @@ class UnifiedDaemon {
                 "error": "session not found: \(sessionID)",
                 "code": "SESSION_NOT_FOUND",
                 "source": ingress.dictionary()
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
         guard let message = ingress.message, !message.isEmpty else {
@@ -1647,7 +1655,7 @@ class UnifiedDaemon {
                 "error": "final-response event did not contain readable assistant text",
                 "code": "FINAL_RESPONSE_UNAVAILABLE",
                 "source": ingress.dictionary()
-            ])
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             return
         }
 
@@ -1661,7 +1669,7 @@ class UnifiedDaemon {
             "status": "ok",
             "session_id": sessionID,
             "routes": [route]
-        ])
+        ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
     }
 
     // MARK: - Helpers

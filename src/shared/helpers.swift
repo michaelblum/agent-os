@@ -103,8 +103,29 @@ func sendResponse(to fd: Int32, _ data: Data) {
 }
 
 func sendResponseJSON(to fd: Int32, _ dict: [String: Any]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys]) else { return }
-    sendResponse(to: fd, data)
+    sendResponseJSON(to: fd, dict, envelopeActive: false, envelopeRef: nil)
+}
+
+func sendResponseJSON(to fd: Int32, _ dict: [String: Any], envelopeActive: Bool, envelopeRef: String?) {
+    let payload: [String: Any]
+    if envelopeActive {
+        if let err = dict["error"] as? String, let code = dict["code"] as? String {
+            var out: [String: Any] = ["v": 1, "status": "error", "error": err, "code": code]
+            if let r = envelopeRef, !r.isEmpty { out["ref"] = r }
+            payload = out
+        } else {
+            var data = dict
+            data.removeValue(forKey: "status")
+            let status = (dict["status"] as? String) ?? "success"
+            var out: [String: Any] = ["v": 1, "status": status == "ok" ? "success" : status, "data": data]
+            if let r = envelopeRef, !r.isEmpty { out["ref"] = r }
+            payload = out
+        }
+    } else {
+        payload = dict
+    }
+    guard let serialized = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) else { return }
+    sendResponse(to: fd, serialized)
 }
 
 // MARK: - Repo Paths

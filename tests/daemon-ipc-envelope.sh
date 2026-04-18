@@ -42,9 +42,10 @@ OUT="$(echo '{"v":1,"service":"system","action":"ping","data":{},"ref":"abc-123"
 echo "$OUT" | python3 -c '
 import json, sys
 d = json.loads(sys.stdin.read())
-# ref may or may not be echoed yet (wraps in Task 12). Accept either, but if present must match.
-if "ref" in d: assert d["ref"] == "abc-123", f"ref mismatch: {d}"
+assert d.get("ref") == "abc-123", f"expected ref echo: {d}"
+assert d.get("v") == 1, f"expected v:1: {d}"
+assert d.get("status") == "success", f"expected status success: {d}"
 '
-echo "PASS: ref echo (or absent during transition)"
+echo "PASS: ref echo"
 
 echo "PASS"
