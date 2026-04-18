@@ -108,27 +108,28 @@ func tellCommand(args: [String]) {
                   code: "MISSING_ARG")
     }
 
-    // Build daemon request
-    var request: [String: Any] = [
-        "action": "tell",
-        "audience": audience
-    ]
-    if !text.isEmpty { request["text"] = text }
-    if let from = from { request["from"] = from }
-    if let fromSessionID = fromSessionID, !fromSessionID.isEmpty { request["from_session_id"] = fromSessionID }
-    if let purpose = purpose, !purpose.isEmpty { request["purpose"] = purpose }
+    // Build v1 envelope data. Audience becomes an array (split comma-string if needed).
+    let audienceArray = audience.split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+
+    var data: [String: Any] = ["audience": audienceArray]
+    if !text.isEmpty { data["text"] = text }
+    if let from = from { data["from"] = from }
+    if let fromSessionID = fromSessionID, !fromSessionID.isEmpty { data["from_session_id"] = fromSessionID }
+    if let purpose = purpose, !purpose.isEmpty { data["purpose"] = purpose }
     if let jd = jsonData {
         // Parse JSON string into object for structured payload
-        if let data = jd.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) {
-            request["payload"] = parsed
+        if let jdData = jd.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: jdData) {
+            data["payload"] = parsed
         } else {
             exitError("Invalid JSON: \(jd)", code: "INVALID_JSON")
         }
     }
 
-    // Send to daemon
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    // Send to daemon via v1 envelope
+    guard let response = sendEnvelopeRequest(service: "tell", action: "send", data: data) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
 

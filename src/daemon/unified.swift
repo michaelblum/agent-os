@@ -1534,7 +1534,13 @@ class UnifiedDaemon {
     }
 
     private func handleTellAction(json: [String: Any], clientFD: Int32) {
-        guard let audience = json["audience"] as? String, !audience.isEmpty else {
+        // Accept audience as [String] array (v1 envelope) or comma-string (legacy).
+        let audiences: [String]
+        if let arr = json["audience"] as? [String], !arr.isEmpty {
+            audiences = arr
+        } else if let str = json["audience"] as? String, !str.isEmpty {
+            audiences = str.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        } else {
             sendResponseJSON(to: clientFD, ["error": "audience required", "code": "MISSING_ARG"])
             return
         }
@@ -1560,8 +1566,6 @@ class UnifiedDaemon {
             sendResponseJSON(to: clientFD, ["error": "text or payload required", "code": "MISSING_ARG"])
             return
         }
-
-        let audiences = audience.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         var routes: [[String: Any]] = []
 
         for aud in audiences {
