@@ -72,6 +72,7 @@ struct CanvasRequest: Codable {
     var track: String?          // tracking target (e.g. "union") — bounds auto-resolve + auto-update
     var parent: String?         // parent canvas ID (nil = infer from source canvas)
     var cascade: Bool?          // lifecycle cascade from parent (default true; false = survive parent suspend/remove)
+    var suspended: Bool?        // create hidden/suspended without showing a window first
     var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
 }
@@ -134,5 +135,24 @@ extension CanvasResponse {
 
     static func from(_ data: Data) -> CanvasResponse? {
         return try? JSONDecoder().decode(CanvasResponse.self, from: data)
+    }
+
+    /// Initialize from a parsed JSON dictionary (envelope or legacy shape).
+    static func fromDict(_ dict: [String: Any]) -> CanvasResponse {
+        var out = CanvasResponse()
+        // Accept both legacy ({status:"ok",...}) and envelope ({v:1,status:"success",data:{...}})
+        let body: [String: Any] = (dict["data"] as? [String: Any]) ?? dict
+        out.status = body["status"] as? String ?? (dict["status"] as? String)
+        out.error = body["error"] as? String ?? (dict["error"] as? String)
+        out.code = body["code"] as? String ?? (dict["code"] as? String)
+        out.result = body["result"] as? String
+        out.uptime = body["uptime"] as? Double
+        if let arr = body["canvases"] as? [[String: Any]] {
+            // Decode via JSONSerialization round-trip
+            if let data = try? JSONSerialization.data(withJSONObject: arr, options: []) {
+                out.canvases = try? JSONDecoder().decode([CanvasInfo].self, from: data)
+            }
+        }
+        return out
     }
 }

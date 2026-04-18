@@ -18,42 +18,48 @@ class DaemonClient {
     }
 
     func send(_ request: CanvasRequest) -> CanvasResponse {
-        guard let fd = connect() else {
-            return .fail("Cannot connect to daemon", code: "CONNECTION_FAILED")
-        }
-        defer { close(fd) }
+        let service = "show"
+        let action = envelopeAction(for: request.action)
+        var dataDict: [String: Any] = [:]
+        // CanvasRequest has ~18 optional fields; include only non-nil ones
+        if let id = request.id { dataDict["id"] = id }
+        if let at = request.at { dataDict["at"] = at.map { Double($0) } }
+        if let aw = request.anchorWindow { dataDict["anchor_window"] = aw }
+        if let ac = request.anchorChannel { dataDict["anchor_channel"] = ac }
+        if let off = request.offset { dataDict["offset"] = off.map { Double($0) } }
+        if let html = request.html { dataDict["html"] = html }
+        if let url = request.url { dataDict["url"] = url }
+        if let inter = request.interactive { dataDict["interactive"] = inter }
+        if let focus = request.focus { dataDict["focus"] = focus }
+        if let ttl = request.ttl { dataDict["ttl"] = ttl }
+        if let js = request.js { dataDict["js"] = js }
+        if let scope = request.scope { dataDict["scope"] = scope }
+        if let ap = request.autoProject { dataDict["auto_project"] = ap }
+        if let track = request.track { dataDict["track"] = track }
+        if let parent = request.parent { dataDict["parent"] = parent }
+        if let cas = request.cascade { dataDict["cascade"] = cas }
+        if let sus = request.suspended { dataDict["suspended"] = sus }
+        if let ch = request.channel { dataDict["channel"] = ch }
+        if let d = request.data { dataDict["data"] = d }
 
-        guard var data = request.toData() else {
-            return .fail("Failed to encode request", code: "ENCODE_ERROR")
+        guard let response = sendEnvelopeRequest(service: service, action: action, data: dataDict) else {
+            return CanvasResponse.fail("IPC failure", code: "INTERNAL")
         }
-        data.append(UInt8(ascii: "\n"))
-        let written = data.withUnsafeBytes { ptr in
-            write(fd, ptr.baseAddress!, ptr.count)
-        }
-        guard written == data.count else {
-            return .fail("Failed to write to socket", code: "WRITE_ERROR")
-        }
+        return CanvasResponse.fromDict(response)
+    }
+}
 
-        var buffer = Data()
-        var chunk = [UInt8](repeating: 0, count: 4096)
-        let deadline = Date().addingTimeInterval(10.0)
-        while Date() < deadline {
-            var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-            let remaining = Int32(deadline.timeIntervalSinceNow * 1000)
-            let timeoutMs = max(remaining, 100)  // at least 100ms per poll
-            let ready = poll(&pfd, 1, timeoutMs)
-            if ready <= 0 { break }  // timeout or error
-            let bytesRead = read(fd, &chunk, chunk.count)
-            if bytesRead <= 0 { break }
-            buffer.append(contentsOf: chunk[0..<bytesRead])
-            if buffer.contains(UInt8(ascii: "\n")) { break }
-        }
-
-        guard let newlineIdx = buffer.firstIndex(of: UInt8(ascii: "\n")) else {
-            return .fail("No response from daemon", code: "NO_RESPONSE")
-        }
-        let responseData = Data(buffer[buffer.startIndex..<newlineIdx])
-        return CanvasResponse.from(responseData) ?? .fail("Invalid response from daemon", code: "PARSE_ERROR")
+/// Map a legacy CanvasRequest.action string to the v1 (service, action) verb.
+private func envelopeAction(for legacy: String) -> String {
+    switch legacy {
+    case "create":      return "create"
+    case "update":      return "update"
+    case "eval":        return "eval"
+    case "remove":      return "remove"
+    case "remove-all":  return "remove_all"
+    case "list":        return "list"
+    case "to-front":    return "to_front"
+    default:            return legacy  // let the daemon reject unknown actions
     }
 }
 
