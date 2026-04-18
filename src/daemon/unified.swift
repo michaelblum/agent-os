@@ -946,9 +946,77 @@ class UnifiedDaemon {
         }
     }
 
+    // MARK: - Envelope Helpers (v1 IPC)
+
+    /// Detect envelope form `{v:1, service, action, data, ref?}`.
+    /// Returns `(service, action, data, ref)` if envelope, `nil` otherwise.
+    private func parseEnvelope(_ json: [String: Any]) -> (service: String, action: String, data: [String: Any], ref: String?)? {
+        guard let v = json["v"] as? Int, v == 1 else { return nil }
+        guard let service = json["service"] as? String, !service.isEmpty else { return nil }
+        guard let action = json["action"] as? String, !action.isEmpty else { return nil }
+        guard let data = json["data"] as? [String: Any] else { return nil }
+        let ref = json["ref"] as? String
+        return (service, action, data, ref)
+    }
+
+    /// Map v1 envelope (service, action) to the legacy flat action string
+    /// used by the existing switch. Returns nil if the pair is not in the v1 catalog.
+    private func legacyActionName(service: String, action: String) -> String? {
+        switch (service, action) {
+        case ("see", "observe"):              return "subscribe"
+        case ("show", "create"):              return "create"
+        case ("show", "update"):              return "update"
+        case ("show", "eval"):                return "eval"
+        case ("show", "remove"):              return "remove"
+        case ("show", "remove_all"):          return "remove-all"
+        case ("show", "list"):                return "list"
+        case ("tell", "send"):                return "tell"
+        case ("listen", "read"):              return "coord-read"
+        case ("listen", "channels"):          return "coord-channels"
+        case ("session", "register"):         return "coord-register"
+        case ("session", "unregister"):       return "coord-unregister"
+        case ("session", "who"):              return "coord-who"
+        case ("voice", "list"):               return "voice-list"
+        case ("voice", "leases"):             return "voice-leases"
+        case ("voice", "bind"):               return "voice-bind"
+        case ("voice", "final_response"):     return "voice-final-response"
+        case ("system", "ping"):              return "ping"
+        default:                               return nil
+        }
+    }
+
+    /// Build an envelope error response dict.
+    private func envelopeError(error: String, code: String, ref: String?) -> [String: Any] {
+        var out: [String: Any] = ["v": 1, "status": "error", "error": error, "code": code]
+        if let ref = ref { out["ref"] = ref }
+        return out
+    }
+
     // MARK: - Request Routing
 
     private func routeAction(_ action: String, json: [String: Any], clientFD: Int32, connectionID: UUID) {
+        // New: envelope dispatch. If the request has a v1 envelope, translate
+        // (service, action) to the legacy flat action string and reshape `data`
+        // back into the top-level JSON the legacy handlers expect. This keeps
+        // the handler bodies untouched while we migrate callers.
+        if let env = parseEnvelope(json) {
+            let legacyAction = legacyActionName(service: env.service, action: env.action)
+            guard let legacy = legacyAction else {
+                sendResponseJSON(to: clientFD, envelopeError(
+                    error: "Unknown (service, action): (\(env.service), \(env.action))",
+                    code: "UNKNOWN_ACTION",
+                    ref: env.ref
+                ))
+                return
+            }
+            // Reshape: merge `data` into a flat dict and set `action`.
+            var flat = env.data
+            flat["action"] = legacy
+            if let ref = env.ref { flat["__ref"] = ref }  // pass ref through for response wrapping
+            routeAction(legacy, json: flat, clientFD: clientFD, connectionID: connectionID)
+            return
+        }
+
         switch action {
 
         // -- Perception actions --
@@ -1583,9 +1651,18 @@ class UnifiedDaemon {
 
     /// Rewrite `aos://` URLs to the content server's localhost address.
     func resolveContentURL(_ urlString: String) -> String {
-        guard urlString.hasPrefix("aos://"),
-              let port = waitForContentServerPort() else {
+        guard urlString.hasPrefix("aos://") else {
             return urlString
+        }
+        let started = Date()
+        guard let port = waitForContentServerPort() else {
+            let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+            fputs("[content] resolveContentURL timeout after \(elapsedMs)ms for \(urlString)\n", stderr)
+            return urlString
+        }
+        let elapsedMs = Int(Date().timeIntervalSince(started) * 1000)
+        if elapsedMs >= 50 {
+            fputs("[content] resolveContentURL waited \(elapsedMs)ms for port \(port) (\(urlString))\n", stderr)
         }
         let path = String(urlString.dropFirst("aos://".count))
         return "http://127.0.0.1:\(port)/\(path)"
