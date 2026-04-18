@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeMinimapLayout, normalizeDisplays } from '../../packages/toolkit/components/canvas-inspector/index.js';
+import {
+  computeMinimapLayout,
+  normalizeDisplays,
+  projectPointToMinimap,
+  resolveCanvasFrames,
+} from '../../packages/toolkit/components/canvas-inspector/index.js';
 
 const displays = [
   {
@@ -57,6 +62,53 @@ test('computeMinimapLayout keeps self canvases marked and scaled into the same b
   assert.ok(self.x >= 2 && self.y >= 2);
   assert.ok(self.x + self.w < layout.mapW);
   assert.ok(self.y + self.h < layout.mapH);
+  assert.deepEqual(
+    { x: other.x, y: other.y, w: other.w, h: other.h },
+    { x: 2, y: 152, w: 294, h: 165 }
+  );
+});
+
+test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
+  const canvases = [
+    { id: 'avatar-main', at: [-96, -540, 3520, 2068] },
+    { id: 'sigil-hit', parent: 'avatar-main', at: [974, -286, 80, 80] },
+    { id: 'canvas-inspector', at: [1172, 442, 320, 480] },
+  ];
+  const layout = computeMinimapLayout(displays, canvases, 300);
+  assert.ok(layout);
+
+  const cursor = projectPointToMinimap(layout, { x: 1100, y: 280 });
+  assert.ok(cursor);
+  assert.ok(cursor.x >= 0 && cursor.x <= layout.mapW);
+  assert.ok(cursor.y >= 0 && cursor.y <= layout.mapH);
+
+  const avatarHit = layout.canvases.find((entry) => entry.canvas.id === 'sigil-hit');
+  assert.ok(avatarHit);
+  assert.ok(cursor.x >= avatarHit.x);
+  assert.ok(cursor.x <= avatarHit.x + avatarHit.w);
+  assert.ok(cursor.y >= avatarHit.y);
+  assert.ok(cursor.y <= avatarHit.y + avatarHit.h);
+});
+
+test('resolveCanvasFrames converts parent-local child canvases into global minimap rects', () => {
+  const resolved = resolveCanvasFrames([
+    { id: 'avatar-main', at: [-96, -540, 3520, 2068] },
+    { id: 'sigil-hit', parent: 'avatar-main', at: [974, -286, 80, 80] },
+  ]);
+  assert.deepEqual(
+    resolved.map(({ id, atResolved }) => ({ id, atResolved })),
+    [
+      { id: 'avatar-main', atResolved: [-96, -540, 3520, 2068] },
+      { id: 'sigil-hit', atResolved: [1070, 254, 80, 80] },
+    ]
+  );
+});
+
+test('projectPointToMinimap rejects invalid cursor payloads', () => {
+  const layout = computeMinimapLayout(displays, [], 300);
+  assert.equal(projectPointToMinimap(layout, null), null);
+  assert.equal(projectPointToMinimap(layout, { x: Number.NaN, y: 0 }), null);
+  assert.equal(projectPointToMinimap(layout, { x: 0, y: Infinity }), null);
 });
 
 test('normalizeDisplays accepts display_geometry payloads', () => {
@@ -82,6 +134,7 @@ test('normalizeDisplays accepts display_geometry payloads', () => {
       is_main: false,
       bounds: { x: -207, y: 982, w: 1920, h: 1080 },
       scale_factor: 1,
+      visibleBounds: { x: -207, y: 982, w: 1920, h: 1080 },
       width: 1920,
       height: 1080,
     },
@@ -91,6 +144,7 @@ test('normalizeDisplays accepts display_geometry payloads', () => {
       is_main: true,
       bounds: { x: 0, y: 0, w: 1512, h: 982 },
       scale_factor: 2,
+      visibleBounds: { x: 0, y: 0, w: 1512, h: 982 },
       width: 1512,
       height: 982,
     },

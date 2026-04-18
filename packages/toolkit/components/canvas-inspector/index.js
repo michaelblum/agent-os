@@ -33,7 +33,8 @@ function buildTintEvalScript(color) {
       'pointer-events:none',
       'z-index:2147483647',
       'background:' + color,
-      'box-shadow:inset 0 0 0 3px ' + color
+      'box-shadow:inset 0 0 0 4px ' + color,
+      'outline:2px solid rgba(255,255,255,0.9)'
     ].join(';')
     ;(document.body || document.documentElement).appendChild(overlay)
     return true
@@ -42,8 +43,9 @@ function buildTintEvalScript(color) {
 
 function normalizeDisplay(display = {}) {
   const bounds = display.bounds || {}
-  const width = display.width ?? bounds.w ?? bounds.width ?? 0
-  const height = display.height ?? bounds.h ?? bounds.height ?? 0
+  const visible = display.visible_bounds || bounds
+  const width = display.width ?? bounds.w ?? bounds.width ?? visible.w ?? visible.width ?? 0
+  const height = display.height ?? bounds.h ?? bounds.height ?? visible.h ?? visible.height ?? 0
   return {
     ...display,
     id: display.id ?? display.ordinal ?? display.display_id ?? display.cgID,
@@ -51,10 +53,16 @@ function normalizeDisplay(display = {}) {
     height,
     is_main: Boolean(display.is_main),
     bounds: {
-      x: bounds.x ?? 0,
-      y: bounds.y ?? 0,
+      x: bounds.x ?? visible.x ?? 0,
+      y: bounds.y ?? visible.y ?? 0,
       w: bounds.w ?? bounds.width ?? width,
       h: bounds.h ?? bounds.height ?? height,
+    },
+    visibleBounds: {
+      x: visible.x ?? bounds.x ?? 0,
+      y: visible.y ?? bounds.y ?? 0,
+      w: visible.w ?? visible.width ?? width,
+      h: visible.h ?? visible.height ?? height,
     },
   }
 }
@@ -65,9 +73,11 @@ export function normalizeDisplays(list) {
 
 export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, border = 1, inset = 2 } = {}) {
   if (!displays || displays.length === 0) return null
+  const normalizedDisplays = normalizeDisplays(displays)
+  const resolvedCanvases = resolveCanvasFrames(list)
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const d of displays) {
+  for (const d of normalizedDisplays) {
     minX = Math.min(minX, d.bounds.x)
     minY = Math.min(minY, d.bounds.y)
     maxX = Math.max(maxX, d.bounds.x + d.bounds.w)
@@ -85,16 +95,25 @@ export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, b
   return {
     mapW,
     mapH,
-    displays: displays.map((d) => ({
+    inset,
+    minX,
+    minY,
+    scale,
+    displays: normalizedDisplays.map((d) => ({
       display: d,
       x: inset + Math.round((d.bounds.x - minX) * scale),
       y: inset + Math.round((d.bounds.y - minY) * scale),
       w: Math.round(d.bounds.w * scale),
       h: Math.round(d.bounds.h * scale),
+      visibleX: inset + Math.round((d.visibleBounds.x - minX) * scale),
+      visibleY: inset + Math.round((d.visibleBounds.y - minY) * scale),
+      visibleW: Math.max(1, Math.round(d.visibleBounds.w * scale)),
+      visibleH: Math.max(1, Math.round(d.visibleBounds.h * scale)),
     })),
-    canvases: (list || []).flatMap((c) => {
-      if (!c.at || c.at.length < 4) return []
-      const [cx, cy, cw, ch] = c.at
+    canvases: resolvedCanvases.flatMap((c) => {
+      const at = c.atResolved ?? c.at
+      if (!at || at.length < 4) return []
+      const [cx, cy, cw, ch] = at
       return [{
         canvas: c,
         x: inset + Math.round((cx - minX) * scale),
@@ -107,16 +126,57 @@ export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, b
   }
 }
 
+export function projectPointToMinimap(layout, point) {
+  if (!layout || !point) return null
+  const x = Number(point.x)
+  const y = Number(point.y)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  return {
+    x: layout.inset + Math.round((x - layout.minX) * layout.scale),
+    y: layout.inset + Math.round((y - layout.minY) * layout.scale),
+  }
+}
+
+function resolveCanvasFrame(canvas, canvasById, resolving = new Set()) {
+  const at = Array.isArray(canvas?.at) && canvas.at.length >= 4 ? canvas.at : null
+  if (!at) return null
+  if (!canvas?.parent) return at
+  if (resolving.has(canvas.id)) return at
+  const parent = canvasById.get(canvas.parent)
+  if (!parent) return at
+  resolving.add(canvas.id)
+  const parentAt = resolveCanvasFrame(parent, canvasById, resolving)
+  resolving.delete(canvas.id)
+  if (!parentAt) return at
+  return [
+    at[0] - parentAt[0],
+    at[1] - parentAt[1],
+    at[2],
+    at[3],
+  ]
+}
+
+export function resolveCanvasFrames(list) {
+  const canvases = list || []
+  const canvasById = new Map(canvases.map((canvas) => [canvas.id, canvas]))
+  return canvases.map((canvas) => ({
+    ...canvas,
+    atResolved: resolveCanvasFrame(canvas, canvasById),
+  }))
+}
+
 export default function CanvasInspector() {
   let contentEl = null
   let displays = []
   let canvases = []
+  let cursor = { x: 0, y: 0, valid: false }
   let tintedIds = new Set()
   let tintMap = new Map()
   let tintIndex = 0
   let eventCount = 0
   let resizeObserver = null
   let lastMinimapWidth = 0
+  let lastTintError = null
 
   function syncDebugState() {
     window.__canvasInspectorState = {
@@ -125,7 +185,13 @@ export default function CanvasInspector() {
       eventCount,
       tintedIds: [...tintedIds],
       tintMap: Object.fromEntries(tintMap),
+      cursor,
+      lastTintError,
     }
+  }
+
+  async function applyTint(id, color) {
+    await evalCanvas(id, buildTintEvalScript(color))
   }
 
   function rerender() {
@@ -148,8 +214,9 @@ export default function CanvasInspector() {
     if (!layout) return ''
 
     let html = `<div class="minimap" style="width:${layout.mapW}px;height:${layout.mapH}px">`
-    for (const { display: d, x, y, w, h } of layout.displays) {
+    for (const { display: d, x, y, w, h, visibleX, visibleY, visibleW, visibleH } of layout.displays) {
       html += `<div class="minimap-display" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">`
+      html += `<div class="minimap-display-visible" style="left:${visibleX - x}px;top:${visibleY - y}px;width:${visibleW}px;height:${visibleH}px"></div>`
       html += `<span class="minimap-display-label">${d.is_main ? '\u2605 ' : ''}${d.width}\u00d7${d.height}</span>`
       html += `</div>`
     }
@@ -159,18 +226,25 @@ export default function CanvasInspector() {
       const tintStyle = tint ? `background:${esc(tint)};border-color:${esc(tint)};` : ''
       html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${tintStyle}" title="${esc(c.id)}"></div>`
     }
+    if (cursor?.valid) {
+      const projectedCursor = projectPointToMinimap(layout, cursor)
+      if (projectedCursor) {
+        html += `<div class="minimap-cursor" style="left:${projectedCursor.x}px;top:${projectedCursor.y}px" title="cursor"></div>`
+      }
+    }
     html += `</div>`
     return html
   }
 
   function renderList(list) {
-    if (list.length === 0) {
+    const resolvedList = resolveCanvasFrames(list)
+    if (resolvedList.length === 0) {
       return '<div class="empty-state">No canvases active</div>'
     }
     let html = '<div class="canvas-list">'
-    for (const c of list) {
+    for (const c of resolvedList) {
       const cls = c.id === SELF_ID ? 'canvas-item self' : 'canvas-item'
-      const [x, y, w, h] = c.at || [0, 0, 0, 0]
+      const [x, y, w, h] = c.atResolved || c.at || [0, 0, 0, 0]
       const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
       html += `<div class="${cls}" data-id="${esc(c.id)}">`
       html += `<span class="canvas-id">${esc(c.id)}</span>`
@@ -190,7 +264,8 @@ export default function CanvasInspector() {
   }
 
   function renderStatusBar() {
-    return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>live</span></div>`
+    const detail = lastTintError ? `tint error: ${esc(lastTintError.id)}` : 'live'
+    return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>${detail}</span></div>`
   }
 
   function bindListEvents() {
@@ -209,9 +284,10 @@ export default function CanvasInspector() {
           tintedIds.add(id)
           tintMap.set(id, color)
         }
+        lastTintError = null
         rerender()
         try {
-          await evalCanvas(id, buildTintEvalScript(color))
+          await applyTint(id, color)
         } catch (error) {
           if (wasTinted) {
             tintedIds.add(id)
@@ -221,6 +297,7 @@ export default function CanvasInspector() {
             tintedIds.delete(id)
             tintMap.delete(id)
           }
+          lastTintError = { id, error: String(error), at: Date.now() }
           rerender()
           console.error('[canvas-inspector] tint failed', id, error)
         }
@@ -256,10 +333,10 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Canvas Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event'],
       emits: [],
       channelPrefix: 'canvas-inspector',
-      requires: ['canvas_lifecycle', 'display_geometry'],
+      requires: ['canvas_lifecycle', 'display_geometry', 'input_event'],
       defaultSize: { w: 320, h: 480 },
     },
 
@@ -268,6 +345,11 @@ export default function CanvasInspector() {
       contentEl = document.createElement('div')
       contentEl.className = 'canvas-inspector-body'
       contentEl.innerHTML = '<div class="empty-state">Waiting for canvases\u2026</div>'
+      window.__canvasInspectorDebug = {
+        tintCanvas(id, color = TINT_COLORS[0]) {
+          return applyTint(id, color)
+        },
+      }
       resizeObserver = new ResizeObserver(() => {
         const nextWidth = getMinimapWidth()
         if (nextWidth !== lastMinimapWidth) {
@@ -293,6 +375,14 @@ export default function CanvasInspector() {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)
         rerender()
+        return
+      }
+      if (msg.type === 'input_event') {
+        const p = msg.payload || msg
+        if (typeof p.x === 'number' && typeof p.y === 'number') {
+          cursor = { x: p.x, y: p.y, valid: true }
+          rerender()
+        }
         return
       }
       // canvas_lifecycle from the daemon arrives un-prefixed (the daemon
