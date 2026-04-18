@@ -154,6 +154,12 @@ Total: 17 actions across 7 active namespaces (plus `do` reserved).
 - The duplicate `perceive` / `subscribe` handler pair is collapsed: only one handler remains, exposed as `see.observe`. The other dispatch case is deleted.
 - `post` — both branches are reabsorbed into `show.*` and `tell.send`.
 
+### Behavioral changes in v1
+
+Most of v1 is a rename plus an envelope. One deliberate narrowing is worth calling out explicitly because it is not pure renaming:
+
+- **`session.register` requires `session_id`.** The legacy `coord-register` handler at `src/daemon/unified.swift:1072` accepts either `session_id` or `name` and falls back to `name` as the canonical session id when `session_id` is absent. v1 narrows this: `session_id` becomes the only canonical key on registration, and `name` is demoted to a pure display alias. The motivation is the architectural rule in `ARCHITECTURE.md` ("Session presence is keyed by canonical `session_id` / thread id. Human-readable names remain ancillary metadata"). The daemon still accepts legacy identifiers on `session.unregister` and `tell.send` audiences during the transition, so in-flight sessions registered under a `name` can still be addressed until they re-register.
+
 Any request with `service` and `action` not listed in the catalog returns `code: "UNKNOWN_ACTION"`.
 
 ## Action Catalog
@@ -292,6 +298,8 @@ Request `data`:
 | `harness` | string | no | `"unknown"` |
 
 Response `data`: the coordination.registerSession result (existing shape), including canonical `session_id`, effective `role`, `harness`, lease state.
+
+Note: this is a deliberate narrowing from legacy `coord-register`, which accepted either `session_id` or `name`. See the "Behavioral changes in v1" section above for rationale.
 
 ### `session.unregister`
 
