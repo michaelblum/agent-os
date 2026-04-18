@@ -146,10 +146,11 @@ Inspector:
 
 1. Time-based recapture: every `1 / icon_hz` seconds per mark, regardless of whether `icon_region` changed. `icon_hz` default 1, clamped to `[0.1, 10]`. This is the actual refresh rate — terminals, avatars, progress UIs see fresh pixels at the requested cadence.
 2. `icon_region` change invalidates the cache immediately (next tick captures).
-3. Issue a daemon request equivalent to `aos see capture --region x,y,w,h --base64 --format jpg --quality low`. Tag the request with the mark's current `iconSig` and a monotonically-increasing generation counter (`tier3Timers[key].gen`).
-4. **Stale-response guard on commit.** When the capture resolves, before writing `iconCache`, verify: (a) the mark still exists in `marksByCanvas.get(canvas_id).objects` under the same `id`; (b) the current `iconSig` for that `(canvas_id, id)` still matches the tag on the response; (c) the response `gen` equals the current `tier3Timers[key].gen`. If any check fails, drop the response silently — a newer capture is in flight or the mark was removed / changed. Only on success write `{ src, capturedAt, iconSig }` into `iconCache[key]`.
-5. Cache entry rendered as `<img src="data:image/jpeg;base64,...">`. Cache entry evicted when the mark is dropped (TTL expiry, explicit replacement, or parent-canvas removal). `diffAndReconcile` bumps `tier3Timers[key].gen` on any icon-signature change so any in-flight request for the old signature will be rejected on arrival.
-6. On capture error, log once per mark, fall through to `shape` / default until the next successful capture.
+3. **One-in-flight invariant per mark.** Scheduler skips issuing when `tier3Timers[key].inflight === true`, even if `nextAt` has elapsed. Prevents two simultaneous captures from racing and arriving out of order. Freshness impact: if a capture takes longer than `1/icon_hz`, the tick it would have occupied is dropped, not queued. Acceptable trade for v1 (captures are ~5-10ms vs cadence ≥ 100ms).
+4. On issue: bump `tier3Timers[key].seq++`, set `inflight = true`, capture `iconSig` from the current mark, and tag the request with `(iconSig, gen, seq)`. Schedule `nextAt = now + 1000 / icon_hz`.
+5. **Stale-response guard on commit.** When a capture resolves (success or error), before writing `iconCache`, verify: (a) the mark still exists in `marksByCanvas.get(canvas_id).objects` under the same `id`; (b) the current `iconSig` for that `(canvas_id, id)` still matches the tag on the response; (c) the response `gen` equals the current `tier3Timers[key].gen`; (d) the response `seq` equals the current `tier3Timers[key].seq`. If any check fails, drop the response silently. Only on success write `{ src, capturedAt, iconSig }` into `iconCache[key]`. Regardless of commit/drop, clear `tier3Timers[key].inflight = false` if the entry still exists so the next tick may issue again. (If the entry was evicted — removed mark, transition to URL/shape — no inflight flag to clear.)
+6. Cache entry rendered as `<img src="data:image/jpeg;base64,...">`. Cache entry evicted when the mark is dropped (TTL expiry, explicit replacement, or parent-canvas removal). `diffAndReconcile` bumps `tier3Timers[key].gen` on any icon-signature change so any in-flight request for the old signature will be rejected on arrival.
+7. On capture error, log once per mark, fall through to `shape` / default until the next successful capture.
 
 **Cost:** ScreenCaptureKit @ jpg@low on a ~80×80 region ≈ 5-10ms per capture, including daemon IPC. At default 1 Hz for a handful of marks, fraction of a percent CPU.
 
@@ -194,7 +195,8 @@ For Tier 3 capture, the inspector issues a capture request through the existing 
 marksByCanvas = new Map(); // canvas_id -> { objects, expiresAt }
 iconCache    = new Map();  // key: `${canvas_id}:${mark.id}` (not icon-URL)
                            // value: { src, capturedAt, iconSig }
-tier3Timers  = new Map();  // key: `${canvas_id}:${mark.id}` -> { nextAt, icon_region, gen }
+tier3Timers  = new Map();  // key: `${canvas_id}:${mark.id}` ->
+                           //   { nextAt, icon_region, gen, seq, inflight }
 tickHandle   = null;       // single setInterval handle driving TTL + Tier 3 cadence
 ```
 
@@ -233,13 +235,13 @@ if (msg.type === 'canvas_object.marks') {
 `diffAndReconcile(canvas_id, prevObjects, nextObjects)` handles BOTH eviction of gone state and seeding of new state:
 
 - **Removed mark** (`prev.id` not in `next`): evict `iconCache` and `tier3Timers` entries keyed `${canvas_id}:${id}`. (Any later response for that key fails the liveness check and is dropped.)
-- **New mark** (`next.id` not in `prev`): if `icon === "capture"`, create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0 }` so the next tick captures immediately and the first request carries `gen: 0`. No iconCache entry until the first successful fetch.
+- **New mark** (`next.id` not in `prev`): if `icon === "capture"`, create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0, seq: 0, inflight: false }` so the next tick captures immediately and the first request carries `(gen: 0, seq: 1)` after the issue-time `seq++`. No iconCache entry until the first successful fetch.
 - **Existing mark, same icon signature:** no-op. `iconSig` = hash of `(icon, icon_region, icon_hz)`. `tier3Timers[key].gen` unchanged.
 - **Existing mark, changed icon signature:**
   - Evict the mark's `iconCache` entry.
   - If the new side is `icon === "capture"`:
-    - If `tier3Timers[key]` exists: `tier3Timers[key].gen++`, set `nextAt = 0`, set `icon_region = next.icon_region`. Any in-flight request carrying the pre-bump `gen` will be rejected on arrival.
-    - Else: create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0 }` (transition from URL/shape to capture — no prior in-flight request could exist).
+    - If `tier3Timers[key]` exists: `tier3Timers[key].gen++`, set `nextAt = 0`, set `icon_region = next.icon_region`. Leave `seq` and `inflight` as-is — any in-flight request carrying the pre-bump `gen` will be rejected on arrival, and its completion callback still clears `inflight` via the entry that now has a new `gen`.
+    - Else: create `tier3Timers[key] = { nextAt: 0, icon_region, gen: 0, seq: 0, inflight: false }` (transition from URL/shape to capture — no prior in-flight request could exist).
   - If the new side is a URL or `shape`: delete any `tier3Timers` entry for this key (transition away from capture — pending captures, if any, still fail the liveness check because the mark's `iconSig` no longer matches `"capture"`).
 
 `iconSig` is stored alongside the `iconCache` entry so we never resolve the same icon twice and always evict on meaningful change. The combined `(iconSig, gen)` pair is what Tier 3 capture requests and responses use for the stale-response guard.
@@ -312,7 +314,9 @@ function emitMarks() {
 - `diffAndReconcile`: removed marks evict both caches; new `icon: "capture"` marks seed `tier3Timers` with `nextAt: 0`; changed icon signature resets timer; iconSig change evicts `iconCache`.
 - Scheduler lifecycle: tick is torn down after the last mark is cleared (via `objects: []`, TTL expiry, or parent canvas removal); tick is re-armed on the next emit.
 - Tier 3 immediate recapture: after an icon-signature change on an existing mark (e.g. `icon_region` moves), the next tick issues a capture even if less than `1/icon_hz` seconds have passed since the prior capture.
-- Tier 3 stale-response guard: a capture response whose `iconSig` or `gen` no longer matches the current mark state is dropped; an in-flight capture that resolves after the mark was removed does NOT repopulate `iconCache`; a late response for an older `icon_region` does NOT overwrite a newer capture.
+- Tier 3 stale-response guard: a capture response whose `iconSig`, `gen`, or `seq` no longer matches the current mark state is dropped; an in-flight capture that resolves after the mark was removed does NOT repopulate `iconCache`; a late response for an older `icon_region` does NOT overwrite a newer capture.
+- Tier 3 one-in-flight invariant: with `inflight: true` on a mark, the scheduler does NOT issue a second capture even if `nextAt` has elapsed; on response (success or error), `inflight` clears and the next eligible tick issues.
+- Tier 3 overlap-race guard: if two captures with the same `(iconSig, gen)` could overlap (e.g. by forcing a long capture + short `icon_hz`), the one-in-flight invariant prevents the second from being issued; this must be asserted by test (issue a long synthetic capture, verify only one request is in flight at a time).
 - Sanitizer: strips `<script>`, event handlers, external refs; preserves benign SVG.
 - TTL sweep: expired entries removed; non-expired entries untouched.
 - Precedence: `icon` > `shape` > default.
