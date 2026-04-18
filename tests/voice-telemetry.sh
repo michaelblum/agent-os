@@ -25,7 +25,7 @@ SESSION_VOICE_ID="$(python3 - "$LEASES" "$SESSION_ID" <<'PY'
 import json, sys
 payload = json.loads(sys.argv[1])
 session_id = sys.argv[2]
-for row in payload.get("leases", []):
+for row in payload.get("data", {}).get("leases", []):
     if row.get("session_id") == session_id:
         print(row["id"])
         break
@@ -52,8 +52,8 @@ python3 - "$DEFAULT_ROUTE" "$SESSION_ROUTE" "$VOICE_LOG" "$SESSION_ID" "$SESSION
 import json, sys
 from pathlib import Path
 
-default_route = json.loads(sys.argv[1]).get("routes", [{}])[0]
-session_route = json.loads(sys.argv[2]).get("routes", [{}])[0]
+default_route = json.loads(sys.argv[1]).get("data", {}).get("routes", [{}])[0]
+session_route = json.loads(sys.argv[2]).get("data", {}).get("routes", [{}])[0]
 log_path = Path(sys.argv[3])
 session_id = sys.argv[4]
 session_voice_id = sys.argv[5]

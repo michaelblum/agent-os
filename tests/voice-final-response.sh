@@ -25,7 +25,7 @@ python3 - "$OUT" <<'PY'
 import json, sys
 
 payload = json.loads(sys.argv[1])
-route = payload.get("routes", [{}])[0]
+route = payload.get("data", {}).get("routes", [{}])[0]
 rendered = route.get("rendered", {})
 voice = route.get("voice", {})
 
@@ -58,11 +58,12 @@ import json, sys
 
 payload = json.loads(sys.argv[1])
 session_id = sys.argv[2]
-route = payload.get("routes", [{}])[0]
+data = payload.get("data", {})
+route = data.get("routes", [{}])[0]
 rendered = route.get("rendered", {})
 source = route.get("source", {})
 
-if payload.get("session_id") != session_id:
+if data.get("session_id") != session_id:
     raise SystemExit(f"FAIL: expected final-response ingress to recover session id {session_id}, got {payload}")
 if rendered.get("text") != "Task-complete fallback sentence.":
     raise SystemExit(f"FAIL: expected transcript task_complete fallback text, got {rendered}")
@@ -81,7 +82,7 @@ python3 - "$OUT" <<'PY'
 import json, sys
 
 payload = json.loads(sys.argv[1])
-route = payload.get("routes", [{}])[0]
+route = payload.get("data", {}).get("routes", [{}])[0]
 rendered = route.get("rendered", {})
 
 if rendered.get("style") != "last_n_chars":
