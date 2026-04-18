@@ -1162,11 +1162,11 @@ class UnifiedDaemon {
         case "coord-register":
             let sessionID = (json["session_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let legacyName = name?.isEmpty == false ? name : nil
-            guard let canonicalSessionID = sessionID?.isEmpty == false ? sessionID : legacyName else {
-                sendResponseJSON(to: clientFD, ["error": "session_id or name required", "code": "MISSING_ARG"])
+            guard let canonicalSessionID = sessionID, !canonicalSessionID.isEmpty else {
+                sendResponseJSON(to: clientFD, ["error": "session_id required for registration", "code": "MISSING_ARG"])
                 return
             }
+            let legacyName = name?.isEmpty == false ? name : nil
             let role = json["role"] as? String ?? "worker"
             let harness = json["harness"] as? String ?? "unknown"
             let result = coordination.registerSession(sessionID: canonicalSessionID, name: legacyName, role: role, harness: harness)

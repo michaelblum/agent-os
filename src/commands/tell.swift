@@ -22,13 +22,12 @@ func tellCommand(args: [String]) {
     if let idx = args.firstIndex(of: "--register") {
         let legacyName = tellLegacyValue(args, flagIndex: idx)
         let sessionID = tellGetArg(args, "--session-id") ??
-            ProcessInfo.processInfo.environment["AOS_SESSION_ID"] ??
-            legacyName
+            ProcessInfo.processInfo.environment["AOS_SESSION_ID"]
         let name = tellGetArg(args, "--name") ?? legacyName
         let role = tellGetArg(args, "--role") ?? "worker"
         let harness = tellGetArg(args, "--harness") ?? "unknown"
-        guard sessionID != nil || name != nil else {
-            exitError("--register requires --session-id <id> or a legacy name argument", code: "MISSING_ARG")
+        guard let sessionID, !sessionID.isEmpty else {
+            exitError("--register requires --session-id <id>", code: "MISSING_ARG")
         }
         tellRegister(sessionID: sessionID, name: name, role: role, harness: harness)
         return
@@ -148,53 +147,37 @@ func tellCommand(args: [String]) {
 
 // MARK: - Subcommands
 
-private func tellRegister(sessionID: String?, name: String?, role: String, harness: String) {
-    var request: [String: Any] = [
-        "action": "coord-register",
-        "role": role,
-        "harness": harness
-    ]
-    if let sessionID, !sessionID.isEmpty {
-        request["session_id"] = sessionID
-    }
-    if let name, !name.isEmpty {
-        request["name"] = name
-    }
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+private func tellRegister(sessionID: String, name: String?, role: String, harness: String) {
+    var data: [String: Any] = ["session_id": sessionID, "role": role, "harness": harness]
+    if let name, !name.isEmpty { data["name"] = name }
+    guard let response = sendEnvelopeRequest(service: "session", action: "register", data: data) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
-    if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
-       let s = String(data: data, encoding: .utf8) {
+    if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
+       let s = String(data: d, encoding: .utf8) {
         print(s)
     }
 }
 
 private func tellUnregister(sessionID: String?, name: String?) {
-    var request: [String: Any] = [
-        "action": "coord-unregister",
-    ]
-    if let sessionID, !sessionID.isEmpty {
-        request["session_id"] = sessionID
-    }
-    if let name, !name.isEmpty {
-        request["name"] = name
-    }
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    var data: [String: Any] = [:]
+    if let sid = sessionID, !sid.isEmpty { data["session_id"] = sid }
+    if let name, !name.isEmpty { data["name"] = name }
+    guard let response = sendEnvelopeRequest(service: "session", action: "unregister", data: data) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
-    if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
-       let s = String(data: data, encoding: .utf8) {
+    if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
+       let s = String(data: d, encoding: .utf8) {
         print(s)
     }
 }
 
 private func tellWho() {
-    let request: [String: Any] = ["action": "coord-who"]
-    guard let response = daemonOneShot(request, autoStartBinary: CommandLine.arguments[0]) else {
+    guard let response = sendEnvelopeRequest(service: "session", action: "who", data: [:]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
-    if let data = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
-       let s = String(data: data, encoding: .utf8) {
+    if let d = try? JSONSerialization.data(withJSONObject: response, options: [.sortedKeys]),
+       let s = String(data: d, encoding: .utf8) {
         print(s)
     }
 }
