@@ -483,7 +483,7 @@ private func currentGitStatus() -> GitStatusState? {
         branch: branch.isEmpty ? "?" : branch,
         ahead_of_origin_main: Int(aheadRaw),
         dirty_files: dirtyRaw.split(whereSeparator: \.isNewline).count,
-        worktrees: max(worktreesRaw.split(whereSeparator: \.isNewline).count, 1)
+        worktrees: worktreesRaw.split(whereSeparator: \.isNewline).count
     )
 }
 

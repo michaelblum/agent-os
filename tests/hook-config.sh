@@ -17,33 +17,19 @@ def flatten_commands(payload):
                 commands.append((key, hook.get("command", "")))
     return hooks, commands
 
-def assert_minimal(label, path):
+def assert_hooks(label, path):
     payload = json.load(open(path))
-    hooks, commands = flatten_commands(payload)
-
-    if hooks.get("Stop"):
-        raise SystemExit(f"FAIL: {label} should not define Stop hooks")
-
+    _, commands = flatten_commands(payload)
     command_strings = [command for _, command in commands]
-    required = ("session-start.sh", "git-health.sh", "pre-tool-use.sh", "post-tool-use.sh")
+    required = ["session-start.sh", "git-health.sh", "pre-tool-use.sh", "check-messages.sh", "post-tool-use.sh", "final-response.sh"]
+    if label == "claude":
+        required.append("session-stop.sh")
     for needle in required:
         if not any(needle in command for command in command_strings):
             raise SystemExit(f"FAIL: {label} missing required hook command containing {needle!r}: {command_strings}")
 
-    forbidden = (
-        "check-messages.sh",
-        "final-response.sh",
-        "session-stop.sh",
-        "session-common.sh",
-        "session-name",
-        "parallel-codex",
-    )
-    for needle in forbidden:
-        if any(needle in command for command in command_strings):
-            raise SystemExit(f"FAIL: {label} still references removed coordination hook asset {needle!r}: {command_strings}")
-
-assert_minimal("codex", sys.argv[1])
-assert_minimal("claude", sys.argv[2])
+assert_hooks("codex", sys.argv[1])
+assert_hooks("claude", sys.argv[2])
 PY
 
 echo "PASS"

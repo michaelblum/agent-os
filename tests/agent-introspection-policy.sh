@@ -112,4 +112,10 @@ printf '{"tool_input":{"command":"./aos introspect review"}}' | python3 "$POLICY
   exit 1
 }
 
+printf '{"tool_input":{"command":"./aos introspect"}}' | python3 "$POLICY" pre >/dev/null 2>"$STDERR_FILE" || {
+  echo "FAIL: bare introspect should be allowed as a recovery command" >&2
+  cat "$STDERR_FILE" >&2
+  exit 1
+}
+
 echo "PASS"

@@ -217,6 +217,9 @@ def parse_command(command: str) -> dict[str, Any]:
                         "show",
                         "do",
                         "content",
+                        "voice",
+                        "config",
+                        "set",
                         "service",
                         "runtime",
                         "permissions",
@@ -239,6 +242,8 @@ def is_recovery_command(info: dict[str, Any]) -> bool:
     path = info.get("path") or []
     if not path:
         return False
+    if path[0] == "introspect":
+        return True
     joined = "/".join(path)
     return joined in {"status", "help", "introspect/review"}
 

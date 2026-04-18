@@ -558,7 +558,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     ]))
 
     // ── tell ──────────────────────────────────────────────
-    reg.append(CommandDescriptor(path: ["tell"], summary: "Manual communication — send to human, channel, or session", forms: [
+    reg.append(CommandDescriptor(path: ["tell"], summary: "Communication — send to human, channel, or session", forms: [
         InvocationForm(id: "tell-message", usage: "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text> | stdin]",
             args: [
                 pos("audience", "Target: human, channel name, or canonical session id", discovery: [
@@ -581,12 +581,12 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos tell human \"Found the bug\"",
                 "printf '%s' \"$FINAL\" | aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response",
                 "aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c \"status update\"",
-                "aos tell ops \"task complete\" --from my-session",
-                "echo 'update' | aos tell ops"
+                "aos tell handoff \"task complete\" --from my-session",
+                "echo 'update' | aos tell handoff"
             ]),
         InvocationForm(id: "tell-register", usage: "aos tell --register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]",
             args: [
-                flag("register", "--register", "Advanced: register session presence", required: true),
+                flag("register", "--register", "Register session presence", required: true),
                 flag("session-id", "--session-id", "Canonical session id (preferred)"),
                 flag("name", "--name", "Human-readable display name"),
                 flag("role", "--role", "Session role",
@@ -606,7 +606,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ]),
         InvocationForm(id: "tell-unregister", usage: "aos tell --unregister [<legacy-name>] [--session-id <id>]",
             args: [
-                flag("unregister", "--unregister", "Advanced: remove session presence", required: true),
+                flag("unregister", "--unregister", "Remove session presence", required: true),
                 flag("session-id", "--session-id", "Canonical session id (preferred)")
             ],
             stdin: nil, constraints: nil,
@@ -614,7 +614,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             output: outJSON,
             examples: ["aos tell --unregister --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos tell --unregister my-session"]),
         InvocationForm(id: "tell-who", usage: "aos tell --who",
-            args: [flag("who", "--who", "Advanced: list online sessions", type: .bool, required: true)],
+            args: [flag("who", "--who", "List online sessions", type: .bool, required: true)],
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
@@ -622,7 +622,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     ]))
 
     // ── listen ────────────────────────────────────────────
-    reg.append(CommandDescriptor(path: ["listen"], summary: "Manual communication — receive from channels or sessions", forms: [
+    reg.append(CommandDescriptor(path: ["listen"], summary: "Communication — receive from channels", forms: [
         InvocationForm(id: "listen-read", usage: "aos listen <channel>|--session-id <id> [--since id] [--limit N]",
             args: [
                 pos("channel", "Channel to read from", discovery: [.command(path: ["listen"], formId: "listen-channels")]),
@@ -633,7 +633,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
-            examples: ["aos listen ops", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos listen ops --limit 10"]),
+            examples: ["aos listen handoff", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos listen handoff --limit 10"]),
         InvocationForm(id: "listen-follow", usage: "aos listen <channel>|--session-id <id> --follow [--since id]",
             args: [
                 pos("channel", "Channel to follow"),
@@ -644,7 +644,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execStreaming(daemon: true),
             output: outNDJSON,
-            examples: ["aos listen ops --follow", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"]),
+            examples: ["aos listen handoff --follow", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"]),
         InvocationForm(id: "listen-channels", usage: "aos listen --channels",
             args: [flag("channels", "--channels", "List known channels", type: .bool, required: true)],
             stdin: nil, constraints: nil,

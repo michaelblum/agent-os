@@ -38,8 +38,8 @@ aos see cursor
 aos show create --id demo --at 100,100,300,200 --html '<div>hello</div>'
 aos do click 500,300
 aos say "Hello"
-aos tell human "Done."
-aos listen ops --limit 10
+aos tell handoff "task complete"
+aos listen handoff
 ```
 
 ### Success / Failure
@@ -78,8 +78,8 @@ The current top-level commands are:
 | `aos introspect` | Session self-review over recent `./aos` usage |
 | `aos help` | Registry and command-specific help |
 | `aos say` | Voice output |
-| `aos tell` | Manual communication output: human, channel, or direct session routing |
-| `aos listen` | Manual communication input: channel or direct session reads/follow |
+| `aos tell` | Communication output: human, channel, or direct session routing |
+| `aos listen` | Communication input: channel or direct session reads/follow |
 | `aos wiki` | local knowledge-base workflows |
 | `aos config` | Discoverable runtime configuration (`get`, `set`, dump) |
 | `aos set` | Runtime configuration |
@@ -146,18 +146,18 @@ aos show wait --id inspector --manifest inspector-panel
 aos show post --id inspector --event '{"type":"inspector-panel/bootstrap","payload":{"note":"hello"}}'
 ```
 
-### 4. Manual Communication and Debugging
+### 4. Coordinate Through Channels or Direct Session Messaging
 
 ```bash
-aos tell human "Done."
+aos tell handoff "task complete"
+aos tell handoff --from wiki-focus "task complete"
 aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
-aos listen ops --limit 10
-aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
+echo 'queued update' | aos tell handoff
+aos tell --who
+aos listen handoff
+aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 ```
-
-`aos tell` / `aos listen` remain available for explicit operator workflows and
-debugging. They are not part of the default Codex or Claude hook stack in
-agent-os.
 
 ## Subcommand Reference
 
@@ -339,26 +339,26 @@ discoverability misses like unknown commands or missing arguments over time.
 
 ## `aos tell`
 
-Manual / advanced communication surface. Use this when you explicitly want the
-daemon to route a message or inspect session-facing communication. Do not treat
-it as required session plumbing for normal harness operation.
-
 Primary public forms:
 
 | Form | Purpose |
 | --- | --- |
 | `<audience>\|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text>]` | send text or JSON to `human`, a channel, a comma-separated mix, or one canonical session id |
-| `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | advanced: register session presence manually |
-| `--unregister [<legacy-name>] [--session-id <id>]` | advanced: remove session presence manually |
-| `--who` | advanced: list online sessions |
+| `--register [<legacy-name>] [--session-id <id>] [--name <name>] [--role <role>] [--harness <harness>]` | register session presence |
+| `--unregister [<legacy-name>] [--session-id <id>]` | remove session presence |
+| `--who` | list online sessions |
 
 Examples:
 
 ```bash
 aos tell human "Hello"
 aos tell human --from-session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --purpose final_response "Done."
+aos tell handoff "task complete"
+aos tell human,handoff "done"
+aos tell handoff --from wiki-focus "task complete"
 aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "ready for review"
-echo 'queued update' | aos tell ops
+aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name wiki-focus --role worker --harness codex
+echo 'queued update' | aos tell handoff
 ```
 
 If no text args and no `--json` payload are provided, `aos tell` reads plain text from `stdin`.
@@ -367,17 +367,10 @@ For `human` delivery, `--from-session-id` lets the daemon resolve that
 session's leased voice, and `--purpose final_response` applies the configured
 final-response shaping policy before speaking.
 
-Direct routing should prefer canonical session ids. Human-readable names remain
-display metadata for `aos tell --who` and operator ergonomics.
-Presence registration exists for advanced/manual workflows. Normal Codex and
-Claude usage in agent-os does not depend on automatic `tell --register`,
-`tell --unregister`, or `tell --who` hook activity.
+Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
+Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
 
 ## `aos listen`
-
-Manual / advanced communication surface for reading channel or direct-session
-messages. This is useful for debugging or explicit operator workflows, not as a
-default polling mechanism in harness hooks.
 
 Primary public forms:
 
@@ -390,8 +383,8 @@ Primary public forms:
 Examples:
 
 ```bash
-aos listen ops
-aos listen ops --limit 10
+aos listen handoff
+aos listen handoff --limit 10
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
 aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow
 aos listen --channels

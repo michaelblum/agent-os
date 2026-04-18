@@ -5,7 +5,17 @@ set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
 cd "$ROOT"
-SESSION_NAME="${AOS_SESSION_NAME:-}"
+HOOK_INPUT="$(cat || true)"
+
+# shellcheck source=/dev/null
+source "$(dirname "$0")/session-common.sh"
+
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+SESSION_HARNESS="$(aos_detect_harness)"
+SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
+SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
+SESSION_SOURCE="$(aos_session_name_source "$SESSION_ID")"
+REGISTRATION_STATUS="skipped"
 BOOTSTRAP_FILE=""
 AOS_DOCTOR_JSON=""
 AOS_STARTUP_STATE="missing"
@@ -94,6 +104,25 @@ PY
 fi
 
 ensure_aos_runtime || true
+
+if [ -x "$AOS" ] && [ -n "$SESSION_NAME" ]; then
+  if aos_refresh_session_registration "$SESSION_ID" "$SESSION_NAME" "worker" "$SESSION_HARNESS" "$AOS"; then
+    REGISTRATION_STATUS="ok"
+  else
+    REGISTRATION_STATUS="failed"
+  fi
+fi
+
+echo ""
+echo "## Session Identity"
+if [ -n "$SESSION_ID" ]; then
+  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} channel=${SESSION_CHANNEL} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
+else
+  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
+fi
+if [ "$SESSION_SOURCE" = "generated" ]; then
+  echo "Rename later with: scripts/session-name --name <meaningful-name>"
+fi
 
 echo "--- agent-os session context ---"
 
@@ -189,5 +218,12 @@ if [ "$WT_COUNT" -gt 1 ]; then
   echo "worktrees=$WT_COUNT (check for parallel work)"
 fi
 
+echo ""
+echo "## Shared Start-of-Session Method"
+echo "Open with a compact status preamble: branch, ahead/dirty, AOS runtime, stale-resource status, and the 2-3 most relevant issues."
+echo "When verifying toolkit or display work, use real \`./aos\` canvases and \`./aos see\`, not a raw browser page."
+echo ""
+echo "## Shared Handoff Method"
+echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and emit one ready-to-run continuation path for the active runtime."
 echo ""
 echo "--- end session context ---"
