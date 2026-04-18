@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <style>
-html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; cursor: default; }
+html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -11,6 +11,60 @@ html, body { margin: 0; width: 100%; height: 100%; background: transparent; over
 // Minimal absorber page. Exists where canvas.update puts it so clicks land
 // here instead of passing through to the desktop.
 window.headsup = window.headsup || {};
+const HIT_SOURCE = 'sigil-hit';
+
+function emit(kind, event) {
+    const rect = document.body.getBoundingClientRect();
+    const payload = {
+        source: HIT_SOURCE,
+        kind,
+        screenX: Number.isFinite(event.screenX) ? event.screenX : null,
+        screenY: Number.isFinite(event.screenY) ? event.screenY : null,
+        offsetX: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+        offsetY: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+    };
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
+        window.webkit.messageHandlers.headsup.postMessage(payload);
+    }
+}
+
+let activePointerId = null;
+
+document.addEventListener('pointerdown', (event) => {
+    if (event.button === 2) {
+        event.preventDefault();
+        emit('right_mouse_down', event);
+        return;
+    }
+    if (event.button !== 0) return;
+    activePointerId = event.pointerId;
+    document.body.setPointerCapture?.(event.pointerId);
+    emit('left_mouse_down', event);
+});
+
+document.addEventListener('pointermove', (event) => {
+    if (activePointerId !== event.pointerId) return;
+    emit('left_mouse_dragged', event);
+});
+
+document.addEventListener('pointerup', (event) => {
+    if (activePointerId !== event.pointerId) return;
+    emit('left_mouse_up', event);
+    document.body.releasePointerCapture?.(event.pointerId);
+    activePointerId = null;
+});
+
+document.addEventListener('pointercancel', (event) => {
+    if (activePointerId !== event.pointerId) return;
+    emit('left_mouse_up', event);
+    activePointerId = null;
+});
+
+document.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    emit('right_mouse_down', event);
+});
+
 window.headsup.receive = function(b64) {
     try {
         const json = JSON.parse(atob(b64));

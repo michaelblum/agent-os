@@ -13,13 +13,23 @@ import { resolveBirthplace } from '../birthplace-resolver.js';
 import { cloneStageAvatar } from '../fixed-avatar.js';
 import { createRenderLoopScheduler } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
+import { createInteractionOverlay } from './interaction-overlay.js';
+import { createHitTargetController } from './hit-target.js';
 import {
     clampPointToDisplays,
     computeDisplayUnion,
     normalizeDisplays,
 } from './display-utils.js';
+import { startFastTravel, tickFastTravel } from './fast-travel.js';
 
 const host = createHostRuntime();
+const overlay = createInteractionOverlay();
+const hitTarget = createHitTargetController({
+    runtime: host,
+    url: 'aos://sigil/renderer/hit-area.html',
+    size: Math.round(state.avatarHitRadius * 3.2),
+    parentId: 'avatar-main',
+});
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 
 const liveJs = {
@@ -34,6 +44,20 @@ const liveJs = {
     currentScale: 0,
     transition: null,
     lifecycle: 'hidden',
+    currentState: 'IDLE',
+    state: 'IDLE',
+    pointerPos: { x: 0, y: 0 },
+    currentCursor: { x: 0, y: 0, valid: false },
+    cursorTarget: { x: 0, y: 0, valid: false },
+    avatarHitRadius: state.avatarHitRadius,
+    dragThreshold: state.dragThreshold,
+    dragCancelRadius: state.dragCancelRadius,
+    gotoRingRadius: state.gotoRingRadius,
+    menuRingRadius: state.menuRingRadius,
+    travel: null,
+    mousedownPos: null,
+    mousedownAvatarPos: null,
+    gotoStyleRestore: null,
     _resolveFirstDisplayGeometry: null,
 };
 
@@ -169,6 +193,54 @@ function clampAvatarPosition(x, y) {
     return clampPointToDisplays(liveJs.displays, x, y);
 }
 
+function distance(x1, y1, x2, y2) {
+    return Math.hypot(x1 - x2, y1 - y2);
+}
+
+function clearGestureState() {
+    liveJs.mousedownPos = null;
+    liveJs.mousedownAvatarPos = null;
+}
+
+function setInteractionState(next, reason) {
+    if (liveJs.currentState === next) return;
+    const prev = liveJs.currentState;
+    console.log('[sigil-stage] state:', liveJs.currentState, '->', next, reason ? '(' + reason + ')' : '');
+    liveJs.currentState = next;
+    liveJs.state = next;
+    if (prev !== 'GOTO' && next === 'GOTO') applyGotoStyle(true);
+    if (prev === 'GOTO' && next !== 'GOTO') applyGotoStyle(false);
+}
+
+function isOnAvatar(x, y) {
+    if (!liveJs.avatarPos.valid || state.appScale <= 0.05) return false;
+    const dx = x - liveJs.avatarPos.x;
+    const dy = y - liveJs.avatarPos.y;
+    return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
+}
+
+function applyGotoStyle(active) {
+    if (active) {
+        if (!liveJs.gotoStyleRestore) {
+            liveJs.gotoStyleRestore = {
+                isPaused: state.isPaused,
+                stellationFactor: state.stellationFactor,
+            };
+        }
+        state.isPaused = true;
+        state.stellationFactor = Math.max(state.stellationFactor, 0.12);
+        updateGeometry(state.currentGeometryType ?? state.currentType);
+        return;
+    }
+
+    const restore = liveJs.gotoStyleRestore;
+    if (!restore) return;
+    state.isPaused = restore.isPaused;
+    state.stellationFactor = restore.stellationFactor;
+    liveJs.gotoStyleRestore = null;
+    updateGeometry(state.currentGeometryType ?? state.currentType);
+}
+
 function setAvatarPosition(position, { persist = true } = {}) {
     if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return false;
     const next = clampAvatarPosition(position.x, position.y);
@@ -215,6 +287,128 @@ function beginVisibilityTransition(visible, duration) {
     };
     setLifecycle(visible ? 'appearing' : 'disappearing');
     scheduleRenderFrame();
+}
+
+function cancelInteraction(reason) {
+    if (liveJs.currentState === 'IDLE') return;
+    clearGestureState();
+    setInteractionState('IDLE', reason);
+}
+
+function queueFastTravel(x, y) {
+    startFastTravel(liveJs, liveJs.displays, x, y);
+}
+
+function handleLeftMouseDown(x, y) {
+    switch (liveJs.currentState) {
+        case 'IDLE':
+            if (!isOnAvatar(x, y)) return;
+            liveJs.mousedownPos = { x, y };
+            liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
+            setInteractionState('PRESS', 'mousedown-on-avatar');
+            return;
+        case 'GOTO':
+            if (isOnAvatar(x, y)) {
+                clearGestureState();
+                setInteractionState('IDLE', 'goto-click-on-avatar');
+                return;
+            }
+            liveJs.mousedownPos = { x, y };
+            return;
+        default:
+            return;
+    }
+}
+
+function handleLeftMouseUp(x, y) {
+    switch (liveJs.currentState) {
+        case 'PRESS':
+            clearGestureState();
+            setInteractionState('GOTO', 'press-click');
+            return;
+        case 'DRAG': {
+            const origin = liveJs.mousedownAvatarPos;
+            const distFromOrigin = origin ? distance(x, y, origin.x, origin.y) : Infinity;
+            clearGestureState();
+            if (distFromOrigin <= liveJs.dragCancelRadius) {
+                setInteractionState('IDLE', 'drag-cancel');
+                return;
+            }
+            queueFastTravel(x, y);
+            setInteractionState('IDLE', 'drag-release-fast-travel');
+            return;
+        }
+        case 'GOTO':
+            clearGestureState();
+            if (!isOnAvatar(x, y)) {
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'goto-release-fast-travel');
+            }
+            return;
+        default:
+            return;
+    }
+}
+
+function handleMouseMove(x, y) {
+    if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
+    if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
+    setInteractionState('DRAG', 'press-threshold');
+}
+
+function handleInputEvent(msg) {
+    if (typeof msg.x === 'number' && typeof msg.y === 'number') {
+        liveJs.pointerPos = { x: msg.x, y: msg.y };
+        liveJs.cursorTarget = { x: msg.x, y: msg.y, valid: true };
+        if (!liveJs.currentCursor.valid) {
+            liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
+        }
+    }
+
+    switch (msg.type) {
+        case 'left_mouse_down':
+            handleLeftMouseDown(msg.x, msg.y);
+            return;
+        case 'left_mouse_up':
+            handleLeftMouseUp(msg.x, msg.y);
+            return;
+        case 'left_mouse_dragged':
+        case 'mouse_moved':
+            handleMouseMove(msg.x, msg.y);
+            return;
+        case 'right_mouse_down':
+            cancelInteraction('right-click');
+            return;
+        case 'key_down':
+            if (msg.key_code === 53) cancelInteraction('escape');
+            return;
+        default:
+            return;
+    }
+}
+
+function pointFromHitPayload(payload = {}) {
+    const screenX = Number(payload.x ?? payload.screenX);
+    const screenY = Number(payload.y ?? payload.screenY);
+    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
+        return { x: screenX, y: screenY };
+    }
+    const localX = Number(payload.offsetX);
+    const localY = Number(payload.offsetY);
+    const size = hitTarget.hit.size;
+    if (!Number.isFinite(localX) || !Number.isFinite(localY) || !liveJs.avatarPos.valid) return null;
+    return {
+        x: (liveJs.avatarPos.x - (size / 2)) + localX,
+        y: (liveJs.avatarPos.y - (size / 2)) + localY,
+    };
+}
+
+function handleHitCanvasEvent(payload = {}) {
+    if (payload.source !== 'sigil-hit') return;
+    const point = pointFromHitPayload(payload);
+    if (!point) return;
+    const msg = { type: payload.kind, x: point.x, y: point.y };
+    handleInputEvent(msg);
 }
 
 function mergeDeep(base, patch) {
@@ -314,6 +508,16 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'input_event') {
+        handleInputEvent(msg);
+        return;
+    }
+
+    if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) {
+        handleHitCanvasEvent(msg.payload || {});
+        return;
+    }
+
     if (msg.type === 'lifecycle') {
         if (msg.action === 'suspend') {
             rendererSuspended = true;
@@ -375,7 +579,11 @@ async function getLastPositionFromDaemon(avatarId) {
 function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
-    host.subscribe(['display_geometry'], { snapshot: true });
+    overlay.mount();
+    host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
+    void hitTarget.ensureCreated().catch((error) => {
+        console.error('[sigil-stage] avatar hit target create failed:', error);
+    });
 }
 
 function init() {
@@ -402,6 +610,13 @@ function animate() {
         const projected = projectAvatarToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
+        window.__sigilRenderDebug = {
+            desktop: {
+                x: Math.round(liveJs.avatarPos.x),
+                y: Math.round(liveJs.avatarPos.y),
+            },
+            globalBounds: liveJs.globalBounds,
+        };
     }
 
     if (liveJs.transition) {
@@ -422,6 +637,12 @@ function animate() {
         }
     }
 
+    if (liveJs.travel) {
+        tickFastTravel(liveJs, (landed) => {
+            setAvatarPosition(landed);
+        });
+    }
+
     if (!state.isPaused) {
         state.polyGroup.rotation.y += state.idleSpinSpeed ?? 0.01;
         state.polyGroup.rotation.x += (state.idleSpinSpeed ?? 0.01) * 0.4;
@@ -437,6 +658,27 @@ function animate() {
     animateTrails(dt);
     updateInnerEdgePulse(false);
     updateInnerEdgePulse(true);
+
+    if (liveJs.avatarPos.valid) {
+        const hitInteractive = liveJs.targetVisible && state.appScale > 0.05;
+        hitTarget.setSize(Math.round(state.avatarHitRadius * 3.2));
+        hitTarget.sync(liveJs.avatarPos, hitInteractive);
+        window.__sigilHitDebug = {
+            id: hitTarget.hit.id,
+            size: hitTarget.hit.size,
+            interactive: hitTarget.hit.interactive,
+            ready: hitTarget.hit.ready,
+        };
+    }
+    overlay.draw({
+        state: liveJs.currentState,
+        avatarPos: liveJs.avatarPos,
+        dragOrigin: liveJs.mousedownAvatarPos,
+        pointerPos: liveJs.pointerPos,
+        gotoRingRadius: liveJs.gotoRingRadius,
+        menuRingRadius: liveJs.menuRingRadius,
+        dragCancelRadius: liveJs.dragCancelRadius,
+    });
 
     if (window.__sigilBootFirstFrameAt === null) {
         window.__sigilBootFirstFrameAt = Date.now();
