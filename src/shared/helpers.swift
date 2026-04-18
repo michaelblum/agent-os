@@ -171,11 +171,13 @@ func jsStringLiteral(_ value: String) -> String {
 func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [String: Any]) {
     guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
           let json = String(data: data, encoding: .utf8) else { return }
-    session.sendOnly([
+    let envelope: [String: Any] = [
+        "v": 1,
+        "service": "show",
         "action": "post",
-        "id": canvasID,
-        "data": json
-    ])
+        "data": ["id": canvasID, "data": json]
+    ]
+    session.sendOnly(envelope)
 }
 
 /// One-shot variant for contexts without a persistent `DaemonSession`.
@@ -184,11 +186,7 @@ func sendHeadsupMessage(session: DaemonSession, canvasID: String, payload: [Stri
 func sendHeadsupMessageOneShot(canvasID: String, payload: [String: Any]) -> [String: Any]? {
     guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
           let json = String(data: data, encoding: .utf8) else { return nil }
-    return daemonOneShot([
-        "action": "post",
-        "id": canvasID,
-        "data": json
-    ])
+    return sendEnvelopeRequest(service: "show", action: "post", data: ["id": canvasID, "data": json])
 }
 
 func waitForCanvasCondition(

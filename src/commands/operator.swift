@@ -647,7 +647,7 @@ private func fetchCanvasSnapshot() -> CanvasSnapshot {
 }
 
 private func currentSpatialSnapshot() -> SpatialSnapshotResult {
-    guard let response = daemonOneShot(["action": "snapshot"], autoStartBinary: aosExecutablePath()) else {
+    guard let response = sendEnvelopeRequest(service: "see", action: "snapshot", data: [:], autoStartBinary: aosExecutablePath()) else {
         return SpatialSnapshotResult(snapshot: nil, notes: ["Daemon snapshot is unavailable."])
     }
     if let error = response["error"] as? String {

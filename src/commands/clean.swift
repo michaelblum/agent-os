@@ -7,7 +7,7 @@
 
 import Foundation
 
-private struct CleanReport: Encodable {
+struct CleanReport: Encodable {
     let status: String
     let stale_daemons: [StaleDaemonInfo]
     let canvases: [CleanCanvasEntry]
@@ -15,12 +15,12 @@ private struct CleanReport: Encodable {
     let notes: [String]
 }
 
-private struct StaleDaemonInfo: Encodable {
+struct StaleDaemonInfo: Encodable {
     let pid: Int
     let args: String
 }
 
-private struct CleanCanvasEntry: Encodable {
+struct CleanCanvasEntry: Encodable {
     let id: String
     let mode: String
 }
@@ -66,7 +66,7 @@ func cleanCommand(args: [String]) {
     }
 }
 
-private func runClean(dryRun: Bool) -> CleanReport {
+func runClean(dryRun: Bool) -> CleanReport {
     var actions: [String] = []
     var notes: [String] = []
     let mode = aosCurrentRuntimeMode()
@@ -112,11 +112,11 @@ private func runClean(dryRun: Bool) -> CleanReport {
     // 5. Remove canvases
     if !dryRun && !canvases.isEmpty {
         if socketIsReachable(socketPath) {
-            daemonOneShot(["action": "remove-all"], socketPath: socketPath)
+            sendEnvelopeRequest(service: "show", action: "remove_all", data: [:], socketPath: socketPath)
             actions.append("removed all canvases on \(mode.rawValue) daemon")
         }
         if socketIsReachable(otherSocketPath) {
-            daemonOneShot(["action": "remove-all"], socketPath: otherSocketPath)
+            sendEnvelopeRequest(service: "show", action: "remove_all", data: [:], socketPath: otherSocketPath)
             actions.append("removed all canvases on \(mode.other.rawValue) daemon")
         }
     }
@@ -167,7 +167,7 @@ private func processArgs(pid: Int) -> String {
 }
 
 private func listCanvases(socketPath: String, mode: String) -> [CleanCanvasEntry] {
-    guard let response = daemonOneShot(["action": "list"], socketPath: socketPath),
+    guard let response = sendEnvelopeRequest(service: "show", action: "list", data: [:], socketPath: socketPath),
           let canvases = response["canvases"] as? [[String: Any]] else {
         return []
     }

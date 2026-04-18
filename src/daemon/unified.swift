@@ -935,13 +935,12 @@ class UnifiedDaemon {
                 let lineData = Data(buffer[buffer.startIndex..<newlineIndex])
                 buffer = Data(buffer[(buffer.index(after: newlineIndex))...])
 
-                guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                      let action = json["action"] as? String else {
+                guard let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
                     sendResponseJSON(to: clientFD, ["error": "Invalid JSON", "code": "PARSE_ERROR"])
                     continue
                 }
 
-                routeAction(action, json: json, clientFD: clientFD, connectionID: connectionID)
+                handleRequest(json: json, connectionID: connectionID, clientFD: clientFD)
             }
         }
     }
@@ -975,6 +974,8 @@ class UnifiedDaemon {
         case ("show", "remove"):              return "remove"
         case ("show", "remove_all"):          return "remove-all"
         case ("show", "list"):                return "list"
+        case ("show", "post"):                return "post"
+        case ("see", "snapshot"):             return "snapshot"
         case ("tell", "send"):                return "tell"
         case ("listen", "read"):              return "coord-read"
         case ("listen", "channels"):          return "coord-channels"
@@ -999,11 +1000,36 @@ class UnifiedDaemon {
 
     // MARK: - Request Routing
 
+    /// Top-level request gatekeeper. Enforces the v1 envelope contract.
+    ///
+    /// Non-envelope requests return PARSE_ERROR, with one explicit transitional
+    /// carve-out: bare `{"action":"subscribe"}` is still accepted for streaming
+    /// event-bus consumers (`listen --follow`, `see observe`, `event-stream.swift`)
+    /// that hold a persistent socket and cannot use sendEnvelopeRequest's
+    /// one-shot API. This carve-out will be cleaned up when a `listen.subscribe`
+    /// v1 action is defined (tracked separately).
+    private func handleRequest(json: [String: Any], connectionID: UUID, clientFD: Int32) {
+        if isEnvelopeShape(json) {
+            // Envelope request: routeAction will parse and dispatch it.
+            routeAction("", json: json, clientFD: clientFD, connectionID: connectionID)
+            return
+        }
+        // Non-envelope: allow only the explicit legacy carve-out for streaming subscribers.
+        if let action = json["action"] as? String, action == "subscribe" {
+            routeAction(action, json: json, clientFD: clientFD, connectionID: connectionID)
+            return
+        }
+        // All other non-envelope requests are rejected.
+        sendResponseJSON(to: clientFD, [
+            "error": "Request envelope required ({v:1, service, action, data}).",
+            "code": "PARSE_ERROR"
+        ])
+    }
+
     private func routeAction(_ action: String, json: [String: Any], clientFD: Int32, connectionID: UUID) {
-        // New: envelope dispatch. If the request has a v1 envelope, translate
-        // (service, action) to the legacy flat action string and reshape `data`
-        // back into the top-level JSON the legacy handlers expect. This keeps
-        // the handler bodies untouched while we migrate callers.
+        // Envelope dispatch: translate (service, action) to the legacy flat action
+        // string and reshape `data` back into the top-level JSON the legacy
+        // handlers expect. This keeps handler bodies untouched.
         if isEnvelopeShape(json) {
             guard let env = parseEnvelope(json) else {
                 sendResponseJSON(to: clientFD, envelopeError(

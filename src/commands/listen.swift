@@ -99,8 +99,9 @@ private func listenFollow(channel: String, since: String?) {
 
     // If since is set, first dump history
     if since != nil {
-        var readReq: [String: Any] = ["action": "coord-read", "channel": channel, "limit": 100]
-        if let s = since { readReq["since"] = s }
+        var readData: [String: Any] = ["channel": channel, "limit": 100]
+        if let s = since { readData["since"] = s }
+        let readReq: [String: Any] = ["v": 1, "service": "listen", "action": "read", "data": readData]
         session.sendOnly(readReq)
         if let response = session.readOneJSON(timeoutMs: 2000),
            let msgs = response["messages"] as? [[String: Any]] {

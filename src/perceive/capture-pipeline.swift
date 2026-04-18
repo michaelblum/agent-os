@@ -605,7 +605,7 @@ func decodeCanvasResponse(_ response: [String: Any]) -> CanvasResponse? {
 }
 
 func readCanvasInfo(id: String) -> CanvasInfo? {
-    guard let response = daemonOneShot(["action": "list"], autoStartBinary: aosExecutablePath()),
+    guard let response = sendEnvelopeRequest(service: "show", action: "list", data: [:], autoStartBinary: aosExecutablePath()),
           let decoded = decodeCanvasResponse(response),
           decoded.error == nil,
           let canvases = decoded.canvases else { return nil }

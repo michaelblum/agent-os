@@ -189,6 +189,7 @@ func daemonOneShotRaw(_ jsonString: String, socketPath: String = kDefaultSocketP
 ///   - data: Action payload. Pass `[:]` for no payload.
 ///   - ref: Optional correlation id echoed back in the response.
 ///   - socketPath: Optional override of the daemon socket path.
+///   - autoStartBinary: If provided and the daemon is unreachable, spawn this binary as daemon before retrying.
 ///   - timeoutMs: Socket I/O timeout.
 /// - Returns: The parsed response JSON, or nil on connection/parse failure.
 @discardableResult
@@ -198,6 +199,7 @@ func sendEnvelopeRequest(
     data: [String: Any],
     ref: String? = nil,
     socketPath: String = kDefaultSocketPath,
+    autoStartBinary: String? = nil,
     timeoutMs: Int32 = 3000
 ) -> [String: Any]? {
     var payload: [String: Any] = [
@@ -208,7 +210,13 @@ func sendEnvelopeRequest(
     ]
     if let ref = ref { payload["ref"] = ref }
     let session = DaemonSession(socketPath: socketPath)
-    guard session.connect(timeoutMs: timeoutMs) else { return nil }
+    let connected: Bool
+    if let binary = autoStartBinary {
+        connected = session.connectWithAutoStart(binaryPath: binary)
+    } else {
+        connected = session.connect(timeoutMs: timeoutMs)
+    }
+    guard connected else { return nil }
     defer { session.disconnect() }
     session.sendOnly(payload)
     return session.readOneJSON(timeoutMs: timeoutMs)

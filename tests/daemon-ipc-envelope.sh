@@ -48,4 +48,13 @@ assert d.get("status") == "success", f"expected status success: {d}"
 '
 echo "PASS: ref echo"
 
+# 4. Legacy flat-string requests are rejected (except the explicit transitional carve-outs).
+OUT="$(echo '{"action":"ping"}' | send_envelope)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+assert d.get("code") == "PARSE_ERROR", f"expected PARSE_ERROR: {d}"
+'
+echo "PASS: flat-string request rejected"
+
 echo "PASS"
