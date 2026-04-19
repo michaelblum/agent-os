@@ -45,27 +45,41 @@ cross-surface world model.
 
 ### Boundary Compatibility
 
-Current daemon/native producers still expose main-display-anchored values in
-many places (`bounds`, `visible_bounds`, window frames, input events). Treat
-those as boundary compatibility only.
+The `aos see list` topology producer now emits both native-compat and
+DesktopWorld-anchored fields on every display, plus top-level
+`desktop_world_bounds` / `visible_desktop_world_bounds` aggregates and
+DesktopWorld cursor siblings (`desktop_world_x`, `desktop_world_y`). Cross-
+surface consumers should read the DesktopWorld fields directly.
 
-Cross-surface consumers must re-anchor boundary values into DesktopWorld before
-using them as shared world coordinates.
+Window frames, input events, and other surfaces that still emit only native-
+compat values must be re-anchored into DesktopWorld before cross-surface use.
+The toolkit JS runtime (`packages/toolkit/runtime/spatial.js`) provides the
+canonical helpers (`nativeToDesktopWorldPoint`, `nativeToDesktopWorldRect`).
 
 ### Converting Between Layers
 
-- Native desktop compatibility → DesktopWorld:
-  subtract the full arranged-display union origin
-- DesktopWorld → Native desktop compatibility:
-  add the full arranged-display union origin
-- Native / DesktopWorld → LCS:
-  subtract the origin of the capture target in the same source frame
-- LCS → Native / DesktopWorld:
-  add the origin of the capture target in the same source frame
-- Points → Physical pixels:
-  multiply by `scale_factor`
+| From | To | How |
+|------|----|-----|
+| `Display.native_bounds` | `Display.desktop_world_bounds` | Subtract the native full-union origin (or use the emitted value directly — both producers emit it). |
+| `Display.desktop_world_bounds` | `Display.native_bounds` | Add the native full-union origin; use `desktopWorldToNativeRect` at the boundary. |
+| `Display.native_visible_bounds` | `Display.visible_desktop_world_bounds` | Same offset as above; emitted directly. |
+| Native / DesktopWorld | LCS | Subtract the origin of the capture target in the same source frame. |
+| LCS | Native / DesktopWorld | Add the origin of the capture target in the same source frame. |
+| Points | Physical pixels | Multiply by `scale_factor`. |
 
 **Axis directions:** X increases rightward, Y increases downward.
+
+### Channel vs topology split
+
+- `aos see list` (full topology) — governed by `spatial-topology.schema.json`.
+  Carries displays, windows, apps, and cursor. Cursor DesktopWorld siblings
+  live **here only**.
+- `display_geometry` daemon channel — displays-only subset of the same shape.
+  No cursor field. Subscribers consume `native_bounds` /
+  `desktop_world_bounds` on each display plus the top-level aggregates.
+  Live-cursor needs re-anchor `input_event` messages via
+  `nativeToDesktopWorldPoint` or read `aos see list --json` for a one-shot
+  DesktopWorld cursor.
 
 ## Governance
 
@@ -109,9 +123,10 @@ in one native boundary layer and one shared JS runtime.
 **Click in a window from LCS:**
 ```
 Input:  "click (200, 150) in window 4521"
-Lookup: window 4521 → boundary-native bounds { x: 50, y: 30 }
-Math:   boundary-native = (50 + 200, 30 + 150) = (250, 180)
-Bridge: DesktopWorld <-> native conversion happens at the daemon boundary
+Lookup: window 4521 → native_bounds { x: 50, y: 30 }    (daemon-emitted native-compat)
+Math:   native = (50 + 200, 30 + 150) = (250, 180)
+Bridge: shared-world code uses display.desktop_world_bounds; native bridge
+        happens once at the daemon boundary via desktopWorldToNativePoint
 Action: CGEvent at native point (250, 180)
 ```
 
@@ -173,5 +188,7 @@ All public, no SIP required. Screen Recording + Accessibility permissions needed
 Union canvases are anchored to **DesktopWorld**, not to the macOS main display.
 
 - `--track union` resolves to the full arranged display union.
-- A union canvas should resolve to `[0,0,w,h]` in DesktopWorld.
-- Visible-bounds data remains available separately for usable-area logic.
+- The authoritative union rect is the top-level `desktop_world_bounds` emitted
+  by `aos see list`; it is `[0,0,w,h]` by construction.
+- Visible-bounds data remains available separately via
+  `visible_desktop_world_bounds` for usable-area logic.
