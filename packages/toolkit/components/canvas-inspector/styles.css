@@ -27,12 +27,12 @@
   border-radius: 2px;
   background: rgba(30, 30, 50, 0.4);
 }
-.minimap-display-label {
+/* Minimap object marks (canvas_object.marks). Logical w/h in minimap px,
+ * independent of display scale — stable visual size as the minimap resizes. */
+.minimap-mark {
   position: absolute;
-  bottom: 2px;
-  right: 4px;
-  font-size: 8px;
-  color: var(--text-muted);
+  pointer-events: none;
+  overflow: visible;
 }
 .minimap-canvas {
   position: absolute;
@@ -53,25 +53,43 @@
 }
 .minimap-canvas.tinted { opacity: 0.85; }
 
-/* Canvas list */
+/* Canvas tree (location + canvas + mark rows). Indentation is applied inline
+ * per depth level from the inspector's renderTreeNode. */
 .canvas-list-region {
   flex: 1;
   min-height: 0;
   overflow: auto;
 }
 
-.canvas-list { padding: 0 8px 8px; }
-.canvas-item {
+.canvas-list { padding: 0 0 8px; }
+.tree-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-right: 6px;
   border-radius: 4px;
   font-size: var(--font-size-small);
   line-height: 1.6;
 }
-.canvas-item:hover { background: var(--bg-hover); }
-.canvas-item.self { opacity: 0.5; }
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.canvas.self { opacity: 0.5; }
+.tree-row.location .location-label {
+  color: var(--text-header);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 600;
+}
+.tree-row.mark {
+  font-size: calc(var(--font-size-small) - 1px);
+  color: var(--text-secondary);
+}
+.tree-row.mark .mark-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
 .canvas-id { color: var(--accent-blue); font-weight: 600; flex-shrink: 0; }
 .canvas-dims {
   color: var(--text-muted);

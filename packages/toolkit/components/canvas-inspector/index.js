@@ -3,9 +3,18 @@
 // Renders the live list of canvases the daemon knows about plus a spatial
 // minimap of displays + canvas overlays. Reacts to canvas_lifecycle events
 // to stay current. Subscribes via the host's manifest.requires entry.
+//
+// Consumer-published object marks ride on canvas_object.marks — see
+// packages/toolkit/components/canvas-inspector/marks/ and
+// docs/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
 import { esc, emit } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
+import { normalizeMarks } from './marks/normalize.js'
+import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
+import { createScheduler } from './marks/scheduler.js'
+import { renderMinimapMark } from './marks/render.js'
+import { computeInspectorTree } from './tree.js'
 
 const SELF_ID = 'canvas-inspector'
 const TINT_COLORS = [
@@ -16,6 +25,7 @@ const TINT_COLORS = [
   'rgba(255, 140, 60, 0.24)',
 ]
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
+const TREE_INDENT_PX = 12
 
 function buildTintEvalScript(color) {
   const colorLiteral = color == null ? 'null' : JSON.stringify(color)
@@ -178,6 +188,12 @@ export default function CanvasInspector() {
   let lastMinimapWidth = 0
   let lastTintError = null
 
+  const marksState = createMarksState()
+  const marksScheduler = createScheduler({
+    state: marksState,
+    onChange: () => rerender(),
+  })
+
   function syncDebugState() {
     window.__canvasInspectorState = {
       displays,
@@ -187,6 +203,9 @@ export default function CanvasInspector() {
       tintMap: Object.fromEntries(tintMap),
       cursor,
       lastTintError,
+      marksByCanvas: Object.fromEntries(
+        [...marksState.marksByCanvas].map(([k, v]) => [k, v.marks]),
+      ),
     }
   }
 
@@ -197,7 +216,7 @@ export default function CanvasInspector() {
   function rerender() {
     if (!contentEl) return
     contentEl.innerHTML = renderMinimap(canvases)
-      + `<div class="canvas-list-region">${renderList(canvases)}</div>`
+      + `<div class="canvas-list-region">${renderTree()}</div>`
       + renderStatusBar()
     bindListEvents()
     syncDebugState()
@@ -214,10 +233,9 @@ export default function CanvasInspector() {
     if (!layout) return ''
 
     let html = `<div class="minimap" style="width:${layout.mapW}px;height:${layout.mapH}px">`
-    for (const { display: d, x, y, w, h, visibleX, visibleY, visibleW, visibleH } of layout.displays) {
+    for (const { x, y, w, h, visibleX, visibleY, visibleW, visibleH } of layout.displays) {
       html += `<div class="minimap-display" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">`
       html += `<div class="minimap-display-visible" style="left:${visibleX - x}px;top:${visibleY - y}px;width:${visibleW}px;height:${visibleH}px"></div>`
-      html += `<span class="minimap-display-label">${d.is_main ? '\u2605 ' : ''}${d.width}\u00d7${d.height}</span>`
       html += `</div>`
     }
     for (const { canvas: c, x, y, w, h, isSelf } of layout.canvases) {
@@ -225,6 +243,14 @@ export default function CanvasInspector() {
       const cls = isSelf ? 'minimap-canvas self' : (tint ? 'minimap-canvas tinted' : 'minimap-canvas')
       const tintStyle = tint ? `background:${esc(tint)};border-color:${esc(tint)};` : ''
       html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${tintStyle}" title="${esc(c.id)}"></div>`
+    }
+    // Object marks: projected CG position, primitive composition at logical w/h.
+    for (const [, entry] of marksState.marksByCanvas) {
+      for (const m of entry.marks) {
+        const projected = projectPointToMinimap(layout, { x: m.x, y: m.y })
+        if (!projected) continue
+        html += renderMinimapMark(m, projected)
+      }
     }
     if (cursor?.valid) {
       const projectedCursor = projectPointToMinimap(layout, cursor)
@@ -236,31 +262,70 @@ export default function CanvasInspector() {
     return html
   }
 
-  function renderList(list) {
-    const resolvedList = resolveCanvasFrames(list)
-    if (resolvedList.length === 0) {
+  function renderTree() {
+    if (canvases.length === 0 && marksState.marksByCanvas.size === 0 && displays.length === 0) {
+      return '<div class="empty-state">Waiting for canvases\u2026</div>'
+    }
+    const resolvedCanvases = resolveCanvasFrames(canvases)
+    const tree = computeInspectorTree({
+      displays: normalizeDisplays(displays),
+      canvases: resolvedCanvases,
+      marksByCanvas: marksState.marksByCanvas,
+    })
+    if (!tree || tree.type === 'empty') {
       return '<div class="empty-state">No canvases active</div>'
     }
-    let html = '<div class="canvas-list">'
-    for (const c of resolvedList) {
-      const cls = c.id === SELF_ID ? 'canvas-item self' : 'canvas-item'
-      const [x, y, w, h] = c.atResolved || c.at || [0, 0, 0, 0]
-      const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
-      html += `<div class="${cls}" data-id="${esc(c.id)}">`
-      html += `<span class="canvas-id">${esc(c.id)}</span>`
-      html += `<span class="canvas-dims">${dims}</span>`
-      html += `<span class="canvas-flags">`
-      if (c.interactive) html += `<span class="flag interactive">int</span>`
-      if (c.scope === 'connection') html += `<span class="flag scoped">conn</span>`
-      if (c.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
-      const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
-      html += `<button class="${tintClass}" data-id="${esc(c.id)}">tint</button>`
-      html += `<button class="btn remove-btn" data-id="${esc(c.id)}">\u2715</button>`
-      html += `</span>`
-      html += `</div>`
+    return `<div class="canvas-list">${renderTreeNode(tree, 0)}</div>`
+  }
+
+  function renderTreeNode(node, depth) {
+    if (!node) return ''
+    if (node.type === 'union' || node.type === 'display') {
+      return renderLocationRow(node.label, depth)
+        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
-    html += '</div>'
+    if (node.type === 'canvas') {
+      return renderCanvasRow(node.canvas, depth)
+        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+    }
+    if (node.type === 'mark') {
+      return renderMarkTreeRow(node.mark, depth)
+    }
+    return ''
+  }
+
+  function indentStyle(depth) {
+    return `padding-left:${8 + depth * TREE_INDENT_PX}px`
+  }
+
+  function renderLocationRow(label, depth) {
+    return `<div class="tree-row location" style="${indentStyle(depth)}">`
+      + `<span class="location-label">${esc(label)}</span>`
+      + `</div>`
+  }
+
+  function renderCanvasRow(c, depth) {
+    const [x, y, w, h] = c.atResolved || c.at || [0, 0, 0, 0]
+    const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
+    const cls = c.id === SELF_ID ? 'tree-row canvas self' : 'tree-row canvas'
+    let html = `<div class="${cls}" data-id="${esc(c.id)}" style="${indentStyle(depth)}">`
+    html += `<span class="canvas-id">${esc(c.id)}</span>`
+    html += `<span class="canvas-dims">${dims}</span>`
+    html += `<span class="canvas-flags">`
+    if (c.interactive) html += `<span class="flag interactive">int</span>`
+    if (c.scope === 'connection') html += `<span class="flag scoped">conn</span>`
+    if (c.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
+    const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
+    html += `<button class="${tintClass}" data-id="${esc(c.id)}">tint</button>`
+    html += `<button class="btn remove-btn" data-id="${esc(c.id)}">\u2715</button>`
+    html += `</span></div>`
     return html
+  }
+
+  function renderMarkTreeRow(mark, depth) {
+    return `<div class="tree-row mark" data-mark-id="${esc(mark.id)}" style="${indentStyle(depth)}">`
+      + `<span class="mark-name" style="color:${esc(mark.color)}">${esc(mark.name)}</span>`
+      + `</div>`
   }
 
   function renderStatusBar() {
@@ -306,8 +371,6 @@ export default function CanvasInspector() {
     for (const btn of contentEl.querySelectorAll('.remove-btn')) {
       btn.addEventListener('click', (e) => {
         const id = e.target.dataset.id
-        // canvas.remove with explicit id — daemon allows cross-canvas remove
-        // for CLI-origin canvases (rule 3 in the 2026-04-11 mutation API spec).
         emit('canvas.remove', { id })
       })
     }
@@ -326,6 +389,7 @@ export default function CanvasInspector() {
       canvases = canvases.filter(c => c.id !== canvas_id)
       tintedIds.delete(canvas_id)
       tintMap.delete(canvas_id)
+      evictCanvas(marksState, canvas_id)
     }
   }
 
@@ -333,10 +397,10 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Canvas Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
       emits: [],
       channelPrefix: 'canvas-inspector',
-      requires: ['canvas_lifecycle', 'display_geometry', 'input_event'],
+      requires: ['canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
       defaultSize: { w: 320, h: 480 },
     },
 
@@ -385,12 +449,20 @@ export default function CanvasInspector() {
         }
         return
       }
-      // canvas_lifecycle from the daemon arrives un-prefixed (the daemon
-      // dispatches it directly via headsup.receive without a content prefix).
-      // Router will broadcast it to onMessage with its original type.
       if (msg.type === 'canvas_lifecycle') {
         eventCount++
         applyLifecycle(msg.payload || msg.data || msg)
+        rerender()
+        return
+      }
+      if (msg.type === 'canvas_object.marks') {
+        const p = msg.payload || msg
+        const canvasId = p.canvas_id
+        if (!canvasId || typeof canvasId !== 'string') return
+        eventCount++
+        const normalized = normalizeMarks(canvasId, p.objects || [])
+        applySnapshot(marksState, canvasId, normalized, Date.now())
+        if (marksState.marksByCanvas.size > 0) marksScheduler.start()
         rerender()
       }
     },
