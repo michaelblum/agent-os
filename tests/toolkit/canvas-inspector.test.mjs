@@ -111,6 +111,25 @@ test('projectPointToMinimap rejects invalid cursor payloads', () => {
   assert.equal(projectPointToMinimap(layout, { x: 0, y: Infinity }), null);
 });
 
+test('computeMinimapLayout honors daemon-provided desktop_world_bounds verbatim', () => {
+  // Daemon payload carries both native_bounds and desktop_world_bounds. If the
+  // daemon claims a DesktopWorld origin that differs from a naive re-anchor,
+  // the inspector must honor the daemon value (we trust the producer).
+  const payload = [
+    {
+      id: 1, cgID: 1, is_main: true, width: 1512, height: 982,
+      bounds: { x: -200, y: 0, w: 1512, h: 982 },
+      native_bounds: { x: -200, y: 0, w: 1512, h: 982 },
+      desktop_world_bounds: { x: 100, y: 0, w: 1512, h: 982 },
+      visible_desktop_world_bounds: { x: 100, y: 25, w: 1512, h: 919 },
+    },
+  ];
+  const layout = computeMinimapLayout(payload, [], 300);
+  assert.ok(layout);
+  // Union derived from daemon-provided rect, not re-anchored to x=0.
+  assert.equal(layout.minX, 100);
+});
+
 test('normalizeDisplays accepts display_geometry payloads', () => {
   const normalized = normalizeDisplays([
     {
