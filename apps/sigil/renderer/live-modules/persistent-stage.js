@@ -188,6 +188,45 @@ function emitStatusItemState() {
     });
 }
 
+// canvas_object.marks — publish the avatar's current desktop position so the
+// canvas-inspector can mark it on its minimap + indented tree. Event-driven
+// via setAvatarPosition + visibility transitions; a 5s heartbeat keeps the
+// mark fresh inside the inspector's TTL while the avatar is visible but idle.
+const MARKS_CANVAS_ID = 'avatar-main';
+const MARKS_OBJECT_ID = 'avatar';
+const MARKS_HEARTBEAT_MS = 5000;
+let _lastMarkEmitAt = 0;
+
+function emitAvatarMark() {
+    if (!liveJs.avatarPos.valid) return;
+    if (!liveJs.visible) {
+        host.post('canvas_object.marks', {
+            canvas_id: MARKS_CANVAS_ID,
+            objects: [],
+        });
+        _lastMarkEmitAt = performance.now();
+        return;
+    }
+    host.post('canvas_object.marks', {
+        canvas_id: MARKS_CANVAS_ID,
+        objects: [{
+            id: MARKS_OBJECT_ID,
+            x: Math.round(liveJs.avatarPos.x),
+            y: Math.round(liveJs.avatarPos.y),
+            name: liveJs.avatarName || MARKS_OBJECT_ID,
+        }],
+    });
+    _lastMarkEmitAt = performance.now();
+}
+
+function startMarkHeartbeat() {
+    setInterval(() => {
+        if (!liveJs.visible || !liveJs.avatarPos.valid) return;
+        if (performance.now() - _lastMarkEmitAt < MARKS_HEARTBEAT_MS - 500) return;
+        emitAvatarMark();
+    }, MARKS_HEARTBEAT_MS);
+}
+
 function clampAvatarPosition(x, y) {
     if (liveJs.displays.length === 0) return { x, y };
     return clampPointToDisplays(liveJs.displays, x, y);
@@ -247,6 +286,7 @@ function setAvatarPosition(position, { persist = true } = {}) {
     liveJs.avatarPos = { x: next.x, y: next.y, valid: true };
     if (persist) host.positionSet(`sigil.stage.${liveJs.avatarId}`, next);
     scheduleRenderFrame();
+    emitAvatarMark();
     return true;
 }
 
@@ -276,6 +316,7 @@ function beginVisibilityTransition(visible, duration) {
         liveJs.visible = visible;
         setLifecycle(visible ? 'visible' : 'hidden');
         emitStageState(visible ? 'show' : 'hide');
+        emitAvatarMark();
         return;
     }
 
@@ -581,6 +622,7 @@ function setupHostSurface() {
     host.onMessage(handleHostMessage);
     overlay.mount();
     host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
+    startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil-stage] avatar hit target create failed:', error);
     });
@@ -634,6 +676,7 @@ function animate() {
             liveJs.visible = transition.toScale > 0.001;
             setLifecycle(liveJs.visible ? 'visible' : 'hidden');
             emitStageState(liveJs.visible ? 'show' : 'hide');
+            emitAvatarMark();
         }
     }
 
