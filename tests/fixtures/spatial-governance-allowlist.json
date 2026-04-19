@@ -16,22 +16,19 @@
       "allowedFiles": ["src/shared/types.swift"]
     },
     "normalizeDisplays": {
-      "allowedFiles": [
-        "apps/sigil/renderer/live-modules/display-utils.js",
-        "packages/toolkit/runtime/spatial.js"
-      ]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "computeDisplayUnion": {
-      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "desktopPointToStageLocal": {
       "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
     },
     "findDisplayForPoint": {
-      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "clampPointToDisplays": {
-      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "computeUnionBounds": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]

@@ -20,56 +20,20 @@ const TOOLKIT_SPATIAL_SPECIFIER = (
 
 const {
     normalizeDisplays: toolkitNormalizeDisplays,
-    computeUnionBounds,
+    computeDisplayUnion: toolkitComputeDisplayUnion,
+    findDisplayForPoint: toolkitFindDisplayForPoint,
+    clampPointToDisplays: toolkitClampPointToDisplays,
     translatePoint,
 } = await import(TOOLKIT_SPATIAL_SPECIFIER);
 
-function normalizeBounds(bounds = {}) {
-    return {
-        x: Number(bounds.x ?? 0),
-        y: Number(bounds.y ?? 0),
-        w: Number(bounds.w ?? bounds.width ?? 0),
-        h: Number(bounds.h ?? bounds.height ?? 0),
-    };
+function visibleBoundsRect(display = {}) {
+    return display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? { x: 0, y: 0, w: 0, h: 0 };
 }
 
-function distanceSquaredToBounds(bounds, x, y) {
-    const cx = Math.max(bounds.x, Math.min(x, bounds.x + bounds.w - 1));
-    const cy = Math.max(bounds.y, Math.min(y, bounds.y + bounds.h - 1));
-    return ((x - cx) ** 2) + ((y - cy) ** 2);
-}
-
-function visibleBoundsDisplay(display) {
-    return {
-        ...display,
-        bounds: normalizeBounds(display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? {}),
-    };
-}
-
-export function normalizeDisplays(displays = []) {
-    const list = toolkitNormalizeDisplays(Array.isArray(displays) ? displays : []);
-    return list.map((display) => ({
-        ...display,
-        uuid: display.uuid ?? display.display_uuid ?? null,
-        visible_bounds: normalizeBounds(display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? {}),
-        bounds: normalizeBounds(display.bounds ?? display.visible_bounds ?? display.visibleBounds ?? {}),
-    }));
-}
-
-export function computeDisplayUnion(displays = []) {
-    const list = normalizeDisplays(displays).map(visibleBoundsDisplay);
-    const union = computeUnionBounds(list);
-    if (!union) {
-        return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    }
-    return {
-        ...union,
-        minX: union.x,
-        minY: union.y,
-        maxX: union.x + union.w,
-        maxY: union.y + union.h,
-    };
-}
+export { toolkitNormalizeDisplays as normalizeDisplays };
+export { toolkitComputeDisplayUnion as computeDisplayUnion };
+export { toolkitFindDisplayForPoint as findDisplayForPoint };
+export { toolkitClampPointToDisplays as clampPointToDisplays };
 
 export function desktopPointToStageLocal(globalBounds = {}, point) {
     const translated = translatePoint(point, {
@@ -79,42 +43,11 @@ export function desktopPointToStageLocal(globalBounds = {}, point) {
     return translated;
 }
 
-export function findDisplayForPoint(displays = [], x, y) {
-    const list = normalizeDisplays(displays);
-    let best = null;
-    let bestDistance = Infinity;
-    for (const display of list) {
-        const bounds = display.visible_bounds;
-        const inside =
-            x >= bounds.x &&
-            x < bounds.x + bounds.w &&
-            y >= bounds.y &&
-            y < bounds.y + bounds.h;
-        if (inside) return display;
-        const distance = distanceSquaredToBounds(bounds, x, y);
-        if (distance < bestDistance) {
-            best = display;
-            bestDistance = distance;
-        }
-    }
-    return best;
-}
-
-export function clampPointToDisplays(displays = [], x, y) {
-    const display = findDisplayForPoint(displays, x, y);
-    if (!display) return { x, y };
-    const bounds = display.visible_bounds;
-    return {
-        x: Math.max(bounds.x, Math.min(x, bounds.x + bounds.w - 1)),
-        y: Math.max(bounds.y, Math.min(y, bounds.y + bounds.h - 1)),
-    };
-}
-
 export function computeWorkbenchFrame(displays = [], point, options = {}) {
     if (!point) return null;
-    const display = findDisplayForPoint(displays, point.x, point.y);
+    const display = toolkitFindDisplayForPoint(displays, point.x, point.y);
     if (!display) return null;
-    const bounds = display.visible_bounds;
+    const bounds = visibleBoundsRect(display);
     const marginX = options.marginX ?? 32;
     const marginY = options.marginY ?? 28;
     const minWidth = options.minWidth ?? 480;
@@ -132,9 +65,9 @@ export function computeWorkbenchFrame(displays = [], point, options = {}) {
 }
 
 export function computeDisplayNonant(displays = [], point, nonant = 'top-left') {
-    const display = findDisplayForPoint(displays, point?.x ?? 0, point?.y ?? 0);
+    const display = toolkitFindDisplayForPoint(displays, point?.x ?? 0, point?.y ?? 0);
     if (!display) return null;
-    const bounds = display.visible_bounds;
+    const bounds = visibleBoundsRect(display);
     const cell = NONANT_CELLS[nonant] ?? NONANT_CELLS['top-left'];
     return {
         x: bounds.x + bounds.w * cell[0],

@@ -18,6 +18,29 @@ function normalizeRect(bounds = {}, fallback = {}) {
   }
 }
 
+function unwrapDisplay(entry) {
+  return entry?.display || entry
+}
+
+function normalizeDisplayEntries(displays = []) {
+  return normalizeDisplays(displays.map(unwrapDisplay).filter(Boolean))
+}
+
+function rectForDisplay(display, rectKey = 'bounds') {
+  if (!display) return null
+  if (rectKey === 'visibleBounds' || rectKey === 'visible_bounds') {
+    return display.visibleBounds || display.visible_bounds || display.bounds || null
+  }
+  return display[rectKey] || display.bounds || null
+}
+
+function distanceSquaredToRect(rect, point) {
+  if (!rect || !point) return Infinity
+  const cx = Math.max(rect.x, Math.min(point.x, rect.x + rect.w - 1))
+  const cy = Math.max(rect.y, Math.min(point.y, rect.y + rect.h - 1))
+  return ((point.x - cx) ** 2) + ((point.y - cy) ** 2)
+}
+
 export function rectFromAt(at) {
   if (!Array.isArray(at) || at.length < 4) return null
   const [x, y, w, h] = at.map(asNumber)
@@ -65,20 +88,39 @@ export function labelDisplays(list = []) {
   })
 }
 
-export function computeUnionBounds(displays = []) {
-  const normalized = displays.map((entry) => entry.display || entry).filter(Boolean)
+export function computeUnionBounds(displays = [], { rectKey = 'bounds' } = {}) {
+  const normalized = normalizeDisplayEntries(displays)
   if (normalized.length === 0) return null
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
   for (const display of normalized) {
-    minX = Math.min(minX, display.bounds.x)
-    minY = Math.min(minY, display.bounds.y)
-    maxX = Math.max(maxX, display.bounds.x + display.bounds.w)
-    maxY = Math.max(maxY, display.bounds.y + display.bounds.h)
+    const rect = rectForDisplay(display, rectKey)
+    if (!rect) continue
+    minX = Math.min(minX, rect.x)
+    minY = Math.min(minY, rect.y)
+    maxX = Math.max(maxX, rect.x + rect.w)
+    maxY = Math.max(maxY, rect.y + rect.h)
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null
   }
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+export function computeDisplayUnion(displays = []) {
+  const union = computeUnionBounds(displays, { rectKey: 'visibleBounds' })
+  if (!union) {
+    return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 }
+  }
+  return {
+    ...union,
+    minX: union.x,
+    minY: union.y,
+    maxX: union.x + union.w,
+    maxY: union.y + union.h,
+  }
 }
 
 export function translatePoint(point, originRect) {
@@ -102,38 +144,68 @@ export function translateRect(rect, originRect) {
   }
 }
 
-export function displayContainsPoint(display, point) {
+export function displayContainsPoint(display, point, { rectKey = 'bounds' } = {}) {
   if (!display || !point) return false
-  const bounds = display.bounds
-  return point.x >= bounds.x
-    && point.y >= bounds.y
-    && point.x < bounds.x + bounds.w
-    && point.y < bounds.y + bounds.h
+  const rect = rectForDisplay(display, rectKey)
+  if (!rect) return false
+  return point.x >= rect.x
+    && point.y >= rect.y
+    && point.x < rect.x + rect.w
+    && point.y < rect.y + rect.h
 }
 
-export function displayContainsRect(display, rect) {
+export function displayContainsRect(display, rect, { rectKey = 'bounds' } = {}) {
   if (!display || !rect) return false
-  const bounds = display.bounds
+  const bounds = rectForDisplay(display, rectKey)
+  if (!bounds) return false
   return rect.x >= bounds.x
     && rect.y >= bounds.y
     && rect.x + rect.w <= bounds.x + bounds.w
     && rect.y + rect.h <= bounds.y + bounds.h
 }
 
-export function findContainingDisplayForPoint(point, displays = []) {
-  const normalized = displays.map((entry) => entry.display || entry).filter(Boolean)
+export function findContainingDisplayForPoint(point, displays = [], { rectKey = 'bounds' } = {}) {
+  const normalized = normalizeDisplayEntries(displays)
   for (const display of normalized) {
-    if (displayContainsPoint(display, point)) return display
+    if (displayContainsPoint(display, point, { rectKey })) return display
   }
   return null
 }
 
-export function findContainingDisplayForRect(rect, displays = []) {
-  const normalized = displays.map((entry) => entry.display || entry).filter(Boolean)
+export function findContainingDisplayForRect(rect, displays = [], { rectKey = 'bounds' } = {}) {
+  const normalized = normalizeDisplayEntries(displays)
   for (const display of normalized) {
-    if (displayContainsRect(display, rect)) return display
+    if (displayContainsRect(display, rect, { rectKey })) return display
   }
   return null
+}
+
+export function findDisplayForPoint(displays = [], x, y, { rectKey = 'visibleBounds', nearest = true } = {}) {
+  const point = { x, y }
+  const normalized = normalizeDisplayEntries(displays)
+  let best = null
+  let bestDistance = Infinity
+  for (const display of normalized) {
+    if (displayContainsPoint(display, point, { rectKey })) return display
+    if (!nearest) continue
+    const rect = rectForDisplay(display, rectKey)
+    const distance = distanceSquaredToRect(rect, point)
+    if (distance < bestDistance) {
+      best = display
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
+export function clampPointToDisplays(displays = [], x, y, { rectKey = 'visibleBounds' } = {}) {
+  const display = findDisplayForPoint(displays, x, y, { rectKey, nearest: true })
+  const rect = rectForDisplay(display, rectKey)
+  if (!rect) return { x, y }
+  return {
+    x: Math.max(rect.x, Math.min(x, rect.x + rect.w - 1)),
+    y: Math.max(rect.y, Math.min(y, rect.y + rect.h - 1)),
+  }
 }
 
 export function ownerLabelForPoint(point, labeledDisplays = []) {
