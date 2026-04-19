@@ -43,11 +43,12 @@ func runtimeCommand(args: [String]) {
     }
 }
 
-/// Print the union bounding box of all connected displays as
-/// `x,y,w,h` (comma-separated integers) in the shared AOS top-left
-/// coordinate convention — matching the `display_geometry` channel's
-/// `global_bounds` field. Consumed by Sigil's global canvas setup
-/// (`aos show create --at $(aos runtime display-union)`).
+/// Print the union bounding box of all connected displays as `x,y,w,h`
+/// (comma-separated integers) in the current native desktop compatibility
+/// convention — matching the `display_geometry` channel's `global_bounds`
+/// field. This command still reflects the legacy daemon/runtime interface
+/// shape; shared-world callers should prefer DesktopWorld semantics once the
+/// daemon/API re-anchor lands.
 private func runtimeDisplayUnionCommand(args: [String]) {
     if args.contains("--help") || args.contains("-h") {
         print("Usage: aos runtime display-union")
@@ -59,10 +60,10 @@ private func runtimeDisplayUnionCommand(args: [String]) {
     print(runtimeDisplayUnion())
 }
 
-/// Compute the global canvas bounds as `x,y,w,h` comma-separated integers.
-/// Reuses `snapshotDisplayGeometry()` so the output is guaranteed to match
-/// the `display_geometry` channel's `global_bounds` shape and coordinate
-/// system. Returns `"0,0,0,0"` when no displays are attached.
+/// Compute the current compatibility union bounds as `x,y,w,h`
+/// comma-separated integers. Reuses `snapshotDisplayGeometry()` so the output
+/// matches the `display_geometry` channel's `global_bounds` shape and current
+/// coordinate system. Returns `"0,0,0,0"` when no displays are attached.
 func runtimeDisplayUnion() -> String {
     let snapshot = snapshotDisplayGeometry()
     guard let global = snapshot["global_bounds"] as? [String: Double] else {

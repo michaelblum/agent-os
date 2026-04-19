@@ -55,8 +55,13 @@ OUTPUT="$(AOS_SESSION_NAME="session-start-control-surface-$$" bash "$ROOT/.agent
   exit 1
 }
 
-[[ "$OUTPUT" == *"For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to get \`spatial-telemetry\` flush bottom-left and \`canvas-inspector\` flush bottom-right of the main display's visible bounds."* ]] || {
+[[ "$OUTPUT" == *"For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to bring up \`spatial-telemetry\` and \`canvas-inspector\` in deterministic operator panel positions on the main display's visible bounds."* ]] || {
   echo "FAIL: startup hook missing display-debug battery guidance" >&2
+  exit 1
+}
+
+[[ "$OUTPUT" == *'Treat that placement as operator convenience only; the shared world contract is `DesktopWorld` (arranged full-display union).'* ]] || {
+  echo "FAIL: startup hook missing DesktopWorld clarification for display-debug battery" >&2
   exit 1
 }
 

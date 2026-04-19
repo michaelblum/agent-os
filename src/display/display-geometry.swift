@@ -7,8 +7,10 @@ import Foundation
 /// `spatial-topology.schema.json`'s `displays[]`, plus a derived
 /// `global_bounds` convenience field.
 ///
-/// Coordinate system is the shared AOS convention: top-left of primary
-/// display = (0, 0), logical points, per-display `scale_factor`.
+/// Current producer coordinates are native desktop compatibility:
+/// top-left of the macOS main display = (0, 0), logical points, per-display
+/// `scale_factor`. Cross-surface consumers should re-anchor these values into
+/// DesktopWorld before treating them as shared world coordinates.
 func snapshotDisplayGeometry() -> [String: Any] {
     let entries = getDisplays()  // from src/perceive/models.swift
     let screensByNumber = screenIndexByDisplayNumber()

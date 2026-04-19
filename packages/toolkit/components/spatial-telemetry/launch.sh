@@ -85,5 +85,5 @@ $AOS show post --id "$CANVAS_ID" --event "$BOOTSTRAP_JSON" >/dev/null
 wait_for_eval '!!window.__spatialTelemetryState?.snapshot?.displayRows?.length && !!window.__spatialTelemetryState?.snapshot?.canvasRows?.length' \
   || { echo "FAIL: spatial telemetry bootstrap did not populate snapshot" >&2; exit 1; }
 
-echo "Spatial telemetry launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-left of the main display's visible bounds"
+echo "Spatial telemetry launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-left of the main display's visible bounds for operator convenience only"
 echo "Use ./aos show eval --id ${CANVAS_ID} --js 'JSON.stringify(window.__spatialTelemetryState?.snapshot)' for machine-readable state."

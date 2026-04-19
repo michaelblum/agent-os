@@ -1,5 +1,11 @@
 # Union Canvas Foundation Implementation Plan
 
+> **Historical note:** `--track union` remains valid, but references in this
+> plan to `aos runtime display-union`, `display_geometry.global_bounds`, or
+> main-display-anchored union math predate the DesktopWorld re-anchor. Current
+> spatial authority lives in `shared/schemas/spatial-topology.md` and
+> `docs/superpowers/plans/2026-04-19-spatial-runtime-and-governance.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close #50 by landing `--track union` (#54), topology-change retarget (#49), and the Sigil renderer strangler-fig migration off the inline bundle (#48).

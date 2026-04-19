@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/spatial-topology.schema.json",
   "title": "Spatial Topology",
-  "description": "Display → Window topology for agent-os. Produced by `aos see list`, consumed by `aos do` and orchestrators.",
+  "description": "Display → Window topology for agent-os. Produced by `aos see list`, consumed by `aos do` and orchestrators. Current producer coordinates remain native desktop compatibility (main-display anchored); shared-world consumers should re-anchor into DesktopWorld per `shared/schemas/spatial-topology.md`.",
   "type": "object",
   "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "cursor", "displays", "apps"],
   "additionalProperties": false,
@@ -26,7 +26,7 @@
     },
     "cursor": {
       "$ref": "#/$defs/Cursor",
-      "description": "Current mouse cursor position in global CG coordinates."
+      "description": "Current mouse cursor position in current producer coordinates (native desktop compatibility points)."
     },
     "focused_window_id": {
       "type": ["integer", "null"],
@@ -57,8 +57,8 @@
       "required": ["x", "y", "display"],
       "additionalProperties": false,
       "properties": {
-        "x": { "type": "number", "description": "Cursor X in global CG points." },
-        "y": { "type": "number", "description": "Cursor Y in global CG points." },
+        "x": { "type": "number", "description": "Cursor X in current producer coordinates (native desktop compatibility points)." },
+        "y": { "type": "number", "description": "Cursor Y in current producer coordinates (native desktop compatibility points)." },
         "display": { "type": "integer", "minimum": 1, "description": "Ordinal of the display the cursor is on." }
       }
     },
@@ -68,8 +68,8 @@
       "required": ["x", "y", "width", "height"],
       "additionalProperties": false,
       "properties": {
-        "x": { "type": "number", "description": "Left edge in global CG points." },
-        "y": { "type": "number", "description": "Top edge in global CG points." },
+        "x": { "type": "number", "description": "Left edge in current producer coordinates (native desktop compatibility points)." },
+        "y": { "type": "number", "description": "Top edge in current producer coordinates (native desktop compatibility points)." },
         "width": { "type": "number", "description": "Width in points." },
         "height": { "type": "number", "description": "Height in points." }
       }
@@ -114,11 +114,11 @@
         },
         "bounds": {
           "$ref": "#/$defs/Bounds",
-          "description": "Full display frame in global CG coordinates (points)."
+          "description": "Full display frame in current producer coordinates (native desktop compatibility points)."
         },
         "visible_bounds": {
           "$ref": "#/$defs/Bounds",
-          "description": "Usable area excluding menu bar and dock (NSScreen.visibleFrame)."
+          "description": "Usable area excluding menu bar and dock (NSScreen.visibleFrame), in current producer coordinates."
         },
         "scale_factor": {
           "type": "number",
@@ -163,7 +163,7 @@
         },
         "bounds": {
           "$ref": "#/$defs/Bounds",
-          "description": "Window frame in global CG coordinates (points)."
+          "description": "Window frame in current producer coordinates (native desktop compatibility points)."
         },
         "is_focused": {
           "type": "boolean",

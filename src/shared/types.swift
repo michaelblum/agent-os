@@ -44,9 +44,10 @@ func mainDisplayHeight() -> CGFloat {
     getDisplays().first(where: \.isMain)?.bounds.height ?? 0
 }
 
-/// Convert AOS global coordinates (top-left of the primary display, Y-down)
-/// into AppKit global screen coordinates (bottom-left of the primary display,
-/// Y-up). This is the canonical point transform for display/window placement.
+/// Convert native desktop compatibility coordinates (top-left of the macOS
+/// main display, Y-down) into AppKit global screen coordinates (bottom-left of
+/// the main display, Y-up). This remains a native-boundary transform; shared
+/// world consumers should re-anchor into DesktopWorld separately.
 func cgPointToScreen(_ point: CGPoint) -> NSPoint {
     let primaryHeight = mainDisplayHeight()
     guard primaryHeight > 0 else {
@@ -55,7 +56,8 @@ func cgPointToScreen(_ point: CGPoint) -> NSPoint {
     return NSPoint(x: point.x, y: primaryHeight - point.y)
 }
 
-/// Convert AppKit global screen coordinates back into AOS global coordinates.
+/// Convert AppKit global screen coordinates back into native desktop
+/// compatibility coordinates.
 func screenPointToCG(_ point: NSPoint) -> CGPoint {
     let primaryHeight = mainDisplayHeight()
     guard primaryHeight > 0 else {
@@ -64,7 +66,8 @@ func screenPointToCG(_ point: NSPoint) -> CGPoint {
     return CGPoint(x: point.x, y: primaryHeight - point.y)
 }
 
-/// Convert an AOS global rect into an AppKit global screen rect.
+/// Convert a native desktop compatibility rect into an AppKit global screen
+/// rect.
 func cgToScreen(_ cgRect: CGRect) -> NSRect {
     let bottomLeft = cgPointToScreen(
         CGPoint(x: cgRect.origin.x, y: cgRect.origin.y + cgRect.size.height)
@@ -72,7 +75,8 @@ func cgToScreen(_ cgRect: CGRect) -> NSRect {
     return NSRect(origin: bottomLeft, size: cgRect.size)
 }
 
-/// Convert an AppKit global screen rect back into an AOS global rect.
+/// Convert an AppKit global screen rect back into a native desktop
+/// compatibility rect.
 func screenToCG(_ nsRect: NSRect) -> CGRect {
     let topLeft = screenPointToCG(
         NSPoint(x: nsRect.origin.x, y: nsRect.origin.y + nsRect.size.height)
@@ -80,8 +84,9 @@ func screenToCG(_ nsRect: NSRect) -> CGRect {
     return CGRect(origin: topLeft, size: nsRect.size)
 }
 
-/// Convert AppKit mouse coordinates (bottom-left origin on the primary display)
-/// into the shared AOS global coordinate space (top-left origin on the primary display).
+/// Convert AppKit mouse coordinates (bottom-left origin on the main display)
+/// into native desktop compatibility coordinates. Cross-surface consumers
+/// should re-anchor into DesktopWorld before shared-world use.
 func mouseInCGCoords() -> CGPoint {
     screenPointToCG(NSEvent.mouseLocation)
 }

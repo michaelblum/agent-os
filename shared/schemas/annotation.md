@@ -16,7 +16,7 @@ The schema is coordinate-space-agnostic. The coordinate space depends on the pro
 | Producer | Coordinate space |
 |---|---|
 | `aos see capture --label` | LCS (top-left of captured region = 0,0) |
-| Spatial topology cross-reference | Global CG (top-left of primary display = 0,0) |
+| Spatial topology cross-reference | Use the referenced topology layer directly. Current daemon/topology producers may still emit Native desktop compatibility, while shared-world consumers should prefer DesktopWorld. |
 
 The consumer knows which space it's operating in.
 

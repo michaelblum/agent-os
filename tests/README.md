@@ -120,6 +120,9 @@ Default placement is deterministic:
 - `spatial-telemetry` flush bottom-left of the main display's visible bounds
 - `canvas-inspector` flush bottom-right of the main display's visible bounds
 
+Those placements are operator convenience only. They do not define
+`DesktopWorld`, which is the arranged full-display union.
+
 Use them together when checking union bounds, per-display-local translation,
 cursor placement, and `canvas_object.marks`.
 

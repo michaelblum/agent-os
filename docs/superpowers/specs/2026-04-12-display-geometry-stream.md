@@ -2,9 +2,16 @@
 
 **Session:** drag-capture
 **Date:** 2026-04-12
-**Status:** Approved (pre-plan)
+**Status:** Historical; subscription mechanics landed, but the coordinate contract details below are partially superseded by the DesktopWorld re-anchor
 **Parent brief:** handoff `01KNZWQ68B1FHQ67SP2N8FTE13` from `hit-area-canvas`
 **Arc:** First of four specs in the avatar-streamline continuation. Prerequisite for all subsequent avatar-streamline work (gesture state machine, fast-travel, radial menu).
+
+> **Supersession note:** The channel/subscription mechanics in this spec remain
+> relevant, but references below to "top-left of primary = origin" and
+> `global_bounds` describe the legacy native desktop compatibility payload, not
+> the canonical shared-world contract. Current spatial authority lives in
+> `shared/schemas/spatial-topology.md` and
+> `docs/superpowers/plans/2026-04-19-spatial-runtime-and-governance.md`.
 
 ## Problem
 

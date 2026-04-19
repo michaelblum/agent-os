@@ -15,7 +15,8 @@ $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
 $AOS set content.roots.toolkit packages/toolkit >/dev/null
 $AOS content wait --root toolkit --auto-start --timeout 15s >/dev/null
 
-# Position flush bottom-right of the main display's visible bounds.
+# Position flush bottom-right of the main display's visible bounds for operator
+# convenience. This panel placement does not define DesktopWorld.
 DISPLAY_JSON=$($AOS graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')
 read -r X Y <<EOF
 $(echo "$DISPLAY_JSON" | PANEL_W="$PANEL_W" PANEL_H="$PANEL_H" python3 -c "
@@ -49,5 +50,5 @@ $AOS show wait \
   --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
   --timeout 5s >/dev/null
 
-echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds"
+echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds for operator convenience only"
 echo "Live lifecycle + display geometry updates flow via in-canvas subscribe snapshots — no manual bootstrap needed."
