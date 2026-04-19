@@ -12,6 +12,8 @@ Start the AOS daemon, then launch the avatar canvas:
 
 ```bash
 ./aos serve                               # repo daemon (launchd normally manages this)
+./aos set content.roots.toolkit packages/toolkit
+./aos set content.roots.sigil apps/sigil
 ./aos show create --id avatar-main \
     --url 'aos://sigil/renderer/index.html' \
     --track union
@@ -81,6 +83,14 @@ The AOS daemon serves Sigil's HTML surfaces over localhost. Configure in `~/.con
 ```
 
 Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index.html`. No bundling required — ES modules work over HTTP.
+
+Sigil now depends on toolkit runtime modules at load time for shared spatial
+helpers, so repo-mode workflows must ensure both content roots are configured:
+
+```bash
+./aos set content.roots.toolkit packages/toolkit
+./aos set content.roots.sigil apps/sigil
+```
 
 ## Dependencies
 

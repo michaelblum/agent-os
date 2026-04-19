@@ -16,6 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+./aos set content.roots.toolkit packages/toolkit >/dev/null
 ./aos set content.roots.sigil apps/sigil >/dev/null
 ./aos set status_item.enabled true >/dev/null
 ./aos set status_item.toggle_id sigil-status-demo >/dev/null
@@ -23,7 +24,7 @@ trap cleanup EXIT
 ./aos set status_item.toggle_track union >/dev/null
 AOS_BIN="$(pwd)/aos" AOS_RUNTIME_MODE=repo apps/sigil/sigilctl-seed.sh >/dev/null
 
-aos_test_start_daemon "$ROOT" sigil apps/sigil \
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 PID="$(aos_test_wait_for_lock_pid "$ROOT")"
 [[ -n "$PID" ]] || { echo "FAIL: daemon pid missing"; exit 1; }

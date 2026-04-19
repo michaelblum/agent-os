@@ -10,6 +10,20 @@ const NONANT_CELLS = {
     'bottom-right': [5 / 6, 5 / 6],
 };
 
+const TOOLKIT_SPATIAL_SPECIFIER = (
+    typeof window !== 'undefined'
+    && typeof location !== 'undefined'
+    && /^https?:$/.test(location.protocol)
+)
+    ? '/toolkit/runtime/spatial.js'
+    : '../../../../packages/toolkit/runtime/spatial.js';
+
+const {
+    normalizeDisplays: toolkitNormalizeDisplays,
+    computeUnionBounds,
+    translatePoint,
+} = await import(TOOLKIT_SPATIAL_SPECIFIER);
+
 function normalizeBounds(bounds = {}) {
     return {
         x: Number(bounds.x ?? 0),
@@ -25,58 +39,44 @@ function distanceSquaredToBounds(bounds, x, y) {
     return ((x - cx) ** 2) + ((y - cy) ** 2);
 }
 
+function visibleBoundsDisplay(display) {
+    return {
+        ...display,
+        bounds: normalizeBounds(display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? {}),
+    };
+}
+
 export function normalizeDisplays(displays = []) {
-    const list = Array.isArray(displays) ? displays : [];
+    const list = toolkitNormalizeDisplays(Array.isArray(displays) ? displays : []);
     return list.map((display) => ({
         ...display,
         uuid: display.uuid ?? display.display_uuid ?? null,
-        is_main: Boolean(display.is_main),
-        visible_bounds: normalizeBounds(display.visible_bounds ?? display.bounds ?? {}),
-        bounds: normalizeBounds(display.bounds ?? display.visible_bounds ?? {}),
+        visible_bounds: normalizeBounds(display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? {}),
+        bounds: normalizeBounds(display.bounds ?? display.visible_bounds ?? display.visibleBounds ?? {}),
     }));
 }
 
 export function computeDisplayUnion(displays = []) {
-    const list = normalizeDisplays(displays);
-    if (list.length === 0) {
-        return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 };
-    }
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const display of list) {
-        const bounds = display.visible_bounds;
-        minX = Math.min(minX, bounds.x);
-        minY = Math.min(minY, bounds.y);
-        maxX = Math.max(maxX, bounds.x + bounds.w);
-        maxY = Math.max(maxY, bounds.y + bounds.h);
-    }
-    if (!Number.isFinite(minX)) {
+    const list = normalizeDisplays(displays).map(visibleBoundsDisplay);
+    const union = computeUnionBounds(list);
+    if (!union) {
         return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 };
     }
     return {
-        x: minX,
-        y: minY,
-        w: maxX - minX,
-        h: maxY - minY,
-        minX,
-        minY,
-        maxX,
-        maxY,
+        ...union,
+        minX: union.x,
+        minY: union.y,
+        maxX: union.x + union.w,
+        maxY: union.y + union.h,
     };
 }
 
 export function desktopPointToStageLocal(globalBounds = {}, point) {
-    const x = Number(point?.x);
-    const y = Number(point?.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    const originX = Number(globalBounds.minX ?? globalBounds.x ?? 0);
-    const originY = Number(globalBounds.minY ?? globalBounds.y ?? 0);
-    return {
-        x: x - originX,
-        y: y - originY,
-    };
+    const translated = translatePoint(point, {
+        x: Number(globalBounds.minX ?? globalBounds.x ?? 0),
+        y: Number(globalBounds.minY ?? globalBounds.y ?? 0),
+    });
+    return translated;
 }
 
 export function findDisplayForPoint(displays = [], x, y) {
