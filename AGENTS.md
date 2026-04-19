@@ -115,5 +115,6 @@ source of truth at the interface boundary:
 ## Follow-On Detail
 
 - `ARCHITECTURE.md` for system architecture
+- `docs/SESSION_CONTRACT.md` for the canonical Claude/Codex session, hook, and bootstrap contract inside agent-os
 - nearest subtree markdown file for package or app specifics
 - today, many of those local files are still named `CLAUDE.md`

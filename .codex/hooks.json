@@ -17,17 +17,6 @@
             "timeout": 10
           }
         ]
-      },
-      {
-        "matcher": "startup|resume",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo 'CAVEMAN MODE ACTIVE. Rules: Drop articles/filler/pleasantries/hedging. Fragments OK. Short synonyms. Pattern: [thing] [action] [reason]. [next step]. Not: Sure! I would be happy to help you with that. Yes: Bug in auth middleware. Fix: Code/commits/security: write normal. User says stop caveman or normal mode to deactivate.'",
-            "timeout": 5,
-            "statusMessage": "Loading caveman mode"
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -73,6 +62,12 @@
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/final-response.sh\"",
             "statusMessage": "Reading final response aloud",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=codex bash \"$ROOT/.agents/hooks/session-stop.sh\"",
+            "statusMessage": "Unregistering session presence",
+            "timeout": 5
           }
         ]
       }

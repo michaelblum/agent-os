@@ -1,15 +1,15 @@
 # Session Communication Layer — Design Spec
 
 **Date:** 2026-04-15
-**Status:** Shipped in the shared session hooks and daemon-native `aos tell` / `aos listen` flow. The bootstrap launcher helper still emits a Claude-specific command, but the session identity and messaging contract is shared across Claude Code and Codex.
+**Status:** Shipped, but partially historical. The live runtime/session contract moved to `docs/SESSION_CONTRACT.md` on 2026-04-19. Use that file plus `docs/session-contract.json` for current Codex/Claude startup, stop, and bootstrap behavior.
 
 ## Current Shipped Snapshot
 
 - Shared identity and routing helpers live in `.agents/hooks/session-common.sh`.
 - Startup registration and inbound-message polling are wired in both `.claude/settings.json` and `.codex/hooks.json`.
-- Clean stop unregistering is currently Claude-specific via `.agents/hooks/session-stop.sh`; Codex intentionally omits a stop hook and relies on lease refresh plus startup/post-tool registration.
+- Clean stop unregistering now runs through `.agents/hooks/session-stop.sh` in both Claude Code and Codex.
 - `scripts/session-name` renames human-readable display metadata while keeping the canonical inbox/channel on `session_id`.
-- `scripts/parallel-codex` creates paired display/wiki Codex launchers with embedded coordination guidance and clipboard priming.
+- `scripts/handoff` and `scripts/parallel-codex` now both write shared repo-scoped bootstrap payloads under the runtime coordination bootstrap dir rather than ad hoc `/tmp` paths.
 
 ## Problem
 

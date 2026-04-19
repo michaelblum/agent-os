@@ -2,10 +2,14 @@
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
+# shellcheck source=/dev/null
+source "$ROOT/.agents/hooks/session-common.sh"
 SESSION_NAME="session-start-bootstrap-$$"
-BOOTSTRAP_FILE="/tmp/aos-handoff-${SESSION_NAME}.json"
+export AOS_STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-session-bootstrap.XXXXXX")"
+BOOTSTRAP_FILE="$(aos_session_bootstrap_payload_file "$SESSION_NAME")"
 
 cleanup() {
+  rm -rf "$AOS_STATE_ROOT"
   rm -f "$BOOTSTRAP_FILE"
 }
 trap cleanup EXIT

@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 source "$ROOT/tests/lib/isolated-daemon.sh"
+# shellcheck source=/dev/null
+source "$ROOT/.agents/hooks/session-common.sh"
 
 PREFIX="aos-handoff"
 aos_test_cleanup_prefix "$PREFIX"
@@ -10,23 +12,23 @@ aos_test_cleanup_prefix "$PREFIX"
 STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 TO="handoff-target-$$"
 FROM="handoff-source-$$"
-PAYLOAD_FILE="/tmp/aos-handoff-${TO}.json"
-LAUNCHER="/tmp/aos-handoff-${TO}"
 CLIPBOARD_FILE="$STATE_ROOT/clipboard.txt"
 
 cleanup() {
   aos_test_kill_root "$STATE_ROOT"
   rm -rf "$STATE_ROOT"
-  rm -f "$PAYLOAD_FILE" "$LAUNCHER"
 }
 trap cleanup EXIT
 
-rm -f "$PAYLOAD_FILE" "$LAUNCHER"
-
 export AOS_STATE_ROOT="$STATE_ROOT"
 export AOS_CLIPBOARD_FILE="$CLIPBOARD_FILE"
+PAYLOAD_FILE="$(aos_session_bootstrap_payload_file "$TO")"
+LAUNCHER="$(aos_session_bootstrap_launcher_file "$TO")"
+
+aos_test_start_daemon "$STATE_ROOT" >/dev/null
 
 bash "$ROOT/scripts/handoff" \
+  --runtime codex \
   --to "$TO" \
   --from "$FROM" \
   --task "Run handoff smoke test" \
@@ -40,8 +42,8 @@ grep -q "export AOS_SESSION_NAME=\"$TO\"" "$LAUNCHER" || {
   echo "FAIL: launcher missing AOS_SESSION_NAME export"
   exit 1
 }
-grep -q "Bootstrap: /tmp/aos-handoff-${TO}.json" "$LAUNCHER" || {
-  echo "FAIL: launcher missing bootstrap prompt"
+grep -q "Use the repo-scoped agent-os bootstrap payload for session $TO" "$LAUNCHER" || {
+  echo "FAIL: launcher missing repo-scoped bootstrap prompt"
   exit 1
 }
 
@@ -64,14 +66,28 @@ if "Run handoff smoke test" not in brief:
     raise SystemExit(f"FAIL: brief missing task text: {payload}")
 PY
 
-HANDOFF_JSON="$("$ROOT/aos" listen handoff --limit 1)"
-TARGET_JSON="$("$ROOT/aos" listen "$TO" --limit 1)"
+HANDOFF_JSON=""
+TARGET_JSON=""
+for _ in $(seq 1 20); do
+  HANDOFF_JSON="$("$ROOT/aos" listen handoff --limit 1)"
+  TARGET_JSON="$("$ROOT/aos" listen "$TO" --limit 1)"
+  if python3 - "$HANDOFF_JSON" "$TARGET_JSON" <<'PY'
+import json, sys
+handoff = json.loads(sys.argv[1]).get("data", {}).get("messages", [])
+target = json.loads(sys.argv[2]).get("data", {}).get("messages", [])
+raise SystemExit(0 if handoff and target else 1)
+PY
+  then
+    break
+  fi
+  sleep 0.1
+done
 
 python3 - "$HANDOFF_JSON" "$TARGET_JSON" "$FROM" "$TO" <<'PY'
 import json, sys
 
-handoff = json.loads(sys.argv[1]).get("messages", [])
-target = json.loads(sys.argv[2]).get("messages", [])
+handoff = json.loads(sys.argv[1]).get("data", {}).get("messages", [])
+target = json.loads(sys.argv[2]).get("data", {}).get("messages", [])
 sender = sys.argv[3]
 channel = sys.argv[4]
 

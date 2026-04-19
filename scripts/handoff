@@ -1,38 +1,19 @@
 #!/bin/bash
 # scripts/handoff — Post a structured handoff brief to the daemon-native
-# coordination bus and generate a short launcher command for the next
-# Claude Code session.
+# coordination bus and generate a repo-scoped launcher for the next session.
 #
 # Usage:
 #   scripts/handoff --to <name> --from <name> --task "<description>"
-#   scripts/handoff --to verify-lifecycle --from lifecycle-impl \
+#   scripts/handoff --runtime codex --to verify-lifecycle --from lifecycle-impl \
 #     --task "Run Task 8: integration test" \
 #     --context "See plan Task 8 for steps."
-#
-# What it does:
-#   1. Gathers git state, daemon status, recent commits
-#   2. Writes a structured handoff brief to a JSON payload
-#   3. Writes a launcher script to /tmp/aos-handoff-<name>
-#   4. Copies "bash /tmp/aos-handoff-<name>" to clipboard
-#
-# The launcher script sets AOS_SESSION_NAME and calls `claude -n "<name>"
-# "Bootstrap: /tmp/aos-handoff-<name>.json"`. The session-start hook reads
-# the bootstrap file automatically. The brief is also posted via `aos tell`
-# by the CALLING session (both 'handoff' and named channel) for turn-hook
-# detection if the target session is already running.
-#
-# Options:
-#   --to       NAME    Next session name (required)
-#   --from     NAME    Current session name (required)
-#   --task     TEXT    One-line task description (required)
-#   --context  TEXT    Additional context (optional)
-#   --branch   NAME    Override branch detection (optional)
-#   --resume          Use --resume instead of -n (optional)
-#   --dry-run         Print everything but don't write or copy (optional)
 
 set -euo pipefail
+
 ROOT="$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
+# shellcheck source=/dev/null
+source "$ROOT/.agents/hooks/session-common.sh"
 
 copy_to_clipboard() {
   local content="$1"
@@ -48,8 +29,72 @@ copy_to_clipboard() {
   return 1
 }
 
-# --- Parse args ---
-TO="" FROM="" TASK="" CONTEXT="" BRANCH="" RESUME=false DRY_RUN=false
+runtime_seed_prompt() {
+  local runtime="$1"
+  local session_name="$2"
+  case "$runtime" in
+    codex)
+      printf 'Use the repo-scoped agent-os bootstrap payload for session %s and follow docs/SESSION_CONTRACT.md.\n' "$session_name"
+      ;;
+    claude|claude-code)
+      printf 'Use the repo-scoped agent-os bootstrap payload for session %s and follow docs/SESSION_CONTRACT.md.\n' "$session_name"
+      ;;
+    *)
+      echo "Unsupported runtime: $runtime" >&2
+      return 1
+      ;;
+  esac
+}
+
+write_launcher() {
+  local runtime="$1"
+  local launcher="$2"
+  local session_name="$3"
+  local prompt="$4"
+  local resume="$5"
+  local quoted_prompt
+
+  quoted_prompt="$(printf '%s' "$prompt" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))')"
+
+  case "$runtime" in
+    codex)
+      cat > "$launcher" <<EOF
+#!/bin/bash
+set -euo pipefail
+cd "$ROOT"
+export AOS_SESSION_NAME="$session_name"
+PROMPT=$quoted_prompt
+exec "\${AOS_CODEX_BIN:-codex}" -C "$ROOT" "\$PROMPT"
+EOF
+      ;;
+    claude|claude-code)
+      local claude_flag="-n"
+      if [[ "$resume" == "true" ]]; then
+        claude_flag="--resume"
+      fi
+      cat > "$launcher" <<EOF
+#!/bin/bash
+set -euo pipefail
+cd "$ROOT"
+export AOS_SESSION_NAME="$session_name"
+PROMPT=$quoted_prompt
+exec "\${AOS_CLAUDE_BIN:-claude}" ${claude_flag} "$session_name" "\$PROMPT"
+EOF
+      ;;
+  esac
+
+  chmod +x "$launcher"
+}
+
+TO=""
+FROM=""
+TASK=""
+CONTEXT=""
+BRANCH=""
+RESUME=false
+DRY_RUN=false
+RUNTIME="${AOS_SESSION_HARNESS:-}"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --to)       TO="$2"; shift 2 ;;
@@ -57,6 +102,7 @@ while [[ $# -gt 0 ]]; do
     --task)     TASK="$2"; shift 2 ;;
     --context)  CONTEXT="$2"; shift 2 ;;
     --branch)   BRANCH="$2"; shift 2 ;;
+    --runtime)  RUNTIME="$2"; shift 2 ;;
     --resume)   RESUME=true; shift ;;
     --dry-run)  DRY_RUN=true; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -68,7 +114,21 @@ if [[ -z "$TO" || -z "$FROM" || -z "$TASK" ]]; then
   exit 1
 fi
 
-# --- Gather context ---
+if [[ -z "$RUNTIME" || "$RUNTIME" == "unknown" ]]; then
+  RUNTIME="$(aos_detect_harness)"
+fi
+if [[ "$RUNTIME" == "claude-code" ]]; then
+  RUNTIME="claude"
+fi
+if [[ "$RUNTIME" != "codex" && "$RUNTIME" != "claude" ]]; then
+  echo "Unsupported or unknown runtime '$RUNTIME'. Pass --runtime codex or --runtime claude." >&2
+  exit 1
+fi
+if $RESUME && [[ "$RUNTIME" == "codex" ]]; then
+  echo "--resume is only supported for Claude launchers in this helper" >&2
+  exit 1
+fi
+
 BRANCH="${BRANCH:-$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "unknown")}"
 AHEAD=$(git -C "$ROOT" rev-list --count "origin/main..HEAD" 2>/dev/null || echo "?")
 DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
@@ -89,7 +149,6 @@ except: print('unavailable')
 " 2>/dev/null || echo "unavailable")
 fi
 
-# --- Build the brief ---
 BRIEF="## Handoff: ${FROM} → ${TO}
 
 **Task:** ${TASK}
@@ -106,7 +165,12 @@ ${LAST_COMMITS}
 \`\`\`
 
 ### AOS Runtime
-${DAEMON_STATUS}"
+${DAEMON_STATUS}
+
+### Session Contract
+- Canonical repo contract: \`AGENTS.md\`
+- Session contract: \`docs/SESSION_CONTRACT.md\`
+- Machine-readable session manifest: \`docs/session-contract.json\`"
 
 if [[ -n "$CONTEXT" ]]; then
   BRIEF="${BRIEF}
@@ -115,8 +179,11 @@ if [[ -n "$CONTEXT" ]]; then
 ${CONTEXT}"
 fi
 
-# --- Build the bootstrap payload ---
-PAYLOAD_FILE="/tmp/aos-handoff-${TO}.json"
+aos_prune_session_bootstrap_dir
+PAYLOAD_FILE="$(aos_session_bootstrap_payload_file "$TO")"
+LAUNCHER="$(aos_session_bootstrap_launcher_file "$TO")"
+PROMPT="$(runtime_seed_prompt "$RUNTIME" "$TO")"
+
 AOS_FROM="$FROM" AOS_TO="$TO" AOS_TASK="$TASK" AOS_BRIEF="$BRIEF" AOS_PAYLOAD="$PAYLOAD_FILE" \
   python3 -c "
 import json, os
@@ -130,47 +197,34 @@ payload = {
 json.dump(payload, open(os.environ['AOS_PAYLOAD'], 'w'), indent=2)
 "
 
-# --- Build the seed prompt ---
-SEED="Bootstrap: /tmp/aos-handoff-${TO}.json"
-
-# --- Build the launcher script ---
-LAUNCHER="/tmp/aos-handoff-${TO}"
-if $RESUME; then
-  CLAUDE_FLAG="--resume"
-else
-  CLAUDE_FLAG="-n"
-fi
-
-# --- Output ---
 if $DRY_RUN; then
   echo "=== BRIEF ==="
   echo "$BRIEF"
   echo ""
-  echo "=== SEED PROMPT ==="
-  echo "$SEED"
+  echo "=== PAYLOAD ==="
+  echo "$PAYLOAD_FILE"
   echo ""
   echo "=== LAUNCHER ==="
-  echo "AOS_SESSION_NAME=\"${TO}\" claude ${CLAUDE_FLAG} \"${TO}\" \"${SEED}\""
+  if [[ "$RUNTIME" == "codex" ]]; then
+    echo "AOS_SESSION_NAME=\"${TO}\" codex -C \"$ROOT\" \"$PROMPT\""
+  else
+    FLAG="-n"
+    if $RESUME; then
+      FLAG="--resume"
+    fi
+    echo "AOS_SESSION_NAME=\"${TO}\" claude ${FLAG} \"$TO\" \"$PROMPT\""
+  fi
   echo ""
   echo "=== CLIPBOARD ==="
   echo "bash ${LAUNCHER}"
   exit 0
 fi
 
-# Write the launcher
-cat > "$LAUNCHER" << LAUNCHEOF
-#!/bin/bash
-cd "$ROOT"
-export AOS_SESSION_NAME="$TO"
-exec claude ${CLAUDE_FLAG} "$TO" "$SEED"
-LAUNCHEOF
-chmod +x "$LAUNCHER"
+write_launcher "$RUNTIME" "$LAUNCHER" "$TO" "$PROMPT" "$RESUME"
 
-# Copy short command to clipboard
 CLIPBOARD_COMMAND="bash ${LAUNCHER}"
 copy_to_clipboard "$CLIPBOARD_COMMAND" || true
 
-# --- Post to coordination channels via aos tell ---
 if [[ -x "$AOS" ]]; then
   PAYLOAD_CONTENT=$(cat "$PAYLOAD_FILE")
   "$AOS" tell handoff "$PAYLOAD_CONTENT" --from "$FROM" 2>/dev/null || true
@@ -180,12 +234,10 @@ fi
 
 echo "Handoff ready."
 echo ""
-echo "  Bootstrap payload: ${PAYLOAD_FILE}"
-echo "  Launcher:        ${LAUNCHER}"
-echo "  Clipboard:       ${CLIPBOARD_COMMAND}"
+echo "  runtime:         ${RUNTIME}"
+echo "  bootstrap payload: ${PAYLOAD_FILE}"
+echo "  launcher:          ${LAUNCHER}"
+echo "  clipboard:         ${CLIPBOARD_COMMAND}"
 echo ""
 echo "  Channels posted via $AOS tell (handoff + ${TO})."
-echo "  If daemon was unavailable, manually post:"
-echo "    ${AOS} tell handoff \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
-echo "    ${AOS} tell ${TO} \"\$(cat ${PAYLOAD_FILE})\" --from '${FROM}'"
 echo "  Then paste the clipboard command in a new terminal to launch."

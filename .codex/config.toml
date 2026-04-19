@@ -1,3 +1,37 @@
+model = "gpt-5.4"
+model_reasoning_effort = "xhigh"
+personality = "pragmatic"
+approvals_reviewer = "user"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+
+[defaults]
+approval_policy = "never"
+
 [features]
 codex_hooks = true
+multi_agent = true
+js_repl = true
+guardian_approval = true
+prevent_idle_sleep = true
 
+[tui]
+status_line = ["model-with-reasoning", "context-remaining", "current-dir", "context-used", "project-root", "git-branch", "context-window-size"]
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[plugins."slack@openai-curated"]
+enabled = true
+
+[plugins."build-web-apps@openai-curated"]
+enabled = true
+
+[plugins."test-android-apps@openai-curated"]
+enabled = true
+
+[plugins."google-drive@openai-curated"]
+enabled = true
+
+[notice]
+hide_full_access_warning = true

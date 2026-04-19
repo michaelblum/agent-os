@@ -1,0 +1,37 @@
+{
+  "canonical_docs": [
+    "AGENTS.md",
+    "docs/SESSION_CONTRACT.md",
+    "ARCHITECTURE.md"
+  ],
+  "startup_surfaces": [
+    ".agents/hooks/session-common.sh",
+    ".agents/hooks/session-start.sh",
+    ".agents/hooks/check-messages.sh",
+    ".agents/hooks/session-stop.sh",
+    ".agents/hooks/final-response.sh",
+    ".claude/settings.json",
+    ".codex/hooks.json",
+    ".codex/config.toml"
+  ],
+  "bootstrap_surfaces": [
+    "scripts/handoff",
+    "scripts/parallel-codex"
+  ],
+  "bootstrap_storage": {
+    "payload_dir_function": "aos_session_bootstrap_dir",
+    "payload_file_function": "aos_session_bootstrap_payload_file",
+    "launcher_file_function": "aos_session_bootstrap_launcher_file"
+  },
+  "non_canonical_surfaces": [
+    "provider-local memory files",
+    "runtime-specific startup personas",
+    ".claude/settings.local.json",
+    ".claude/launch.json"
+  ],
+  "unavoidable_global_state": [
+    "~/.claude plugin cache and install metadata",
+    "~/.codex project trust state",
+    "user-global PATH and shell environment"
+  ]
+}

@@ -43,7 +43,7 @@ try:
     payload = json.load(sys.stdin)
 except Exception:
     raise SystemExit(0)
-messages = payload.get("messages", [])
+messages = payload.get("data", {}).get("messages", [])
 if not messages:
     raise SystemExit(0)
 latest = messages[-1].get("id", "")

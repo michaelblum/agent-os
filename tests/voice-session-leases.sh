@@ -55,8 +55,8 @@ import json, sys
 who = json.loads(sys.argv[1])
 voices = json.loads(sys.argv[2])
 
-sessions = who.get("sessions", [])
-voice_rows = voices.get("voices", [])
+sessions = who.get("data", {}).get("sessions", [])
+voice_rows = voices.get("data", {}).get("voices", [])
 voice_ids = [voice["id"] for voice in voice_rows]
 expected_sessions = len(voice_rows) + 2
 
@@ -88,7 +88,7 @@ ORIGINAL_VOICE="$(python3 - "$WHO_JSON" "$FIRST_SESSION" <<'PY'
 import json, sys
 payload = json.loads(sys.argv[1])
 session_id = sys.argv[2]
-for session in payload.get("sessions", []):
+for session in payload.get("data", {}).get("sessions", []):
     if session.get("session_id") == session_id:
         print(session.get("voice", {}).get("id", ""))
         break
@@ -109,7 +109,7 @@ python3 - "$WHO_JSON" "$VOICE_JSON_AFTER" "$NEW_SESSION_ID" "$FIRST_SESSION" "$O
 import json, sys
 
 payload = json.loads(sys.argv[1])
-voice_rows = json.loads(sys.argv[2]).get("voices", [])
+voice_rows = json.loads(sys.argv[2]).get("data", {}).get("voices", [])
 new_session_id = sys.argv[3]
 first_session_id = sys.argv[4]
 original_voice = sys.argv[5]
@@ -118,7 +118,7 @@ expected_voice = voice_ids[(len(voice_ids) + 2) % len(voice_ids)]
 reregistered_ok = False
 wrapped_ok = False
 
-for session in payload.get("sessions", []):
+for session in payload.get("data", {}).get("sessions", []):
     if session.get("session_id") == first_session_id:
         actual = session.get("voice", {}).get("id")
         if actual != original_voice:

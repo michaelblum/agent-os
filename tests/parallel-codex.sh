@@ -19,10 +19,14 @@ bash "$ROOT/scripts/parallel-codex" \
 BOOTSTRAP_DIR="$AOS_STATE_ROOT/repo/coordination/bootstrap"
 DISPLAY_LAUNCHER="$BOOTSTRAP_DIR/launch-display-focus"
 WIKI_LAUNCHER="$BOOTSTRAP_DIR/launch-wiki-focus"
+DISPLAY_PAYLOAD="$BOOTSTRAP_DIR/payload-display-focus.json"
+WIKI_PAYLOAD="$BOOTSTRAP_DIR/payload-wiki-focus.json"
 
 [[ -d "$BOOTSTRAP_DIR" ]] || { echo "FAIL: missing bootstrap dir"; exit 1; }
 [[ -x "$DISPLAY_LAUNCHER" ]] || { echo "FAIL: display launcher not executable"; exit 1; }
 [[ -x "$WIKI_LAUNCHER" ]] || { echo "FAIL: wiki launcher not executable"; exit 1; }
+[[ -f "$DISPLAY_PAYLOAD" ]] || { echo "FAIL: display payload missing"; exit 1; }
+[[ -f "$WIKI_PAYLOAD" ]] || { echo "FAIL: wiki payload missing"; exit 1; }
 bash -n "$DISPLAY_LAUNCHER" || { echo "FAIL: display launcher is not valid bash"; exit 1; }
 bash -n "$WIKI_LAUNCHER" || { echo "FAIL: wiki launcher is not valid bash"; exit 1; }
 
@@ -41,12 +45,8 @@ grep -q 'rm -f -- "\$0"' "$DISPLAY_LAUNCHER" || {
   echo "FAIL: display launcher is not burn-after-read"
   exit 1
 }
-grep -q "You are the display-focused session." "$DISPLAY_LAUNCHER" || {
-  echo "FAIL: display launcher missing inline brief"
-  exit 1
-}
-grep -q "extended display" "$DISPLAY_LAUNCHER" || {
-  echo "FAIL: display launcher missing coordination guidance"
+grep -q "Use the repo-scoped agent-os bootstrap payload for session display-focus" "$DISPLAY_LAUNCHER" || {
+  echo "FAIL: display launcher missing repo bootstrap prompt"
   exit 1
 }
 grep -q "bash $WIKI_LAUNCHER" "$DISPLAY_LAUNCHER" || {
@@ -61,17 +61,31 @@ grep -q 'rm -f -- "\$0"' "$WIKI_LAUNCHER" || {
   echo "FAIL: wiki launcher is not burn-after-read"
   exit 1
 }
-grep -q "You are the wiki-focused session." "$WIKI_LAUNCHER" || {
-  echo "FAIL: wiki launcher missing inline brief"
-  exit 1
-}
-grep -q "restart the daemon" "$WIKI_LAUNCHER" || {
-  echo "FAIL: wiki launcher missing daemon guard"
+grep -q "Use the repo-scoped agent-os bootstrap payload for session wiki-focus" "$WIKI_LAUNCHER" || {
+  echo "FAIL: wiki launcher missing repo bootstrap prompt"
   exit 1
 }
 grep -q "bash $DISPLAY_LAUNCHER" "$WIKI_LAUNCHER" || {
   echo "FAIL: wiki launcher does not prime clipboard with display launcher"
   exit 1
 }
+
+python3 - "$DISPLAY_PAYLOAD" "$WIKI_PAYLOAD" <<'PY'
+import json, sys
+display = json.load(open(sys.argv[1]))
+wiki = json.load(open(sys.argv[2]))
+
+display_brief = display.get("brief", "")
+wiki_brief = wiki.get("brief", "")
+
+if "You are the display-focused session." not in display_brief:
+    raise SystemExit(f"FAIL: display payload missing brief: {display}")
+if "extended display" not in display_brief:
+    raise SystemExit(f"FAIL: display payload missing coordination guidance: {display}")
+if "You are the wiki-focused session." not in wiki_brief:
+    raise SystemExit(f"FAIL: wiki payload missing brief: {wiki}")
+if "restart the daemon" not in wiki_brief:
+    raise SystemExit(f"FAIL: wiki payload missing daemon guard: {wiki}")
+PY
 
 echo "PASS"

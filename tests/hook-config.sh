@@ -21,9 +21,7 @@ def assert_hooks(label, path):
     payload = json.load(open(path))
     _, commands = flatten_commands(payload)
     command_strings = [command for _, command in commands]
-    required = ["session-start.sh", "git-health.sh", "pre-tool-use.sh", "check-messages.sh", "post-tool-use.sh", "final-response.sh"]
-    if label == "claude":
-        required.append("session-stop.sh")
+    required = ["session-start.sh", "git-health.sh", "pre-tool-use.sh", "check-messages.sh", "post-tool-use.sh", "final-response.sh", "session-stop.sh"]
     for needle in required:
         if not any(needle in command for command in command_strings):
             raise SystemExit(f"FAIL: {label} missing required hook command containing {needle!r}: {command_strings}")

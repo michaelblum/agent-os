@@ -66,5 +66,24 @@
       }
     ]
   },
-  "enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "statusLine": {
+    "type": "command",
+    "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.claude/statusline-command.sh\""
+  },
+  "enabledPlugins": {
+    "claude-md-management@claude-plugins-official": false,
+    "caveman@JuliusBrussee-caveman": false,
+    "caveman@caveman": false,
+    "superpowers@claude-plugins-official": false,
+    "codex@openai-codex": false
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    }
+  }
 }

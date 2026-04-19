@@ -82,7 +82,7 @@ ensure_aos_runtime() {
 }
 
 if [ -n "$SESSION_NAME" ]; then
-  BOOTSTRAP_FILE="/tmp/aos-handoff-${SESSION_NAME}.json"
+  BOOTSTRAP_FILE="$(aos_session_bootstrap_payload_file "$SESSION_NAME")"
   if [ -f "$BOOTSTRAP_FILE" ]; then
     if ! BRIEF="$(python3 - "$BOOTSTRAP_FILE" <<'PY' 2>/dev/null
 import json
@@ -230,8 +230,9 @@ echo "Daemon \`display_geometry\` and \`aos see list\` now emit \`desktop_world_
 echo "\`aos runtime display-union\` prints DesktopWorld by default (origin (0,0)); pass \`--native\` for the legacy main-display-anchored shape."
 echo "For spatial work, also run \`node scripts/spatial-audit.mjs --summary\` before editing; coordinate helpers are under explicit allowlist governance now."
 echo "Toolkit-side JS spatial helpers now belong in \`packages/toolkit/runtime/spatial.js\`; avoid adding new ad hoc transform helpers elsewhere."
+echo "Canonical runtime/session contract lives in \`docs/SESSION_CONTRACT.md\` with machine-readable companion \`docs/session-contract.json\`."
 echo ""
 echo "## Shared Handoff Method"
-echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and emit one ready-to-run continuation path for the active runtime."
+echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and use the shared bootstrap launcher under the runtime coordination state dir rather than ad hoc /tmp files."
 echo ""
 echo "--- end session context ---"

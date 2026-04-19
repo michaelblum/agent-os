@@ -116,9 +116,9 @@ scripts/parallel-codex                           # Prepare paired display/wiki l
 ```
 
 Shared session hooks live under `.agents/hooks/`. Startup and message polling
-run in both Claude Code and Codex. Clean stop unregistering is currently wired
-through Claude's stop hook only; Codex relies on lease refresh plus
-re-registration on startup/post-tool use.
+run in both Claude Code and Codex. Clean stop unregistering is wired through
+the shared Stop hook contract in both runtimes. See `docs/SESSION_CONTRACT.md`
+for the canonical session/bootstrap surface.
 
 ### Capture (aos see capture)
 

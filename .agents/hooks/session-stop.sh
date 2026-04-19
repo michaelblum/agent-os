@@ -21,3 +21,5 @@ if [[ -n "$SESSION_ID" ]]; then
 else
   "$AOS" tell --unregister "$SESSION_NAME" >/dev/null 2>&1 || true
 fi
+
+aos_emit_stop_hook_success "$SESSION_HARNESS"

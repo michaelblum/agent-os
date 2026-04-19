@@ -7,8 +7,9 @@
 #   scripts/parallel-codex --display-name display-focus --wiki-name wiki-focus
 #
 # What it does:
-#   1. Writes paired launcher scripts under the runtime coordination bootstrap dir
-#   2. Embeds each session brief directly in its launcher prompt
+#   1. Writes paired bootstrap payloads and launcher scripts under the shared
+#      runtime coordination bootstrap dir
+#   2. Keeps the brief in the shared payload instead of embedding it inline
 #   3. Each launcher primes the clipboard with the other launch command
 #   4. Copies the requested first launch command to the clipboard
 
@@ -138,12 +139,13 @@ PY
 write_launcher() {
   local launcher="$1"
   local name="$2"
-  local prompt="$3"
-  local peer_launcher="$4"
-  local role_label="$5"
+  local peer_launcher="$3"
+  local role_label="$4"
+  local prompt
   local quoted_prompt
 
-  printf -v quoted_prompt '%q' "$prompt"
+  prompt="Use the repo-scoped agent-os bootstrap payload for session $name and follow docs/SESSION_CONTRACT.md."
+  quoted_prompt="$(printf '%s' "$prompt" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))')"
 
   cat > "$launcher" <<EOF
 #!/bin/bash
@@ -165,6 +167,23 @@ EOF
   chmod +x "$launcher"
 }
 
+write_payload() {
+  local name="$1"
+  local brief="$2"
+  local payload_file="$3"
+
+  AOS_TO="$name" AOS_BRIEF="$brief" AOS_PAYLOAD="$payload_file" python3 -c "
+import json, os
+payload = {
+    'type': 'session_handoff',
+    'to': os.environ['AOS_TO'],
+    'task': 'parallel session bootstrap',
+    'brief': os.environ['AOS_BRIEF'],
+}
+json.dump(payload, open(os.environ['AOS_PAYLOAD'], 'w'), indent=2)
+"
+}
+
 DISPLAY_NAME="$(sanitize_name "$DISPLAY_NAME")"
 WIKI_NAME="$(sanitize_name "$WIKI_NAME")"
 BOOTSTRAP_DIR="$(aos_session_bootstrap_dir)"
@@ -173,10 +192,14 @@ DISPLAY_BRIEF="$(build_brief "display" "$DISPLAY_TASK")"
 WIKI_BRIEF="$(build_brief "wiki" "$WIKI_TASK")"
 DISPLAY_LAUNCHER="$(aos_session_bootstrap_launcher_file "$DISPLAY_NAME")"
 WIKI_LAUNCHER="$(aos_session_bootstrap_launcher_file "$WIKI_NAME")"
+DISPLAY_PAYLOAD="$(aos_session_bootstrap_payload_file "$DISPLAY_NAME")"
+WIKI_PAYLOAD="$(aos_session_bootstrap_payload_file "$WIKI_NAME")"
 
 if ! $DRY_RUN; then
-  write_launcher "$DISPLAY_LAUNCHER" "$DISPLAY_NAME" "$DISPLAY_BRIEF" "$WIKI_LAUNCHER" "display"
-  write_launcher "$WIKI_LAUNCHER" "$WIKI_NAME" "$WIKI_BRIEF" "$DISPLAY_LAUNCHER" "wiki"
+  write_payload "$DISPLAY_NAME" "$DISPLAY_BRIEF" "$DISPLAY_PAYLOAD"
+  write_payload "$WIKI_NAME" "$WIKI_BRIEF" "$WIKI_PAYLOAD"
+  write_launcher "$DISPLAY_LAUNCHER" "$DISPLAY_NAME" "$WIKI_LAUNCHER" "display"
+  write_launcher "$WIKI_LAUNCHER" "$WIKI_NAME" "$DISPLAY_LAUNCHER" "wiki"
 fi
 
 FIRST_COMMAND="bash $DISPLAY_LAUNCHER"
@@ -190,6 +213,8 @@ fi
 
 echo "Prepared parallel Codex session launchers."
 echo "  bootstrap dir:     $BOOTSTRAP_DIR"
+echo "  display payload:   $DISPLAY_PAYLOAD"
+echo "  wiki payload:      $WIKI_PAYLOAD"
 echo "  display launcher:  $DISPLAY_LAUNCHER"
 echo "  wiki launcher:     $WIKI_LAUNCHER"
 echo "  clipboard:         $FIRST_COMMAND"

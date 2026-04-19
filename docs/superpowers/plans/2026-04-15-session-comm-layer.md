@@ -1,6 +1,6 @@
 # Session Communication Layer — Implementation Plan
 
-> **Status note:** This plan started from a gateway/SQLite polling design. The shipped path now uses daemon-native `./aos tell` / `./aos listen`, canonical `session_id` direct inboxes, shared Claude/Codex startup + post-tool hooks, and hook-driven auto-registration. The detailed checkbox steps below are preserved as implementation archaeology and still contain gateway-era snippets; do not use them as the current contract.
+> **Status note:** This plan started from a gateway/SQLite polling design. The shipped path now uses daemon-native `./aos tell` / `./aos listen`, canonical `session_id` direct inboxes, shared Claude/Codex startup + post-tool hooks, shared stop cleanup, and repo-scoped bootstrap payloads. The live contract is `docs/SESSION_CONTRACT.md`; the detailed checkbox steps below are preserved as implementation archaeology and still contain older snippets.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -21,9 +21,9 @@
 - Shared helpers in `.agents/hooks/session-common.sh` resolve session ids, display names, cursor files, bootstrap locations, and runtime-scoped coordination state.
 - `.agents/hooks/session-start.sh` auto-registers sessions for both Claude Code and Codex.
 - `.agents/hooks/check-messages.sh` refreshes registration and emits thin inbox notifications for both Claude Code and Codex.
-- `.agents/hooks/session-stop.sh` exists, but only Claude currently wires it as a Stop hook; Codex intentionally relies on lease refresh rather than explicit unregister-on-exit.
+- `.agents/hooks/session-stop.sh` now runs in both Claude Code and Codex Stop hooks.
 - `scripts/session-name` renames a session without changing its canonical inbox.
-- `scripts/parallel-codex` creates paired display/wiki Codex launchers with embedded coordination guidance.
+- `scripts/handoff` and `scripts/parallel-codex` now both write shared repo-scoped bootstrap payloads under the runtime coordination bootstrap dir.
 - Verification lives in `tests/session-registration-startup.sh` and `tests/parallel-codex.sh`.
 
 ---

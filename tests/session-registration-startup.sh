@@ -25,11 +25,14 @@ import json, sys
 
 hooks = json.load(open(sys.argv[1])).get("hooks", {})
 stop_hooks = hooks.get("Stop", [])
+commands = []
 for matcher in stop_hooks:
     for hook in matcher.get("hooks", []):
-        command = hook.get("command", "")
-        if "session-stop.sh" in command:
-            raise SystemExit(f"FAIL: Codex Stop hook should not unregister session presence: {command}")
+        commands.append(hook.get("command", ""))
+if not any("final-response.sh" in command for command in commands):
+    raise SystemExit(f"FAIL: Codex Stop hook missing final-response relay: {commands}")
+if not any("session-stop.sh" in command for command in commands):
+    raise SystemExit(f"FAIL: Codex Stop hook missing session-stop cleanup: {commands}")
 PY
 
 CODEX_THREAD_ID="$THREAD_A" AOS_SESSION_HARNESS=codex bash .agents/hooks/session-start.sh >/dev/null
@@ -37,7 +40,20 @@ CODEX_THREAD_ID="$THREAD_A" AOS_SESSION_HARNESS=codex bash .agents/hooks/session
 CURRENT_JSON="$(CODEX_THREAD_ID="$THREAD_A" AOS_SESSION_HARNESS=codex bash scripts/session-name --current)"
 CURRENT_NAME="$(printf '%s' "$CURRENT_JSON" | python3 -c 'import json, sys; payload = json.load(sys.stdin); print(payload["name"]); assert payload["channel"] == payload["session_id"]')"
 
-WHO_JSON="$(./aos tell --who)"
+WHO_JSON=""
+for _ in $(seq 1 20); do
+  WHO_JSON="$(./aos tell --who)"
+  if python3 - "$WHO_JSON" "$THREAD_A" <<'PY'
+import json, sys
+sessions = json.loads(sys.argv[1]).get("data", {}).get("sessions", [])
+session_id = sys.argv[2]
+raise SystemExit(0 if any(s.get("session_id") == session_id for s in sessions) else 1)
+PY
+  then
+    break
+  fi
+  sleep 0.1
+done
 python3 - "$WHO_JSON" "$CURRENT_NAME" "$THREAD_A" "$SESSIONS_PATH" <<'PY'
 import json, sys
 from pathlib import Path
@@ -46,7 +62,7 @@ payload = json.loads(sys.argv[1])
 name = sys.argv[2]
 session_id = sys.argv[3]
 sessions_path = Path(sys.argv[4])
-sessions = payload.get("sessions", [])
+sessions = payload.get("data", {}).get("sessions", [])
 matches = [s for s in sessions if s.get("session_id") == session_id and s.get("name") == name and s.get("harness") == "codex"]
 if len(matches) != 1:
     raise SystemExit(f"FAIL: expected one registered codex session {session_id} named {name}, got {sessions}")
@@ -74,7 +90,7 @@ import json, sys
 payload = json.loads(sys.argv[1])
 old_name = sys.argv[2]
 session_id = sys.argv[3]
-sessions = payload.get("sessions", [])
+sessions = payload.get("data", {}).get("sessions", [])
 names = [s.get("name") for s in sessions]
 ids = [s.get("session_id") for s in sessions]
 if names.count("wiki-trial") != 1:
@@ -87,15 +103,29 @@ PY
 
 CODEX_THREAD_ID="$THREAD_B" AOS_SESSION_HARNESS=codex bash .agents/hooks/session-start.sh >/dev/null
 
-WHO_JSON="$(./aos tell --who)"
+WHO_JSON=""
+for _ in $(seq 1 20); do
+  WHO_JSON="$(./aos tell --who)"
+  if python3 - "$WHO_JSON" "$THREAD_A" "$THREAD_B" <<'PY'
+import json, sys
+sessions = json.loads(sys.argv[1]).get("data", {}).get("sessions", [])
+expected = {sys.argv[2], sys.argv[3]}
+actual = {s.get("session_id") for s in sessions}
+raise SystemExit(0 if actual == expected else 1)
+PY
+  then
+    break
+  fi
+  sleep 0.1
+done
 python3 - "$WHO_JSON" "$THREAD_A" "$THREAD_B" <<'PY'
 import json, sys
 
 payload = json.loads(sys.argv[1])
 expected = {sys.argv[2], sys.argv[3]}
-actual = {s.get("session_id") for s in payload.get("sessions", [])}
+actual = {s.get("session_id") for s in payload.get("data", {}).get("sessions", [])}
 if actual != expected:
-    raise SystemExit(f"FAIL: expected live session ids {expected}, got {payload.get('sessions', [])}")
+    raise SystemExit(f"FAIL: expected live session ids {expected}, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 aos_test_kill_root "$ROOT"
@@ -106,9 +136,9 @@ import json, sys
 
 payload = json.loads(sys.argv[1])
 expected = {sys.argv[2], sys.argv[3]}
-actual = {s.get("session_id") for s in payload.get("sessions", [])}
+actual = {s.get("session_id") for s in payload.get("data", {}).get("sessions", [])}
 if actual != expected:
-    raise SystemExit(f"FAIL: expected daemon restart to restore live session ids {expected}, got {payload.get('sessions', [])}")
+    raise SystemExit(f"FAIL: expected daemon restart to restore live session ids {expected}, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 ./aos tell --unregister --session-id "$THREAD_A" >/dev/null
@@ -119,8 +149,8 @@ python3 - "$WHO_JSON" <<'PY'
 import json, sys
 
 payload = json.loads(sys.argv[1])
-if payload.get("sessions"):
-    raise SystemExit(f"FAIL: expected empty live registry after forced unregister, got {payload.get('sessions', [])}")
+if payload.get("data", {}).get("sessions"):
+    raise SystemExit(f"FAIL: expected empty live registry after forced unregister, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 printf '{"session_id":"%s"}' "$THREAD_A" | AOS_SESSION_HARNESS=codex bash .agents/hooks/check-messages.sh >/dev/null
@@ -132,9 +162,9 @@ import json, sys
 
 payload = json.loads(sys.argv[1])
 expected = {sys.argv[2], sys.argv[3]}
-actual = {s.get("session_id") for s in payload.get("sessions", [])}
+actual = {s.get("session_id") for s in payload.get("data", {}).get("sessions", [])}
 if actual != expected:
-    raise SystemExit(f"FAIL: expected post-tool hook to restore live session ids {expected}, got {payload.get('sessions', [])}")
+    raise SystemExit(f"FAIL: expected post-tool hook to restore live session ids {expected}, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 ./aos tell --session-id "$THREAD_A" "status update" --from "$THREAD_B" >/dev/null
@@ -167,7 +197,7 @@ import json, sys
 payload = json.loads(sys.argv[1])
 session_id = sys.argv[2]
 sender = sys.argv[3]
-messages = payload.get("messages", [])
+messages = payload.get("data", {}).get("messages", [])
 if not messages:
     raise SystemExit("FAIL: expected at least one direct message for session A")
 latest = messages[-1]
@@ -182,9 +212,9 @@ import json, sys
 
 payload = json.loads(sys.argv[1])
 session_id = sys.argv[2]
-matches = [s for s in payload.get("sessions", []) if s.get("session_id") == session_id]
+matches = [s for s in payload.get("data", {}).get("sessions", []) if s.get("session_id") == session_id]
 if len(matches) != 1:
-    raise SystemExit(f"FAIL: expected session-id register path to refresh {session_id} without duplicating ids, got {payload.get('sessions', [])}")
+    raise SystemExit(f"FAIL: expected session-id register path to refresh {session_id} without duplicating ids, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 printf '{"session_id":"%s"}' "$THREAD_A" | AOS_SESSION_HARNESS=codex bash .agents/hooks/session-stop.sh
@@ -195,8 +225,8 @@ python3 - "$WHO_JSON" <<'PY'
 import json, sys
 
 payload = json.loads(sys.argv[1])
-if payload.get("sessions"):
-    raise SystemExit(f"FAIL: expected no sessions after unregister, got {payload['sessions']}")
+if payload.get("data", {}).get("sessions"):
+    raise SystemExit(f"FAIL: expected no sessions after unregister, got {payload.get('data', {}).get('sessions', [])}")
 PY
 
 python3 - "$SESSIONS_PATH" <<'PY'
