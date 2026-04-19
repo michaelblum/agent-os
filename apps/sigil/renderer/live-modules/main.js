@@ -203,6 +203,45 @@ function emitStatusItemState() {
     });
 }
 
+// canvas_object.marks — publish the avatar's current desktop position so the
+// canvas-inspector can mark it on its minimap and indented tree list.
+// Event-driven via setAvatarPosition + visibility changes; a ~5 s heartbeat
+// keeps the mark alive inside the inspector's 10 s TTL while idle-visible.
+const MARKS_CANVAS_ID = 'avatar-main';
+const MARKS_OBJECT_ID = 'avatar';
+const MARKS_HEARTBEAT_MS = 5000;
+let _lastMarkEmitAt = 0;
+
+function emitAvatarMark() {
+    if (!liveJs.avatarPos.valid) return;
+    if (!liveJs.avatarVisible) {
+        host.post('canvas_object.marks', {
+            canvas_id: MARKS_CANVAS_ID,
+            objects: [],
+        });
+        _lastMarkEmitAt = performance.now();
+        return;
+    }
+    host.post('canvas_object.marks', {
+        canvas_id: MARKS_CANVAS_ID,
+        objects: [{
+            id: MARKS_OBJECT_ID,
+            x: Math.round(liveJs.avatarPos.x),
+            y: Math.round(liveJs.avatarPos.y),
+            name: 'Avatar',
+        }],
+    });
+    _lastMarkEmitAt = performance.now();
+}
+
+function startMarkHeartbeat() {
+    setInterval(() => {
+        if (!liveJs.avatarVisible || !liveJs.avatarPos.valid) return;
+        if (performance.now() - _lastMarkEmitAt < MARKS_HEARTBEAT_MS - 500) return;
+        emitAvatarMark();
+    }, MARKS_HEARTBEAT_MS);
+}
+
 function setAvatarVisibility(visible) {
     const next = !!visible;
     if (liveJs.avatarVisible === next && !liveJs._visibility) return;
@@ -213,6 +252,7 @@ function setAvatarVisibility(visible) {
         liveJs.state = 'IDLE';
     }
     emitStatusItemState();
+    emitAvatarMark();
 }
 
 function animateVisibility(visible, lifecycleAction = null) {
@@ -240,6 +280,7 @@ function setAvatarPosition(x, y) {
         : { x, y };
     liveJs.avatarPos = { x: next.x, y: next.y, valid: true };
     postLastPositionToDaemon();
+    emitAvatarMark();
 }
 
 function cancelInteraction(reason) {
@@ -450,6 +491,7 @@ function setupHostSurface() {
     host.onMessage(handleHostMessage);
     overlay.mount();
     host.subscribe(['display_geometry', 'input_event'], { snapshot: true });
+    startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
     });
