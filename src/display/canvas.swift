@@ -96,9 +96,56 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - Coordinate Conversion
 
+private struct DisplayScreenBinding {
+    let display: DisplayEntry
+    let screen: NSScreen
+}
+
+private func screenBindingsByDisplayNumber() -> [CGDirectDisplayID: NSScreen] {
+    var map: [CGDirectDisplayID: NSScreen] = [:]
+    for screen in NSScreen.screens {
+        if let num = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber {
+            map[CGDirectDisplayID(num.uint32Value)] = screen
+        }
+    }
+    return map
+}
+
+private func displayBinding(containing point: CGPoint) -> DisplayScreenBinding? {
+    let screensByNumber = screenBindingsByDisplayNumber()
+    for display in getDisplays() {
+        if display.bounds.contains(point), let screen = screensByNumber[display.id] {
+            return DisplayScreenBinding(display: display, screen: screen)
+        }
+    }
+    return nil
+}
+
+private func screenBinding(containing point: CGPoint) -> DisplayScreenBinding? {
+    let screensByNumber = screenBindingsByDisplayNumber()
+    for display in getDisplays() {
+        guard let screen = screensByNumber[display.id] else { continue }
+        if screen.frame.contains(point) {
+            return DisplayScreenBinding(display: display, screen: screen)
+        }
+    }
+    return nil
+}
+
 /// Convert AOS global coordinates (top-left of the primary display, Y-down)
 /// to AppKit global screen coordinates (bottom-left of the primary display, Y-up).
 func cgToScreen(_ cgRect: CGRect) -> NSRect {
+    if let binding = displayBinding(containing: CGPoint(x: cgRect.midX, y: cgRect.midY)) {
+        let localX = cgRect.origin.x - binding.display.bounds.origin.x
+        let localY = cgRect.origin.y - binding.display.bounds.origin.y
+        return NSRect(
+            x: binding.screen.frame.origin.x + localX,
+            y: binding.screen.frame.origin.y + (binding.display.bounds.height - localY - cgRect.size.height),
+            width: cgRect.size.width,
+            height: cgRect.size.height
+        )
+    }
+
     let primaryHeight = mainDisplayHeight()
     guard primaryHeight > 0 else {
         return NSRect(
@@ -118,6 +165,17 @@ func cgToScreen(_ cgRect: CGRect) -> NSRect {
 
 /// Convert AppKit global screen coordinates back to AOS global coordinates.
 func screenToCG(_ nsRect: NSRect) -> CGRect {
+    if let binding = screenBinding(containing: CGPoint(x: nsRect.midX, y: nsRect.midY)) {
+        let localX = nsRect.origin.x - binding.screen.frame.origin.x
+        let localY = nsRect.origin.y - binding.screen.frame.origin.y
+        return CGRect(
+            x: binding.display.bounds.origin.x + localX,
+            y: binding.display.bounds.origin.y + (binding.display.bounds.height - localY - nsRect.size.height),
+            width: nsRect.size.width,
+            height: nsRect.size.height
+        )
+    }
+
     let primaryHeight = mainDisplayHeight()
     guard primaryHeight > 0 else {
         return CGRect(
@@ -137,8 +195,8 @@ func screenToCG(_ nsRect: NSRect) -> CGRect {
 
 /// AppKit appears to apply the primary display backing scale to the origin of
 /// a single NSWindow that spans mixed-DPI displays. Explicit single-display
-/// canvases do not show this drift, so only compensate mixed-scale spanning
-/// rects here and keep sizes in the shared AOS point space.
+/// canvases do not show this drift, so compensate mixed-scale spanning rects
+/// here and keep sizes in the shared AOS point space.
 func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
     var screenFrame = cgToScreen(cgRect)
     let displays = getDisplays()
@@ -403,7 +461,12 @@ class Canvas {
     }
 
     var cgFrame: CGRect {
-        return screenToCG(window.frame)
+        // Source of truth stays in AOS coordinate space. Mixed-DPI spanning
+        // canvases apply an AppKit-origin compensation in canvasScreenFrame(),
+        // so window.frame cannot be losslessly converted back with screenToCG().
+        // Reporting desiredCGFrame keeps tracked union canvases stable in list,
+        // lifecycle, and inspector overlays.
+        return desiredCGFrame
     }
 
     func toInfo() -> CanvasInfo {
@@ -463,6 +526,19 @@ class CanvasManager {
 
     private func lifecycleAtArray(_ cgRect: CGRect) -> [CGFloat] {
         [cgRect.origin.x, cgRect.origin.y, cgRect.size.width, cgRect.size.height]
+    }
+
+    private func cgRectForParentLocalFrame(_ localFrame: [CGFloat], parent: Canvas) -> CGRect? {
+        guard localFrame.count == 4 else { return nil }
+        let local = CGRect(x: localFrame[0], y: localFrame[1], width: localFrame[2], height: localFrame[3])
+        let parentScreen = parent.window.frame
+        let childScreen = CGRect(
+            x: parentScreen.origin.x + local.origin.x,
+            y: parentScreen.origin.y + (parentScreen.size.height - local.origin.y - local.size.height),
+            width: local.size.width,
+            height: local.size.height
+        )
+        return screenToCG(childScreen)
     }
 
     @discardableResult
@@ -698,6 +774,11 @@ class CanvasManager {
         } else if autoMode == "cursor_trail" {
             // cursor_trail spans all displays
             cgFrame = allDisplaysBounds()
+        } else if let frameLocal = req.frameLocal,
+                  let parentID = req.parent,
+                  let parentCanvas = canvases[parentID],
+                  let mapped = cgRectForParentLocalFrame(frameLocal, parent: parentCanvas) {
+            cgFrame = mapped
         } else if let at = req.at, at.count == 4 {
             cgFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
         } else if let anchorWin = resolvedAnchorWindow, let off = req.offset, off.count == 4 {
@@ -739,6 +820,7 @@ class CanvasManager {
         }
         // Born suspended: if parent is suspended and cascade is true, start hidden
         let bornSuspended: Bool = {
+            if req.suspended == true { return true }
             guard canvas.cascadeFromParent, let pid = canvas.parent,
                   let parentCanvas = canvases[pid] else { return false }
             return parentCanvas.suspended
@@ -798,6 +880,26 @@ class CanvasManager {
                         // same as the avatar animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
                         self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
+                        if id == "__log__" {
+                            let actual = canvas.cgFrame
+                            self.postMessageAsync(canvasID: id, payload: [
+                                "type": "drag.telemetry",
+                                "payload": [
+                                    "mouse": [
+                                        "x": Double(cgMouseX),
+                                        "y": Double(cgMouseY),
+                                    ],
+                                    "requestedTopLeft": [
+                                        "x": Double(newX),
+                                        "y": Double(newY),
+                                    ],
+                                    "actualTopLeft": [
+                                        "x": Double(actual.origin.x),
+                                        "y": Double(actual.origin.y),
+                                    ],
+                                ],
+                            ])
+                        }
                     }
                     return
                 }
@@ -818,6 +920,10 @@ class CanvasManager {
 
                 // drag_start and drag_end — don't relay, just consume
                 if type == "drag_start" || type == "drag_end" {
+                    if id == "__log__" {
+                        let payloadType = (type == "drag_start") ? "drag.started" : "drag.ended"
+                        self?.postMessageAsync(canvasID: id, payload: ["type": payloadType])
+                    }
                     return
                 }
 
@@ -975,6 +1081,16 @@ class CanvasManager {
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
             moveCanvas(canvas, to: newFrame)
+            canvas.anchorWindowID = nil
+            canvas.anchorChannelID = nil
+            canvas.offset = nil
+        }
+
+        if let frameLocal = req.frameLocal,
+           let parentID = canvas.parent,
+           let parentCanvas = canvases[parentID],
+           let mapped = cgRectForParentLocalFrame(frameLocal, parent: parentCanvas) {
+            moveCanvas(canvas, to: mapped)
             canvas.anchorWindowID = nil
             canvas.anchorChannelID = nil
             canvas.offset = nil

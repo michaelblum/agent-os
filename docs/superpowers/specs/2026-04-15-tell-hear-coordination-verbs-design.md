@@ -2,7 +2,9 @@
 
 **Date:** 2026-04-15 (revised)
 **Scope:** Two top-level `aos` verbs for all agent communication. Daemon-native routing, no MCP dependency.
-**Status:** Shipped. `aos tell` / `aos listen` are the native coordination surface; the gateway is now an optional adapter.
+**Status:** Shipped, but narrowed in practice. `aos tell` / `aos listen` remain the native daemon communication surface, while the old hook-driven cross-session workflow has been retired from the default Codex/Claude setup. Treat these verbs as manual / advanced communication tools unless a specific operator or product flow explicitly depends on them.
+
+> **Current contract note:** This spec still describes the verbs correctly, but not the active harness policy. The live harness policy is minimal repo-local hooks only; no `PostToolUse` polling, automatic session registration, or stop-hook coordination flows.
 
 ## Problem
 

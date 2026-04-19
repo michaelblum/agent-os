@@ -82,7 +82,7 @@ A single Swift binary using only Apple frameworks. Zero external dependencies. M
 | `aos` action | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
 | `aos` display | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
 | `aos` voice | **Audio** — `aos say` (TTS), daemon-driven announcements, config-driven voice/rate. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
-| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
+| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production as a manual/advanced daemon-native communication surface; STT + broader inbound aggregation planned |
 
 All capability ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`). No per-capability standalone CLI escape hatches — new audio/perception/action functionality lands as subcommands on the existing subsystems.
 
@@ -127,12 +127,16 @@ aos listen <channel>|--session-id <canonical-session-id>
 
 The daemon routes based on config (`aos set voice.*`), presence (which sessions are online), and channel state. This is a natural extension of the daemon's existing responsibilities — it already manages voice config, canvases, and perception state.
 
-### Coordination Bus
+### Communication Bus
 
-The daemon hosts the coordination bus natively — channels, messages, presence. No separate process required. `aos tell` and `aos listen` talk to the daemon over its existing Unix socket, the same way `aos see` and `aos show` do.
+The daemon hosts the communication bus natively — channels, messages, presence. No separate process required. `aos tell` and `aos listen` talk to the daemon over its existing Unix socket, the same way `aos see` and `aos show` do.
+
+This surface remains available for explicit operator flows, debugging, and
+specialized consumers. It is not the default session-plumbing mechanism for the
+Codex or Claude hook stacks in agent-os.
 
 Session presence is keyed by canonical `session_id` / thread id. Human-readable names remain ancillary metadata for `/who` output and operator ergonomics; direct session messaging should target the canonical session id channel.
-Presence is mirrored into the runtime state dir and restored on daemon restart. `/who` is advisory discovery; once a peer session id is known, direct `--session-id` routing is the stable coordination path.
+Presence is mirrored into the runtime state dir and restored on daemon restart. `/who` is advisory discovery for manual/advanced workflows; once a peer session id is known, direct `--session-id` routing is the stable path.
 
 The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's communication bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
 
@@ -182,7 +186,7 @@ agent-os/
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
 | `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT + persona planned |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
-| `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server: typed script execution, session registration, cross-harness pub/sub, capability discovery, SQLite-backed state |
+| `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server: typed script execution, optional communication/coordination adapters, capability discovery, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
 | `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, canvas-inspector, legacy single-file overlays |
 | Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
@@ -236,6 +240,14 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 - `computeUnion(displays)` (in the renderer) produces `{minX, minY, maxX, maxY, w, h}` — the tight bounding box around all displays.
 - Negative coordinates are valid when a secondary display sits above or to the left of the primary. Apps must not assume `{0, 0}` is a valid upper-left.
 - When an app stores absolute positions (e.g., Sigil's in-memory `lastPosition`), those coordinates remain absolute across display-topology changes. On topology change, positions outside the new union are expected to clamp to the union edge (handled by the renderer today; see `apps/sigil/renderer/index.html:2906-2929`).
+- Child-canvas warning: a parent union canvas's desired global rect (`show list`,
+  lifecycle events, `track union`) is not always the same as the parent's actual
+  on-screen AppKit origin for mixed-DPI spanning windows. Code that wants a
+  child canvas to sit visually on top of content inside a union parent must use
+  parent-local placement (`frame_local`) and let the daemon map that through
+  the parent's real window frame. Raw global child `frame` placement is only
+  safe when the child should target world coordinates independently of the
+  parent's rendered transform.
 
 ### Lifecycle
 

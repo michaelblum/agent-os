@@ -8,7 +8,7 @@ function frameFor(center, size) {
     ];
 }
 
-export function createHitTargetController({ runtime, url, size = 80, idPrefix = 'sigil-hit' }) {
+export function createHitTargetController({ runtime, url, size = 80, idPrefix = 'sigil-hit', parentId = null }) {
     const hit = {
         id: `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`,
         ready: false,
@@ -24,10 +24,12 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
             await runtime.canvasCreate({
                 id: hit.id,
                 url,
-                frame: [-1000, -1000, hit.size, hit.size],
-                interactive: false,
+                frame_local: [-1000, -1000, hit.size, hit.size],
+                parent: parentId,
+                interactive: true,
             });
             hit.ready = true;
+            hit.interactive = true;
             return hit.id;
         } finally {
             hit.creating = false;
@@ -39,7 +41,7 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
         const nextInteractive = !!interactive;
         const update = {
             id: hit.id,
-            frame: frameFor(center, hit.size),
+            frame_local: frameFor(center, hit.size),
         };
         if (nextInteractive !== hit.interactive) {
             update.interactive = nextInteractive;

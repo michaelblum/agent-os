@@ -11,6 +11,7 @@ const BASE_TITLE = 'Log'
 
 export default function LogConsole() {
   let entriesEl = null
+  let dragDebugEl = null
   let host = null
 
   function ts() {
@@ -40,11 +41,17 @@ export default function LogConsole() {
     }
   }
 
+  function setDragDebug(text, active = false) {
+    if (!dragDebugEl) return
+    dragDebugEl.textContent = text
+    dragDebugEl.dataset.active = active ? 'true' : 'false'
+  }
+
   return {
     manifest: {
       name: 'log-console',
       title: BASE_TITLE,
-      accepts: ['append', 'clear'],
+      accepts: ['append', 'clear', 'drag.telemetry', 'drag.started', 'drag.ended'],
       emits: [],
       channelPrefix: 'log',
       defaultSize: { w: 450, h: 300 },
@@ -52,12 +59,41 @@ export default function LogConsole() {
 
     render(host_) {
       host = host_
+      const root = document.createElement('div')
+      root.id = 'log-console-root'
+      dragDebugEl = document.createElement('div')
+      dragDebugEl.id = 'drag-debug'
+      setDragDebug('drag idle', false)
       entriesEl = document.createElement('div')
       entriesEl.id = 'entries'
-      return entriesEl
+      root.appendChild(dragDebugEl)
+      root.appendChild(entriesEl)
+      return root
     },
 
     onMessage(msg) {
+      if (msg.type === 'drag.started') {
+        setDragDebug('drag active', true)
+        return
+      }
+
+      if (msg.type === 'drag.ended') {
+        setDragDebug('drag ended', false)
+        return
+      }
+
+      if (msg.type === 'drag.telemetry') {
+        const p = msg.payload || {}
+        const mouse = p.mouse || {}
+        const requested = p.requestedTopLeft || {}
+        const actual = p.actualTopLeft || {}
+        setDragDebug(
+          `mouse ${fmt(mouse.x)},${fmt(mouse.y)}  req ${fmt(requested.x)},${fmt(requested.y)}  tl ${fmt(actual.x)},${fmt(actual.y)}`,
+          true
+        )
+        return
+      }
+
       if (msg.type === 'append') {
         if (!entriesEl) return
         const p = msg.payload || {}
@@ -86,12 +122,13 @@ export default function LogConsole() {
         level: el.querySelector('.level')?.textContent || 'info',
         text: el.querySelector('.msg')?.textContent || '',
       }))
-      return { entries }
+      return { entries, dragDebug: dragDebugEl?.textContent || 'drag idle' }
     },
 
     restore(state, host_) {
       if (host_) host = host_
       if (!entriesEl || !state?.entries) return
+      setDragDebug(state.dragDebug || 'drag idle', false)
       entriesEl.innerHTML = ''
       for (const e of state.entries) {
         appendEntry({ ts: e.ts, level: e.level || 'info', text: e.text })
@@ -99,4 +136,9 @@ export default function LogConsole() {
       updateTitle()
     },
   }
+}
+
+function fmt(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '?'
+  return String(Math.round(value))
 }

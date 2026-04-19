@@ -30,6 +30,7 @@ Examples:
 - `bash tests/capture-parallel.sh`
 - `./aos runtime status --json`
 - `./aos show create ...`
+- `bash tests/sigil-status-item-lifecycle.sh`
 
 ## No `./aos` Rebuild Needed
 
@@ -87,10 +88,11 @@ Examples:
 - `bash tests/voice-bind.sh`
 - `bash tests/voice-final-response.sh`
 - `bash tests/voice-telemetry.sh`
-- `bash tests/final-response-hook.sh`
+- `bash tests/hook-config.sh`
 - `bash tests/config-surface.sh`
 - `bash tests/cli-error-log.sh`
 - `bash tests/sigil-avatar-interactions.sh`
+- `bash tests/sigil-status-item-lifecycle.sh`
 - `bash tests/sigil-workbench-studio-restage.sh`
 - `bash tests/sigil-workbench-launch.sh`
 
@@ -99,4 +101,8 @@ Examples:
 If an interrupted display/toolkit run leaves stale windows or extra non-launchd
 daemons behind, use:
 
+- `./aos status`
 - `./aos clean`
+
+Prefer `./aos status` as the first move. Use `./aos clean` when status reports
+stale resources or you need explicit cleanup.

@@ -1,12 +1,14 @@
 # Session Communication Layer — Implementation Plan
 
-> **Status note:** This plan started from a gateway/SQLite polling design. The shipped path now uses daemon-native `./aos tell` / `./aos listen`, canonical `session_id` direct inboxes, shared Claude/Codex startup + post-tool hooks, and hook-driven auto-registration. The detailed checkbox steps below are preserved as implementation archaeology and still contain gateway-era snippets; do not use them as the current contract.
+> **Status note:** Superseded. This plan documents the historical session-communication rollout, including startup registration, `PostToolUse` polling, and coordination helper scripts. That hook-driven workflow has been removed from the active Codex/Claude setup in agent-os. Preserve this file as implementation archaeology only; do not use it as the current contract.
+
+> **Current direction:** `aos tell` / `aos listen` remain available as manual / advanced tools, but the live harness stack uses only repo-local startup context and pre-tool safety hooks. See `docs/api/aos.md`, `ARCHITECTURE.md`, `.codex/hooks.json`, and `.claude/settings.json`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make cross-session handoff deterministic and enable parallel session coordination via daemon-native messaging.
+**Goal (historical):** Make cross-session handoff deterministic and enable parallel session coordination via daemon-native messaging.
 
-**Architecture:** Three layers — bootstrap file for reliable cold start, SessionStart hook for identity resolution + daemon registration, and a PostToolUse turn hook that polls `./aos listen` for thin inbound-message notifications.
+**Architecture (historical):** Three layers — bootstrap file for reliable cold start, SessionStart hook for identity resolution + daemon registration, and a PostToolUse turn hook that polls `./aos listen` for thin inbound-message notifications.
 
 **Tech Stack:** Bash (hooks), `./aos` CLI, Python3 (JSON parsing in hooks), existing `scripts/handoff` shell script, Claude Code + Codex hook systems.
 
@@ -15,6 +17,8 @@
 ---
 
 ## Current Shipped Snapshot
+
+> **Obsolete snapshot:** The bullets in this section describe the former hook-driven session-comm system, not the current live setup.
 
 - Canonical peer routing is `./aos tell --session-id <id> ...` plus `./aos listen --session-id <id>`.
 - Human-readable names are display metadata and legacy fallback aliases. The durable inbox/channel key is the canonical `session_id`.

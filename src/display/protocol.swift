@@ -58,6 +58,7 @@ struct CanvasRequest: Codable {
     let action: String          // "create", "update", "remove", "remove-all", "list", "ping", "eval", "subscribe", "post"
     var id: String?             // canvas ID (required for create/update/remove/post)
     var at: [CGFloat]?          // [x, y, w, h] in global CG coords (Y-down)
+    var frameLocal: [CGFloat]?  // [x, y, w, h] in parent canvas local coords (Y-down from parent top-left)
     var anchorWindow: Int?      // CGWindowID to track
     var anchorChannel: String?  // focus channel ID — reads channel file, sets anchorWindow from target.window_id
     var offset: [CGFloat]?      // [x, y, w, h] relative to anchored window (LCS)
@@ -75,6 +76,52 @@ struct CanvasRequest: Codable {
     var suspended: Bool?        // create hidden/suspended without showing a window first
     var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
+
+    init(
+        action: String,
+        id: String? = nil,
+        at: [CGFloat]? = nil,
+        frameLocal: [CGFloat]? = nil,
+        anchorWindow: Int? = nil,
+        anchorChannel: String? = nil,
+        offset: [CGFloat]? = nil,
+        html: String? = nil,
+        url: String? = nil,
+        interactive: Bool? = nil,
+        focus: Bool? = nil,
+        ttl: Double? = nil,
+        js: String? = nil,
+        scope: String? = nil,
+        autoProject: String? = nil,
+        track: String? = nil,
+        parent: String? = nil,
+        cascade: Bool? = nil,
+        suspended: Bool? = nil,
+        channel: String? = nil,
+        data: String? = nil
+    ) {
+        self.action = action
+        self.id = id
+        self.at = at
+        self.frameLocal = frameLocal
+        self.anchorWindow = anchorWindow
+        self.anchorChannel = anchorChannel
+        self.offset = offset
+        self.html = html
+        self.url = url
+        self.interactive = interactive
+        self.focus = focus
+        self.ttl = ttl
+        self.js = js
+        self.scope = scope
+        self.autoProject = autoProject
+        self.track = track
+        self.parent = parent
+        self.cascade = cascade
+        self.suspended = suspended
+        self.channel = channel
+        self.data = data
+    }
 }
 
 // MARK: - Response (Daemon → CLI)

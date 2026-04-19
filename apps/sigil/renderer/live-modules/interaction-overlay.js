@@ -41,6 +41,16 @@ export function createInteractionOverlay() {
         }
 
         if (snapshot.state === 'DRAG' && snapshot.dragOrigin) {
+            if (snapshot.pointerPos) {
+                ctx.beginPath();
+                ctx.setLineDash([4, 6]);
+                ctx.strokeStyle = 'rgba(255, 220, 240, 0.85)';
+                ctx.lineWidth = 2;
+                ctx.moveTo(snapshot.dragOrigin.x, snapshot.dragOrigin.y);
+                ctx.lineTo(snapshot.pointerPos.x, snapshot.pointerPos.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(255, 180, 220, 0.9)';
             ctx.lineWidth = 2;

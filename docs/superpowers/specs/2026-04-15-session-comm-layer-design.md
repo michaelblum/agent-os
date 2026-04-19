@@ -1,9 +1,13 @@
 # Session Communication Layer — Design Spec
 
 **Date:** 2026-04-15
-**Status:** Shipped in the shared session hooks and daemon-native `aos tell` / `aos listen` flow. The bootstrap launcher helper still emits a Claude-specific command, but the session identity and messaging contract is shared across Claude Code and Codex.
+**Status:** Superseded for live harness operation. This document describes the now-removed shared session-hook / cross-session communication workflow. As of 2026-04-17, agent-os no longer uses `PostToolUse` polling, session auto-registration hooks, stop-hook unregister flows, or helper scripts like `session-name` / `parallel-codex` as the default Codex/Claude contract. Keep this file as implementation history only. The live contract is the minimal repo-local hook setup plus the manual/advanced `aos tell` / `aos listen` surface described in `docs/api/aos.md` and `ARCHITECTURE.md`.
+
+> **Historical note:** The files and flows described below were removed from the active hook stack after the cross-session system proved noisy and failure-prone in real agent use.
 
 ## Current Shipped Snapshot
+
+> **Obsolete snapshot:** The bullets in this section describe the formerly shipped session-comm layer, not the current live setup.
 
 - Shared identity and routing helpers live in `.agents/hooks/session-common.sh`.
 - Startup registration and inbound-message polling are wired in both `.claude/settings.json` and `.codex/hooks.json`.

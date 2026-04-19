@@ -27,6 +27,7 @@ const hitTarget = createHitTargetController({
     runtime: host,
     url: 'aos://sigil/renderer/hit-area.html',
     size: state.avatarHitRadius * 2,
+    parentId: 'avatar-main',
 });
 
 const liveJs = {

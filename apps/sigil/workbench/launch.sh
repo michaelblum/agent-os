@@ -15,6 +15,30 @@ AVATAR_ID="${AVATAR_ID:-avatar-main}"
 
 # --- helpers ----------------------------------------------------------------
 
+now_ms() {
+  python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
+log_timing() {
+  local label="$1"
+  local started="$2"
+  local ended
+  ended="$(now_ms)"
+  echo "[sigil-launch] ${label}: $((ended - started))ms" >&2
+}
+
+run_timed() {
+  local label="$1"
+  shift
+  local started
+  started="$(now_ms)"
+  "$@"
+  log_timing "$label" "$started"
+}
+
 ensure_content_roots() {
   "$AOS" set content.roots.toolkit packages/toolkit >/dev/null
   "$AOS" set content.roots.sigil apps/sigil >/dev/null
@@ -86,14 +110,21 @@ bootstrap_tabs() {
 # --- main -------------------------------------------------------------------
 
 main() {
-  ensure_content_roots
-  "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
+  local launch_started
+  launch_started="$(now_ms)"
+  run_timed "ensure_content_roots" ensure_content_roots
+  run_timed "service_start" "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
+
+  local content_wait_started
+  content_wait_started="$(now_ms)"
   if ! "$AOS" content wait --root toolkit --root sigil --timeout 10s >/dev/null 2>&1; then
+    log_timing "content_wait_failed" "$content_wait_started"
     echo "The running daemon does not have live toolkit+sigil content roots." >&2
     echo "Restart the daemon to apply content.roots.toolkit and content.roots.sigil, then rerun launch.sh." >&2
     return 1
   fi
-  "$REPO_ROOT/apps/sigil/sigilctl-seed.sh" --mode "$MODE" >/dev/null
+  log_timing "content_wait" "$content_wait_started"
+  run_timed "seed_wiki" "$REPO_ROOT/apps/sigil/sigilctl-seed.sh" --mode "$MODE" >/dev/null
 
   "$AOS" show remove --id "$WORKBENCH_ID" >/dev/null 2>&1 || true
   "$AOS" show remove --id "$AVATAR_ID" >/dev/null 2>&1 || true
@@ -104,19 +135,27 @@ main() {
   frame="$(echo "$geometry" | head -1)"
   avatar_home="$(echo "$geometry" | tail -1)"
 
-  "$AOS" show create --id "$AVATAR_ID" \
+  run_timed "show_create_avatar" "$AOS" show create --id "$AVATAR_ID" \
     --url 'aos://sigil/renderer/index.html' --track union >/dev/null
 
-  "$AOS" show create --id "$WORKBENCH_ID" \
+  run_timed "show_create_workbench" "$AOS" show create --id "$WORKBENCH_ID" \
     --at "$frame" --interactive --focus \
     --url 'aos://sigil/workbench/index.html' >/dev/null
 
+  local avatar_wait_started
+  avatar_wait_started="$(now_ms)"
   "$AOS" show wait --id "$AVATAR_ID" --js 'typeof window.liveJs === "object"' --timeout 5s >/dev/null \
     || { echo "Avatar canvas did not finish mounting." >&2; return 1; }
+  log_timing "show_wait_avatar" "$avatar_wait_started"
+
+  local workbench_wait_started
+  workbench_wait_started="$(now_ms)"
   "$AOS" show wait --id "$WORKBENCH_ID" --js '!!document.querySelector(".surface-frame")' --timeout 5s >/dev/null \
     || { echo "Workbench canvas did not finish mounting." >&2; return 1; }
-  stage_avatar "$avatar_home"
-  bootstrap_tabs
+  log_timing "show_wait_workbench" "$workbench_wait_started"
+  run_timed "stage_avatar" stage_avatar "$avatar_home"
+  run_timed "bootstrap_tabs" bootstrap_tabs
+  log_timing "total" "$launch_started"
 
   echo "Sigil workbench launched."
   echo "  avatar:    $AVATAR_ID"

@@ -19,6 +19,18 @@ func serveCommand(args: [String]) {
     let daemon = UnifiedDaemon(config: config, idleTimeout: idleTimeout)
     daemon.start()
 
+    func ensurePersistentToggleCanvas(_ manager: StatusItemManager?) {
+        guard let manager, manager.usesPersistentCanvas, !manager.toggleUrl.isEmpty else { return }
+        guard !daemon.canvasManager.hasCanvas(manager.toggleId) else { return }
+        var req = CanvasRequest(action: "create")
+        req.id = manager.toggleId
+        req.url = manager.toggleUrl
+        req.interactive = false
+        if let track = manager.toggleTrack { req.track = track }
+        _ = daemon.canvasManager.handle(req)
+        manager.setPersistentVisible(false)
+    }
+
     // Accessory policy: no dock icon, no menu bar, but can own key windows
     // and receive mouse/keyboard events. Required for interactive canvases.
     //
@@ -38,6 +50,7 @@ func serveCommand(args: [String]) {
         mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
         mgr.setup()
         statusItem.manager = mgr
+        ensurePersistentToggleCanvas(mgr)
     }
 
     // Update status item icon when canvas count changes
@@ -45,6 +58,21 @@ func serveCommand(args: [String]) {
     daemon.canvasManager.onCanvasCountChanged = { [weak statusItem] in
         existingCallback?()
         statusItem?.manager?.updateIcon()
+    }
+
+    let existingCanvasEvent = daemon.canvasManager.onEvent
+    daemon.canvasManager.onEvent = { [weak statusItem] canvasID, payload in
+        existingCanvasEvent?(canvasID, payload)
+        guard let manager = statusItem?.manager,
+              canvasID == manager.toggleId,
+              let dict = payload as? [String: Any],
+              let type = dict["type"] as? String,
+              type == "status_item.state",
+              let inner = dict["payload"] as? [String: Any],
+              let visible = inner["visible"] as? Bool else { return }
+        DispatchQueue.main.async {
+            manager.setPersistentVisible(visible)
+        }
     }
 
     // Route canvas-provided menu items to status item
@@ -63,12 +91,14 @@ func serveCommand(args: [String]) {
             if let siConfig = newConfig.status_item, siConfig.enabled {
                 if let mgr = statusItem.manager {
                     mgr.updateConfig(siConfig)
+                    ensurePersistentToggleCanvas(mgr)
                 } else {
                     let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
                     mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
                     mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
                     mgr.setup()
                     statusItem.manager = mgr
+                    ensurePersistentToggleCanvas(mgr)
                 }
             } else {
                 statusItem.manager?.teardown()

@@ -196,6 +196,7 @@ class UnifiedDaemon {
 
             let data: [String: Any] = ["id": canvasID, "payload": payload]
             self.broadcastEvent(service: "display", event: "canvas_message", data: data)
+            self.forwardCanvasMessageToCanvases(data: data)
         }
 
         canvasManager.onCanvasLifecycle = { [weak self] canvasID, action, at in
@@ -420,7 +421,9 @@ class UnifiedDaemon {
         guard !targets.isEmpty else { return }
 
         for canvasID in targets {
-            canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
+            var payload = data
+            payload["type"] = "input_event"
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: payload)
         }
     }
 
@@ -458,6 +461,23 @@ class UnifiedDaemon {
         guard !targets.isEmpty else { return }
 
         var msg: [String: Any] = ["type": "canvas_lifecycle"]
+        for (k, v) in data { msg[k] = v }
+
+        for canvasID in targets {
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        }
+    }
+
+    private func forwardCanvasMessageToCanvases(data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("canvas_message") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        var msg: [String: Any] = ["type": "canvas_message"]
         for (k, v) in data { msg[k] = v }
 
         for canvasID in targets {
@@ -557,6 +577,7 @@ class UnifiedDaemon {
 
     private func canvasMutationPermitted(callerID: String, targetID: String) -> Bool {
         if targetID == callerID { return true }
+        if callerID == "canvas-inspector" { return true }
         canvasSubscriptionLock.lock()
         defer { canvasSubscriptionLock.unlock() }
         if let owner = canvasCreatedBy[targetID] { return owner == callerID }
@@ -576,13 +597,16 @@ class UnifiedDaemon {
                 status: "error", code: "MISSING_URL", message: "canvas.create requires url")
             return
         }
-        guard let frameArr = payload["frame"] as? [Any], frameArr.count == 4 else {
+        let frameArr = payload["frame"] as? [Any]
+        let frameLocalArr = payload["frame_local"] as? [Any]
+        guard (frameArr?.count == 4) || (frameLocalArr?.count == 4) else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
+                status: "error", code: "INVALID_FRAME", message: "frame or frame_local must be [x,y,w,h]")
             return
         }
-        let at: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-        guard at.count == 4 else {
+        let at: [CGFloat]? = frameArr?.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        let frameLocal: [CGFloat]? = frameLocalArr?.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard (at == nil || at?.count == 4), (frameLocal == nil || frameLocal?.count == 4) else {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "INVALID_FRAME", message: "frame values must be numeric")
             return
@@ -595,6 +619,7 @@ class UnifiedDaemon {
             action: "create",
             id: newID,
             at: at,
+            frameLocal: frameLocal,
             anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: resolvedURL,
             interactive: interactive,
@@ -650,9 +675,14 @@ class UnifiedDaemon {
             let parsed: [CGFloat] = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
             if parsed.count == 4 { at = parsed }
         }
+        var frameLocal: [CGFloat]? = nil
+        if let arr = payload["frame_local"] as? [Any], arr.count == 4 {
+            let parsed: [CGFloat] = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+            if parsed.count == 4 { frameLocal = parsed }
+        }
         let interactive = payload["interactive"] as? Bool
 
-        guard at != nil || interactive != nil else {
+        guard at != nil || frameLocal != nil || interactive != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
             return
         }
@@ -661,6 +691,7 @@ class UnifiedDaemon {
             action: "update",
             id: targetID,
             at: at,
+            frameLocal: frameLocal,
             anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: nil,
             interactive: interactive,

@@ -200,7 +200,23 @@ await spawnChild({
   at: [100, 100, 320, 240],
   interactive: true,
 })
+
+// For children that must track a parent canvas's rendered space
+await spawnChild({
+  id: 'child-hit',
+  url: 'aos://sigil/renderer/hit-area.html',
+  frame_local: [100, 100, 128, 128],
+  parent: 'avatar-main',
+  interactive: true,
+})
 ```
+
+Notes:
+
+- `at` is global CG coordinates.
+- `frame_local` is parent-canvas local coordinates and is the safe choice for
+  child overlays inside union canvases or other surfaces whose actual on-screen
+  window transform may differ from the parent's desired global rect.
 
 ### `mutateSelf(opts)`
 

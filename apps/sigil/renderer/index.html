@@ -11,10 +11,7 @@
 </head>
 <body>
 <script type="module">
-    // Import the boot sequence from the new main module
-    import { boot } from './live-modules/main.js';
-    
-    // Module scripts are deferred by default (run after DOMContentLoaded)
+    import { boot } from './live-modules/persistent-stage.js';
     boot();
 </script>
 </body>
