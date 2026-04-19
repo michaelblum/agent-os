@@ -67,6 +67,18 @@ export function computeDisplayUnion(displays = []) {
     };
 }
 
+export function desktopPointToStageLocal(globalBounds = {}, point) {
+    const x = Number(point?.x);
+    const y = Number(point?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const originX = Number(globalBounds.minX ?? globalBounds.x ?? 0);
+    const originY = Number(globalBounds.minY ?? globalBounds.y ?? 0);
+    return {
+        x: x - originX,
+        y: y - originY,
+    };
+}
+
 export function findDisplayForPoint(displays = [], x, y) {
     const list = normalizeDisplays(displays);
     let best = null;

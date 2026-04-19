@@ -44,13 +44,44 @@ func mainDisplayHeight() -> CGFloat {
     getDisplays().first(where: \.isMain)?.bounds.height ?? 0
 }
 
+/// Convert AOS global coordinates (top-left of the primary display, Y-down)
+/// into AppKit global screen coordinates (bottom-left of the primary display,
+/// Y-up). This is the canonical point transform for display/window placement.
+func cgPointToScreen(_ point: CGPoint) -> NSPoint {
+    let primaryHeight = mainDisplayHeight()
+    guard primaryHeight > 0 else {
+        return NSPoint(x: point.x, y: point.y)
+    }
+    return NSPoint(x: point.x, y: primaryHeight - point.y)
+}
+
+/// Convert AppKit global screen coordinates back into AOS global coordinates.
+func screenPointToCG(_ point: NSPoint) -> CGPoint {
+    let primaryHeight = mainDisplayHeight()
+    guard primaryHeight > 0 else {
+        return CGPoint(x: point.x, y: point.y)
+    }
+    return CGPoint(x: point.x, y: primaryHeight - point.y)
+}
+
+/// Convert an AOS global rect into an AppKit global screen rect.
+func cgToScreen(_ cgRect: CGRect) -> NSRect {
+    let bottomLeft = cgPointToScreen(
+        CGPoint(x: cgRect.origin.x, y: cgRect.origin.y + cgRect.size.height)
+    )
+    return NSRect(origin: bottomLeft, size: cgRect.size)
+}
+
+/// Convert an AppKit global screen rect back into an AOS global rect.
+func screenToCG(_ nsRect: NSRect) -> CGRect {
+    let topLeft = screenPointToCG(
+        NSPoint(x: nsRect.origin.x, y: nsRect.origin.y + nsRect.size.height)
+    )
+    return CGRect(origin: topLeft, size: nsRect.size)
+}
+
 /// Convert AppKit mouse coordinates (bottom-left origin on the primary display)
 /// into the shared AOS global coordinate space (top-left origin on the primary display).
 func mouseInCGCoords() -> CGPoint {
-    let mouse = NSEvent.mouseLocation
-    let primaryHeight = mainDisplayHeight()
-    guard primaryHeight > 0 else {
-        return CGPoint(x: mouse.x, y: mouse.y)
-    }
-    return CGPoint(x: mouse.x, y: primaryHeight - mouse.y)
+    screenPointToCG(NSEvent.mouseLocation)
 }

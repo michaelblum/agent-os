@@ -96,66 +96,12 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - Coordinate Conversion
 
-/// Convert AOS global coordinates (top-left of the primary display, Y-down)
-/// to AppKit global screen coordinates (bottom-left of the primary display, Y-up).
-func cgToScreen(_ cgRect: CGRect) -> NSRect {
-    let primaryHeight = mainDisplayHeight()
-    guard primaryHeight > 0 else {
-        return NSRect(
-            x: cgRect.origin.x,
-            y: cgRect.origin.y,
-            width: cgRect.size.width,
-            height: cgRect.size.height
-        )
-    }
-    return NSRect(
-        x: cgRect.origin.x,
-        y: primaryHeight - cgRect.origin.y - cgRect.size.height,
-        width: cgRect.size.width,
-        height: cgRect.size.height
-    )
-}
-
-/// Convert AppKit global screen coordinates back to AOS global coordinates.
-func screenToCG(_ nsRect: NSRect) -> CGRect {
-    let primaryHeight = mainDisplayHeight()
-    guard primaryHeight > 0 else {
-        return CGRect(
-            x: nsRect.origin.x,
-            y: nsRect.origin.y,
-            width: nsRect.size.width,
-            height: nsRect.size.height
-        )
-    }
-    return CGRect(
-        x: nsRect.origin.x,
-        y: primaryHeight - nsRect.origin.y - nsRect.size.height,
-        width: nsRect.size.width,
-        height: nsRect.size.height
-    )
-}
-
-/// AppKit appears to apply the primary display backing scale to the origin of
-/// a single NSWindow that spans mixed-DPI displays. Explicit single-display
-/// canvases do not show this drift, so only compensate mixed-scale spanning
-/// rects here and keep sizes in the shared AOS point space.
+/// Canonical canvas placement frame in AppKit screen coordinates.
+/// We intentionally avoid any mixed-DPI origin scaling here: the shared AOS
+/// coordinate space already uses logical points, and extra compensation causes
+/// canvases to "pop" when they start spanning displays.
 func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
-    var screenFrame = cgToScreen(cgRect)
-    let displays = getDisplays()
-    let intersecting = displays.filter { display in
-        let intersection = cgRect.intersection(display.bounds)
-        return !intersection.isNull && intersection.width > 0 && intersection.height > 0
-    }
-    let scaleSet = Set(intersecting.map(\.scaleFactor))
-    guard intersecting.count > 1,
-          scaleSet.count > 1,
-          let primaryScale = displays.first(where: \.isMain)?.scaleFactor,
-          primaryScale > 1 else {
-        return screenFrame
-    }
-    screenFrame.origin.x /= primaryScale
-    screenFrame.origin.y /= primaryScale
-    return screenFrame
+    cgToScreen(cgRect)
 }
 
 // MARK: - CanvasWindow (unconstrained NSWindow)

@@ -18,6 +18,7 @@ import { createHitTargetController } from './hit-target.js';
 import {
     clampPointToDisplays,
     computeDisplayUnion,
+    desktopPointToStageLocal,
     normalizeDisplays,
 } from './display-utils.js';
 import { startFastTravel, tickFastTravel } from './fast-travel.js';
@@ -109,11 +110,21 @@ function scheduleRenderFrame() {
     renderLoop.schedule(animate);
 }
 
+function stagePoint(point) {
+    const local = desktopPointToStageLocal(liveJs.globalBounds, point);
+    if (!local) return null;
+    return {
+        ...local,
+        valid: point?.valid ?? true,
+    };
+}
+
 function projectAvatarToScene(screenX, screenY) {
+    const local = desktopPointToStageLocal(liveJs.globalBounds, { x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
     const vec = new THREE.Vector3();
     vec.set(
-        (screenX / window.innerWidth) * 2 - 1,
-        -(screenY / window.innerHeight) * 2 + 1,
+        (local.x / window.innerWidth) * 2 - 1,
+        -(local.y / window.innerHeight) * 2 + 1,
         0.5
     );
     vec.unproject(state.perspCamera);
@@ -607,6 +618,7 @@ function animate() {
     state.globalTime += dt;
 
     if (liveJs.avatarPos.valid) {
+        const avatarStagePos = stagePoint(liveJs.avatarPos);
         const projected = projectAvatarToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
@@ -615,6 +627,10 @@ function animate() {
                 x: Math.round(liveJs.avatarPos.x),
                 y: Math.round(liveJs.avatarPos.y),
             },
+            stage_local: avatarStagePos ? {
+                x: Math.round(avatarStagePos.x),
+                y: Math.round(avatarStagePos.y),
+            } : null,
             globalBounds: liveJs.globalBounds,
         };
     }
@@ -670,10 +686,12 @@ function animate() {
             ready: hitTarget.hit.ready,
         };
     }
+    const avatarStagePos = stagePoint(liveJs.avatarPos);
+    const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
     overlay.draw({
         state: liveJs.currentState,
-        avatarPos: liveJs.avatarPos,
-        dragOrigin: liveJs.mousedownAvatarPos,
+        avatarPos: avatarStagePos,
+        dragOrigin: dragOriginStage,
         pointerPos: liveJs.pointerPos,
         gotoRingRadius: liveJs.gotoRingRadius,
         menuRingRadius: liveJs.menuRingRadius,

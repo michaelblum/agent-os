@@ -27,6 +27,13 @@
   border-radius: 2px;
   background: rgba(30, 30, 50, 0.4);
 }
+.minimap-display-visible {
+  position: absolute;
+  box-sizing: border-box;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(70, 80, 110, 0.18);
+}
 /* Minimap object marks (canvas_object.marks). Logical w/h in minimap px,
  * independent of display scale — stable visual size as the minimap resizes. */
 .minimap-mark {
@@ -52,6 +59,18 @@
   pointer-events: none;
 }
 .minimap-canvas.tinted { opacity: 0.85; }
+.minimap-cursor {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin-left: -3px;
+  margin-top: -3px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(20, 20, 28, 0.9);
+  box-shadow: 0 0 0 2px rgba(88, 196, 255, 0.35);
+  pointer-events: none;
+}
 
 /* Canvas tree (location + canvas + mark rows). Indentation is applied inline
  * per depth level from the inspector's renderTreeNode. */
