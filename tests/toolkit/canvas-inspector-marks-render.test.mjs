@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMarkLayers, renderMinimapMark } from '../../packages/toolkit/components/canvas-inspector/marks/render.js';
+import { buildMarkLayers, renderMinimapMark, renderMarkListRow } from '../../packages/toolkit/components/canvas-inspector/marks/render.js';
 
 const mark = (extra = {}) => ({
   id: 'a',
@@ -86,6 +86,28 @@ test('renderMinimapMark escapes id and name', () => {
   const svg = renderMinimapMark(mark({ id: 'x"<y', name: '<b>bold</b>' }), { x: 0, y: 0 });
   assert.match(svg, /data-mark-id="x&quot;&lt;y"/);
   assert.match(svg, /<title>&lt;b&gt;bold&lt;\/b&gt;<\/title>/);
+});
+
+test('renderMarkListRow emits name only by default (no coords, no swatch, no buttons)', () => {
+  const html = renderMarkListRow(mark({ id: 'avatar', name: 'Avatar' }));
+  assert.match(html, /class="mark-row"/);
+  assert.match(html, /data-mark-id="avatar"/);
+  assert.match(html, /<span class="mark-name">Avatar<\/span>/);
+  assert.doesNotMatch(html, /mark-coords/);
+  assert.doesNotMatch(html, /<button/);
+  assert.doesNotMatch(html, /swatch/);
+  assert.doesNotMatch(html, /<img/);
+});
+
+test('renderMarkListRow includes coords when showCoords is true', () => {
+  const html = renderMarkListRow(mark({ x: 120.7, y: 240.3 }), { showCoords: true });
+  assert.match(html, /<span class="mark-coords">121,240<\/span>/);
+});
+
+test('renderMarkListRow escapes id and name', () => {
+  const html = renderMarkListRow(mark({ id: 'x"<y', name: '<b>x</b>' }));
+  assert.match(html, /data-mark-id="x&quot;&lt;y"/);
+  assert.match(html, /<span class="mark-name">&lt;b&gt;x&lt;\/b&gt;<\/span>/);
 });
 
 test('renderMinimapMark rounds position to integers', () => {

@@ -57,6 +57,20 @@ export function buildMarkLayers(mark) {
   return layers.join('');
 }
 
+// Render an indented text-only list row for a mark. No swatch, no thumbnail,
+// no action buttons — per the object-marks pivot.
+export function renderMarkListRow(mark, { showCoords = false } = {}) {
+  const coords = showCoords
+    ? `<span class="mark-coords">${Math.round(mark.x)},${Math.round(mark.y)}</span>`
+    : '';
+  return (
+    `<div class="mark-row" data-mark-id="${escAttr(mark.id)}">`
+    + `<span class="mark-name">${escText(mark.name)}</span>`
+    + coords
+    + `</div>`
+  );
+}
+
 // Render a minimap-placed mark as a positioned SVG element.
 // `projected` is the center point from projectPointToMinimap.
 export function renderMinimapMark(mark, projected) {
