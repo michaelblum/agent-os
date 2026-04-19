@@ -85,7 +85,7 @@ export function computeInspectorTree({
     return (a?.bounds?.x ?? 0) - (b?.bounds?.x ?? 0);
   });
 
-  // First non-main display is "extended"; additional get numbered from 2.
+  // Non-main displays are labeled `extended [n]` in spatial order.
   let extendedCount = 0;
   const labeled = sortedDisplays.map(d => {
     const isMain = Boolean(d.is_main);
@@ -94,7 +94,7 @@ export function computeInspectorTree({
       label = 'main';
     } else {
       extendedCount++;
-      label = extendedCount === 1 ? 'extended' : `extended ${extendedCount}`;
+      label = `extended [${extendedCount}]`;
     }
     return { display: d, label, isMain };
   });

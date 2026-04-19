@@ -79,6 +79,7 @@ Examples:
 - `bash tests/capture-canvas-surface.sh`
 - `bash tests/capture-union-canvas-surface.sh`
 - `bash tests/capture-parallel.sh`
+- `bash tests/spatial-telemetry-smoke.sh`
 - `bash tests/canvas-inspector-move-abs.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 - `bash tests/canvas-inspector-tint.sh`
@@ -100,3 +101,17 @@ If an interrupted display/toolkit run leaves stale windows or extra non-launchd
 daemons behind, use:
 
 - `./aos clean`
+
+## Manual Display-Debug Battery
+
+For live multi-display coordinate work, launch the standard debug pair:
+
+- `bash tests/display-debug-battery.sh`
+
+That brings up:
+
+- `canvas-inspector`
+- `spatial-telemetry`
+
+Use them together when checking union bounds, per-display-local translation,
+cursor placement, and `canvas_object.marks`.

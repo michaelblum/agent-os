@@ -1,0 +1,138 @@
+/* spatial-telemetry — live coordinate grids + event log for multi-display work. */
+
+.spatial-telemetry-root,
+.spatial-telemetry-body {
+  height: 100%;
+  min-height: 0;
+}
+
+.spatial-telemetry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow: auto;
+}
+
+.telemetry-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: rgba(12, 14, 22, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.union-summary {
+  color: var(--text-header);
+  font-size: var(--font-size-small);
+}
+
+.pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.telemetry-section {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(12, 14, 22, 0.7);
+}
+
+.telemetry-section h3 {
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-header);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.telemetry-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+
+.telemetry-table th,
+.telemetry-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  text-align: left;
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.telemetry-table th:last-child,
+.telemetry-table td:last-child {
+  border-right: none;
+}
+
+.telemetry-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(20, 24, 34, 0.96);
+  color: var(--text-header);
+  font-size: 10px;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.telemetry-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.event-log {
+  max-height: 180px;
+  overflow: auto;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 62px 140px 1fr;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+
+.event-row:last-child {
+  border-bottom: none;
+}
+
+.event-ts,
+.event-type {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.event-summary {
+  color: var(--text-secondary);
+}
+
+.empty-state {
+  padding: 12px 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}

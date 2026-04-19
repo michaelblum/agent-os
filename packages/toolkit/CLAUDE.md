@@ -44,6 +44,8 @@ components/             Layer 2 — reusable Content units
   _base/                  shared theme.css tokens/reset (legacy AosComponent retired)
   canvas-inspector/       live canvas list + lifecycle subscription
     styles.css              canonical component styles (link, don't copy)
+  spatial-telemetry/      live coordinate grid + event log for display/canvas/mark debugging
+    styles.css              canonical component styles (link, don't copy)
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
     styles.css              canonical component styles (link, don't copy)
   log-console/            scrolling timestamped log (driven by `aos log push`)

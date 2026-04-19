@@ -31,7 +31,7 @@ test('single display becomes the top-level node (no union wrapper)', () => {
   assert.deepEqual(tree.children, []);
 });
 
-test('multi-display synthesizes a union root with main + extended + extended N', () => {
+test('multi-display synthesizes a union root with main + extended [n]', () => {
   const tree = computeInspectorTree({
     displays: [
       display('d1', { is_main: true }),
@@ -43,15 +43,15 @@ test('multi-display synthesizes a union root with main + extended + extended N',
   assert.equal(tree.type, 'union');
   assert.equal(tree.label, 'union');
   assert.equal(tree.children.length, 3);
-  assert.deepEqual(tree.children.map(c => c.label), ['main', 'extended', 'extended 2']);
+  assert.deepEqual(tree.children.map(c => c.label), ['main', 'extended [1]', 'extended [2]']);
 });
 
-test('single extended display drops the ordinal; multiple extended start at 2', () => {
+test('non-main displays always use bracketed ordinals', () => {
   const two = computeInspectorTree({
     displays: [display('d1', { is_main: true }), display('d2', { x: 1920 })],
     canvases: [],
   });
-  assert.deepEqual(two.children.map(c => c.label), ['main', 'extended']);
+  assert.deepEqual(two.children.map(c => c.label), ['main', 'extended [1]']);
 
   const three = computeInspectorTree({
     displays: [
@@ -61,7 +61,7 @@ test('single extended display drops the ordinal; multiple extended start at 2', 
     ],
     canvases: [],
   });
-  assert.deepEqual(three.children.map(c => c.label), ['main', 'extended', 'extended 2']);
+  assert.deepEqual(three.children.map(c => c.label), ['main', 'extended [1]', 'extended [2]']);
 });
 
 test('multi-display with no main display labels the first as extended, rest numbered', () => {
@@ -69,7 +69,7 @@ test('multi-display with no main display labels the first as extended, rest numb
     displays: [display('d1'), display('d2', { x: 1920 })],
     canvases: [],
   });
-  assert.deepEqual(tree.children.map(c => c.label), ['extended', 'extended 2']);
+  assert.deepEqual(tree.children.map(c => c.label), ['extended [1]', 'extended [2]']);
 });
 
 test('displays are ordered top-to-bottom, then left-to-right', () => {
@@ -84,7 +84,7 @@ test('displays are ordered top-to-bottom, then left-to-right', () => {
   });
   assert.equal(tree.type, 'union');
   assert.deepEqual(tree.children.map(c => c.display.id), ['tl', 'tr', 'bl', 'br']);
-  assert.deepEqual(tree.children.map(c => c.label), ['main', 'extended', 'extended 2', 'extended 3']);
+  assert.deepEqual(tree.children.map(c => c.label), ['main', 'extended [1]', 'extended [2]', 'extended [3]']);
 });
 
 test('canvas fully contained in a display nests under that display', () => {
@@ -202,7 +202,7 @@ test('matches pivot example: multi-display with union-tracked canvas + its mark'
   assert.equal(tree.type, 'union');
   const main = tree.children.find(c => c.label === 'main');
   assert.deepEqual(main.children.map(c => c.id), ['canvas-inspector', 'other-main-canvas']);
-  const ext = tree.children.find(c => c.label === 'extended');
+  const ext = tree.children.find(c => c.label === 'extended [1]');
   assert.deepEqual(ext.children.map(c => c.id), ['sidecar-canvas']);
   const avatar = tree.children.find(c => c.id === 'avatar-main');
   assert.ok(avatar);

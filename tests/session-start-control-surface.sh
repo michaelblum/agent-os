@@ -40,8 +40,23 @@ OUTPUT="$(AOS_SESSION_NAME="session-start-control-surface-$$" bash "$ROOT/.agent
   exit 1
 }
 
+[[ "$OUTPUT" == *'The session-start hook already attempts daemon bring-up; check `./aos status` before manual restart loops.'* ]] || {
+  echo "FAIL: startup hook missing runtime automation guidance" >&2
+  exit 1
+}
+
 [[ "$OUTPUT" == *'Use `./aos introspect review` after failed attempts or when asked to self-review.'* ]] || {
   echo "FAIL: startup hook missing introspection guidance" >&2
+  exit 1
+}
+
+[[ "$OUTPUT" == *'Use `gh` for issue/PR comments and updates in this repo; the GitHub app frequently 403s with `Resource not accessible by integration`.'* ]] || {
+  echo "FAIL: startup hook missing gh fallback guidance" >&2
+  exit 1
+}
+
+[[ "$OUTPUT" == *'For multi-display or coordinate work, launch `bash tests/display-debug-battery.sh` to get `canvas-inspector` + `spatial-telemetry` immediately.'* ]] || {
+  echo "FAIL: startup hook missing display-debug battery guidance" >&2
   exit 1
 }
 

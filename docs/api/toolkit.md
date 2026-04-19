@@ -49,6 +49,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
 - `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector
+- `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 
 `wiki-kb` accepts a graph snapshot on `wiki-kb/graph` (and tolerates raw
@@ -187,6 +188,44 @@ Emit patterns:
 Subscribe side is handled for you — the canvas-inspector subscribes to
 `canvas_object.marks` via its manifest. Any canvas that subscribes will
 receive the daemon's fan-out.
+
+### Spatial Telemetry
+
+`spatial-telemetry` is the permanent coordinate-debug surface for multi-display
+work. It subscribes to the same live streams the inspector uses:
+
+- `display_geometry`
+- `canvas_lifecycle`
+- `input_event`
+- `canvas_object.marks`
+
+It renders live tables for:
+
+- union bounds
+- per-display bounds + visible bounds
+- canvas rects in global, union-local, and per-display-local coordinates
+- mark points in global, union-local, canvas-local, and per-display-local coordinates
+- cursor position in global, union-local, and per-display-local coordinates
+- a rolling event log so geometry changes can be correlated with the raw event stream
+
+Default launcher:
+
+```bash
+bash packages/toolkit/components/spatial-telemetry/launch.sh
+```
+
+Standard display-debug battery:
+
+```bash
+bash tests/display-debug-battery.sh
+```
+
+Machine-readable state is exposed for agents via:
+
+```bash
+./aos show eval --id spatial-telemetry \
+  --js 'JSON.stringify(window.__spatialTelemetryState?.snapshot)'
+```
 
 ## Runtime API
 
