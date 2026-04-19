@@ -77,10 +77,25 @@ export function computeInspectorTree({
     return { type: 'empty', id: null, label: '', children: [] };
   }
 
+  // Spatial ordering: top-to-bottom (y ascending), then left-to-right (x).
+  const sortedDisplays = [...displays].sort((a, b) => {
+    const ay = a?.bounds?.y ?? 0;
+    const by = b?.bounds?.y ?? 0;
+    if (ay !== by) return ay - by;
+    return (a?.bounds?.x ?? 0) - (b?.bounds?.x ?? 0);
+  });
+
+  // First non-main display is "extended"; additional get numbered from 2.
   let extendedCount = 0;
-  const labeled = displays.map(d => {
+  const labeled = sortedDisplays.map(d => {
     const isMain = Boolean(d.is_main);
-    const label = isMain ? 'main' : `extended [${++extendedCount}]`;
+    let label;
+    if (isMain) {
+      label = 'main';
+    } else {
+      extendedCount++;
+      label = extendedCount === 1 ? 'extended' : `extended ${extendedCount}`;
+    }
     return { display: d, label, isMain };
   });
 
