@@ -62,7 +62,13 @@ export async function runSpatialAudit(root = repoRoot) {
     const ext = path.extname(relPath);
     if (!FUNCTION_PATTERNS[ext]) continue;
     const absPath = path.join(root, relPath);
-    const source = await fs.readFile(absPath, 'utf8');
+    let source;
+    try {
+      source = await fs.readFile(absPath, 'utf8');
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      throw error;
+    }
     const found = collectMatches(source, ext, wanted);
     for (const helper of found) {
       if (!definitions.has(helper)) definitions.set(helper, []);

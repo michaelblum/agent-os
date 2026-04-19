@@ -17,7 +17,7 @@ import { createHitTargetController } from './hit-target.js';
 import {
     clampPointToDisplays,
     computeDisplayUnion,
-    desktopPointToStageLocal,
+    globalToUnionLocalPoint,
     normalizeDisplays,
 } from './display-utils.js';
 import { startFastTravel, tickFastTravel } from './fast-travel.js';
@@ -106,7 +106,7 @@ function scheduleRenderFrame() {
 }
 
 function stagePoint(point) {
-    const local = desktopPointToStageLocal(liveJs.globalBounds, point);
+    const local = globalToUnionLocalPoint(point, liveJs.globalBounds);
     if (!local) return null;
     return {
         ...local,
@@ -115,7 +115,7 @@ function stagePoint(point) {
 }
 
 function projectAvatarToScene(screenX, screenY, yOffset = 0) {
-    const local = desktopPointToStageLocal(liveJs.globalBounds, { x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
+    const local = globalToUnionLocalPoint({ x: screenX, y: screenY }, liveJs.globalBounds) ?? { x: screenX, y: screenY };
     const vec = new THREE.Vector3();
     vec.set(
         (local.x / window.innerWidth) * 2 - 1,

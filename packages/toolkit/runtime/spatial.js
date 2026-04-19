@@ -1,8 +1,9 @@
 // spatial.js — canonical toolkit-side spatial helpers.
 //
 // This module owns desktop-global rect/point normalization and the common
-// geometry transforms reused by toolkit panels. App-specific spaces such as
-// Sigil's stage-local transforms still live in the app until they migrate.
+// geometry transforms reused by toolkit panels and app consumers. App-specific
+// spaces such as Sigil's final 3D scene projection still live in the app, but
+// the global -> local rect/point transforms belong here.
 
 function asNumber(value) {
   const n = Number(value)
@@ -39,6 +40,18 @@ function distanceSquaredToRect(rect, point) {
   const cx = Math.max(rect.x, Math.min(point.x, rect.x + rect.w - 1))
   const cy = Math.max(rect.y, Math.min(point.y, rect.y + rect.h - 1))
   return ((point.x - cx) ** 2) + ((point.y - cy) ** 2)
+}
+
+function coerceOriginRect(originRect) {
+  if (!originRect) return null
+  if (Array.isArray(originRect)) return rectFromAt(originRect)
+  if (Array.isArray(originRect.atResolved)) return rectFromAt(originRect.atResolved)
+  if (Array.isArray(originRect.at)) return rectFromAt(originRect.at)
+  if (typeof originRect === 'object') {
+    const rect = normalizeRect(originRect)
+    if ([rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return rect
+  }
+  return null
 }
 
 export function rectFromAt(at) {
@@ -142,6 +155,24 @@ export function translateRect(rect, originRect) {
     w: rect.w,
     h: rect.h,
   }
+}
+
+export function globalToUnionLocalPoint(point, unionBounds) {
+  const originRect = coerceOriginRect(unionBounds)
+  if (!originRect) return null
+  return translatePoint(point, originRect)
+}
+
+export function globalToDisplayLocalPoint(point, display, { rectKey = 'visibleBounds' } = {}) {
+  const originRect = rectForDisplay(display, rectKey)
+  if (!originRect) return null
+  return translatePoint(point, originRect)
+}
+
+export function globalToCanvasLocalPoint(point, canvasOrRect) {
+  const originRect = coerceOriginRect(canvasOrRect)
+  if (!originRect) return null
+  return translatePoint(point, originRect)
 }
 
 export function displayContainsPoint(display, point, { rectKey = 'bounds' } = {}) {

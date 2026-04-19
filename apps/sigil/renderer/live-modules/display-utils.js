@@ -23,7 +23,7 @@ const {
     computeDisplayUnion: toolkitComputeDisplayUnion,
     findDisplayForPoint: toolkitFindDisplayForPoint,
     clampPointToDisplays: toolkitClampPointToDisplays,
-    translatePoint,
+    globalToUnionLocalPoint: toolkitGlobalToUnionLocalPoint,
 } = await import(TOOLKIT_SPATIAL_SPECIFIER);
 
 function visibleBoundsRect(display = {}) {
@@ -34,14 +34,7 @@ export { toolkitNormalizeDisplays as normalizeDisplays };
 export { toolkitComputeDisplayUnion as computeDisplayUnion };
 export { toolkitFindDisplayForPoint as findDisplayForPoint };
 export { toolkitClampPointToDisplays as clampPointToDisplays };
-
-export function desktopPointToStageLocal(globalBounds = {}, point) {
-    const translated = translatePoint(point, {
-        x: Number(globalBounds.minX ?? globalBounds.x ?? 0),
-        y: Number(globalBounds.minY ?? globalBounds.y ?? 0),
-    });
-    return translated;
-}
+export { toolkitGlobalToUnionLocalPoint as globalToUnionLocalPoint };
 
 export function computeWorkbenchFrame(displays = [], point, options = {}) {
     if (!point) return null;

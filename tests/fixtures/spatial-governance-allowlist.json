@@ -21,9 +21,6 @@
     "computeDisplayUnion": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
-    "desktopPointToStageLocal": {
-      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
-    },
     "findDisplayForPoint": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
@@ -37,6 +34,15 @@
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "translateRect": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "globalToUnionLocalPoint": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "globalToDisplayLocalPoint": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "globalToCanvasLocalPoint": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "projectPointToMinimap": {

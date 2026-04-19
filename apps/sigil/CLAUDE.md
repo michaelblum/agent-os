@@ -64,6 +64,10 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
 | `tests/` | Manual verification pages plus shell smokes for renderer boot, status-item lifecycle, workbench launch/restage, and avatar interactions. Manual pages launch via `./aos show create --url aos://sigil/tests/...`; shell tests live under repo `tests/`. |
 
+`renderer/live-modules/main.js` is the only active renderer entrypoint on `main`.
+The old `persistent-stage.js` path was retired; do not use it for new work,
+tests, or debug hooks.
+
 ## Canvas Model
 
 The renderer runs on a transparent passthrough canvas (typically launched with `--track union`). The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full display union with zero impact on user interaction until Sigil intentionally enables its child hit-target.

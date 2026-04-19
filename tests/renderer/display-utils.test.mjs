@@ -1,26 +1,56 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
 
-import { desktopPointToStageLocal } from '../../apps/sigil/renderer/live-modules/display-utils.js';
+import {
+  computeDisplayNonant,
+  computeWorkbenchFrame,
+  globalToUnionLocalPoint,
+  normalizeDisplays,
+} from '../../apps/sigil/renderer/live-modules/display-utils.js'
 
-test('desktopPointToStageLocal preserves points when stage origin is 0,0', () => {
+test('globalToUnionLocalPoint is re-exported through Sigil display-utils', () => {
   assert.deepEqual(
-    desktopPointToStageLocal({ x: 0, y: 0, w: 100, h: 100 }, { x: 42, y: 77 }),
-    { x: 42, y: 77 },
-  );
-});
-
-test('desktopPointToStageLocal subtracts the union origin from desktop-global points', () => {
-  assert.deepEqual(
-    desktopPointToStageLocal(
-      { x: -191, y: 0, w: 1920, h: 2062, minX: -191, minY: 0 },
+    globalToUnionLocalPoint(
       { x: 100, y: 540 },
+      { x: -191, y: 0, w: 1920, h: 2062, minX: -191, minY: 0 },
     ),
     { x: 291, y: 540 },
-  );
-});
+  )
+})
 
-test('desktopPointToStageLocal returns null for invalid points', () => {
-  assert.equal(desktopPointToStageLocal({ minX: 10, minY: 20 }, { x: NaN, y: 5 }), null);
-  assert.equal(desktopPointToStageLocal({ minX: 10, minY: 20 }, null), null);
-});
+test('computeWorkbenchFrame anchors the workbench to the active display visible bounds', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+
+  assert.deepEqual(
+    computeWorkbenchFrame(displays, { x: 400, y: 200 }),
+    [515, 53, 965, 863],
+  )
+})
+
+test('computeDisplayNonant resolves points inside the containing visible display', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'extended',
+      bounds: { x: -1920, y: 0, w: 1920, h: 1200 },
+      visible_bounds: { x: -1920, y: 0, w: 1920, h: 1160 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+
+  assert.deepEqual(
+    computeDisplayNonant(displays, { x: -400, y: 500 }, 'bottom-right'),
+    { x: -320, y: 966.6666666666667 },
+  )
+})

@@ -1,7 +1,7 @@
 # Spatial Runtime And Governance
 
 **Date:** 2026-04-19  
-**Status:** fix-forward plan  
+**Status:** in progress
 **Motivation:** recurring mixed-DPI / union / minimap / Sigil alignment regressions across Swift, toolkit, and app code
 
 ## Problem
@@ -88,6 +88,13 @@ Fresh sessions doing coordinate work must start with:
 
 ### Phase 2 — Canonical JS Spatial Runtime
 
+Status on `main`:
+
+- landed in `packages/toolkit/runtime/spatial.js`
+- toolkit consumers migrated
+- Sigil now consumes shared display normalization / union / clamp / ownership helpers
+- explicit global-to-local point helpers (`globalToUnionLocalPoint`, `globalToDisplayLocalPoint`, `globalToCanvasLocalPoint`) are the naming direction
+
 Create a shared JS runtime module that owns the common transforms instead of each surface rolling its own:
 
 - display normalization
@@ -126,6 +133,11 @@ Result:
 - telemetry and inspector consume the same geometry helpers
 
 ### Phase 4 — Sigil Migration
+
+Status on `main`:
+
+- active renderer path is `renderer/live-modules/main.js`
+- stale `persistent-stage.js` path has been retired to prevent fresh-session drift
 
 Migrate Sigil display/stage math to the same JS runtime or to a thin Sigil wrapper over it.
 
