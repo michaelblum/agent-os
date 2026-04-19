@@ -1,19 +1,31 @@
 import {
+  computeDesktopWorldBounds,
+  computeNativeDesktopBounds,
+  computeVisibleDesktopWorldBounds,
   computeUnionBounds,
+  nativeToDesktopWorldPoint,
+  nativeToDesktopWorldRect,
   labelDisplays,
   normalizeDisplays,
   ownerLabelForPoint,
   ownerLabelForRect,
   rectFromAt,
+  resolveCanvasFrames,
   translatePoint,
   translateRect,
 } from '../../runtime/spatial.js';
 
 export {
+  computeDesktopWorldBounds,
+  computeNativeDesktopBounds,
+  computeVisibleDesktopWorldBounds,
   computeUnionBounds,
   labelDisplays,
+  nativeToDesktopWorldPoint,
+  nativeToDesktopWorldRect,
   normalizeDisplays,
   rectFromAt,
+  resolveCanvasFrames,
   translatePoint,
   translateRect,
 } from '../../runtime/spatial.js';
@@ -47,32 +59,41 @@ export function buildSpatialTelemetrySnapshot({
   cursor = { valid: false },
   marksByCanvas = new Map(),
 } = {}) {
-  const labeledDisplays = labelDisplays(displays);
-  const union = computeUnionBounds(labeledDisplays);
+  const normalizedDisplays = normalizeDisplays(displays);
+  const labeledDisplays = labelDisplays(normalizedDisplays);
+  const desktopWorld = computeDesktopWorldBounds(labeledDisplays);
+  const visibleDesktopWorld = computeVisibleDesktopWorldBounds(labeledDisplays);
+  const nativeDesktopBounds = computeNativeDesktopBounds(labeledDisplays);
   const displayColumns = labeledDisplays.map(({ id, label, display }) => ({
     id,
     label,
     bounds: display.bounds,
   }));
-  const canvasById = new Map((canvases || []).map((canvas) => [canvas.id, canvas]));
+  const resolvedCanvases = resolveCanvasFrames(canvases || []).map((canvas) => ({
+    ...canvas,
+    worldRect: nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), nativeDesktopBounds),
+  }));
+  const canvasById = new Map(resolvedCanvases.map((canvas) => [canvas.id, canvas]));
 
   const displayRows = labeledDisplays.map(({ label, display }) => ({
     id: String(display.id),
     label,
     scale_factor: display.scale_factor,
     bounds: display.bounds,
-    boundsUnionLocal: union ? translateRect(display.bounds, union) : null,
+    boundsDesktopWorld: desktopWorld ? translateRect(display.bounds, desktopWorld) : null,
     visibleBounds: display.visibleBounds,
-    visibleUnionLocal: union ? translateRect(display.visibleBounds, union) : null,
+    visibleDesktopWorld: visibleDesktopWorld ? translateRect(display.visibleBounds, visibleDesktopWorld) : null,
+    nativeBounds: display.nativeBounds,
+    nativeVisibleBounds: display.nativeVisibleBounds,
   }));
 
-  const canvasRows = (canvases || []).map((canvas) => {
-    const globalRect = rectFromAt(canvas.at);
-    const parentRect = rectFromAt(canvas.parent ? canvasById.get(canvas.parent)?.at : null);
-    const parentLocal = globalRect && parentRect ? translateRect(globalRect, parentRect) : null;
+  const canvasRows = resolvedCanvases.map((canvas) => {
+    const worldRect = canvas.worldRect;
+    const parentRect = canvas.parent ? canvasById.get(canvas.parent)?.worldRect : null;
+    const parentLocal = worldRect && parentRect ? translateRect(worldRect, parentRect) : null;
     const perDisplay = Object.fromEntries(displayColumns.map((column) => [
       column.id,
-      globalRect ? translateRect(globalRect, column.bounds) : null,
+      worldRect ? translateRect(worldRect, column.bounds) : null,
     ]));
     return {
       id: canvas.id,
@@ -80,10 +101,10 @@ export function buildSpatialTelemetrySnapshot({
       track: canvas.track || null,
       interactive: Boolean(canvas.interactive),
       scope: canvas.scope || null,
-      globalRect,
-      unionLocal: union ? translateRect(globalRect, union) : null,
+      worldRect,
+      desktopWorldLocal: desktopWorld ? translateRect(worldRect, desktopWorld) : null,
       parentLocal,
-      owner: ownerLabelForRect(globalRect, labeledDisplays),
+      owner: ownerLabelForRect(worldRect, labeledDisplays),
       perDisplay,
     };
   });
@@ -91,7 +112,7 @@ export function buildSpatialTelemetrySnapshot({
   const markRows = [];
   for (const [canvasId, entry] of marksEntries(marksByCanvas)) {
     const ownerCanvas = canvasById.get(canvasId);
-    const canvasRect = rectFromAt(ownerCanvas?.at);
+    const canvasRect = ownerCanvas?.worldRect ?? null;
     for (const mark of entry?.marks || []) {
       const point = {
         x: asNumber(mark.x) ?? 0,
@@ -105,8 +126,8 @@ export function buildSpatialTelemetrySnapshot({
         canvasId,
         id: mark.id,
         name: mark.name || mark.id,
-        globalPoint: point,
-        unionLocal: union ? translatePoint(point, union) : null,
+        worldPoint: point,
+        desktopWorldLocal: desktopWorld ? translatePoint(point, desktopWorld) : null,
         canvasLocal: canvasRect ? translatePoint(point, canvasRect) : null,
         owner: ownerLabelForPoint(point, labeledDisplays),
         perDisplay,
@@ -114,14 +135,15 @@ export function buildSpatialTelemetrySnapshot({
     }
   }
 
-  const cursorPoint = cursor?.valid ? {
+  const rawCursorPoint = cursor?.valid ? {
     x: asNumber(cursor.x) ?? 0,
     y: asNumber(cursor.y) ?? 0,
   } : null;
+  const cursorPoint = rawCursorPoint ? nativeToDesktopWorldPoint(rawCursorPoint, nativeDesktopBounds) : null;
 
   const cursorRow = cursorPoint ? {
-    globalPoint: cursorPoint,
-    unionLocal: union ? translatePoint(cursorPoint, union) : null,
+    worldPoint: cursorPoint,
+    desktopWorldLocal: desktopWorld ? translatePoint(cursorPoint, desktopWorld) : null,
     owner: ownerLabelForPoint(cursorPoint, labeledDisplays),
     perDisplay: Object.fromEntries(displayColumns.map((column) => [
       column.id,
@@ -130,7 +152,9 @@ export function buildSpatialTelemetrySnapshot({
   } : null;
 
   return {
-    union,
+    desktopWorld,
+    visibleDesktopWorld,
+    nativeDesktopBounds,
     displayColumns,
     displayRows,
     canvasRows,

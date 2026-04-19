@@ -12,9 +12,12 @@ import { esc, emit } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import {
+  nativeToDesktopWorldPoint,
+  nativeToDesktopWorldRect,
   computeMinimapLayout,
   normalizeDisplays,
   projectPointToMinimap,
+  rectFromAt,
   resolveCanvasFrames,
 } from '../../runtime/spatial.js'
 import { normalizeMarks } from './marks/normalize.js'
@@ -24,9 +27,12 @@ import { renderMinimapMark } from './marks/render.js'
 import { computeInspectorTree } from './tree.js'
 
 export {
+  nativeToDesktopWorldPoint,
+  nativeToDesktopWorldRect,
   computeMinimapLayout,
   normalizeDisplays,
   projectPointToMinimap,
+  rectFromAt,
   resolveCanvasFrames,
 } from '../../runtime/spatial.js'
 
@@ -40,6 +46,11 @@ const TINT_COLORS = [
 ]
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
 const TREE_INDENT_PX = 12
+
+function rectToAt(rect) {
+  if (!rect) return null
+  return [rect.x, rect.y, rect.w, rect.h]
+}
 
 function buildTintEvalScript(color) {
   const colorLiteral = color == null ? 'null' : JSON.stringify(color)
@@ -156,7 +167,7 @@ export default function CanvasInspector() {
     if (canvases.length === 0 && marksState.marksByCanvas.size === 0 && displays.length === 0) {
       return '<div class="empty-state">Waiting for canvases\u2026</div>'
     }
-    const resolvedCanvases = resolveCanvasFrames(canvases)
+    const resolvedCanvases = normalizeCanvasesToDesktopWorld(canvases)
     const tree = computeInspectorTree({
       displays: normalizeDisplays(displays),
       canvases: resolvedCanvases,
@@ -266,6 +277,21 @@ export default function CanvasInspector() {
     }
   }
 
+  function normalizeCanvasesToDesktopWorld(list) {
+    const resolved = resolveCanvasFrames(list)
+    return resolved.map((canvas) => {
+      const worldResolved = nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), displays)
+      const worldAt = !canvas.parent
+        ? nativeToDesktopWorldRect(rectFromAt(canvas.at), displays)
+        : rectFromAt(canvas.at)
+      return {
+        ...canvas,
+        at: rectToAt(worldAt) ?? canvas.at,
+        atResolved: rectToAt(worldResolved) ?? canvas.atResolved,
+      }
+    })
+  }
+
   function applyLifecycle(data) {
     const { canvas_id, action, at } = data
     if (action === 'created' || action === 'updated') {
@@ -323,7 +349,8 @@ export default function CanvasInspector() {
         if (p.displays) displays = normalizeDisplays(p.displays)
         if (p.canvases) canvases = p.canvases
         if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
-          cursor = { x: p.cursor.x, y: p.cursor.y, valid: true }
+          cursor = nativeToDesktopWorldPoint({ x: p.cursor.x, y: p.cursor.y }, displays) || { x: p.cursor.x, y: p.cursor.y, valid: true }
+          cursor.valid = true
         }
         rerender()
         return
@@ -337,7 +364,8 @@ export default function CanvasInspector() {
       const input = normalizeCanvasInputMessage(msg)
       if (input) {
         if (typeof input.x === 'number' && typeof input.y === 'number') {
-          cursor = { x: input.x, y: input.y, valid: true }
+          cursor = nativeToDesktopWorldPoint({ x: input.x, y: input.y }, displays) || { x: input.x, y: input.y }
+          cursor.valid = true
           rerender()
         }
         return

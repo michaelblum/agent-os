@@ -11,8 +11,8 @@ import {
 test('globalToUnionLocalPoint is re-exported through Sigil display-utils', () => {
   assert.deepEqual(
     globalToUnionLocalPoint(
-      { x: 100, y: 540 },
-      { x: -191, y: 0, w: 1920, h: 2062, minX: -191, minY: 0 },
+      { x: 291, y: 540 },
+      { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0 },
     ),
     { x: 291, y: 540 },
   )
@@ -50,7 +50,7 @@ test('computeDisplayNonant resolves points inside the containing visible display
   ])
 
   assert.deepEqual(
-    computeDisplayNonant(displays, { x: -400, y: 500 }, 'bottom-right'),
-    { x: -320, y: 966.6666666666667 },
+    computeDisplayNonant(displays, { x: 400, y: 500 }, 'bottom-right'),
+    { x: 1600, y: 966.6666666666667 },
   )
 })

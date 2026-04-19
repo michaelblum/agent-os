@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildSpatialTelemetrySnapshot,
-  computeUnionBounds,
+  computeDesktopWorldBounds,
+  computeVisibleDesktopWorldBounds,
   labelDisplays,
   rectFromAt,
   translatePoint,
@@ -26,12 +27,19 @@ test('labelDisplays uses main + extended [n] naming in spatial order', () => {
   assert.deepEqual(labeled.map((entry) => entry.label), ['main', 'extended [1]', 'extended [2]']);
 });
 
-test('computeUnionBounds returns the global display union', () => {
-  const union = computeUnionBounds(labelDisplays([
+test('computeDesktopWorldBounds returns the canonical DesktopWorld union', () => {
+  const labeled = labelDisplays([
     display('main', { is_main: true, x: 0, y: 0, w: 1512, h: 982 }),
     display('ext', { x: -191, y: 982, w: 1920, h: 1080 }),
-  ]));
-  assert.deepEqual(union, { x: -191, y: 0, w: 1920, h: 2062 });
+  ]);
+  assert.deepEqual(
+    computeDesktopWorldBounds(labeled),
+    { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0, maxX: 1920, maxY: 2062 },
+  );
+  assert.deepEqual(
+    computeVisibleDesktopWorldBounds(labeled),
+    { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0, maxX: 1920, maxY: 2062 },
+  );
 });
 
 test('translate helpers preserve size and shift origin only', () => {
@@ -60,11 +68,15 @@ test('buildSpatialTelemetrySnapshot reports display/canvas/mark/cursor spaces', 
     ]),
   });
 
-  assert.deepEqual(snapshot.union, { x: -191, y: 0, w: 1920, h: 2062 });
+  assert.deepEqual(snapshot.desktopWorld, { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0, maxX: 1920, maxY: 2062 });
+  assert.deepEqual(snapshot.visibleDesktopWorld, { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0, maxX: 1920, maxY: 2062 });
+  assert.deepEqual(snapshot.nativeDesktopBounds, { x: -191, y: 0, w: 1920, h: 2062, minX: -191, minY: 0, maxX: 1729, maxY: 2062 });
   assert.equal(snapshot.canvasRows[0].owner, 'union');
-  assert.deepEqual(snapshot.canvasRows[1].parentLocal, { x: 1411, y: 784, w: 80, h: 80 });
+  assert.deepEqual(snapshot.canvasRows[1].worldRect, { x: 1602, y: 784, w: 80, h: 80 });
+  assert.deepEqual(snapshot.canvasRows[1].parentLocal, { x: 1602, y: 784, w: 80, h: 80 });
   assert.equal(snapshot.markRows[0].owner, 'main');
-  assert.deepEqual(snapshot.markRows[0].canvasLocal, { x: 1451, y: 824 });
+  assert.deepEqual(snapshot.markRows[0].worldPoint, { x: 1260, y: 824 });
+  assert.deepEqual(snapshot.markRows[0].canvasLocal, { x: 1260, y: 824 });
   assert.equal(snapshot.cursorRow.owner, 'extended [1]');
-  assert.deepEqual(snapshot.cursorRow.unionLocal, { x: 1296, y: 1864 });
+  assert.deepEqual(snapshot.cursorRow.worldPoint, { x: 1296, y: 1864 });
 });

@@ -11,9 +11,16 @@ test('spatial governance audit passes with the current allowlist', async () => {
   const result = await runSpatialAudit(repoRoot);
   assert.deepEqual(result.violations, []);
   assert.deepEqual(result.definitions.normalizeDisplays, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.computeNativeDesktopBounds, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.computeDesktopWorldBounds, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.computeVisibleDesktopWorldBounds, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.computeDisplayUnion, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.findDisplayForPoint, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.clampPointToDisplays, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.nativeToDesktopWorldPoint, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.nativeToDesktopWorldRect, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.desktopWorldToNativePoint, ['packages/toolkit/runtime/spatial.js']);
+  assert.deepEqual(result.definitions.desktopWorldToNativeRect, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.globalToUnionLocalPoint, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.globalToDisplayLocalPoint, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.globalToCanvasLocalPoint, ['packages/toolkit/runtime/spatial.js']);

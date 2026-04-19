@@ -60,15 +60,15 @@ function renderDisplayRows(snapshot) {
     `<tr>`
       + `<td>${esc(row.label)}</td>`
       + `<td class="mono">${row.scale_factor == null ? '—' : esc(String(row.scale_factor))}</td>`
+      + renderRectCell(row.nativeBounds)
       + renderRectCell(row.bounds)
-      + renderRectCell(row.boundsUnionLocal)
+      + renderRectCell(row.nativeVisibleBounds)
       + renderRectCell(row.visibleBounds)
-      + renderRectCell(row.visibleUnionLocal)
       + `</tr>`
   )).join('');
   return (
     `<table class="telemetry-table">`
-      + `<thead><tr><th>display</th><th>scale</th><th>global bounds</th><th>union local</th><th>global visible</th><th>union local visible</th></tr></thead>`
+      + `<thead><tr><th>display</th><th>scale</th><th>native bounds</th><th>DesktopWorld</th><th>native visible</th><th>VisibleDesktopWorld</th></tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
   );
@@ -85,15 +85,15 @@ function renderCanvasRows(snapshot) {
       + `<td>${esc(row.owner)}</td>`
       + `<td>${esc(row.track || '—')}</td>`
       + `<td>${row.interactive ? 'yes' : 'no'}</td>`
-      + renderRectCell(row.globalRect)
-      + renderRectCell(row.unionLocal)
+      + renderRectCell(row.worldRect)
+      + renderRectCell(row.desktopWorldLocal)
       + renderRectCell(row.parentLocal)
       + snapshot.displayColumns.map((column) => renderRectCell(row.perDisplay[column.id])).join('')
       + `</tr>`
   )).join('');
   return (
     `<table class="telemetry-table">`
-      + `<thead><tr><th>canvas</th><th>parent</th><th>owner</th><th>track</th><th>int</th><th>global</th><th>union local</th><th>parent local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
+      + `<thead><tr><th>canvas</th><th>parent</th><th>owner</th><th>track</th><th>int</th><th>DesktopWorld</th><th>world local</th><th>parent local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
   );
@@ -109,15 +109,15 @@ function renderMarkRows(snapshot) {
       + `<td>${esc(row.id)}</td>`
       + `<td>${esc(row.name)}</td>`
       + `<td>${esc(row.owner)}</td>`
-      + renderPointCell(row.globalPoint)
-      + renderPointCell(row.unionLocal)
+      + renderPointCell(row.worldPoint)
+      + renderPointCell(row.desktopWorldLocal)
       + renderPointCell(row.canvasLocal)
       + snapshot.displayColumns.map((column) => renderPointCell(row.perDisplay[column.id])).join('')
       + `</tr>`
   )).join('');
   return (
     `<table class="telemetry-table">`
-      + `<thead><tr><th>canvas</th><th>mark</th><th>name</th><th>owner</th><th>global</th><th>union local</th><th>canvas local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
+      + `<thead><tr><th>canvas</th><th>mark</th><th>name</th><th>owner</th><th>DesktopWorld</th><th>world local</th><th>canvas local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
   );
@@ -130,11 +130,11 @@ function renderCursor(snapshot) {
   const row = snapshot.cursorRow;
   return (
     `<table class="telemetry-table">`
-      + `<thead><tr><th>owner</th><th>global</th><th>union local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
+      + `<thead><tr><th>owner</th><th>DesktopWorld</th><th>world local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody><tr>`
       + `<td>${esc(row.owner)}</td>`
-      + renderPointCell(row.globalPoint)
-      + renderPointCell(row.unionLocal)
+      + renderPointCell(row.worldPoint)
+      + renderPointCell(row.desktopWorldLocal)
       + snapshot.displayColumns.map((column) => renderPointCell(row.perDisplay[column.id])).join('')
       + `</tr></tbody></table>`
   );
@@ -158,13 +158,13 @@ function renderEventLog(events) {
 }
 
 function renderSnapshot(snapshot, events) {
-  const union = snapshot.union
-    ? `<div class="union-summary">union global <span class="mono">${esc(formatRect(snapshot.union))}</span> <span class="pill">${snapshot.displayColumns.length} display${snapshot.displayColumns.length === 1 ? '' : 's'}</span></div>`
-    : '<div class="union-summary">Waiting for union geometry…</div>';
+  const summary = snapshot.desktopWorld
+    ? `<div class="union-summary">DesktopWorld <span class="mono">${esc(formatRect(snapshot.desktopWorld))}</span> <span class="pill">${snapshot.displayColumns.length} display${snapshot.displayColumns.length === 1 ? '' : 's'}</span> <span class="mono">visible ${esc(formatRect(snapshot.visibleDesktopWorld))}</span></div>`
+    : '<div class="union-summary">Waiting for DesktopWorld geometry…</div>';
 
   return (
     `<div class="spatial-telemetry-body">`
-      + `<div class="telemetry-header">${union}</div>`
+      + `<div class="telemetry-header">${summary}</div>`
       + `<section class="telemetry-section"><h3>Displays</h3>${renderDisplayRows(snapshot)}</section>`
       + `<section class="telemetry-section"><h3>Cursor</h3>${renderCursor(snapshot)}</section>`
       + `<section class="telemetry-section"><h3>Canvases</h3>${renderCanvasRows(snapshot)}</section>`

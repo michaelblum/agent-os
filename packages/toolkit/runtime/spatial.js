@@ -23,12 +23,65 @@ function unwrapDisplay(entry) {
   return entry?.display || entry
 }
 
+function isNormalizedDisplay(display) {
+  return Boolean(display
+    && typeof display === 'object'
+    && display.bounds
+    && display.visibleBounds
+    && display.nativeBounds
+    && display.nativeVisibleBounds)
+}
+
+function normalizeNativeDisplay(display = {}) {
+  const rawBounds = display.nativeBounds || display.native_bounds || display.bounds || {}
+  const rawVisible = display.nativeVisibleBounds
+    || display.native_visible_bounds
+    || display.visible_bounds
+    || display.visibleBounds
+    || rawBounds
+  const width = asNumber(
+    display.width
+      ?? rawBounds.w
+      ?? rawBounds.width
+      ?? rawVisible.w
+      ?? rawVisible.width,
+  ) ?? 0
+  const height = asNumber(
+    display.height
+      ?? rawBounds.h
+      ?? rawBounds.height
+      ?? rawVisible.h
+      ?? rawVisible.height,
+  ) ?? 0
+  const nativeBounds = normalizeRect(rawBounds, { w: width, h: height })
+  const nativeVisibleBounds = normalizeRect(rawVisible, nativeBounds)
+  return {
+    ...display,
+    id: display.id ?? display.ordinal ?? display.display_id ?? display.cgID,
+    is_main: Boolean(display.is_main),
+    scale_factor: asNumber(display.scale_factor ?? display.scaleFactor),
+    width,
+    height,
+    nativeBounds,
+    nativeVisibleBounds,
+  }
+}
+
 function normalizeDisplayEntries(displays = []) {
-  return normalizeDisplays(displays.map(unwrapDisplay).filter(Boolean))
+  const entries = displays.map(unwrapDisplay).filter(Boolean)
+  if (entries.length === 0) return []
+  if (entries.every(isNormalizedDisplay)) return entries
+  return normalizeDisplays(entries)
 }
 
 function rectForDisplay(display, rectKey = 'bounds') {
   if (!display) return null
+  if (rectKey === 'nativeBounds' || rectKey === 'native_bounds') {
+    return display.nativeBounds || display.native_bounds || display.bounds || null
+  }
+  if (rectKey === 'nativeVisibleBounds' || rectKey === 'native_visible_bounds') {
+    return display.nativeVisibleBounds || display.native_visible_bounds || display.visibleBounds || display.visible_bounds || display.bounds || null
+  }
   if (rectKey === 'visibleBounds' || rectKey === 'visible_bounds') {
     return display.visibleBounds || display.visible_bounds || display.bounds || null
   }
@@ -61,23 +114,55 @@ export function rectFromAt(at) {
   return { x, y, w, h }
 }
 
+function computeRectUnion(rects = []) {
+  if (rects.length === 0) return null
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const rect of rects) {
+    if (!rect) continue
+    minX = Math.min(minX, rect.x)
+    minY = Math.min(minY, rect.y)
+    maxX = Math.max(maxX, rect.x + rect.w)
+    maxY = Math.max(maxY, rect.y + rect.h)
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+export function computeNativeDesktopBounds(displays = []) {
+  const nativeDisplays = displays.map(unwrapDisplay).filter(Boolean).map(normalizeNativeDisplay)
+  const union = computeRectUnion(nativeDisplays.map((display) => rectForDisplay(display, 'nativeBounds')))
+  if (!union) {
+    return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 }
+  }
+  return {
+    ...union,
+    minX: union.x,
+    minY: union.y,
+    maxX: union.x + union.w,
+    maxY: union.y + union.h,
+  }
+}
+
 export function normalizeDisplays(list = []) {
-  return list.map((display = {}) => {
-    const rawBounds = display.bounds || {}
-    const rawVisible = display.visible_bounds || display.visibleBounds || rawBounds
-    const width = asNumber(display.width ?? rawBounds.w ?? rawBounds.width ?? rawVisible.w ?? rawVisible.width) ?? 0
-    const height = asNumber(display.height ?? rawBounds.h ?? rawBounds.height ?? rawVisible.h ?? rawVisible.height) ?? 0
-    const bounds = normalizeRect(rawBounds, { w: width, h: height })
-    const visibleBounds = normalizeRect(rawVisible, bounds)
+  const nativeDisplays = list.map(unwrapDisplay).filter(Boolean).map(normalizeNativeDisplay)
+
+  const nativeDesktopBounds = computeNativeDesktopBounds(nativeDisplays)
+
+  return nativeDisplays.map((display) => {
+    const bounds = translateRect(display.nativeBounds, nativeDesktopBounds) ?? { x: 0, y: 0, w: 0, h: 0 }
+    const visibleBounds = translateRect(display.nativeVisibleBounds, nativeDesktopBounds) ?? bounds
     return {
       ...display,
-      id: display.id ?? display.ordinal ?? display.display_id ?? display.cgID,
-      is_main: Boolean(display.is_main),
-      scale_factor: asNumber(display.scale_factor ?? display.scaleFactor),
-      width,
-      height,
       bounds,
       visibleBounds,
+      native_bounds: display.nativeBounds,
+      native_visible_bounds: display.nativeVisibleBounds,
+      visible_bounds: visibleBounds,
     }
   })
 }
@@ -103,26 +188,24 @@ export function labelDisplays(list = []) {
 
 export function computeUnionBounds(displays = [], { rectKey = 'bounds' } = {}) {
   const normalized = normalizeDisplayEntries(displays)
-  if (normalized.length === 0) return null
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const display of normalized) {
-    const rect = rectForDisplay(display, rectKey)
-    if (!rect) continue
-    minX = Math.min(minX, rect.x)
-    minY = Math.min(minY, rect.y)
-    maxX = Math.max(maxX, rect.x + rect.w)
-    maxY = Math.max(maxY, rect.y + rect.h)
-  }
-  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
-    return null
-  }
-  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+  return computeRectUnion(normalized.map((display) => rectForDisplay(display, rectKey)))
 }
 
-export function computeDisplayUnion(displays = []) {
+export function computeDesktopWorldBounds(displays = []) {
+  const union = computeUnionBounds(displays, { rectKey: 'bounds' })
+  if (!union) {
+    return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 }
+  }
+  return {
+    ...union,
+    minX: union.x,
+    minY: union.y,
+    maxX: union.x + union.w,
+    maxY: union.y + union.h,
+  }
+}
+
+export function computeVisibleDesktopWorldBounds(displays = []) {
   const union = computeUnionBounds(displays, { rectKey: 'visibleBounds' })
   if (!union) {
     return { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 }
@@ -134,6 +217,10 @@ export function computeDisplayUnion(displays = []) {
     maxX: union.x + union.w,
     maxY: union.y + union.h,
   }
+}
+
+export function computeDisplayUnion(displays = []) {
+  return computeVisibleDesktopWorldBounds(displays)
 }
 
 export function translatePoint(point, originRect) {
@@ -152,6 +239,49 @@ export function translateRect(rect, originRect) {
   return {
     x: rect.x - originRect.x,
     y: rect.y - originRect.y,
+    w: rect.w,
+    h: rect.h,
+  }
+}
+
+function resolveNativeDesktopBounds(displaysOrBounds) {
+  if (Array.isArray(displaysOrBounds)) return computeNativeDesktopBounds(displaysOrBounds)
+  if (displaysOrBounds && typeof displaysOrBounds === 'object' && 'x' in displaysOrBounds && 'y' in displaysOrBounds && 'w' in displaysOrBounds && 'h' in displaysOrBounds) {
+    return normalizeRect(displaysOrBounds)
+  }
+  return null
+}
+
+export function nativeToDesktopWorldPoint(point, displaysOrNativeDesktopBounds) {
+  const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
+  if (!nativeDesktopBounds) return null
+  return translatePoint(point, nativeDesktopBounds)
+}
+
+export function nativeToDesktopWorldRect(rect, displaysOrNativeDesktopBounds) {
+  const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
+  if (!nativeDesktopBounds) return null
+  return translateRect(rect, nativeDesktopBounds)
+}
+
+export function desktopWorldToNativePoint(point, displaysOrNativeDesktopBounds) {
+  const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
+  if (!nativeDesktopBounds || !point) return null
+  const x = asNumber(point.x)
+  const y = asNumber(point.y)
+  if (x == null || y == null) return null
+  return {
+    x: x + nativeDesktopBounds.x,
+    y: y + nativeDesktopBounds.y,
+  }
+}
+
+export function desktopWorldToNativeRect(rect, displaysOrNativeDesktopBounds) {
+  const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
+  if (!nativeDesktopBounds || !rect) return null
+  return {
+    x: rect.x + nativeDesktopBounds.x,
+    y: rect.y + nativeDesktopBounds.y,
     w: rect.w,
     h: rect.h,
   }
@@ -250,6 +380,8 @@ export function ownerLabelForRect(rect, labeledDisplays = []) {
 }
 
 export function resolveCanvasFrame(canvas, canvasById, resolving = new Set()) {
+  const explicitResolved = Array.isArray(canvas?.atResolved) && canvas.atResolved.length >= 4 ? canvas.atResolved : null
+  if (explicitResolved) return explicitResolved
   const at = Array.isArray(canvas?.at) && canvas.at.length >= 4 ? canvas.at : null
   if (!at) return null
   if (!canvas?.parent) return at
@@ -279,8 +411,9 @@ export function resolveCanvasFrames(list = []) {
 export function computeMinimapLayout(displays, canvases, mapW, { selfId = 'canvas-inspector', border = 1, inset = 2 } = {}) {
   if (!displays || displays.length === 0) return null
   const normalizedDisplays = sortDisplaysSpatially(displays)
+  const nativeDesktopBounds = computeNativeDesktopBounds(normalizedDisplays)
   const resolvedCanvases = resolveCanvasFrames(canvases || [])
-  const union = computeUnionBounds(normalizedDisplays)
+  const union = computeDesktopWorldBounds(normalizedDisplays)
   if (!union) return null
 
   const totalW = Math.max(1, union.w)
@@ -310,7 +443,8 @@ export function computeMinimapLayout(displays, canvases, mapW, { selfId = 'canva
       visibleH: Math.max(1, Math.round(display.visibleBounds.h * scale)),
     })),
     canvases: resolvedCanvases.flatMap((canvas) => {
-      const rect = rectFromAt(canvas.atResolved ?? canvas.at)
+      const nativeRect = rectFromAt(canvas.atResolved ?? canvas.at)
+      const rect = nativeToDesktopWorldRect(nativeRect, nativeDesktopBounds)
       if (!rect) return []
       return [{
         canvas,

@@ -86,6 +86,17 @@ hit_id = sigil["hitTargetId"]
 if hit_id not in canvas_ids():
     raise SystemExit(f"FAIL: missing hit target canvas {hit_id}")
 
+native_origin = {
+    "x": min((display.get("nativeBounds") or display["bounds"])["x"] for display in snapshot["displays"]),
+    "y": min((display.get("nativeBounds") or display["bounds"])["y"] for display in snapshot["displays"]),
+}
+
+def world_to_native(point):
+    return {
+        "x": int(round(point["x"] + native_origin["x"])),
+        "y": int(round(point["y"] + native_origin["y"])),
+    }
+
 main_display = next((display for display in snapshot["displays"] if display.get("is_main")), snapshot["displays"][0])
 visible = main_display.get("visibleBounds") or main_display.get("visible_bounds") or main_display["bounds"]
 target = {
@@ -97,18 +108,20 @@ start = {
     "x": int(round(avatar_pos["x"])),
     "y": int(round(avatar_pos["y"])),
 }
+start_native = world_to_native(start)
+target_native = world_to_native(target)
 
 drag_state = show_eval_json(
     f"""(() => {{
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',
         id: {json.dumps(hit_id)},
-        payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {start["x"]}, screenY: {start["y"]} }}
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
       }})
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',
         id: {json.dumps(hit_id)},
-        payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {target["x"]}, screenY: {target["y"]} }}
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {target_native["x"]}, screenY: {target_native["y"]} }}
       }})
       return JSON.stringify({{
         state: window.liveJs.currentState,
@@ -127,7 +140,7 @@ show_eval(
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',
         id: {json.dumps(hit_id)},
-        payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: {target["x"]}, screenY: {target["y"]} }}
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: {target_native["x"]}, screenY: {target_native["y"]} }}
       }})
       return 'ok'
     }})()"""

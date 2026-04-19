@@ -50,15 +50,28 @@ import json, subprocess, time
 for _ in range(50):
     payload = json.loads(subprocess.check_output([
         "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
-        'JSON.stringify({cursor: window.__canvasInspectorState?.cursor ?? null, minimapCursor: !!document.querySelector(".minimap-cursor")})'
+        '''JSON.stringify((() => {
+          const state = window.__canvasInspectorState ?? {}
+          const displays = state.displays ?? []
+          const nativeXs = displays.map((display) => display?.nativeBounds?.x).filter((value) => Number.isFinite(value))
+          const nativeYs = displays.map((display) => display?.nativeBounds?.y).filter((value) => Number.isFinite(value))
+          const originX = nativeXs.length ? Math.min(...nativeXs) : 0
+          const originY = nativeYs.length ? Math.min(...nativeYs) : 0
+          return {
+            cursor: state.cursor ?? null,
+            minimapCursor: !!document.querySelector(".minimap-cursor"),
+            expected: { x: 140 - originX, y: 170 - originY },
+          }
+        })())'''
     ], text=True))
     result = json.loads(payload.get("result") or "{}")
     cursor = result.get("cursor") or {}
-    if round(cursor.get("x", -1)) == 140 and round(cursor.get("y", -1)) == 170 and result.get("minimapCursor"):
+    expected = result.get("expected") or {}
+    if round(cursor.get("x", -1)) == round(expected.get("x", -1)) and round(cursor.get("y", -1)) == round(expected.get("y", -1)) and result.get("minimapCursor"):
         print("PASS")
         raise SystemExit(0)
     time.sleep(0.1)
 
-print("FAIL: inspector did not render minimap cursor from raw mouse_moved event", flush=True)
+print("FAIL: inspector did not render DesktopWorld minimap cursor from raw mouse_moved event", flush=True)
 raise SystemExit(1)
 PY

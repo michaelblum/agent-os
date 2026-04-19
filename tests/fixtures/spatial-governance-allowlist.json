@@ -18,6 +18,15 @@
     "normalizeDisplays": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
+    "computeNativeDesktopBounds": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "computeDesktopWorldBounds": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "computeVisibleDesktopWorldBounds": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
     "computeDisplayUnion": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
@@ -34,6 +43,18 @@
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "translateRect": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "nativeToDesktopWorldPoint": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "nativeToDesktopWorldRect": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "desktopWorldToNativePoint": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "desktopWorldToNativeRect": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "globalToUnionLocalPoint": {

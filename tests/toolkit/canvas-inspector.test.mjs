@@ -77,7 +77,7 @@ test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
   const layout = computeMinimapLayout(displays, canvases, 300);
   assert.ok(layout);
 
-  const cursor = projectPointToMinimap(layout, { x: 1100, y: 280 });
+  const cursor = projectPointToMinimap(layout, { x: 1300, y: 280 });
   assert.ok(cursor);
   assert.ok(cursor.x >= 0 && cursor.x <= layout.mapW);
   assert.ok(cursor.y >= 0 && cursor.y <= layout.mapH);
@@ -132,9 +132,14 @@ test('normalizeDisplays accepts display_geometry payloads', () => {
       display_id: 3,
       id: 3,
       is_main: false,
-      bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      bounds: { x: 0, y: 982, w: 1920, h: 1080 },
+      nativeBounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      nativeVisibleBounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      native_bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      native_visible_bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      visible_bounds: { x: 0, y: 982, w: 1920, h: 1080 },
       scale_factor: 1,
-      visibleBounds: { x: -207, y: 982, w: 1920, h: 1080 },
+      visibleBounds: { x: 0, y: 982, w: 1920, h: 1080 },
       width: 1920,
       height: 1080,
     },
@@ -142,9 +147,14 @@ test('normalizeDisplays accepts display_geometry payloads', () => {
       display_id: 1,
       id: 1,
       is_main: true,
-      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      bounds: { x: 207, y: 0, w: 1512, h: 982 },
+      nativeBounds: { x: 0, y: 0, w: 1512, h: 982 },
+      nativeVisibleBounds: { x: 0, y: 0, w: 1512, h: 982 },
+      native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      native_visible_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 207, y: 0, w: 1512, h: 982 },
       scale_factor: 2,
-      visibleBounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visibleBounds: { x: 207, y: 0, w: 1512, h: 982 },
       width: 1512,
       height: 982,
     },

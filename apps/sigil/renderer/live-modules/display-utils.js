@@ -19,10 +19,14 @@ const TOOLKIT_SPATIAL_SPECIFIER = (
     : '../../../../packages/toolkit/runtime/spatial.js';
 
 const {
+    computeDesktopWorldBounds: toolkitComputeDesktopWorldBounds,
+    computeVisibleDesktopWorldBounds: toolkitComputeVisibleDesktopWorldBounds,
     normalizeDisplays: toolkitNormalizeDisplays,
     computeDisplayUnion: toolkitComputeDisplayUnion,
     findDisplayForPoint: toolkitFindDisplayForPoint,
     clampPointToDisplays: toolkitClampPointToDisplays,
+    nativeToDesktopWorldPoint: toolkitNativeToDesktopWorldPoint,
+    desktopWorldToNativePoint: toolkitDesktopWorldToNativePoint,
     globalToUnionLocalPoint: toolkitGlobalToUnionLocalPoint,
 } = await import(TOOLKIT_SPATIAL_SPECIFIER);
 
@@ -31,9 +35,13 @@ function visibleBoundsRect(display = {}) {
 }
 
 export { toolkitNormalizeDisplays as normalizeDisplays };
+export { toolkitComputeDesktopWorldBounds as computeDesktopWorldBounds };
+export { toolkitComputeVisibleDesktopWorldBounds as computeVisibleDesktopWorldBounds };
 export { toolkitComputeDisplayUnion as computeDisplayUnion };
 export { toolkitFindDisplayForPoint as findDisplayForPoint };
 export { toolkitClampPointToDisplays as clampPointToDisplays };
+export { toolkitNativeToDesktopWorldPoint as nativeToDesktopWorldPoint };
+export { toolkitDesktopWorldToNativePoint as desktopWorldToNativePoint };
 export { toolkitGlobalToUnionLocalPoint as globalToUnionLocalPoint };
 
 export function computeWorkbenchFrame(displays = [], point, options = {}) {

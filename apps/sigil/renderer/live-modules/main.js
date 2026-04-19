@@ -16,8 +16,11 @@ import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
 import {
     clampPointToDisplays,
-    computeDisplayUnion,
+    computeDesktopWorldBounds,
+    computeVisibleDesktopWorldBounds,
+    desktopWorldToNativePoint,
     globalToUnionLocalPoint,
+    nativeToDesktopWorldPoint,
     normalizeDisplays,
 } from './display-utils.js';
 import { startFastTravel, tickFastTravel } from './fast-travel.js';
@@ -37,6 +40,7 @@ const liveJs = {
     currentCursor: { x: 0, y: 0, valid: false },
     cursorTarget: { x: 0, y: 0, valid: false },
     globalBounds: { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 },
+    visibleBounds: { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 },
     displays: [],
     currentState: 'IDLE',
     state: 'IDLE',
@@ -182,7 +186,8 @@ function postLastPositionToDaemon() {
     const agentId = liveJs.currentAgentId;
     const position = liveJs.avatarPos;
     if (!agentId || !position?.valid) return;
-    host.positionSet(agentId, position);
+    const nativePoint = desktopWorldToNativePoint(position, liveJs.displays) || position;
+    host.positionSet(agentId, nativePoint);
 }
 
 window.postLastPositionToDaemon = postLastPositionToDaemon;
@@ -392,7 +397,7 @@ function pointFromHitPayload(payload = {}) {
     const screenX = Number(payload.x ?? payload.screenX);
     const screenY = Number(payload.y ?? payload.screenY);
     if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
-        return { x: screenX, y: screenY };
+        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
     }
     const localX = Number(payload.offsetX);
     const localY = Number(payload.offsetY);
@@ -479,19 +484,20 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'display_geometry') {
         liveJs.displays = normalizeDisplays(msg.displays || []);
-        liveJs.globalBounds = computeDisplayUnion(liveJs.displays);
+        liveJs.globalBounds = computeDesktopWorldBounds(liveJs.displays);
+        liveJs.visibleBounds = computeVisibleDesktopWorldBounds(liveJs.displays);
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
             const resolve = liveJs._resolveFirstDisplayGeometry;
             liveJs._resolveFirstDisplayGeometry = null;
             recordBoot('boot:firstDisplayGeometry', { displays: liveJs.displays.length, boot_elapsed_ms: bootElapsedMs() });
             resolve(liveJs.displays);
         }
-        if (liveJs.avatarPos.valid && liveJs.globalBounds.w > 0 && liveJs.globalBounds.h > 0) {
+        if (liveJs.avatarPos.valid && liveJs.visibleBounds.w > 0 && liveJs.visibleBounds.h > 0) {
             const outside =
-                liveJs.avatarPos.x < liveJs.globalBounds.minX ||
-                liveJs.avatarPos.x > liveJs.globalBounds.maxX ||
-                liveJs.avatarPos.y < liveJs.globalBounds.minY ||
-                liveJs.avatarPos.y > liveJs.globalBounds.maxY;
+                liveJs.avatarPos.x < liveJs.visibleBounds.minX ||
+                liveJs.avatarPos.x > liveJs.visibleBounds.maxX ||
+                liveJs.avatarPos.y < liveJs.visibleBounds.minY ||
+                liveJs.avatarPos.y > liveJs.visibleBounds.maxY;
             if (outside) {
                 const clamped = clampPointToDisplays(liveJs.displays, liveJs.avatarPos.x, liveJs.avatarPos.y);
                 liveJs.avatarPos = { x: clamped.x, y: clamped.y, valid: true };
@@ -502,6 +508,12 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) {
         handleHitCanvasEvent(msg.payload || {});
+        return;
+    }
+
+    if (msg.type === 'input_event' && typeof msg.x === 'number' && typeof msg.y === 'number') {
+        const worldPoint = nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
+        handleInputEvent({ ...msg, x: worldPoint.x, y: worldPoint.y });
         return;
     }
 
@@ -569,7 +581,7 @@ function animate() {
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
         window.__sigilRenderDebug = {
-            desktop: {
+            desktopWorld: {
                 x: Math.round(liveJs.avatarPos.x),
                 y: Math.round(liveJs.avatarPos.y),
             },
@@ -616,7 +628,8 @@ function animate() {
 
     if (liveJs.avatarPos.valid) {
         hitTarget.setSize(state.avatarHitRadius * 2)
-        hitTarget.sync(liveJs.avatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
+        const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
+        hitTarget.sync(nativeAvatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
     }
     const avatarStagePos = stagePoint(liveJs.avatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
@@ -677,6 +690,9 @@ export async function boot() {
     recordBoot('boot:displayReady', { displays: displays.length });
 
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
+    if (position) {
+        position = nativeToDesktopWorldPoint(position, displays) ?? position;
+    }
     if (!position) {
         position = resolveBirthplace({
             anchor: 'nonant',
