@@ -189,6 +189,15 @@ class UnifiedDaemon {
                 case "position.set":
                     self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "canvas_object.marks":
+                    // Fan out to any canvas that subscribed; don't echo back to sender.
+                    var markPayload: [String: Any] = [:]
+                    if let inner = inner {
+                        for (k, v) in inner { markPayload[k] = v }
+                    }
+                    markPayload["source_id"] = canvasID
+                    self.forwardCanvasObjectMarks(data: markPayload)
+                    return
                 default:
                     break
                 }
@@ -458,6 +467,27 @@ class UnifiedDaemon {
         guard !targets.isEmpty else { return }
 
         var msg: [String: Any] = ["type": "canvas_lifecycle"]
+        for (k, v) in data { msg[k] = v }
+
+        for canvasID in targets {
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        }
+    }
+
+    /// Fan out `canvas_object.marks` to every canvas subscribed to that
+    /// event name. Mirror of forwardWikiPageChangedToCanvases. Wraps `data`
+    /// in a `{type: "canvas_object.marks", ...}` envelope since live-js
+    /// canvas dispatch routes by `msg.type`.
+    private func forwardCanvasObjectMarks(data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("canvas_object.marks") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        var msg: [String: Any] = ["type": "canvas_object.marks"]
         for (k, v) in data { msg[k] = v }
 
         for canvasID in targets {
