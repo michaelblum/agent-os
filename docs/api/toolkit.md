@@ -122,6 +122,72 @@ When enabled, the graph controls can also expose:
 - shortest-path highlighting between a saved path start and the current selection
 - selection focus actions that fit the selected node plus its current highlight context
 
+### Canvas Inspector — Object Marks
+
+Consumer canvases can publish ephemeral "object marks" that the
+`canvas-inspector` renders on its minimap and in the tree list beneath the
+parent canvas. Marks represent sub-canvas objects whose position you want to
+surface (e.g. Sigil's avatar, a hit-test target, a highlighted widget).
+
+**Wire contract** — a `canvas_object.marks` event with a full-snapshot
+replace payload:
+
+```json
+{
+  "type": "canvas_object.marks",
+  "payload": {
+    "canvas_id": "avatar-main",
+    "objects": [
+      {
+        "id": "avatar",
+        "x": 942,
+        "y": 540,
+        "name": "Avatar",
+        "color": "#ff66cc",
+        "w": 20,
+        "h": 20,
+        "rect": true,
+        "ellipse": true,
+        "cross": true
+      }
+    ]
+  }
+}
+```
+
+Required fields: `id`, `x`, `y`. `x` and `y` are in desktop CG coordinates,
+the same space as `canvas.at`. Optional fields:
+
+- `name` — display label (defaults to `id`)
+- `color` — stroke color for the marker (defaults to a stable hash of `id`)
+- `w`, `h` — marker-local logical units in minimap pixels (default `20`,
+  clamped to `[4, 128]`). Stable visual size regardless of display DPI.
+- `rect`, `ellipse`, `cross` — boolean primitive toggles (default `true`
+  each). The default marker is a `20 × 20` square outline with an inscribed
+  ellipse and a corner-to-corner `X`. Any combination is valid; set a
+  primitive to `false` to omit that layer.
+
+Snapshot semantics:
+
+- Each emit fully replaces the mark list for `canvas_id`. Omit a previously
+  published mark and it disappears on the next emit.
+- `"objects": []` drops the canvas entry outright.
+- An entry is also evicted when the parent canvas emits
+  `canvas_lifecycle action: "removed"`.
+- If a canvas stops emitting, its entry expires after a 10 s TTL.
+
+Emit patterns:
+
+- **Event-driven** — post on position/visibility changes. The inspector
+  applies snapshots idempotently, so duplicate emits are cheap.
+- **Low-rate heartbeat (optional)** — if you want marks to survive a long
+  idle period for late-joining inspectors, emit every ~5 s while visible.
+  Avoid an always-on high-rate heartbeat.
+
+Subscribe side is handled for you — the canvas-inspector subscribes to
+`canvas_object.marks` via its manifest. Any canvas that subscribes will
+receive the daemon's fan-out.
+
 ## Runtime API
 
 Convenience re-export:
