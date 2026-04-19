@@ -80,3 +80,28 @@ test('buildSpatialTelemetrySnapshot reports display/canvas/mark/cursor spaces', 
   assert.equal(snapshot.cursorRow.owner, 'extended [1]');
   assert.deepEqual(snapshot.cursorRow.worldPoint, { x: 1296, y: 1864 });
 });
+
+test('buildSpatialTelemetrySnapshot honors daemon-provided DesktopWorld bounds', () => {
+  // Daemon payload supplies desktop_world_bounds that diverge from the naive
+  // re-anchor (here daemon pins the union at x=50 rather than x=0). The
+  // snapshot must reflect the daemon's value for the display row.
+  const snapshot = buildSpatialTelemetrySnapshot({
+    displays: [
+      {
+        id: 'main',
+        is_main: true,
+        scale_factor: 2,
+        bounds: { x: -200, y: 0, w: 1512, h: 982 },
+        visible_bounds: { x: -200, y: 25, w: 1512, h: 957 },
+        native_bounds: { x: -200, y: 0, w: 1512, h: 982 },
+        native_visible_bounds: { x: -200, y: 25, w: 1512, h: 957 },
+        desktop_world_bounds: { x: 50, y: 0, w: 1512, h: 982 },
+        visible_desktop_world_bounds: { x: 50, y: 25, w: 1512, h: 957 },
+      },
+    ],
+    cursor: { valid: false },
+  });
+  assert.deepEqual(snapshot.displayRows[0].bounds, { x: 50, y: 0, w: 1512, h: 982 });
+  assert.deepEqual(snapshot.displayRows[0].visibleBounds, { x: 50, y: 25, w: 1512, h: 957 });
+  assert.deepEqual(snapshot.displayRows[0].nativeBounds, { x: -200, y: 0, w: 1512, h: 982 });
+});
