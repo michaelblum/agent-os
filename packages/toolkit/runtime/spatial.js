@@ -39,6 +39,12 @@ function normalizeNativeDisplay(display = {}) {
     || display.visible_bounds
     || display.visibleBounds
     || rawBounds
+  const rawDesktopWorld = display.desktopWorldBounds
+    || display.desktop_world_bounds
+    || null
+  const rawVisibleDesktopWorld = display.visibleDesktopWorldBounds
+    || display.visible_desktop_world_bounds
+    || null
   const width = asNumber(
     display.width
       ?? rawBounds.w
@@ -64,6 +70,8 @@ function normalizeNativeDisplay(display = {}) {
     height,
     nativeBounds,
     nativeVisibleBounds,
+    desktopWorldBounds: rawDesktopWorld ? normalizeRect(rawDesktopWorld) : null,
+    visibleDesktopWorldBounds: rawVisibleDesktopWorld ? normalizeRect(rawVisibleDesktopWorld) : null,
   }
 }
 
@@ -154,8 +162,12 @@ export function normalizeDisplays(list = []) {
   const nativeDesktopBounds = computeNativeDesktopBounds(nativeDisplays)
 
   return nativeDisplays.map((display) => {
-    const bounds = translateRect(display.nativeBounds, nativeDesktopBounds) ?? { x: 0, y: 0, w: 0, h: 0 }
-    const visibleBounds = translateRect(display.nativeVisibleBounds, nativeDesktopBounds) ?? bounds
+    const bounds = display.desktopWorldBounds
+      ?? translateRect(display.nativeBounds, nativeDesktopBounds)
+      ?? { x: 0, y: 0, w: 0, h: 0 }
+    const visibleBounds = display.visibleDesktopWorldBounds
+      ?? translateRect(display.nativeVisibleBounds, nativeDesktopBounds)
+      ?? bounds
     return {
       ...display,
       bounds,
@@ -163,6 +175,8 @@ export function normalizeDisplays(list = []) {
       native_bounds: display.nativeBounds,
       native_visible_bounds: display.nativeVisibleBounds,
       visible_bounds: visibleBounds,
+      desktop_world_bounds: bounds,
+      visible_desktop_world_bounds: visibleBounds,
     }
   })
 }

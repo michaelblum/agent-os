@@ -148,6 +148,37 @@ test('globalToCanvasLocalPoint accepts canvas records and raw rects', () => {
   )
 })
 
+test('normalizeDisplays consumes daemon-provided desktop_world_bounds without re-anchoring', () => {
+  const out = normalizeDisplays([{
+    display_id: 1,
+    is_main: true,
+    scale_factor: 2,
+    bounds: { x: -200, y: 0, w: 1920, h: 1080 },
+    visible_bounds: { x: -200, y: 30, w: 1920, h: 1050 },
+    native_bounds: { x: -200, y: 0, w: 1920, h: 1080 },
+    native_visible_bounds: { x: -200, y: 30, w: 1920, h: 1050 },
+    desktop_world_bounds: { x: 5, y: 0, w: 1920, h: 1080 },
+    visible_desktop_world_bounds: { x: 5, y: 30, w: 1920, h: 1050 },
+  }])
+  // Daemon-provided DesktopWorld wins verbatim, even if it differs from a
+  // plain re-anchor (here re-anchor would yield x=0; daemon says x=5).
+  assert.deepEqual(out[0].bounds, { x: 5, y: 0, w: 1920, h: 1080 })
+  assert.deepEqual(out[0].visibleBounds, { x: 5, y: 30, w: 1920, h: 1050 })
+  assert.deepEqual(out[0].nativeBounds, { x: -200, y: 0, w: 1920, h: 1080 })
+})
+
+test('normalizeDisplays falls back to re-anchoring when DesktopWorld fields are absent', () => {
+  const out = normalizeDisplays([{
+    display_id: 1,
+    is_main: true,
+    scale_factor: 2,
+    bounds: { x: -200, y: 0, w: 1920, h: 1080 },
+    visible_bounds: { x: -200, y: 30, w: 1920, h: 1050 },
+  }])
+  assert.deepEqual(out[0].bounds, { x: 0, y: 0, w: 1920, h: 1080 })
+  assert.deepEqual(out[0].visibleBounds, { x: 0, y: 30, w: 1920, h: 1050 })
+})
+
 test('native/DesktopWorld point conversion round-trips through the native boundary', () => {
   const displays = normalizeDisplays([
     {
