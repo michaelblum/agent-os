@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js';
+import { normalizeCanvasInputMessage } from '../../runtime/input-events.js';
 import { normalizeMarks } from '../canvas-inspector/marks/normalize.js';
 import { createMarksState, applySnapshot, evictCanvas } from '../canvas-inspector/marks/reconcile.js';
 import { createScheduler } from '../canvas-inspector/marks/scheduler.js';
@@ -13,6 +14,10 @@ const MAX_EVENTS = 120;
 const BASE_TITLE = 'Spatial Telemetry';
 
 function summarizeEvent(msg) {
+  const input = normalizeCanvasInputMessage(msg);
+  if (input) {
+    return `input_event ${input.type || 'move'} @ ${Math.round(input.x || 0)},${Math.round(input.y || 0)}`;
+  }
   const payload = msg.payload || msg.data || msg;
   switch (msg.type) {
     case 'bootstrap':
@@ -21,8 +26,6 @@ function summarizeEvent(msg) {
       return `display_geometry displays=${(payload.displays || []).length}`;
     case 'canvas_lifecycle':
       return `canvas ${payload.action || '?'} ${payload.canvas_id || '?'}`;
-    case 'input_event':
-      return `input_event ${payload.type || 'move'} @ ${Math.round(payload.x || 0)},${Math.round(payload.y || 0)}`;
     case 'canvas_object.marks':
       return `marks ${payload.canvas_id || '?'} count=${(payload.objects || []).length}`;
     default:
@@ -306,10 +309,10 @@ export default function SpatialTelemetry() {
         return;
       }
 
-      if (msg.type === 'input_event') {
-        const payload = msg.payload || msg;
-        if (typeof payload.x === 'number' && typeof payload.y === 'number') {
-          cursor = { x: payload.x, y: payload.y, valid: true };
+      const input = normalizeCanvasInputMessage(msg);
+      if (input) {
+        if (typeof input.x === 'number' && typeof input.y === 'number') {
+          cursor = { x: input.x, y: input.y, valid: true };
         }
         rerender();
         return;

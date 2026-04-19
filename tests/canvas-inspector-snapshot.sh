@@ -41,3 +41,24 @@ for _ in range(50):
 print("FAIL: inspector did not populate from subscription snapshots", flush=True)
 raise SystemExit(1)
 PY
+
+./aos show post --id canvas-inspector --event '{"type":"mouse_moved","x":140,"y":170}' >/dev/null
+
+python3 - <<'PY'
+import json, subprocess, time
+
+for _ in range(50):
+    payload = json.loads(subprocess.check_output([
+        "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+        'JSON.stringify({cursor: window.__canvasInspectorState?.cursor ?? null, minimapCursor: !!document.querySelector(".minimap-cursor")})'
+    ], text=True))
+    result = json.loads(payload.get("result") or "{}")
+    cursor = result.get("cursor") or {}
+    if round(cursor.get("x", -1)) == 140 and round(cursor.get("y", -1)) == 170 and result.get("minimapCursor"):
+        print("PASS")
+        raise SystemExit(0)
+    time.sleep(0.1)
+
+print("FAIL: inspector did not render minimap cursor from raw mouse_moved event", flush=True)
+raise SystemExit(1)
+PY

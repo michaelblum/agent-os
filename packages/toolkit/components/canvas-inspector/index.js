@@ -10,6 +10,7 @@
 
 import { esc, emit } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
+import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
 import { createScheduler } from './marks/scheduler.js'
@@ -432,6 +433,9 @@ export default function CanvasInspector() {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)
         if (p.canvases) canvases = p.canvases
+        if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
+          cursor = { x: p.cursor.x, y: p.cursor.y, valid: true }
+        }
         rerender()
         return
       }
@@ -441,10 +445,10 @@ export default function CanvasInspector() {
         rerender()
         return
       }
-      if (msg.type === 'input_event') {
-        const p = msg.payload || msg
-        if (typeof p.x === 'number' && typeof p.y === 'number') {
-          cursor = { x: p.x, y: p.y, valid: true }
+      const input = normalizeCanvasInputMessage(msg)
+      if (input) {
+        if (typeof input.x === 'number' && typeof input.y === 'number') {
+          cursor = { x: input.x, y: input.y, valid: true }
           rerender()
         }
         return
