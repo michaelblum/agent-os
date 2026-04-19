@@ -69,6 +69,16 @@ window.__sigilBootFirstFrameAt = null;
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 
+function boundsWithMinMax(rect) {
+    if (!rect || typeof rect.x !== 'number' || typeof rect.y !== 'number'
+        || typeof rect.w !== 'number' || typeof rect.h !== 'number') return null;
+    return {
+        x: rect.x, y: rect.y, w: rect.w, h: rect.h,
+        minX: rect.x, minY: rect.y,
+        maxX: rect.x + rect.w, maxY: rect.y + rect.h,
+    };
+}
+
 function recordBoot(stage, extra = {}) {
     const entry = { ts: Date.now(), stage, ...extra };
     window.__sigilBootTrace.push(entry);
@@ -484,8 +494,10 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'display_geometry') {
         liveJs.displays = normalizeDisplays(msg.displays || []);
-        liveJs.globalBounds = computeDesktopWorldBounds(liveJs.displays);
-        liveJs.visibleBounds = computeVisibleDesktopWorldBounds(liveJs.displays);
+        liveJs.globalBounds = boundsWithMinMax(msg.desktop_world_bounds)
+            ?? computeDesktopWorldBounds(liveJs.displays);
+        liveJs.visibleBounds = boundsWithMinMax(msg.visible_desktop_world_bounds)
+            ?? computeVisibleDesktopWorldBounds(liveJs.displays);
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
             const resolve = liveJs._resolveFirstDisplayGeometry;
             liveJs._resolveFirstDisplayGeometry = null;
