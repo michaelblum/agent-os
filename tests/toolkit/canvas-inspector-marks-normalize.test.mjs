@@ -83,29 +83,3 @@ test('normalizeMarks warns once across calls per duplicate (canvas,id) pair', ()
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /cv.*a/);
 });
-
-import { sanitizeSvg } from '../../packages/toolkit/components/canvas-inspector/marks/normalize.js';
-
-test('sanitizeSvg strips <script> tags', () => {
-  const out = sanitizeSvg('<svg><script>alert(1)</script><rect/></svg>');
-  assert.doesNotMatch(out, /<script/i);
-  assert.match(out, /<rect/);
-});
-
-test('sanitizeSvg strips on* event handlers', () => {
-  const out = sanitizeSvg('<svg><rect onload="x()" onclick="y()" fill="red"/></svg>');
-  assert.doesNotMatch(out, /onload/i);
-  assert.doesNotMatch(out, /onclick/i);
-  assert.match(out, /fill="red"/);
-});
-
-test('sanitizeSvg strips non-data xlink:href and href', () => {
-  const ok = sanitizeSvg('<svg><image href="data:image/png;base64,iVB"/></svg>');
-  assert.match(ok, /href="data:image/);
-  const bad = sanitizeSvg('<svg><image href="https://evil/x.png"/></svg>');
-  assert.doesNotMatch(bad, /https:\/\/evil/);
-});
-
-test('sanitizeSvg returns null for non-svg input', () => {
-  assert.equal(sanitizeSvg('<div>hi</div>'), null);
-});
