@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/spatial-topology.schema.json",
   "title": "Spatial Topology",
-  "description": "Display → Window topology for agent-os. Produced by `aos see list`, consumed by `aos do` and orchestrators. Current producer coordinates remain native desktop compatibility (main-display anchored); shared-world consumers should re-anchor into DesktopWorld per `shared/schemas/spatial-topology.md`.",
+  "description": "Display → Window topology for agent-os. Produced by `aos see list`, consumed by `aos do` and orchestrators. Display and cursor bounds are emitted in both native desktop compatibility coordinates (for AppKit/CG boundary consumers) and DesktopWorld coordinates (canonical cross-surface world). Cursor DesktopWorld siblings live on this topology schema only — they are not part of the `display_geometry` channel payload. See `shared/schemas/spatial-topology.md`.",
   "type": "object",
-  "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "cursor", "displays", "apps"],
+  "required": ["schema", "version", "timestamp", "screens_have_separate_spaces", "cursor", "displays", "desktop_world_bounds", "visible_desktop_world_bounds", "apps"],
   "additionalProperties": false,
   "properties": {
     "schema": {
@@ -44,6 +44,14 @@
       "items": { "$ref": "#/$defs/Display" },
       "description": "All active displays, ordered: main first, then left-to-right by X coordinate."
     },
+    "desktop_world_bounds": {
+      "$ref": "#/$defs/DesktopWorldBounds",
+      "description": "Full DesktopWorld union bounds. Origin is (0,0) by construction; width/height span the arranged full-display union."
+    },
+    "visible_desktop_world_bounds": {
+      "$ref": "#/$defs/DesktopWorldBounds",
+      "description": "Union of each display's visible_bounds projected into DesktopWorld. Use for usable-area logic (cursor/avatar clamping)."
+    },
     "apps": {
       "type": "array",
       "items": { "$ref": "#/$defs/App" },
@@ -54,11 +62,13 @@
   "$defs": {
     "Cursor": {
       "type": "object",
-      "required": ["x", "y", "display"],
+      "required": ["x", "y", "desktop_world_x", "desktop_world_y", "display"],
       "additionalProperties": false,
       "properties": {
-        "x": { "type": "number", "description": "Cursor X in current producer coordinates (native desktop compatibility points)." },
-        "y": { "type": "number", "description": "Cursor Y in current producer coordinates (native desktop compatibility points)." },
+        "x": { "type": "number", "description": "Cursor X in native desktop compatibility coordinates." },
+        "y": { "type": "number", "description": "Cursor Y in native desktop compatibility coordinates." },
+        "desktop_world_x": { "type": "number", "description": "Cursor X in DesktopWorld coordinates (canonical cross-surface world)." },
+        "desktop_world_y": { "type": "number", "description": "Cursor Y in DesktopWorld coordinates." },
         "display": { "type": "integer", "minimum": 1, "description": "Ordinal of the display the cursor is on." }
       }
     },
@@ -68,8 +78,32 @@
       "required": ["x", "y", "width", "height"],
       "additionalProperties": false,
       "properties": {
-        "x": { "type": "number", "description": "Left edge in current producer coordinates (native desktop compatibility points)." },
-        "y": { "type": "number", "description": "Top edge in current producer coordinates (native desktop compatibility points)." },
+        "x": { "type": "number", "description": "Left edge in native desktop compatibility coordinates (retained for compat; prefer native_bounds / desktop_world_bounds on Display)." },
+        "y": { "type": "number", "description": "Top edge in native desktop compatibility coordinates." },
+        "width": { "type": "number", "description": "Width in points." },
+        "height": { "type": "number", "description": "Height in points." }
+      }
+    },
+
+    "NativeBounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "description": "Left edge in native desktop compatibility coordinates (top-left of macOS main display = (0,0))." },
+        "y": { "type": "number", "description": "Top edge in native desktop compatibility coordinates." },
+        "width": { "type": "number", "description": "Width in points." },
+        "height": { "type": "number", "description": "Height in points." }
+      }
+    },
+
+    "DesktopWorldBounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number", "description": "Left edge in DesktopWorld coordinates (top-left of arranged full-display union = (0,0))." },
+        "y": { "type": "number", "description": "Top edge in DesktopWorld coordinates." },
         "width": { "type": "number", "description": "Width in points." },
         "height": { "type": "number", "description": "Height in points." }
       }
@@ -88,7 +122,20 @@
 
     "Display": {
       "type": "object",
-      "required": ["display_id", "ordinal", "is_main", "bounds", "scale_factor", "rotation", "windows"],
+      "required": [
+        "display_id",
+        "ordinal",
+        "is_main",
+        "bounds",
+        "visible_bounds",
+        "native_bounds",
+        "native_visible_bounds",
+        "desktop_world_bounds",
+        "visible_desktop_world_bounds",
+        "scale_factor",
+        "rotation",
+        "windows"
+      ],
       "additionalProperties": false,
       "properties": {
         "display_id": {
@@ -113,12 +160,28 @@
           "description": "true if this is CGMainDisplayID()."
         },
         "bounds": {
-          "$ref": "#/$defs/Bounds",
-          "description": "Full display frame in current producer coordinates (native desktop compatibility points)."
+          "$ref": "#/$defs/NativeBounds",
+          "description": "Full display frame in native desktop compatibility coordinates. Kept for AppKit/CG boundary consumers; shared-world consumers should prefer desktop_world_bounds."
         },
         "visible_bounds": {
-          "$ref": "#/$defs/Bounds",
-          "description": "Usable area excluding menu bar and dock (NSScreen.visibleFrame), in current producer coordinates."
+          "$ref": "#/$defs/NativeBounds",
+          "description": "Usable area excluding menu bar and dock (NSScreen.visibleFrame), in native desktop compatibility coordinates."
+        },
+        "native_bounds": {
+          "$ref": "#/$defs/NativeBounds",
+          "description": "Explicit alias of bounds for native-boundary consumers."
+        },
+        "native_visible_bounds": {
+          "$ref": "#/$defs/NativeBounds",
+          "description": "Explicit alias of visible_bounds for native-boundary consumers."
+        },
+        "desktop_world_bounds": {
+          "$ref": "#/$defs/DesktopWorldBounds",
+          "description": "Full display frame in DesktopWorld coordinates. Canonical cross-surface value."
+        },
+        "visible_desktop_world_bounds": {
+          "$ref": "#/$defs/DesktopWorldBounds",
+          "description": "Usable area in DesktopWorld coordinates (VisibleDesktopWorld projection of visible_bounds)."
         },
         "scale_factor": {
           "type": "number",
