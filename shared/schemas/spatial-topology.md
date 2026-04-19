@@ -16,23 +16,61 @@ Apps[]   (top-level index — all apps with windows, by PID)
 
 ## Coordinate System
 
-Two layers, not one:
+The spatial contract now has four explicit layers. Only one of them is the
+cross-surface world model.
 
 | Layer | Origin | Units | Used by |
 |-------|--------|-------|---------|
-| **Global CG** (this schema) | Top-left of primary display = `(0,0)` | Points (logical pixels) | Topology, `aos do` targeting, display arrangement |
+| **Native desktop compatibility** | Top-left of the macOS main display = `(0,0)` | Points (logical pixels) | Current daemon/AppKit/CoreGraphics boundary data only |
+| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Points | Canonical shared world for toolkit, Sigil, canvas-inspector, tests |
+| **VisibleDesktopWorld** | Top-left of the arranged visible-bounds union = `(0,0)` in the same DesktopWorld frame | Points | Usable-area logic such as cursor/avatar clamping |
 | **LCS** (`aos see` captures) | Top-left of captured region = `(0,0)` | Points | `--xray` element bounds, annotations, crops |
 
-**Converting between them:**
-- LCS → Global: add the display's `bounds.x` and `bounds.y`
-- Global → LCS: subtract them
-- Points → Physical pixels: multiply by `scale_factor`
+### Canonical World Contract
 
-**Axis directions:** X increases rightward, Y increases downward. Multi-monitor: a display to the right of a 1512px-wide primary starts at `x: 1512`.
+**DesktopWorld is the canonical cross-surface space.**
+
+- Origin is the top-left of the arranged display union.
+- Flipping which display macOS marks as main must **not** renumber DesktopWorld
+  if the Displays > Arrange topology is otherwise unchanged.
+- `--track union` canvases and union-canvas bounds are defined in DesktopWorld.
+- Non-visible holes inside the full union bounding box are valid DesktopWorld
+  coordinates even if no display occupies them.
+
+**VisibleDesktopWorld is a derived usable-area space, not the full world.**
+
+- It is built from each display's `visible_bounds`, projected into DesktopWorld.
+- Use it for clamping and other "usable screen area" logic.
+- Do **not** use it as the canonical world origin for canvases or minimaps.
+
+### Boundary Compatibility
+
+Current daemon/native producers still expose main-display-anchored values in
+many places (`bounds`, `visible_bounds`, window frames, input events). Treat
+those as boundary compatibility only.
+
+Cross-surface consumers must re-anchor boundary values into DesktopWorld before
+using them as shared world coordinates.
+
+### Converting Between Layers
+
+- Native desktop compatibility → DesktopWorld:
+  subtract the full arranged-display union origin
+- DesktopWorld → Native desktop compatibility:
+  add the full arranged-display union origin
+- Native / DesktopWorld → LCS:
+  subtract the origin of the capture target in the same source frame
+- LCS → Native / DesktopWorld:
+  add the origin of the capture target in the same source frame
+- Points → Physical pixels:
+  multiply by `scale_factor`
+
+**Axis directions:** X increases rightward, Y increases downward.
 
 ## Governance
 
-This document is the canonical contract for desktop-global coordinates, but
+This document is the canonical contract for DesktopWorld and related boundary
+spaces, but
 contracts drift unless implementation reuse is enforced.
 
 Current governance surface:
@@ -68,12 +106,13 @@ in one native boundary layer and one shared JS runtime.
 
 ## How `aos do` Uses This
 
-**Click in a window:**
+**Click in a window from LCS:**
 ```
 Input:  "click (200, 150) in window 4521"
-Lookup: window 4521 → bounds { x: 50, y: 30 }
-Math:   global = (50 + 200, 30 + 150) = (250, 180)
-Action: CGEvent at (250, 180)
+Lookup: window 4521 → boundary-native bounds { x: 50, y: 30 }
+Math:   boundary-native = (50 + 200, 30 + 150) = (250, 180)
+Bridge: DesktopWorld <-> native conversion happens at the daemon boundary
+Action: CGEvent at native point (250, 180)
 ```
 
 **Activate an app:**
@@ -83,7 +122,7 @@ Lookup: apps[] → Safari → pid 892
 Action: NSRunningApplication(pid: 892).activate()
 ```
 
-**Check occlusion:**
+**Check occlusion in DesktopWorld:**
 ```
 Input:  "is the login button visible?"
 Lookup: window containing button → index in display.windows[]
@@ -128,3 +167,11 @@ All public, no SIP required. Screen Recording + Accessibility permissions needed
 | `focused_window_id` | `AXUIElementCopyAttributeValue(focusedWindow)` + `_AXUIElementGetWindow` |
 | `is_hidden` | `NSRunningApplication.isHidden` |
 | `screens_have_separate_spaces` | `NSScreen.screensHaveSeparateSpaces` |
+
+## Union Canvas Contract
+
+Union canvases are anchored to **DesktopWorld**, not to the macOS main display.
+
+- `--track union` resolves to the full arranged display union.
+- A union canvas should resolve to `[0,0,w,h]` in DesktopWorld.
+- Visible-bounds data remains available separately for usable-area logic.

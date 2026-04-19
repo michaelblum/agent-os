@@ -41,21 +41,32 @@ Make spatial behavior auditable and boring:
 
 These spaces are valid and should be explicit:
 
-1. **AppKit screen**
-   - origin: bottom-left of main display
+1. **AppKit/native screen**
+   - bottom-left main-display anchored
    - used only at the Swift/native boundary
-2. **AOS global desktop**
-   - origin: top-left of main display
-   - logical points
-   - canonical cross-surface space
-3. **Union-local**
-   - origin: top-left of the current display union
-4. **Display-local**
-   - origin: top-left of one display's bounds or visible bounds
-5. **Canvas-local**
-   - origin: top-left of one canvas rect
-6. **Stage-local**
-   - app-specific projection space derived from global or union-local
+2. **Native desktop compatibility**
+   - top-left of the macOS main display
+   - current daemon/native boundary shape
+   - not the canonical shared world
+3. **DesktopWorld**
+   - origin: top-left of the arranged full-display union
+   - canonical cross-surface world for toolkit, Sigil, inspector, tests
+4. **VisibleDesktopWorld**
+   - derived from display `visible_bounds`, projected into DesktopWorld
+   - for usable-area logic such as clamping
+5. **DisplayLocal**
+   - origin: top-left of one display's rect in DesktopWorld
+6. **CanvasLocal**
+   - origin: top-left of one canvas rect in DesktopWorld
+7. **StageLocal**
+   - app-specific projection space derived from DesktopWorld / CanvasLocal
+
+Critical rule:
+
+- flipping which display macOS marks as main must **not** renumber DesktopWorld
+  if the display arrangement is otherwise unchanged
+- non-visible holes inside the full union bounding box remain valid
+  DesktopWorld coordinates
 
 ## Immediate Governance
 
@@ -98,7 +109,8 @@ Status on `main`:
 Create a shared JS runtime module that owns the common transforms instead of each surface rolling its own:
 
 - display normalization
-- union bounds
+- full DesktopWorld bounds
+- visible DesktopWorld bounds
 - point/rect translation
 - point ownership by display
 - parent-local / global rect resolution
@@ -107,9 +119,14 @@ Create a shared JS runtime module that owns the common transforms instead of eac
 Initial target API:
 
 - `normalizeDisplays()`
-- `computeUnionBounds()`
+- `computeDesktopWorldBounds()`
+- `computeVisibleDesktopWorldBounds()`
 - `translatePoint()`
 - `translateRect()`
+- `nativeToDesktopWorldPoint()`
+- `nativeToDesktopWorldRect()`
+- `desktopWorldToNativePoint()`
+- `desktopWorldToNativeRect()`
 - `findDisplayForPoint()`
 - `ownerLabelForPoint()`
 - `ownerLabelForRect()`
@@ -119,7 +136,30 @@ Initial target API:
 - `resolveCanvasFrame()`
 - `projectGlobalPointToMinimap()`
 
-### Phase 3 — Toolkit Migration
+### Phase 3 — Contract Re-anchor
+
+Before adding more invariants, re-anchor the canonical shared world:
+
+- treat current main-display-anchored values as native boundary compatibility only
+- make DesktopWorld the canonical space used by toolkit, Sigil, inspector, and tests
+- keep full-desktop vs visible-desktop semantics explicit in both docs and code
+- do not silently overload old helper names with new semantics
+
+Acceptance harness for this phase:
+
+- `canvas-inspector`
+- `spatial-telemetry`
+- related toolkit tests
+
+Acceptance targets:
+
+- union canvases resolve to `[0,0,w,h]` in DesktopWorld
+- canvas-inspector minimap/world view remains stable if macOS main-display
+  selection changes but Arrange geometry does not
+- cursor/avatar usable-area logic is explicitly based on VisibleDesktopWorld,
+  not full DesktopWorld
+
+### Phase 4 — Toolkit Migration
 
 Migrate:
 
@@ -132,7 +172,7 @@ Result:
 - minimap projection logic lives in one shared runtime
 - telemetry and inspector consume the same geometry helpers
 
-### Phase 4 — Sigil Migration
+### Phase 5 — Sigil Migration
 
 Status on `main`:
 
@@ -146,7 +186,7 @@ Important constraint:
 - the content-server root model must not require ad hoc path escapes or brittle per-surface import tricks
 - if cross-root ES module reuse is awkward, introduce an explicit shared content root instead of copying helpers again
 
-### Phase 5 — Shrink The Allowlist
+### Phase 6 — Shrink The Allowlist
 
 Once toolkit + Sigil consume the canonical runtime:
 
@@ -164,7 +204,8 @@ We want:
    - `shared/schemas/spatial-topology.md` remains the canonical contract
 2. **Code enforcement**
    - tracked helper allowlist test
-   - future invariants/round-trip tests across Swift and JS
+   - future invariants/round-trip tests across Swift and JS, after the
+     canonical DesktopWorld re-anchor is complete
 3. **Workflow enforcement**
    - session-start hook guidance
    - display-debug battery as the standard live verification path
@@ -173,6 +214,7 @@ We want:
 
 ## Success Criteria
 
-- mixed-DPI window placement, minimap projection, hit-area alignment, and Sigil stage projection use the same named transforms
+- mixed-DPI window placement, DesktopWorld projection, minimap projection,
+  hit-area alignment, and Sigil stage projection use the same named transforms
 - fresh sessions can discover the current spatial authority immediately
 - adding new coordinate helpers in random files becomes a test failure, not a future regression

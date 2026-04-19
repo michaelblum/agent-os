@@ -1,6 +1,6 @@
 # Agent OS — Ecosystem Architecture Blueprint
 
-A macOS automation ecosystem built around a single unified Swift binary (`aos`) with Unix-style subcommand groups. An LLM orchestrator drives the binary by invoking subcommands and piping structured JSON between them. Subcommands are independent at the verb level — perception doesn't know about action, action doesn't know about projection — but they share one daemon, one socket, and one coordinate contract.
+A macOS automation ecosystem built around a single unified Swift binary (`aos`) with Unix-style subcommand groups. An LLM orchestrator drives the binary by invoking subcommands and piping structured JSON between them. Subcommands are independent at the verb level — perception doesn't know about action, action doesn't know about projection — but they share one daemon, one socket, and one spatial contract.
 
 ## 1. Philosophy & Design Principles
 
@@ -36,21 +36,43 @@ Every tool in the ecosystem follows the same output contract:
 
 No tool emits unstructured text. No tool requires interactive input during normal operation. An LLM can parse every response without heuristics.
 
-### Two-Layer Coordinate System
+### Shared Coordinate Model
 
-The ecosystem uses two coordinate layers that compose cleanly:
+The ecosystem uses explicit spatial layers. Only one of them is the shared
+cross-surface world model:
 
 | Layer | Origin | Used by |
 |-------|--------|---------|
-| **Global CG** | Top-left of primary display = `(0,0)` | Spatial topology (`shared/schemas/spatial-topology.schema.json`), `aos do` targeting, display arrangement |
+| **Native desktop compatibility** | Top-left of the macOS main display = `(0,0)` | AppKit/CoreGraphics boundary only; current daemon/native emissions |
+| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Canonical world for toolkit, Sigil, canvas-inspector, tests |
+| **VisibleDesktopWorld** | Same DesktopWorld frame, restricted to visible bounds | Usable-area logic such as clamping |
 | **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `aos see` captures, `--xray` element bounds, annotations |
 
-**LCS is what agents see.** All perception output uses coordinates relative to the captured target — a display, a window, a cropped zone. `(0,0)` is always the top-left of whatever was captured. This means:
+**LCS is what agents see during perception.** All perception output uses coordinates relative to the captured target — a display, a window, a cropped zone. `(0,0)` is always the top-left of whatever was captured. This means:
 - Agents never do global screen math during perception
 - Coordinates from one tool's output can be fed directly to another tool's input
 - Foveated perception (cropping to a region) automatically filters out everything outside the crop
 
-**Global CG is the world map.** The spatial topology model uses global coordinates so `aos do` can translate window-relative positions to absolute click targets. Converting between layers: LCS → Global = add display/window origin; Global → LCS = subtract it.
+**DesktopWorld is the world map.**
+
+- Origin is the top-left of the arranged display union, not the macOS main
+  display.
+- Flipping which display macOS marks as main must not renumber DesktopWorld if
+  the display arrangement is otherwise unchanged.
+- Non-visible holes inside the full union bounding box remain valid world
+  coordinates.
+- `--track union` canvases resolve in DesktopWorld, so a full union canvas
+  should be `[0,0,w,h]` in that space.
+
+**Native desktop compatibility is boundary-only.** Current daemon/native
+sources still surface main-display-anchored coordinates in many places. Those
+values exist for AppKit/CoreGraphics interop and must be re-anchored into
+DesktopWorld before toolkit/app/test consumers treat them as shared world
+coordinates.
+
+**VisibleDesktopWorld is derived, not canonical.** Use it for usable-area logic
+such as cursor/avatar clamping. Do not use it as the origin for the shared
+world.
 
 See `shared/schemas/spatial-topology.md` for the full coordinate system specification.
 
@@ -220,11 +242,14 @@ No DOM involved. Browser automation (if needed) is the orchestrator's concern an
 
 ## 5. Union Canvas Foundation
 
-A **union canvas** is an AOS canvas whose bounds span the bounding box of the current display arrangement ("union of displays"). It exists so agent-presence surfaces — Sigil's avatar, ghost trails, inter-display effects — can render across display boundaries with a single transparent overlay.
+A **union canvas** is an AOS canvas whose bounds span the full DesktopWorld
+bounding box of the current display arrangement. It exists so agent-presence
+surfaces — Sigil's avatar, ghost trails, inter-display effects — can render
+across display boundaries with a single transparent overlay.
 
 ### Invariants
 
-1. **Coordinate system.** Global CG coordinates (top-left origin, Y-down). The daemon reports `display_geometry` in this frame; all canvases and all position data share it. No per-display local frames at the canvas layer.
+1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). Union canvases, toolkit minimaps, Sigil stage projection, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
 2. **Transparent + passthrough by default.** A union canvas is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
 3. **One canvas, one owner.** A given union canvas has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant union canvases are out of scope; composition happens by stacking multiple independently-owned canvases.
 4. **Opt-in topology tracking.** A union canvas created with `--track union` resolves its bounds from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
@@ -232,14 +257,20 @@ A **union canvas** is an AOS canvas whose bounds span the bounding box of the cu
 
 ### Coordinate system contract
 
-- `display_geometry` events carry an array of displays, each with global-frame `{x, y, w, h}` (top-left origin), a `visible_bounds` subset excluding the menu bar/dock, and an identifier. See `src/display/display-geometry.swift`.
-- `computeUnion(displays)` (in the renderer) produces `{minX, minY, maxX, maxY, w, h}` — the tight bounding box around all displays.
-- Negative coordinates are valid when a secondary display sits above or to the left of the primary. Apps must not assume `{0, 0}` is a valid upper-left.
-- When an app stores absolute positions (e.g., Sigil's in-memory `lastPosition`), those coordinates remain absolute across display-topology changes. On topology change, positions outside the new union are expected to clamp to the union edge (handled by the renderer today; see `apps/sigil/renderer/index.html:2906-2929`).
+- `display_geometry` carries enough information to derive two unions:
+  - full DesktopWorld from display `bounds`
+  - VisibleDesktopWorld from `visible_bounds`
+- Union canvases and union-canvas bounds mean **full DesktopWorld**.
+- Cursor/avatar clamping and other usable-area logic should use
+  **VisibleDesktopWorld** where appropriate.
+- Re-anchoring from native boundary coordinates into DesktopWorld happens at
+  the shared runtime boundary for toolkit/app/test consumers.
+- Switching the macOS main display without changing Arrange geometry must not
+  change DesktopWorld coordinates for the same visual location.
 
 ### Lifecycle
 
-- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current display topology snapshot. Callers who want a snapshot-only canvas can still pass `--at $(aos runtime display-union)` (legacy shorthand) but it produces a static canvas that won't follow topology changes.
+- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current full DesktopWorld topology snapshot. Callers who want a snapshot-only canvas can still pass `--at $(aos runtime display-union)` (legacy shorthand) but it produces a static canvas that won't follow topology changes.
 - **Topology change.** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, re-resolves bounds for every canvas whose `track == union`, then rebroadcasts `display_geometry`. Renderers see their canvas already sitting in the new bounds by the time they receive the event.
 - **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for union canvases specifically.
 
