@@ -666,7 +666,10 @@ class CanvasManager {
         if trackTarget == .union {
             // Resolve union bounds from the current display topology.
             // Uses allDisplaysBounds() which calls CGDisplayBounds directly,
-            // matching `aos runtime display-union` and `snapshotDisplayGeometry`.
+            // matching `snapshotDisplayGeometry`'s native-compat `global_bounds`
+            // and `aos runtime display-union --native`. The default
+            // `aos runtime display-union` output is the canonical DesktopWorld
+            // shape and is not equivalent to this rect on multi-display setups.
             let bounds = allDisplaysBounds()
             guard bounds.width > 0, bounds.height > 0 else {
                 return .fail("--track union requires at least one connected display", code: "NO_DISPLAYS")

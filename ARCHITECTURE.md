@@ -270,7 +270,7 @@ across display boundaries with a single transparent overlay.
 
 ### Lifecycle
 
-- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current full DesktopWorld topology snapshot. Callers who want a snapshot-only canvas can still pass `--at $(aos runtime display-union)` (legacy shorthand) but it produces a static canvas that won't follow topology changes.
+- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current full DesktopWorld topology snapshot. Callers who want a snapshot-only canvas should prefer `--track union` over a shell-substituted `--at`: `aos runtime display-union` now prints the canonical DesktopWorld shape (origin (0,0)), while `aos show create --at` remains a native-compat rect. Use `aos runtime display-union --native` if you deliberately need the legacy native-compat shape.
 - **Topology change.** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, re-resolves bounds for every canvas whose `track == union`, then rebroadcasts `display_geometry`. Renderers see their canvas already sitting in the new bounds by the time they receive the event.
 - **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for union canvases specifically.
 

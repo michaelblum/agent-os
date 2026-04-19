@@ -79,10 +79,9 @@ the bottom-right nonant of the main display.
 **Test steps:**
 
 ```bash
-UNION=$(./aos runtime display-union)          # e.g. "-207,0,1920,2062"
 ./aos show create --id avatar-main \
     --url 'aos://sigil/renderer/index.html?mode=live-js' \
-    --at "$UNION"
+    --track union
 sleep 3
 ./aos show eval --id avatar-main --js \
     'JSON.stringify({ pos: window.liveJs.avatarPos, size: window.liveJs.avatarSize, mainVB: window.liveJs.displays.find(d=>d.is_main).visible_bounds })'
@@ -238,7 +237,9 @@ single scene (not two separate canvases).
 
 - Main display (display 1): visible_bounds = `{x:0, y:33, w:1512, h:875}`
 - External display (display 2): visible_bounds = `{x:-207, y:1012, w:1920, h:1050}`
-- Display union: `{minX:-207, minY:33, maxX:1713, maxY:2062}` (from `aos runtime display-union`)
+- Display union: `{minX:-207, minY:33, maxX:1713, maxY:2062}` in native compat
+  (via `aos runtime display-union --native`); `aos runtime display-union`
+  default now returns the canonical DesktopWorld shape `0,0,1920,2062`.
 
 **Test steps:**
 
@@ -451,7 +452,7 @@ sed -i '' 's/"display": "main"/"display": "NOT-A-REAL-UUID-0000-0000"/' "$WIKI"
 sleep 1
 ./aos show create --id avatar-main \
     --url 'aos://sigil/renderer/index.html?mode=live-js' \
-    --at "$(./aos runtime display-union)"
+    --track union
 sleep 3
 ./aos show eval --id avatar-main --js 'JSON.stringify(window.liveJs.avatarPos)'
 
@@ -459,7 +460,7 @@ sleep 3
 cp /tmp/acc-c10.bak "$WIKI"
 ./aos show remove --id avatar-main
 sleep 1
-./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?mode=live-js' --at "$(./aos runtime display-union)"
+./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?mode=live-js' --track union
 ```
 
 **Expected result:** Avatar spawns at bottom-right nonant of main display
