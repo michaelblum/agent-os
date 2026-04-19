@@ -60,4 +60,9 @@ OUTPUT="$(AOS_SESSION_NAME="session-start-control-surface-$$" bash "$ROOT/.agent
   exit 1
 }
 
+[[ "$OUTPUT" == *'For spatial work, also run `node scripts/spatial-audit.mjs --summary` before editing; coordinate helpers are under explicit allowlist governance now.'* ]] || {
+  echo "FAIL: startup hook missing spatial-audit guidance" >&2
+  exit 1
+}
+
 echo "PASS"

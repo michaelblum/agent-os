@@ -30,6 +30,30 @@ Two layers, not one:
 
 **Axis directions:** X increases rightward, Y increases downward. Multi-monitor: a display to the right of a 1512px-wide primary starts at `x: 1512`.
 
+## Governance
+
+This document is the canonical contract for desktop-global coordinates, but
+contracts drift unless implementation reuse is enforced.
+
+Current governance surface:
+
+- live audit:
+  - `node scripts/spatial-audit.mjs --summary`
+  - `node scripts/spatial-audit.mjs --check`
+- allowlist:
+  - `tests/fixtures/spatial-governance-allowlist.json`
+- test gate:
+  - `node --test tests/toolkit/spatial-governance.test.mjs`
+
+When changing spatial math, the intended workflow is:
+
+1. update this schema doc if the contract changes
+2. update the audited allowlist only if ownership of a helper is intentionally changing
+3. prefer consolidating transforms into canonical modules instead of adding new local helpers
+
+The medium-term goal is to shrink the allowlist until coordinate transforms live
+in one native boundary layer and one shared JS runtime.
+
 ## Key Design Decisions
 
 **Windows nest under displays, not spaces.** macOS Spaces are not modeled. Agents perceive and act on what's visible — spaces don't change that. App activation (`NSRunningApplication.activate()`) handles space-switching implicitly. If space awareness is needed later, it can be added as an optional enrichment.

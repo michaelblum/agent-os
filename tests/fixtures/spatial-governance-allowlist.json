@@ -1,0 +1,56 @@
+{
+  "trackedHelpers": {
+    "cgPointToScreen": {
+      "allowedFiles": ["src/shared/types.swift"]
+    },
+    "screenPointToCG": {
+      "allowedFiles": ["src/shared/types.swift"]
+    },
+    "cgToScreen": {
+      "allowedFiles": ["src/shared/types.swift"]
+    },
+    "screenToCG": {
+      "allowedFiles": ["src/shared/types.swift"]
+    },
+    "mouseInCGCoords": {
+      "allowedFiles": ["src/shared/types.swift"]
+    },
+    "normalizeDisplays": {
+      "allowedFiles": [
+        "apps/sigil/renderer/live-modules/display-utils.js",
+        "packages/toolkit/components/canvas-inspector/index.js",
+        "packages/toolkit/components/spatial-telemetry/model.js"
+      ]
+    },
+    "computeDisplayUnion": {
+      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+    },
+    "desktopPointToStageLocal": {
+      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+    },
+    "findDisplayForPoint": {
+      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+    },
+    "clampPointToDisplays": {
+      "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
+    },
+    "computeUnionBounds": {
+      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+    },
+    "translatePoint": {
+      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+    },
+    "translateRect": {
+      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+    },
+    "projectPointToMinimap": {
+      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+    },
+    "resolveCanvasFrame": {
+      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+    },
+    "resolveCanvasFrames": {
+      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+    }
+  }
+}

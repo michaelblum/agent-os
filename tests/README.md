@@ -108,6 +108,7 @@ daemons behind, use:
 For live multi-display coordinate work, launch the standard debug pair:
 
 - `bash tests/display-debug-battery.sh`
+- `node scripts/spatial-audit.mjs --summary`
 
 That brings up:
 
@@ -121,3 +122,8 @@ Default placement is deterministic:
 
 Use them together when checking union bounds, per-display-local translation,
 cursor placement, and `canvas_object.marks`.
+
+The spatial audit is the governance gate for coordinate helper ownership. It
+does not eliminate all current duplication yet, but it prevents new ad hoc
+helper definitions from spreading outside the tracked allowlist while the
+runtime is being consolidated.
