@@ -55,7 +55,7 @@ OUTPUT="$(AOS_SESSION_NAME="session-start-control-surface-$$" bash "$ROOT/.agent
   exit 1
 }
 
-[[ "$OUTPUT" == *'For multi-display or coordinate work, launch `bash tests/display-debug-battery.sh` to get `canvas-inspector` + `spatial-telemetry` immediately.'* ]] || {
+[[ "$OUTPUT" == *"For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to get \`spatial-telemetry\` flush bottom-left and \`canvas-inspector\` flush bottom-right of the main display's visible bounds."* ]] || {
   echo "FAIL: startup hook missing display-debug battery guidance" >&2
   exit 1
 }

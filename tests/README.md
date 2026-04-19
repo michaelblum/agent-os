@@ -80,6 +80,7 @@ Examples:
 - `bash tests/capture-union-canvas-surface.sh`
 - `bash tests/capture-parallel.sh`
 - `bash tests/spatial-telemetry-smoke.sh`
+- `bash tests/display-debug-battery-layout.sh`
 - `bash tests/canvas-inspector-move-abs.sh`
 - `bash tests/canvas-inspector-cross-display-drag.sh`
 - `bash tests/canvas-inspector-tint.sh`
@@ -112,6 +113,11 @@ That brings up:
 
 - `canvas-inspector`
 - `spatial-telemetry`
+
+Default placement is deterministic:
+
+- `spatial-telemetry` flush bottom-left of the main display's visible bounds
+- `canvas-inspector` flush bottom-right of the main display's visible bounds
 
 Use them together when checking union bounds, per-display-local translation,
 cursor placement, and `canvas_object.marks`.
