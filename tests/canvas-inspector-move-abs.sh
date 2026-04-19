@@ -90,7 +90,7 @@ layout = None
 for _ in range(30):
     payload = run(
         "show", "eval", "--id", "canvas-inspector", "--js",
-        'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfDims = document.querySelector(".canvas-item.self .canvas-dims")?.textContent ?? null; const selfRect = document.querySelector(".minimap-canvas.self"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, selfDims, selfRect: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null }; })())'
+        'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfDims = document.querySelector(".tree-row.canvas.self .canvas-dims")?.textContent ?? null; const selfRect = document.querySelector(".minimap-canvas.self"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, selfDims, selfRect: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null }; })())'
     )
     layout = json.loads(payload["result"])
     if layout["selfDims"] is not None:

@@ -133,7 +133,7 @@ if not (ox <= new_x < ox + ow and oy <= new_y < oy + oh):
 
 layout = json.loads(run(
     "show", "eval", "--id", "canvas-inspector", "--js",
-    'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfRect = document.querySelector(".minimap-canvas.self"); const selfDims = document.querySelector(".canvas-item.self .canvas-dims"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, self: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null, selfDims: selfDims?.textContent ?? null, displayRects: [...document.querySelectorAll(".minimap-display")].map(el => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10), width: parseInt(el.style.width, 10), height: parseInt(el.style.height, 10) })) }; })())'
+    'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfRect = document.querySelector(".minimap-canvas.self"); const selfDims = document.querySelector(".tree-row.canvas.self .canvas-dims"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, self: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null, selfDims: selfDims?.textContent ?? null, displayRects: [...document.querySelectorAll(".minimap-display")].map(el => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10), width: parseInt(el.style.width, 10), height: parseInt(el.style.height, 10) })) }; })())'
 )["result"])
 
 for rect in layout["displayRects"]:

@@ -26,7 +26,7 @@ import json, subprocess, time
 for _ in range(50):
     payload = json.loads(subprocess.check_output([
         "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
-        'JSON.stringify({text: document.body.textContent.replace(/\\s+/g," ").trim(), selfDims: document.querySelector(".canvas-item.self .canvas-dims")?.textContent ?? null, minimapDisplays: document.querySelectorAll(".minimap-display").length})'
+        'JSON.stringify({text: document.body.textContent.replace(/\\s+/g," ").trim(), selfDims: document.querySelector(".tree-row.canvas.self .canvas-dims")?.textContent ?? null, minimapDisplays: document.querySelectorAll(".minimap-display").length})'
     ], text=True))
     result = json.loads(payload.get("result") or "{}")
     text = result.get("text") or ""

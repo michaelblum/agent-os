@@ -45,7 +45,7 @@ $AOS show wait --id "$CANVAS_ID" --manifest canvas-inspector --timeout 5s >/dev/
 $AOS show wait \
   --id "$CANVAS_ID" \
   --manifest canvas-inspector \
-  --js '!!document.querySelector(".canvas-item.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
+  --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
   --timeout 5s >/dev/null
 
 echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H})"
