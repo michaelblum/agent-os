@@ -95,3 +95,22 @@ export function __resetWarnMemo() {
   warnedMissingIdByCanvas.clear();
   warnedDupByKey.clear();
 }
+
+const UNSAFE_TAG = /<script\b[^>]*>[\s\S]*?<\/script>|<script\b[^>]*\/>/gi;
+const UNSAFE_ATTR = /\s(on[a-z]+|xmlns:xlink)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi;
+const HREF_ATTR = /\s(xlink:href|href)\s*=\s*("([^"]*)"|'([^']*)')/gi;
+
+export function sanitizeSvg(src) {
+  if (typeof src !== 'string') return null;
+  const trimmed = src.trim();
+  if (!/^<svg\b/i.test(trimmed)) return null;
+  let out = trimmed
+    .replace(UNSAFE_TAG, '')
+    .replace(UNSAFE_ATTR, '');
+  out = out.replace(HREF_ATTR, (match, attr, _q, dq, sq) => {
+    const val = dq ?? sq ?? '';
+    if (/^data:/i.test(val)) return match;
+    return '';
+  });
+  return out;
+}
