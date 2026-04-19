@@ -1338,25 +1338,63 @@ All PASS.
 
 ## Phase 4 Decision Memo
 
-_(Populated during Task 7 and Task 8. Do not fill in now — this section is the hand-off point for the explicit migration decision. Human approval required before Task 9 begins.)_
+### Caller audit (Task 7)
 
-### Caller audit (Task 7 — fill in)
+Runtime callers (source + tests):
 
 | Caller | File + line | Current shape consumed | Breaks under Option B? | Breaks under Option C? | Breaks under Option D? |
 | --- | --- | --- | --- | --- | --- |
-| _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _tbd_ |
+| `aos runtime display-union` command impl | `src/commands/runtime.swift:52-77` | Prints native-compat `global_bounds` as `x,y,w,h` | n/a — the command itself is the subject | Kept for one release with deprecation; impl still runs | Kept, adds deprecation banner |
+| `aos show create --at` sample comment | `src/display/canvas.swift:665-679` | Comment only; no runtime parsing of the CLI output. `--at` treats its 4-int arg as native-compat CGRect (line 679) | Comment becomes stale if default flips; rewrite needed regardless | Comment rewrite | Comment rewrite |
+| Command registry entry | `src/shared/command-registry-data.swift:901-906` | Registry example; no runtime use | Update registry example text | Replace id/usage | Add "(deprecated)" note |
+| Integration test | `tests/runtime-display-union.sh:4` | Asserts output matches `^-?[0-9]+,-?[0-9]+,[0-9]+,[0-9]+$` (shape smoke; does not care about origin) | Still passes if the new default stays well-formed; semantic assertion unchanged | Passes for new command; keep old-command test on `--native` fallback | Passes; test can optionally grep for deprecation line |
 
-### Options (Task 8 — choose exactly one)
+Docs / test docs callers (non-runtime, but real):
 
-- Option A — Keep native-compat default; add `--desktop-world` flag.
-- Option B — Switch default to DesktopWorld; add `--native` flag.
-- Option C — Replace with `aos runtime desktop-world` and deprecate `display-union`.
-- Option D — Deprecate entirely; steer to `--track union` + `aos see list --json`.
+| Caller | File + line | Breaks under B / C / D? |
+| --- | --- | --- |
+| Sigil foundation acceptance doc | `apps/sigil/tests/foundation-acceptance.md:82, 454, 462` | **Yes** under B — passes the CLI output to `aos show create --at`. `--at` remains native-compat. If the default flips to DesktopWorld, these invocations produce a snapshot canvas on the wrong display for any layout where the native union origin is not (0,0). Option C/D require the same update. All four options fix this by switching the examples to `--track union` (already the canonical pattern per `ARCHITECTURE.md:273` and the union-canvas spec). |
+| Historical Sigil specs / plans | `docs/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md:126,128`, `docs/superpowers/specs/2026-04-14-union-canvas-foundation-design.md:12,79`, `docs/superpowers/plans/2026-04-14-union-canvas-foundation.md:*`, `docs/superpowers/plans/2026-04-13-sigil-birthplace-and-lastposition.md:*`, `docs/superpowers/plans/2026-04-12-sigil-foundation-agents-and-global-canvas.md:455,525` | Not runtime callers. Acquire supersession banners in Phase 6 regardless of option chosen. |
+| Architecture prose | `ARCHITECTURE.md:273` | Already names `--track union` as the canonical pattern; the `--at $(aos runtime display-union)` fallback note needs wording refresh under any option. |
+
+**Callers-at-risk count:** one live runtime reference (`tests/runtime-display-union.sh` — shape smoke only, passes under any option) plus one live doc path (`apps/sigil/tests/foundation-acceptance.md` — breaks under Option B unless updated, but the doc already calls `--track union` the preferred pattern). No Swift or JS runtime code parses the command output. No external scripts in this repo parse it. No packaged runtime callers found.
+
+### Options (Task 8)
+
+- **Option A — Keep native-compat default; add `--desktop-world` flag.**
+  - Implementation: unchanged stdout; `runtimeDisplayUnionCommand` parses `--desktop-world` and prints `0,0,w,h` (the top-level `desktop_world_bounds`).
+  - Migration: zero caller breakage. `aos show create --at $(./aos runtime display-union)` stays identical.
+  - Risk: preserves the misleading default. "Display union" name continues to produce the less-canonical shape. Contradicts the goal of making DesktopWorld the default mental model. Fresh sessions keep copying the old shape.
+  - When to pick: if external/out-of-repo callers we don't control depend on the current shape.
+
+- **Option B — Switch default to DesktopWorld; add `--native` flag.**
+  - Implementation: default stdout becomes `0,0,w,h` in DesktopWorld. `--native` preserves today's native-compat `global_bounds` output.
+  - Migration: `apps/sigil/tests/foundation-acceptance.md` must update its `--at $(./aos runtime display-union)` invocations (either `--track union` as the CLAUDE-documented canonical pattern, or `--native` for an explicit native shape). `tests/runtime-display-union.sh` stays valid (shape smoke only).
+  - Risk: `--at` remains native-compat (`src/display/canvas.swift:679`). Any caller that fed display-union output directly into `--at` must stop on multi-display setups where the native union origin is not (0,0). The foundation doc is the only such caller in the repo.
+  - When to pick: DesktopWorld visibility is the priority and the doc update is trivial. Matches the goal stated in `docs/superpowers/plans/2026-04-19-spatial-runtime-and-governance.md:140-170`.
+
+- **Option C — Replace with `aos runtime desktop-world`; deprecate `display-union`.**
+  - Implementation: introduce `aos runtime desktop-world [--visible] [--native]`. Keep `aos runtime display-union` for one release with a stderr deprecation warning and current native-compat stdout.
+  - Migration: callers update over time; single-release overlap.
+  - Risk: two CLI surfaces to maintain, registry entry duplicates, fresh sessions have two different names to learn during the overlap.
+  - When to pick: if we want a clean long-term naming and can absorb the transition.
+
+- **Option D — Deprecate entirely; steer to `--track union` + `aos see list --json`.**
+  - Implementation: `aos runtime display-union` prints deprecation + current value; removed in a later release.
+  - Migration: Sigil-style callers shift to `aos show create --track union`; pipelines that need the bounds use `jq '.desktop_world_bounds'` over `aos see list --json`.
+  - Risk: no CLI one-liner for "just give me the union rect." Shell pipelines need `jq`. Removes a cheap diagnostic.
+  - When to pick: if the command is purely a shell shortcut to `--track union` with no other cost/benefit.
 
 ### Recommendation
 
-_(To be written during Task 8 after the caller matrix is complete.)_
+**Option B — switch default to DesktopWorld; add `--native` flag.**
+
+Rationale:
+- The caller audit shows only one live runtime consumer (`tests/runtime-display-union.sh`, shape-only) and one live doc consumer (`apps/sigil/tests/foundation-acceptance.md`). Neither depends on the native shape; both can be updated trivially.
+- `--track union` is already the documented replacement for `--at $(aos runtime display-union)` per `ARCHITECTURE.md:273` and the union-canvas spec. Callers that still need a plain CLI union rect now get the canonical DesktopWorld shape by default.
+- DesktopWorld at `(0,0,w,h)` is the canonical cross-surface world per `shared/schemas/spatial-topology.md:30-44`. The command should reflect the canonical default; `--native` remains the explicit escape hatch for AppKit/CG boundary callers.
+- Option C/D both increase surface area (new command / jq pipelines) with no corresponding caller benefit given the tiny audit footprint. Option A locks in a known misleading default.
 
 ### Human decision
 
-_(Record the approved option + approver handle before starting Task 9.)_
+_(Record approved option + approver handle before starting Task 9. Plan is paused here for review.)_
