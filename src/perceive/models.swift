@@ -125,6 +125,10 @@ struct STDisplay: Encodable {
     let is_main: Bool
     let bounds: STBounds
     let visible_bounds: STBounds
+    let native_bounds: STBounds
+    let native_visible_bounds: STBounds
+    let desktop_world_bounds: STBounds
+    let visible_desktop_world_bounds: STBounds
     let scale_factor: Double
     let rotation: Double
     let windows: [STWindow]
@@ -142,6 +146,8 @@ struct STApp: Encodable {
 struct STCursor: Encodable {
     let x: Double
     let y: Double
+    let desktop_world_x: Double
+    let desktop_world_y: Double
     let display: Int
 }
 
@@ -154,6 +160,8 @@ struct SpatialTopology: Encodable {
     let focused_window_id: Int?
     let focused_app: STFocusedApp?
     let displays: [STDisplay]
+    let desktop_world_bounds: STBounds
+    let visible_desktop_world_bounds: STBounds
     let apps: [STApp]
 }
 

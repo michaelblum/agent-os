@@ -13,7 +13,7 @@
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
-      "description": "Semver. Current: 0.1.0."
+      "description": "Semver. Current: 0.2.0."
     },
     "timestamp": {
       "type": "string",

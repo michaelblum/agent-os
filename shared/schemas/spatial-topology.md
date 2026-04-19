@@ -1,7 +1,7 @@
 # Spatial Topology Schema
 
 **File:** `spatial-topology.schema.json`
-**Version:** 0.1.0
+**Version:** 0.2.0
 **Producer:** `aos see list`
 **Consumers:** `aos do`, orchestrators
 

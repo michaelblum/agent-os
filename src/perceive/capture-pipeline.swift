@@ -1450,10 +1450,29 @@ func buildSpatialTopology() -> SpatialTopology {
         STFocusedApp(pid: Int($0.processIdentifier), name: $0.localizedName ?? "Unknown", bundle_id: $0.bundleIdentifier)
     }
 
+    // DesktopWorld origin — top-left of the arranged full-display native union.
+    let unionOrigin: CGPoint = {
+        guard let first = displays.first else { return .zero }
+        let rect = displays.dropFirst().reduce(first.bounds) { $0.union($1.bounds) }
+        return rect.origin
+    }()
+    func reanchor(_ b: STBounds) -> STBounds {
+        STBounds(x: b.x - Double(unionOrigin.x),
+                 y: b.y - Double(unionOrigin.y),
+                 width: b.width,
+                 height: b.height)
+    }
+
     // Cursor
     let cursorPt = mouseInCGCoords()
     let cursorDisplay = displays.first(where: { $0.bounds.contains(cursorPt) }) ?? displays.first(where: { $0.isMain })!
-    let stCursor = STCursor(x: cursorPt.x, y: cursorPt.y, display: cursorDisplay.ordinal)
+    let stCursor = STCursor(
+        x: cursorPt.x,
+        y: cursorPt.y,
+        desktop_world_x: cursorPt.x - Double(unionOrigin.x),
+        desktop_world_y: cursorPt.y - Double(unionOrigin.y),
+        display: cursorDisplay.ordinal
+    )
 
     // NSScreen map
     var screenMap: [CGDirectDisplayID: NSScreen] = [:]
@@ -1535,15 +1554,24 @@ func buildSpatialTopology() -> SpatialTopology {
             )
         }()
 
+        let nativeBounds = STBounds(
+            x: d.bounds.origin.x,
+            y: d.bounds.origin.y,
+            width: d.bounds.width,
+            height: d.bounds.height
+        )
         return STDisplay(
             display_id: Int(d.cgID),
             display_uuid: uuid,
             ordinal: d.ordinal,
             label: label,
             is_main: d.isMain,
-            bounds: STBounds(x: d.bounds.origin.x, y: d.bounds.origin.y,
-                             width: d.bounds.width, height: d.bounds.height),
+            bounds: nativeBounds,
             visible_bounds: visibleBounds,
+            native_bounds: nativeBounds,
+            native_visible_bounds: visibleBounds,
+            desktop_world_bounds: reanchor(nativeBounds),
+            visible_desktop_world_bounds: reanchor(visibleBounds),
             scale_factor: d.scaleFactor,
             rotation: d.rotation,
             windows: windowsByDisplay[d.cgID] ?? []
@@ -1568,15 +1596,38 @@ func buildSpatialTopology() -> SpatialTopology {
     let iso8601 = ISO8601DateFormatter()
     iso8601.formatOptions = [.withInternetDateTime]
 
+    func unionRect(_ rects: [STBounds]) -> STBounds {
+        guard let first = rects.first else { return STBounds(x: 0, y: 0, width: 0, height: 0) }
+        var minX = first.x
+        var minY = first.y
+        var maxX = first.x + first.width
+        var maxY = first.y + first.height
+        for r in rects.dropFirst() {
+            minX = min(minX, r.x)
+            minY = min(minY, r.y)
+            maxX = max(maxX, r.x + r.width)
+            maxY = max(maxY, r.y + r.height)
+        }
+        return STBounds(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+    let desktopWorldUnion: STBounds = stDisplays.isEmpty
+        ? STBounds(x: 0, y: 0, width: 0, height: 0)
+        : unionRect(stDisplays.map { $0.desktop_world_bounds })
+    let visibleDesktopWorldUnion: STBounds = stDisplays.isEmpty
+        ? desktopWorldUnion
+        : unionRect(stDisplays.map { $0.visible_desktop_world_bounds })
+
     let topology = SpatialTopology(
         schema: "spatial-topology",
-        version: "0.1.0",
+        version: "0.2.0",
         timestamp: iso8601.string(from: Date()),
         screens_have_separate_spaces: NSScreen.screensHaveSeparateSpaces,
         cursor: stCursor,
         focused_window_id: focusedWinID.map { Int($0) },
         focused_app: focusedApp,
         displays: stDisplays,
+        desktop_world_bounds: desktopWorldUnion,
+        visible_desktop_world_bounds: visibleDesktopWorldUnion,
         apps: stApps
     )
     return topology
