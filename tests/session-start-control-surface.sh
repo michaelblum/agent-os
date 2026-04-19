@@ -65,4 +65,9 @@ OUTPUT="$(AOS_SESSION_NAME="session-start-control-surface-$$" bash "$ROOT/.agent
   exit 1
 }
 
+[[ "$OUTPUT" == *'Toolkit-side JS spatial helpers now belong in `packages/toolkit/runtime/spatial.js`; avoid adding new ad hoc transform helpers elsewhere.'* ]] || {
+  echo "FAIL: startup hook missing canonical spatial-runtime guidance" >&2
+  exit 1
+}
+
 echo "PASS"

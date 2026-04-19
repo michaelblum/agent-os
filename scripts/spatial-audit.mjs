@@ -28,7 +28,7 @@ function trackedNames(manifest) {
 }
 
 function listTrackedFiles(root) {
-  const stdout = execFileSync('git', ['ls-files'], {
+  const stdout = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
     cwd: root,
     encoding: 'utf8',
   });

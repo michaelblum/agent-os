@@ -226,6 +226,7 @@ echo "Open with a compact status preamble: branch, ahead/dirty, AOS runtime, sta
 echo "When verifying toolkit or display work, use real \`./aos\` canvases and \`./aos see\`, not a raw browser page."
 echo "For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to get \`spatial-telemetry\` flush bottom-left and \`canvas-inspector\` flush bottom-right of the main display's visible bounds."
 echo "For spatial work, also run \`node scripts/spatial-audit.mjs --summary\` before editing; coordinate helpers are under explicit allowlist governance now."
+echo "Toolkit-side JS spatial helpers now belong in \`packages/toolkit/runtime/spatial.js\`; avoid adding new ad hoc transform helpers elsewhere."
 echo ""
 echo "## Shared Handoff Method"
 echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and emit one ready-to-run continuation path for the active runtime."

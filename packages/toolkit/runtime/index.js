@@ -9,4 +9,23 @@ export { wireBridge, emit, esc } from './bridge.js'
 export { subscribe, unsubscribe } from './subscribe.js'
 export { spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas, move } from './canvas.js'
 export { isCanvasInputEventType, normalizeCanvasInputMessage } from './input-events.js'
+export {
+  rectFromAt,
+  normalizeDisplays,
+  sortDisplaysSpatially,
+  labelDisplays,
+  computeUnionBounds,
+  translatePoint,
+  translateRect,
+  displayContainsPoint,
+  displayContainsRect,
+  findContainingDisplayForPoint,
+  findContainingDisplayForRect,
+  ownerLabelForPoint,
+  ownerLabelForRect,
+  resolveCanvasFrame,
+  resolveCanvasFrames,
+  computeMinimapLayout,
+  projectPointToMinimap,
+} from './spatial.js'
 export { declareManifest, emitReady, emitLifecycleComplete, onReady } from './manifest.js'

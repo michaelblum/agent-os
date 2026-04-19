@@ -18,8 +18,7 @@
     "normalizeDisplays": {
       "allowedFiles": [
         "apps/sigil/renderer/live-modules/display-utils.js",
-        "packages/toolkit/components/canvas-inspector/index.js",
-        "packages/toolkit/components/spatial-telemetry/model.js"
+        "packages/toolkit/runtime/spatial.js"
       ]
     },
     "computeDisplayUnion": {
@@ -35,22 +34,31 @@
       "allowedFiles": ["apps/sigil/renderer/live-modules/display-utils.js"]
     },
     "computeUnionBounds": {
-      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "translatePoint": {
-      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "translateRect": {
-      "allowedFiles": ["packages/toolkit/components/spatial-telemetry/model.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "projectPointToMinimap": {
-      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "resolveCanvasFrame": {
-      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
     "resolveCanvasFrames": {
-      "allowedFiles": ["packages/toolkit/components/canvas-inspector/index.js"]
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "labelDisplays": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "rectFromAt": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
+    },
+    "computeMinimapLayout": {
+      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     }
   }
 }

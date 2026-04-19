@@ -10,6 +10,10 @@ const repoRoot = path.resolve(__dirname, '../..');
 test('spatial governance audit passes with the current allowlist', async () => {
   const result = await runSpatialAudit(repoRoot);
   assert.deepEqual(result.violations, []);
-  assert.ok(result.definitions.normalizeDisplays?.length >= 3);
+  assert.deepEqual([...result.definitions.normalizeDisplays].sort(), [
+    'apps/sigil/renderer/live-modules/display-utils.js',
+    'packages/toolkit/runtime/spatial.js',
+  ].sort());
   assert.equal(result.definitions.cgToScreen?.[0], 'src/shared/types.swift');
+  assert.equal(result.definitions.computeMinimapLayout?.[0], 'packages/toolkit/runtime/spatial.js');
 });

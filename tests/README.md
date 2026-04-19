@@ -127,3 +127,7 @@ The spatial audit is the governance gate for coordinate helper ownership. It
 does not eliminate all current duplication yet, but it prevents new ad hoc
 helper definitions from spreading outside the tracked allowlist while the
 runtime is being consolidated.
+
+The canonical toolkit-side JS spatial runtime now lives at:
+
+- `packages/toolkit/runtime/spatial.js`

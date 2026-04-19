@@ -5,33 +5,13 @@
 //
 // Pure function — no DOM, no side effects. Rendering is a separate concern.
 
+import {
+  findContainingDisplayForRect,
+  labelDisplays,
+  rectFromAt,
+} from '../../runtime/spatial.js';
+
 const UNION_ID = '__union__';
-
-function canvasRect(canvas) {
-  const at = Array.isArray(canvas?.at) && canvas.at.length >= 4 ? canvas.at : null;
-  if (!at) return null;
-  const [x, y, w, h] = at.map(Number);
-  if (![x, y, w, h].every(Number.isFinite)) return null;
-  return { x, y, w, h };
-}
-
-function displayContains(display, rect) {
-  const b = display.bounds;
-  if (!b) return false;
-  return rect.x >= b.x
-      && rect.y >= b.y
-      && rect.x + rect.w <= b.x + b.w
-      && rect.y + rect.h <= b.y + b.h;
-}
-
-function findOwningDisplay(canvas, displays) {
-  const rect = canvasRect(canvas);
-  if (!rect) return null;
-  for (const d of displays) {
-    if (displayContains(d, rect)) return d;
-  }
-  return null;
-}
 
 // Canvas belongs to the union root when:
 //   - the consumer tracked it to 'union', or
@@ -39,8 +19,8 @@ function findOwningDisplay(canvas, displays) {
 //   - it has no resolvable rect at all.
 function canvasBelongsToUnion(canvas, displays) {
   if (canvas?.track === 'union') return true;
-  if (!canvasRect(canvas)) return true;
-  return findOwningDisplay(canvas, displays) == null;
+  if (!rectFromAt(canvas?.at)) return true;
+  return findContainingDisplayForRect(rectFromAt(canvas.at), displays) == null;
 }
 
 function getMarks(marksByCanvas, canvasId) {
@@ -78,26 +58,7 @@ export function computeInspectorTree({
   }
 
   // Spatial ordering: top-to-bottom (y ascending), then left-to-right (x).
-  const sortedDisplays = [...displays].sort((a, b) => {
-    const ay = a?.bounds?.y ?? 0;
-    const by = b?.bounds?.y ?? 0;
-    if (ay !== by) return ay - by;
-    return (a?.bounds?.x ?? 0) - (b?.bounds?.x ?? 0);
-  });
-
-  // Non-main displays are labeled `extended [n]` in spatial order.
-  let extendedCount = 0;
-  const labeled = sortedDisplays.map(d => {
-    const isMain = Boolean(d.is_main);
-    let label;
-    if (isMain) {
-      label = 'main';
-    } else {
-      extendedCount++;
-      label = `extended [${extendedCount}]`;
-    }
-    return { display: d, label, isMain };
-  });
+  const labeled = labelDisplays(displays);
 
   const singleDisplay = displays.length === 1;
   const perDisplay = new Map();
@@ -108,7 +69,7 @@ export function computeInspectorTree({
       unionCanvases.push(c);
       continue;
     }
-    const owner = findOwningDisplay(c, displays) || displays[0];
+    const owner = findContainingDisplayForRect(rectFromAt(c.at), displays) || displays[0];
     if (!perDisplay.has(owner.id)) perDisplay.set(owner.id, []);
     perDisplay.get(owner.id).push(c);
   }

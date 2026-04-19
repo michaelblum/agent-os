@@ -11,11 +11,24 @@
 import { esc, emit } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import {
+  computeMinimapLayout,
+  normalizeDisplays,
+  projectPointToMinimap,
+  resolveCanvasFrames,
+} from '../../runtime/spatial.js'
 import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
 import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
 import { computeInspectorTree } from './tree.js'
+
+export {
+  computeMinimapLayout,
+  normalizeDisplays,
+  projectPointToMinimap,
+  resolveCanvasFrames,
+} from '../../runtime/spatial.js'
 
 const SELF_ID = 'canvas-inspector'
 const TINT_COLORS = [
@@ -50,130 +63,6 @@ function buildTintEvalScript(color) {
     ;(document.body || document.documentElement).appendChild(overlay)
     return true
   })()`
-}
-
-function normalizeDisplay(display = {}) {
-  const bounds = display.bounds || {}
-  const visible = display.visible_bounds || bounds
-  const width = display.width ?? bounds.w ?? bounds.width ?? visible.w ?? visible.width ?? 0
-  const height = display.height ?? bounds.h ?? bounds.height ?? visible.h ?? visible.height ?? 0
-  return {
-    ...display,
-    id: display.id ?? display.ordinal ?? display.display_id ?? display.cgID,
-    width,
-    height,
-    is_main: Boolean(display.is_main),
-    bounds: {
-      x: bounds.x ?? visible.x ?? 0,
-      y: bounds.y ?? visible.y ?? 0,
-      w: bounds.w ?? bounds.width ?? width,
-      h: bounds.h ?? bounds.height ?? height,
-    },
-    visibleBounds: {
-      x: visible.x ?? bounds.x ?? 0,
-      y: visible.y ?? bounds.y ?? 0,
-      w: visible.w ?? visible.width ?? width,
-      h: visible.h ?? visible.height ?? height,
-    },
-  }
-}
-
-export function normalizeDisplays(list) {
-  return (list || []).map((display) => normalizeDisplay(display))
-}
-
-export function computeMinimapLayout(displays, list, mapW, { selfId = SELF_ID, border = 1, inset = 2 } = {}) {
-  if (!displays || displays.length === 0) return null
-  const normalizedDisplays = normalizeDisplays(displays)
-  const resolvedCanvases = resolveCanvasFrames(list)
-
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const d of normalizedDisplays) {
-    minX = Math.min(minX, d.bounds.x)
-    minY = Math.min(minY, d.bounds.y)
-    maxX = Math.max(maxX, d.bounds.x + d.bounds.w)
-    maxY = Math.max(maxY, d.bounds.y + d.bounds.h)
-  }
-
-  const totalW = maxX - minX
-  const totalH = maxY - minY
-  const contentW = Math.max(1, mapW - border * 2)
-  const innerW = Math.max(1, contentW - inset * 2)
-  const scale = innerW / totalW
-  const contentH = Math.round(totalH * scale) + inset * 2
-  const mapH = contentH + border * 2
-
-  return {
-    mapW,
-    mapH,
-    inset,
-    minX,
-    minY,
-    scale,
-    displays: normalizedDisplays.map((d) => ({
-      display: d,
-      x: inset + Math.round((d.bounds.x - minX) * scale),
-      y: inset + Math.round((d.bounds.y - minY) * scale),
-      w: Math.round(d.bounds.w * scale),
-      h: Math.round(d.bounds.h * scale),
-      visibleX: inset + Math.round((d.visibleBounds.x - minX) * scale),
-      visibleY: inset + Math.round((d.visibleBounds.y - minY) * scale),
-      visibleW: Math.max(1, Math.round(d.visibleBounds.w * scale)),
-      visibleH: Math.max(1, Math.round(d.visibleBounds.h * scale)),
-    })),
-    canvases: resolvedCanvases.flatMap((c) => {
-      const at = c.atResolved ?? c.at
-      if (!at || at.length < 4) return []
-      const [cx, cy, cw, ch] = at
-      return [{
-        canvas: c,
-        x: inset + Math.round((cx - minX) * scale),
-        y: inset + Math.round((cy - minY) * scale),
-        w: Math.max(2, Math.round(cw * scale)),
-        h: Math.max(2, Math.round(ch * scale)),
-        isSelf: c.id === selfId,
-      }]
-    }),
-  }
-}
-
-export function projectPointToMinimap(layout, point) {
-  if (!layout || !point) return null
-  const x = Number(point.x)
-  const y = Number(point.y)
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
-  return {
-    x: layout.inset + Math.round((x - layout.minX) * layout.scale),
-    y: layout.inset + Math.round((y - layout.minY) * layout.scale),
-  }
-}
-
-function resolveCanvasFrame(canvas, canvasById, resolving = new Set()) {
-  const at = Array.isArray(canvas?.at) && canvas.at.length >= 4 ? canvas.at : null
-  if (!at) return null
-  if (!canvas?.parent) return at
-  if (resolving.has(canvas.id)) return at
-  const parent = canvasById.get(canvas.parent)
-  if (!parent) return at
-  resolving.add(canvas.id)
-  const parentAt = resolveCanvasFrame(parent, canvasById, resolving)
-  resolving.delete(canvas.id)
-  if (!parentAt) return at
-  return [
-    at[0] - parentAt[0],
-    at[1] - parentAt[1],
-    at[2],
-    at[3],
-  ]
-}
-
-export function resolveCanvasFrames(list) {
-  const canvases = list || []
-  const canvasById = new Map(canvases.map((canvas) => [canvas.id, canvas]))
-  return canvases.map((canvas) => ({
-    ...canvas,
-    atResolved: resolveCanvasFrame(canvas, canvasById),
-  }))
 }
 
 export default function CanvasInspector() {
@@ -230,7 +119,7 @@ export default function CanvasInspector() {
   function renderMinimap(list) {
     if (displays.length === 0) return ''
 
-    const layout = computeMinimapLayout(displays, list, getMinimapWidth())
+    const layout = computeMinimapLayout(displays, list, getMinimapWidth(), { selfId: SELF_ID })
     if (!layout) return ''
 
     let html = `<div class="minimap" style="width:${layout.mapW}px;height:${layout.mapH}px">`
