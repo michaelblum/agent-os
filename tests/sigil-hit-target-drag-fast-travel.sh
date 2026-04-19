@@ -22,13 +22,22 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
 
 ./aos show create \
   --id avatar-main \
-  --url 'aos://sigil/renderer/index.html?visible=1' \
+  --url 'aos://sigil/renderer/index.html' \
   --track union >/dev/null
 
 ./aos show wait \
   --id avatar-main \
-  --js 'window.__sigilStage && window.liveJs && window.liveJs.visible === true && window.liveJs.avatarPos?.valid === true && window.__sigilHitDebug?.ready === true' \
+  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().hitTargetReady === true && window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos?.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && window.__sigilBootError == null' \
   --timeout 10s >/dev/null
+
+./aos show eval \
+  --id avatar-main \
+  --js 'window.__sigilDebug.dispatch({ type: "status_item.show" }); "ok"' >/dev/null
+
+./aos show wait \
+  --id avatar-main \
+  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true' \
+  --timeout 5s >/dev/null
 
 python3 - <<'PY'
 import json
@@ -51,6 +60,11 @@ def show_eval_json(js):
     return json.loads(show_eval(js))
 
 
+def canvas_ids():
+    payload = json.loads(run("show", "list", "--json"))
+    return {canvas["id"] for canvas in payload.get("canvases", [])}
+
+
 def wait_until(predicate, timeout=5.0, interval=0.05):
     deadline = time.time() + timeout
     last = None
@@ -60,13 +74,17 @@ def wait_until(predicate, timeout=5.0, interval=0.05):
             return last
         time.sleep(interval)
     raise SystemExit(f"FAIL: timed out waiting for condition; last={last!r}")
+
 snapshot = show_eval_json(
-    "JSON.stringify({ avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays, hit: window.__sigilHitDebug })"
+    "JSON.stringify({ avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays, sigil: window.__sigilDebug.snapshot() })"
 )
 avatar_pos = snapshot["avatarPos"]
-hit = snapshot["hit"]
-if not hit or not hit.get("ready"):
+sigil = snapshot["sigil"]
+if not sigil or not sigil.get("hitTargetReady"):
     raise SystemExit(f"FAIL: hit target not ready: {snapshot}")
+hit_id = sigil["hitTargetId"]
+if hit_id not in canvas_ids():
+    raise SystemExit(f"FAIL: missing hit target canvas {hit_id}")
 
 main_display = next((display for display in snapshot["displays"] if display.get("is_main")), snapshot["displays"][0])
 visible = main_display.get("visibleBounds") or main_display.get("visible_bounds") or main_display["bounds"]
@@ -82,14 +100,14 @@ start = {
 
 drag_state = show_eval_json(
     f"""(() => {{
-      window.__sigilStage.dispatch({{
+      window.__sigilDebug.dispatch({{
         type: 'canvas_message',
-        id: {json.dumps(hit["id"])},
+        id: {json.dumps(hit_id)},
         payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {start["x"]}, screenY: {start["y"]} }}
       }})
-      window.__sigilStage.dispatch({{
+      window.__sigilDebug.dispatch({{
         type: 'canvas_message',
-        id: {json.dumps(hit["id"])},
+        id: {json.dumps(hit_id)},
         payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {target["x"]}, screenY: {target["y"]} }}
       }})
       return JSON.stringify({{
@@ -106,9 +124,9 @@ if abs(drag_state["pointerPos"]["x"] - target["x"]) > 1 or abs(drag_state["point
 
 show_eval(
     f"""(() => {{
-      window.__sigilStage.dispatch({{
+      window.__sigilDebug.dispatch({{
         type: 'canvas_message',
-        id: {json.dumps(hit["id"])},
+        id: {json.dumps(hit_id)},
         payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: {target["x"]}, screenY: {target["y"]} }}
       }})
       return 'ok'
@@ -127,9 +145,8 @@ landed = wait_until(
     timeout=5.0,
 )
 
-canvases = json.loads(run("show", "list", "--json")).get("canvases", [])
-if not any(canvas.get("id") == hit["id"] for canvas in canvases):
-    raise SystemExit(f"FAIL: hit target disappeared after drag release: {canvases}")
+if hit_id not in canvas_ids():
+    raise SystemExit(f"FAIL: hit target disappeared after drag release: {sorted(canvas_ids())}")
 
-print("PASS", json.dumps({"landed": landed, "hit_id": hit["id"]}))
+print("PASS", json.dumps({"landed": landed, "hit_id": hit_id}))
 PY

@@ -29,24 +29,21 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
 PID="$(aos_test_wait_for_lock_pid "$ROOT")"
 [[ -n "$PID" ]] || { echo "FAIL: daemon pid missing"; exit 1; }
 
-assert_canvas_suspended() {
-  local expected="$1"
-  python3 - "$expected" <<'PY'
+assert_canvas_present() {
+  python3 - <<'PY'
 import json, subprocess, sys
 
-expected = sys.argv[1] == "true"
 payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
 for canvas in payload.get("canvases", []):
     if canvas.get("id") == "sigil-status-demo":
-        actual = canvas.get("suspended")
-        if actual is expected:
+        if canvas.get("suspended") is False:
             raise SystemExit(0)
-        raise SystemExit(f"FAIL: suspended={actual} expected {expected}")
+        raise SystemExit(f"FAIL: tracked canvas unexpectedly suspended: {canvas}")
 raise SystemExit("FAIL: sigil-status-demo canvas missing")
 PY
 }
 
-wait_for_canvas_state() {
+wait_for_avatar_visible() {
   local expected="$1"
   local timeout="$2"
   python3 - "$expected" "$timeout" <<'PY'
@@ -56,39 +53,46 @@ expected = sys.argv[1] == "true"
 deadline = time.time() + float(sys.argv[2])
 
 while time.time() < deadline:
-    payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
-    for canvas in payload.get("canvases", []):
-        if canvas.get("id") == "sigil-status-demo" and canvas.get("suspended") is expected:
+    payload = json.loads(subprocess.check_output([
+        "./aos", "show", "eval",
+        "--id", "sigil-status-demo",
+        "--js", "JSON.stringify(window.__sigilDebug ? window.__sigilDebug.snapshot() : null)",
+    ], text=True))
+    if payload.get("status") == "success":
+        state = json.loads(payload["result"]) if payload.get("result") else None
+        if state and state.get("avatarVisible") is expected:
             raise SystemExit(0)
     time.sleep(0.05)
 
-raise SystemExit(f"FAIL: sigil-status-demo did not reach suspended={expected}")
+raise SystemExit(f"FAIL: sigil-status-demo did not reach avatarVisible={expected}")
 PY
 }
 
 wait_for_ready() {
   ./aos show wait \
     --id sigil-status-demo \
-    --js 'window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos && window.liveJs.avatarPos.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && !!window.headsup && window.__sigilBootError == null' \
+    --js 'window.__sigilDebug && window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos && window.liveJs.avatarPos.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && !!window.headsup && window.__sigilBootError == null' \
     --timeout 10s >/dev/null
 }
 
 press_aos_status_item "$PID"
 wait_for_ready
-assert_canvas_suspended false
+wait_for_avatar_visible true 5.0
+assert_canvas_present
 
 press_aos_status_item "$PID"
-wait_for_canvas_state true 3.0
-assert_canvas_suspended true
+wait_for_avatar_visible false 3.0
+assert_canvas_present
 
 press_aos_status_item "$PID"
-wait_for_canvas_state false 3.0
 wait_for_ready
+wait_for_avatar_visible true 3.0
+assert_canvas_present
 
 JSON_PATH="$ROOT/sigil-status-state.json"
 ./aos show eval \
   --id sigil-status-demo \
-  --js 'JSON.stringify({agentId: window.liveJs.currentAgentId, avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays.length, state: window.liveJs.currentState, bootError: window.__sigilBootError})' \
+  --js 'JSON.stringify({agentId: window.liveJs.currentAgentId, avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays.length, state: window.liveJs.currentState, avatarVisible: window.__sigilDebug?.snapshot().avatarVisible, bootError: window.__sigilBootError})' \
   >"$JSON_PATH"
 
 python3 - "$JSON_PATH" <<'PY'
@@ -101,6 +105,7 @@ assert state["agentId"] == "default", state
 assert state["avatarPos"]["valid"] is True, state
 assert state["displays"] >= 1, state
 assert state["state"] == "IDLE", state
+assert state["avatarVisible"] is True, state
 assert state["bootError"] is None, state
 print("PASS")
 PY

@@ -364,7 +364,7 @@ class StatusItemManager {
         if usesPersistentCanvas {
             var req = CanvasRequest(action: "create")
             req.id = toggleId
-            req.url = toggleUrl
+            req.url = urlResolver?(toggleUrl) ?? toggleUrl
             req.interactive = false
             if let track = toggleTrack { req.track = track }
             _ = canvasManager.handle(req)

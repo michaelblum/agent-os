@@ -30,6 +30,15 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
   --js 'window.__sigilDebug && window.__sigilDebug.snapshot().hitTargetReady === true && window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos && window.liveJs.avatarPos.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && window.__sigilBootError == null' \
   --timeout 10s >/dev/null
 
+./aos show eval \
+  --id avatar-main \
+  --js 'window.__sigilDebug.dispatch({ type: "status_item.show" }); "ok"' >/dev/null
+
+./aos show wait \
+  --id avatar-main \
+  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true' \
+  --timeout 5s >/dev/null
+
 python3 - <<'PY'
 import json
 import math
@@ -71,6 +80,26 @@ snapshot = show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")
 hit_target_id = snapshot["hitTargetId"]
 assert snapshot["hitTargetReady"] is True, snapshot
 assert hit_target_id in canvas_ids(), f"missing hit target canvas {hit_target_id}"
+assert snapshot["avatarVisible"] is True, snapshot
+
+goto_state = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatch({ type: 'left_mouse_up', x: p.x, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert goto_state["state"] == "GOTO", goto_state
+
+goto_canceled = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert goto_canceled["state"] == "IDLE", goto_canceled
 
 goto_state = show_eval_json(
     """(() => {
@@ -130,58 +159,16 @@ canceled = show_eval_json(
 )
 assert canceled["state"] == "IDLE", canceled
 
-show_workbench = show_eval_json(
+goto_canceled_again = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      const before = { x: p.x, y: p.y }
+      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatch({ type: 'left_mouse_up', x: p.x, y: p.y })
       window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
-      return JSON.stringify({
-        before,
-        preWorkbenchPos: window.liveJs.preWorkbenchPos,
-        snapshot: window.__sigilDebug.snapshot()
-      })
+      return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
-restore_pos = show_workbench["preWorkbenchPos"] or show_workbench["before"]
-
-wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap["workbenchVisible"] is True and "sigil-workbench" in canvas_ids()
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=5.0,
-)
-
-wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap["workbenchVisible"] is True and snap["travel"] is None
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=5.0,
-)
-
-show_eval(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
-      return 'ok'
-    })()"""
-)
-
-wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap["workbenchVisible"] is False
-        and "sigil-workbench" not in canvas_ids()
-        and snap["travel"] is None
-        and math.isclose(snap["avatarPos"]["x"], restore_pos["x"], abs_tol=1.0)
-        and math.isclose(snap["avatarPos"]["y"], restore_pos["y"], abs_tol=1.0)
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=5.0,
-)
+assert goto_canceled_again["state"] == "IDLE", goto_canceled_again
 
 assert hit_target_id in canvas_ids(), f"missing hit target canvas after interactions: {hit_target_id}"
 print("PASS")

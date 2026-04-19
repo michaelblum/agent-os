@@ -388,6 +388,29 @@ function handleInputEvent(msg) {
     }
 }
 
+function pointFromHitPayload(payload = {}) {
+    const screenX = Number(payload.x ?? payload.screenX);
+    const screenY = Number(payload.y ?? payload.screenY);
+    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
+        return { x: screenX, y: screenY };
+    }
+    const localX = Number(payload.offsetX);
+    const localY = Number(payload.offsetY);
+    const size = hitTarget.hit.size;
+    if (!Number.isFinite(localX) || !Number.isFinite(localY) || !liveJs.avatarPos.valid) return null;
+    return {
+        x: (liveJs.avatarPos.x - (size / 2)) + localX,
+        y: (liveJs.avatarPos.y - (size / 2)) + localY,
+    };
+}
+
+function handleHitCanvasEvent(payload = {}) {
+    if (payload.source !== 'sigil-hit') return;
+    const point = pointFromHitPayload(payload);
+    if (!point) return;
+    handleInputEvent({ type: payload.kind, x: point.x, y: point.y });
+}
+
 function normalizeMessage(msg) {
     const payload = (msg?.payload && typeof msg.payload === 'object' && msg.payload !== null) ? msg.payload : null;
     const merged = payload ? { ...payload, ...msg } : { ...msg };
@@ -477,6 +500,11 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) {
+        handleHitCanvasEvent(msg.payload || {});
+        return;
+    }
+
     handleInputEvent(msg);
 }
 
@@ -501,7 +529,7 @@ function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
     overlay.mount();
-    host.subscribe(['display_geometry', 'input_event'], { snapshot: true });
+    host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
     startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
