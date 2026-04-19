@@ -1,5 +1,7 @@
 # Canvas Inspector — Object Marks Implementation Plan
 
+> **Superseded for active work on 2026-04-18.** Stop here unless you were explicitly asked to continue the original thumbnail/SVG/icon/capture design. Use [docs/superpowers/plans/2026-04-18-canvas-inspector-pivot.md](./2026-04-18-canvas-inspector-pivot.md) as the current source of truth.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship consumer-published ephemeral object marks in `canvas-inspector` — minimap dots + indented list rows keyed per parent canvas — per the approved spec at `docs/superpowers/specs/2026-04-18-canvas-inspector-object-marks-design.md`.

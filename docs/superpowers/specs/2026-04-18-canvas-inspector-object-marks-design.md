@@ -4,6 +4,8 @@
 **Scope:** Let consumer canvases publish ephemeral, visual "object marks" that canvas-inspector renders on its minimap and list — so a rendered object inside a canvas (e.g. Sigil's avatar) can be cross-referenced visually from the inspector.
 **Status:** Draft — not yet implemented.
 
+> **Superseded for active work on 2026-04-18.** Follow [../plans/2026-04-18-canvas-inspector-pivot.md](../plans/2026-04-18-canvas-inspector-pivot.md) instead. This document captures the original object-marks design with thumbnails, raw SVG, icon URLs, and capture-backed visuals, and remains in-tree as historical context only.
+
 ## Problem
 
 `canvas-inspector` renders the set of canvases the daemon knows about: minimap (spatial layout) plus a list (ids, dims, flags). This is useful for canvas-level debugging, but consumers (like Sigil) render interesting sub-objects *inside* a canvas that the inspector cannot see — the avatar, particle systems, future multi-actor scenes. There is currently no way to ask "where on the minimap is Sigil's avatar actually positioned right now?" or "what do that canvas's sub-objects look like?"
