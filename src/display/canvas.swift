@@ -96,12 +96,43 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - Coordinate Conversion
 
-/// Canonical canvas placement frame in AppKit screen coordinates.
-/// We intentionally avoid any mixed-DPI origin scaling here: the shared AOS
-/// coordinate space already uses logical points, and extra compensation causes
-/// canvases to "pop" when they start spanning displays.
+/// AppKit applies the main display's backing scale to the origin of a single
+/// borderless window that spans mixed-DPI displays. Keep the logical AOS rect
+/// canonical, then correct only the screen-space origin we hand to NSWindow.
+private func mixedScaleCanvasOriginCorrection(for cgRect: CGRect) -> CGFloat? {
+    let displays = getDisplays()
+    let intersecting = displays.filter { display in
+        let intersection = cgRect.intersection(display.bounds)
+        return !intersection.isNull && intersection.width > 0 && intersection.height > 0
+    }
+    let scaleSet = Set(intersecting.map(\.scaleFactor))
+    guard intersecting.count > 1,
+          scaleSet.count > 1,
+          let primaryScale = displays.first(where: \.isMain)?.scaleFactor,
+          primaryScale > 1 else {
+        return nil
+    }
+    return CGFloat(primaryScale)
+}
+
 func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
-    cgToScreen(cgRect)
+    var screenFrame = cgToScreen(cgRect)
+    if let correction = mixedScaleCanvasOriginCorrection(for: cgRect) {
+        screenFrame.origin.x /= correction
+        screenFrame.origin.y /= correction
+    }
+    return screenFrame
+}
+
+/// Undo the mixed-DPI origin correction when reading an NSWindow frame back
+/// into the shared logical AOS coordinate space.
+private func canvasCGFrame(_ screenFrame: NSRect, desiredCGFrame: CGRect) -> CGRect {
+    var corrected = screenFrame
+    if let correction = mixedScaleCanvasOriginCorrection(for: desiredCGFrame) {
+        corrected.origin.x *= correction
+        corrected.origin.y *= correction
+    }
+    return screenToCG(corrected)
 }
 
 // MARK: - CanvasWindow (unconstrained NSWindow)
@@ -342,14 +373,14 @@ class Canvas {
         applyScreenFrame(screenFrame)
         // macOS window server may reject cross-display moves on the first frame.
         // Store the intended position and retry on the next run loop cycle.
-        let actual = screenToCG(window.frame)
+        let actual = canvasCGFrame(window.frame, desiredCGFrame: desiredCGFrame)
         if abs(actual.origin.x - cgRect.origin.x) > 2 || abs(actual.origin.y - cgRect.origin.y) > 2 {
             schedulePlacementRetry(for: cgRect)
         }
     }
 
     var cgFrame: CGRect {
-        return screenToCG(window.frame)
+        return canvasCGFrame(window.frame, desiredCGFrame: desiredCGFrame)
     }
 
     func toInfo() -> CanvasInfo {
