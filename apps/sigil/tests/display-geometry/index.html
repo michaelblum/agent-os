@@ -22,7 +22,9 @@ h1 { font-size: 14px; margin: 0 0 12px 0; color: #8ef; }
 </head>
 <body>
 <h1>display_geometry test harness</h1>
-<div class="row"><span class="k">global_bounds:</span> <span class="v" id="global">—</span></div>
+<div class="row"><span class="k">global_bounds (native-compat):</span> <span class="v" id="global">—</span></div>
+<div class="row"><span class="k">desktop_world_bounds:</span> <span class="v" id="dw">—</span></div>
+<div class="row"><span class="k">visible_desktop_world_bounds:</span> <span class="v" id="vdw">—</span></div>
 <div class="displays" id="displays"></div>
 <div><strong>Log</strong></div>
 <div id="log"></div>
@@ -30,6 +32,8 @@ h1 { font-size: 14px; margin: 0 0 12px 0; color: #8ef; }
 var snapshotCount = 0;
 var logEl = document.getElementById('log');
 var globalEl = document.getElementById('global');
+var dwEl = document.getElementById('dw');
+var vdwEl = document.getElementById('vdw');
 var displaysEl = document.getElementById('displays');
 
 function postToHost(type, payload) {
@@ -47,6 +51,10 @@ function fmtRect(r) {
 
 function render(snapshot) {
   globalEl.textContent = fmtRect(snapshot.global_bounds);
+  dwEl.textContent = snapshot.desktop_world_bounds
+    ? fmtRect(snapshot.desktop_world_bounds) : '— (older daemon)';
+  vdwEl.textContent = snapshot.visible_desktop_world_bounds
+    ? fmtRect(snapshot.visible_desktop_world_bounds) : '— (older daemon)';
   displaysEl.innerHTML = '';
   snapshot.displays.forEach(function(d) {
     var el = document.createElement('div');
@@ -55,8 +63,14 @@ function render(snapshot) {
       '<div><span class="k">id:</span> <span class="v">' + d.display_id + '</span>' +
       (d.is_main ? '  <span class="k">(main)</span>' : '') + '</div>' +
       '<div><span class="k">uuid:</span> <span class="v">' + (d.display_uuid || '').slice(0, 8) + '…</span></div>' +
-      '<div><span class="k">bounds:</span> <span class="v">' + fmtRect(d.bounds) + '</span></div>' +
-      '<div><span class="k">visible:</span> <span class="v">' + fmtRect(d.visible_bounds) + '</span></div>' +
+      '<div><span class="k">native:</span> <span class="v">' + fmtRect(d.bounds) + '</span></div>' +
+      '<div><span class="k">native visible:</span> <span class="v">' + fmtRect(d.visible_bounds) + '</span></div>' +
+      (d.desktop_world_bounds
+        ? '<div><span class="k">DesktopWorld:</span> <span class="v">' + fmtRect(d.desktop_world_bounds) + '</span></div>'
+        : '') +
+      (d.visible_desktop_world_bounds
+        ? '<div><span class="k">visible DW:</span> <span class="v">' + fmtRect(d.visible_desktop_world_bounds) + '</span></div>'
+        : '') +
       '<div><span class="k">scale:</span> <span class="v">' + d.scale_factor + '×</span>' +
       '  <span class="k">rot:</span> <span class="v">' + d.rotation + '°</span></div>';
     displaysEl.appendChild(el);
@@ -76,7 +90,8 @@ window.headsup.receive = function(b64) {
     var msg = JSON.parse(atob(b64));
     if (msg.type === 'display_geometry') {
       snapshotCount++;
-      log('snapshot #' + snapshotCount + ' — ' + msg.displays.length + ' display(s), global=' + fmtRect(msg.global_bounds));
+      var dwSummary = msg.desktop_world_bounds ? fmtRect(msg.desktop_world_bounds) : '(none)';
+      log('snapshot #' + snapshotCount + ' — ' + msg.displays.length + ' display(s), DW=' + dwSummary);
       render(msg);
     }
   } catch (e) {
