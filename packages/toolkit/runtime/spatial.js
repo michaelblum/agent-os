@@ -233,10 +233,6 @@ export function computeVisibleDesktopWorldBounds(displays = []) {
   }
 }
 
-export function computeDisplayUnion(displays = []) {
-  return computeVisibleDesktopWorldBounds(displays)
-}
-
 export function translatePoint(point, originRect) {
   if (!point || !originRect) return null
   const x = asNumber(point.x)

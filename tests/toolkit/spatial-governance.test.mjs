@@ -14,7 +14,6 @@ test('spatial governance audit passes with the current allowlist', async () => {
   assert.deepEqual(result.definitions.computeNativeDesktopBounds, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.computeDesktopWorldBounds, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.computeVisibleDesktopWorldBounds, ['packages/toolkit/runtime/spatial.js']);
-  assert.deepEqual(result.definitions.computeDisplayUnion, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.findDisplayForPoint, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.clampPointToDisplays, ['packages/toolkit/runtime/spatial.js']);
   assert.deepEqual(result.definitions.nativeToDesktopWorldPoint, ['packages/toolkit/runtime/spatial.js']);
@@ -26,4 +25,9 @@ test('spatial governance audit passes with the current allowlist', async () => {
   assert.deepEqual(result.definitions.globalToCanvasLocalPoint, ['packages/toolkit/runtime/spatial.js']);
   assert.equal(result.definitions.cgToScreen?.[0], 'src/shared/types.swift');
   assert.equal(result.definitions.computeMinimapLayout?.[0], 'packages/toolkit/runtime/spatial.js');
+});
+
+test('computeDisplayUnion alias is not defined anywhere', async () => {
+  const result = await runSpatialAudit(repoRoot);
+  assert.equal(result.definitions.computeDisplayUnion, undefined, 'alias must be removed');
 });

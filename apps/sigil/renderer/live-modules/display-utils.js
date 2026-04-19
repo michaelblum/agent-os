@@ -22,7 +22,6 @@ const {
     computeDesktopWorldBounds: toolkitComputeDesktopWorldBounds,
     computeVisibleDesktopWorldBounds: toolkitComputeVisibleDesktopWorldBounds,
     normalizeDisplays: toolkitNormalizeDisplays,
-    computeDisplayUnion: toolkitComputeDisplayUnion,
     findDisplayForPoint: toolkitFindDisplayForPoint,
     clampPointToDisplays: toolkitClampPointToDisplays,
     nativeToDesktopWorldPoint: toolkitNativeToDesktopWorldPoint,
@@ -37,7 +36,6 @@ function visibleBoundsRect(display = {}) {
 export { toolkitNormalizeDisplays as normalizeDisplays };
 export { toolkitComputeDesktopWorldBounds as computeDesktopWorldBounds };
 export { toolkitComputeVisibleDesktopWorldBounds as computeVisibleDesktopWorldBounds };
-export { toolkitComputeDisplayUnion as computeDisplayUnion };
 export { toolkitFindDisplayForPoint as findDisplayForPoint };
 export { toolkitClampPointToDisplays as clampPointToDisplays };
 export { toolkitNativeToDesktopWorldPoint as nativeToDesktopWorldPoint };

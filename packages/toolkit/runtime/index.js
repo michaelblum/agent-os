@@ -18,7 +18,6 @@ export {
   computeNativeDesktopBounds,
   computeDesktopWorldBounds,
   computeVisibleDesktopWorldBounds,
-  computeDisplayUnion,
   translatePoint,
   translateRect,
   nativeToDesktopWorldPoint,

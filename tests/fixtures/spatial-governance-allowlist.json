@@ -27,9 +27,6 @@
     "computeVisibleDesktopWorldBounds": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
-    "computeDisplayUnion": {
-      "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
-    },
     "findDisplayForPoint": {
       "allowedFiles": ["packages/toolkit/runtime/spatial.js"]
     },
