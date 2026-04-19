@@ -898,12 +898,12 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outText,
             examples: ["aos runtime sign"]),
-        InvocationForm(id: "runtime-display-union", usage: "aos runtime display-union",
+        InvocationForm(id: "runtime-display-union", usage: "aos runtime display-union [--native]",
             args: [],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outText,
-            examples: ["aos runtime display-union"])
+            examples: ["aos runtime display-union", "aos runtime display-union --native"])
     ]))
 
     // ── status ────────────────────────────────────────────

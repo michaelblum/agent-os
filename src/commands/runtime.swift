@@ -21,7 +21,7 @@ func runtimeCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union> ...",
+        exitError("runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
                   code: "MISSING_SUBCOMMAND")
     }
 
@@ -44,35 +44,53 @@ func runtimeCommand(args: [String]) {
 }
 
 /// Print the union bounding box of all connected displays as `x,y,w,h`
-/// (comma-separated integers) in the current native desktop compatibility
-/// convention — matching the `display_geometry` channel's `global_bounds`
-/// field. This command still reflects the legacy daemon/runtime interface
-/// shape; shared-world callers should prefer DesktopWorld semantics once the
-/// daemon/API re-anchor lands.
+/// (comma-separated integers). Default output is the canonical DesktopWorld
+/// shape — top-left of the arranged full-display union at (0,0). Pass
+/// `--native` to print the legacy native desktop compatibility shape used
+/// by AppKit/CG boundary callers (matches the `display_geometry` channel's
+/// `global_bounds` field).
 private func runtimeDisplayUnionCommand(args: [String]) {
     if args.contains("--help") || args.contains("-h") {
-        print("Usage: aos runtime display-union")
+        print("Usage: aos runtime display-union [--native]")
         print("")
         print("Print the bounding box of all connected displays as x,y,w,h")
-        print("(integers, comma-separated) in top-left-origin coordinates.")
+        print("(integers, comma-separated). Default output is DesktopWorld")
+        print("(top-left of the arranged full-display union = 0,0).")
+        print("")
+        print("Flags:")
+        print("  --native   Print native desktop compatibility coordinates")
+        print("             (top-left of the macOS main display = 0,0).")
         return
     }
-    print(runtimeDisplayUnion())
+    var asNative = false
+    for arg in args {
+        switch arg {
+        case "--native":
+            asNative = true
+        default:
+            exitError("Unknown flag: \(arg). Usage: aos runtime display-union [--native]",
+                      code: "UNKNOWN_FLAG")
+        }
+    }
+    print(runtimeDisplayUnion(native: asNative))
 }
 
-/// Compute the current compatibility union bounds as `x,y,w,h`
-/// comma-separated integers. Reuses `snapshotDisplayGeometry()` so the output
-/// matches the `display_geometry` channel's `global_bounds` shape and current
-/// coordinate system. Returns `"0,0,0,0"` when no displays are attached.
-func runtimeDisplayUnion() -> String {
+/// Compute the current display union as `x,y,w,h` comma-separated integers.
+/// Reuses `snapshotDisplayGeometry()` so the output matches the
+/// `display_geometry` channel payload. When `native` is true, returns the
+/// native-compat `global_bounds` shape; otherwise returns the canonical
+/// DesktopWorld shape (`desktop_world_bounds`, which is `0,0,w,h` by
+/// construction). Returns `"0,0,0,0"` when no displays are attached.
+func runtimeDisplayUnion(native: Bool = false) -> String {
     let snapshot = snapshotDisplayGeometry()
-    guard let global = snapshot["global_bounds"] as? [String: Double] else {
+    let key = native ? "global_bounds" : "desktop_world_bounds"
+    guard let rect = snapshot[key] as? [String: Double] else {
         return "0,0,0,0"
     }
-    let x = Int(global["x"] ?? 0)
-    let y = Int(global["y"] ?? 0)
-    let w = Int(global["w"] ?? 0)
-    let h = Int(global["h"] ?? 0)
+    let x = Int(rect["x"] ?? 0)
+    let y = Int(rect["y"] ?? 0)
+    let w = Int(rect["w"] ?? 0)
+    let h = Int(rect["h"] ?? 0)
     return "\(x),\(y),\(w),\(h)"
 }
 
