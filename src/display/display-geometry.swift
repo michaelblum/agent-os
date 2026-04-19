@@ -3,14 +3,19 @@ import CoreGraphics
 import Foundation
 
 /// Produces the event payload (JSON-ready dict) broadcast on the
-/// `display_geometry` channel. The shape is a subset of
-/// `spatial-topology.schema.json`'s `displays[]`, plus a derived
-/// `global_bounds` convenience field.
+/// `display_geometry` channel. Per-display shape is a subset of
+/// `spatial-topology.schema.json`'s `displays[]`: it carries both the
+/// native-compat fields (`bounds`, `visible_bounds`, plus explicit
+/// `native_bounds` / `native_visible_bounds` aliases) and the canonical
+/// DesktopWorld-anchored fields (`desktop_world_bounds`,
+/// `visible_desktop_world_bounds`). The top-level payload adds
+/// `desktop_world_bounds` / `visible_desktop_world_bounds` aggregates
+/// alongside the retained `global_bounds` native-compat alias.
 ///
-/// Current producer coordinates are native desktop compatibility:
-/// top-left of the macOS main display = (0, 0), logical points, per-display
-/// `scale_factor`. Cross-surface consumers should re-anchor these values into
-/// DesktopWorld before treating them as shared world coordinates.
+/// Cursor fields are intentionally absent from this channel — the
+/// topology schema owns DesktopWorld cursor coordinates via
+/// `aos see list`. Live cursor consumers re-anchor `input_event`
+/// messages at the boundary via `nativeToDesktopWorldPoint`.
 func snapshotDisplayGeometry() -> [String: Any] {
     let entries = getDisplays()  // from src/perceive/models.swift
     let screensByNumber = screenIndexByDisplayNumber()
@@ -26,21 +31,26 @@ func snapshotDisplayGeometry() -> [String: Any] {
         let visible = visibleBounds(for: cgID, fallback: bounds, screens: screensByNumber)
         let rotation = Int(CGDisplayRotation(cgID))
 
+        let nativeBounds: [String: Double] = [
+            "x": bounds.origin.x,
+            "y": bounds.origin.y,
+            "w": bounds.width,
+            "h": bounds.height,
+        ]
+        let nativeVisible: [String: Double] = [
+            "x": visible.origin.x,
+            "y": visible.origin.y,
+            "w": visible.width,
+            "h": visible.height,
+        ]
+
         displayDicts.append([
             "display_id": Int(cgID),
             "display_uuid": uuid,
-            "bounds": [
-                "x": bounds.origin.x,
-                "y": bounds.origin.y,
-                "w": bounds.width,
-                "h": bounds.height,
-            ],
-            "visible_bounds": [
-                "x": visible.origin.x,
-                "y": visible.origin.y,
-                "w": visible.width,
-                "h": visible.height,
-            ],
+            "bounds": nativeBounds,
+            "visible_bounds": nativeVisible,
+            "native_bounds": nativeBounds,
+            "native_visible_bounds": nativeVisible,
             "scale_factor": entry.scaleFactor,
             "rotation": rotation,
             "is_main": entry.isMain,
@@ -53,21 +63,83 @@ func snapshotDisplayGeometry() -> [String: Any] {
     }
 
     let globalBounds: [String: Double]
+    let nativeUnion: (x: Double, y: Double, w: Double, h: Double)
     if entries.isEmpty {
         globalBounds = ["x": 0, "y": 0, "w": 0, "h": 0]
+        nativeUnion = (0, 0, 0, 0)
     } else {
+        nativeUnion = (minX, minY, maxX - minX, maxY - minY)
         globalBounds = [
-            "x": minX,
-            "y": minY,
-            "w": maxX - minX,
-            "h": maxY - minY,
+            "x": nativeUnion.x,
+            "y": nativeUnion.y,
+            "w": nativeUnion.w,
+            "h": nativeUnion.h,
         ]
     }
+
+    // VisibleDesktopWorld native-side union.
+    var visibleMinX = Double.infinity
+    var visibleMinY = Double.infinity
+    var visibleMaxX = -Double.infinity
+    var visibleMaxY = -Double.infinity
+    for display in displayDicts {
+        guard let v = display["native_visible_bounds"] as? [String: Double] else { continue }
+        visibleMinX = min(visibleMinX, v["x"] ?? 0)
+        visibleMinY = min(visibleMinY, v["y"] ?? 0)
+        visibleMaxX = max(visibleMaxX, (v["x"] ?? 0) + (v["w"] ?? 0))
+        visibleMaxY = max(visibleMaxY, (v["y"] ?? 0) + (v["h"] ?? 0))
+    }
+    let visibleUnionNative: (x: Double, y: Double, w: Double, h: Double)
+    if !visibleMinX.isFinite {
+        visibleUnionNative = nativeUnion
+    } else {
+        visibleUnionNative = (
+            visibleMinX,
+            visibleMinY,
+            visibleMaxX - visibleMinX,
+            visibleMaxY - visibleMinY
+        )
+    }
+
+    // Re-anchor every native rect into DesktopWorld by subtracting the
+    // full-desktop native union origin. The full DesktopWorld union lands
+    // at (0,0,w,h) by construction.
+    func reanchor(_ rect: [String: Double]) -> [String: Double] {
+        [
+            "x": (rect["x"] ?? 0) - nativeUnion.x,
+            "y": (rect["y"] ?? 0) - nativeUnion.y,
+            "w": rect["w"] ?? 0,
+            "h": rect["h"] ?? 0,
+        ]
+    }
+    for idx in displayDicts.indices {
+        if let native = displayDicts[idx]["native_bounds"] as? [String: Double] {
+            displayDicts[idx]["desktop_world_bounds"] = reanchor(native)
+        }
+        if let nativeVisible = displayDicts[idx]["native_visible_bounds"] as? [String: Double] {
+            displayDicts[idx]["visible_desktop_world_bounds"] = reanchor(nativeVisible)
+        }
+    }
+
+    let desktopWorldBounds: [String: Double] = [
+        "x": 0,
+        "y": 0,
+        "w": nativeUnion.w,
+        "h": nativeUnion.h,
+    ]
+    let visibleDesktopWorldBounds: [String: Double] = [
+        "x": visibleUnionNative.x - nativeUnion.x,
+        "y": visibleUnionNative.y - nativeUnion.y,
+        "w": visibleUnionNative.w,
+        "h": visibleUnionNative.h,
+    ]
 
     return [
         "type": "display_geometry",
         "displays": displayDicts,
         "global_bounds": globalBounds,
+        "desktop_world_bounds": desktopWorldBounds,
+        "visible_desktop_world_bounds": visibleDesktopWorldBounds,
     ]
 }
 
