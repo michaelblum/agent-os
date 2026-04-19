@@ -1,5 +1,12 @@
 # Sigil — birthplace + lastPosition refactor — Implementation Plan
 
+> **Supersession note:** References to `aos runtime display-union` and
+> `--at $(aos runtime display-union)` predate the DesktopWorld re-anchor.
+> Current authority: `shared/schemas/spatial-topology.md` and
+> `docs/superpowers/plans/2026-04-19-desktopworld-daemon-reanchor.md`.
+> `aos runtime display-union` now prints DesktopWorld by default; prefer
+> `--track union` for new work, or `--native` for the legacy shape.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace `instance.home` with `instance.birthplace` (first-spawn only) and add a daemon-side in-memory `lastPosition` map updated on IDLE, so the avatar remembers where the user drops it for the daemon's lifetime.

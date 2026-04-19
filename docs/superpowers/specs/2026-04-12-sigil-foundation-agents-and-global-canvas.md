@@ -5,6 +5,13 @@
 **Layer:** Sigil (application)
 **Depends on:** `2026-04-12-aos-wiki-writes-and-namespaces.md` (platform: wiki writes, change events, seed helper, `sigil/` namespace)
 
+> **Supersession note:** References to `aos runtime display-union` and
+> `--at $(aos runtime display-union)` predate the DesktopWorld re-anchor.
+> Current authority: `shared/schemas/spatial-topology.md` and
+> `docs/superpowers/plans/2026-04-19-desktopworld-daemon-reanchor.md`.
+> Prefer `--track union` for new work; pass `--native` to
+> `aos runtime display-union` if you deliberately need the legacy shape.
+
 ## Purpose
 
 Sigil-1 shipped a working avatar state machine with several encoded assumptions that must be unwound before Sigil-2 (menu slices, beam, stellation) builds on top. This spec consolidates four open issues plus one topology change into a single foundation pass:

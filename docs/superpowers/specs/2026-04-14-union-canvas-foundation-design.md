@@ -5,6 +5,14 @@
 **Scope:** Close #50 (Union Canvas foundation) by landing #54 (`--track` flag), #49 (daemon-side topology retarget), and #48 (Sigil renderer inline/module reconciliation) in one spec/plan cycle.
 **Out of scope:** #59 (displays rotate / "move the world" — cursor rewiring research), #60 (full anchor/tracking unification — future consolidation of `--anchor-window`, `--anchor-channel`, `--at` into `--track`).
 
+> **Supersession note:** References to `aos runtime display-union` and
+> `--at $(aos runtime display-union)` predate the DesktopWorld re-anchor.
+> Current authority: `shared/schemas/spatial-topology.md` and
+> `docs/superpowers/plans/2026-04-19-desktopworld-daemon-reanchor.md`.
+> `aos runtime display-union` now prints the canonical DesktopWorld
+> shape by default; the legacy native-compat shape is under `--native`.
+> Prefer `--track union` for new work.
+
 ## Problem
 
 A **union canvas** is an AOS canvas whose bounds span the bounding box of every attached display. Sigil's `avatar-main` uses one so the avatar can traverse displays under a single transparent overlay. The concept works today but three gaps between the invariants in `ARCHITECTURE.md §5` and the running code keep #50 open:

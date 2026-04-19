@@ -226,6 +226,8 @@ echo "Open with a compact status preamble: branch, ahead/dirty, AOS runtime, sta
 echo "When verifying toolkit or display work, use real \`./aos\` canvases and \`./aos see\`, not a raw browser page."
 echo "For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to bring up \`spatial-telemetry\` and \`canvas-inspector\` in deterministic operator panel positions on the main display's visible bounds."
 echo "Treat that placement as operator convenience only; the shared world contract is \`DesktopWorld\` (arranged full-display union)."
+echo "Daemon \`display_geometry\` and \`aos see list\` now emit \`desktop_world_bounds\` and \`visible_desktop_world_bounds\` directly; prefer those fields over re-deriving from native."
+echo "\`aos runtime display-union\` prints DesktopWorld by default (origin (0,0)); pass \`--native\` for the legacy main-display-anchored shape."
 echo "For spatial work, also run \`node scripts/spatial-audit.mjs --summary\` before editing; coordinate helpers are under explicit allowlist governance now."
 echo "Toolkit-side JS spatial helpers now belong in \`packages/toolkit/runtime/spatial.js\`; avoid adding new ad hoc transform helpers elsewhere."
 echo ""
