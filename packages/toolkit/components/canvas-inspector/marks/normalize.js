@@ -1,7 +1,8 @@
-const MIN_SIZE = 4;
-const MAX_SIZE = 128;
+const MIN_DIM = 4;
+const MAX_DIM = 128;
+const DEFAULT_DIM = 20;
 
-const warnedMissingIdByCanvas = new Set(); // `${canvas_id}` one-shot warn
+const warnedMissingIdByCanvas = new Set(); // `missing-id:${canvas_id}` one-shot warn
 const warnedDupByKey = new Set();          // `${canvas_id}:${id}` one-shot warn
 
 export function stableColorForId(id) {
@@ -25,10 +26,15 @@ function hslToHex(h, s, l) {
   return '#' + f(0) + f(8) + f(4);
 }
 
-function clampSize(n) {
+function clampDim(n, fallback = DEFAULT_DIM) {
   const v = Number(n);
-  if (!Number.isFinite(v)) return 20;
-  return Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(v)));
+  if (!Number.isFinite(v)) return fallback;
+  return Math.max(MIN_DIM, Math.min(MAX_DIM, Math.round(v)));
+}
+
+function normBool(v, fallback) {
+  if (v === undefined || v === null) return fallback;
+  return Boolean(v);
 }
 
 export function normalizeMarks(canvasId, objects, { warn = console.warn } = {}) {
@@ -67,27 +73,16 @@ export function normalizeMarks(canvasId, objects, { warn = console.warn } = {}) 
     out.push({
       id,
       x, y,
-      size: clampSize(raw.size ?? 20),
+      w: clampDim(raw.w),
+      h: clampDim(raw.h),
       color: typeof raw.color === 'string' && raw.color.length ? raw.color : stableColorForId(id),
       name: typeof raw.name === 'string' && raw.name.length ? raw.name : id,
-      shape: typeof raw.shape === 'string' ? raw.shape : null,
-      icon: typeof raw.icon === 'string' ? raw.icon : null,
-      icon_region: raw.icon_region && typeof raw.icon_region === 'object' ? {
-        x: Number(raw.icon_region.x),
-        y: Number(raw.icon_region.y),
-        w: Number(raw.icon_region.w),
-        h: Number(raw.icon_region.h),
-      } : null,
-      icon_hz: clampHz(raw.icon_hz),
+      rect: normBool(raw.rect, true),
+      ellipse: normBool(raw.ellipse, true),
+      cross: normBool(raw.cross, true),
     });
   }
   return out;
-}
-
-function clampHz(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 1;
-  return Math.max(0.1, Math.min(10, v));
 }
 
 // test-only: reset the one-shot warn memo
