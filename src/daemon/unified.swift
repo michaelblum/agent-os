@@ -475,7 +475,7 @@ class UnifiedDaemon {
     }
 
     /// Fan out `canvas_object.marks` to every canvas subscribed to that
-    /// event name. Mirror of forwardWikiPageChangedToCanvases. Wraps `data`
+    /// event name. Mirror of fanOutCanvasLifecycle. Wraps `data`
     /// in a `{type: "canvas_object.marks", ...}` envelope since live-js
     /// canvas dispatch routes by `msg.type`.
     private func forwardCanvasObjectMarks(data: [String: Any]) {
