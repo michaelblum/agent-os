@@ -46,8 +46,6 @@ export function normalizeMarks(canvasId, objects, { warn = console.warn } = {}) 
         if (!warnedMissingIdByCanvas.has(key)) {
           warnedMissingIdByCanvas.add(key);
           warn(`[canvas-inspector] mark dropped: missing id in canvas ${canvasId}`);
-        } else {
-          warn(`[canvas-inspector] mark dropped: missing id in canvas ${canvasId}`);
         }
       }
       continue;

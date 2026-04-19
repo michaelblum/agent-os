@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeMarks,
   stableColorForId,
+  __resetWarnMemo,
 } from '../../packages/toolkit/components/canvas-inspector/marks/normalize.js';
 
 test('normalizeMarks drops entries without id and warns once per canvas', () => {
@@ -61,4 +62,24 @@ test('normalizeMarks fills a stable color when none provided, respects explicit'
   ]);
   assert.equal(out[0].color, stableColorForId('a'));
   assert.equal(out[1].color, '#ff00aa');
+});
+
+test('normalizeMarks warns once across multiple snapshots for the same canvas', () => {
+  __resetWarnMemo();
+  const warnings = [];
+  const warn = (...args) => warnings.push(args.join(' '));
+  normalizeMarks('canvas-x', [{ x: 1, y: 2 }], { warn });
+  normalizeMarks('canvas-x', [{ x: 3, y: 4 }, { x: 5, y: 6 }], { warn });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /canvas-x/);
+});
+
+test('normalizeMarks warns once across calls per duplicate (canvas,id) pair', () => {
+  __resetWarnMemo();
+  const warnings = [];
+  const warn = (...args) => warnings.push(args.join(' '));
+  normalizeMarks('cv', [{ id: 'a', x: 1, y: 1 }, { id: 'a', x: 2, y: 2 }], { warn });
+  normalizeMarks('cv', [{ id: 'a', x: 3, y: 3 }, { id: 'a', x: 4, y: 4 }], { warn });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /cv.*a/);
 });
