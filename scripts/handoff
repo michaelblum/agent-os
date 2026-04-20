@@ -78,7 +78,7 @@ set -euo pipefail
 cd "$ROOT"
 export AOS_SESSION_NAME="$session_name"
 PROMPT=$quoted_prompt
-exec "\${AOS_CLAUDE_BIN:-claude}" ${claude_flag} "$session_name" "\$PROMPT"
+exec "\${AOS_CLAUDE_WRAPPER_BIN:-$ROOT/scripts/claude-agent-os}" ${claude_flag} "$session_name" "\$PROMPT"
 EOF
       ;;
   esac
@@ -212,7 +212,7 @@ if $DRY_RUN; then
     if $RESUME; then
       FLAG="--resume"
     fi
-    echo "AOS_SESSION_NAME=\"${TO}\" claude ${FLAG} \"$TO\" \"$PROMPT\""
+    echo "AOS_SESSION_NAME=\"${TO}\" \"$ROOT/scripts/claude-agent-os\" ${FLAG} \"$TO\" \"$PROMPT\""
   fi
   echo ""
   echo "=== CLIPBOARD ==="

@@ -12,7 +12,8 @@
     ".agents/hooks/final-response.sh",
     ".claude/settings.json",
     ".codex/hooks.json",
-    ".codex/config.toml"
+    ".codex/config.toml",
+    "scripts/claude-agent-os"
   ],
   "bootstrap_surfaces": [
     "scripts/handoff",

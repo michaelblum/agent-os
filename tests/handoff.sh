@@ -107,4 +107,32 @@ if '"to": "' + channel + '"' not in target_latest.get("payload", ""):
     raise SystemExit(f"FAIL: target payload did not preserve bootstrap json: {target_latest}")
 PY
 
+CLAUDE_TO="handoff-claude-$$"
+CLAUDE_PAYLOAD="$(aos_session_bootstrap_payload_file "$CLAUDE_TO")"
+CLAUDE_LAUNCHER="$(aos_session_bootstrap_launcher_file "$CLAUDE_TO")"
+
+bash "$ROOT/scripts/handoff" \
+  --runtime claude \
+  --to "$CLAUDE_TO" \
+  --from "$FROM" \
+  --task "Run Claude handoff smoke test" \
+  --context "Verify repo-scoped Claude launcher wrapper." >/dev/null
+
+[[ -x "$CLAUDE_LAUNCHER" ]] || { echo "FAIL: Claude launcher missing or not executable"; exit 1; }
+bash -n "$CLAUDE_LAUNCHER" || { echo "FAIL: Claude launcher is not valid bash"; exit 1; }
+
+grep -q "export AOS_SESSION_NAME=\"$CLAUDE_TO\"" "$CLAUDE_LAUNCHER" || {
+  echo "FAIL: Claude launcher missing AOS_SESSION_NAME export"
+  exit 1
+}
+grep -q "$ROOT/scripts/claude-agent-os" "$CLAUDE_LAUNCHER" || {
+  echo "FAIL: Claude launcher does not use repo-scoped Claude wrapper"
+  exit 1
+}
+grep -q "Use the repo-scoped agent-os bootstrap payload for session $CLAUDE_TO" "$CLAUDE_LAUNCHER" || {
+  echo "FAIL: Claude launcher missing repo-scoped bootstrap prompt"
+  exit 1
+}
+[[ -f "$CLAUDE_PAYLOAD" ]] || { echo "FAIL: Claude payload file missing"; exit 1; }
+
 echo "PASS"

@@ -27,6 +27,8 @@ repo-native docs or issues and stop relying on hidden recall.
   adapters.
 - `.agents/hooks/` is the shared hook implementation layer used by both
   runtimes.
+- `scripts/claude-agent-os` is the required Claude entrypoint for this repo so
+  Claude config and auto-memory stay repo-scoped to `agent-os`.
 
 If a rule matters to both runtimes, it belongs in repo-native files, not in
 provider-specific memory or ad hoc startup text.
@@ -48,6 +50,7 @@ These are the live session-control files:
 - `.codex/config.toml`
 - `scripts/handoff`
 - `scripts/parallel-codex`
+- `scripts/claude-agent-os`
 
 ## Hook Contract
 
