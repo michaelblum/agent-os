@@ -61,9 +61,23 @@ class FakeElement extends FakeNode {
 
 test('wireDrag emits absolute drag updates with the original pointer offset', async (t) => {
   const previousNode = globalThis.Node;
+  const previousWindow = globalThis.window;
   globalThis.Node = FakeNode;
+  const emitted = [];
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            emitted.push(message);
+          },
+        },
+      },
+    },
+  };
   t.after(() => {
     globalThis.Node = previousNode;
+    globalThis.window = previousWindow;
   });
 
   const header = new FakeElement();
@@ -85,6 +99,7 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   assert.equal(down.defaultPrevented, true);
   assert.equal(header.dataset.dragging, 'true');
   assert.equal(header.hasPointerCapture(7), true);
+  assert.deepEqual(emitted, [{ type: 'drag_start' }]);
 
   header.dispatch('pointermove', { pointerId: 8, screenX: 111, screenY: 222 });
   assert.equal(moves.length, 0);
@@ -97,13 +112,28 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   header.dispatch('pointerup', { pointerId: 7 });
   assert.equal('dragging' in header.dataset, false);
   assert.equal(header.hasPointerCapture(7), false);
+  assert.deepEqual(emitted, [{ type: 'drag_start' }, { type: 'drag_end' }]);
 });
 
 test('wireDrag ignores pointerdown events originating from controls', async (t) => {
   const previousNode = globalThis.Node;
+  const previousWindow = globalThis.window;
   globalThis.Node = FakeNode;
+  const emitted = [];
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            emitted.push(message);
+          },
+        },
+      },
+    },
+  };
   t.after(() => {
     globalThis.Node = previousNode;
+    globalThis.window = previousWindow;
   });
 
   const header = new FakeElement();
@@ -125,4 +155,5 @@ test('wireDrag ignores pointerdown events originating from controls', async (t) 
   header.dispatch('pointermove', { pointerId: 3, screenX: 200, screenY: 300 });
   assert.equal(moves.length, 0);
   assert.equal('dragging' in header.dataset, false);
+  assert.equal(emitted.length, 0);
 });

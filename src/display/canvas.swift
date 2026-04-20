@@ -114,8 +114,6 @@ private func canvasCGFrame(_ screenFrame: NSRect) -> CGRect {
 class CanvasWindow: NSWindow {
     var isInteractiveCanvas: Bool = false
     var isActivelyDraggingCanvas: Bool = false
-    private var suppressStraddleFix: Bool = false
-    private var lastStraddleFixSignature: String?
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         return frameRect
@@ -127,60 +125,6 @@ class CanvasWindow: NSWindow {
 
     override var canBecomeMain: Bool {
         return false  // Never steal main window status from the user's app
-    }
-
-    /// Collapse to 1×1 before expanding to the target frame when the rect
-    /// straddles displays with different backing scales. The intermediate 1×1
-    /// sits entirely on one display, giving AppKit an unambiguous screen
-    /// assignment before the expand — without this, the window server
-    /// renders the spanning window at `frame + externalScreen.frame.origin`
-    /// for certain straddle ratios, even though `NSWindow.frame` reports the
-    /// requested rect. Applies to drag-end snaps and any AppKit-initiated
-    /// setFrame call, not just our own `applyScreenFrame`.
-    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
-        let signature = CanvasWindow.straddleFixSignature(for: frameRect)
-        if suppressStraddleFix || signature == nil {
-            lastStraddleFixSignature = nil
-            super.setFrame(frameRect, display: flag)
-            return
-        }
-        // Once a window is already straddling the same mixed-DPI seam during
-        // an active drag, keep moving it directly. Repeating the 1x1 collapse
-        // on every drag tick is what creates the visible seam flicker. For
-        // non-drag placements (create/update/finalize), always do the full
-        // re-home because a previous same-seam frame is not proof that the
-        // window server is currently placed correctly.
-        if isActivelyDraggingCanvas && signature == lastStraddleFixSignature {
-            super.setFrame(frameRect, display: flag)
-            return
-        }
-        suppressStraddleFix = true
-        defer { suppressStraddleFix = false }
-        super.setFrame(NSRect(x: frameRect.minX, y: frameRect.minY, width: 1, height: 1), display: false)
-        super.setFrame(frameRect, display: flag)
-        lastStraddleFixSignature = signature
-    }
-
-    private static func straddleFixSignature(for rect: NSRect) -> String? {
-        var intersecting: [(frame: NSRect, scale: CGFloat)] = []
-        for scr in NSScreen.screens {
-            let intersection = rect.intersection(scr.frame)
-            guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { continue }
-            intersecting.append((scr.frame, scr.backingScaleFactor))
-        }
-        if intersecting.count < 2 { return nil }
-        let scales = Set(intersecting.map { $0.scale })
-        guard scales.count > 1 else { return nil }
-        return intersecting
-            .sorted { lhs, rhs in
-                if lhs.frame.minX != rhs.frame.minX { return lhs.frame.minX < rhs.frame.minX }
-                if lhs.frame.minY != rhs.frame.minY { return lhs.frame.minY < rhs.frame.minY }
-                return lhs.scale < rhs.scale
-            }
-            .map { item in
-                "\(item.frame.minX),\(item.frame.minY),\(item.frame.width),\(item.frame.height)@\(item.scale)"
-            }
-            .joined(separator: "|")
     }
 
     /// Intercept all events so we can grab keyboard focus before the WKWebView
@@ -251,12 +195,30 @@ class Canvas {
     var cascadeFromParent: Bool = true
     var parent: String?
 
+    /// Direct create/update into a mixed-DPI straddling rect can still land at
+    /// `frame + externalScreen.frame.origin` for specific ratios, while
+    /// incremental drag updates land correctly and smoothly. Keep the re-home
+    /// fallback only for non-drag placements; drag stays on the direct path.
+    private func needsMixedDPIStraddleFallback(_ rect: NSRect) -> Bool {
+        var intersectingScaleFactors = Set<CGFloat>()
+        var intersectionCount = 0
+        for screen in NSScreen.screens {
+            let intersection = rect.intersection(screen.frame)
+            guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { continue }
+            intersectionCount += 1
+            intersectingScaleFactors.insert(screen.backingScaleFactor)
+        }
+        return intersectionCount > 1 && intersectingScaleFactors.count > 1
+    }
+
     /// Place the window at `screenFrame` in global NSScreen coordinates.
-    ///
-    /// The mixed-DPI straddle fix lives in `CanvasWindow.setFrame`, which
-    /// collapses to a 1x1 rect first when the target spans displays with
-    /// different backing scales.
-    private func applyScreenFrame(_ screenFrame: NSRect) {
+    private func applyScreenFrame(_ screenFrame: NSRect, allowMixedDPIFallback: Bool) {
+        if allowMixedDPIFallback && needsMixedDPIStraddleFallback(screenFrame) {
+            window.setFrame(
+                NSRect(x: screenFrame.minX, y: screenFrame.minY, width: 1, height: 1),
+                display: false
+            )
+        }
         window.setFrame(screenFrame, display: true)
     }
 
@@ -266,10 +228,10 @@ class Canvas {
             guard let self, let pending = self.pendingCGFrame else { return }
             self.pendingCGFrame = nil
             let retry = canvasScreenFrame(pending)
-            self.applyScreenFrame(retry)
+            self.applyScreenFrame(retry, allowMixedDPIFallback: true)
             // Double-tap: some display transitions need two attempts.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-                self?.applyScreenFrame(retry)
+                self?.applyScreenFrame(retry, allowMixedDPIFallback: true)
             }
         }
     }
@@ -345,10 +307,7 @@ class Canvas {
 
         self.window = window
         self.webView = webView
-        // Route creation through the same shrink-then-expand placement path
-        // used by updatePosition so a straddling initial rect doesn't hit the
-        // AppKit/CGS mixed-DPI reinterpretation.
-        applyScreenFrame(screenFrame)
+        applyScreenFrame(screenFrame, allowMixedDPIFallback: true)
     }
 
     func loadHTML(_ html: String) {
@@ -396,8 +355,9 @@ class Canvas {
     func updatePosition(cgRect: CGRect) {
         desiredCGFrame = cgRect
         let screenFrame = canvasScreenFrame(cgRect)
-        applyScreenFrame(screenFrame)
-        if (window as? CanvasWindow)?.isActivelyDraggingCanvas == true {
+        let isDragging = (window as? CanvasWindow)?.isActivelyDraggingCanvas == true
+        applyScreenFrame(screenFrame, allowMixedDPIFallback: !isDragging)
+        if isDragging {
             return
         }
         let actual = canvasCGFrame(window.frame)
@@ -407,7 +367,8 @@ class Canvas {
     }
 
     func finalizeDragPosition() {
-        updatePosition(cgRect: desiredCGFrame)
+        let screenFrame = canvasScreenFrame(desiredCGFrame)
+        applyScreenFrame(screenFrame, allowMixedDPIFallback: false)
     }
 
     var cgFrame: CGRect {

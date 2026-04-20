@@ -3,6 +3,7 @@
 // Knows nothing about messaging or contents. Just builds the visual frame
 // and reports absolute drag updates through the runtime canvas helper.
 
+import { emit } from '../runtime/bridge.js'
 import { moveAbsolute } from '../runtime/canvas.js'
 
 export function mountChrome(container, { title = 'AOS', draggable = true } = {}) {
@@ -55,6 +56,10 @@ export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
     const offsetY = e.clientY
     header.dataset.dragging = 'true'
     e.preventDefault()
+    // Drag lifecycle matters to the daemon: mixed-DPI seam placement keeps a
+    // direct path during active drags and only falls back to re-home behavior
+    // for non-drag placements.
+    emit('drag_start')
 
     try { header.setPointerCapture(pointerId) } catch {}
 
@@ -73,6 +78,7 @@ export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
+      emit('drag_end')
     }
 
     header.addEventListener('pointermove', onMove)
