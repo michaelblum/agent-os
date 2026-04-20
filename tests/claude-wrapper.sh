@@ -14,6 +14,7 @@ import json, os
 print(json.dumps({
     "claude_config_dir": os.environ.get("CLAUDE_CONFIG_DIR"),
     "claude_auto_memory": os.environ.get("CLAUDE_CODE_DISABLE_AUTO_MEMORY"),
+    "claude_disable_1m_context": os.environ.get("CLAUDE_CODE_DISABLE_1M_CONTEXT"),
 }))
 ' )"
 
@@ -28,15 +29,18 @@ if payload.get("claude_config_dir") != expected_dir:
     raise SystemExit(f"FAIL: wrong CLAUDE_CONFIG_DIR: {payload}")
 if payload.get("claude_auto_memory") != "1":
     raise SystemExit(f"FAIL: wrong CLAUDE_CODE_DISABLE_AUTO_MEMORY: {payload}")
+if payload.get("claude_disable_1m_context") != "1":
+    raise SystemExit(f"FAIL: wrong CLAUDE_CODE_DISABLE_1M_CONTEXT: {payload}")
 if not os.path.isdir(expected_dir):
     raise SystemExit(f"FAIL: wrapper did not create config dir {expected_dir}")
 PY
 
-SHIM_OUTPUT="$(CLAUDE_CONFIG_DIR= CLAUDE_CODE_DISABLE_AUTO_MEMORY= AOS_CLAUDE_CLI_BIN=python3 "$ROOT/claude-aos" -c '
+SHIM_OUTPUT="$(CLAUDE_CONFIG_DIR= CLAUDE_CODE_DISABLE_AUTO_MEMORY= CLAUDE_CODE_DISABLE_1M_CONTEXT= AOS_CLAUDE_CLI_BIN=python3 "$ROOT/claude-aos" -c '
 import json, os
 print(json.dumps({
     "claude_config_dir": os.environ.get("CLAUDE_CONFIG_DIR"),
     "claude_auto_memory": os.environ.get("CLAUDE_CODE_DISABLE_AUTO_MEMORY"),
+    "claude_disable_1m_context": os.environ.get("CLAUDE_CODE_DISABLE_1M_CONTEXT"),
 }))
 ' )"
 
@@ -51,6 +55,8 @@ if payload.get("claude_config_dir") != expected_dir:
     raise SystemExit(f"FAIL: wrong shim CLAUDE_CONFIG_DIR: {payload}")
 if payload.get("claude_auto_memory") != "1":
     raise SystemExit(f"FAIL: wrong shim CLAUDE_CODE_DISABLE_AUTO_MEMORY: {payload}")
+if payload.get("claude_disable_1m_context") != "1":
+    raise SystemExit(f"FAIL: wrong shim CLAUDE_CODE_DISABLE_1M_CONTEXT: {payload}")
 PY
 
 echo "PASS"

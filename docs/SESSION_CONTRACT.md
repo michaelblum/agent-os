@@ -28,7 +28,8 @@ repo-native docs or issues and stop relying on hidden recall.
 - `.agents/hooks/` is the shared hook implementation layer used by both
   runtimes.
 - `scripts/claude-agent-os` is the required Claude entrypoint for this repo so
-  Claude config and auto-memory stay repo-scoped to `agent-os`.
+  Claude config stays repo-scoped to `agent-os`, auto-memory is disabled, and
+  1M context is disabled by default.
 - `./claude-aos` is the repo-root convenience shim for the same wrapper.
 
 If a rule matters to both runtimes, it belongs in repo-native files, not in

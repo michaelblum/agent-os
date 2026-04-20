@@ -33,6 +33,10 @@
     "historical docs/superpowers archaeology that contradicts the session contract"
   ],
   "memory_promotion_rule": "If durable knowledge is discovered in provider-local memory, promote it into repo-native docs or issues instead of relying on hidden recall.",
+  "claude_wrapper_defaults": [
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
+    "CLAUDE_CODE_DISABLE_1M_CONTEXT=1"
+  ],
   "unavoidable_global_state": [
     "~/.claude plugin cache and install metadata",
     "~/.codex project trust state",
