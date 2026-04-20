@@ -19,8 +19,22 @@ Canvases are transparent NSWindow overlays managed by the aos daemon. Each canva
 
 ## Canvas Types
 
-- **Interactive** (`.floating` level) — receive clicks. Used for studio, chat, inspector.
-- **Overlay** (`.statusBar` level) — click-through. Used for display overlays, annotations.
+- **Interactive** (`.statusBar` level, mouse-enabled) — receive clicks and keyboard focus. Used for studio, chat, inspector.
+- **Overlay** (`.statusBar` level, click-through) — ignore mouse events while staying visually above the desktop. Used for display overlays, annotations.
+
+## Toolkit Debug Surfaces
+
+The toolkit ships `canvas-inspector`, a daemon-backed debug surface that renders
+live canvas geometry on a minimap. Its operator controls are demand-driven:
+
+- `minimap cursor` subscribes to `input_event` only when toggled on and draws a
+  live cursor marker on the minimap.
+- `mouse events` is a separate toggle that renders click/drag telemetry on the
+  same minimap: hold rings, drag lines, release collapse/fade, `Esc` cancel
+  collapse, and left/right click pulses.
+
+This keeps the inspector quiet by default while still making raw input behavior
+available when debugging spatial or interaction issues.
 
 ## Content Loading
 

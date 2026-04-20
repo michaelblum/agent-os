@@ -8,7 +8,7 @@
 // packages/toolkit/components/canvas-inspector/marks/ and
 // docs/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
-import { esc } from '../../runtime/bridge.js'
+import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
@@ -25,6 +25,15 @@ import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
 import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
+import {
+  applyMouseEffectsInput,
+  clearMouseEffectsState,
+  createMouseEffectsState,
+  mouseEffectsNeedAnimationFrame,
+  renderMinimapCursor,
+  renderMouseEffectsOverlay,
+  sweepMouseEffectsState,
+} from './mouse-effects.js'
 import { computeInspectorTree } from './tree.js'
 
 export {
@@ -83,20 +92,24 @@ export default function CanvasInspector() {
   let canvases = []
   let cursor = { x: 0, y: 0, valid: false }
   let cursorTrackingEnabled = false
-  let cursorSubscriptionActive = false
+  let mouseEventsEnabled = false
+  let inputSubscriptionActive = false
   let tintedIds = new Set()
   let tintMap = new Map()
   let tintIndex = 0
   let eventCount = 0
   let resizeObserver = null
   let lastMinimapWidth = 0
+  let lastMinimapLayout = null
   let lastTintError = null
+  let dynamicAnimationFrame = 0
 
   const marksState = createMarksState()
   const marksScheduler = createScheduler({
     state: marksState,
     onChange: () => rerender(),
   })
+  const mouseEffectsState = createMouseEffectsState()
 
   function syncDebugState() {
     window.__canvasInspectorState = {
@@ -107,33 +120,105 @@ export default function CanvasInspector() {
       tintMap: Object.fromEntries(tintMap),
       cursor,
       cursorTrackingEnabled,
-      cursorSubscriptionActive,
+      mouseEventsEnabled,
+      inputSubscriptionActive,
       lastTintError,
+      mouseEffects: {
+        active: mouseEffectsState.active,
+        transients: mouseEffectsState.transients,
+      },
       marksByCanvas: Object.fromEntries(
         [...marksState.marksByCanvas].map(([k, v]) => [k, v.marks]),
       ),
     }
   }
 
-  function setCursorTrackingEnabled(enabled) {
-    const next = !!enabled
-    if (cursorTrackingEnabled === next) return
+  function stopDynamicAnimationFrame() {
+    if (dynamicAnimationFrame) {
+      window.cancelAnimationFrame(dynamicAnimationFrame)
+      dynamicAnimationFrame = 0
+    }
+  }
 
-    cursorTrackingEnabled = next
-    if (!next) {
-      if (cursorSubscriptionActive) {
-        unsubscribe(['input_event'])
-        cursorSubscriptionActive = false
-      }
+  function ensureDynamicAnimationFrame() {
+    if (dynamicAnimationFrame) return
+    dynamicAnimationFrame = window.requestAnimationFrame(() => {
+      dynamicAnimationFrame = 0
+      syncMinimapDynamicLayer(Date.now())
+    })
+  }
+
+  function renderMinimapDynamicLayer(now = Date.now()) {
+    if (!lastMinimapLayout) return ''
+    let html = ''
+    if (cursorTrackingEnabled && cursor?.valid) {
+      const projectedCursor = projectPointToMinimap(lastMinimapLayout, cursor)
+      if (projectedCursor) html += renderMinimapCursor(projectedCursor)
+    }
+    if (mouseEventsEnabled) {
+      html += renderMouseEffectsOverlay(mouseEffectsState, lastMinimapLayout, now)
+    }
+    return html
+  }
+
+  function syncMinimapDynamicLayer(now = Date.now()) {
+    if (!contentEl) return
+    const layer = contentEl.querySelector('.minimap-dynamic-layer')
+    if (!layer) {
+      lastMinimapLayout = null
+      stopDynamicAnimationFrame()
+      return
+    }
+    if (sweepMouseEffectsState(mouseEffectsState, now)) syncDebugState()
+    layer.innerHTML = renderMinimapDynamicLayer(now)
+    if (mouseEventsEnabled && mouseEffectsNeedAnimationFrame(mouseEffectsState, now)) {
+      ensureDynamicAnimationFrame()
+    } else {
+      stopDynamicAnimationFrame()
+    }
+  }
+
+  function syncInputSubscription({ snapshot = false } = {}) {
+    const wantsInput = cursorTrackingEnabled || mouseEventsEnabled
+    if (!wantsInput) {
+      if (inputSubscriptionActive) unsubscribe(['input_event'])
+      inputSubscriptionActive = false
       cursor = { x: 0, y: 0, valid: false }
-      rerender()
+      clearMouseEffectsState(mouseEffectsState)
+      stopDynamicAnimationFrame()
+      syncMinimapDynamicLayer()
+      syncDebugState()
       return
     }
 
-    if (!cursorSubscriptionActive) {
-      cursorSubscriptionActive = true
+    if (!inputSubscriptionActive) {
+      inputSubscriptionActive = true
       subscribe(['input_event'], { snapshot: true })
+      syncDebugState()
+      return
     }
+
+    if (snapshot) subscribe(['input_event'], { snapshot: true })
+    syncDebugState()
+  }
+
+  function setCursorTrackingEnabled(enabled) {
+    const next = !!enabled
+    if (cursorTrackingEnabled === next) return
+    cursorTrackingEnabled = next
+    syncInputSubscription({ snapshot: next })
+    rerender()
+  }
+
+  function setMouseEventsEnabled(enabled) {
+    const next = !!enabled
+    if (mouseEventsEnabled === next) return
+    mouseEventsEnabled = next
+    if (!next) {
+      clearMouseEffectsState(mouseEffectsState)
+      stopDynamicAnimationFrame()
+    }
+    syncInputSubscription({ snapshot: next })
     rerender()
   }
 
@@ -146,7 +231,7 @@ export default function CanvasInspector() {
     contentEl.innerHTML = renderMinimap(canvases)
       + `<div class="canvas-list-region">${renderTree()}</div>`
       + renderStatusBar()
-    bindListEvents()
+    syncMinimapDynamicLayer()
     syncDebugState()
   }
 
@@ -155,9 +240,13 @@ export default function CanvasInspector() {
   }
 
   function renderMinimap(list) {
-    if (displays.length === 0) return ''
+    if (displays.length === 0) {
+      lastMinimapLayout = null
+      return ''
+    }
 
     const layout = computeMinimapLayout(displays, list, getMinimapWidth(), { selfId: SELF_ID })
+    lastMinimapLayout = layout
     if (!layout) return ''
 
     let html = `<div class="minimap" style="width:${layout.mapW}px;height:${layout.mapH}px">`
@@ -180,12 +269,7 @@ export default function CanvasInspector() {
         html += renderMinimapMark(m, projected)
       }
     }
-    if (cursorTrackingEnabled && cursor?.valid) {
-      const projectedCursor = projectPointToMinimap(layout, cursor)
-      if (projectedCursor) {
-        html += `<div class="minimap-cursor" style="left:${projectedCursor.x}px;top:${projectedCursor.y}px" title="cursor"></div>`
-      }
-    }
+    html += `<div class="minimap-dynamic-layer"></div>`
     html += `</div>`
     return html
   }
@@ -211,6 +295,7 @@ export default function CanvasInspector() {
     if (node.type === 'union') {
       return renderLocationRow(node.label, depth)
         + renderCursorToggleRow(depth + 1)
+        + renderMouseEventsToggleRow(depth + 1)
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'display') {
@@ -249,6 +334,18 @@ export default function CanvasInspector() {
       + `</div>`
   }
 
+  function renderMouseEventsToggleRow(depth) {
+    const toggleClass = mouseEventsEnabled ? 'btn mouse-events-toggle-btn active' : 'btn mouse-events-toggle-btn'
+    const toggleLabel = mouseEventsEnabled ? 'on' : 'off'
+    return `<div class="tree-row cursor-toggle-row" style="${indentStyle(depth)}">`
+      + `<span class="cursor-toggle-label">mouse events</span>`
+      + `<span class="cursor-toggle-state">${mouseEventsEnabled ? 'live' : 'hidden'}</span>`
+      + `<span class="canvas-flags">`
+      + `<button class="${toggleClass}" data-enabled="${mouseEventsEnabled ? '1' : '0'}">${toggleLabel}</button>`
+      + `</span>`
+      + `</div>`
+  }
+
   function renderCanvasRow(c, depth) {
     const [x, y, w, h] = c.atResolved || c.at || [0, 0, 0, 0]
     const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
@@ -278,52 +375,58 @@ export default function CanvasInspector() {
     return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>${detail}</span></div>`
   }
 
+  async function toggleTint(id) {
+    const wasTinted = tintedIds.has(id)
+    const priorColor = tintMap.get(id) || null
+    let color = null
+    if (wasTinted) {
+      tintedIds.delete(id)
+      tintMap.delete(id)
+    } else {
+      color = TINT_COLORS[tintIndex % TINT_COLORS.length]
+      tintIndex++
+      tintedIds.add(id)
+      tintMap.set(id, color)
+    }
+    lastTintError = null
+    rerender()
+    try {
+      await applyTint(id, color)
+    } catch (error) {
+      if (wasTinted) {
+        tintedIds.add(id)
+        if (priorColor) tintMap.set(id, priorColor)
+      } else {
+        tintIndex = Math.max(0, tintIndex - 1)
+        tintedIds.delete(id)
+        tintMap.delete(id)
+      }
+      lastTintError = { id, error: String(error), at: Date.now() }
+      rerender()
+      console.error('[canvas-inspector] tint failed', id, error)
+    }
+  }
+
   function bindListEvents() {
-    for (const btn of contentEl.querySelectorAll('.cursor-toggle-btn')) {
-      btn.addEventListener('click', () => {
+    contentEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('button')
+      if (!btn || !contentEl.contains(btn)) return
+      if (btn.classList.contains('cursor-toggle-btn')) {
         setCursorTrackingEnabled(!cursorTrackingEnabled)
-      })
-    }
-    for (const btn of contentEl.querySelectorAll('.tint-btn')) {
-      btn.addEventListener('click', async (e) => {
-        const id = e.target.dataset.id
-        const wasTinted = tintedIds.has(id)
-        const priorColor = tintMap.get(id) || null
-        let color = null
-        if (wasTinted) {
-          tintedIds.delete(id)
-          tintMap.delete(id)
-        } else {
-          color = TINT_COLORS[tintIndex % TINT_COLORS.length]
-          tintIndex++
-          tintedIds.add(id)
-          tintMap.set(id, color)
-        }
-        lastTintError = null
-        rerender()
-        try {
-          await applyTint(id, color)
-        } catch (error) {
-          if (wasTinted) {
-            tintedIds.add(id)
-            if (priorColor) tintMap.set(id, priorColor)
-          } else {
-            tintIndex = Math.max(0, tintIndex - 1)
-            tintedIds.delete(id)
-            tintMap.delete(id)
-          }
-          lastTintError = { id, error: String(error), at: Date.now() }
-          rerender()
-          console.error('[canvas-inspector] tint failed', id, error)
-        }
-      })
-    }
-    for (const btn of contentEl.querySelectorAll('.remove-btn')) {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.dataset.id
-        emit('canvas.remove', { id })
-      })
-    }
+        return
+      }
+      if (btn.classList.contains('mouse-events-toggle-btn')) {
+        setMouseEventsEnabled(!mouseEventsEnabled)
+        return
+      }
+      if (btn.classList.contains('tint-btn')) {
+        toggleTint(btn.dataset.id)
+        return
+      }
+      if (btn.classList.contains('remove-btn')) {
+        emit('canvas.remove', { id: btn.dataset.id })
+      }
+    })
   }
 
   function normalizeCanvasesToDesktopWorld(list) {
@@ -378,7 +481,10 @@ export default function CanvasInspector() {
         tintCanvas(id, color = TINT_COLORS[0]) {
           return applyTint(id, color)
         },
+        setCursorTrackingEnabled,
+        setMouseEventsEnabled,
       }
+      bindListEvents()
       resizeObserver = new ResizeObserver(() => {
         const nextWidth = getMinimapWidth()
         if (nextWidth !== lastMinimapWidth) {
@@ -412,10 +518,23 @@ export default function CanvasInspector() {
       }
       const input = normalizeCanvasInputMessage(msg)
       if (input) {
-        if (cursorTrackingEnabled && typeof input.x === 'number' && typeof input.y === 'number') {
-          cursor = nativeToDesktopWorldPoint({ x: input.x, y: input.y }, displays) || { x: input.x, y: input.y }
-          cursor.valid = true
-          rerender()
+        const now = Date.now()
+        const hasPoint = typeof input.x === 'number' && typeof input.y === 'number'
+        const worldPoint = hasPoint
+          ? (nativeToDesktopWorldPoint({ x: input.x, y: input.y }, displays) || { x: input.x, y: input.y, valid: true })
+          : null
+        let changed = false
+
+        if ((cursorTrackingEnabled || mouseEventsEnabled) && worldPoint) {
+          cursor = { ...worldPoint, valid: true }
+          changed = cursorTrackingEnabled
+        }
+        if (mouseEventsEnabled && applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
+          changed = true
+        }
+        if (changed) {
+          syncMinimapDynamicLayer(now)
+          syncDebugState()
         }
         return
       }

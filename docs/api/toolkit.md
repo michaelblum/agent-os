@@ -48,7 +48,7 @@ Current reusable toolkit components include:
 
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
-- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor overlay
+- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 
@@ -193,6 +193,13 @@ The inspector's minimap cursor is operator-toggleable and starts hidden by
 default. Turning it on subscribes to `input_event` on demand and requests a
 snapshot so the current cursor dot appears immediately instead of waiting for
 the next mouse move.
+
+The inspector also exposes a separate `mouse events` toggle directly beneath
+`minimap cursor`. It shares the same on-demand `input_event` subscription but
+renders gesture overlays instead of the live cursor dot: left-button hold and
+drag origin markers, drag lines, release collapse/fade, left-click expanding
+circle pulses, `Esc` cancel collapse back to origin, and right-click expanding
+square pulses.
 
 ### Spatial Telemetry
 

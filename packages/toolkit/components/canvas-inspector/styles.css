@@ -12,6 +12,9 @@
 
 /* Minimap */
 .minimap {
+  --minimap-pointer-center-size: 7px;
+  --minimap-pointer-outer-radius: 6px;
+  --minimap-pointer-center-fill: #fff;
   flex-shrink: 0;
   position: relative;
   margin: 8px;
@@ -41,6 +44,12 @@
   pointer-events: none;
   overflow: visible;
 }
+.minimap-dynamic-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
 .minimap-canvas {
   position: absolute;
   box-sizing: border-box;
@@ -59,17 +68,59 @@
   pointer-events: none;
 }
 .minimap-canvas.tinted { opacity: 0.85; }
-.minimap-cursor {
+.minimap-pointer-anchor,
+.minimap-pointer-line-shell {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  margin-left: -3px;
-  margin-top: -3px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid rgba(20, 20, 28, 0.9);
-  box-shadow: 0 0 0 2px rgba(88, 196, 255, 0.35);
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
+}
+.minimap-pointer-center {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--minimap-pointer-center-size);
+  height: var(--minimap-pointer-center-size);
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: var(--minimap-pointer-center-fill);
+  border: 1px solid rgba(20, 20, 28, 0.9);
+  box-sizing: border-box;
+}
+.minimap-pointer-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--minimap-pointer-outer-radius) * 2);
+  height: calc(var(--minimap-pointer-outer-radius) * 2);
+  transform: translate(-50%, -50%) scale(var(--ring-scale, 1));
+  transform-origin: center;
+  box-sizing: border-box;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  opacity: var(--ring-opacity, 1);
+}
+.minimap-pointer-ring.square {
+  border-radius: 2px;
+}
+.minimap-pointer-ring.cursor {
+  border-color: rgba(88, 196, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(88, 196, 255, 0.2);
+}
+.minimap-pointer-line {
+  display: block;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.96);
+  transform: scaleX(var(--line-scale, 1));
+  transform-origin: var(--line-origin, 0%) 50%;
+  opacity: var(--line-opacity, 1);
+}
+.minimap-pointer-anchor.mouse-events .minimap-pointer-ring,
+.minimap-pointer-line-shell.mouse-events .minimap-pointer-line {
+  border-color: #fff;
+  background: #fff;
 }
 
 /* Canvas tree (location + canvas + mark rows). Indentation is applied inline
