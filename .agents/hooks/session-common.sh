@@ -338,6 +338,11 @@ aos_session_cursor_file() {
   printf '%s/cursor-%s\n' "$(aos_session_state_dir)" "$(aos_sanitize_token "$session_key")"
 }
 
+aos_session_compaction_file() {
+  local session_key="$1"
+  printf '%s/compact-%s\n' "$(aos_session_state_dir)" "$(aos_sanitize_token "$session_key")"
+}
+
 aos_session_bootstrap_payload_file() {
   local session_name="$1"
   printf '%s/payload-%s.json\n' "$(aos_session_bootstrap_dir)" "$(aos_sanitize_token "$session_name")"

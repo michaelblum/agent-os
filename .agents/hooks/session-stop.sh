@@ -13,6 +13,10 @@ SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
 SESSION_HARNESS="$(aos_detect_harness)"
 SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
 
+if [[ -n "$SESSION_ID" ]]; then
+  rm -f "$(aos_session_compaction_file "$SESSION_ID")" >/dev/null 2>&1 || true
+fi
+
 [ -x "$AOS" ] || exit 0
 [ -n "$SESSION_ID" ] || [ -n "$SESSION_NAME" ] || exit 0
 

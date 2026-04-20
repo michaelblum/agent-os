@@ -47,6 +47,17 @@ def nested_get(obj, *path):
     return cur
 
 
+def sanitize_token(value: str) -> str:
+    cleaned = []
+    for ch in value or "":
+        if ch.isalnum() or ch in "._:-":
+            cleaned.append(ch)
+        else:
+            cleaned.append("-")
+    token = "".join(cleaned).strip("-")
+    return token or "session"
+
+
 def compact_model(name: str) -> str:
     if not name:
         return "model?"
@@ -138,6 +149,27 @@ def ctx_bar(used):
     return ("█" * filled) + ("░" * (10 - filled))
 
 
+def session_state_dir(status):
+    state_root = os.environ.get("AOS_STATE_ROOT", os.path.expanduser("~/.config/aos"))
+    mode = nested_get(status, "identity", "mode") or os.environ.get("AOS_RUNTIME_MODE") or "repo"
+    return os.path.join(state_root, mode, "coordination", "session-state")
+
+
+def compaction_badge(session, status):
+    session_id = session.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        return ""
+    path = os.path.join(session_state_dir(status), f"compact-{sanitize_token(session_id)}")
+    try:
+        with open(path) as fh:
+            count = int((fh.read() or "0").strip())
+    except Exception:
+        return ""
+    if count <= 0:
+        return ""
+    return "C" if count == 1 else f"C{count}"
+
+
 session = load("SESSION_JSON")
 status = load("STATUS_JSON")
 
@@ -154,7 +186,10 @@ left_s = f"{int(float(left))}%" if left is not None else "--%"
 color = ctx_color(used)
 reset = "\033[0m" if color else ""
 ctx_segment = f"{color}ctx {used_s} {bar} {left_s} {size}{reset}"
+badge = compaction_badge(session, status)
 line1 = f"{model} | {effort} | {ctx_segment}"
+if badge:
+    line1 = f"{line1} {badge}"
 
 git = status.get("git", {})
 branch = git.get("branch") or "?"

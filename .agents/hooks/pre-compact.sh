@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 HOOK_INPUT="$(cat || true)"
+
+# shellcheck source=/dev/null
+source "$(dirname "$0")/session-common.sh"
 
 read_trigger() {
   local input="${1:-}"
@@ -24,6 +26,17 @@ if isinstance(trigger, str) and trigger:
 TRIGGER="$(read_trigger "$HOOK_INPUT")"
 if [[ "$TRIGGER" != "auto" ]]; then
   exit 0
+fi
+
+SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
+if [[ -n "$SESSION_ID" ]]; then
+  COMPACTION_FILE="$(aos_session_compaction_file "$SESSION_ID")"
+  CURRENT_COUNT=0
+  if [[ -f "$COMPACTION_FILE" ]]; then
+    CURRENT_COUNT="$(tr -dc '0-9' < "$COMPACTION_FILE" 2>/dev/null || printf '0')"
+  fi
+  NEXT_COUNT=$(( ${CURRENT_COUNT:-0} + 1 ))
+  printf '%s\n' "$NEXT_COUNT" > "$COMPACTION_FILE"
 fi
 
 MESSAGE="Claude Code is auto-compacting this agent-os session."
