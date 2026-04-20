@@ -28,6 +28,16 @@ def assert_hooks(label, path):
 
 assert_hooks("codex", sys.argv[1])
 assert_hooks("claude", sys.argv[2])
+
+claude_payload = json.load(open(sys.argv[2]))
+precompact = claude_payload.get("hooks", {}).get("PreCompact", [])
+precompact_commands = [
+    hook.get("command", "")
+    for matcher in precompact
+    for hook in matcher.get("hooks", [])
+]
+if not any("pre-compact.sh" in command for command in precompact_commands):
+    raise SystemExit(f"FAIL: claude missing PreCompact alert hook: {precompact_commands}")
 PY
 
 echo "PASS"

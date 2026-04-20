@@ -29,17 +29,16 @@ def load(name):
 
 def compact_model(name: str) -> str:
     if not name:
-        return "mdl?"
-    cleaned = (
-        name.replace("Claude ", "")
-        .replace(" claude", "")
-        .replace(" 1M", "[1m]")
-        .replace(" 1m", "[1m]")
-        .replace("Sonnet ", "S")
-        .replace("Opus ", "O")
-        .replace("Haiku ", "H")
-    )
-    return cleaned.replace(" ", "")
+        return "model?"
+    cleaned = name.replace("Claude ", "").replace(" claude", "").replace(" ", "")
+    cleaned = cleaned.replace("[1m]", "").replace("[1M]", "")
+    if cleaned.startswith("Opus"):
+        return cleaned
+    if cleaned.startswith("Sonnet"):
+        return cleaned
+    if cleaned.startswith("Haiku"):
+        return cleaned
+    return cleaned
 
 
 def compact_effort(session):
@@ -56,9 +55,9 @@ def compact_effort(session):
                 break
             cur = cur.get(key)
         if isinstance(cur, str) and cur:
-            return cur[:3]
+            return cur
     env_effort = os.environ.get("CLAUDE_CODE_EFFORT_LEVEL", "")
-    return env_effort[:3] if env_effort else "eff?"
+    return env_effort if env_effort else "effort?"
 
 
 def compact_ctx_size(size):
@@ -79,6 +78,34 @@ def compact_ctx_size(size):
     return str(size)
 
 
+def ctx_color(used):
+    if used is None:
+        return ""
+    try:
+        used = float(used)
+    except Exception:
+        return ""
+    if used >= 75:
+        return "\033[31m"
+    if used >= 50:
+        return "\033[33m"
+    return ""
+
+
+def ctx_bar(used):
+    if used is None:
+        return "░░░░░░░░░░"
+    try:
+        used = float(used)
+    except Exception:
+        return "░░░░░░░░░░"
+    used = max(0.0, min(100.0, used))
+    filled = int(used // 10)
+    if used >= 100:
+        filled = 10
+    return ("█" * filled) + ("░" * (10 - filled))
+
+
 session = load("SESSION_JSON")
 status = load("STATUS_JSON")
 
@@ -88,17 +115,20 @@ ctx = session.get("context_window", {}) if isinstance(session.get("context_windo
 used = ctx.get("used_percentage")
 left = ctx.get("remaining_percentage")
 size = compact_ctx_size(ctx.get("context_window_size"))
-
-used_s = f"u{int(float(used))}%" if used is not None else "u--"
-left_s = f"l{int(float(left))}%" if left is not None else "l--"
-line1 = "|".join([model, effort, used_s, left_s, size])
+bar = ctx_bar(used)
+used_s = f"{int(float(used))}%" if used is not None else "--%"
+left_s = f"{int(float(left))}%" if left is not None else "--%"
+color = ctx_color(used)
+reset = "\033[0m" if color else ""
+ctx_segment = f"{color}ctx {used_s} {bar} {left_s} {size}{reset}"
+line1 = f"{model} | {effort} | {ctx_segment}"
 
 git = status.get("git", {})
 branch = git.get("branch") or "?"
 dirty = git.get("dirty_files", "?")
 ahead = git.get("ahead_of_origin_main", 0)
 health = status.get("status") or "aos?"
-line2 = "|".join([branch, f"d{dirty}", health, f"+{ahead}"])
+line2 = f"{branch} | d{dirty} | {health} | +{ahead}"
 
 print(line1)
 print(line2)

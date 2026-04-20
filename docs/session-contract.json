@@ -37,6 +37,10 @@
     "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
     "CLAUDE_CODE_DISABLE_1M_CONTEXT=1"
   ],
+  "hook_parity_notes": [
+    "Claude has a repo-defined PreCompact(auto) alert hook.",
+    "Codex does not yet expose equivalent pre-compact hook parity; warn from status/context surfaces instead."
+  ],
   "unavoidable_global_state": [
     "~/.claude plugin cache and install metadata",
     "~/.codex project trust state",

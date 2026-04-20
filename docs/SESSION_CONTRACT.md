@@ -67,6 +67,9 @@ Both Codex and Claude Code must:
 - run the shared session-stop unregister hook on stop
 
 No runtime-specific persona injection is allowed at startup for `agent-os`.
+Claude also carries a repo-defined `PreCompact(auto)` alert hook; Codex does
+not yet expose equivalent pre-compact hook parity, so compaction warning there
+must come from status/context surfaces rather than hook lifecycle.
 
 ## Bootstrap Contract
 
