@@ -16,17 +16,21 @@ func serveCommand(args: [String]) {
     }
 
     let config = loadConfig()
-    let daemon = UnifiedDaemon(config: config, idleTimeout: idleTimeout)
-    daemon.start()
-
     // Accessory policy: no dock icon, no menu bar, but can own key windows
     // and receive mouse/keyboard events. Required for interactive canvases.
+    // Initialize NSApplication before daemon.start(): the perception engine's
+    // live input tap depends on AppKit being bootstrapped first. If the daemon
+    // starts before NSApplication.shared exists, one-shot cursor snapshots can
+    // still work while live input_event fanout silently stops after startup.
     //
     // Note: use NSApplication.shared (not the NSApp global) to force
     // initialization of the singleton. Accessing NSApp before NSApplication.shared
     // has been evaluated traps, because NSApp is an implicitly-unwrapped optional
     // that is only assigned as a side effect of NSApplication.shared's first access.
     NSApplication.shared.setActivationPolicy(.accessory)
+
+    let daemon = UnifiedDaemon(config: config, idleTimeout: idleTimeout)
+    daemon.start()
 
     // Status item (menu bar icon) — holder class provides explicit ownership
     // and ensures onCanvasCountChanged always reaches the current manager.
