@@ -416,6 +416,12 @@ class UnifiedDaemon {
             if requested.contains("canvas_lifecycle") {
                 self.broadcastCanvasLifecycleSnapshot(to: canvasID)
             }
+            if requested.contains("input_event") {
+                self.canvasManager.postMessageAsync(
+                    canvasID: canvasID,
+                    payload: self.currentInputEventSnapshot()
+                )
+            }
         }
     }
 
@@ -1793,7 +1799,31 @@ class UnifiedDaemon {
                     )
                 }
             }
+            if requested.contains("input_event") {
+                sendSnapshotEvent(
+                    to: fd,
+                    service: "input",
+                    event: "input_event",
+                    data: currentInputEventSnapshot()
+                )
+            }
         }
+    }
+
+    private func currentInputEventSnapshot() -> [String: Any] {
+        let point = mouseInCGCoords()
+        return inputEventData(
+            type: "mouse_moved",
+            x: Double(point.x),
+            y: Double(point.y),
+            flags: [
+                "shift": false,
+                "ctrl": false,
+                "cmd": false,
+                "opt": false,
+                "fn": false,
+            ]
+        )
     }
 
     private func requestedInputEvents(_ json: [String: Any]) -> Bool {

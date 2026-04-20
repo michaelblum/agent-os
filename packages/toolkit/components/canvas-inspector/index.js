@@ -8,9 +8,10 @@
 // packages/toolkit/components/canvas-inspector/marks/ and
 // docs/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
-import { esc, emit } from '../../runtime/bridge.js'
+import { esc } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
   nativeToDesktopWorldPoint,
   nativeToDesktopWorldRect,
@@ -81,6 +82,8 @@ export default function CanvasInspector() {
   let displays = []
   let canvases = []
   let cursor = { x: 0, y: 0, valid: false }
+  let cursorTrackingEnabled = false
+  let cursorSubscriptionActive = false
   let tintedIds = new Set()
   let tintMap = new Map()
   let tintIndex = 0
@@ -103,11 +106,35 @@ export default function CanvasInspector() {
       tintedIds: [...tintedIds],
       tintMap: Object.fromEntries(tintMap),
       cursor,
+      cursorTrackingEnabled,
+      cursorSubscriptionActive,
       lastTintError,
       marksByCanvas: Object.fromEntries(
         [...marksState.marksByCanvas].map(([k, v]) => [k, v.marks]),
       ),
     }
+  }
+
+  function setCursorTrackingEnabled(enabled) {
+    const next = !!enabled
+    if (cursorTrackingEnabled === next) return
+
+    cursorTrackingEnabled = next
+    if (!next) {
+      if (cursorSubscriptionActive) {
+        unsubscribe(['input_event'])
+        cursorSubscriptionActive = false
+      }
+      cursor = { x: 0, y: 0, valid: false }
+      rerender()
+      return
+    }
+
+    if (!cursorSubscriptionActive) {
+      cursorSubscriptionActive = true
+      subscribe(['input_event'], { snapshot: true })
+    }
+    rerender()
   }
 
   async function applyTint(id, color) {
@@ -153,7 +180,7 @@ export default function CanvasInspector() {
         html += renderMinimapMark(m, projected)
       }
     }
-    if (cursor?.valid) {
+    if (cursorTrackingEnabled && cursor?.valid) {
       const projectedCursor = projectPointToMinimap(layout, cursor)
       if (projectedCursor) {
         html += `<div class="minimap-cursor" style="left:${projectedCursor.x}px;top:${projectedCursor.y}px" title="cursor"></div>`
@@ -181,7 +208,12 @@ export default function CanvasInspector() {
 
   function renderTreeNode(node, depth) {
     if (!node) return ''
-    if (node.type === 'union' || node.type === 'display') {
+    if (node.type === 'union') {
+      return renderLocationRow(node.label, depth)
+        + renderCursorToggleRow(depth + 1)
+        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+    }
+    if (node.type === 'display') {
       return renderLocationRow(node.label, depth)
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
@@ -202,6 +234,18 @@ export default function CanvasInspector() {
   function renderLocationRow(label, depth) {
     return `<div class="tree-row location" style="${indentStyle(depth)}">`
       + `<span class="location-label">${esc(label)}</span>`
+      + `</div>`
+  }
+
+  function renderCursorToggleRow(depth) {
+    const toggleClass = cursorTrackingEnabled ? 'btn cursor-toggle-btn active' : 'btn cursor-toggle-btn'
+    const toggleLabel = cursorTrackingEnabled ? 'on' : 'off'
+    return `<div class="tree-row cursor-toggle-row" style="${indentStyle(depth)}">`
+      + `<span class="cursor-toggle-label">minimap cursor</span>`
+      + `<span class="cursor-toggle-state">${cursorTrackingEnabled ? 'live' : 'hidden'}</span>`
+      + `<span class="canvas-flags">`
+      + `<button class="${toggleClass}" data-enabled="${cursorTrackingEnabled ? '1' : '0'}">${toggleLabel}</button>`
+      + `</span>`
       + `</div>`
   }
 
@@ -235,6 +279,11 @@ export default function CanvasInspector() {
   }
 
   function bindListEvents() {
+    for (const btn of contentEl.querySelectorAll('.cursor-toggle-btn')) {
+      btn.addEventListener('click', () => {
+        setCursorTrackingEnabled(!cursorTrackingEnabled)
+      })
+    }
     for (const btn of contentEl.querySelectorAll('.tint-btn')) {
       btn.addEventListener('click', async (e) => {
         const id = e.target.dataset.id
@@ -316,7 +365,7 @@ export default function CanvasInspector() {
       accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
       emits: [],
       channelPrefix: 'canvas-inspector',
-      requires: ['canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
+      requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks'],
       defaultSize: { w: 320, h: 480 },
     },
 
@@ -363,7 +412,7 @@ export default function CanvasInspector() {
       }
       const input = normalizeCanvasInputMessage(msg)
       if (input) {
-        if (typeof input.x === 'number' && typeof input.y === 'number') {
+        if (cursorTrackingEnabled && typeof input.x === 'number' && typeof input.y === 'number') {
           cursor = nativeToDesktopWorldPoint({ x: input.x, y: input.y }, displays) || { x: input.x, y: input.y }
           cursor.valid = true
           rerender()

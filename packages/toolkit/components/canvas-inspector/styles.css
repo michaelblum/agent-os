@@ -101,6 +101,21 @@
   letter-spacing: 0.6px;
   font-weight: 600;
 }
+.tree-row.cursor-toggle-row {
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+.cursor-toggle-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.cursor-toggle-state {
+  color: var(--text-muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
 .tree-row.mark {
   font-size: calc(var(--font-size-small) - 1px);
   color: var(--text-secondary);

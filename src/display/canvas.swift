@@ -96,43 +96,12 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - Coordinate Conversion
 
-/// AppKit applies the main display's backing scale to the origin of a single
-/// borderless window that spans mixed-DPI displays. Keep the logical AOS rect
-/// canonical, then correct only the screen-space origin we hand to NSWindow.
-private func mixedScaleCanvasOriginCorrection(for cgRect: CGRect) -> CGFloat? {
-    let displays = getDisplays()
-    let intersecting = displays.filter { display in
-        let intersection = cgRect.intersection(display.bounds)
-        return !intersection.isNull && intersection.width > 0 && intersection.height > 0
-    }
-    let scaleSet = Set(intersecting.map(\.scaleFactor))
-    guard intersecting.count > 1,
-          scaleSet.count > 1,
-          let primaryScale = displays.first(where: \.isMain)?.scaleFactor,
-          primaryScale > 1 else {
-        return nil
-    }
-    return CGFloat(primaryScale)
-}
-
 func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
-    var screenFrame = cgToScreen(cgRect)
-    if let correction = mixedScaleCanvasOriginCorrection(for: cgRect) {
-        screenFrame.origin.x /= correction
-        screenFrame.origin.y /= correction
-    }
-    return screenFrame
+    return cgToScreen(cgRect)
 }
 
-/// Undo the mixed-DPI origin correction when reading an NSWindow frame back
-/// into the shared logical AOS coordinate space.
-private func canvasCGFrame(_ screenFrame: NSRect, desiredCGFrame: CGRect) -> CGRect {
-    var corrected = screenFrame
-    if let correction = mixedScaleCanvasOriginCorrection(for: desiredCGFrame) {
-        corrected.origin.x *= correction
-        corrected.origin.y *= correction
-    }
-    return screenToCG(corrected)
+private func canvasCGFrame(_ screenFrame: NSRect) -> CGRect {
+    return screenToCG(screenFrame)
 }
 
 // MARK: - CanvasWindow (unconstrained NSWindow)
@@ -144,6 +113,9 @@ private func canvasCGFrame(_ screenFrame: NSRect, desiredCGFrame: CGRect) -> CGR
 /// Interactive canvases override this to accept keyboard focus.
 class CanvasWindow: NSWindow {
     var isInteractiveCanvas: Bool = false
+    var isActivelyDraggingCanvas: Bool = false
+    private var suppressStraddleFix: Bool = false
+    private var lastStraddleFixSignature: String?
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         return frameRect
@@ -155,6 +127,60 @@ class CanvasWindow: NSWindow {
 
     override var canBecomeMain: Bool {
         return false  // Never steal main window status from the user's app
+    }
+
+    /// Collapse to 1×1 before expanding to the target frame when the rect
+    /// straddles displays with different backing scales. The intermediate 1×1
+    /// sits entirely on one display, giving AppKit an unambiguous screen
+    /// assignment before the expand — without this, the window server
+    /// renders the spanning window at `frame + externalScreen.frame.origin`
+    /// for certain straddle ratios, even though `NSWindow.frame` reports the
+    /// requested rect. Applies to drag-end snaps and any AppKit-initiated
+    /// setFrame call, not just our own `applyScreenFrame`.
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        let signature = CanvasWindow.straddleFixSignature(for: frameRect)
+        if suppressStraddleFix || signature == nil {
+            lastStraddleFixSignature = nil
+            super.setFrame(frameRect, display: flag)
+            return
+        }
+        // Once a window is already straddling the same mixed-DPI seam during
+        // an active drag, keep moving it directly. Repeating the 1x1 collapse
+        // on every drag tick is what creates the visible seam flicker. For
+        // non-drag placements (create/update/finalize), always do the full
+        // re-home because a previous same-seam frame is not proof that the
+        // window server is currently placed correctly.
+        if isActivelyDraggingCanvas && signature == lastStraddleFixSignature {
+            super.setFrame(frameRect, display: flag)
+            return
+        }
+        suppressStraddleFix = true
+        defer { suppressStraddleFix = false }
+        super.setFrame(NSRect(x: frameRect.minX, y: frameRect.minY, width: 1, height: 1), display: false)
+        super.setFrame(frameRect, display: flag)
+        lastStraddleFixSignature = signature
+    }
+
+    private static func straddleFixSignature(for rect: NSRect) -> String? {
+        var intersecting: [(frame: NSRect, scale: CGFloat)] = []
+        for scr in NSScreen.screens {
+            let intersection = rect.intersection(scr.frame)
+            guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { continue }
+            intersecting.append((scr.frame, scr.backingScaleFactor))
+        }
+        if intersecting.count < 2 { return nil }
+        let scales = Set(intersecting.map { $0.scale })
+        guard scales.count > 1 else { return nil }
+        return intersecting
+            .sorted { lhs, rhs in
+                if lhs.frame.minX != rhs.frame.minX { return lhs.frame.minX < rhs.frame.minX }
+                if lhs.frame.minY != rhs.frame.minY { return lhs.frame.minY < rhs.frame.minY }
+                return lhs.scale < rhs.scale
+            }
+            .map { item in
+                "\(item.frame.minX),\(item.frame.minY),\(item.frame.width),\(item.frame.height)@\(item.scale)"
+            }
+            .joined(separator: "|")
     }
 
     /// Intercept all events so we can grab keyboard focus before the WKWebView
@@ -225,15 +251,13 @@ class Canvas {
     var cascadeFromParent: Bool = true
     var parent: String?
 
-    /// Apply a global NSScreen-space frame without letting AppKit reinterpret
-    /// the rect in a screen-local coordinate space for spanning windows.
+    /// Place the window at `screenFrame` in global NSScreen coordinates.
+    ///
+    /// The mixed-DPI straddle fix lives in `CanvasWindow.setFrame`, which
+    /// collapses to a 1x1 rect first when the target spans displays with
+    /// different backing scales.
     private func applyScreenFrame(_ screenFrame: NSRect) {
-        window.setContentSize(screenFrame.size)
-        let topLeft = NSPoint(
-            x: screenFrame.origin.x,
-            y: screenFrame.origin.y + screenFrame.size.height
-        )
-        window.setFrameTopLeftPoint(topLeft)
+        window.setFrame(screenFrame, display: true)
     }
 
     private func schedulePlacementRetry(for cgRect: CGRect) {
@@ -313,16 +337,18 @@ class Canvas {
         webView.layer?.isOpaque = false
         webView.autoresizingMask = [.width, .height]
 
-        window.contentView = webView
-        window.setContentSize(screenFrame.size)
-        let topLeft = NSPoint(
-            x: screenFrame.origin.x,
-            y: screenFrame.origin.y + screenFrame.size.height
-        )
-        window.setFrameTopLeftPoint(topLeft)
+        let contentView = NSView(frame: NSRect(origin: .zero, size: screenFrame.size))
+        contentView.autoresizingMask = [.width, .height]
+        webView.frame = contentView.bounds
+        contentView.addSubview(webView)
+        window.contentView = contentView
 
         self.window = window
         self.webView = webView
+        // Route creation through the same shrink-then-expand placement path
+        // used by updatePosition so a straddling initial rect doesn't hit the
+        // AppKit/CGS mixed-DPI reinterpretation.
+        applyScreenFrame(screenFrame)
     }
 
     func loadHTML(_ html: String) {
@@ -371,16 +397,21 @@ class Canvas {
         desiredCGFrame = cgRect
         let screenFrame = canvasScreenFrame(cgRect)
         applyScreenFrame(screenFrame)
-        // macOS window server may reject cross-display moves on the first frame.
-        // Store the intended position and retry on the next run loop cycle.
-        let actual = canvasCGFrame(window.frame, desiredCGFrame: desiredCGFrame)
+        if (window as? CanvasWindow)?.isActivelyDraggingCanvas == true {
+            return
+        }
+        let actual = canvasCGFrame(window.frame)
         if abs(actual.origin.x - cgRect.origin.x) > 2 || abs(actual.origin.y - cgRect.origin.y) > 2 {
             schedulePlacementRetry(for: cgRect)
         }
     }
 
+    func finalizeDragPosition() {
+        updatePosition(cgRect: desiredCGFrame)
+    }
+
     var cgFrame: CGRect {
-        return canvasCGFrame(window.frame, desiredCGFrame: desiredCGFrame)
+        return canvasCGFrame(window.frame)
     }
 
     func toInfo() -> CanvasInfo {
@@ -796,8 +827,18 @@ class CanvasManager {
                     return
                 }
 
-                // drag_start and drag_end — don't relay, just consume
-                if type == "drag_start" || type == "drag_end" {
+                if type == "drag_start" {
+                    DispatchQueue.main.async {
+                        (canvas.window as? CanvasWindow)?.isActivelyDraggingCanvas = true
+                    }
+                    return
+                }
+
+                if type == "drag_end" {
+                    DispatchQueue.main.async {
+                        (canvas.window as? CanvasWindow)?.isActivelyDraggingCanvas = false
+                        canvas.finalizeDragPosition()
+                    }
                     return
                 }
 
@@ -1040,7 +1081,6 @@ class CanvasManager {
             // events but never become key window, so keyboard input bounces
             // back to the previously-active app (system bonk on every keystroke).
             (canvas.window as? CanvasWindow)?.isInteractiveCanvas = interactive
-            canvas.window.level = interactive ? .floating : .statusBar
             // NOTE: the WKWebView subclass (CanvasWebView vs plain WKWebView)
             // is chosen at construction time and cannot be swapped at runtime.
             // The only behavioral difference is acceptsFirstMouse, which only

@@ -48,7 +48,7 @@ Current reusable toolkit components include:
 
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
-- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector
+- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor overlay
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 
@@ -189,10 +189,15 @@ Subscribe side is handled for you — the canvas-inspector subscribes to
 `canvas_object.marks` via its manifest. Any canvas that subscribes will
 receive the daemon's fan-out.
 
+The inspector's minimap cursor is operator-toggleable and starts hidden by
+default. Turning it on subscribes to `input_event` on demand and requests a
+snapshot so the current cursor dot appears immediately instead of waiting for
+the next mouse move.
+
 ### Spatial Telemetry
 
 `spatial-telemetry` is the permanent coordinate-debug surface for multi-display
-work. It subscribes to the same live streams the inspector uses:
+work. It keeps all of these live streams subscribed all the time:
 
 - `display_geometry`
 - `canvas_lifecycle`
@@ -292,7 +297,8 @@ Options:
 
 - `snapshot: true` asks the daemon to replay the current state for supported
   streams immediately after subscribing. Today that includes
-  `display_geometry` and `canvas_lifecycle`.
+  `display_geometry`, `canvas_lifecycle`, and `input_event` (replayed as the
+  current cursor position).
 
 ### `spawnChild(opts)`
 
