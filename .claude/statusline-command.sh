@@ -17,6 +17,9 @@ import json
 import os
 
 
+ROOT = os.getcwd()
+
+
 def load(name):
     raw = os.environ.get(name, "").strip()
     if not raw:
@@ -25,6 +28,23 @@ def load(name):
         return json.loads(raw)
     except Exception:
         return {}
+
+
+def load_file(path):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
+
+def nested_get(obj, *path):
+    cur = obj
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    return cur
 
 
 def compact_model(name: str) -> str:
@@ -41,23 +61,35 @@ def compact_model(name: str) -> str:
     return cleaned
 
 
-def compact_effort(session):
+REPO_SETTINGS = load_file(os.path.join(ROOT, ".claude", "settings.json"))
+RUNTIME_SETTINGS = load_file(os.path.join(ROOT, ".runtime", "claude", "settings.json"))
+
+
+def infer_default_effort(model_name: str) -> str:
+    normalized = (model_name or "").lower().replace(" ", "").replace("[1m]", "")
+    if "opus4.7" in normalized or "opus-4-7" in normalized:
+        return "xhigh"
+    return "auto"
+
+
+def compact_effort(session, model_name: str):
     for path in (
         ("model", "effort_level"),
         ("model", "effort"),
         ("effort_level",),
         ("effort",),
     ):
-        cur = session
-        for key in path:
-            if not isinstance(cur, dict):
-                cur = None
-                break
-            cur = cur.get(key)
-        if isinstance(cur, str) and cur:
+        cur = nested_get(session, *path)
+        if isinstance(cur, str) and cur and cur != "auto":
             return cur
     env_effort = os.environ.get("CLAUDE_CODE_EFFORT_LEVEL", "")
-    return env_effort if env_effort else "effort?"
+    if env_effort and env_effort != "auto":
+        return env_effort
+    for settings in (REPO_SETTINGS, RUNTIME_SETTINGS):
+        configured = settings.get("effortLevel")
+        if isinstance(configured, str) and configured and configured != "auto":
+            return configured
+    return infer_default_effort(model_name)
 
 
 def compact_ctx_size(size):
@@ -109,8 +141,9 @@ def ctx_bar(used):
 session = load("SESSION_JSON")
 status = load("STATUS_JSON")
 
-model = compact_model(session.get("model", {}).get("display_name") or session.get("model", {}).get("id") or "")
-effort = compact_effort(session)
+model_name = session.get("model", {}).get("display_name") or session.get("model", {}).get("id") or ""
+model = compact_model(model_name)
+effort = compact_effort(session, model_name)
 ctx = session.get("context_window", {}) if isinstance(session.get("context_window", {}), dict) else {}
 used = ctx.get("used_percentage")
 left = ctx.get("remaining_percentage")

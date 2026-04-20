@@ -67,6 +67,10 @@ Both Codex and Claude Code must:
 - run the shared session-stop unregister hook on stop
 
 No runtime-specific persona injection is allowed at startup for `agent-os`.
+The shared startup hook should stay compact: session identity, one runtime/git
+snapshot, and pointers to canonical docs. Long control-surface walkthroughs,
+`./aos --help` dumps, open-issue lists, and other high-token archaeology do not
+belong in fresh-session startup output.
 Claude also carries a repo-defined `PreCompact(auto)` alert hook; Codex does
 not yet expose equivalent pre-compact hook parity, so compaction warning there
 must come from status/context surfaces rather than hook lifecycle.

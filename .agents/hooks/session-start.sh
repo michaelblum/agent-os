@@ -113,8 +113,34 @@ if [ -x "$AOS" ] && [ -n "$SESSION_NAME" ]; then
   fi
 fi
 
+STALE_STATUS="UNKNOWN"
+if [ -x "$AOS" ]; then
+  STALE_STATUS="$("$AOS" clean --dry-run --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if d.get('status') == 'dirty':
+        parts = []
+        sd = d.get('stale_daemons', [])
+        cv = d.get('canvases', [])
+        if sd:
+            parts.append(f'{len(sd)} stale daemon(s)')
+        if cv:
+            parts.append(f'{len(cv)} orphaned canvas(es)')
+        print('DIRTY: ' + '; '.join(parts))
+    else:
+        print('CLEAN')
+except Exception:
+    print('UNKNOWN')
+" 2>/dev/null || echo "UNKNOWN")"
+fi
+
+BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "?")
+AHEAD=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo "?")
+DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+
 echo ""
-echo "## Session Identity"
+echo "## Session"
 if [ -n "$SESSION_ID" ]; then
   echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} channel=${SESSION_CHANNEL} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
 else
@@ -124,45 +150,9 @@ if [ "$SESSION_SOURCE" = "generated" ]; then
   echo "Rename later with: scripts/session-name --name <meaningful-name>"
 fi
 
-echo "--- agent-os session context ---"
-
+echo ""
+echo "## Snapshot"
 if [ -x "$AOS" ]; then
-  HELP_TEXT="$("$AOS" --help 2>/dev/null || true)"
-  if [ -n "${HELP_TEXT:-}" ]; then
-    echo ""
-    echo "## AOS Control Surface"
-    echo "You are developing agent-os. Your primary tools should be the following control surface:"
-    echo ""
-    echo "| Role | Instruction |"
-    echo "| --- | --- |"
-    echo "| Invocation | Use \`./aos\` in this repo, not \`aos\`. |"
-    echo "| Point of entry | Start with \`./aos status\`. |"
-    echo "| Runtime startup | The session-start hook already attempts daemon bring-up; check \`./aos status\` before manual restart loops. |"
-    echo "| Self-review / recovery | Use \`./aos introspect review\` after failed attempts or when asked to self-review. |"
-    echo "| Perception first | Prefer \`./aos see\` and AX-aware x-ray capture over raw image blobs when the CLI can answer the question directly. |"
-    echo "| Live control surface | Lean on \`./aos focus\`, \`./aos graph\`, and \`./aos show\` to stay inside the live agent-os control surface. |"
-    echo "| GitHub mutations | Use \`gh\` for issue/PR comments and updates in this repo; the GitHub app frequently 403s with \`Resource not accessible by integration\`. |"
-    echo "| Lower-level verbs | The hook already handled daemon bring-up and stale-resource detection; drop to \`doctor\`, \`daemon-snapshot\`, and \`clean\` only when you need deeper detail or explicit cleanup. |"
-    echo ""
-    echo '```text'
-    echo "$HELP_TEXT"
-    echo '```'
-  fi
-fi
-
-if command -v gh >/dev/null 2>&1; then
-  ISSUES=$(gh issue list --repo michaelblum/agent-os --limit 10 --json number,title,labels --template '{{range .}}- #{{.number}} {{.title}}{{range .labels}} [{{.name}}]{{end}}
-{{end}}' 2>/dev/null || true)
-  if [ -n "${ISSUES:-}" ]; then
-    echo ""
-    echo "## Open Issues"
-    echo "$ISSUES"
-  fi
-fi
-
-if [ -x "$AOS" ]; then
-  echo ""
-  echo "## AOS Runtime"
   STATUS="$(printf '%s' "$AOS_DOCTOR_JSON" | python3 -c "
 import json, sys
 try:
@@ -177,62 +167,14 @@ try:
 except Exception:
     print('aos doctor failed to parse')
 " 2>/dev/null || echo "aos not running or not built")"
-  echo "$STATUS"
+  echo "aos=$STATUS"
+else
+  echo "aos=missing"
 fi
 
-if [ -x "$AOS" ]; then
-  CLEAN=$("$AOS" clean --dry-run --json 2>/dev/null | python3 -c "
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    if d.get('status') == 'dirty':
-        parts = []
-        sd = d.get('stale_daemons', [])
-        cv = d.get('canvases', [])
-        if sd:
-            parts.append(f'{len(sd)} stale daemon(s)')
-        if cv:
-            parts.append(f'{len(cv)} orphaned canvas(es): {\", \".join(c[\"id\"] for c in cv)}')
-        print('DIRTY: ' + '; '.join(parts))
-    else:
-        print('CLEAN')
-except Exception:
-    print('UNKNOWN')
-" 2>/dev/null || echo "UNKNOWN")
-  if [ "$CLEAN" != "CLEAN" ] && [ "$CLEAN" != "UNKNOWN" ]; then
-    echo ""
-    echo "## Stale Resources"
-    echo "$CLEAN"
-    echo "Run \`./aos clean\` immediately before launching canvases or doing display work."
-    echo "Do not ask the user whether stale resources should be cleaned."
-  fi
-fi
-
-echo ""
-echo "## Git State"
-BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "?")
-AHEAD=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo "?")
-DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 echo "branch=$BRANCH ahead=$AHEAD dirty=$DIRTY"
-
-WT_COUNT=$(git -C "$ROOT" worktree list 2>/dev/null | wc -l | tr -d ' ')
-if [ "$WT_COUNT" -gt 1 ]; then
-  echo "worktrees=$WT_COUNT (check for parallel work)"
-fi
-
-echo ""
-echo "## Shared Start-of-Session Method"
-echo "Open with a compact status preamble: branch, ahead/dirty, AOS runtime, stale-resource status, and the 2-3 most relevant issues."
-echo "When verifying toolkit or display work, use real \`./aos\` canvases and \`./aos see\`, not a raw browser page."
-echo "For multi-display or coordinate work, launch \`bash tests/display-debug-battery.sh\` to bring up \`spatial-telemetry\` and \`canvas-inspector\` in deterministic operator panel positions on the main display's visible bounds."
-echo "Treat that placement as operator convenience only; the shared world contract is \`DesktopWorld\` (arranged full-display union)."
-echo "Daemon \`display_geometry\` and \`aos see list\` now emit \`desktop_world_bounds\` and \`visible_desktop_world_bounds\` directly; prefer those fields over re-deriving from native."
-echo "\`aos runtime display-union\` prints DesktopWorld by default (origin (0,0)); pass \`--native\` for the legacy main-display-anchored shape."
-echo "For spatial work, also run \`node scripts/spatial-audit.mjs --summary\` before editing; coordinate helpers are under explicit allowlist governance now."
-echo "Toolkit-side JS spatial helpers now belong in \`packages/toolkit/runtime/spatial.js\`; avoid adding new ad hoc transform helpers elsewhere."
-echo "Canonical runtime/session contract lives in \`docs/SESSION_CONTRACT.md\` with machine-readable companion \`docs/session-contract.json\`."
-echo ""
-echo "## Shared Handoff Method"
-echo "When handing off, post the brief with \`aos tell handoff\` (and any direct target channel/session) and use the shared bootstrap launcher under the runtime coordination state dir rather than ad hoc /tmp files."
-echo ""
-echo "--- end session context ---"
+echo "stale=$STALE_STATUS"
+echo "trust=AGENTS.md docs/SESSION_CONTRACT.md"
+echo "entry=./aos status"
+echo "visual=./aos see"
+echo "handoff=scripts/handoff"

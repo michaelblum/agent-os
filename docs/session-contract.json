@@ -41,6 +41,10 @@
     "Claude has a repo-defined PreCompact(auto) alert hook.",
     "Codex does not yet expose equivalent pre-compact hook parity; warn from status/context surfaces instead."
   ],
+  "startup_output_policy": [
+    "Startup hook output must stay compact: session identity, one runtime/git snapshot, and canonical doc pointers only.",
+    "Do not embed ./aos --help, open issue lists, or long workflow walkthroughs in startup output."
+  ],
   "unavoidable_global_state": [
     "~/.claude plugin cache and install metadata",
     "~/.codex project trust state",
