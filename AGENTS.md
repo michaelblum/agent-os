@@ -87,6 +87,10 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   purely DOM debugging.
 - Use `./aos see` for visual verification before asking the user to inspect a
   canvas manually.
+- If the user explicitly puts themselves in the verification loop, treat the
+  human as the sensor. Set up the state quickly, use at most one orienting
+  `./aos see` check if needed, then ask them to confirm what they see instead
+  of trying to fully re-verify it yourself.
 - If display work starts from stale daemons or orphaned canvases, run
   `./aos clean` first and report what was cleaned.
 - Sessions should register themselves on startup so `aos tell --who` reflects
@@ -98,6 +102,10 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   reduce risk or enable parallelism, but they should stay temporary: land the
   final state back on `main`, then remove the transient worktree/branch refs
   before handing the repo back.
+- Before treating grep hits, old paths, or old commands as live, check for
+  retirement or supersession notes in the nearest subtree docs, active plans,
+  and open issues. Retired code can remain in-tree for a while after the live
+  path has moved.
 - Prune merged task-specific branch or worktree debris when you can classify it
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.

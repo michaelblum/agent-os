@@ -16,6 +16,8 @@ Project truth is ordered like this:
 7. Provider-specific caches, memories, or local convenience files
 
 Provider-local memory is never canonical project truth.
+If something durable is discovered in provider-local memory, promote it into
+repo-native docs or issues and stop relying on hidden recall.
 
 ## Provider Model
 

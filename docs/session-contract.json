@@ -27,8 +27,10 @@
     "provider-local memory files",
     "runtime-specific startup personas",
     ".claude/settings.local.json",
-    ".claude/launch.json"
+    ".claude/launch.json",
+    "historical docs/superpowers archaeology that contradicts the session contract"
   ],
+  "memory_promotion_rule": "If durable knowledge is discovered in provider-local memory, promote it into repo-native docs or issues instead of relying on hidden recall.",
   "unavoidable_global_state": [
     "~/.claude plugin cache and install metadata",
     "~/.codex project trust state",
