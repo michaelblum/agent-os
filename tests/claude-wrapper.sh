@@ -32,4 +32,25 @@ if not os.path.isdir(expected_dir):
     raise SystemExit(f"FAIL: wrapper did not create config dir {expected_dir}")
 PY
 
+SHIM_OUTPUT="$(CLAUDE_CONFIG_DIR= CLAUDE_CODE_DISABLE_AUTO_MEMORY= AOS_CLAUDE_CLI_BIN=python3 "$ROOT/claude-aos" -c '
+import json, os
+print(json.dumps({
+    "claude_config_dir": os.environ.get("CLAUDE_CONFIG_DIR"),
+    "claude_auto_memory": os.environ.get("CLAUDE_CODE_DISABLE_AUTO_MEMORY"),
+}))
+' )"
+
+python3 - "$SHIM_OUTPUT" "$ROOT" <<'PY'
+import json, os, sys
+
+payload = json.loads(sys.argv[1])
+root = sys.argv[2]
+expected_dir = os.path.join(root, ".runtime", "claude")
+
+if payload.get("claude_config_dir") != expected_dir:
+    raise SystemExit(f"FAIL: wrong shim CLAUDE_CONFIG_DIR: {payload}")
+if payload.get("claude_auto_memory") != "1":
+    raise SystemExit(f"FAIL: wrong shim CLAUDE_CODE_DISABLE_AUTO_MEMORY: {payload}")
+PY
+
 echo "PASS"

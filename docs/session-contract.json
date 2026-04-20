@@ -13,7 +13,8 @@
     ".claude/settings.json",
     ".codex/hooks.json",
     ".codex/config.toml",
-    "scripts/claude-agent-os"
+    "scripts/claude-agent-os",
+    "claude-aos"
   ],
   "bootstrap_surfaces": [
     "scripts/handoff",

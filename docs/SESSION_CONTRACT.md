@@ -29,6 +29,7 @@ repo-native docs or issues and stop relying on hidden recall.
   runtimes.
 - `scripts/claude-agent-os` is the required Claude entrypoint for this repo so
   Claude config and auto-memory stay repo-scoped to `agent-os`.
+- `./claude-aos` is the repo-root convenience shim for the same wrapper.
 
 If a rule matters to both runtimes, it belongs in repo-native files, not in
 provider-specific memory or ad hoc startup text.
@@ -51,6 +52,7 @@ These are the live session-control files:
 - `scripts/handoff`
 - `scripts/parallel-codex`
 - `scripts/claude-agent-os`
+- `claude-aos`
 
 ## Hook Contract
 
