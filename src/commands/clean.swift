@@ -71,15 +71,17 @@ func runClean(dryRun: Bool) -> CleanReport {
     var notes: [String] = []
     let mode = aosCurrentRuntimeMode()
 
-    // 1. Find all aos serve PIDs, identify launchd-managed one
+    // 1. Find all aos serve PIDs, identify launchd-managed and lock-holding daemons.
+    //    The daemon.lock holder is the legitimate live daemon regardless of whether
+    //    it was spawned by launchd or manually (e.g. by the session startup hook).
     let allPIDs = findAllDaemonPIDs()
     let launchdPID = launchdManagedPID(label: aosServiceLabel())
-
-    // Also check other-mode launchd PID so we don't kill it
     let otherLaunchdPID = launchdManagedPID(label: aosServiceLabel(for: mode.other))
-    let protectedPIDs = Set([launchdPID, otherLaunchdPID].compactMap { $0 })
+    let lockPID = lockOwnerPID(for: mode)
+    let otherLockPID = lockOwnerPID(for: mode.other)
+    let protectedPIDs = Set([launchdPID, otherLaunchdPID, lockPID, otherLockPID].compactMap { $0 })
 
-    // 2. Stale = all minus protected (launchd-managed)
+    // 2. Stale = all minus protected (launchd-managed or lock-owning)
     let stalePIDs = allPIDs.filter { !protectedPIDs.contains($0) }
     var staleDaemons: [StaleDaemonInfo] = []
 
@@ -158,6 +160,16 @@ private func launchdManagedPID(label: String) -> Int? {
         }
     }
     return nil
+}
+
+private func lockOwnerPID(for mode: AOSRuntimeMode) -> Int? {
+    let path = aosDaemonLockPath(for: mode)
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let pid = dict["pid"] as? Int else {
+        return nil
+    }
+    return pid
 }
 
 private func processArgs(pid: Int) -> String {
