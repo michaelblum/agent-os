@@ -663,34 +663,46 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos config"]),
         InvocationForm(id: "config-get", usage: "aos config get <key> [--json]",
             args: [
-                pos("key", "Config key (for example: voice.enabled, content.port)"),
+                pos("key", "Config key (for example: voice.enabled, content.port, see.canvas_inspector_bundle.hotkey)"),
                 flag("json", "--json", "Emit JSON for the value", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSONFlag,
-            examples: ["aos config get voice.enabled", "aos config get content.port --json"]),
+            examples: [
+                "aos config get voice.enabled",
+                "aos config get content.port --json",
+                "aos config get see.canvas_inspector_bundle --json"
+            ]),
         InvocationForm(id: "config-set", usage: "aos config set <key> <value>",
             args: [
-                pos("key", "Config key (for example: voice.enabled, perception.default_depth)"),
+                pos("key", "Config key (for example: voice.enabled, perception.default_depth, see.canvas_inspector_bundle.hotkey)"),
                 pos("value", "New value")
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(),
             output: outJSON,
-            examples: ["aos config set voice.enabled true", "aos config set perception.default_depth 2"])
+            examples: [
+                "aos config set voice.enabled true",
+                "aos config set perception.default_depth 2",
+                "aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x"
+            ])
     ]))
 
     reg.append(CommandDescriptor(path: ["set"], summary: "Configure autonomic settings", forms: [
         InvocationForm(id: "set-value", usage: "aos set <key> <value>",
             args: [
-                pos("key", "Config key (e.g. voice.enabled, perception.default_depth)"),
+                pos("key", "Config key (e.g. voice.enabled, perception.default_depth, see.canvas_inspector_bundle.include.xray)"),
                 pos("value", "New value")
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(),
             output: outJSON,
-            examples: ["aos set voice.enabled true", "aos set perception.default_depth 2"]),
+            examples: [
+                "aos set voice.enabled true",
+                "aos set perception.default_depth 2",
+                "aos set see.canvas_inspector_bundle.include.xray true"
+            ]),
         InvocationForm(id: "set-dump", usage: "aos set",
             args: [],
             stdin: nil, constraints: nil,

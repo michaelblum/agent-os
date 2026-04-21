@@ -84,7 +84,9 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos voice final-response --harness codex --session-id <id> < hook.json
 ./aos config get voice.controls.cancel.key_code
 ./aos config get voice.enabled    # Discoverable config read
+./aos config get see.canvas_inspector_bundle --json
 ./aos config set voice.enabled true # Discoverable config write
+./aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
 ./aos tell human "Hello"          # Speak (same as aos say)
 ./aos tell human --from-session-id <id> --purpose final_response "Done."
 ./aos tell handoff "task complete"    # Post to coordination channel
@@ -231,6 +233,8 @@ bank is exhausted; explicit `aos voice bind` updates that durable mapping.
 | status_item.toggle_url | string | — | URL loaded in toggled canvas |
 | status_item.toggle_track | string | — | Optional track target (e.g. "union") |
 | status_item.icon | string | "hexagon" | Icon style |
+| see.canvas_inspector_bundle.hotkey | string\|none | ctrl+opt+c | Global hotkey for Canvas Inspector see-bundle export |
+| see.canvas_inspector_bundle.include.{capture_image,capture_metadata,inspector_state,display_geometry,canvas_list,xray} | bool | true except xray=false | Include specific artifacts in the Canvas Inspector see bundle |
 
 ### Content Server
 

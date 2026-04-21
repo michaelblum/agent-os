@@ -13,6 +13,7 @@ This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
 - [`toolkit.md`](./toolkit.md) — the toolkit runtime and panel APIs for WKWebView surfaces
+- [`project-menu.md`](./project-menu.md) — modality-neutral project launch menus for terminal, VS Code, and future voice/avatar consumers
 
 It does **not** try to replace:
 
@@ -31,5 +32,7 @@ That includes:
 - changing toolkit import paths or exported functions
 - changing the `Content` / `Manifest` / `ContentHost` contract
 - changing the styling boundary between toolkit primitives and consumers
+- changing discoverable config surfaces or notable config subtrees such as
+  `see.canvas_inspector_bundle.*`
 
 If a surface is experimental, label it explicitly here instead of leaving consumers to infer stability from source.

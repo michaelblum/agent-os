@@ -333,12 +333,17 @@ Discoverable configuration surface:
 aos config
 aos config get voice.enabled
 aos config get content.port --json
+aos config get see.canvas_inspector_bundle --json
 aos config set voice.enabled true
+aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
 ```
 
 `aos config` dumps the current runtime config as JSON. `aos config get` defaults
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
-`aos set <key> <value>` remains supported as the shorthand write form.
+Discoverable config subtrees include the Canvas Inspector see-bundle surface
+under `see.canvas_inspector_bundle.*`, including the export hotkey and bundle
+artifact include toggles. `aos set <key> <value>` remains supported as the
+shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review
