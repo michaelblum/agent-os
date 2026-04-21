@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/integration-broker-snapshot.schema.json",
+  "title": "AOS Integration Broker Snapshot",
+  "description": "Provider-neutral snapshot for chat integrations, workflows, and recent jobs.",
+  "type": "object",
+  "required": ["schema", "version", "generated_at", "broker", "surfaces", "providers", "workflows", "jobs"],
+  "properties": {
+    "schema": {
+      "const": "aos-integration-broker-snapshot"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "broker": {
+      "type": "object",
+      "required": ["label", "url"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "surfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "description"],
+        "properties": {
+          "id": { "enum": ["jobs", "workflows", "integrations", "activity"] },
+          "label": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "label", "status", "enabled", "configured", "capabilities"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["ready", "disabled", "planned", "error"] },
+          "enabled": { "type": "boolean" },
+          "configured": { "type": "boolean" },
+          "capabilities": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "notes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "description", "surface", "command"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "surface": { "enum": ["jobs", "workflows", "integrations", "activity"] },
+          "availability": { "enum": ["ready", "coming-soon"] },
+          "group": { "enum": ["quick-actions", "research", "launch", "feedback", "discovery"] },
+          "registrySource": { "enum": ["built-in", "wiki"] },
+          "requiresInput": { "type": "boolean" },
+          "inputFields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "label"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "label": { "type": "string", "minLength": 1 },
+                "type": { "enum": ["text", "textarea", "select"] },
+                "placeholder": { "type": "string" },
+                "helpText": { "type": "string" },
+                "required": { "type": "boolean" },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["value", "label"],
+                    "properties": {
+                      "value": { "type": "string", "minLength": 1 },
+                      "label": { "type": "string", "minLength": 1 },
+                      "description": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "command": {
+            "type": "object",
+            "required": ["label", "usage", "examples"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "usage": { "type": "string", "minLength": 1 },
+              "examples": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "provider", "commandText", "status", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "provider": { "type": "string", "minLength": 1 },
+          "workflowId": { "type": "string" },
+          "workflowTitle": { "type": "string" },
+          "surface": { "type": "string" },
+          "requester": { "type": "string" },
+          "channel": { "type": "string" },
+          "thread": { "type": "string" },
+          "commandText": { "type": "string" },
+          "status": { "enum": ["queued", "running", "succeeded", "failed"] },
+          "summary": { "type": "string" },
+          "resultText": { "type": "string" },
+          "resultJson": {},
+          "errorText": { "type": "string" },
+          "metadata": { "type": "object" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "completedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

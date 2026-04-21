@@ -48,9 +48,38 @@ Current reusable toolkit components include:
 
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
+- `aos://toolkit/components/integration-hub/index.html` - provider-neutral chat integration dashboard backed by the local integration broker snapshot API
 - `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+
+### Integration Hub
+
+`integration-hub` is the reusable operator surface for chat-driven broker work.
+
+It polls a local broker HTTP endpoint (default `http://127.0.0.1:47231`) and
+renders four shared surfaces from the broker snapshot:
+
+- `jobs`
+- `workflows`
+- `integrations`
+- `activity`
+
+The component assumes the snapshot schema documented at:
+
+- [`shared/schemas/integration-broker-snapshot.md`](../../shared/schemas/integration-broker-snapshot.md)
+
+Current behavior:
+
+- shows provider status for Slack and future transports such as Discord
+- shows the workflow catalog exposed through chat providers
+- shows recent execution history with broker job IDs
+- exposes a local simulation console that posts to `POST /api/integrations/simulate`
+
+Consumer override:
+
+- pass `IntegrationHub({ brokerUrl: 'http://127.0.0.1:48200' })` when the
+  broker is not on the default port
 
 `wiki-kb` accepts a graph snapshot on `wiki-kb/graph` (and tolerates raw
 `wiki/graph` messages for imported-prototype compatibility). Canonical payload:

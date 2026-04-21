@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/toolkit/panel/defaults.css">
 <link rel="stylesheet" href="/toolkit/components/canvas-inspector/styles.css">
 <link rel="stylesheet" href="/toolkit/components/log-console/styles.css">
+<link rel="stylesheet" href="/toolkit/components/integration-hub/styles.css">
 <link rel="stylesheet" href="/toolkit/components/wiki-kb/styles.css">
 <style>
 /* Iframe surfaces — workbench-specific content for Studio + Chat tabs */
@@ -59,6 +60,7 @@
   import { mountPanel, Tabs } from '/toolkit/panel/index.js'
   import { evalCanvas, subscribe, wireBridge } from '/toolkit/runtime/index.js'
   import CanvasInspector from '/toolkit/components/canvas-inspector/index.js'
+  import IntegrationHub from '/toolkit/components/integration-hub/index.js'
   import LogConsole from '/toolkit/components/log-console/index.js'
   import WikiKB from '/toolkit/components/wiki-kb/index.js'
   import { resolveBirthplace } from '/sigil/renderer/birthplace-resolver.js'
@@ -321,6 +323,7 @@
       src: '/sigil/chat/index.html',
       description: 'Conversation surface.',
     }),
+    () => IntegrationHub({ brokerUrl: 'http://127.0.0.1:47231' }),
     knowledgeBaseContent,
     CanvasInspector,
     LogConsole,

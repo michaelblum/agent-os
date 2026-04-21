@@ -20,3 +20,7 @@ node_modules/
 
 # Local scratch outputs
 clipboard.txt
+
+# Local gateway secrets
+packages/gateway/.env
+packages/gateway/.env.local

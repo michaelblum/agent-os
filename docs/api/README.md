@@ -12,8 +12,8 @@ These docs are for both:
 This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
+- [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
 - [`toolkit.md`](./toolkit.md) — the toolkit runtime and panel APIs for WKWebView surfaces
-- [`project-menu.md`](./project-menu.md) — modality-neutral project launch menus for terminal, VS Code, and future voice/avatar consumers
 
 It does **not** try to replace:
 
