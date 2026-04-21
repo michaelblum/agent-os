@@ -106,6 +106,12 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   retirement or supersession notes in the nearest subtree docs, active plans,
   and open issues. Retired code can remain in-tree for a while after the live
   path has moved.
+- GitHub issues are for bugs, features, or durable workstream trackers with a
+  clear unresolved problem and exit criteria.
+- Do not create issues for session onboarding maps, memory dumps, or
+  "how to get started" notes. Put that guidance in repo docs instead.
+- An open issue is not automatically current. If work has landed, close the
+  issue or restate the exact remaining gap before leaving it open.
 - Prune merged task-specific branch or worktree debris when you can classify it
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.
