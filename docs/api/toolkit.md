@@ -441,7 +441,7 @@ Options:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `title` | `string` | header title |
-| `draggable` | `boolean` | whether header drag emits relative move events |
+| `draggable` | `boolean` | whether header drag emits absolute move updates plus `drag_start` / `drag_end` lifecycle messages |
 
 Returns an object with:
 
@@ -459,6 +459,9 @@ Notes:
 
 - `mountChrome()` adds the `aos-panel-root` class to the mount container
 - the returned slot refs are the behavioral contract; consumers should not rely on querying `.aos-*` classes for runtime behavior
+- when draggable, the stock header emits `drag_start` once on primary-button
+  pointerdown, drives window movement through absolute drag updates, then emits
+  `drag_end` on pointerup / cancel / lost capture
 
 ### `mountPanel(options)`
 
@@ -479,7 +482,7 @@ Options:
 | --- | --- | --- |
 | `title` | `string` | header title |
 | `layout` | layout object | required |
-| `draggable` | `boolean` | whether header drag emits relative move events |
+| `draggable` | `boolean` | whether the mounted stock header emits absolute drag updates plus `drag_start` / `drag_end` lifecycle messages |
 | `container` | `HTMLElement` | mount target, default `document.body` |
 
 ### `Single(factoryOrContent)`

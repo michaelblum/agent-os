@@ -30,7 +30,7 @@ runtime/                Layer 1a — universal canvas runtime
   _smoke/                 smoke harness
 
 panel/                  Layer 1b — panel primitives
-  chrome.js               mountChrome — pure DOM scaffold
+  chrome.js               mountChrome — pure DOM scaffold + drag_start/drag_end lifecycle + absolute drag updates
   defaults.css            optional stock panel visuals (opt-in)
   router.js               createRouter — manifest-prefix dispatch
   layouts/
