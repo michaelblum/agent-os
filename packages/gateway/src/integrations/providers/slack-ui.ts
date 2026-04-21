@@ -8,6 +8,7 @@ import type {
 } from '../types.js';
 
 const MAX_SECTION_TEXT = 2800;
+const MAX_HOME_ACTIVE_JOBS = 4;
 const MAX_HOME_JOBS = 6;
 const MAX_HOME_READY_WORKFLOWS = 6;
 const MAX_HOME_COMING_SOON = 6;
@@ -415,10 +416,41 @@ function formatProvider(provider: IntegrationBrokerSnapshot['providers'][number]
   return `${icon} *${provider.label}* — ${provider.status}${notes}`;
 }
 
+function formatJobStatus(status: IntegrationBrokerSnapshot['jobs'][number]['status']) {
+  if (status === 'running') return ':large_blue_circle:';
+  if (status === 'queued') return ':hourglass_flowing_sand:';
+  if (status === 'succeeded') return ':white_check_mark:';
+  return ':x:';
+}
+
+function jobArtifactLink(job: IntegrationBrokerSnapshot['jobs'][number]) {
+  const raw = job.metadata && typeof job.metadata === 'object'
+    ? (job.metadata as Record<string, unknown>).artifactLink
+    : undefined;
+  if (!raw || typeof raw !== 'object') return null;
+  const url = typeof (raw as Record<string, unknown>).url === 'string'
+    ? (raw as Record<string, unknown>).url
+    : null;
+  if (!url) return null;
+  const label = typeof (raw as Record<string, unknown>).label === 'string'
+    ? (raw as Record<string, unknown>).label
+    : 'Open result';
+  return `<${url}|${label}>`;
+}
+
+function isActiveLaunchJob(job: IntegrationBrokerSnapshot['jobs'][number]) {
+  if (job.status !== 'queued' && job.status !== 'running') return false;
+  const metadata = job.metadata && typeof job.metadata === 'object'
+    ? job.metadata as Record<string, unknown>
+    : null;
+  return metadata?.queueType === 'workflow-launch' || metadata?.workflowGroup === 'launch';
+}
+
 function formatJob(job: IntegrationBrokerSnapshot['jobs'][number]) {
   const label = job.workflowTitle ?? job.workflowId ?? job.commandText;
   const detail = job.summary ?? job.errorText ?? job.commandText;
-  return `• *${label}* — ${job.status} — ${detail}`;
+  const artifactLink = jobArtifactLink(job);
+  return `${formatJobStatus(job.status)} *${label}* — ${job.status} — ${detail}${artifactLink ? ` — ${artifactLink}` : ''}`;
 }
 
 function formatWorkflow(workflow: IntegrationWorkflowDescriptor) {
@@ -544,6 +576,10 @@ export function buildSlackHomeView(
   options: { recentResult?: BrokerCommandResponse; wikiBrowser?: WikiBrowserModel } = {},
 ) {
   const { ready, comingSoon } = workflowBuckets(snapshot.workflows);
+  const activeLaunches = snapshot.jobs.filter(isActiveLaunchJob).slice(0, MAX_HOME_ACTIVE_JOBS);
+  const recentJobs = snapshot.jobs
+    .filter((job) => !activeLaunches.some((active) => active.id === job.id))
+    .slice(0, MAX_HOME_JOBS);
   const blocks: Record<string, unknown>[] = [
     header('Agent-Notifier Home'),
     {
@@ -602,11 +638,23 @@ export function buildSlackHomeView(
     });
   }
 
+  if (activeLaunches.length > 0) {
+    blocks.push({
+      type: 'section',
+      text: mrkdwn([
+        '*Active launches*',
+        ...activeLaunches.map(formatJob),
+      ].join('\n')),
+    });
+  }
+
   blocks.push({
     type: 'section',
     text: mrkdwn([
       '*Recent jobs*',
-      ...snapshot.jobs.slice(0, MAX_HOME_JOBS).map(formatJob),
+      ...(recentJobs.length > 0
+        ? recentJobs.map(formatJob)
+        : ['No completed or non-launch jobs yet.']),
     ].join('\n')),
   });
 

@@ -114,6 +114,8 @@ Current interactive behavior:
 - App Home now includes a broker-owned wiki browser that simulates an
   expandable tree with root buckets (`Types`, `Tags`, `Plugins`), breadcrumbs,
   branch drilldown, and paged entry lists
+- App Home highlights active launch jobs separately from the broader recent-job
+  history so queued and running Slack workflows stay visible until they finish
 - structured workflows can declare provider-neutral `inputFields`, which the
   Slack adapter turns into modals
 - `app_home_opened` publishes the App Home dashboard
@@ -184,6 +186,22 @@ Request body:
 }
 ```
 
+### `POST /api/integrations/jobs/:id/start`
+
+Marks a queued job as `running` so Slack-launched work can move through a real
+execution lifecycle before completion or failure.
+
+Request body:
+
+```json
+{
+  "summary": "KILOS worker picked up the request.",
+  "metadata": {
+    "worker": "kilos-runner"
+  }
+}
+```
+
 ### `POST /api/integrations/jobs/:id/fail`
 
 Marks a queued or running job as failed and optionally notifies the requester.
@@ -242,8 +260,9 @@ handler, they appear as `coming soon`.
 
 The two KILOS workflows are launch scaffolds today, not the finished workers.
 They exist so Slack can start the request now, persist structured inputs in the
-job record, and later receive a completion reply with a result link when a
-worker or operator finishes the underlying analysis.
+job record, transition from `queued` to `running` when a worker picks them up,
+and later receive a completion reply with a result link when the underlying
+analysis finishes.
 
 ## Slack Control Surface
 

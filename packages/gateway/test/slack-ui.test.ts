@@ -170,6 +170,20 @@ describe('slack-ui helpers', () => {
       workflows,
       jobs: [
         {
+          id: 'job_launch',
+          provider: 'slack',
+          workflowId: 'employer-brand-profile-kilos',
+          workflowTitle: 'Employer Brand Profile (KILOS)',
+          commandText: 'run employer-brand-profile-kilos',
+          status: 'queued',
+          summary: 'Employer Brand Profile (KILOS) request queued for Acme.',
+          createdAt: '2026-04-21T00:00:00Z',
+          updatedAt: '2026-04-21T00:00:00Z',
+          metadata: {
+            queueType: 'workflow-launch',
+          },
+        },
+        {
           id: 'job_123',
           provider: 'slack',
           workflowId: 'dev-status',
@@ -218,6 +232,9 @@ describe('slack-ui helpers', () => {
     assert.ok(view.blocks.some((block: any) => block.type === 'header' && block.text?.text === 'Wiki Browser'));
     const latestResult = view.blocks.find((block: any) => block.type === 'section' && block.text?.text?.includes('*Latest result*'));
     assert.ok(latestResult);
+    const activeLaunches = view.blocks.find((block: any) => block.type === 'section' && block.text?.text?.includes('*Active launches*'));
+    assert.ok(activeLaunches);
+    assert.match(activeLaunches?.text?.text ?? '', /Employer Brand Profile \(KILOS\)/);
   });
 
   it('reconstructs workflow commands from descriptor labels', () => {

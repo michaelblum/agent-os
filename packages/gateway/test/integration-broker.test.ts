@@ -164,10 +164,46 @@ describe('IntegrationBroker', () => {
 
     assert.equal(reply.kind, 'job');
     assert.equal(reply.job?.status, 'queued');
+    assert.equal(reply.job?.startedAt, undefined);
     assert.match(reply.text, /Queued Acme/);
 
     const jobs = await broker.listJobs(5);
     assert.ok(jobs.some((job) => job.workflowId === 'queue' && job.status === 'queued'));
+  });
+
+  it('transitions a queued job to running before completion', async () => {
+    const { broker } = makeBroker();
+    const launch = await broker.launchWorkflow({
+      provider: 'slack',
+      requester: 'tester',
+      workflowId: 'queue',
+      channel: 'ops',
+      thread: '123.456',
+      input: {
+        source: 'modal',
+        fields: {
+          client: 'Acme',
+        },
+      },
+    });
+
+    const job = launch.job;
+    assert.ok(job);
+    assert.equal(job?.status, 'queued');
+    assert.equal(job?.startedAt, undefined);
+
+    const started = await broker.startJob(job!.id, {
+      summary: 'Worker picked up queued workflow.',
+      metadata: {
+        worker: 'integration-test',
+      },
+    });
+
+    assert.equal(started.id, job!.id);
+    assert.equal(started.status, 'running');
+    assert.equal(started.summary, 'Worker picked up queued workflow.');
+    assert.ok(started.startedAt);
+    assert.equal((started.metadata as { worker?: string }).worker, 'integration-test');
   });
 
   it('completes a queued job and sends a provider notification', async () => {
@@ -245,6 +281,23 @@ describe('IntegrationBroker', () => {
       assert.equal(launch.status, 200);
       const launched = await launch.json() as { job?: { id: string, status: string } };
       assert.equal(launched.job?.status, 'queued');
+
+      const start = await fetch(`${http.url}/api/integrations/jobs/${launched.job?.id}/start`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          summary: 'Worker picked up queued workflow.',
+          metadata: {
+            worker: 'http-test-worker',
+          },
+        }),
+      });
+      assert.equal(start.status, 200);
+      const started = await start.json() as { id: string, status: string, startedAt?: string, metadata?: { worker?: string } };
+      assert.equal(started.id, launched.job?.id);
+      assert.equal(started.status, 'running');
+      assert.ok(started.startedAt);
+      assert.equal(started.metadata?.worker, 'http-test-worker');
 
       const complete = await fetch(`${http.url}/api/integrations/jobs/${launched.job?.id}/complete`, {
         method: 'POST',

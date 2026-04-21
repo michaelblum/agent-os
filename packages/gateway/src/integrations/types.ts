@@ -201,6 +201,12 @@ export interface IntegrationJobCompletionRequest {
   notifyRequester?: boolean;
 }
 
+export interface IntegrationJobStartRequest {
+  summary?: string;
+  metadata?: Record<string, unknown>;
+  notifyRequester?: boolean;
+}
+
 export interface IntegrationJobFailureRequest {
   errorText: string;
   summary?: string;

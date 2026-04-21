@@ -117,6 +117,17 @@ export async function startIntegrationHttpServer(
         return;
       }
 
+      const jobStartMatch = url.pathname.match(/^\/api\/integrations\/jobs\/([^/]+)\/start$/);
+      if (req.method === 'POST' && jobStartMatch) {
+        const body = await readBody(req);
+        json(res, 200, await options.broker.startJob(decodeURIComponent(jobStartMatch[1]), {
+          summary: typeof body.summary === 'string' ? body.summary : undefined,
+          metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata as Record<string, unknown> : undefined,
+          notifyRequester: body.notifyRequester === true,
+        }));
+        return;
+      }
+
       const jobFailMatch = url.pathname.match(/^\/api\/integrations\/jobs\/([^/]+)\/fail$/);
       if (req.method === 'POST' && jobFailMatch) {
         const body = await readBody(req);
@@ -143,8 +154,11 @@ export async function startIntegrationHttpServer(
         return;
       }
     } catch (error) {
+      const status = typeof error === 'object' && error && 'statusCode' in error && typeof (error as { statusCode?: unknown }).statusCode === 'number'
+        ? (error as { statusCode: number }).statusCode
+        : 500;
       const message = error instanceof Error ? error.message : String(error);
-      json(res, 500, { error: message });
+      json(res, status, { error: message });
       return;
     }
 

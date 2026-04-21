@@ -3,6 +3,7 @@ import type {
   IntegrationArtifactLink,
   IntegrationJobCompletionRequest,
   IntegrationJobFailureRequest,
+  IntegrationJobStartRequest,
   IntegrationProviderNotifier,
   InboundIntegrationMessage,
   IntegrationBrokerSnapshot,
@@ -130,6 +131,15 @@ function formatWorkflowResult(result: WorkflowRunResult, jobId: string) {
 
 function formatArtifactLink(link: IntegrationArtifactLink) {
   return `${link.label}: ${link.url}`;
+}
+
+class IntegrationJobTransitionError extends Error {
+  readonly statusCode = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'IntegrationJobTransitionError';
+  }
 }
 
 export class IntegrationBroker {
@@ -322,9 +332,36 @@ export class IntegrationBroker {
     });
   }
 
+  async startJob(id: string, request: IntegrationJobStartRequest = {}): Promise<IntegrationJob> {
+    const current = await this.db.getIntegrationJob(id);
+    if (!current) throw new Error(`Integration job "${id}" not found`);
+    this.assertJobMutable(current, 'start');
+
+    const metadata = mergeMetadata(current.metadata, request.metadata);
+    const summary = request.summary ?? current.summary ?? 'Workflow execution started.';
+    const updated = await this.db.updateIntegrationJob(id, {
+      status: 'running',
+      summary,
+      metadata,
+      startedAt: current.startedAt ?? new Date().toISOString(),
+      completedAt: null,
+    });
+
+    if (request.notifyRequester === true) {
+      await this.notifyRequester(updated, [
+        `${updated.workflowTitle ?? updated.workflowId ?? 'Workflow'} started.`,
+        summary,
+        `job ${updated.id}`,
+      ].join('\n'));
+    }
+
+    return updated;
+  }
+
   async completeJob(id: string, request: IntegrationJobCompletionRequest): Promise<IntegrationJob> {
     const current = await this.db.getIntegrationJob(id);
     if (!current) throw new Error(`Integration job "${id}" not found`);
+    this.assertJobMutable(current, 'complete');
 
     const lines = [...(request.lines ?? [])];
     if (request.artifactLink) lines.push(formatArtifactLink(request.artifactLink));
@@ -357,6 +394,7 @@ export class IntegrationBroker {
   async failJob(id: string, request: IntegrationJobFailureRequest): Promise<IntegrationJob> {
     const current = await this.db.getIntegrationJob(id);
     if (!current) throw new Error(`Integration job "${id}" not found`);
+    this.assertJobMutable(current, 'fail');
 
     const lines = request.lines ?? [];
     const metadata = mergeMetadata(current.metadata, request.metadata);
@@ -423,6 +461,7 @@ export class IntegrationBroker {
         resultText: result.lines?.join('\n') ?? null,
         resultJson: result.json,
         metadata,
+        startedAt: status === 'queued' ? null : undefined,
         completedAt: status === 'succeeded' || status === 'failed' ? new Date().toISOString() : null,
       });
       return {
@@ -453,6 +492,14 @@ export class IntegrationBroker {
       job,
       text,
     });
+  }
+
+  private assertJobMutable(job: IntegrationJob, action: 'start' | 'complete' | 'fail') {
+    if (job.status === 'succeeded' || job.status === 'failed') {
+      throw new IntegrationJobTransitionError(
+        `Integration job "${job.id}" is already ${job.status} and cannot ${action}.`,
+      );
+    }
   }
 
   private parseCommand(rawText: string): ParsedCommand {
