@@ -201,6 +201,45 @@ drag origin markers, drag lines, release collapse/fade, left-click expanding
 circle pulses, `Esc` cancel collapse back to origin, and right-click expanding
 square pulses.
 
+The inspector also supports a daemon-owned global export hotkey:
+`ctrl+opt+c`. When `canvas-inspector` exists, that combo captures a
+point-in-time see bundle without relying on mouse interaction. The daemon
+writes a temp bundle directory containing:
+
+- `capture.png` — a `see capture --region <inspector-at-trigger> --perception` image
+- `capture.json` — the capture response metadata
+- `inspector-state.json` — the surface's live JS/debug snapshot
+- `display-geometry.json` — the daemon display snapshot at export time
+- `canvas-list.json` — the daemon canvas list at export time
+- `bundle.json` — manifest/status for the bundle
+
+The bundle directory path is copied to the system clipboard, and the inspector
+status bar reflects pending/success/error state for the export.
+
+That export is configured under the daemon-owned `see` subtree rather than in
+Sigil or toolkit-local settings:
+
+```bash
+aos config get see.canvas_inspector_bundle --json
+aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.include.canvas_list false
+aos config set see.canvas_inspector_bundle.include.xray true
+```
+
+Supported include toggles today:
+
+- `capture_image`
+- `capture_metadata`
+- `inspector_state`
+- `display_geometry`
+- `canvas_list`
+- `xray`
+
+`xray` writes an additional `xray.json` artifact containing the AX-derived
+element list from `aos see capture --xray`. This config shape is intentionally
+under `see` so future `see` bundle/record presets can grow beside the current
+inspector export path instead of being trapped in inspector-only settings.
+
 ### Spatial Telemetry
 
 `spatial-telemetry` is the permanent coordinate-debug surface for multi-display

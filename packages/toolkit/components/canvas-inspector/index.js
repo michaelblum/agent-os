@@ -56,6 +56,7 @@ const TINT_COLORS = [
 ]
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
 const TREE_INDENT_PX = 12
+const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
 
 function rectToAt(rect) {
   if (!rect) return null
@@ -103,6 +104,15 @@ export default function CanvasInspector() {
   let lastMinimapLayout = null
   let lastTintError = null
   let dynamicAnimationFrame = 0
+  let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
+  let bundleCapture = {
+    status: 'idle',
+    message: `bundle ${bundleHotkeyLabel}`,
+    bundlePath: null,
+    bundleJSONPath: null,
+    trigger: null,
+    at: null,
+  }
 
   const marksState = createMarksState()
   const marksScheduler = createScheduler({
@@ -123,6 +133,8 @@ export default function CanvasInspector() {
       mouseEventsEnabled,
       inputSubscriptionActive,
       lastTintError,
+      bundleHotkeyLabel,
+      bundleCapture,
       mouseEffects: {
         active: mouseEffectsState.active,
         transients: mouseEffectsState.transients,
@@ -222,6 +234,20 @@ export default function CanvasInspector() {
     rerender()
   }
 
+  function requestSeeBundle(trigger = 'manual') {
+    bundleCapture = {
+      status: 'pending',
+      message: 'capturing see bundle...',
+      bundlePath: bundleCapture.bundlePath,
+      bundleJSONPath: bundleCapture.bundleJSONPath,
+      trigger,
+      at: Date.now(),
+    }
+    syncDebugState()
+    rerender()
+    emit('canvas_inspector.capture_bundle', { trigger })
+  }
+
   async function applyTint(id, color) {
     await evalCanvas(id, buildTintEvalScript(color))
   }
@@ -276,7 +302,7 @@ export default function CanvasInspector() {
 
   function renderTree() {
     if (canvases.length === 0 && marksState.marksByCanvas.size === 0 && displays.length === 0) {
-      return '<div class="empty-state">Waiting for canvases\u2026</div>'
+      return '<div class="empty-state">Waiting for canvases...</div>'
     }
     const resolvedCanvases = normalizeCanvasesToDesktopWorld(canvases)
     const tree = computeInspectorTree({
@@ -371,7 +397,20 @@ export default function CanvasInspector() {
   }
 
   function renderStatusBar() {
-    const detail = lastTintError ? `tint error: ${esc(lastTintError.id)}` : 'live'
+    let detail = bundleHotkeyLabel === 'disabled'
+      ? 'bundle hotkey disabled'
+      : `bundle ${bundleHotkeyLabel}`
+    if (lastTintError) {
+      detail = `tint error: ${esc(lastTintError.id)}`
+    } else if (bundleCapture?.status === 'pending') {
+      detail = bundleCapture.message || 'capturing see bundle...'
+    } else if (bundleCapture?.status === 'success') {
+      const target = bundleCapture.bundlePath || bundleCapture.bundleJSONPath || 'bundle ready'
+      const leaf = target.split('/').filter(Boolean).pop() || target
+      detail = `bundle copied: ${esc(leaf)}`
+    } else if (bundleCapture?.status === 'error') {
+      detail = bundleCapture.message || 'bundle failed'
+    }
     return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>${detail}</span></div>`
   }
 
@@ -465,7 +504,7 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Canvas Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_inspector.see_bundle_status'],
       emits: [],
       channelPrefix: 'canvas-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks'],
@@ -476,15 +515,17 @@ export default function CanvasInspector() {
       host.contentEl.style.overflow = 'hidden'
       contentEl = document.createElement('div')
       contentEl.className = 'canvas-inspector-body'
-      contentEl.innerHTML = '<div class="empty-state">Waiting for canvases\u2026</div>'
+      contentEl.innerHTML = '<div class="empty-state">Waiting for canvases...</div>'
       window.__canvasInspectorDebug = {
         tintCanvas(id, color = TINT_COLORS[0]) {
           return applyTint(id, color)
         },
         setCursorTrackingEnabled,
         setMouseEventsEnabled,
+        requestSeeBundle,
       }
       bindListEvents()
+      emit('canvas_inspector.request_bundle_config')
       resizeObserver = new ResizeObserver(() => {
         const nextWidth = getMinimapWidth()
         if (nextWidth !== lastMinimapWidth) {
@@ -499,6 +540,20 @@ export default function CanvasInspector() {
     },
 
     onMessage(msg, _host) {
+      if (msg.type === 'canvas_inspector.see_bundle_status') {
+        const payload = msg.payload || msg
+        bundleHotkeyLabel = payload.shortcut || bundleHotkeyLabel
+        bundleCapture = {
+          status: payload.status || 'idle',
+          message: payload.message || (bundleHotkeyLabel === 'disabled' ? 'bundle hotkey disabled' : `bundle ${bundleHotkeyLabel}`),
+          bundlePath: payload.bundle_path || null,
+          bundleJSONPath: payload.bundle_json_path || null,
+          trigger: payload.trigger || null,
+          at: payload.at || Date.now(),
+        }
+        rerender()
+        return
+      }
       if (msg.type === 'bootstrap') {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)

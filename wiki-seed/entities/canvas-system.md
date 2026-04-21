@@ -32,6 +32,10 @@ live canvas geometry on a minimap. Its operator controls are demand-driven:
 - `mouse events` is a separate toggle that renders click/drag telemetry on the
   same minimap: hold rings, drag lines, release collapse/fade, `Esc` cancel
   collapse, and left/right click pulses.
+- the inspector's `see` bundle export is daemon-configurable under
+  `see.canvas_inspector_bundle.*`. The current default hotkey is `ctrl+opt+c`,
+  and the daemon writes a temp bundle directory with the selected artifacts
+  before copying the bundle path to the clipboard.
 
 This keeps the inspector quiet by default while still making raw input behavior
 available when debugging spatial or interaction issues.

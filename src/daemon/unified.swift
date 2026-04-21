@@ -27,6 +27,9 @@ class UnifiedDaemon {
     private var subscriberLock = NSLock()
     private var subscribers: [UUID: SubscriberConnection] = [:]
     private let voiceTelemetryLock = NSLock()
+    let canvasInspectorBundleLock = NSLock()
+    var canvasInspectorBundleInFlight = false
+    var canvasInspectorBundleLastTriggerAt = Date.distantPast
 
     // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
@@ -197,6 +200,12 @@ class UnifiedDaemon {
                     }
                     markPayload["source_id"] = canvasID
                     self.forwardCanvasObjectMarks(data: markPayload)
+                    return
+                case "canvas_inspector.capture_bundle":
+                    self.triggerCanvasInspectorSeeBundle(sourceCanvasID: canvasID, trigger: inner?["trigger"] as? String ?? "canvas")
+                    return
+                case "canvas_inspector.request_bundle_config":
+                    self.sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
                     return
                 default:
                     break
@@ -1365,6 +1374,7 @@ class UnifiedDaemon {
             "settle_threshold_ms": new.perception.settle_threshold_ms
         ]
         broadcastEvent(service: "system", event: "config_changed", data: data)
+        sendCanvasInspectorSeeBundleConfig(canvasID: "canvas-inspector")
 
         // Voice engine lifecycle
         if new.voice.enabled && !old.voice.enabled {
@@ -1832,9 +1842,12 @@ class UnifiedDaemon {
     }
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {
+        let inspectorConsumed = maybeHandleCanvasInspectorSeeBundleHotkey(event: event, data: data)
         let shouldConsume = shouldConsumeSigilInputEvent(event: event, data: data)
-        broadcastInputEvent(service: "input", event: "input_event", data: data)
-        return shouldConsume
+        if !inspectorConsumed {
+            broadcastInputEvent(service: "input", event: "input_event", data: data)
+        }
+        return inspectorConsumed || shouldConsume
     }
 
     private func broadcastInputEvent(service: String, event: String, data: [String: Any]) {

@@ -13,6 +13,25 @@ struct AosConfig: Codable {
     var content: ContentConfig?         // content server port and document roots
     var status_item: StatusItemConfig?
     var hotkeys: HotkeysConfig?
+    var see: SeeConfig?
+
+    struct SeeConfig: Codable {
+        var canvas_inspector_bundle: CanvasInspectorBundleConfig?
+    }
+
+    struct CanvasInspectorBundleConfig: Codable {
+        var hotkey: String?
+        var include: CanvasInspectorBundleIncludeConfig?
+    }
+
+    struct CanvasInspectorBundleIncludeConfig: Codable {
+        var capture_image: Bool?
+        var capture_metadata: Bool?
+        var inspector_state: Bool?
+        var display_geometry: Bool?
+        var canvas_list: Bool?
+        var xray: Bool?
+    }
 
     struct HotkeysConfig: Codable {
         var cancel_speech: UInt16?  // macOS keyCode (default: 53 = ESC)
@@ -84,8 +103,111 @@ struct AosConfig: Codable {
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
         content: nil,
-        status_item: nil
+        status_item: nil,
+        hotkeys: nil,
+        see: SeeConfig(
+            canvas_inspector_bundle: CanvasInspectorBundleConfig(
+                hotkey: "ctrl+opt+c",
+                include: CanvasInspectorBundleIncludeConfig(
+                    capture_image: true,
+                    capture_metadata: true,
+                    inspector_state: true,
+                    display_geometry: true,
+                    canvas_list: true,
+                    xray: false
+                )
+            )
+        )
     )
+}
+
+let canonicalHotkeyModifierOrder = ["ctrl", "opt", "cmd", "shift", "fn"]
+
+private func canvasInspectorBundleDefaults() -> AosConfig.CanvasInspectorBundleConfig {
+    AosConfig.defaults.see?.canvas_inspector_bundle
+        ?? AosConfig.CanvasInspectorBundleConfig(
+            hotkey: "ctrl+opt+c",
+            include: AosConfig.CanvasInspectorBundleIncludeConfig(
+                capture_image: true,
+                capture_metadata: true,
+                inspector_state: true,
+                display_geometry: true,
+                canvas_list: true,
+                xray: false
+            )
+        )
+}
+
+func effectiveCanvasInspectorBundleConfig(_ config: AosConfig) -> AosConfig.CanvasInspectorBundleConfig {
+    let defaults = canvasInspectorBundleDefaults()
+    let configured = config.see?.canvas_inspector_bundle
+    let defaultInclude = defaults.include
+    let configuredInclude = configured?.include
+    return AosConfig.CanvasInspectorBundleConfig(
+        hotkey: configured?.hotkey ?? defaults.hotkey,
+        include: AosConfig.CanvasInspectorBundleIncludeConfig(
+            capture_image: configuredInclude?.capture_image ?? defaultInclude?.capture_image,
+            capture_metadata: configuredInclude?.capture_metadata ?? defaultInclude?.capture_metadata,
+            inspector_state: configuredInclude?.inspector_state ?? defaultInclude?.inspector_state,
+            display_geometry: configuredInclude?.display_geometry ?? defaultInclude?.display_geometry,
+            canvas_list: configuredInclude?.canvas_list ?? defaultInclude?.canvas_list,
+            xray: configuredInclude?.xray ?? defaultInclude?.xray
+        )
+    )
+}
+
+private func ensureCanvasInspectorBundleConfig(_ config: inout AosConfig) {
+    if config.see == nil {
+        config.see = AosConfig.SeeConfig(canvas_inspector_bundle: nil)
+    }
+    if config.see?.canvas_inspector_bundle == nil {
+        config.see?.canvas_inspector_bundle = canvasInspectorBundleDefaults()
+    }
+    if config.see?.canvas_inspector_bundle?.include == nil {
+        config.see?.canvas_inspector_bundle?.include = canvasInspectorBundleDefaults().include
+    }
+}
+
+func normalizeHotkeyCombo(_ value: String) -> String? {
+    let trimmed = value
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if trimmed.isEmpty { return nil }
+    if ["none", "disabled", "off"].contains(trimmed) { return nil }
+
+    let rawParts = trimmed
+        .split(separator: "+")
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    guard !rawParts.isEmpty else { return nil }
+
+    var modifiers = Set<String>()
+    var keyName: String? = nil
+    for rawPart in rawParts {
+        let part: String
+        switch rawPart {
+        case "control":
+            part = "ctrl"
+        case "alt", "option":
+            part = "opt"
+        case "command":
+            part = "cmd"
+        default:
+            part = rawPart
+        }
+
+        if canonicalHotkeyModifierOrder.contains(part) {
+            modifiers.insert(part)
+            continue
+        }
+        guard keyName == nil else { return nil }
+        guard keyCodeMap[part] != nil else { return nil }
+        keyName = part
+    }
+
+    guard let keyName else { return nil }
+    let orderedModifiers = canonicalHotkeyModifierOrder.filter { modifiers.contains($0) }
+    return (orderedModifiers + [keyName]).joined(separator: "+")
 }
 
 /// Load config from disk, falling back to defaults if missing or invalid.
@@ -233,6 +355,34 @@ func setConfigValue(key: String, value: String) {
         } else {
             exitError("hotkeys.cancel_speech must be a macOS keyCode (integer) or 'none'", code: "INVALID_VALUE")
         }
+    case "see.canvas_inspector_bundle.hotkey":
+        ensureCanvasInspectorBundleConfig(&config)
+        let normalized = normalizeHotkeyCombo(value)
+        if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            exitError("see.canvas_inspector_bundle.hotkey must be a key combo like 'ctrl+opt+c' or 'none'", code: "INVALID_VALUE")
+        }
+        if normalized == nil && !["none", "disabled", "off"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) {
+            exitError("see.canvas_inspector_bundle.hotkey must be a supported key combo like 'ctrl+opt+c' or 'none'", code: "INVALID_VALUE")
+        }
+        config.see?.canvas_inspector_bundle?.hotkey = normalized
+    case "see.canvas_inspector_bundle.include.capture_image":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.capture_image = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.capture_metadata":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.capture_metadata = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.inspector_state":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.inspector_state = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.display_geometry":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.display_geometry = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.canvas_list":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.canvas_list = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.xray":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.xray = (value == "true" || value == "1")
     default:
         exitError("Unknown config key: \(key)", code: "UNKNOWN_KEY")
     }

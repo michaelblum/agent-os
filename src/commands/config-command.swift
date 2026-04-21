@@ -49,6 +49,36 @@ private func lookupConfigValue(key: String, config: AosConfig) -> ConfigLookupRe
         return .found(config.status_item?.icon)
     case "hotkeys.cancel_speech":
         return .found(config.hotkeys?.cancel_speech)
+    case "see.canvas_inspector_bundle":
+        let bundle = effectiveCanvasInspectorBundleConfig(config)
+        let include = bundle.include
+        let includeDict: [String: Any] = [
+            "capture_image": include?.capture_image ?? false,
+            "capture_metadata": include?.capture_metadata ?? false,
+            "inspector_state": include?.inspector_state ?? false,
+            "display_geometry": include?.display_geometry ?? false,
+            "canvas_list": include?.canvas_list ?? false,
+            "xray": include?.xray ?? false,
+        ]
+        let hotkey: Any = bundle.hotkey ?? NSNull()
+        return .found([
+            "hotkey": hotkey,
+            "include": includeDict,
+        ])
+    case "see.canvas_inspector_bundle.hotkey":
+        return .found(effectiveCanvasInspectorBundleConfig(config).hotkey)
+    case "see.canvas_inspector_bundle.include.capture_image":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.capture_image)
+    case "see.canvas_inspector_bundle.include.capture_metadata":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.capture_metadata)
+    case "see.canvas_inspector_bundle.include.inspector_state":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.inspector_state)
+    case "see.canvas_inspector_bundle.include.display_geometry":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.display_geometry)
+    case "see.canvas_inspector_bundle.include.canvas_list":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.canvas_list)
+    case "see.canvas_inspector_bundle.include.xray":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.xray)
     default:
         return .unknown
     }
