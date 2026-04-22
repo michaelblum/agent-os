@@ -34,6 +34,8 @@ class PerceptionEngine {
     private var appLookup: [pid_t: (name: String, bundleID: String?)] = [:]
     private var _appRefreshTimer: DispatchSourceTimer?
     private var eventTap: CFMachPort?
+    private var eventTapRetryTimer: DispatchSourceTimer?
+    private var eventTapStartAttempts: Int = 0
 
     init(config: AosConfig) {
         self.config = config
@@ -50,6 +52,9 @@ class PerceptionEngine {
     // MARK: - CGEventTap (Depth 0)
 
     private func startEventTap() {
+        if eventTap != nil { return }
+        eventTapStartAttempts += 1
+
         let eventTypes: [CGEventType] = [
             .mouseMoved,
             .leftMouseDown,
@@ -88,14 +93,56 @@ class PerceptionEngine {
             },
             userInfo: refcon
         ) else {
-            fputs("Warning: CGEventTap failed — cursor monitoring unavailable (check Accessibility permissions)\n", stderr)
+            logEventTapFailure()
+            scheduleEventTapRetry()
             return
         }
 
+        cancelEventTapRetry()
         eventTap = tap
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        if eventTapStartAttempts > 1 {
+            fputs("PerceptionEngine: global input tap recovered on retry #\(eventTapStartAttempts - 1)\n", stderr)
+        }
+    }
+
+    private func scheduleEventTapRetry() {
+        if eventTapRetryTimer != nil { return }
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + .seconds(1), repeating: .seconds(2))
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            self.startEventTap()
+            if self.eventTap != nil {
+                self.cancelEventTapRetry()
+            }
+        }
+        timer.resume()
+        eventTapRetryTimer = timer
+    }
+
+    private func cancelEventTapRetry() {
+        eventTapRetryTimer?.cancel()
+        eventTapRetryTimer = nil
+    }
+
+    private func logEventTapFailure() {
+        let ax = AXIsProcessTrusted()
+        if #available(macOS 10.15, *) {
+            let listen = CGPreflightListenEventAccess()
+            let post = CGPreflightPostEventAccess()
+            fputs(
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); retrying on main run loop\n",
+                stderr
+            )
+        } else {
+            fputs(
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); retrying on main run loop\n",
+                stderr
+            )
+        }
     }
 
     private func handleTapEvent(_ event: CGEvent) -> Bool {

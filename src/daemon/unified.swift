@@ -267,8 +267,12 @@ class UnifiedDaemon {
             self?.checkIdle()
         }
 
-        // Start modules
-        perception.start()
+        // Start perception after the app's main queue is live. A synchronous
+        // pre-run-loop tap install can still race and come up dead-on-arrival
+        // even after NSApplication.shared has been initialized.
+        DispatchQueue.main.async { [weak self] in
+            self?.perception.start()
+        }
 
         // Wire spatial model events -> broadcast
         spatial.onChannelUpdated = { [weak self] id in
