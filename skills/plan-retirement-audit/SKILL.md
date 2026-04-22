@@ -34,7 +34,7 @@ For each plan file:
 
 2. Count checkboxes:
    ```bash
-   grep -c '^- \[x\]' <file>
+   grep -ci '^- \[x\]' <file>
    grep -c '^- \[ \]' <file>
    ```
    All-checked is a strong landed signal. All-unchecked suggests active or
@@ -45,13 +45,14 @@ For each plan file:
    git log --all --oneline -- <file>
    ```
 
-4. Look for references to the plan in commit messages across the repo:
+4. Look for references to the plan across the repo's history — in commit messages and in diffs:
    ```bash
+   git log --all --oneline --grep="<filename-stem>"
    git log --all --oneline -S "<filename-stem>"
    ```
    Replace `<filename-stem>` with the plan filename minus its date prefix and
    `.md` extension (e.g. for `2026-04-07-aos-gateway-v1.md`, search
-   `aos-gateway-v1`).
+   `aos-gateway-v1`). Filenames without a date prefix: use the full stem.
 
 5. Extract two or three concrete file paths the plan claims to create
    (look for "File Map" sections or `Create:` lines). Spot-check each with
