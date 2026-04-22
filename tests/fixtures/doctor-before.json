@@ -1,0 +1,98 @@
+{
+  "aos_service" : {
+    "actual_binary_path" : "\/Users\/Michael\/Code\/agent-os\/aos",
+    "actual_log_path" : "\/Users\/Michael\/.config\/aos\/repo\/daemon.log",
+    "expected_binary_path" : "\/Users\/Michael\/Code\/agent-os\/aos",
+    "expected_log_path" : "\/Users\/Michael\/.config\/aos\/repo\/daemon.log",
+    "installed" : true,
+    "label" : "com.agent-os.aos.repo",
+    "loaded" : true,
+    "log_path_matches_expected" : true,
+    "notes" : [
+
+    ],
+    "pid" : 64841,
+    "plist_path" : "\/Users\/Michael\/Library\/LaunchAgents\/com.agent-os.aos.repo.plist",
+    "running" : true,
+    "target_matches_expected" : true
+  },
+  "identity" : {
+    "build_timestamp" : "2026-04-22T00:56:36Z",
+    "executable_path" : "aos",
+    "git_commit" : "7b2122d",
+    "mode" : "repo",
+    "program" : "aos",
+    "repo_root" : "\/Users\/Michael\/Code\/agent-os",
+    "socket_path" : "\/Users\/Michael\/.config\/aos\/repo\/sock",
+    "state_dir" : "\/Users\/Michael\/.config\/aos\/repo"
+  },
+  "notes" : [
+    "Daemon process appears to be running, but the socket is not reachable.",
+    "Daemon ownership mismatch: serving pid=none, lock pid=54243, service pid=64841."
+  ],
+  "permissions" : {
+    "accessibility" : true,
+    "screen_recording" : true
+  },
+  "permissions_requirements" : [
+    {
+      "granted" : true,
+      "id" : "accessibility",
+      "required_for" : [
+        "global input tap",
+        "mouse\/keyboard actions",
+        "AX element actions"
+      ],
+      "setup_trigger" : "AXIsProcessTrustedWithOptions prompt"
+    },
+    {
+      "granted" : true,
+      "id" : "screen_recording",
+      "required_for" : [
+        "screen capture",
+        "perception",
+        "visual debugging"
+      ],
+      "setup_trigger" : "CGRequestScreenCaptureAccess prompt"
+    }
+  ],
+  "permissions_setup" : {
+    "bundle_matches_current" : true,
+    "bundle_path" : "\/Users\/Michael\/Code\/agent-os",
+    "completed_at" : "2026-04-12T03:57:41Z",
+    "current_bundle_path" : "\/Users\/Michael\/Code\/agent-os",
+    "marker_exists" : true,
+    "marker_path" : "\/Users\/Michael\/.config\/aos\/repo\/permissions-onboarding.json",
+    "setup_completed" : true
+  },
+  "platform" : {
+    "os" : "macOS",
+    "version" : "26.4.1"
+  },
+  "runtime" : {
+    "daemon_pid" : 54243,
+    "daemon_running" : true,
+    "event_tap_expected" : true,
+    "installed_app_exists" : true,
+    "installed_app_path" : "\/Users\/Michael\/Applications\/AOS.app",
+    "legacy_state_dir" : "\/Users\/Michael\/.config\/aos",
+    "legacy_state_items" : [
+
+    ],
+    "lock_owner_pid" : 54243,
+    "mode" : "repo",
+    "other_mode_socket_path" : "\/Users\/Michael\/.config\/aos\/installed\/sock",
+    "other_mode_socket_reachable" : false,
+    "other_mode_state_dir" : "\/Users\/Michael\/.config\/aos\/installed",
+    "ownership_state" : "mismatch",
+    "repo_artifacts" : [
+
+    ],
+    "service_pid" : 64841,
+    "socket_exists" : false,
+    "socket_path" : "\/Users\/Michael\/.config\/aos\/repo\/sock",
+    "socket_reachable" : false,
+    "state_dir" : "\/Users\/Michael\/.config\/aos\/repo"
+  },
+  "status" : "degraded"
+}
