@@ -935,7 +935,25 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos doctor --json"])
+            examples: ["aos doctor --json"]),
+        InvocationForm(id: "doctor-gateway",
+            usage: "aos doctor gateway [--quick] [--json|--pretty] [--tail N]",
+            args: [
+                pos("target", "Doctor target (must be 'gateway')",
+                    type: .enumeration([EnumValue(value: "gateway", summary: "aos-gateway MCP + broker")])),
+                flag("quick", "--quick", "Skip SQLite open and row counts", type: .bool),
+                flag("json", "--json", "Force JSON output", type: .bool),
+                flag("pretty", "--pretty", "Force human-readable output", type: .bool),
+                flag("tail", "--tail", "Include last N log lines per role", type: .int),
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos doctor gateway",
+                "aos doctor gateway --json --tail 20",
+                "aos doctor gateway --quick",
+            ])
     ]))
 
     // ── reset ─────────────────────────────────────────────
