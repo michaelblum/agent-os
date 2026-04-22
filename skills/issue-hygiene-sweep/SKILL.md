@@ -51,9 +51,9 @@ For each open issue number `N`:
    git log --all --oneline --grep "#<N>"
    ```
 
-4. Pull linked and cross-referenced PRs:
+4. Pull linked and cross-referenced issues/PRs via the timeline API:
    ```bash
-   gh issue view <N> --json timelineItems
+   gh api repos/:owner/:repo/issues/<N>/timeline --jq '.[] | select(.event=="cross-referenced" or .event=="connected") | {event, source: .source.issue.number}'
    ```
 
 5. Title-prefix triage. If the issue title starts with any of:
@@ -68,7 +68,7 @@ For each open issue number `N`:
 
 ### Signal-only guidance (fuzzy calls)
 
-- Issue body references paths or features that now exist in the tree. Spot-check with `ls`.
+- Issue body references paths or features that now exist in the tree. Extract one or two concrete paths from the body and spot-check each with `ls`.
 - Last update older than two weeks with no activity plus a matching merged PR is a strong landed signal.
 - Duplicate topic across two open issues.
 
@@ -118,4 +118,5 @@ Total open issues reviewed: <N>
 - Never run `gh issue close`, `gh issue comment`, `gh issue edit`,
   `gh issue reopen`, or any issue mutation.
 - Never push labels, assignees, or milestones.
+- Never invoke `gh api` with `-X POST`, `-X PATCH`, `-X DELETE`, or `--method POST/PATCH/DELETE` against any issues, comments, labels, or projects endpoint. `gh api` is read-only here (GET only).
 - Never auto-promote an unclear item.
