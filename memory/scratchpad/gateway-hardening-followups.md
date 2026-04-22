@@ -1,7 +1,7 @@
 ---
 name: gateway-hardening follow-ups
 status: validated-deferred
-connects_to: packages/gateway/, ./aos CLI, docs/ (wiki + help text), AGENTS.md
+connects_to: packages/gateway/, ./aos CLI, docs/ (wiki + help text), AGENTS.md, shared/swift/ipc/runtime-paths.swift, tests/doctor-gateway.sh
 updated: 2026-04-22
 ---
 
@@ -63,3 +63,58 @@ for dev-facing work.
 
 **Keywords**: CLI-first, MCP adapter, agent instructions, design-time rule,
 AGENTS.md.
+
+## 3. `--quick` assertion in tests/doctor-gateway.sh is trivially-passing
+
+**Connects to**: `tests/doctor-gateway.sh`, `packages/gateway/src/doctor.ts`,
+Task 10 of `docs/superpowers/plans/2026-04-22-gateway-hardening.md`.
+
+**Why it matters**: the Task 12 smoke asserts `--quick` mode omits
+`.db.integrity`, but full mode also omits it when the db is empty — so under
+the isolated root the assertion passes in both modes. The assertion is
+supposed to prove `--quick` takes a faster path, but it can't distinguish
+quick from full when the test fixture is an empty state root. Surfaced during
+Task 12 advisor review.
+
+**Why not now**: fixing it requires either (a) populating the isolated gateway
+db before the doctor call, or (b) asserting on a different shape difference
+that actually varies between quick and full. Both are Task 10 territory — the
+doctor.ts output shape is the real subject — not Task 12's integration scope.
+Attempted fix during the session would have expanded Task 12's blast radius.
+
+**Revisit trigger**: next `./aos doctor gateway` iteration (help surface,
+schema change, new fields) OR next time someone relies on `--quick` perf
+claim in practice.
+
+**Keywords**: quick mode, doctor assertion, test coverage gap, Task 10,
+db.integrity, integration test.
+
+## 4. Bundle-derive `aosInstallAppPath()` default for packaged-binary runs
+
+**Connects to**: `shared/swift/ipc/runtime-paths.swift:71-73`,
+`scripts/package-aos-runtime`, Task 14 of gateway-hardening plan.
+
+**Why it matters**: `aosInstallAppPath()` defaults to
+`~/Applications/AOS.app`. Any packaged binary launched from somewhere else
+(smoke test against `dist/AOS.app`, VM, CI runner, user who installs to a
+custom path) has to set `AOS_INSTALL_PATH` explicitly — otherwise installed-
+mode path resolution silently targets the user-installed bundle. Task 14's
+smoke hit this. Obvious bundle-derivation fix: when running inside an `.app`,
+return the containing bundle path (mirroring `aosBundledRepoRoot`'s walk
+pattern), with `~/Applications/AOS.app` as the fallback only when the
+executable isn't inside a bundle. Env override still wins.
+
+**Why not now**: too much blast radius for Task 14's scope. Other callers of
+`aosInstallAppPath()` include `doctor.swift` reporting the expected install
+path in `runtime.installed_app_path`, which currently reports the canonical
+install location — bundle-derivation would change what users see there. Needs
+deliberate design pass, not a mid-task patch. Task 14's `AOS_INSTALL_PATH`
+override is the correct workaround for the immediate smoke need.
+
+**Revisit trigger**: second caller hits the same friction (packaging-test
+infrastructure grows, CI runs the packaged binary, or a second installed-mode
+smoke for a different subsystem). OR when a real bug report surfaces from a
+user installing outside the default path.
+
+**Keywords**: aosInstallAppPath, bundle derivation, AOS_INSTALL_PATH,
+packaged binary, Task 14, install path resolution, runtime-paths.swift.
