@@ -78,17 +78,21 @@ Expected: at minimum `status`, `runtime`, `permissions` in the key list (current
 
 **Working directory.** All `npm test` and `node --test` commands below assume `cwd == packages/gateway/`. Prefix with `cd packages/gateway && ...` if running from repo root.
 
-**Fail-first uses direct `node --test`, not `npm test`.** The package's `test` npm script is `node --test --loader ts-node/esm test/*.test.ts`. Because of the glob, `npm test -- test/mode.test.ts` expands to a command that runs the ENTIRE suite plus the new target — which (a) pollutes output with unrelated passing tests and (b) causes `node --test` to wrap the import failure as `ERR_TEST_FAILURE` instead of surfacing the literal `Cannot find module` error.
-
-For fail-first verification, invoke the single target file directly (no glob, no npm-script wrapping):
+**Fail-first uses `tsc --noEmit` on the target test file.** Node 22's `node --test` reporter wraps import-time failures as a generic `ERR_TEST_FAILURE` with a null-prototype error object — the literal `Cannot find module` string never surfaces. Plain `node --loader ts-node/esm test/<name>.test.ts` (without `--test`) has the same problem under Node 22 + ts-node/esm. The only deterministic fail-first probe is TypeScript's own compile-only check:
 
 ```
-node --test --loader ts-node/esm test/<name>.test.ts
+npx tsc --noEmit test/<name>.test.ts
 ```
 
-Expected output for a missing-module fail-first: exit code non-zero; stderr/stdout mentions the target basename (e.g., `mode.js`) and one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. Either phrasing counts as proof the test cannot find the not-yet-implemented module.
+`tsc` ignores the `include` glob from `tsconfig.json` when specific files are passed, so this only processes the target + its transitive imports. If `../src/<name>.ts` doesn't exist yet, `tsc` emits a concrete error like:
 
-**Pass step uses full `npm test`.** Once the implementation lands, run the full suite (not just the target) — it's cheap, catches ambient regressions eagerly, and matches the post-implementation checklist.
+```
+test/<name>.test.ts(6,69): error TS2307: Cannot find module '../src/<name>.js' or its corresponding type declarations.
+```
+
+Expected fail-first proof: exit code non-zero; output contains `TS2307` and `Cannot find module '../src/<name>.js'`. That is the test-level assertion "implementation does not exist yet" in machine-checkable form. (Verified empirically on Agent I's Node 22 + ts-node/esm setup — both `node --test` and plain `node --loader` returned only opaque errors; `tsc --noEmit` produced the literal TS2307.)
+
+**Pass step uses full `npm test`.** Once the implementation lands, run the full suite (not just the target) — it's cheap, catches ambient regressions eagerly, and matches the post-implementation checklist. The pass step is the actual behavioral verification; `tsc --noEmit` only proves "module exists and types resolve."
 
 ---
 
@@ -188,14 +192,14 @@ test('hasExplicitStateRootOverride: explicit non-default → true', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Verify the test fails because the module is missing**
 
 ```bash
 cd packages/gateway
-node --test --loader ts-node/esm test/mode.test.ts
+npx tsc --noEmit test/mode.test.ts
 ```
 
-Expected: exit non-zero; output mentions `mode.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above for why fail-first bypasses the `npm test` glob.)
+Expected: exit non-zero; output contains `TS2307` and `Cannot find module '../src/mode.js'`. (See "Testing conventions" above — Node 22's `--test` reporter buries import errors, so fail-first uses `tsc --noEmit` instead.)
 
 - [ ] **Step 3: Implement `src/mode.ts`**
 
@@ -343,13 +347,13 @@ test('distinct pidfile paths across roles', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Verify the test fails because the module is missing**
 
 ```bash
-node --test --loader ts-node/esm test/paths.test.ts
+npx tsc --noEmit test/paths.test.ts
 ```
 
-Expected: exit non-zero; output mentions `paths.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
+Expected: exit non-zero; output contains `TS2307` and `Cannot find module '../src/paths.js'`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/paths.ts`**
 
@@ -530,13 +534,13 @@ test('close() flushes and releases handle', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Verify the test fails because the module is missing**
 
 ```bash
-node --test --loader ts-node/esm test/logger.test.ts
+npx tsc --noEmit test/logger.test.ts
 ```
 
-Expected: exit non-zero; output mentions `logger.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
+Expected: exit non-zero; output contains `TS2307` and `Cannot find module '../src/logger.js'`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/logger.ts`**
 
@@ -731,13 +735,13 @@ test('migrateFromEnv with AOS_STATE_ROOT set → sandbox-safe no-op, never stats
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Verify the test fails because the module is missing**
 
 ```bash
-node --test --loader ts-node/esm test/migrate.test.ts
+npx tsc --noEmit test/migrate.test.ts
 ```
 
-Expected: exit non-zero; output mentions `migrate.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
+Expected: exit non-zero; output contains `TS2307` and `Cannot find module '../src/migrate.js'`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/migrate.ts`**
 
@@ -1402,13 +1406,13 @@ test('renderText produces non-empty human-readable output', async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Verify the test fails because the module is missing**
 
 ```bash
-node --test --loader ts-node/esm test/doctor.test.ts
+npx tsc --noEmit test/doctor.test.ts
 ```
 
-Expected: exit non-zero; output mentions `doctor.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
+Expected: exit non-zero; output contains `TS2307` and `Cannot find module '../src/doctor.js'`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/doctor.ts`**
 
