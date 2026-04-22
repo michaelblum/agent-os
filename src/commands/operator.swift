@@ -272,6 +272,11 @@ func statusCommand(args: [String]) {
 }
 
 func doctorCommand(args: [String]) {
+    // Route `aos doctor gateway ...` to the gateway subcommand handler.
+    if args.first == "gateway" {
+        doctorGatewayCommand(args: Array(args.dropFirst()))
+        return
+    }
     if args.contains("--help") || args.contains("-h") {
         printCommandHelp(["doctor"], json: args.contains("--json"))
         exit(0)
