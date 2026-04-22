@@ -1069,15 +1069,23 @@ Expected: build succeeds; existing singleton test still passes; new mode/paths/l
 
 - [ ] **Step 4: Smoke test gateway startup under isolated root**
 
+`ls` runs WHILE gateway is alive. That measures mode-scoped path adoption (Task 5's actual goal) without racing against shutdown cleanup.
+
 ```bash
 AOS_STATE_ROOT=/tmp/gwtest AOS_RUNTIME_MODE=repo node dist/index.js &
+GW_PID=$!
 sleep 1
-kill %1 2>/dev/null
 ls /tmp/gwtest/repo/gateway/
+kill $GW_PID 2>/dev/null
+wait $GW_PID 2>/dev/null
 rm -rf /tmp/gwtest
 ```
 
-Expected: directory contains `gateway.log`, `gateway.pid` (may already be removed), `sdk.sock`, `gateway.db` (+ `-shm`, `-wal`).
+Expected during-run `ls` output contains all of: `gateway.db`, `gateway.log`, `gateway.pid`, `scripts`, `sdk.sock`.
+
+WAL sidecars (`gateway.db-shm`, `gateway.db-wal`) may also appear — they are timing-dependent on first write and should not be asserted strictly.
+
+If any of the five required entries is missing during run, stop and report which path diverged from `paths.mcpPaths(mode='repo', env={AOS_STATE_ROOT:'/tmp/gwtest'})` — that is the failure.
 
 - [ ] **Step 5: Commit**
 
