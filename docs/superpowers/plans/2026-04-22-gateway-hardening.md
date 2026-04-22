@@ -74,6 +74,24 @@ Expected: at minimum `status`, `runtime`, `permissions` in the key list (current
 
 ---
 
+## Testing conventions (applies to Tasks 1–7)
+
+**Working directory.** All `npm test` and `node --test` commands below assume `cwd == packages/gateway/`. Prefix with `cd packages/gateway && ...` if running from repo root.
+
+**Fail-first uses direct `node --test`, not `npm test`.** The package's `test` npm script is `node --test --loader ts-node/esm test/*.test.ts`. Because of the glob, `npm test -- test/mode.test.ts` expands to a command that runs the ENTIRE suite plus the new target — which (a) pollutes output with unrelated passing tests and (b) causes `node --test` to wrap the import failure as `ERR_TEST_FAILURE` instead of surfacing the literal `Cannot find module` error.
+
+For fail-first verification, invoke the single target file directly (no glob, no npm-script wrapping):
+
+```
+node --test --loader ts-node/esm test/<name>.test.ts
+```
+
+Expected output for a missing-module fail-first: exit code non-zero; stderr/stdout mentions the target basename (e.g., `mode.js`) and one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. Either phrasing counts as proof the test cannot find the not-yet-implemented module.
+
+**Pass step uses full `npm test`.** Once the implementation lands, run the full suite (not just the target) — it's cheap, catches ambient regressions eagerly, and matches the post-implementation checklist.
+
+---
+
 ## Task 1: `src/mode.ts` — mode + state-root resolution
 
 **Files:**
@@ -174,10 +192,10 @@ test('hasExplicitStateRootOverride: explicit non-default → true', () => {
 
 ```bash
 cd packages/gateway
-npm test -- test/mode.test.ts
+node --test --loader ts-node/esm test/mode.test.ts
 ```
 
-Expected: FAIL with "Cannot find module '../src/mode.js'".
+Expected: exit non-zero; output mentions `mode.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above for why fail-first bypasses the `npm test` glob.)
 
 - [ ] **Step 3: Implement `src/mode.ts`**
 
@@ -328,10 +346,10 @@ test('distinct pidfile paths across roles', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-npm test -- test/paths.test.ts
+node --test --loader ts-node/esm test/paths.test.ts
 ```
 
-Expected: FAIL with "Cannot find module '../src/paths.js'".
+Expected: exit non-zero; output mentions `paths.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/paths.ts`**
 
@@ -515,10 +533,10 @@ test('close() flushes and releases handle', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-npm test -- test/logger.test.ts
+node --test --loader ts-node/esm test/logger.test.ts
 ```
 
-Expected: FAIL with "Cannot find module '../src/logger.js'".
+Expected: exit non-zero; output mentions `logger.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/logger.ts`**
 
@@ -716,10 +734,10 @@ test('migrateFromEnv with AOS_STATE_ROOT set → sandbox-safe no-op, never stats
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-npm test -- test/migrate.test.ts
+node --test --loader ts-node/esm test/migrate.test.ts
 ```
 
-Expected: FAIL with "Cannot find module '../src/migrate.js'".
+Expected: exit non-zero; output mentions `migrate.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/migrate.ts`**
 
@@ -1387,10 +1405,10 @@ test('renderText produces non-empty human-readable output', async () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-npm test -- test/doctor.test.ts
+node --test --loader ts-node/esm test/doctor.test.ts
 ```
 
-Expected: FAIL with "Cannot find module '../src/doctor.js'".
+Expected: exit non-zero; output mentions `doctor.js` + one of `ERR_MODULE_NOT_FOUND`, `Cannot find module`, or `MODULE_NOT_FOUND`. (See "Testing conventions" above.)
 
 - [ ] **Step 3: Implement `src/doctor.ts`**
 
