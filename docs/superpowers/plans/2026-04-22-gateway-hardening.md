@@ -2126,8 +2126,12 @@ trap 'rm -f "$CURRENT"' EXIT
 
 ./aos doctor --json > "$CURRENT"
 
-BEFORE="$(jq -S 'paths(scalars) | join(".")' "$REFERENCE" | sort -u)"
-AFTER="$(jq -S 'paths(scalars) | join(".")' "$CURRENT" | sort -u)"
+# Normalize array indices to `[]` so state-dependent array length
+# (e.g. `notes` with fewer entries on healthier hosts) does not look
+# like a schema regression.  We are asserting key shape, not cardinality.
+NORMALIZE='paths(scalars) | map(if type == "number" then "[]" else . end) | join(".")'
+BEFORE="$(jq -S "$NORMALIZE" "$REFERENCE" | sort -u)"
+AFTER="$(jq -S "$NORMALIZE" "$CURRENT" | sort -u)"
 
 # Every path present before must still be present. New paths OK (additive).
 MISSING="$(comm -23 <(echo "$BEFORE") <(echo "$AFTER") || true)"
