@@ -185,6 +185,8 @@ export class CoordinationDB {
 
   constructor(filePath: string) {
     this.db = new Database(filePath);
+    // Bounded wait on SQLITE_BUSY so a peer WAL holder can't hang us forever.
+    this.db.pragma('busy_timeout = 5000');
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.initSchema();

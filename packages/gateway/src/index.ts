@@ -7,6 +7,7 @@ import { EngineRouter } from './engine/router.js';
 import { NodeSubprocessEngine } from './engine/node-subprocess.js';
 import { ScriptRegistry } from './scripts.js';
 import { startSDKSocket } from './sdk-socket.js';
+import { acquirePidLock, PeerAliveError, type PidLock } from './singleton.js';
 import { registerCoordinationTools } from './tools/coordination.js';
 import { registerExecutionTools } from './tools/execution.js';
 import { mkdirSync, watch } from 'node:fs';
@@ -20,15 +21,42 @@ mkdirSync(STATE_DIR, { recursive: true });
 const DB_PATH = join(STATE_DIR, 'gateway.db');
 const SOCKET_PATH = join(STATE_DIR, 'sdk.sock');
 const SCRIPTS_DIR = join(STATE_DIR, 'scripts');
+const PID_PATH = join(STATE_DIR, 'gateway.pid');
 
-const db = new CoordinationDB(DB_PATH);
-const sdkServer = startSDKSocket({ socketPath: SOCKET_PATH, db });
+let pidLock: PidLock | undefined;
+try {
+  pidLock = acquirePidLock(PID_PATH);
+} catch (err: any) {
+  if (err instanceof PeerAliveError) {
+    console.error(`aos-gateway: ${err.message}`);
+  } else {
+    console.error(`aos-gateway: failed to acquire pidfile: ${err.message}`);
+  }
+  process.exit(1);
+}
+
+let db: CoordinationDB | undefined;
+let sdkServer: ReturnType<typeof startSDKSocket> | undefined;
+try {
+  db = new CoordinationDB(DB_PATH);
+  sdkServer = startSDKSocket({ socketPath: SOCKET_PATH, db });
+} catch (err: any) {
+  console.error(`aos-gateway: init failed: ${err.message}`);
+  pidLock?.release();
+  process.exit(1);
+}
+
+sdkServer!.on('error', (err: Error) => {
+  console.error(`aos-gateway: sdk socket error: ${err.message}`);
+  shutdown(1);
+});
+
 const engine = new NodeSubprocessEngine();
 const router = new EngineRouter();
 router.register(engine);
 const registry = new ScriptRegistry(SCRIPTS_DIR);
 
-const coordTools = registerCoordinationTools(db);
+const coordTools = registerCoordinationTools(db!);
 const execTools = registerExecutionTools(router, registry, SOCKET_PATH);
 const allHandlers: Record<string, (args: any) => any> = { ...coordTools, ...execTools };
 
@@ -113,3 +141,18 @@ watch(distDir, { recursive: true }, (_event, filename) => {
 
 // Keep a reference to prevent GC
 void sdkServer;
+
+let shuttingDown = false;
+function shutdown(code: number): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try { sdkServer?.close(); } catch {}
+  try { db?.close(); } catch {}
+  try { pidLock?.release(); } catch {}
+  process.exit(code);
+}
+process.on('SIGTERM', () => shutdown(0));
+process.on('SIGINT', () => shutdown(0));
+process.on('exit', () => {
+  try { pidLock?.release(); } catch {}
+});
