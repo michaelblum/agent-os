@@ -12,9 +12,7 @@
     ".agents/hooks/final-response.sh",
     ".claude/settings.json",
     ".codex/hooks.json",
-    ".codex/config.toml",
-    "scripts/claude-agent-os",
-    "claude-aos"
+    ".codex/config.toml"
   ],
   "bootstrap_surfaces": [
     "scripts/handoff",
@@ -33,10 +31,6 @@
     "historical docs/superpowers archaeology that contradicts the session contract"
   ],
   "memory_promotion_rule": "If durable knowledge is discovered in provider-local memory, promote it into repo-native docs or issues instead of relying on hidden recall.",
-  "claude_wrapper_defaults": [
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY=1",
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT=1"
-  ],
   "hook_parity_notes": [
     "Claude has a repo-defined PreCompact(auto) alert hook.",
     "Codex does not yet expose equivalent pre-compact hook parity; warn from status/context surfaces instead."

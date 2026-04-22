@@ -125,8 +125,8 @@ grep -q "export AOS_SESSION_NAME=\"$CLAUDE_TO\"" "$CLAUDE_LAUNCHER" || {
   echo "FAIL: Claude launcher missing AOS_SESSION_NAME export"
   exit 1
 }
-grep -q "$ROOT/scripts/claude-agent-os" "$CLAUDE_LAUNCHER" || {
-  echo "FAIL: Claude launcher does not use repo-scoped Claude wrapper"
+grep -q "AOS_CLAUDE_CLI_BIN:-claude" "$CLAUDE_LAUNCHER" || {
+  echo "FAIL: Claude launcher does not invoke claude via AOS_CLAUDE_CLI_BIN"
   exit 1
 }
 grep -q "Use the repo-scoped agent-os bootstrap payload for session $CLAUDE_TO" "$CLAUDE_LAUNCHER" || {
