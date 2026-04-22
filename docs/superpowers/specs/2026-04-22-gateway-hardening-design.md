@@ -9,7 +9,7 @@
 
 Issue #102 surfaced a class of gateway failures rooted in shared `~/.config/aos-gateway/` state: two gateways racing on the sqlite WAL + sdk.sock caused silent MCP hangs. Commit 64d5a34 landed the minimal fix — pidfile lock, fail-loud startup, `busy_timeout`, signal handlers — and deferred four improvements for a follow-up pass. This spec addresses all four together because they reinforce one another and each is small.
 
-Scope: resilience + observability hardening for `packages/gateway/`. No tool surface changes to existing MCP tools. One new CLI subcommand: `./aos doctor gateway`.
+Scope: resilience + observability hardening for `packages/gateway/`. **Both** package entry points — `src/index.ts` (MCP server) and `src/broker.ts` (integration HTTP broker) — move onto shared path/mode resolution and the new logger, so they can't drift into split-brain state. No tool surface changes to existing MCP tools. One new CLI subcommand form: `./aos doctor gateway`, added alongside the unchanged bare `./aos doctor`.
 
 ## Goals
 
@@ -29,10 +29,10 @@ Scope: resilience + observability hardening for `packages/gateway/`. No tool sur
 
 ### 1. Mode-scoped state directories
 
-State relocates from flat `~/.config/aos-gateway/` to mode-isolated paths under the existing `~/.config/aos/{mode}/` tree established by the `./aos` binary:
+State relocates from flat `~/.config/aos-gateway/` to mode-isolated paths under the existing `${AOS_STATE_ROOT or ~/.config/aos}/{mode}/` tree established by the `./aos` binary:
 
 ```
-~/.config/aos/
+${AOS_STATE_ROOT or ~/.config/aos}/
   repo/
     gateway/
       gateway.db (+ -shm, -wal)
@@ -47,70 +47,87 @@ State relocates from flat `~/.config/aos-gateway/` to mode-isolated paths under 
 
 This aligns with AGENTS.md's "new resource types inherit runtime mode isolation" rule. Gateway becomes a peer consumer under the same mode root as the daemon.
 
+**Runtime env contract — canonical alignment.** Gateway MUST honor the same two env overrides as `./aos` (defined in `shared/swift/ipc/runtime-paths.swift`):
+
+- `AOS_RUNTIME_MODE` (`repo` | `installed`) — explicit mode override. Wins over path inference.
+- `AOS_STATE_ROOT` — absolute path override replacing `~/.config/aos` as the state root. Used by harness/test setups to sandbox state under a tmp root.
+
+The gateway intentionally does NOT invent a separate `AOS_MODE` or state-root variable. Harness tests that set `AOS_STATE_ROOT=/tmp/test-root AOS_RUNTIME_MODE=repo` get both the daemon AND gateway landing under the same sandboxed tree, and `./aos doctor gateway` (which inherits the env) can inspect it.
+
 **Mode detection** happens at startup in a new `src/mode.ts`:
 
 ```ts
-export function detectMode(scriptPath: string): 'repo' | 'installed';
+export function detectMode(scriptPath: string, env: NodeJS.ProcessEnv = process.env): 'repo' | 'installed';
+export function stateRoot(env: NodeJS.ProcessEnv = process.env): string;  // respects AOS_STATE_ROOT, else ~/.config/aos
 ```
 
-Heuristic priority:
+`detectMode` heuristic priority:
 
-1. `AOS_MODE=repo|installed` env var — explicit override, wins if set and valid.
-2. Git-ancestor check — walk upward from `scriptPath`; if any ancestor contains a `.git/` directory AND the nearest `package.json` names this package `aos-gateway`, return `'repo'`.
-3. App-bundle / `~/.local/share/aos` path check — if `scriptPath` is inside a `.app` bundle or under a known installed-mode prefix, return `'installed'`.
+1. `AOS_RUNTIME_MODE=repo|installed` env var — explicit override, wins if set and valid.
+2. Git-ancestor check — walk upward from `scriptPath`; if any ancestor contains a `.git/` directory AND the nearest `package.json` names this package `@agent-os/gateway`, return `'repo'`.
+3. App-bundle / installed-prefix check — if `scriptPath` contains `.app/Contents/` or sits under `AOS_INSTALL_PATH`, return `'installed'`.
 4. Fallback: `'installed'` with a stderr warning noting the heuristic failed. Installed is the safe default because it isolates from dev work.
+
+(Mirrors `aosCurrentRuntimeMode` in `runtime-paths.swift:79` — env first, then path, then default.)
 
 **Path derivation** centralizes in `src/paths.ts`:
 
 ```ts
 export interface GatewayPaths {
-  stateDir: string;
-  dbPath: string;
-  socketPath: string;
-  scriptsDir: string;
-  pidPath: string;
-  logPath: string;
+  stateDir: string;     // ${stateRoot}/{mode}/gateway
+  dbPath: string;       // ${stateDir}/gateway.db
+  socketPath: string;   // ${stateDir}/sdk.sock
+  scriptsDir: string;   // ${stateDir}/scripts
+  pidPath: string;      // ${stateDir}/gateway.pid
+  logPath: string;      // ${stateDir}/gateway.log
 }
 
-export function gatewayPaths(mode: 'repo' | 'installed'): GatewayPaths;
+export function gatewayPaths(mode: 'repo' | 'installed', env?: NodeJS.ProcessEnv): GatewayPaths;
 ```
 
-`src/index.ts` stops hardcoding `STATE_DIR`; it calls `detectMode()` + `gatewayPaths()` at startup.
+Both `src/index.ts` (MCP server) AND `src/broker.ts` (integration HTTP broker) stop hardcoding `~/.config/aos-gateway`; both call `detectMode()` + `gatewayPaths()` at startup. The broker's `CoordinationDB(DB_PATH)` resolves to the same `dbPath` as the MCP server, preventing split-brain.
 
 ### 2. One-shot migration of legacy state
 
-New `src/migrate.ts`. Runs **after** logger creation but **before** pidfile lock acquisition, so migration events land in the log file AND any migration error surfaces cleanly without a half-initialized process.
+New `src/migrate.ts`. Runs **before** any side effect that touches the target directory — including `mkdirSync(stateDir)` and logger creation — so the substantive-state check on the target is meaningful. Migration uses a bootstrap stderr-only log (plain `console.error`); the rotating file logger comes up after migration. Migration messages are short and finite, so stderr-only is acceptable for this narrow window; the first post-migrate log line records what migration reported.
 
-**Startup order** in `src/index.ts`:
+**Startup order** in both `src/index.ts` and `src/broker.ts`:
 
-1. `detectMode(scriptPath)` → mode.
-2. `gatewayPaths(mode)` → paths.
-3. `mkdirSync(paths.stateDir, { recursive: true })`.
-4. `createLogger({ logPath: paths.logPath, ... })` → logger.
-5. `migrate({ legacyDir, target: paths.stateDir, logger })`.
+1. `detectMode(scriptPath)` → mode. Resolve `gatewayPaths(mode)` → paths.
+2. `migrate({ legacyDir: legacyGatewayDir(), target: paths.stateDir })`.
+   *No mkdir on target yet; migration creates target via `mv` or `mkdir+mv` itself. This keeps the substantive-state guard honest.*
+3. `mkdirSync(paths.stateDir, { recursive: true })` — idempotent; covers the clean-install case where migration no-oped and target still doesn't exist.
+4. `createLogger({ logPath: paths.logPath, ... })` → logger. From this point forward, all startup diagnostics go through logger (stderr + file).
+5. `logger.info("gateway starting", { mode, stateDir, migratedFromLegacy: <bool returned by migrate> })`.
 6. `acquirePidLock(paths.pidPath)`.
-7. `new CoordinationDB(paths.dbPath)`, `startSDKSocket({ socketPath: paths.socketPath, db })`.
+7. `new CoordinationDB(paths.dbPath)`, `startSDKSocket({ socketPath: paths.socketPath, db })` (MCP entry) — or broker-specific init for `broker.ts`.
 8. Register tools, connect MCP transport, start dist watcher (repo mode only).
 
-Logic:
+Logic (runs at step 2, before any mkdir on target):
 
 ```
 LEGACY = ~/.config/aos-gateway
 TARGET = gatewayPaths(mode).stateDir
 
-if !exists(LEGACY):           no-op, return
+if !exists(LEGACY):           no-op, return { migrated: false }
 if exists(TARGET) && hasSubstantiveFiles(TARGET):
     # hasSubstantiveFiles: any of gateway.db, sdk.sock, gateway.pid,
     # gateway.log, or non-empty scripts/ directory.
-    # An empty TARGET dir created by a previous mkdirSync is not blocking.
-    logger.error("legacy state at LEGACY but TARGET has existing state; manual resolution needed", { LEGACY, TARGET })
+    # Since migration runs before any mkdir/logger init, in first-run flow
+    # TARGET either doesn't exist or was pre-created by the user. This guard
+    # catches the user-pre-created-substantive case — the gateway's own
+    # initialization never triggers it.
+    console.error("aos-gateway: legacy state at LEGACY but TARGET has existing state; manual resolution needed")
     process.exit(1)           (safety: never clobber fresh state)
 if !exists(TARGET):
-    mkdir -p TARGET
+    mkdir -p TARGET            (now safe — we know target is clean)
 mv LEGACY/* TARGET/           (rename, not copy — same fs, atomic-ish)
 rmdir LEGACY
-log to stderr + log file: "migrated legacy state LEGACY → TARGET"
+console.error("aos-gateway: migrated legacy state LEGACY → TARGET")
+return { migrated: true }
 ```
+
+Because migration is idempotent (no-op when legacy missing) AND runs in both entry points, whichever of `index.ts` or `broker.ts` starts first carries out the migration; the other sees legacy missing and proceeds. The substantive-state guard still protects against the user pre-populating the target manually between starts.
 
 **Edge cases:**
 
@@ -162,31 +179,50 @@ create new empty gateway.log
 
 Synchronous rotation is acceptable because gateway log volume is low (startup, errors, tool-call failures). If volume ever rises, revisit with `pino` + `pino-roll`.
 
-**Integration:** replace 8 existing `console.error(...)` sites in `src/index.ts` with `logger.info/warn/error`. Singleton errors, migration messages, init failures, dist-watcher warnings all flow through logger. Logger created after paths resolved but before pidfile lock, so pidfile errors ARE logged to file (best-effort; if file creation itself fails, stderr is always-on fallback).
+**Integration:** replace existing `console.error(...)` sites in `src/index.ts` (and the handful in `src/broker.ts`) with `logger.info/warn/error`. Singleton errors, init failures, dist-watcher warnings, broker lifecycle events all flow through logger. Pre-migration bootstrap messages stay on `console.error` (stderr only) as noted in section 2.
 
 ### 4. `./aos doctor gateway` — CLI health tool
 
 CLI-first for local agents (AGENTS.md). Agents reach it via Bash tool. No MCP surface.
 
-**Swift side** (`src/aos/Commands/Doctor/GatewayCommand.swift`):
+**Backward compatibility with existing `./aos doctor`.** Today `./aos doctor [--json]` is a flat command implemented in `src/commands/operator.swift:274` (`doctorCommand`) and registered in `src/shared/command-registry-data.swift:931` as a single `InvocationForm` reporting daemon/permissions/service state. It is consumed programmatically by `packages/gateway/src/aos-proxy.ts:177` (`runAos(['doctor', '--json'], ...)`). This contract MUST be preserved:
+
+- **Bare `./aos doctor`** and **`./aos doctor --json`** retain identical behavior, output schema, and exit codes. No field renames, no new fields. `aos-proxy.ts` keeps working unchanged.
+- **`./aos doctor gateway [flags]`** is added as a SECOND invocation form under the same `doctor` command path. Parsing: if first positional arg is `gateway`, route to the new subcommand; otherwise route to existing `doctorCommand` as today. Unknown-flag rejection in the existing path stays unchanged (the `gateway` token is consumed before flag validation).
+- `command-registry-data.swift` gets a second `InvocationForm` under the same `CommandDescriptor(path: ["doctor"], ...)` — one form for `aos doctor [--json]`, one for `aos doctor gateway [--quick] [--json|--pretty] [--tail N]`. Both surface in `./aos doctor --help`.
+
+No rename or alias plan needed — existing consumers untouched, new form is purely additive.
+
+**Swift side** (new file, likely `src/commands/doctor-gateway.swift` or a subsection of existing operator.swift — confirmed during implementation):
 
 ```
 ./aos doctor gateway [--quick] [--json | --pretty] [--tail N]
 ```
 
 Responsibilities:
-1. Resolve mode via existing `./aos` path-selection logic (the Swift binary already knows its mode).
-2. Locate the node reporter: `<repo>/packages/gateway/dist/doctor.js` in repo mode; bundled path in installed mode.
-3. Spawn `node <reporter> --mode <mode> <forwarded flags>`, pipe stdout + stderr back, exit with reporter exit code.
-4. Register in `./aos doctor` parent command so `./aos doctor --help` lists `gateway` as a target.
-5. `./aos --help` shows `doctor` subcommand with one-line description.
-6. `./aos doctor gateway --help` enumerates flags and prints state dir + log path so agents can `cat` them on failure.
+1. Resolve mode via the existing `aosCurrentRuntimeMode()` helper in `shared/swift/ipc/runtime-paths.swift` (honors `AOS_RUNTIME_MODE`).
+2. Resolve state root via existing `aosStateRoot()` (honors `AOS_STATE_ROOT`).
+3. Locate the node reporter binary. In repo mode: `<repo>/packages/gateway/dist/doctor-cli.js`. In installed mode: bundled under the `.app` (path TBD by packaging — use `aosInstallAppPath()` as base and define one conventional subpath).
+4. Spawn `node <reporter> --mode <mode> --state-root <aosStateRoot()> <forwarded flags>`, pipe stdout + stderr back, exit with reporter exit code. Forwarding `--state-root` means the reporter doesn't have to re-read env (though it also reads env as a fallback so it works when invoked directly outside `./aos`).
+5. `./aos doctor --help` lists `gateway` as an optional first-positional target (per the command-registry addition above).
+6. `./aos doctor gateway --help` enumerates flags and prints resolved state dir + log path so agents can `cat` them on failure.
 
-Estimated ~50 LoC Swift.
+Estimated ~50–80 LoC Swift.
 
-**Node side** (`packages/gateway/src/doctor.ts` + `packages/gateway/bin/doctor.ts` as entry):
+**Node side** — reporter + CLI entry both live under `src/` so the existing tsconfig (which compiles `src/**/*` only) covers them with no config changes:
 
-Entry accepts `--mode`, `--quick`, `--json`, `--pretty`, `--tail N`. Default format: auto-detect `process.stdout.isTTY` — JSON if non-TTY (agent invocation), pretty text if TTY (human).
+- `packages/gateway/src/doctor.ts` — pure reporter module, exports `collectReport(paths: GatewayPaths, opts): Promise<DoctorReport>` and `renderText(report): string`.
+- `packages/gateway/src/doctor-cli.ts` — CLI entry with `#!/usr/bin/env node` shebang. Parses argv (`--mode`, `--state-root`, `--quick`, `--json`, `--pretty`, `--tail N`), resolves paths (falling back to env if flags omitted), calls reporter, renders output, sets exit code.
+
+**`package.json` edits in rollout:**
+
+- Add `"aos-gateway-doctor": "dist/doctor-cli.js"` to the existing `bin` map (next to `"aos-gateway": "dist/index.js"`). Gives an npm-installable CLI name for standalone invocation outside `./aos` (useful for hermetic tests and for the case where the Swift binary isn't available).
+- Add `"doctor": "node dist/doctor-cli.js"` to `scripts`.
+- `build` script (`tsc`) already covers the new files since they're under `src/`.
+
+No `tsconfig.json` edits required.
+
+Entry accepts `--mode`, `--state-root`, `--quick`, `--json`, `--pretty`, `--tail N`. Default format: auto-detect `process.stdout.isTTY` — JSON if non-TTY (agent invocation via `./aos` or Bash pipe), pretty text if TTY (human terminal).
 
 **Report shape:**
 
@@ -277,16 +313,18 @@ New test files under `packages/gateway/test/`, run via existing `npm test` (node
 
 ### `test/mode.test.ts`
 
-- Repo path (script under git checkout with `aos-gateway` package.json) → `'repo'`.
+- Repo path (script under git checkout with `@agent-os/gateway` package.json) → `'repo'`.
 - Installed path (fake `.app` bundle in tmpdir) → `'installed'`.
-- `AOS_MODE=repo` env set, installed-looking path → `'repo'` (env wins).
+- `AOS_RUNTIME_MODE=repo` env set, installed-looking path → `'repo'` (env wins).
+- `AOS_RUNTIME_MODE=installed` env set, repo-looking path → `'installed'` (env wins).
 - Unknown path, no env → `'installed'` + warning captured.
 
 ### `test/paths.test.ts`
 
-- `gatewayPaths('repo')` returns expected structure rooted at `~/.config/aos/repo/gateway/`.
-- `gatewayPaths('installed')` returns equivalent rooted at `installed/`.
-- All keys present, all paths absolute.
+- `gatewayPaths('repo')` with no env override returns expected structure rooted at `~/.config/aos/repo/gateway/`.
+- `gatewayPaths('installed')` with no env override returns equivalent rooted at `~/.config/aos/installed/gateway/`.
+- `AOS_STATE_ROOT=/tmp/x` shifts root: `gatewayPaths('repo')` → `/tmp/x/repo/gateway/`.
+- All keys present, all paths absolute, all paths children of `stateDir`.
 
 ### `test/migrate.test.ts`
 
@@ -328,15 +366,45 @@ Runs `./aos doctor gateway --json` against a temp state dir, asserts exit code a
 
 Single PR. Changes are self-contained:
 
-- `packages/gateway/src/` — new files (`mode.ts`, `paths.ts`, `migrate.ts`, `logger.ts`, `doctor.ts`), edits to `index.ts`.
-- `packages/gateway/bin/doctor.ts` — new entry point.
-- `packages/gateway/test/` — five new test files.
-- `src/aos/Commands/Doctor/GatewayCommand.swift` (or wherever existing doctor commands live — verify during implementation).
-- `tests/doctor-gateway.sh` — integration test.
+**New files under `packages/gateway/src/` (all compile via existing tsconfig `include: ["src/**/*"]`):**
 
-Migration is automatic on first gateway start after deploy. User running `npm run dev` first in repo mode will see legacy state migrate to `aos/repo/gateway/`; MCP-spawned installed gateway on next launch will find legacy already gone and proceed fresh in `aos/installed/gateway/`.
+- `mode.ts` — `detectMode()`, `stateRoot()`.
+- `paths.ts` — `gatewayPaths()`.
+- `migrate.ts` — one-shot legacy-state migration.
+- `logger.ts` — rotated JSON-lines logger with stderr mirror.
+- `doctor.ts` — reporter module (pure, reusable).
+- `doctor-cli.ts` — CLI entry with shebang, arg parsing, TTY-aware output.
 
-No breaking changes to MCP tool contracts. External consumers (other MCP clients) see identical tool behavior.
+**Edits to existing `packages/gateway/src/`:**
+
+- `index.ts` — adopt startup order from section 2; route logs through logger; gate + harden dist watcher.
+- `broker.ts` — adopt startup order from section 2; stop hardcoding `~/.config/aos-gateway`; route logs through logger.
+
+**`packages/gateway/package.json` edits:**
+
+- Add `"aos-gateway-doctor": "dist/doctor-cli.js"` to `bin` map.
+- Add `"doctor": "node dist/doctor-cli.js"` to `scripts`.
+- No new runtime dependencies.
+
+**No `packages/gateway/tsconfig.json` edits required** — new files all under `src/` which is already covered.
+
+**New test files under `packages/gateway/test/`:**
+
+- `mode.test.ts`, `paths.test.ts`, `migrate.test.ts`, `logger.test.ts`, `doctor.test.ts`.
+
+**Swift-side changes under `src/`:**
+
+- New command handler for `doctor gateway` (placement — new file `src/commands/doctor-gateway.swift` or added function alongside `doctorCommand` in `src/commands/operator.swift` — decided during implementation). Preserves existing `doctorCommand` flow identically for bare `aos doctor [--json]`.
+- `src/shared/command-registry-data.swift` — add a second `InvocationForm` under the existing `doctor` `CommandDescriptor` for the `gateway [flags]` form. Bare `aos doctor [--json]` form stays unchanged.
+- Requires `bash build.sh` to land (Swift change). Verification runs `./aos doctor --json` (must match prior output exactly) and `./aos doctor gateway --json` (new).
+
+**New integration test:**
+
+- `tests/doctor-gateway.sh` — runs `./aos doctor gateway --json` against a tmp state root (via `AOS_STATE_ROOT`), asserts exit code + JSON shape. Also asserts `./aos doctor --json` remains unchanged (a diff-against-golden or key-shape check).
+
+**Migration behavior at deploy time:** automatic on first gateway start after deploy. Whichever of the two entry points (`index.ts` or `broker.ts`, repo or installed mode) starts first carries out the `~/.config/aos-gateway/` → `${stateRoot}/{mode}/gateway/` move. Subsequent starts see legacy missing and proceed. Other-mode gateway starts with no legacy, fresh state directory.
+
+**No breaking changes** to MCP tool contracts, `./aos doctor [--json]` output contract, or any external consumer. `aos-proxy.ts:177` continues to call `runAos(['doctor', '--json'], ...)` unchanged.
 
 ## Out of Scope (filed in `memory/scratchpad/gateway-hardening-followups.md`)
 
