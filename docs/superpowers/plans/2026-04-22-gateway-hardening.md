@@ -1845,12 +1845,14 @@ Expected: usage shows both `aos doctor [--json]` and `aos doctor gateway [...]` 
 - [ ] **Step 5: Verify bare `doctor --json` still works byte-for-byte like before**
 
 ```bash
-./aos doctor --json > /tmp/doctor-after.json
-# Compare to a known-good reference run from main (capture to /tmp/doctor-before.json on main before landing this task).
-diff <(jq 'keys' /tmp/doctor-before.json) <(jq 'keys' /tmp/doctor-after.json)
+AFTER="$(mktemp)"
+./aos doctor --json > "$AFTER"
+# Baseline fixture was captured up-front per the "Pre-implementation" section.
+diff <(jq 'keys' tests/fixtures/doctor-before.json) <(jq 'keys' "$AFTER")
+rm -f "$AFTER"
 ```
 
-Expected: no diff in top-level keys. (If reference not captured, at minimum run `./aos doctor --json | jq .` and confirm it is still valid JSON with the same top-level structure as before.)
+Expected: no diff in top-level keys. (If `tests/fixtures/doctor-before.json` is missing, STOP and re-capture per the "Pre-implementation" section before proceeding — the regression guard in Task 13 depends on this baseline.)
 
 - [ ] **Step 6: Commit**
 
