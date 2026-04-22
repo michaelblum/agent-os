@@ -77,8 +77,8 @@ func runClean(dryRun: Bool) -> CleanReport {
     let allPIDs = findAllDaemonPIDs()
     let launchdPID = launchdManagedPID(label: aosServiceLabel())
     let otherLaunchdPID = launchdManagedPID(label: aosServiceLabel(for: mode.other))
-    let lockPID = lockOwnerPID(for: mode)
-    let otherLockPID = lockOwnerPID(for: mode.other)
+    let lockPID = aosDaemonLockOwnerPID(for: mode)
+    let otherLockPID = aosDaemonLockOwnerPID(for: mode.other)
     let protectedPIDs = Set([launchdPID, otherLaunchdPID, lockPID, otherLockPID].compactMap { $0 })
 
     // 2. Stale = all minus protected (launchd-managed or lock-owning)
@@ -160,16 +160,6 @@ private func launchdManagedPID(label: String) -> Int? {
         }
     }
     return nil
-}
-
-private func lockOwnerPID(for mode: AOSRuntimeMode) -> Int? {
-    let path = aosDaemonLockPath(for: mode)
-    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let pid = dict["pid"] as? Int else {
-        return nil
-    }
-    return pid
 }
 
 private func processArgs(pid: Int) -> String {

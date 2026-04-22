@@ -37,8 +37,11 @@ class DaemonSession {
     }
 
     /// Connect, auto-starting the daemon if needed.
-    /// Spawns the binary at `binaryPath` with `serve --idle-timeout 5m` and polls
-    /// for the socket to become available.
+    ///
+    /// Normal repo/installed runtime uses the launchd-managed service as the
+    /// single implicit startup authority. Explicit `AOS_STATE_ROOT` overrides are
+    /// treated as isolated harness roots and still spawn a foreground `serve`
+    /// process, because launchd labels are not state-root scoped.
     ///
     /// `binaryPath` is required. There is no default — callers must know which
     /// binary provides the daemon. For `aos` commands, pass `CommandLine.arguments[0]`.
@@ -53,11 +56,49 @@ class DaemonSession {
             return false
         }
 
-        // Try to start daemon
-        fputs("ipc: starting daemon...\n", stderr)
+        let started = aosHasExplicitStateRootOverride()
+            ? startIsolatedDaemon(binaryPath: binaryPath)
+            : startManagedDaemon(binaryPath: binaryPath, mode: currentMode)
+        guard started else { return false }
+
+        // Poll for socket (up to 3 seconds)
+        for _ in 0..<30 {
+            usleep(100_000)
+            if connect(timeoutMs: timeoutMs) { return true }
+        }
+        return false
+    }
+
+    private func startManagedDaemon(binaryPath: String, mode: AOSRuntimeMode) -> Bool {
+        fputs("ipc: starting \(mode.rawValue) daemon via launchd service...\n", stderr)
         let proc = Process()
-        let binary = binaryPath
-        proc.executableURL = URL(fileURLWithPath: binary)
+        proc.executableURL = URL(fileURLWithPath: binaryPath)
+        proc.arguments = ["service", "start", "--mode", mode.rawValue, "--json"]
+        proc.standardInput = FileHandle.nullDevice
+        proc.standardOutput = FileHandle.nullDevice
+        let stderrPipe = Pipe()
+        proc.standardError = stderrPipe
+        do {
+            try proc.run()
+            proc.waitUntilExit()
+        } catch {
+            fputs("ipc: failed to launch service start: \(error)\n", stderr)
+            return false
+        }
+        guard proc.terminationStatus == 0 else {
+            let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+                fputs("ipc: service start failed: \(text)", stderr)
+            }
+            return false
+        }
+        return true
+    }
+
+    private func startIsolatedDaemon(binaryPath: String) -> Bool {
+        fputs("ipc: starting isolated daemon with explicit AOS_STATE_ROOT...\n", stderr)
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: binaryPath)
         proc.arguments = ["serve", "--idle-timeout", "5m"]
         proc.standardInput = FileHandle.nullDevice
         proc.standardOutput = FileHandle.nullDevice
@@ -70,14 +111,13 @@ class DaemonSession {
         } else {
             proc.standardError = FileHandle.nullDevice
         }
-        try? proc.run()
-
-        // Poll for socket (up to 3 seconds)
-        for _ in 0..<30 {
-            usleep(100_000)
-            if connect(timeoutMs: timeoutMs) { return true }
+        do {
+            try proc.run()
+            return true
+        } catch {
+            fputs("ipc: failed to launch isolated daemon: \(error)\n", stderr)
+            return false
         }
-        return false
     }
 
     /// Send a JSON dictionary and read one response. Lockstep: one write, one read.

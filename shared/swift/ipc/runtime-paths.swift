@@ -100,6 +100,13 @@ func aosStateRoot() -> String {
     return aosLegacyStateDir()
 }
 
+func aosHasExplicitStateRootOverride() -> Bool {
+    guard let override = ProcessInfo.processInfo.environment["AOS_STATE_ROOT"], !override.isEmpty else {
+        return false
+    }
+    return NSString(string: override).standardizingPath != aosLegacyStateDir()
+}
+
 func aosStateDir(for mode: AOSRuntimeMode? = nil) -> String {
     let resolved = mode ?? aosCurrentRuntimeMode()
     return "\(aosStateRoot())/\(resolved.rawValue)"
@@ -111,6 +118,16 @@ func aosSocketPath(for mode: AOSRuntimeMode? = nil) -> String {
 
 func aosDaemonLockPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/daemon.lock"
+}
+
+func aosDaemonLockOwnerPID(for mode: AOSRuntimeMode? = nil) -> Int? {
+    let path = aosDaemonLockPath(for: mode)
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let pid = dict["pid"] as? Int else {
+        return nil
+    }
+    return pid
 }
 
 func aosCaptureLockPath(for mode: AOSRuntimeMode? = nil) -> String {

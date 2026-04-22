@@ -452,6 +452,8 @@ Consumers should assume:
 - `aos show`, `aos inspect`, and some graph/focus flows may talk to the daemon
 - a persistent canvas outlives the creating command unless it is connection-scoped
 - `aos serve` is the daemon entry point
+- `aos status` / `aos doctor` are observational; they should not be relied on to
+  implicitly start a daemon for the current runtime
 
 ## Content Server Contract
 

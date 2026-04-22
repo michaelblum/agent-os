@@ -46,7 +46,7 @@ Error response:
 | `voice.leases` | List active voice leases. | (none) |
 | `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id`. |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
-| `system.ping` | Daemon health + uptime. | (none) |
+| `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create a focus channel. | `id`, `window_id`. |
 | `focus.update` | Update a focus channel. | `id`. |
@@ -73,6 +73,22 @@ Error response:
 | `INTERNAL` | Unexpected daemon error. |
 
 ## Versioning
+
+## `system.ping` Payload
+
+`system.ping` is the daemon-owned health/identity probe. In addition to `uptime`,
+the response may include:
+
+- `pid` — the serving daemon pid
+- `mode` — `repo` or `installed`
+- `socket_path` — the socket the daemon is currently serving
+- `lock_owner_pid` — pid recorded in `daemon.lock` for the current mode
+- `input_tap_status` — `active`, `retrying`, or `unavailable`
+- `input_tap_attempts` — startup attempt count for the global input tap
+
+These fields are additive and intended for operator surfaces such as `status`,
+`doctor`, and startup hooks that need to distinguish a healthy current daemon
+from ownership mismatch or perception degradation.
 
 Envelope `v` is an integer, currently `1`. Adding an action or an optional field does not bump `v`. Breaking wire changes bump `v`.
 

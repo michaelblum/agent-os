@@ -36,6 +36,10 @@ private struct RuntimeState: Encodable {
     let other_mode_state_dir: String
     let daemon_running: Bool
     let daemon_pid: Int?
+    let serving_pid: Int?
+    let lock_owner_pid: Int?
+    let service_pid: Int?
+    let ownership_state: String
     let socket_path: String
     let socket_exists: Bool
     let socket_reachable: Bool
@@ -43,6 +47,8 @@ private struct RuntimeState: Encodable {
     let other_mode_socket_reachable: Bool
     let uptime_seconds: Double?
     let event_tap_expected: Bool
+    let input_tap_status: String?
+    let input_tap_attempts: Int?
     let installed_app_path: String
     let installed_app_exists: Bool
     let legacy_state_dir: String
@@ -154,6 +160,13 @@ private struct StatusResponse: Encodable {
     let notes: [String]
 }
 
+private struct DaemonHealthState {
+    let servingPID: Int?
+    let uptime: Double?
+    let inputTapStatus: String?
+    let inputTapAttempts: Int?
+}
+
 // MARK: - Public Commands
 
 func statusCommand(args: [String]) {
@@ -181,6 +194,7 @@ func statusCommand(args: [String]) {
     } else if !runtime.socket_reachable {
         notes.append("Daemon process appears to be running, but the socket is not reachable.")
     }
+    notes.append(contentsOf: runtimeHealthNotes(runtime))
     if !permissions.accessibility {
         notes.append("Accessibility permission is not granted.")
     }
@@ -284,6 +298,7 @@ func doctorCommand(args: [String]) {
     } else if !runtime.socket_reachable {
         notes.append("Daemon process appears to be running, but the socket is not reachable.")
     }
+    notes.append(contentsOf: runtimeHealthNotes(runtime))
     if runtime.other_mode_socket_reachable {
         notes.append("BROKEN STATE: \(runtime.mode) runtime is active while the \(mode.other.rawValue) socket is also reachable.")
     }
@@ -588,9 +603,19 @@ private func currentRuntimeState() -> RuntimeState {
     let socketExists = FileManager.default.fileExists(atPath: socketPath)
     let socketReachable = socketIsReachable(socketPath)
     let otherSocketReachable = socketIsReachable(otherModeSocketPath)
-    let daemonPID = daemonProcessID()
+    let health = fetchDaemonHealth(socketPath: socketPath)
+    let explicitStateRootOverride = aosHasExplicitStateRootOverride()
+    let servicePID = explicitStateRootOverride ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
+    let lockOwnerPID = aosDaemonLockOwnerPID(for: mode)
+    let servingPID = health?.servingPID
+    let daemonPID = servingPID ?? lockOwnerPID ?? servicePID ?? fallbackDaemonProcessID()
     let daemonRunning = daemonPID != nil || socketReachable
-    let uptime = fetchDaemonUptime()
+    let ownershipState = currentOwnershipState(
+        socketReachable: socketReachable,
+        servingPID: servingPID,
+        lockOwnerPID: lockOwnerPID,
+        servicePID: servicePID
+    )
 
     return RuntimeState(
         mode: mode.rawValue,
@@ -598,13 +623,19 @@ private func currentRuntimeState() -> RuntimeState {
         other_mode_state_dir: aosStateDir(for: mode.other),
         daemon_running: daemonRunning,
         daemon_pid: daemonPID,
+        serving_pid: servingPID,
+        lock_owner_pid: lockOwnerPID,
+        service_pid: servicePID,
+        ownership_state: ownershipState,
         socket_path: socketPath,
         socket_exists: socketExists,
         socket_reachable: socketReachable,
         other_mode_socket_path: otherModeSocketPath,
         other_mode_socket_reachable: otherSocketReachable,
-        uptime_seconds: uptime,
+        uptime_seconds: health?.uptime,
         event_tap_expected: true,
+        input_tap_status: health?.inputTapStatus,
+        input_tap_attempts: health?.inputTapAttempts,
         installed_app_path: aosInstallAppPath(),
         installed_app_exists: FileManager.default.fileExists(atPath: aosInstallAppPath()),
         legacy_state_dir: aosLegacyStateDir(),
@@ -647,7 +678,7 @@ private func fetchCanvasSnapshot() -> CanvasSnapshot {
 }
 
 private func currentSpatialSnapshot() -> SpatialSnapshotResult {
-    guard let response = sendEnvelopeRequest(service: "see", action: "snapshot", data: [:], autoStartBinary: aosExecutablePath()) else {
+    guard let response = sendEnvelopeRequest(service: "see", action: "snapshot", data: [:]) else {
         return SpatialSnapshotResult(snapshot: nil, notes: ["Daemon snapshot is unavailable."])
     }
     if let error = response["error"] as? String {
@@ -663,11 +694,7 @@ private func currentSpatialSnapshot() -> SpatialSnapshotResult {
     return SpatialSnapshotResult(snapshot: snapshot, notes: [])
 }
 
-private func daemonProcessID() -> Int? {
-    if let pid = launchdProcessID(label: aosServiceLabel()) {
-        return pid
-    }
-
+private func fallbackDaemonProcessID() -> Int? {
     let output = runProcess("/usr/bin/pgrep", arguments: ["-f", "aos serve"])
     guard output.exitCode == 0 else { return nil }
     return output.stdout
@@ -690,9 +717,44 @@ private func launchdProcessID(label: String) -> Int? {
     return nil
 }
 
-private func fetchDaemonUptime() -> Double? {
-    guard let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: kDefaultSocketPath, timeoutMs: 250) else { return nil }
-    return response["uptime"] as? Double
+private func fetchDaemonHealth(socketPath: String) -> DaemonHealthState? {
+    guard let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: socketPath, timeoutMs: 250) else {
+        return nil
+    }
+    let payload = (response["data"] as? [String: Any]) ?? response
+    return DaemonHealthState(
+        servingPID: payload["pid"] as? Int,
+        uptime: payload["uptime"] as? Double,
+        inputTapStatus: payload["input_tap_status"] as? String,
+        inputTapAttempts: payload["input_tap_attempts"] as? Int
+    )
+}
+
+private func currentOwnershipState(
+    socketReachable: Bool,
+    servingPID: Int?,
+    lockOwnerPID: Int?,
+    servicePID: Int?
+) -> String {
+    let pids = [servingPID, lockOwnerPID, servicePID].compactMap { $0 }
+    if pids.isEmpty {
+        return socketReachable ? "unknown" : "absent"
+    }
+    return Set(pids).count <= 1 ? "consistent" : "mismatch"
+}
+
+private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
+    var notes: [String] = []
+    if runtime.ownership_state == "mismatch" {
+        let serving = runtime.serving_pid.map(String.init) ?? "none"
+        let lock = runtime.lock_owner_pid.map(String.init) ?? "none"
+        let service = runtime.service_pid.map(String.init) ?? "none"
+        notes.append("Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).")
+    }
+    if runtime.event_tap_expected, let tapStatus = runtime.input_tap_status, tapStatus != "active" {
+        notes.append("Perception input tap is not active (status=\(tapStatus)).")
+    }
+    return notes
 }
 
 private func launchAgentState(label: String, expectedBinaryPath: String, logPath: String) -> LaunchAgentState {

@@ -1353,12 +1353,24 @@ class UnifiedDaemon {
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
+            let mode = aosCurrentRuntimeMode()
+            let pid = Int(getpid())
+            let startedAt = ISO8601DateFormatter().string(from: startTime)
             var response: [String: Any] = [
                 "status": "ok",
                 "uptime": uptime,
+                "pid": pid,
+                "mode": mode.rawValue,
+                "socket_path": socketPath,
+                "started_at": startedAt,
                 "perception_channels": perceptionChannels,
-                "subscribers": subscriberCount
+                "subscribers": subscriberCount,
+                "input_tap_status": perception.inputTapStatus,
+                "input_tap_attempts": perception.inputTapAttempts,
             ]
+            if let lockOwnerPID = aosDaemonLockOwnerPID(for: mode) {
+                response["lock_owner_pid"] = lockOwnerPID
+            }
             if let port = contentServer?.assignedPort, port > 0 {
                 response["content_port"] = Int(port)
             }

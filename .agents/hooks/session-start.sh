@@ -41,8 +41,14 @@ try:
 except Exception:
     raise SystemExit(1)
 runtime = payload.get('runtime', {})
-service = payload.get('aos_service', {})
-ready = bool(runtime.get('socket_reachable') or runtime.get('daemon_running') or service.get('running'))
+ready = bool(runtime.get('socket_reachable'))
+ownership = runtime.get('ownership_state')
+if ready and ownership not in (None, 'consistent', 'unknown'):
+    ready = False
+tap_expected = bool(runtime.get('event_tap_expected'))
+tap_status = runtime.get('input_tap_status')
+if ready and tap_expected and tap_status not in (None, 'active'):
+    ready = False
 raise SystemExit(0 if ready else 1)
 " >/dev/null 2>&1
 }
@@ -58,15 +64,19 @@ ensure_aos_runtime() {
     return 0
   fi
 
-  if "$AOS" service start --json >/dev/null 2>&1; then
-    AOS_STARTUP_STATE="started-via-service"
-  else
+  if aos_session_uses_explicit_state_root_override; then
     AOS_STARTUP_STATE="started-via-serve"
     if command -v nohup >/dev/null 2>&1; then
       nohup "$AOS" serve --idle-timeout none >/dev/null 2>&1 &
     else
       "$AOS" serve --idle-timeout none >/dev/null 2>&1 &
     fi
+  elif "$AOS" service start --json >/dev/null 2>&1; then
+    AOS_STARTUP_STATE="started-via-service"
+  else
+    AOS_STARTUP_STATE="service-start-failed"
+    refresh_aos_doctor_json || true
+    return 1
   fi
 
   for _ in $(seq 1 20); do

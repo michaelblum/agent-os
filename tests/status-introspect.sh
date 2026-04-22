@@ -41,6 +41,14 @@ entrypoints = payload.get("recommended_entrypoints", [])
 expected = ["./aos help <command> [--json]", "./aos introspect review", "./aos clean"]
 if entrypoints != expected:
     raise SystemExit(f"FAIL: unexpected recommended_entrypoints: {entrypoints}")
+runtime = payload.get("runtime", {})
+for key in ("ownership_state",):
+    if key not in runtime:
+        raise SystemExit(f"FAIL: runtime missing key {key!r}: {runtime}")
+if runtime.get("socket_reachable"):
+    raise SystemExit(f"FAIL: status should not auto-start or attach to a daemon under the temp state root: {runtime}")
+if payload.get("daemon_snapshot") is not None:
+    raise SystemExit(f"FAIL: daemon_snapshot should be absent when no daemon is running: {payload.get('daemon_snapshot')}")
 PY
 
 printf '{"tool_input":{"command":"aos status"}}' | python3 "$POLICY" pre >/dev/null 2>/dev/null || true

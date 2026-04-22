@@ -37,6 +37,16 @@ class PerceptionEngine {
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
 
+    var inputTapStatus: String {
+        if eventTap != nil { return "active" }
+        if eventTapRetryTimer != nil { return "retrying" }
+        return "unavailable"
+    }
+
+    var inputTapAttempts: Int {
+        eventTapStartAttempts
+    }
+
     init(config: AosConfig) {
         self.config = config
     }

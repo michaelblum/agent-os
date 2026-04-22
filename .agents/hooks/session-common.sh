@@ -22,6 +22,18 @@ aos_session_runtime_state_dir() {
   printf '%s/%s\n' "$root" "$(aos_session_runtime_mode)"
 }
 
+aos_session_uses_explicit_state_root_override() {
+  [[ -n "${AOS_STATE_ROOT:-}" ]] || return 1
+  python3 - "$AOS_STATE_ROOT" "$HOME/.config/aos" <<'PY'
+import os
+import sys
+
+override = os.path.realpath(os.path.expanduser(sys.argv[1]))
+default = os.path.realpath(os.path.expanduser(sys.argv[2]))
+raise SystemExit(0 if override != default else 1)
+PY
+}
+
 aos_session_state_dir() {
   local dir="${AOS_SESSION_STATE_DIR:-$(aos_session_runtime_state_dir)/coordination/session-state}"
   mkdir -p "$dir"
