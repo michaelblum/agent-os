@@ -5,7 +5,10 @@ import {
   buildSlackControlBlocks,
   buildSlackHomeView,
   buildSlackResponseBlocks,
+  buildWikiPageModal,
   buildWorkflowInputModal,
+  buildWorkflowLoadingModal,
+  buildWorkflowResultModal,
   slackFieldActionId,
   slackFieldBlockId,
   SLACK_ACTION_IDS,
@@ -138,6 +141,85 @@ describe('slack-ui helpers', () => {
     assert.equal(view.blocks[0]?.element?.initial_value, 'sigil');
     assert.equal(view.blocks[1]?.element?.type, 'external_select');
     assert.equal(view.submit?.text, 'Search');
+  });
+
+  it('builds a loading modal for inline-result workflows', () => {
+    const view = buildWorkflowLoadingModal(workflows[0], {
+      workflowId: 'wiki-search',
+      source: 'home',
+      userId: 'U123',
+    }) as Record<string, any>;
+
+    assert.equal(view.callback_id, SLACK_VIEW_IDS.workflowResult);
+    assert.equal(view.close?.text, 'Close');
+    assert.equal(view.submit, undefined);
+    assert.match(view.blocks[0]?.text?.text, /Running/);
+  });
+
+  it('builds a result modal with the workflow output and re-run button', () => {
+    const view = buildWorkflowResultModal(workflows[0], '2 wiki matches for "kilos".\n- Entry A\n- Entry B', {
+      workflowId: 'wiki-search',
+      source: 'home',
+      userId: 'U123',
+    }) as Record<string, any>;
+
+    assert.equal(view.callback_id, SLACK_VIEW_IDS.workflowResult);
+    assert.equal(view.submit, undefined);
+    const body = view.blocks.find((block: Record<string, any>) => block.type === 'section');
+    assert.ok(body);
+    assert.match(body.text.text, /kilos/);
+    const actions = view.blocks.find((block: Record<string, any>) => block.type === 'actions');
+    assert.ok(actions);
+    assert.equal(actions.elements[0]?.action_id, SLACK_ACTION_IDS.workflow);
+    assert.equal(actions.elements[0]?.value, 'wiki-search');
+  });
+
+  it('renders wiki search results as per-entry sections with open buttons', () => {
+    const view = buildWorkflowResultModal(workflows[0], 'unused text', {
+      workflowId: 'wiki-search',
+      source: 'home',
+    }, {
+      summary: '2 wiki matches for "kilos".',
+      wikiEntries: [
+        { name: 'KILOS Framework', path: 'aos/plugins/kilos/framework.md', type: 'concept', description: 'Five pillars.' },
+        { name: 'KILOS Schema', path: 'aos/plugins/kilos/schema.md', type: 'concept' },
+      ],
+    }) as Record<string, any>;
+
+    const sections = view.blocks.filter((block: Record<string, any>) => block.type === 'section');
+    const summary = sections[0];
+    assert.match(summary.text.text, /2 wiki matches/);
+    const first = sections[1];
+    assert.match(first.text.text, /KILOS Framework/);
+    assert.match(first.text.text, /`aos\/plugins\/kilos\/framework\.md`/);
+    assert.equal(first.accessory.action_id, SLACK_ACTION_IDS.wikiOpenPage);
+    assert.equal(first.accessory.value, 'aos/plugins/kilos/framework.md');
+  });
+
+  it('builds a wiki page modal with body chunks and path context', () => {
+    const view = buildWikiPageModal({
+      name: 'KILOS Framework',
+      path: 'aos/plugins/kilos/framework.md',
+      body: '# Heading\n\nBody text.',
+    }) as Record<string, any>;
+
+    assert.equal(view.callback_id, SLACK_VIEW_IDS.wikiPage);
+    assert.match(view.close?.text, /Back to results/);
+    assert.equal(view.submit, undefined);
+    const context = view.blocks[0];
+    assert.equal(context.type, 'context');
+    assert.match(context.elements[0].text, /`aos\/plugins\/kilos\/framework\.md`/);
+    const section = view.blocks.find((block: Record<string, any>) => block.type === 'section');
+    assert.match(section.text.text, /Body text/);
+  });
+
+  it('falls back to a placeholder when the workflow returns no text', () => {
+    const view = buildWorkflowResultModal(workflows[0], '   ', {
+      workflowId: 'wiki-search',
+      source: 'home',
+    }) as Record<string, any>;
+    const body = view.blocks.find((block: Record<string, any>) => block.type === 'section');
+    assert.match(body.text.text, /no output/i);
   });
 
   it('builds an app home view from the provider-neutral snapshot', () => {

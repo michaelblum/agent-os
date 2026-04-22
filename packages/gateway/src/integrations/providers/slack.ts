@@ -5,13 +5,17 @@ import {
   buildSlackControlBlocks,
   buildSlackHomeView,
   buildSlackResponseBlocks,
+  buildWikiPageModal,
   buildWorkflowInputModal,
+  buildWorkflowLoadingModal,
+  buildWorkflowResultModal,
   SLACK_ACTION_IDS,
   SLACK_VIEW_IDS,
   slackFieldActionId,
   slackFieldBlockId,
   workflowCommandText,
   type SlackWorkflowModalMetadata,
+  type WikiResultEntry,
 } from './slack-ui.js';
 
 interface SlackProviderOptions {
@@ -202,6 +206,11 @@ export class SlackIntegrationProvider {
 
       this.app.view(SLACK_VIEW_IDS.workflowInput, async (args: any) => {
         await this.handleWorkflowModalSubmission(args);
+      });
+
+      this.app.action(SLACK_ACTION_IDS.wikiOpenPage, async (args: any) => {
+        await args.ack();
+        await this.handleWikiOpenPage(args);
       });
 
       this.app.options(slackFieldActionId('indexedEntry'), async (args: any) => {
@@ -463,7 +472,17 @@ export class SlackIntegrationProvider {
       return;
     }
 
-    await args.ack();
+    const inlineResult = workflow.inlineResultInModal === true;
+    const submittedViewId = typeof args.view?.id === 'string' ? args.view.id : null;
+
+    if (inlineResult) {
+      await args.ack({
+        response_action: 'update',
+        view: buildWorkflowLoadingModal(workflow, metadata) as any,
+      });
+    } else {
+      await args.ack();
+    }
 
     const response = await this.broker.launchWorkflow({
       provider: 'slack',
@@ -473,6 +492,25 @@ export class SlackIntegrationProvider {
       workflowId: workflow.id,
       input,
     });
+
+    if (inlineResult && submittedViewId) {
+      const wikiEntries = workflow.id === 'wiki-search'
+        ? this.extractWikiEntries(response.job?.resultJson)
+        : undefined;
+      try {
+        await args.client.views.update({
+          view_id: submittedViewId,
+          view: buildWorkflowResultModal(workflow, response.text, metadata, {
+            wikiEntries,
+            summary: response.job?.summary ?? undefined,
+          }) as any,
+        });
+      } catch (error) {
+        console.error('[slack] failed to update workflow result modal', error);
+      }
+      if (metadata.userId) await this.publishHome(metadata.userId, response);
+      return;
+    }
 
     if (metadata.source === 'home' || !metadata.channel) {
       if (metadata.userId) await this.publishHome(metadata.userId, response);
@@ -488,6 +526,57 @@ export class SlackIntegrationProvider {
 
     if (metadata.userId) {
       await this.publishHome(metadata.userId, response);
+    }
+  }
+
+  private extractWikiEntries(resultJson: unknown): WikiResultEntry[] | undefined {
+    if (!Array.isArray(resultJson)) return undefined;
+    const entries: WikiResultEntry[] = [];
+    for (const raw of resultJson) {
+      if (!raw || typeof raw !== 'object') continue;
+      const record = raw as Record<string, unknown>;
+      const path = typeof record.path === 'string' ? record.path : null;
+      const name = typeof record.name === 'string' ? record.name : null;
+      if (!path || !name) continue;
+      entries.push({
+        name,
+        path,
+        type: typeof record.type === 'string' ? record.type : undefined,
+        description: typeof record.description === 'string' ? record.description : undefined,
+      });
+    }
+    return entries.length > 0 ? entries : undefined;
+  }
+
+  private async handleWikiOpenPage(args: any) {
+    const path = typeof args.action?.value === 'string' ? args.action.value : '';
+    if (!path) return;
+    const triggerId = args.body?.trigger_id;
+    if (!triggerId) return;
+    try {
+      const page = await this.broker.getWikiPage(path);
+      await args.client.views.push({
+        trigger_id: triggerId,
+        view: buildWikiPageModal({
+          name: page.name,
+          path: page.path,
+          body: page.body,
+        }) as any,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[slack] failed to open wiki page', message);
+      try {
+        await args.client.views.push({
+          trigger_id: triggerId,
+          view: buildWikiPageModal({
+            path,
+            body: `Failed to load wiki page.\n\n\`${message}\``,
+          }) as any,
+        });
+      } catch (pushError) {
+        console.error('[slack] failed to push error modal', pushError);
+      }
     }
   }
 

@@ -30,11 +30,21 @@ export const SLACK_ACTION_IDS = {
   wikiBackToBranch: 'aos_wiki_back_branch',
   wikiPrevPage: 'aos_wiki_prev_page',
   wikiNextPage: 'aos_wiki_next_page',
+  wikiOpenPage: 'aos_wiki_open_page',
 };
 
 export const SLACK_VIEW_IDS = {
   workflowInput: 'aos_workflow_input',
+  workflowResult: 'aos_workflow_result',
+  wikiPage: 'aos_wiki_page',
 };
+
+export interface WikiResultEntry {
+  name: string;
+  path: string;
+  type?: string;
+  description?: string;
+}
 
 export interface SlackWorkflowModalMetadata {
   workflowId: string;
@@ -667,6 +677,124 @@ export function buildSlackHomeView(
 
   return {
     type: 'home',
+    blocks,
+  };
+}
+
+export function buildWorkflowLoadingModal(
+  workflow: IntegrationWorkflowDescriptor,
+  metadata: SlackWorkflowModalMetadata,
+) {
+  return {
+    type: 'modal',
+    callback_id: SLACK_VIEW_IDS.workflowResult,
+    private_metadata: JSON.stringify(metadata),
+    title: plainText(truncate(workflow.title, 24)),
+    close: plainText('Close'),
+    blocks: [
+      {
+        type: 'section',
+        text: mrkdwn(`:hourglass_flowing_sand: Running *${workflow.title}*…`),
+      },
+    ],
+  };
+}
+
+export function buildWorkflowResultModal(
+  workflow: IntegrationWorkflowDescriptor,
+  responseText: string,
+  metadata: SlackWorkflowModalMetadata,
+  options: { wikiEntries?: WikiResultEntry[]; summary?: string } = {},
+) {
+  const blocks: Record<string, unknown>[] = [];
+  const entries = options.wikiEntries ?? [];
+
+  if (entries.length > 0) {
+    const summary = options.summary?.trim();
+    if (summary) {
+      blocks.push({
+        type: 'section',
+        text: mrkdwn(summary),
+      });
+    }
+    for (const entry of entries) {
+      const detail = [
+        `*${entry.name}*${entry.type ? ` — _${entry.type}_` : ''}`,
+        entry.description ? truncate(entry.description, 220) : 'No description available.',
+        `\`${entry.path}\``,
+      ].join('\n');
+      blocks.push({
+        type: 'section',
+        text: mrkdwn(detail),
+        accessory: sectionButton(
+          SLACK_ACTION_IDS.wikiOpenPage,
+          'Open',
+          entry.path,
+        ),
+      });
+    }
+  } else {
+    const body = responseText.trim() || 'Workflow completed with no output.';
+    for (const chunk of chunkText(body)) {
+      blocks.push({
+        type: 'section',
+        text: mrkdwn(chunk),
+      });
+    }
+    if (blocks.length === 0) {
+      blocks.push({
+        type: 'section',
+        text: mrkdwn(body),
+      });
+    }
+  }
+
+  blocks.push(divider());
+  blocks.push(actionRow([
+    workflowButton(`Run ${workflow.title} again`, workflow.id, 'primary'),
+  ]));
+
+  return {
+    type: 'modal',
+    callback_id: SLACK_VIEW_IDS.workflowResult,
+    private_metadata: JSON.stringify(metadata),
+    title: plainText(truncate(workflow.title, 24)),
+    close: plainText('Close'),
+    blocks,
+  };
+}
+
+export function buildWikiPageModal(args: {
+  name?: string;
+  path: string;
+  body: string;
+  backLabel?: string;
+}) {
+  const titleText = args.name ?? args.path.split('/').pop() ?? 'Wiki Page';
+  const body = args.body.trim() || 'This page is empty.';
+  const blocks: Record<string, unknown>[] = [
+    {
+      type: 'context',
+      elements: [mrkdwn(`Path: \`${args.path}\` — close this view to return to search results.`)],
+    },
+  ];
+  for (const chunk of chunkText(body)) {
+    blocks.push({
+      type: 'section',
+      text: mrkdwn(chunk),
+    });
+  }
+  blocks.push(divider());
+  blocks.push({
+    type: 'context',
+    elements: [mrkdwn('Hover the text above and click _Copy_ to copy.')],
+  });
+
+  return {
+    type: 'modal',
+    callback_id: SLACK_VIEW_IDS.wikiPage,
+    title: plainText(truncate(titleText, 24)),
+    close: plainText(truncate(args.backLabel ?? '← Back to results', 24)),
     blocks,
   };
 }

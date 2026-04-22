@@ -25,6 +25,7 @@ import {
   defaultWikiBrowserState,
   reduceWikiBrowserState,
 } from './wiki-browser.js';
+import { runCommand, tryParseJson } from './command-runner.js';
 
 interface IntegrationBrokerOptions {
   db: CoordinationDB;
@@ -216,6 +217,28 @@ export class IntegrationBroker {
   async getWikiIndex(): Promise<WikiIndexEntry[]> {
     await this.refreshWikiIndex();
     return [...this.wikiIndex];
+  }
+
+  async getWikiPage(pathOrName: string): Promise<{ path: string; body: string; name?: string }> {
+    const { stdout } = await runCommand('./aos', ['wiki', 'show', pathOrName, '--json'], {
+      cwd: this.repoRoot,
+      timeoutMs: 15_000,
+    });
+    const parsed = tryParseJson(stdout);
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error(`Unexpected output from ./aos wiki show ${pathOrName}`);
+    }
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj.error === 'string') {
+      throw new Error(obj.error);
+    }
+    const body = typeof obj.body === 'string' ? obj.body : (typeof obj.raw === 'string' ? obj.raw : '');
+    const path = typeof obj.path === 'string' ? obj.path : pathOrName;
+    const frontmatter = obj.frontmatter && typeof obj.frontmatter === 'object'
+      ? obj.frontmatter as Record<string, unknown>
+      : {};
+    const name = typeof frontmatter.name === 'string' ? frontmatter.name : undefined;
+    return { path, body, name };
   }
 
   async getWikiBrowserModel(provider: string, requester: string): Promise<WikiBrowserModel> {

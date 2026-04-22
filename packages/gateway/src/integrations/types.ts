@@ -161,6 +161,11 @@ export interface IntegrationWorkflowDescriptor {
   submitLabel?: string;
   inputFields?: WorkflowInputFieldDescriptor[];
   aliases?: string[];
+  // When true, modal-based provider surfaces (Slack view_submission) should
+  // display the workflow's result text in the submitted modal instead of
+  // silently closing. Intended for search-style flows where the user expects
+  // output next to their input.
+  inlineResultInModal?: boolean;
 }
 
 export interface IntegrationWorkflowDefinition extends IntegrationWorkflowDescriptor {

@@ -289,6 +289,7 @@ function buildReadyWorkflowCatalog(wikiIndex: WikiIndexEntry[]): IntegrationWork
       registrySource: 'built-in',
       requiresInput: true,
       submitLabel: 'Search',
+      inlineResultInModal: true,
       inputFields: [
         {
           id: 'query',
