@@ -36,6 +36,35 @@ mkdir -p \
   "$SIGIL_RESOURCE_ROOT/packages/toolkit/components"
 cp "$REPO_ROOT/apps/sigil/radial-menu-config.json" "$SIGIL_RESOURCE_ROOT/apps/sigil/radial-menu-config.json"
 
+# ── aos-gateway (MCP + broker) ─────────────────────────────────
+# Plan: docs/superpowers/plans/2026-04-22-gateway-hardening.md (Task 14)
+GATEWAY_SRC="$REPO_ROOT/packages/gateway"
+GATEWAY_STAGE="$RESOURCES_DIR/gateway"
+
+if [[ ! -d "$GATEWAY_SRC/dist" ]]; then
+  echo "scripts/package-aos-runtime: building gateway dist (not present)" >&2
+  (cd "$GATEWAY_SRC" && npm install --silent && npm run --silent build)
+fi
+
+mkdir -p "$GATEWAY_STAGE/dist"
+rsync -a --delete "$GATEWAY_SRC/dist/" "$GATEWAY_STAGE/dist/"
+cp "$GATEWAY_SRC/package.json" "$GATEWAY_STAGE/package.json"
+
+# better-sqlite3 native addon + JS wrapper.
+BSQLITE_SRC="$GATEWAY_SRC/node_modules/better-sqlite3"
+if [[ ! -d "$BSQLITE_SRC/build/Release" ]]; then
+  echo "scripts/package-aos-runtime: better-sqlite3 native addon missing at $BSQLITE_SRC/build/Release" >&2
+  exit 1
+fi
+BSQLITE_DST="$GATEWAY_STAGE/node_modules/better-sqlite3"
+mkdir -p "$BSQLITE_DST"
+rsync -a --delete \
+  --include='package.json' \
+  --include='build/' --include='build/Release/' --include='build/Release/*.node' \
+  --include='lib/' --include='lib/***' \
+  --exclude='*' \
+  "$BSQLITE_SRC/" "$BSQLITE_DST/"
+
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
