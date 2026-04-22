@@ -55,7 +55,22 @@ New/edited files under repo `src/` (Swift):
 
 New shell test: `tests/doctor-gateway.sh`.
 
-Packaging: `build.sh` updates to stage `dist/` + native addon under `<AOS.app>/Contents/Resources/gateway/`.
+Packaging: `scripts/package-aos-runtime` updates to stage `dist/` + `better-sqlite3` native addon under `<AOS.app>/Contents/Resources/gateway/`. (`build.sh` only compiles `./aos`; it does not assemble the `.app`, so the gateway staging belongs in `scripts/package-aos-runtime`.)
+
+---
+
+## Pre-implementation: capture `./aos doctor --json` baseline
+
+Task 13 (regression guard) diffs the live `./aos doctor --json` output against a reference fixture captured before any Swift-side change. Capture that fixture NOW, before Task 10/11 mutate the CLI path:
+
+```bash
+mkdir -p tests/fixtures
+./aos doctor --json > tests/fixtures/doctor-before.json
+# Quick sanity — confirm it parsed and has the expected top-level keys.
+jq 'keys' tests/fixtures/doctor-before.json
+```
+
+Expected: at minimum `status`, `runtime`, `permissions` in the key list (current shape produced by `doctorCommand` in `src/commands/operator.swift:274+`). Commit the fixture with Task 13, not before — but CAPTURE the file up-front so later tasks can modify the code without losing the reference point.
 
 ---
 
@@ -1230,14 +1245,17 @@ import { collectReport, renderText } from '../src/doctor.js';
 
 function makeTmp(): string { return mkdtempSync(join(tmpdir(), 'doc-')); }
 
+// Mirrors real gateway schema (see packages/gateway/src/db.ts:199).
+// Locks are modeled as state rows with non-null `owner`, not a separate table.
 function seedShared(stateDir: string) {
   mkdirSync(join(stateDir, 'scripts'), { recursive: true });
   const db = new Database(join(stateDir, 'gateway.db'));
   db.pragma('journal_mode = WAL');
   db.exec(`
     CREATE TABLE sessions (id TEXT PRIMARY KEY);
+    CREATE TABLE state (key TEXT PRIMARY KEY, owner TEXT, expires_at INTEGER);
     CREATE TABLE messages (id TEXT PRIMARY KEY);
-    CREATE TABLE locks (key TEXT PRIMARY KEY);
+    CREATE TABLE integration_jobs (id TEXT PRIMARY KEY);
   `);
   db.close();
 }
@@ -1398,7 +1416,13 @@ export interface DoctorReport {
   db: {
     path: string;
     size_bytes: number;
-    row_counts?: { sessions: number; messages: number; locks: number };
+    row_counts?: {
+      sessions: number;
+      state: number;
+      messages: number;
+      integration_jobs: number;
+      locks_held: number;
+    };
     integrity?: 'ok' | string;
   };
   processes: { mcp: ProcessBlock; broker: ProcessBlock };
@@ -1498,10 +1522,16 @@ export async function collectReport(
       const integrity = handle.pragma('integrity_check', { simple: true }) as string;
       db.integrity = integrity === 'ok' ? 'ok' : String(integrity);
       try {
+        // locks_held = state rows with non-null owner and not-yet-expired.
+        // Mirrors gateway lock semantics (packages/gateway/src/db.ts:420–491).
         db.row_counts = {
           sessions: (handle.prepare('SELECT COUNT(*) AS n FROM sessions').get() as any)?.n ?? 0,
+          state: (handle.prepare('SELECT COUNT(*) AS n FROM state').get() as any)?.n ?? 0,
           messages: (handle.prepare('SELECT COUNT(*) AS n FROM messages').get() as any)?.n ?? 0,
-          locks: (handle.prepare('SELECT COUNT(*) AS n FROM locks').get() as any)?.n ?? 0,
+          integration_jobs: (handle.prepare('SELECT COUNT(*) AS n FROM integration_jobs').get() as any)?.n ?? 0,
+          locks_held: (handle.prepare(
+            "SELECT COUNT(*) AS n FROM state WHERE owner IS NOT NULL AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)",
+          ).get() as any)?.n ?? 0,
         };
       } catch (err: any) {
         warnings.push(`db row_counts unavailable: ${err.message}`);
@@ -1539,7 +1569,12 @@ export function renderText(r: DoctorReport): string {
   lines.push(`aos-gateway doctor  mode=${r.mode}  state_root=${r.state_root}`);
   lines.push(`state_dir=${r.state_dir}`);
   lines.push(`db=${r.db.path}  size=${r.db.size_bytes}B  integrity=${r.db.integrity ?? 'skipped'}`);
-  if (r.db.row_counts) lines.push(`  row_counts: sessions=${r.db.row_counts.sessions} messages=${r.db.row_counts.messages} locks=${r.db.row_counts.locks}`);
+  if (r.db.row_counts) {
+    const rc = r.db.row_counts;
+    lines.push(
+      `  row_counts: sessions=${rc.sessions} state=${rc.state} messages=${rc.messages} integration_jobs=${rc.integration_jobs} locks_held=${rc.locks_held}`,
+    );
+  }
 
   for (const [role, block] of Object.entries(r.processes) as Array<['mcp' | 'broker', ProcessBlock]>) {
     lines.push(`[${role}] pidfile=${block.pidfile.path} pid=${block.pidfile.pid ?? '-'} alive=${block.pidfile.alive ?? '-'}`);
@@ -1766,12 +1801,12 @@ Replace the existing `reg.append(CommandDescriptor(path: ["doctor"], ...)` block
         InvocationForm(id: "doctor-gateway",
             usage: "aos doctor gateway [--quick] [--json|--pretty] [--tail N]",
             args: [
-                positional("target", "target", "Doctor target (must be 'gateway')",
-                           type: .enumeration([EnumValue(value: "gateway", summary: "aos-gateway MCP + broker")])),
-                flag("quick", "--quick", "Skip SQLite open and row counts", type: .boolean(false)),
-                flag("json", "--json", "Force JSON output", type: .boolean(false)),
-                flag("pretty", "--pretty", "Force human-readable output", type: .boolean(false)),
-                flag("tail", "--tail", "Include last N log lines per role", type: .integer, default: nil),
+                pos("target", "Doctor target (must be 'gateway')",
+                    type: .enumeration([EnumValue(value: "gateway", summary: "aos-gateway MCP + broker")])),
+                flag("quick", "--quick", "Skip SQLite open and row counts", type: .bool),
+                flag("json", "--json", "Force JSON output", type: .bool),
+                flag("pretty", "--pretty", "Force human-readable output", type: .bool),
+                flag("tail", "--tail", "Include last N log lines per role", type: .int),
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
@@ -1784,7 +1819,12 @@ Replace the existing `reg.append(CommandDescriptor(path: ["doctor"], ...)` block
     ]))
 ```
 
-Note: exact helper functions (`positional`, `flag`, `execReadOnly`, `outJSON`, `outJSONFlag`) already exist in this file — verify by scrolling upward and use the same signatures as other commands. If any helper does not exist, mirror the closest sibling command's `InvocationForm` shape.
+Helper reference (verified against live `src/shared/command-registry.swift` and `src/shared/command-registry-data.swift`):
+- `pos(_ id: String, _ summary: String, type: ValueType = .string, required: Bool = true, ...)` — positional arg, identified by position.
+- `flag(_ id: String, _ token: String, _ summary: String, type: ValueType = .string, required: Bool = false, default defaultVal: JSONValue? = nil, ...)`.
+- `ValueType` cases: `.string, .int, .bool, .float, .json, .enumeration([EnumValue])` — note `.bool` (not `.boolean`) and `.int` (not `.integer`).
+- `JSONValue` cases for defaults: `.string(...), .int(...), .float(...), .bool(...), .null`.
+- `execReadOnly()`, `execMutating()`, `outJSON`, `outJSONFlag` already defined in the file.
 
 - [ ] **Step 3: Build**
 
@@ -2019,15 +2059,15 @@ git commit -m "test(cli): integration test for aos doctor gateway under isolated
 **Files:**
 - Create: `tests/doctor-backcompat.sh`
 
-- [ ] **Step 1: Capture a reference run from main before starting implementation**
+- [ ] **Step 1: Verify the pre-flight baseline fixture is present**
 
-If not already done, on a clean main checkout:
+The fixture at `tests/fixtures/doctor-before.json` must have been captured BEFORE Task 10/11 modified the CLI path — see the "Pre-implementation: capture `./aos doctor --json` baseline" section near the top of this plan.
 
 ```bash
-./aos doctor --json > tests/fixtures/doctor-before.json
+test -f tests/fixtures/doctor-before.json && jq 'keys' tests/fixtures/doctor-before.json
 ```
 
-(If this cannot be done because main has already moved on, build a minimal fixture from the existing schema documented in `src/commands/operator.swift:274+`. The check below asserts keys, not values, so any healthy historical run works.)
+Expected: the file exists and `jq` prints its top-level keys. If it is missing, STOP and capture it from a commit that pre-dates Task 10 (e.g., `git stash`, checkout the commit before Task 10, run `./aos doctor --json > tests/fixtures/doctor-before.json`, then return). Building a synthetic fixture from the documented shape is acceptable as a last resort — the check below asserts keys, not values, so any historical healthy run works.
 
 - [ ] **Step 2: Create `tests/doctor-backcompat.sh`**
 
@@ -2077,67 +2117,101 @@ git commit -m "test(cli): backward-compat regression guard for aos doctor --json
 ## Task 14: Installed-mode packaging — stage gateway under `<AOS.app>`
 
 **Files:**
-- Modify: `build.sh` (or whichever script owns app-bundle staging — verify in Step 1)
+- Modify: `scripts/package-aos-runtime` (this is the script that assembles `<DIST_DIR>/AOS.app`; `build.sh` only compiles `./aos`).
 
-- [ ] **Step 1: Identify the packaging script**
+Orientation (already verified on main before this plan):
+- `scripts/package-aos-runtime:10–14` defines `DIST_DIR`, `APP_DIR="$DIST_DIR/AOS.app"`, `CONTENTS_DIR`, `RESOURCES_DIR`.
+- Line 26 announces "Packaging $APP_NAME.app..." and line 27 invokes `bash build.sh --release --no-restart` to produce `./aos`.
+- Lines 30–37 create `MACOS_DIR`/`RESOURCES_DIR`, copy the binary, and stage Sigil resources under `$RESOURCES_DIR/agent-os/`.
+- Line 39 writes `Info.plist`; line 70 signs. The gateway staging slots in after the Sigil copy and before the Info.plist write.
+
+- [ ] **Step 1: Confirm the packaging layout is unchanged since this plan was written**
 
 ```bash
-grep -n "Resources" build.sh
-grep -rn "Contents/Resources" build.sh scripts/ 2>/dev/null | head
+grep -n '^RESOURCES_DIR=\|^mkdir -p \\\|radial-menu-config.json\|cat >"$INFO_PLIST"' scripts/package-aos-runtime
 ```
 
-Expected: find the location where other resources (wiki seeds, toolkit bundles, etc.) are copied into `<AOS.app>/Contents/Resources/`. If the repo does not have installed-mode packaging yet, this task stages the directory structure for when it does, and the Swift handler's installed-mode path (`<AOS.app>/Contents/Resources/gateway/dist/doctor-cli.js`) aligns with that placeholder.
+Expected output includes `RESOURCES_DIR="$CONTENTS_DIR/Resources"` around line 14 and the existing Sigil `mkdir -p ... && cp ... radial-menu-config.json` block at ~34–37. If the script has been refactored, adapt the insertion point to where other resources under `$RESOURCES_DIR` are staged.
 
-- [ ] **Step 2: Add a packaging step that stages gateway under `<AOS.app>/Contents/Resources/gateway/`**
+- [ ] **Step 2: Stage gateway under `$RESOURCES_DIR/gateway/`**
 
 The staging needs:
 
 1. `packages/gateway/dist/**` (the compiled TS output).
-2. `packages/gateway/node_modules/better-sqlite3/build/Release/*.node` (native addon).
-3. `packages/gateway/package.json` (so `require('better-sqlite3')` resolves in the installed layout).
-4. `packages/gateway/node_modules/better-sqlite3/lib/**` (JS wrapper around the native addon).
+2. `packages/gateway/package.json` (so `require('better-sqlite3')` resolves in the installed layout).
+3. `packages/gateway/node_modules/better-sqlite3/build/Release/*.node` (native addon — required because esbuild cannot inline `.node` binaries).
+4. `packages/gateway/node_modules/better-sqlite3/lib/**` + `package.json` (the JS wrapper that loads the addon).
 
-Add to `build.sh` (near the end, after `.app` exists):
+The Swift handler (Task 11) resolves the reporter at `$RESOURCES_DIR/gateway/dist/doctor-cli.js` in installed mode, so the layout below must match.
+
+Edit `scripts/package-aos-runtime`. Insert the following block after the existing Sigil resource copy (after `cp "$REPO_ROOT/apps/sigil/radial-menu-config.json" ...`) and before `cat >"$INFO_PLIST" <<PLIST`:
 
 ```bash
-if [[ -d "$APP_PATH" ]]; then
-  GATEWAY_STAGE="$APP_PATH/Contents/Resources/gateway"
-  mkdir -p "$GATEWAY_STAGE/dist"
-  rsync -a --delete packages/gateway/dist/ "$GATEWAY_STAGE/dist/"
-  cp packages/gateway/package.json "$GATEWAY_STAGE/package.json"
-  # Native addon + its JS wrapper for better-sqlite3.
-  if [[ -d packages/gateway/node_modules/better-sqlite3 ]]; then
-    mkdir -p "$GATEWAY_STAGE/node_modules/better-sqlite3"
-    rsync -a --delete --include='build/***' --include='lib/***' --include='package.json' --exclude='*' \
-      packages/gateway/node_modules/better-sqlite3/ "$GATEWAY_STAGE/node_modules/better-sqlite3/"
-  fi
+# ── aos-gateway (MCP + broker) ─────────────────────────────────
+# Plan: docs/superpowers/plans/2026-04-22-gateway-hardening.md (Task 14)
+GATEWAY_SRC="$REPO_ROOT/packages/gateway"
+GATEWAY_STAGE="$RESOURCES_DIR/gateway"
+
+if [[ ! -d "$GATEWAY_SRC/dist" ]]; then
+  echo "scripts/package-aos-runtime: building gateway dist (not present)" >&2
+  (cd "$GATEWAY_SRC" && npm install --silent && npm run --silent build)
 fi
+
+mkdir -p "$GATEWAY_STAGE/dist"
+rsync -a --delete "$GATEWAY_SRC/dist/" "$GATEWAY_STAGE/dist/"
+cp "$GATEWAY_SRC/package.json" "$GATEWAY_STAGE/package.json"
+
+# better-sqlite3 native addon + JS wrapper.
+BSQLITE_SRC="$GATEWAY_SRC/node_modules/better-sqlite3"
+if [[ ! -d "$BSQLITE_SRC/build/Release" ]]; then
+  echo "scripts/package-aos-runtime: better-sqlite3 native addon missing at $BSQLITE_SRC/build/Release" >&2
+  exit 1
+fi
+BSQLITE_DST="$GATEWAY_STAGE/node_modules/better-sqlite3"
+mkdir -p "$BSQLITE_DST"
+rsync -a --delete \
+  --include='package.json' \
+  --include='build/' --include='build/Release/' --include='build/Release/*.node' \
+  --include='lib/' --include='lib/***' \
+  --exclude='*' \
+  "$BSQLITE_SRC/" "$BSQLITE_DST/"
 ```
 
-- [ ] **Step 3: Build and verify staging**
+Notes:
+- `set -euo pipefail` is already active at the top of the script, so the missing-addon branch hard-fails — `better-sqlite3` is a runtime dependency of the doctor reporter. A silent skip would land a broken installed bundle.
+- The rsync `--include`/`--exclude` ordering matters: parent directories (`build/`, `build/Release/`, `lib/`) must be explicitly included before their children match. `--delete` keeps re-runs idempotent.
+
+- [ ] **Step 3: Repo-side build + local packaging run**
 
 ```bash
-bash build.sh
-ls "$HOME/Applications/AOS.app/Contents/Resources/gateway/dist/doctor-cli.js" 2>/dev/null || echo "installed bundle not present (fine on dev machines that don't install)"
-ls packages/gateway/dist/doctor-cli.js
+(cd packages/gateway && npm run build)
+bash scripts/package-aos-runtime
+DIST_APP="${AOS_DIST_DIR:-$PWD/dist}/AOS.app"
+ls "$DIST_APP/Contents/Resources/gateway/dist/doctor-cli.js"
+ls "$DIST_APP/Contents/Resources/gateway/node_modules/better-sqlite3/build/Release/"*.node
+ls "$DIST_APP/Contents/Resources/gateway/node_modules/better-sqlite3/lib/"
+ls "$DIST_APP/Contents/Resources/gateway/package.json"
 ```
 
-Expected: dist artifact exists. The installed-mode staging is verified on machines that run the install step; otherwise the repo-mode path (Task 11) covers day-to-day dev.
+Expected: each listing succeeds (doctor-cli.js present; at least one `.node` native addon under `Release/`; `lib/` present; staged `package.json` present).
 
-- [ ] **Step 4: Installed-mode smoke test (only on machines with AOS.app installed)**
+- [ ] **Step 4: Installed-mode smoke test**
 
 ```bash
-AOS_STATE_ROOT=/tmp/gwtest-inst AOS_RUNTIME_MODE=installed /Applications/AOS.app/Contents/MacOS/aos doctor gateway --json | jq .
+DIST_APP="${AOS_DIST_DIR:-$PWD/dist}/AOS.app"
+AOS_STATE_ROOT=/tmp/gwtest-inst AOS_RUNTIME_MODE=installed "$DIST_APP/Contents/MacOS/aos" doctor gateway --json | jq .
 rm -rf /tmp/gwtest-inst
 ```
 
-Expected: JSON reports `mode: "installed"`, spawns reporter from `<AOS.app>/Contents/Resources/gateway/dist/doctor-cli.js`. Skip this step on dev machines without the install step performed.
+Expected: JSON reports `mode: "installed"`, `state_root: "/tmp/gwtest-inst"`. The reporter path resolves to `$DIST_APP/Contents/Resources/gateway/dist/doctor-cli.js` (Task 11 handler). Exit code 1 (warnings — no gateway running).
+
+If the smoke test fails with "reporter not found", re-check the `aosInstallAppPath()` helper in `shared/swift/ipc/` — it must return the `.app` path that `scripts/package-aos-runtime` produced (defaults to `$AOS_DIST_DIR/AOS.app` locally).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add build.sh
-git commit -m "build: stage gateway dist + better-sqlite3 native addon under AOS.app"
+git add scripts/package-aos-runtime
+git commit -m "build(package): stage gateway dist + better-sqlite3 native addon under AOS.app"
 ```
 
 ---
@@ -2145,7 +2219,8 @@ git commit -m "build: stage gateway dist + better-sqlite3 native addon under AOS
 ## Post-implementation checklist
 
 - [ ] All `npm test` in `packages/gateway` pass.
-- [ ] `bash build.sh` succeeds.
+- [ ] `bash build.sh` succeeds (compiles `./aos`).
+- [ ] `bash scripts/package-aos-runtime` succeeds and stages `AOS.app/Contents/Resources/gateway/dist/doctor-cli.js` + `better-sqlite3` native addon.
 - [ ] `bash tests/doctor-gateway.sh` passes.
 - [ ] `bash tests/doctor-backcompat.sh` passes.
 - [ ] `./aos doctor --json` output matches pre-change schema (checked by Task 13).
