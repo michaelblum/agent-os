@@ -2246,13 +2246,18 @@ Expected: each listing succeeds (doctor-cli.js present; at least one `.node` nat
 
 ```bash
 DIST_APP="${AOS_DIST_DIR:-$PWD/dist}/AOS.app"
-AOS_STATE_ROOT=/tmp/gwtest-inst AOS_RUNTIME_MODE=installed "$DIST_APP/Contents/MacOS/aos" doctor gateway --json | jq .
+AOS_INSTALL_PATH="$DIST_APP" \
+AOS_STATE_ROOT=/tmp/gwtest-inst \
+AOS_RUNTIME_MODE=installed \
+  "$DIST_APP/Contents/MacOS/aos" doctor gateway --json | jq .
 rm -rf /tmp/gwtest-inst
 ```
 
-Expected: JSON reports `mode: "installed"`, `state_root: "/tmp/gwtest-inst"`. The reporter path resolves to `$DIST_APP/Contents/Resources/gateway/dist/doctor-cli.js` (Task 11 handler). Exit code 1 (warnings — no gateway running).
+Expected: JSON reports `mode: "installed"`, `state_root: "/tmp/gwtest-inst"`. Exit code 1 (warnings — no gateway running).
 
-If the smoke test fails with "reporter not found", re-check the `aosInstallAppPath()` helper in `shared/swift/ipc/` — it must return the `.app` path that `scripts/package-aos-runtime` produced (defaults to `$AOS_DIST_DIR/AOS.app` locally).
+Why `AOS_INSTALL_PATH`: `aosInstallAppPath()` (shared/swift/ipc/runtime-paths.swift:71-73) defaults to `~/Applications/AOS.app` — the user-installed bundle — and in installed mode Task 11 resolves the reporter under that path. The override points the smoke at the freshly-packaged `dist/AOS.app` instead, which is exactly what the env variable is designed for. Without it, the reporter resolves against `~/Applications/AOS.app/Contents/Resources/gateway/dist/doctor-cli.js` (not where Task 14 staged it) and the smoke fails with `REPORTER_MISSING`.
+
+If the smoke still fails with "reporter not found" after setting `AOS_INSTALL_PATH`, confirm the staged tree from Step 3 (`ls "$DIST_APP/Contents/Resources/gateway/dist/doctor-cli.js"` succeeded) and that the env var was exported in the same command.
 
 - [ ] **Step 5: Commit**
 
