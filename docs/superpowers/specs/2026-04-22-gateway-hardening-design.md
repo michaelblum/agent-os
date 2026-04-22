@@ -412,7 +412,7 @@ Sandbox-safety tests (env-driven entry point):
 - `hasExplicitStateRootOverride({ AOS_STATE_ROOT: '/tmp/x' })` → true; migration skipped, returns `{ migrated: false, skipped: 'explicit-state-root-override' }`.
 - `hasExplicitStateRootOverride({})` → false.
 - `hasExplicitStateRootOverride({ AOS_STATE_ROOT: '' })` → false (empty treated as unset, mirroring Swift helper).
-- `hasExplicitStateRootOverride({ AOS_STATE_ROOT: '~/.config/aos' })` after resolve → false (default path, not an override).
+- `hasExplicitStateRootOverride({ AOS_STATE_ROOT: path.join(os.homedir(), '.config/aos') })` → false (absolute default path, not an override). `AOS_STATE_ROOT` is an absolute-path contract per `runtime-paths.swift:96`; tilde-expanded strings aren't part of the contract and are out of scope.
 - With `AOS_STATE_ROOT=/tmp/x` set, real `~/.config/aos-gateway` must NOT be stat'd. Test: stub `fs.statSync` / `fs.existsSync` on legacy path and assert it was never called.
 
 ### `test/logger.test.ts`
