@@ -1941,10 +1941,8 @@ import Foundation
 private func gatewayReporterPath(mode: AOSRuntimeMode) -> String {
     switch mode {
     case .repo:
-        let exe = NSString(string: aosExecutablePath()).standardizingPath
-        // ./aos lives at repo root; reporter at packages/gateway/dist/doctor-cli.js
-        let repoRoot = (exe as NSString).deletingLastPathComponent
-        return "\(repoRoot)/packages/gateway/dist/doctor-cli.js"
+        let base = aosCurrentRepoRoot() ?? FileManager.default.currentDirectoryPath
+        return NSString(string: (base as NSString).appendingPathComponent("packages/gateway/dist/doctor-cli.js")).standardizingPath
     case .installed:
         return "\(aosInstallAppPath())/Contents/Resources/gateway/dist/doctor-cli.js"
     }
