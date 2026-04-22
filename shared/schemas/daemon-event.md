@@ -47,7 +47,10 @@ Optional initial replay for snapshot-capable streams:
 ```
 
 Today `snapshot:true` replays current state for `display_geometry` and
-`canvas_lifecycle` immediately after the success response.
+`canvas_lifecycle` immediately after the success response. For
+`canvas_lifecycle`, the replay uses the same payload shape as live events,
+including canvas metadata such as `parent`, `track`, `interactive`, `scope`,
+and the nested `canvas` object.
 
 ## Events by Service
 
@@ -70,7 +73,7 @@ Today `snapshot:true` replays current state for `display_geometry` and
 | Event | Data | Trigger |
 |-------|------|---------|
 | `canvas_message` | `{id, payload}` | Canvas JS called postMessage |
-| `canvas_lifecycle` | `{canvas_id, action, ...}` | Canvas created/removed/updated |
+| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, scope?, ttl?, cascade?, suspended?, canvas}` | Canvas created/removed/updated |
 | `channel_post` | `{channel, payload}` | Channel message relayed |
 
 ### act

@@ -8,6 +8,7 @@
 export { wireBridge, emit, esc } from './bridge.js'
 export { subscribe, unsubscribe } from './subscribe.js'
 export { spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas, move } from './canvas.js'
+export { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from './canvas-lifecycle.js'
 export { isCanvasInputEventType, normalizeCanvasInputMessage } from './input-events.js'
 export {
   rectFromAt,

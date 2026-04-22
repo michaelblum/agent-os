@@ -404,8 +404,8 @@ class CanvasManager {
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
     var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
-    /// (canvasID, action, at?) — relayed to subscribers as canvas_lifecycle events
-    var onCanvasLifecycle: ((String, String, [CGFloat]?) -> Void)?
+    /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
+    var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
     let startTime = Date()
     private var lastChannelReRead: Date = .distantPast
     private var lastAutoProjectUpdate: Date = .distantPast
@@ -430,8 +430,8 @@ class CanvasManager {
         abs(lhs.size.height - rhs.size.height) > tolerance
     }
 
-    private func lifecycleAtArray(_ cgRect: CGRect) -> [CGFloat] {
-        [cgRect.origin.x, cgRect.origin.y, cgRect.size.width, cgRect.size.height]
+    private func emitLifecycle(_ canvas: Canvas, action: String) {
+        onCanvasLifecycle?(canvas.toInfo(), action)
     }
 
     @discardableResult
@@ -439,7 +439,7 @@ class CanvasManager {
         let current = canvas.cgFrame
         guard framesDiffer(current, cgRect) else { return false }
         canvas.updatePosition(cgRect: cgRect)
-        onCanvasLifecycle?(canvas.id, "updated", lifecycleAtArray(cgRect))
+        emitLifecycle(canvas, action: "updated")
         return true
     }
 
@@ -553,16 +553,17 @@ class CanvasManager {
 
     func syncCanvasFrames(excluding excludedIDs: Set<String> = []) {
         for canvas in canvases.values where !excludedIDs.contains(canvas.id) {
-            onCanvasLifecycle?(canvas.id, "updated", lifecycleAtArray(canvas.cgFrame))
+            emitLifecycle(canvas, action: "updated")
         }
     }
 
     func removeByTTL(_ id: String) {
         guard let canvas = canvases.removeValue(forKey: id) else { return }
+        let info = canvas.toInfo()
         canvas.close()
         abandonLifecycleCompletions(forCanvasID: id)
         if !hasAnchoredCanvases { stopAnchorPolling() }
-        onCanvasLifecycle?(id, "removed", nil)
+        onCanvasLifecycle?(info, "removed")
         onCanvasCountChanged?()
     }
 
@@ -573,9 +574,10 @@ class CanvasManager {
             .map { $0.id }
         for id in toRemove {
             if let canvas = canvases.removeValue(forKey: id) {
+                let info = canvas.toInfo()
                 canvas.close()
                 abandonLifecycleCompletions(forCanvasID: id)
-                onCanvasLifecycle?(id, "removed", nil)
+                onCanvasLifecycle?(info, "removed")
             }
         }
         if !toRemove.isEmpty {
@@ -940,8 +942,7 @@ class CanvasManager {
         if hasAnchoredCanvases || autoMode != nil { startAnchorPolling() }
 
         onCanvasCountChanged?()
-        let at: [CGFloat] = [cgFrame.origin.x, cgFrame.origin.y, cgFrame.size.width, cgFrame.size.height]
-        onCanvasLifecycle?(id, "created", at)
+        emitLifecycle(canvas, action: "created")
 
         return .ok()
     }
@@ -953,10 +954,13 @@ class CanvasManager {
         guard let canvas = canvases[id] else {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
+        var lifecycleDirty = false
 
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-            moveCanvas(canvas, to: newFrame)
+            if moveCanvas(canvas, to: newFrame) {
+                lifecycleDirty = false
+            }
             canvas.anchorWindowID = nil
             canvas.anchorChannelID = nil
             canvas.offset = nil
@@ -967,13 +971,16 @@ class CanvasManager {
                 return .fail("Unknown track target: \(trackStr)", code: "INVALID_TRACK")
             }
             canvas.trackTarget = (t == .none) ? nil : t
+            lifecycleDirty = true
 
             // Resolve new bounds from the target immediately so the retarget
             // is visible without waiting for the next topology-change event.
             if t == .union {
                 let bounds = allDisplaysBounds()
                 if bounds.width > 0 && bounds.height > 0 {
-                    moveCanvas(canvas, to: bounds)
+                    if moveCanvas(canvas, to: bounds) {
+                        lifecycleDirty = false
+                    }
                 }
             }
 
@@ -1036,6 +1043,7 @@ class CanvasManager {
         if let interactive = req.interactive {
             canvas.isInteractive = interactive
             canvas.window.ignoresMouseEvents = !interactive
+            lifecycleDirty = true
             // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
             // and whether sendEvent should activate on first click. Without
             // updating it, flipped-to-interactive canvases can receive mouse
@@ -1055,6 +1063,7 @@ class CanvasManager {
                 self?.removeByTTL(id)
             }
             canvas.setTTL(ttl > 0 ? ttl : nil)  // ttl=0 clears the TTL
+            lifecycleDirty = true
         }
 
         // --focus on update: the canvas is already loaded, so we can both
@@ -1069,6 +1078,10 @@ class CanvasManager {
             }
         }
 
+        if lifecycleDirty {
+            emitLifecycle(canvas, action: "updated")
+        }
+
         return .ok()
     }
 
@@ -1079,17 +1092,20 @@ class CanvasManager {
         guard let canvas = canvases.removeValue(forKey: id) else {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
+        let info = canvas.toInfo()
         canvas.close()
         abandonLifecycleCompletions(forCanvasID: id)
         if !hasAnchoredCanvases { stopAnchorPolling() }
         onCanvasCountChanged?()
-        onCanvasLifecycle?(id, "removed", nil)
+        onCanvasLifecycle?(info, "removed")
         return .ok()
     }
 
     private func handleRemoveAll() -> CanvasResponse {
-        let removedIds = Array(canvases.keys)
-        for (_, canvas) in canvases {
+        let removedCanvases = Array(canvases.values)
+        let removedInfos = removedCanvases.map { $0.toInfo() }
+        let removedIds = removedCanvases.map(\.id)
+        for canvas in removedCanvases {
             canvas.close()
         }
         canvases.removeAll()
@@ -1097,8 +1113,8 @@ class CanvasManager {
             abandonLifecycleCompletions(forCanvasID: id)
         }
         stopAnchorPolling()
-        for id in removedIds {
-            onCanvasLifecycle?(id, "removed", nil)
+        for info in removedInfos {
+            onCanvasLifecycle?(info, "removed")
         }
         onCanvasCountChanged?()
         return .ok()
@@ -1235,6 +1251,7 @@ class CanvasManager {
             guard let c = canvases[cid] else { continue }
             c.window.orderOut(nil)
             c.suspended = true
+            emitLifecycle(c, action: "updated")
         }
 
         // Phase 2: notify renderers (async, best-effort, no ACK needed)
@@ -1266,6 +1283,7 @@ class CanvasManager {
                 guard let c = self.canvases[cid] else { continue }
                 c.show()
                 c.suspended = false
+                self.emitLifecycle(c, action: "updated")
             }
             self.onCanvasCountChanged?()
         }

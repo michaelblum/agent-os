@@ -216,12 +216,13 @@ class UnifiedDaemon {
             self.broadcastEvent(service: "display", event: "canvas_message", data: data)
         }
 
-        canvasManager.onCanvasLifecycle = { [weak self] canvasID, action, at in
+        canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
-            self.updateSigilCanvasState(canvasID: canvasID, action: action, at: at)
+            self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
 
             // Drop event subscriptions when the canvas is gone.
             if action == "removed" {
+                let canvasID = canvasInfo.id
                 self.canvasSubscriptionLock.lock()
                 let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
                 let children = self.canvasChildren.removeValue(forKey: canvasID) ?? []
@@ -246,10 +247,12 @@ class UnifiedDaemon {
                        !childCanvas.cascadeFromParent {
                         // Orphan: detach parent but don't remove
                         childCanvas.parent = nil
+                        let orphanInfo = childCanvas.toInfo()
                         self.canvasSubscriptionLock.lock()
                         self.canvasCreatedBy.removeValue(forKey: child)
                         self.canvasSubscriptionLock.unlock()
                         fputs("[canvas-mut] orphaned child=\(child) (parent=\(canvasID) removed)\n", stderr)
+                        self.publishCanvasLifecycle(action: "updated", canvasInfo: orphanInfo)
                     } else {
                         let req = CanvasRequest(action: "remove", id: child)
                         _ = self.canvasManager.handle(req)
@@ -258,10 +261,6 @@ class UnifiedDaemon {
                 }
             }
 
-            var data: [String: Any] = ["canvas_id": canvasID, "action": action]
-            if let at = at { data["at"] = at }
-            self.broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
-            self.fanOutCanvasLifecycle(data)
         }
 
         canvasManager.onCanvasCountChanged = { [weak self] in
@@ -373,6 +372,43 @@ class UnifiedDaemon {
                 }
             }
         }
+    }
+
+    private func encodedObject<T: Encodable>(_ value: T) -> [String: Any]? {
+        guard let data = try? JSONEncoder().encode(value),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object
+    }
+
+    private func canvasLifecyclePayload(action: String, canvasInfo: CanvasInfo) -> [String: Any]? {
+        guard var canvas = encodedObject(canvasInfo) else { return nil }
+
+        canvas["id"] = canvasInfo.id
+        canvas["at"] = canvasInfo.at
+
+        var payload: [String: Any] = [
+            "canvas_id": canvasInfo.id,
+            "action": action,
+            "at": canvasInfo.at,
+            "interactive": canvasInfo.interactive,
+            "canvas": canvas,
+        ]
+        if let parent = canvasInfo.parent { payload["parent"] = parent }
+        if let track = canvasInfo.track { payload["track"] = track }
+        if let scope = canvasInfo.scope { payload["scope"] = scope }
+        if let ttl = canvasInfo.ttl { payload["ttl"] = ttl }
+        if let cascade = canvasInfo.cascade { payload["cascade"] = cascade }
+        if let suspended = canvasInfo.suspended { payload["suspended"] = suspended }
+        return payload
+    }
+
+    private func publishCanvasLifecycle(action: String, canvasInfo: CanvasInfo) {
+        updateSigilCanvasState(canvasID: canvasInfo.id, action: action, at: canvasInfo.at)
+        guard let data = canvasLifecyclePayload(action: action, canvasInfo: canvasInfo) else { return }
+        broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
+        fanOutCanvasLifecycle(data)
     }
 
     private func subscriptionEvents(from payload: [String: Any]?) -> [String] {
@@ -513,12 +549,8 @@ class UnifiedDaemon {
     private func broadcastCanvasLifecycleSnapshot(to specificCanvas: String) {
         let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
         for info in infos {
-            let payload: [String: Any] = [
-                "type": "canvas_lifecycle",
-                "canvas_id": info.id,
-                "action": "created",
-                "at": info.at
-            ]
+            guard var payload = canvasLifecyclePayload(action: "created", canvasInfo: info) else { continue }
+            payload["type"] = "canvas_lifecycle"
             canvasManager.postMessageAsync(canvasID: specificCanvas, payload: payload)
         }
     }
@@ -636,6 +668,8 @@ class UnifiedDaemon {
 
         let resolvedURL = resolveContentURL(url)
 
+        let resolvedParent = (payload["parent"] as? String) ?? callerID
+
         let req = CanvasRequest(
             action: "create",
             id: newID,
@@ -646,7 +680,7 @@ class UnifiedDaemon {
             focus: payload["focus"] as? Bool, ttl: nil, js: nil, scope: nil,
             autoProject: nil,
             track: payload["track"] as? String,
-            parent: payload["parent"] as? String,
+            parent: resolvedParent,
             cascade: payload["cascade"] as? Bool,
             channel: nil, data: nil
         )
@@ -655,11 +689,6 @@ class UnifiedDaemon {
             guard let self = self else { return }
             let response = self.canvasManager.handle(req)
             if response.status == "success" {
-                // Set implicit parent if CanvasManager didn't set an explicit one
-                if let canvas = self.canvasManager.canvas(forID: newID), canvas.parent == nil {
-                    canvas.parent = callerID
-                }
-
                 self.canvasSubscriptionLock.lock()
                 self.canvasCreatedBy[newID] = callerID
                 var siblings = self.canvasChildren[callerID] ?? []
@@ -1801,11 +1830,12 @@ class UnifiedDaemon {
             if requested.contains("canvas_lifecycle") {
                 let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
                 for info in infos {
+                    guard let data = canvasLifecyclePayload(action: "created", canvasInfo: info) else { continue }
                     sendSnapshotEvent(
                         to: fd,
                         service: "display",
                         event: "canvas_lifecycle",
-                        data: ["canvas_id": info.id, "action": "created", "at": info.at]
+                        data: data
                     )
                 }
             }

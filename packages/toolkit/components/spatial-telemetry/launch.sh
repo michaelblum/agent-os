@@ -1,5 +1,5 @@
 #!/bin/bash
-# launch.sh — create the spatial telemetry surface and seed it with bootstrap state.
+# launch.sh — create the spatial telemetry surface and wait for subscribe snapshots.
 
 set -euo pipefail
 
@@ -60,30 +60,8 @@ $AOS show create --id "$CANVAS_ID" \
 wait_for_eval 'typeof window.__spatialTelemetryState === "object"' \
   || { echo "FAIL: spatial telemetry canvas did not initialize" >&2; exit 1; }
 
-BOOTSTRAP_JSON=$(AOS_BIN="$AOS" python3 - <<'PY'
-import json
-import os
-import subprocess
-
-aos = os.environ["AOS_BIN"]
-displays = json.loads(subprocess.check_output([aos, "graph", "displays", "--json"], text=True))
-canvases = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True))
-cursor = json.loads(subprocess.check_output([aos, "see", "cursor", "--json"], text=True))
-payload = {
-    "type": "bootstrap",
-    "payload": {
-        "displays": displays.get("data", {}).get("displays", displays.get("displays", displays if isinstance(displays, list) else [])),
-        "canvases": canvases.get("canvases", []),
-        "cursor": cursor.get("cursor"),
-    },
-}
-print(json.dumps(payload))
-PY
-)
-
-$AOS show post --id "$CANVAS_ID" --event "$BOOTSTRAP_JSON" >/dev/null
 wait_for_eval '!!window.__spatialTelemetryState?.snapshot?.displayRows?.length && !!window.__spatialTelemetryState?.snapshot?.canvasRows?.length' \
-  || { echo "FAIL: spatial telemetry bootstrap did not populate snapshot" >&2; exit 1; }
+  || { echo "FAIL: spatial telemetry subscribe snapshots did not populate state" >&2; exit 1; }
 
 echo "Spatial telemetry launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-left of the main display's visible bounds for operator convenience only"
 echo "Use ./aos show eval --id ${CANVAS_ID} --js 'JSON.stringify(window.__spatialTelemetryState?.snapshot)' for machine-readable state."

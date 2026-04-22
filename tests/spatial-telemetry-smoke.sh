@@ -46,10 +46,10 @@ snapshot = json.loads(payload["result"])
 
 canvas_ids = [row["id"] for row in snapshot["canvasRows"]]
 if "spatial-telemetry" not in canvas_ids or "demo-canvas" not in canvas_ids:
-    raise SystemExit("FAIL: bootstrap snapshot is missing expected canvases")
+    raise SystemExit("FAIL: subscribe snapshots are missing expected canvases")
 
 if not snapshot["displayRows"]:
-    raise SystemExit("FAIL: bootstrap snapshot is missing displays")
+    raise SystemExit("FAIL: subscribe snapshots are missing displays")
 PY
 
 ./aos show post --id spatial-telemetry --event '{"type":"input_event","payload":{"type":"mouse_move","x":140,"y":170}}' >/dev/null
@@ -67,7 +67,8 @@ state = json.loads(payload["result"])
 snapshot = state["snapshot"]
 
 cursor = snapshot["cursorRow"]
-if cursor is None or round(cursor["globalPoint"]["x"]) != 140 or round(cursor["globalPoint"]["y"]) != 170:
+per_display_points = list((cursor or {}).get("perDisplay", {}).values())
+if cursor is None or not any(round(point["x"]) == 140 and round(point["y"]) == 170 for point in per_display_points):
     raise SystemExit(f"FAIL: cursor row did not update from input_event: {cursor}")
 
 marks = snapshot["markRows"]

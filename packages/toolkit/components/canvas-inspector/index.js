@@ -10,6 +10,7 @@
 
 import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'
+import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
@@ -484,19 +485,26 @@ export default function CanvasInspector() {
   }
 
   function applyLifecycle(data) {
-    const { canvas_id, action, at } = data
-    if (action === 'created' || action === 'updated') {
-      const existing = canvases.find(c => c.id === canvas_id)
-      if (existing) {
-        if (at) existing.at = at
-      } else {
-        canvases.push({ id: canvas_id, at: at || [0, 0, 0, 0], interactive: false })
-      }
-    } else if (action === 'removed') {
-      canvases = canvases.filter(c => c.id !== canvas_id)
-      tintedIds.delete(canvas_id)
-      tintMap.delete(canvas_id)
-      evictCanvas(marksState, canvas_id)
+    const id = canvasLifecycleCanvasID(data)
+    if (!id) return
+
+    if (data.action === 'removed') {
+      canvases = canvases.filter(c => c.id !== id)
+      tintedIds.delete(id)
+      tintMap.delete(id)
+      evictCanvas(marksState, id)
+      return
+    }
+
+    const existing = canvases.find(c => c.id === id) || null
+    const next = mergeCanvasLifecycleCanvas(existing, data)
+    if (!next) return
+
+    const existingIndex = canvases.findIndex(c => c.id === id)
+    if (existingIndex >= 0) {
+      canvases[existingIndex] = next
+    } else {
+      canvases.push(next)
     }
   }
 

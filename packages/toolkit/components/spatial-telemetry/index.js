@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js';
+import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js';
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js';
 import { normalizeMarks } from '../canvas-inspector/marks/normalize.js';
 import { createMarksState, applySnapshot, evictCanvas } from '../canvas-inspector/marks/reconcile.js';
@@ -197,23 +198,18 @@ export default function SpatialTelemetry() {
   }
 
   function applyLifecycle(data) {
-    const id = data.canvas_id || data.id;
+    const id = canvasLifecycleCanvasID(data);
     if (!id) return;
     if (data.action === 'removed') {
       canvases = canvases.filter((canvas) => canvas.id !== id);
       evictCanvas(marksState, id);
       return;
     }
-    const next = {
-      ...(canvases.find((canvas) => canvas.id === id) || {}),
-      ...(data.canvas || {}),
-      id,
-      at: data.at || data.canvas?.at || (canvases.find((canvas) => canvas.id === id)?.at) || [0, 0, 0, 0],
-      parent: data.parent ?? data.canvas?.parent ?? null,
-      track: data.track ?? data.canvas?.track ?? null,
-      interactive: data.interactive ?? data.canvas?.interactive ?? false,
-      scope: data.scope ?? data.canvas?.scope ?? 'global',
-    };
+    const next = mergeCanvasLifecycleCanvas(
+      canvases.find((canvas) => canvas.id === id) || null,
+      data,
+    );
+    if (!next) return;
     const existingIndex = canvases.findIndex((canvas) => canvas.id === id);
     if (existingIndex >= 0) {
       canvases[existingIndex] = next;

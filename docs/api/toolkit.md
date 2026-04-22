@@ -374,6 +374,10 @@ Options:
   streams immediately after subscribing. Today that includes
   `display_geometry`, `canvas_lifecycle`, and `input_event` (replayed as the
   current cursor position).
+- `canvas_lifecycle` snapshots and live updates now share one rich payload
+  shape: top-level compatibility fields (`canvas_id`, `action`, `at`) plus
+  metadata such as `parent`, `track`, `interactive`, `scope`, and a nested
+  `canvas` object mirroring `aos show list`.
 
 ### `spawnChild(opts)`
 
