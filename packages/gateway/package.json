@@ -3,13 +3,17 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
-  "bin": { "aos-gateway": "dist/index.js" },
+  "bin": {
+    "aos-gateway": "dist/index.js",
+    "aos-gateway-doctor": "dist/doctor-cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "node --test --loader ts-node/esm test/*.test.ts",
     "start": "node dist/index.js",
-    "start:broker": "node dist/broker.js"
+    "start:broker": "node dist/broker.js",
+    "doctor": "node dist/doctor-cli.js"
   },
   "dependencies": {
     "@slack/bolt": "^4.2.1",
