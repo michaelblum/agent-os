@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CoordinationDB } from './db.js';
 import { loadGatewayEnv } from './env.js';
@@ -13,19 +13,48 @@ import {
 } from './integrations/catalog.js';
 import { startIntegrationHttpServer } from './integrations/http-api.js';
 import { SlackIntegrationProvider } from './integrations/providers/slack.js';
+import { createLogger } from './logger.js';
+import { detectMode } from './mode.js';
+import { migrateFromEnv } from './migrate.js';
+import { brokerPaths } from './paths.js';
+import { acquirePidLock, PeerAliveError, type PidLock } from './singleton.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageRoot = resolve(__dirname, '..');
-const repoRoot = resolve(__dirname, '..', '..', '..');
+const scriptPath = fileURLToPath(import.meta.url);
+const packageRoot = resolve(dirname(scriptPath), '..');
+const repoRoot = resolve(dirname(scriptPath), '..', '..', '..');
 
 loadGatewayEnv(packageRoot);
 
-const STATE_DIR = join(process.env.HOME ?? '.', '.config', 'aos-gateway');
-mkdirSync(STATE_DIR, { recursive: true });
+const mode = detectMode(scriptPath);
+const paths = brokerPaths(mode);
 
-const DB_PATH = join(STATE_DIR, 'gateway.db');
+const migrateResult = migrateFromEnv({ env: process.env, target: paths.stateDir });
+mkdirSync(paths.stateDir, { recursive: true });
 
-const db = new CoordinationDB(DB_PATH);
+const logger = createLogger({ logPath: paths.logPath });
+logger.info('broker starting', {
+  role: 'broker',
+  mode,
+  stateDir: paths.stateDir,
+  pidPath: paths.pidPath,
+  logPath: paths.logPath,
+  migrate: migrateResult,
+});
+
+let pidLock: PidLock | undefined;
+try {
+  pidLock = acquirePidLock(paths.pidPath);
+} catch (err: any) {
+  if (err instanceof PeerAliveError) {
+    logger.error('peer broker alive, exiting', { message: err.message });
+  } else {
+    logger.error('failed to acquire pidfile', { message: err.message });
+  }
+  logger.close();
+  process.exit(1);
+}
+
+const db = new CoordinationDB(paths.dbPath);
 const broker = new IntegrationBroker({
   db,
   repoRoot,
@@ -52,20 +81,19 @@ async function main() {
 
   await slackProvider.start();
 
-  console.error(`aos integration broker listening on ${http.url}`);
+  logger.info('integration broker listening', { url: http.url });
 
   const shutdown = async () => {
     await slackProvider.stop();
     await new Promise<void>((resolveClose, rejectClose) => {
       http.server.close((error) => {
-        if (error) {
-          rejectClose(error);
-          return;
-        }
+        if (error) { rejectClose(error); return; }
         resolveClose();
       });
     }).catch(() => undefined);
     db.close();
+    try { pidLock?.release(); } catch {}
+    try { logger.close(); } catch {}
     process.exit(0);
   };
 
