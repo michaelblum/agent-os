@@ -515,32 +515,62 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     ]))
 
     // ── voice ─────────────────────────────────────────────
-    reg.append(CommandDescriptor(path: ["voice"], summary: "Voice system — inspect the curated session voice bank and active leases", forms: [
-        InvocationForm(id: "voice-list", usage: "aos voice list",
+    reg.append(CommandDescriptor(path: ["voice"], summary: "Voice system — inspect the registry-backed catalog, assignments, providers, and speech ingress", forms: [
+        InvocationForm(id: "voice-list", usage: "aos voice list [--provider <name>] [--speakable-only]",
             args: [
-                pos("list", "List the curated session voice bank", required: false)
+                pos("list", "List discovered voices from the registry", required: false),
+                flag("provider", "--provider", "Filter to one provider name"),
+                flag("speakable-only", "--speakable-only", "Show only allocator-eligible voices", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
-            examples: ["aos voice list"]),
+            examples: [
+                "aos voice list",
+                "aos voice list --provider system",
+                "aos voice list --speakable-only"
+            ]),
+        InvocationForm(id: "voice-assignments", usage: "aos voice assignments",
+            args: [
+                pos("assignments", "List session-centric voice assignments", required: false)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos voice assignments"]),
         InvocationForm(id: "voice-leases", usage: "aos voice leases",
             args: [
-                pos("leases", "List active session voice leases", required: false)
+                pos("leases", "Deprecated alias for `aos voice assignments`", required: false)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
             output: outJSON,
             examples: ["aos voice leases"]),
-        InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> --voice <voice-id>",
+        InvocationForm(id: "voice-refresh", usage: "aos voice refresh",
             args: [
-                flag("session-id", "--session-id", "Canonical session id", required: true),
-                flag("voice", "--voice", "Voice identifier from `aos voice list`", required: true)
+                pos("refresh", "Re-enumerate voices and reseed allocator order", required: false)
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice com.apple.voice.enhanced.en-US.Evan"]),
+            examples: ["aos voice refresh"]),
+        InvocationForm(id: "voice-providers", usage: "aos voice providers",
+            args: [
+                pos("providers", "List voice providers with availability and voice counts", required: false)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(daemon: true),
+            output: outJSON,
+            examples: ["aos voice providers"]),
+        InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> --voice <voice-id>",
+            args: [
+                flag("session-id", "--session-id", "Canonical session id", required: true),
+                flag("voice", "--voice", "Voice identifier from `aos voice list` (URI or bare id)", required: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan"]),
         InvocationForm(id: "voice-final-response", usage: "aos voice final-response [--session-id <id>] [--harness <name>]",
             args: [
                 pos("final-response", "Relay a harness final-response event into the daemon speech system", required: false),
