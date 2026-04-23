@@ -3155,6 +3155,62 @@ grep -rn "SpeechEngine\.availableVoice\b\|SpeechEngine\.qualityTier\b\|SpeechEng
 
 Expected: no matches anywhere.
 
+**Step 5d: Move `VoicePolicyWatcher.start()` ahead of socket bind**
+
+Independently of the route-fallback lift in Steps 5a/5b, the daemon's
+existing watcher-init sequence has a startup-readiness race that the
+T28 test exposes under suite load. `aos_test_wait_for_socket` returns
+as soon as the socket is reachable — but in the original ordering the
+watcher block sits well after socket bind/listen (currently at lines
+356-362 in the late-start segment, between `configWatcher.start()`
+and the speech-init block). When a test races past `wait_for_socket`
+and immediately rewrites `policy.json` (via the atomic `cat > tmp; mv
+tmp policy.json` pattern Bundle 4 settled), both directory NOTE_WRITE
+events can fire on a non-attached parent-dir fd and be dropped
+permanently. The watcher attaches a few microseconds later and never
+sees the rewrite.
+
+Standalone runs never trip this — the post-`wait_for_socket` test
+window is microseconds. Suite load widens dispatch latency on the
+daemon side (other tests' isolated daemons just exited, fs activity
+in flight, scheduler under contention) and the race surfaces as
+voice-policy-reload.sh failing on rewrite #1 with `got=True
+want=False`. The poll-with-timeout hotfix in commit `9fb73d8` only
+helps the orthogonal "watcher fired but propagation slow" case;
+events the watcher never receives can never propagate.
+
+Edit `src/daemon/unified.swift` and move this block from its current
+location (just after `configWatcher.start()`):
+
+```swift
+let policyWatcher = VoicePolicyWatcher(store: coordination.voicePolicyStore)
+policyWatcher.onChange = { [weak self] policy in
+    guard let self else { return }
+    self.coordination.handlePolicyReload(policy)
+}
+policyWatcher.start()
+voicePolicyWatcher = policyWatcher
+```
+
+…to immediately after `unlink(socketPath)` and before the
+`serverFD = socket(AF_UNIX, ...)` call. By the time the socket is
+bound and `listen()` returns, the watcher fd is attached and the
+DispatchSource is live. The race window collapses to zero.
+
+Structural safety:
+- `VoicePolicyWatcher.start()` opens a parent-directory `O_EVTONLY`
+  fd, attaches a DispatchSource, and (if the file is missing) writes
+  an empty policy. No socket/IPC dependency, no other startup-step
+  dependency.
+- The `onChange` callback enters `coordination.handlePolicyReload`,
+  which is a fully-initialized stored property at this point in
+  `start()` (constructed before `start()` is called).
+- The reorder is a startup-timing change only. Runtime behavior on
+  established connections is identical.
+
+Verification: `bash tests/voice-policy-reload.sh` passes both
+standalone AND in-suite (Step 7 below).
+
 - [ ] **Step 6: Build**
 
 ```bash
