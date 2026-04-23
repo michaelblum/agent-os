@@ -11,6 +11,12 @@ class CoordinationBus {
     private let sessionsPath: String
     private let voiceAssignmentsPath: String
     private let sessionExpiryInterval: TimeInterval
+    // Internal (not private) so the daemon can hand the same store instance to
+    // VoicePolicyWatcher; reload() then invalidates the cache that VoiceRegistry
+    // reads through. See Task 11 / Task 17 for the cross-instance constraint.
+    let voicePolicyStore: VoicePolicyStore
+    private let voiceRegistry: VoiceRegistry
+    private let voiceAllocator: VoiceAllocator
 
     // Sessions: canonical session_id → SessionInfo
     private var sessions: [String: SessionInfo] = [:]
@@ -30,13 +36,21 @@ class CoordinationBus {
     init(
         sessionsPath: String = aosCoordinationSessionsPath(),
         voiceAssignmentsPath: String = aosVoiceAssignmentsPath(),
+        voicePolicyStore: VoicePolicyStore = VoicePolicyStore(),
+        voiceRegistry: VoiceRegistry? = nil,
+        voiceAllocator: VoiceAllocator = VoiceAllocator(),
         sessionExpiryInterval: TimeInterval = 24 * 60 * 60
     ) {
         self.sessionsPath = sessionsPath
         self.voiceAssignmentsPath = voiceAssignmentsPath
+        self.voicePolicyStore = voicePolicyStore
+        self.voiceRegistry = voiceRegistry ?? VoiceRegistry(policyLoader: { voicePolicyStore.load() })
+        self.voiceAllocator = voiceAllocator
         self.sessionExpiryInterval = sessionExpiryInterval
+        voicePolicyStore.migrateLegacyAssignmentsIfNeeded()
         restoreVoiceAssignments()
         restoreSessionsSnapshot()
+        seedAllocatorAfterRestore()
         pruneExpiredSessionsLocked()
         persistSessionsLocked()
         persistVoiceAssignmentsLocked()
@@ -355,6 +369,26 @@ class CoordinationBus {
             return nil
         }
         return trimmed
+    }
+
+    private func seedAllocatorAfterRestore() {
+        let allocatableURIs = voiceRegistry.allocatableSnapshot().map { $0.id }
+        voiceAllocator.seed(uris: allocatableURIs)
+        // Spec Section 5: restore order is (registered_at ASC, session_id ASC).
+        // Tiebreak on sessionID keeps reseed deterministic when two sessions
+        // share a timestamp (common in fixture data + fast bulk registration).
+        let restored = sessions
+            .compactMap { (sid, info) -> (sessionID: String, voiceURI: String, registeredAt: Date)? in
+                guard let voice = info.voice else { return nil }
+                return (sessionID: sid, voiceURI: voice.id, registeredAt: info.registeredAt)
+            }
+            .sorted {
+                if $0.registeredAt != $1.registeredAt { return $0.registeredAt < $1.registeredAt }
+                return $0.sessionID < $1.sessionID
+            }
+        for entry in restored {
+            voiceAllocator.markUsed(VoiceID.canonicalize(entry.voiceURI))
+        }
     }
 
     private func persistSessionsLocked() {
