@@ -287,39 +287,76 @@ aos say --list-voices
 
 ## `aos voice`
 
-Inspect the curated session voice bank and the active one-session-per-voice leases:
+Inspect the registry-backed session voice catalog, provider availability, live
+assignments, and final-response ingress:
 
 ```bash
-aos voice list
+aos voice list [--provider <name>] [--speakable-only]
+aos voice assignments
 aos voice leases
 aos voice bind --session-id <id> --voice <voice-id>
+aos voice refresh
+aos voice providers
 printf '%s' "$HOOK_JSON" | aos voice final-response --harness codex --session-id <id>
 ```
 
-`aos voice list` returns the high-quality voice bank that agent-os will lease to
-live sessions. Each entry includes:
+`aos voice` is backed by a provider-pluggable `VoiceRegistry`. The default
+catalog includes:
 
-- `provider`
-- `id`
-- `name`
-- `locale`
-- `gender`
-- `quality_tier`
-- optional `assigned_session_ids`
-- optional `lease_session_ids`
+- `system` — local `NSSpeechSynthesizer` voices
+- `elevenlabs` — a catalog-only stub provider used for selection, validation,
+  and future remote synthesis wiring
 
-Agent-os persists a durable `session_id -> voice_id` mapping under
-`~/.config/aos/{mode}/coordination/voice-assignments.json`. New sessions are
-assigned in round-robin order across the curated bank, wrapping when the bank is
-exhausted. If a session id already has a stored assignment, that voice is reused
-when the session returns.
+Session allocation is best-effort variety pressure, not exclusivity. The daemon
+uses a rotation + cooldown allocator that prefers recently-unused voices while
+still allowing reuse once the pool wraps. There is no `--share` override
+because the allocator already treats voices as reusable rather than
+single-holder leases.
 
-`aos voice leases` returns only the active session assignments.
-`aos voice bind` reassigns a live session to a specific voice from the curated bank and updates the durable mapping.
-`aos voice final-response` is the daemon-owned ingress for harness final-response
-events; it resolves the final assistant text, applies the configured
-`final_response` speech policy, and speaks with the session's leased voice while
-keeping the daemon's voice-cancel controls active.
+Voice identifiers are canonical URIs of the form
+`voice://<provider>/<provider_voice_id>`. Commands accept either URI form or
+legacy bare ids on input; responses emit canonical URIs for descriptor `id`
+while keeping `provider_voice_id` as the provider-native suffix.
+
+`aos voice list` returns the current registry snapshot. Use `--provider` to
+filter to one provider and `--speakable-only` to drop catalog-only entries that
+cannot currently synthesize. Records include provider metadata, canonical `id`,
+provider-native `provider_voice_id`, availability, capabilities, locale, and
+quality tier.
+
+`aos voice assignments` returns the active session-centric assignments. `aos
+voice leases` remains as a deprecated alias for compatibility, but the command
+surface and JSON schema are now assignment-oriented rather than exclusive
+lease-oriented.
+
+`aos voice bind` stores a preferred voice for a live session and immediately
+rebiases allocation away from that voice for the next fresh session. Bind
+failures return one of three machine codes:
+
+- `VOICE_NOT_FOUND`
+- `VOICE_NOT_SPEAKABLE`
+- `VOICE_NOT_ALLOCATABLE`
+
+`aos voice refresh` forces a fresh provider enumeration. `aos voice providers`
+lists provider reachability, policy enablement, rank, and voice counts.
+
+Voice policy lives at `~/.config/aos/{mode}/voice/policy.json` and is split
+into four sections:
+
+- `providers` — per-provider enable/disable gates
+- `voices.disabled` — canonical voice ids to suppress from allocation
+- `voices.promote` — canonical voice ids to sort ahead of their natural order
+- `session_preferences` — durable `session_id -> voice_uri` bindings
+
+On first use, the daemon performs a one-shot migration from the legacy
+`~/.config/aos/{mode}/coordination/voice-assignments.json` file into
+`voice/policy.json`. Successful migrations rename the old file to
+`voice-assignments.json.migrated` for forensics.
+
+`aos voice final-response` is unchanged as the daemon-owned ingress for harness
+final-response events. It resolves the final assistant text, applies the
+configured `final_response` speech policy, and routes speech through the
+session's assigned voice while keeping daemon cancel controls active.
 
 Voice deliveries and final-response ingress failures append local JSONL records to
 `~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
