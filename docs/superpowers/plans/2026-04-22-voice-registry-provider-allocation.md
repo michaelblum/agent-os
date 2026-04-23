@@ -3265,7 +3265,27 @@ Expected: all `ok`/exit 0.
 ```bash
 grep -rn "SessionVoiceBank\|nextVoiceAssignmentIndex\|voice-assignments.json" src/ shared/ | grep -v "tests/" | grep -v ".migrated"
 ```
-Expected: empty (or only internal-test fixture strings).
+
+Expected hits — exactly two, both inside `VoicePolicyStore`'s
+intentionally-retained `migrateLegacyAssignmentsIfNeeded()` extension
+(introduced by Task 10 and confirmed canonical by Task 35 Step 4a's
+inlined literal):
+
+```
+src/voice/policy.swift:<line>:    /// One-shot: voice-assignments.json (bare ids) → voice/policy.json session_preferences (URI form).
+src/voice/policy.swift:<line>:        let legacyPath = "\(aosCoordinationDir())/voice-assignments.json"
+```
+
+Both are required: the doc comment describes the one-shot migration
+contract, and the inlined literal is what Step 4a put in place when
+`aosVoiceAssignmentsPath()` was deleted in Step 4b. The migration
+shim is retained until installs are confidently past the cutover —
+removing the shim is out of scope for Issue #103.
+
+`SessionVoiceBank` and `nextVoiceAssignmentIndex` must NOT appear
+anywhere — they were the production targets of Tasks 35 and earlier.
+Any other `voice-assignments.json` hit outside the shim is a fresh
+finding and must be escalated.
 
 - [ ] **Step 3: Update Issue #103**
 
