@@ -38,8 +38,11 @@ func voiceCommand(args: [String]) {
         voiceInternalAllocatorTest(args: Array(args.dropFirst())); return
     case "list":
         response = voiceListEnvelope(args: Array(args.dropFirst()))
+    case "assignments":
+        response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
-        response = sendEnvelopeRequest(service: "voice", action: "leases", data: [:], autoStartBinary: CommandLine.arguments[0])
+        FileHandle.standardError.write("Deprecation: aos voice leases is now aos voice assignments\n".data(using: .utf8)!)
+        response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "bind":
         response = voiceBindEnvelope(args: Array(args.dropFirst()))
     case "final-response":
