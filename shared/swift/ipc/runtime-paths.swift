@@ -150,6 +150,11 @@ func aosVoicePolicyPath(for mode: AOSRuntimeMode? = nil) -> String {
     return "\(aosStateDir(for: mode))/voice/policy.json"
 }
 
+@available(*, deprecated, message: "Used only by one-shot migration. Remove with shim.")
+func aosVoiceAssignmentsPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosCoordinationDir(for: mode))/voice-assignments.json"
+}
+
 func aosVoiceEventsPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/voice-events.jsonl"
 }

@@ -12,23 +12,8 @@ import Foundation
 func sayCommand(args: [String]) {
     // Handle --list-voices
     if args.contains("--list-voices") || args.contains("--voices") {
-        let store = VoicePolicyStore()
-        let registry = VoiceRegistry(policyLoader: { store.load() })
-        let records = registry.snapshot().filter { $0.provider == "system" }
-        let listed = records.map { rec -> [String: Any] in
-            return [
-                "provider": rec.provider,
-                "id": rec.provider_voice_id,
-                "name": rec.name,
-                "language": rec.locale ?? rec.language ?? "unknown",
-                "gender": rec.gender,
-                "quality_tier": rec.quality_tier
-            ]
-        }
-        if let data = try? JSONSerialization.data(withJSONObject: listed, options: [.sortedKeys]),
-           let string = String(data: data, encoding: .utf8) {
-            print(string)
-        }
+        let voices = SpeechEngine.availableVoices()
+        print(jsonString(voices))
         return
     }
 

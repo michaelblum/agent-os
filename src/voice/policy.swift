@@ -113,7 +113,7 @@ extension VoicePolicyStore {
     /// Idempotent: skips when target already populated OR when source already renamed to .migrated.
     @discardableResult
     func migrateLegacyAssignmentsIfNeeded() -> Bool {
-        let legacyPath = "\(aosCoordinationDir())/voice-assignments.json"
+        let legacyPath = aosVoiceAssignmentsPath()
         let fm = FileManager.default
         guard fm.fileExists(atPath: legacyPath) else { return false }
 

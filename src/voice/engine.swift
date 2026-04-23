@@ -69,6 +69,52 @@ class SpeechEngine: NSObject, NSSpeechSynthesizerDelegate {
         cb?()
     }
 
+    // MARK: - Voice Discovery
+
+    struct VoiceInfo: Encodable {
+        let provider: String
+        let id: String
+        let name: String
+        let language: String
+        let gender: String
+        let quality_tier: String
+    }
+
+    /// List all available voices on this system.
+    static func availableVoices() -> [VoiceInfo] {
+        let load: () -> [VoiceInfo] = {
+            _ = NSApplication.shared
+            return NSSpeechSynthesizer.availableVoices.compactMap { voiceName in
+                let attrs = NSSpeechSynthesizer.attributes(forVoice: voiceName)
+                guard let name = attrs[.name] as? String else { return nil }
+                let lang = attrs[.localeIdentifier] as? String ?? "unknown"
+                let gender = attrs[.gender] as? String ?? "unknown"
+                let voiceID = voiceName.rawValue
+                return VoiceInfo(
+                    provider: "system",
+                    id: voiceID,
+                    name: name,
+                    language: lang,
+                    gender: gender == "VoiceGenderMale" ? "male" : gender == "VoiceGenderFemale" ? "female" : "neutral",
+                    quality_tier: qualityTier(forVoiceID: voiceID)
+                )
+            }
+        }
+        if Thread.isMainThread {
+            return load()
+        }
+
+        var voices: [VoiceInfo] = []
+        DispatchQueue.main.sync {
+            voices = load()
+        }
+        return voices
+    }
+
+    static func availableVoice(id: String) -> VoiceInfo? {
+        availableVoices().first { $0.id == id }
+    }
+
     /// Get the default voice identifier.
     static var defaultVoiceID: String {
         NSSpeechSynthesizer.defaultVoice.rawValue
@@ -79,18 +125,17 @@ class SpeechEngine: NSObject, NSSpeechSynthesizerDelegate {
         if !systemDefault.isEmpty {
             return systemDefault
         }
-        let load: () -> String = {
-            _ = NSApplication.shared
-            return NSSpeechSynthesizer.availableVoices.first?.rawValue ?? ""
-        }
-        if Thread.isMainThread {
-            return load()
-        }
+        return availableVoices().first?.id ?? ""
+    }
 
-        var voiceID = ""
-        DispatchQueue.main.sync {
-            voiceID = load()
+    static func qualityTier(forVoiceID voiceID: String) -> String {
+        let lower = voiceID.lowercased()
+        if lower.contains(".premium.") || lower.contains("_premium") {
+            return "premium"
         }
-        return voiceID
+        if lower.contains(".enhanced.") || lower.contains("_enhanced") {
+            return "enhanced"
+        }
+        return "standard"
     }
 }

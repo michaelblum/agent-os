@@ -115,14 +115,6 @@ class UnifiedDaemon {
 
         unlink(socketPath)
 
-        let policyWatcher = VoicePolicyWatcher(store: coordination.voicePolicyStore)
-        policyWatcher.onChange = { [weak self] policy in
-            guard let self else { return }
-            self.coordination.handlePolicyReload(policy)
-        }
-        policyWatcher.start()
-        voicePolicyWatcher = policyWatcher
-
         serverFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard serverFD >= 0 else { exitError("socket() failed: \(errno)", code: "SOCKET_ERROR") }
         _ = disableSigPipe(serverFD)
@@ -360,6 +352,14 @@ class UnifiedDaemon {
             self.onConfigChanged(old: oldConfig, new: newConfig)
         }
         configWatcher.start()
+
+        let policyWatcher = VoicePolicyWatcher(store: coordination.voicePolicyStore)
+        policyWatcher.onChange = { [weak self] policy in
+            guard let self else { return }
+            self.coordination.handlePolicyReload(policy)
+        }
+        policyWatcher.start()
+        voicePolicyWatcher = policyWatcher
 
         // Initialize voice if enabled
         if currentConfig.voice.enabled {
@@ -1656,8 +1656,8 @@ class UnifiedDaemon {
         }
         if let sessionVoice {
             route["voice"] = sessionVoice
-        } else if let record = coordination.voiceLookup(id: voiceID) {
-            route["voice"] = SessionVoiceDescriptor(record: record).dictionary()
+        } else if let discovered = SpeechEngine.availableVoice(id: voiceID) {
+            route["voice"] = SessionVoiceDescriptor(voiceInfo: discovered).dictionary()
         } else {
             route["voice"] = SessionVoiceDescriptor(
                 provider: "system",
@@ -1665,7 +1665,7 @@ class UnifiedDaemon {
                 name: voiceID,
                 locale: "unknown",
                 gender: "unknown",
-                quality_tier: "unknown",
+                quality_tier: SpeechEngine.qualityTier(forVoiceID: voiceID),
                 available: false
             ).dictionary()
         }

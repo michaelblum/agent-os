@@ -273,11 +273,6 @@ class CoordinationBus {
         return voiceRegistry.providersInfo().map { $0.dictionary() }
     }
 
-    func voiceLookup(id: String) -> VoiceRecord? {
-        let canonical = VoiceID.canonicalize(id)
-        return voiceRegistry.lookup(canonical)
-    }
-
     func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
         lock.lock()
         defer { lock.unlock() }
