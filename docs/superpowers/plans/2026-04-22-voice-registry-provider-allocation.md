@@ -40,8 +40,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
+# Each ./aos voice _internal-* call is wrapped in `|| true` so that a
+# non-zero exit (including "unknown subcommand" during the red phase)
+# does NOT abort the script before the assertion below it can fire.
+# Without this, `set -euo pipefail` short-circuits the assignment and
+# the script exits 1 with no diagnostic — defeating the whole point
+# of having a FAIL message per assertion.
+
 # Round-trip make/parse via voice-id-roundtrip helper baked into ./aos for tests.
-out=$(./aos voice _internal-id-roundtrip --provider system --suffix com.apple.voice.premium.en-US.Ava 2>&1)
+out=$(./aos voice _internal-id-roundtrip --provider system --suffix com.apple.voice.premium.en-US.Ava 2>&1 || true)
 expected="voice://system/com.apple.voice.premium.en-US.Ava|system|com.apple.voice.premium.en-US.Ava"
 if [[ "$out" != "$expected" ]]; then
   echo "FAIL: round-trip mismatch: got=$out want=$expected" >&2
@@ -49,21 +56,21 @@ if [[ "$out" != "$expected" ]]; then
 fi
 
 # Different providers, same suffix → distinct URIs.
-a=$(./aos voice _internal-id-roundtrip --provider system --suffix shared-id 2>&1 | cut -d'|' -f1)
-b=$(./aos voice _internal-id-roundtrip --provider elevenlabs --suffix shared-id 2>&1 | cut -d'|' -f1)
-[[ "$a" != "$b" ]] || { echo "FAIL: collision across providers" >&2; exit 1; }
+a=$( { ./aos voice _internal-id-roundtrip --provider system --suffix shared-id 2>&1 || true; } | cut -d'|' -f1)
+b=$( { ./aos voice _internal-id-roundtrip --provider elevenlabs --suffix shared-id 2>&1 || true; } | cut -d'|' -f1)
+[[ "$a" != "$b" ]] || { echo "FAIL: collision across providers (a=$a b=$b)" >&2; exit 1; }
 
 # Bare id → canonicalize upgrades to system URI.
-got=$(./aos voice _internal-canonicalize --id com.apple.voice.premium.en-US.Ava 2>&1)
+got=$(./aos voice _internal-canonicalize --id com.apple.voice.premium.en-US.Ava 2>&1 || true)
 want="voice://system/com.apple.voice.premium.en-US.Ava"
 [[ "$got" == "$want" ]] || { echo "FAIL: canonicalize bare id: got=$got want=$want" >&2; exit 1; }
 
 # Already-canonical → unchanged.
-got=$(./aos voice _internal-canonicalize --id voice://elevenlabs/abc 2>&1)
-[[ "$got" == "voice://elevenlabs/abc" ]] || { echo "FAIL: canonicalize URI passthrough" >&2; exit 1; }
+got=$(./aos voice _internal-canonicalize --id voice://elevenlabs/abc 2>&1 || true)
+[[ "$got" == "voice://elevenlabs/abc" ]] || { echo "FAIL: canonicalize URI passthrough: got=$got" >&2; exit 1; }
 
 # Suffix containing slash survives round-trip.
-out=$(./aos voice _internal-id-roundtrip --provider system --suffix "with/slash" 2>&1)
+out=$(./aos voice _internal-id-roundtrip --provider system --suffix "with/slash" 2>&1 || true)
 expected="voice://system/with/slash|system|with/slash"
 [[ "$out" == "$expected" ]] || { echo "FAIL: suffix-with-slash: got=$out want=$expected" >&2; exit 1; }
 
@@ -83,7 +90,16 @@ chmod +x tests/voice-id-canonicalization.sh
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bash tests/voice-id-canonicalization.sh`
-Expected: FAIL with "Unknown voice command: _internal-id-roundtrip" or similar.
+Expected exit code: 1.
+Expected stderr: a `FAIL: round-trip mismatch:` line whose `got=`
+half contains whatever the current `./aos voice` command emits for
+an unknown subcommand (typically `Unknown voice command:
+_internal-id-roundtrip` or the voice usage banner). The exact
+`got=` text is not asserted — what matters is that the script
+reaches the FIRST assertion and prints its FAIL line. If the
+script exits 1 with empty stderr, the `|| true` guards in Step 1
+are missing or `set -euo pipefail` aborted earlier than expected;
+re-check Step 1 before proceeding.
 
 - [ ] **Step 3: Implement `VoiceID` enum**
 
