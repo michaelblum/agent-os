@@ -2991,11 +2991,30 @@ git commit -m "docs(arch): voice row notes registry-backed, provider-pluggable"
 - Modify: `src/voice/session-voice.swift`
 - Modify: `src/voice/engine.swift`
 - Modify: `src/voice/say.swift`
+- Modify: `src/daemon/coordination.swift`
+- Modify: `src/daemon/unified.swift`
 - Modify: `shared/swift/ipc/runtime-paths.swift`
 
-- [ ] **Step 1: Delete `SessionVoiceBank` enum entirely**
+> **Audit note (added in plan patch):** the original file list omitted
+> `src/daemon/unified.swift` and `src/daemon/coordination.swift`. The
+> daemon's `routeForHumanAudience` calls `SpeechEngine.availableVoice(id:)`
+> and `SpeechEngine.qualityTier(forVoiceID:)`, and constructs a
+> `SessionVoiceDescriptor` via the `init(voiceInfo:)` initializer. All three
+> dependencies disappear in Steps 1+2, so the daemon must be lifted onto
+> the registry first (Step 5 below). Verify the call surface before
+> editing:
+>
+> ```bash
+> grep -rn "SpeechEngine\.availableVoice\b\|SpeechEngine\.qualityTier\b\|SpeechEngine\.VoiceInfo\b\|SessionVoiceDescriptor(voiceInfo:" src/ shared/
+> ```
+> Expected: only the four sites this task replaces — three in unified.swift,
+> one in session-voice.swift (the dead initializer itself).
+
+- [ ] **Step 1: Delete `SessionVoiceBank` enum and the `init(voiceInfo:)` initializer**
 
 Remove the entire `enum SessionVoiceBank { ... }` block from `src/voice/session-voice.swift`.
+
+Also remove the `init(voiceInfo: SpeechEngine.VoiceInfo, ...)` initializer on `SessionVoiceDescriptor` (the surrounding struct retains its other initializers — `init(provider:id:...)` and `init(record:)`). The `voiceInfo` initializer depends on the `SpeechEngine.VoiceInfo` type that Step 2 deletes.
 
 - [ ] **Step 2: Delete `SpeechEngine.VoiceInfo`, `availableVoice(id:)`, `qualityTier(forVoiceID:)`**
 
@@ -3036,14 +3055,65 @@ grep -rn "aosVoiceAssignmentsPath\|voice-assignments.json" src/ shared/ tests/
 
 `tests/voice-migration.sh` references the literal path — that's fine, it's testing the legacy file. Production references should be zero.
 
-- [ ] **Step 5: Build**
+- [ ] **Step 5: Lift the daemon's voice-route fallback onto the registry**
+
+The daemon `routeForHumanAudience` path used `SpeechEngine.availableVoice(id:)` to discover the configured/default voice and `SpeechEngine.qualityTier(forVoiceID:)` to compute its quality tier. Both vanish in Step 2.
+
+The replacement uses `coordination.voiceRegistry`, which is the live, watcher-fed registry the daemon already owns — do NOT spin up a fresh `VoiceRegistry`. Add a thin lookup wrapper to `coordination.swift` and switch `unified.swift` to it.
+
+**Step 5a: Add `voiceLookup(id:)` to `Coordination`**
+
+Edit `src/daemon/coordination.swift` and add this method anywhere among the other voice methods (e.g. after `voiceProviders()` near line 273):
+
+```swift
+func voiceLookup(id: String) -> VoiceRecord? {
+    let canonical = VoiceID.canonicalize(id)
+    return voiceRegistry.lookup(canonical)
+}
+```
+
+`VoiceID.canonicalize` already handles bare-id → `voice://system/<id>` promotion, so callers can pass either form (matches the form `currentConfig.voice.voice` may contain).
+
+**Step 5b: Replace the `routeForHumanAudience` fallback in `unified.swift`**
+
+In `src/daemon/unified.swift`, locate the `else if let discovered = SpeechEngine.availableVoice(id: voiceID)` block (currently at lines 1659-1670) and replace it with:
+
+```swift
+} else if let record = coordination.voiceLookup(id: voiceID) {
+    route["voice"] = SessionVoiceDescriptor(record: record).dictionary()
+} else {
+    route["voice"] = SessionVoiceDescriptor(
+        provider: "system",
+        id: voiceID,
+        name: voiceID,
+        locale: "unknown",
+        gender: "unknown",
+        quality_tier: "unknown",
+        available: false
+    ).dictionary()
+}
+```
+
+The `quality_tier: "unknown"` literal in the unavailable-voice branch is a deliberate behavior change: the old `SpeechEngine.qualityTier(forVoiceID:)` heuristic inferred the tier from substrings in the bare voice id (e.g. `.premium.` → `"premium"`). With the registry as the source of truth, an unavailable voice has no provider context to derive a tier from — the honest answer is `"unknown"`. Available voices route through the `voiceLookup` branch above and continue to report the real tier the provider published.
+
+The surrounding context (`if let sessionVoice { ... }` branch and the trailing telemetry call) is unchanged.
+
+**Step 5c: Re-grep to confirm zero stragglers**
+
+```bash
+grep -rn "SpeechEngine\.availableVoice\b\|SpeechEngine\.qualityTier\b\|SpeechEngine\.VoiceInfo\b\|SessionVoiceDescriptor(voiceInfo:" src/ shared/
+```
+
+Expected: no matches anywhere.
+
+- [ ] **Step 6: Build**
 
 ```bash
 bash build.sh
 ```
 Expected: build succeeds with NO deprecation warnings on `SessionVoiceBank`.
 
-- [ ] **Step 6: Re-run full voice test suite**
+- [ ] **Step 7: Re-run full voice test suite**
 
 ```bash
 for t in tests/voice-*.sh tests/daemon-ipc-voice.sh; do
@@ -3054,10 +3124,10 @@ done
 ```
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/voice/session-voice.swift src/voice/engine.swift src/voice/say.swift shared/swift/ipc/runtime-paths.swift
+git add src/voice/session-voice.swift src/voice/engine.swift src/voice/say.swift src/daemon/coordination.swift src/daemon/unified.swift shared/swift/ipc/runtime-paths.swift
 git commit -m "refactor(voice): delete SessionVoiceBank shim + lift qualityTier into provider"
 ```
 
