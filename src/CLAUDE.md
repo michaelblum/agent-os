@@ -78,8 +78,10 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos do type "hello world"       # Type with natural cadence
 ./aos say "Hello, I'm your agent" # Speak text aloud (sugar for tell human)
 ./aos say --list-voices           # List available voices
-./aos voice list                  # Curated session voice bank
-./aos voice leases                # Active one-session-per-voice leases
+./aos voice list                  # Registry-backed voice catalog
+./aos voice assignments           # Active session-centric voice assignments
+./aos voice refresh               # Refresh provider snapshots
+./aos voice providers             # Provider availability + counts
 ./aos voice bind --session-id <id> --voice <voice-id>
 ./aos voice final-response --harness codex --session-id <id> < hook.json
 ./aos config get voice.controls.cancel.key_code
@@ -207,9 +209,13 @@ When voice is enabled, the daemon announces canvas lifecycle events
 and other significant actions without the agent needing to call `aos say`.
 Voice attempts and final-response ingress failures are logged to
 `~/.config/aos/{mode}/voice-events.jsonl` without storing full message bodies.
-Voice assignments persist in `~/.config/aos/{mode}/coordination/voice-assignments.json`.
-New sessions take the next curated voice in round-robin order and wrap when the
-bank is exhausted; explicit `aos voice bind` updates that durable mapping.
+Voice policy and durable session preferences now live in
+`~/.config/aos/{mode}/voice/policy.json`; older
+`coordination/voice-assignments.json` files are migrated once and renamed
+`.migrated`. See `docs/api/aos.md` for the policy layout and migration details.
+New sessions use a rotation + cooldown allocator that biases toward variety
+without enforcing exclusivity; explicit `aos voice bind` updates the stored
+session preference and the next-allocation bias.
 
 ### Config Keys
 
