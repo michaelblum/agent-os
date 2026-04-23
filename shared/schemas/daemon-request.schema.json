@@ -45,7 +45,7 @@
     { "if": { "properties": { "service": { "const": "session" }, "action": { "const": "who" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "list" } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/VoiceListData" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "assignments" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "refresh" } } },
@@ -208,6 +208,14 @@
       "properties": {
         "session_id": { "type": "string", "minLength": 1 },
         "name": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "VoiceListData": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "speakable_only": { "type": "boolean" }
       },
       "additionalProperties": true
     },

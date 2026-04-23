@@ -42,7 +42,7 @@ Error response:
 | `session.register` | Register session presence. | `session_id`. |
 | `session.unregister` | Remove session presence. | `session_id` or `name`. |
 | `session.who` | List online sessions. | (none) |
-| `voice.list` | List voice bank. | (none) |
+| `voice.list` | List voice bank. | optional `provider`; optional `speakable_only`. |
 | `voice.assignments` | List session-centric voice assignments. | (none) |
 | `voice.refresh` | Re-enumerate voices and reseed allocator order. | (none) |
 | `voice.providers` | List providers with availability and catalog counts. | (none) |
