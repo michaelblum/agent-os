@@ -37,7 +37,7 @@ func voiceCommand(args: [String]) {
     case "_internal-allocator-test":
         voiceInternalAllocatorTest(args: Array(args.dropFirst())); return
     case "list":
-        response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
+        response = voiceListEnvelope(args: Array(args.dropFirst()))
     case "leases":
         response = sendEnvelopeRequest(service: "voice", action: "leases", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "bind":
@@ -62,6 +62,27 @@ func voiceCommand(args: [String]) {
             print(s)
         }
     }
+}
+
+private func voiceListEnvelope(args: [String]) -> [String: Any]? {
+    var data: [String: Any] = [:]
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--provider":
+            i += 1
+            guard i < args.count else { exitError("--provider requires a value", code: "MISSING_ARG") }
+            data["provider"] = args[i]
+        case "--speakable-only":
+            data["speakable_only"] = true
+        case "--json":
+            break
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+    return sendEnvelopeRequest(service: "voice", action: "list", data: data, autoStartBinary: CommandLine.arguments[0])
 }
 
 private func voiceBindEnvelope(args: [String]) -> [String: Any]? {

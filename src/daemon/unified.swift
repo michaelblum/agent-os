@@ -1310,14 +1310,21 @@ class UnifiedDaemon {
             sendResponseJSON(to: clientFD, ["status": "ok", "sessions": sessions], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-list":
-            let voices = coordination.voiceCatalog()
-            let leases = voices.filter { $0["lease_session_id"] != nil }
-            sendResponseJSON(to: clientFD, [
-                "status": "ok",
-                "voices": voices,
-                "voice_count": voices.count,
-                "leased_count": leases.count
-            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            var voices = coordination.voiceCatalog()
+            if let provider = json["provider"] as? String, !provider.isEmpty {
+                voices = voices.filter { ($0["provider"] as? String) == provider }
+            }
+            if (json["speakable_only"] as? Bool) == true {
+                voices = voices.filter { rec in
+                    let cap = rec["capabilities"] as? [String: Any]
+                    let avail = rec["availability"] as? [String: Any]
+                    return (cap?["speak_supported"] as? Bool) == true
+                        && (avail?["enabled"] as? Bool) == true
+                        && (avail?["installed"] as? Bool) == true
+                        && (avail?["reachable"] as? Bool) == true
+                }
+            }
+            sendResponseJSON(to: clientFD, ["voices": voices], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-leases":
             let leases = coordination.voiceLeases()
