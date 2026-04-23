@@ -258,6 +258,15 @@ class CoordinationBus {
         return voiceAssignments()
     }
 
+    func voiceRefresh() -> [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        let snap = voiceRegistry.refresh()
+        let allocatable = snap.filter { $0.isAllocatable }.map { $0.id }
+        voiceAllocator.reseed(uris: allocatable)
+        return snap.map { $0.dictionary() }
+    }
+
     func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
         lock.lock()
         defer { lock.unlock() }

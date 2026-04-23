@@ -1072,6 +1072,7 @@ class UnifiedDaemon {
         case ("session", "who"):              return "coord-who"
         case ("voice", "list"):               return "voice-list"
         case ("voice", "assignments"):        return "voice-assignments"
+        case ("voice", "refresh"):            return "voice-refresh"
         case ("voice", "leases"):             return "voice-leases"
         case ("voice", "bind"):               return "voice-bind"
         case ("voice", "final_response"):     return "voice-final-response"
@@ -1330,6 +1331,11 @@ class UnifiedDaemon {
         case "voice-assignments", "voice-leases":
             sendResponseJSON(to: clientFD, [
                 "assignments": coordination.voiceAssignments()
+            ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "voice-refresh":
+            sendResponseJSON(to: clientFD, [
+                "voices": coordination.voiceRefresh()
             ], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-bind":
