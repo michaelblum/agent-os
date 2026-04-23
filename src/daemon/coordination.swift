@@ -9,7 +9,6 @@ import Foundation
 class CoordinationBus {
     private let lock = NSLock()
     private let sessionsPath: String
-    private let voiceAssignmentsPath: String
     private let sessionExpiryInterval: TimeInterval
     // Internal (not private) so the daemon can hand the same store instance to
     // VoicePolicyWatcher; reload() then invalidates the cache that VoiceRegistry
@@ -21,9 +20,6 @@ class CoordinationBus {
     // Sessions: canonical session_id → SessionInfo
     private var sessions: [String: SessionInfo] = [:]
 
-    // Durable voice ownership: canonical session_id → voice_id
-    private var voiceAssignments: [String: String] = [:]
-
     // Secondary lookup: human-readable name → canonical session_id
     private var sessionIDsByName: [String: String] = [:]
 
@@ -34,20 +30,17 @@ class CoordinationBus {
 
     init(
         sessionsPath: String = aosCoordinationSessionsPath(),
-        voiceAssignmentsPath: String = aosVoiceAssignmentsPath(),
         voicePolicyStore: VoicePolicyStore = VoicePolicyStore(),
         voiceRegistry: VoiceRegistry? = nil,
         voiceAllocator: VoiceAllocator = VoiceAllocator(),
         sessionExpiryInterval: TimeInterval = 24 * 60 * 60
     ) {
         self.sessionsPath = sessionsPath
-        self.voiceAssignmentsPath = voiceAssignmentsPath
         self.voicePolicyStore = voicePolicyStore
         self.voiceRegistry = voiceRegistry ?? VoiceRegistry(policyLoader: { voicePolicyStore.load() })
         self.voiceAllocator = voiceAllocator
         self.sessionExpiryInterval = sessionExpiryInterval
         voicePolicyStore.migrateLegacyAssignmentsIfNeeded()
-        restoreVoiceAssignments()
         restoreSessionsSnapshot()
         seedAllocatorAfterRestore()
         pruneExpiredSessionsLocked()
@@ -227,45 +220,42 @@ class CoordinationBus {
         lock.lock()
         defer { lock.unlock() }
         pruneExpiredSessionsLocked()
-        return SessionVoiceBank.curatedVoices().map { voice in
-            let assignedOwners = voiceAssignments
-                .filter { $0.value == voice.id }
-                .map(\.key)
-                .sorted()
-            let leaseOwners = sessions.values
-                .filter { $0.voice?.id == voice.id }
-                .map(\.sessionID)
-                .sorted()
-            var payload = voice.dictionary()
-            if !assignedOwners.isEmpty {
-                payload["assigned_session_ids"] = assignedOwners
+        let snap = voiceRegistry.snapshot()
+        let assignmentsByURI: [String: [String]] = sessions.reduce(into: [:]) { acc, kv in
+            if let uri = kv.value.voice?.id {
+                acc[uri, default: []].append(kv.key)
             }
-            if !leaseOwners.isEmpty {
-                payload["lease_session_ids"] = leaseOwners
-            }
-            return payload
+        }
+        return snap.map { rec in
+            var dict = rec.dictionary()
+            dict["current_session_ids"] = (assignmentsByURI[rec.id] ?? []).sorted()
+            return dict
         }
     }
 
-    func voiceLeases() -> [[String: Any]] {
+    func voiceAssignments() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
         pruneExpiredSessionsLocked()
-        return sessions.values.compactMap { session in
-            guard let voice = session.voice else { return nil }
-            var payload = voice.dictionary()
-            payload["session_id"] = session.sessionID
-            if let name = session.name {
-                payload["session_name"] = name
+        return sessions
+            .sorted { $0.value.registeredAt < $1.value.registeredAt }
+            .map { (sid, info) -> [String: Any] in
+                var entry: [String: Any] = [
+                    "session_id": sid,
+                    "role": info.role,
+                    "harness": info.harness,
+                    "voice": info.voice.map { v -> Any in
+                        voiceRegistry.lookup(v.id)?.dictionary() ?? NSNull()
+                    } ?? NSNull()
+                ]
+                if let name = info.name { entry["name"] = name }
+                return entry
             }
-            payload["role"] = session.role
-            payload["harness"] = session.harness
-            return payload
-        }.sorted {
-            let lhs = $0["session_id"] as? String ?? ""
-            let rhs = $1["session_id"] as? String ?? ""
-            return lhs < rhs
-        }
+    }
+
+    func voiceLeases() -> [[String: Any]] {
+        fputs("Deprecation: aos voice leases is now aos voice assignments\n", stderr)
+        return voiceAssignments()
     }
 
     func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
@@ -273,27 +263,29 @@ class CoordinationBus {
         defer { lock.unlock() }
         pruneExpiredSessionsLocked()
 
-        guard var session = sessions[sessionID] else {
-            return ["error": "Session not found: \(sessionID)", "code": "SESSION_NOT_FOUND"]
+        let canonical = VoiceID.canonicalize(voiceID)
+        guard let record = voiceRegistry.lookup(canonical) else {
+            return ["error": ["code": "VOICE_NOT_FOUND", "message": "voice not found in registry: \(canonical)"]]
         }
-        guard let voice = SessionVoiceBank.voice(id: voiceID) else {
-            return ["error": "Voice not found in curated bank: \(voiceID)", "code": "VOICE_NOT_FOUND"]
+        if !record.capabilities.speak_supported {
+            return ["error": ["code": "VOICE_NOT_SPEAKABLE", "message": "voice cannot synthesize in this version: \(canonical)"]]
         }
-        voiceAssignments[sessionID] = voiceID
-        session.voice = voice
-        sessions[sessionID] = session
-        persistSessionsLocked()
-        persistVoiceAssignmentsLocked()
-
-        var response: [String: Any] = [
+        if !record.availability.allocatable {
+            return ["error": ["code": "VOICE_NOT_ALLOCATABLE", "message": "voice not allocatable (enabled/installed/reachable check failed): \(canonical)"]]
+        }
+        voicePolicyStore.setPreferred(sessionID: sessionID, voiceURI: canonical)
+        voiceAllocator.markUsed(canonical)
+        let descriptor = SessionVoiceDescriptor(record: record)
+        if var info = sessions[sessionID] {
+            info.voice = descriptor
+            sessions[sessionID] = info
+            persistSessionsLocked()
+        }
+        return [
             "status": "ok",
             "session_id": sessionID,
-            "voice": voice.dictionary()
+            "voice": record.dictionary()
         ]
-        if let name = session.name {
-            response["name"] = name
-        }
-        return response
     }
 
     // MARK: - Messages
@@ -414,35 +406,6 @@ class CoordinationBus {
         )
     }
 
-    private func persistVoiceAssignmentsLocked() {
-        let fm = FileManager.default
-        let directory = (voiceAssignmentsPath as NSString).deletingLastPathComponent
-        try? fm.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: nil)
-
-        let snapshot = voiceAssignments
-            .map { ["session_id": $0.key, "voice_id": $0.value] as [String: Any] }
-            .sorted {
-                let lhs = $0["session_id"] as? String ?? ""
-                let rhs = $1["session_id"] as? String ?? ""
-                return lhs < rhs
-            }
-
-        guard let data = try? JSONSerialization.data(withJSONObject: ["assignments": snapshot], options: [.sortedKeys]) else {
-            return
-        }
-
-        let tmp = voiceAssignmentsPath + ".tmp"
-        do {
-            try data.write(to: URL(fileURLWithPath: tmp), options: .atomic)
-            if fm.fileExists(atPath: voiceAssignmentsPath) {
-                try? fm.removeItem(atPath: voiceAssignmentsPath)
-            }
-            try fm.moveItem(atPath: tmp, toPath: voiceAssignmentsPath)
-        } catch {
-            try? fm.removeItem(atPath: tmp)
-        }
-    }
-
     private func persistSessionsSnapshot(_ snapshot: [[String: Any]]) {
         let fm = FileManager.default
         let directory = (sessionsPath as NSString).deletingLastPathComponent
@@ -501,24 +464,6 @@ class CoordinationBus {
 
         sessions = restoredSessions
         sessionIDsByName = restoredIDsByName
-    }
-
-    private func restoreVoiceAssignments() {
-        guard let data = FileManager.default.contents(atPath: voiceAssignmentsPath),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let snapshot = root["assignments"] as? [[String: Any]] else {
-            return
-        }
-
-        var restored: [String: String] = [:]
-        for payload in snapshot {
-            guard let sessionID = normalizeSessionID(payload["session_id"] as? String),
-                  let voiceID = normalizeName(payload["voice_id"] as? String) else {
-                continue
-            }
-            restored[sessionID] = voiceID
-        }
-        voiceAssignments = restored
     }
 
     private func pruneExpiredSessionsLocked(now: Date = Date()) {
@@ -607,10 +552,10 @@ class CoordinationBus {
     private func restoredVoice(_ rawValue: Any?) -> SessionVoiceDescriptor? {
         guard let payload = rawValue as? [String: Any],
               let id = payload["id"] as? String,
-              let voice = SessionVoiceBank.voice(id: id) else {
+              let record = voiceRegistry.lookup(VoiceID.canonicalize(id)) else {
             return nil
         }
-        return voice
+        return SessionVoiceDescriptor(record: record)
     }
 
     private func dateValue(_ rawValue: Any?) -> Date? {
