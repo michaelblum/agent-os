@@ -3096,7 +3096,13 @@ grep -rn "aosVoiceAssignmentsPath\|voice-assignments.json" src/ shared/ tests/
 
 Expected:
 - Zero hits for `aosVoiceAssignmentsPath` anywhere.
-- Hits for `voice-assignments.json` only in `src/voice/policy.swift` (the inlined literal from Step 4a) and in `tests/voice-migration.sh` (testing the legacy filename — leave untouched).
+- Hits for `voice-assignments.json` in exactly three places, all intentional:
+    - `src/voice/policy.swift` — the inlined literal from Step 4a.
+    - `src/CLAUDE.md` — the migration-prose paragraph added in Task 33,
+      describing the one-shot upgrade (`coordination/voice-assignments.json
+      files are migrated once and renamed .migrated`). Leave untouched.
+    - `tests/voice-migration.sh` — testing the legacy filename. Leave
+      untouched.
 
 - [ ] **Step 5: Lift the daemon's voice-route fallback onto the registry**
 
