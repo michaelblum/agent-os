@@ -2210,7 +2210,7 @@ out=$(./aos voice providers --json 2>&1)
 echo "$out" | python3 -c "
 import json, sys
 resp = json.loads(sys.stdin.read())
-provs = resp['providers']
+provs = resp['data']['providers']
 names = sorted(p['name'] for p in provs)
 assert 'system' in names and 'elevenlabs' in names, f'missing provider in {names}'
 el = next(p for p in provs if p['name']=='elevenlabs')
@@ -2413,7 +2413,7 @@ voice_for() {
     assignments_json | python3 -c "
 import json, sys
 sid = '$sid'
-data = json.loads(sys.stdin.read())['assignments']
+data = json.loads(sys.stdin.read())['data']['assignments']
 match = next((e for e in data if e['session_id'] == sid and e.get('voice')), None)
 print(match['voice']['id'] if match else '')
 "
@@ -2476,7 +2476,7 @@ assert_eq "$(voice_for $S7)" "$V_CHARLIE" "S7 wraps to charlie (over-cap)"
 
 assignments_json | python3 -c "
 import json, sys
-data = json.loads(sys.stdin.read())['assignments']
+data = json.loads(sys.stdin.read())['data']['assignments']
 ids = [e['voice']['id'] for e in data if e.get('voice')]
 assert len(ids) == 7, f'expected 7 assigned voices, got {ids}'
 held = set(ids)
@@ -2634,7 +2634,7 @@ availability_enabled() {
     local voice_id="$1"
     ./aos voice list --json | python3 -c "
 import json, sys
-voices = json.loads(sys.stdin.read())['voices']
+voices = json.loads(sys.stdin.read())['data']['voices']
 target = next((v for v in voices if v['id'] == '$voice_id'), None)
 print('missing' if target is None else str(target['availability']['enabled']))
 "
@@ -2645,7 +2645,7 @@ voice_for() {
     ./aos voice assignments --json | python3 -c "
 import json, sys
 sid = '$sid'
-data = json.loads(sys.stdin.read())['assignments']
+data = json.loads(sys.stdin.read())['data']['assignments']
 match = next((e for e in data if e['session_id'] == sid and e.get('voice')), None)
 print(match['voice']['id'] if match else '')
 "
