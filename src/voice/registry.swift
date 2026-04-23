@@ -236,13 +236,3 @@ final class VoiceRegistry {
         }
     }
 }
-
-// TEMP stub — replaced in Task 9 by full type in src/voice/policy.swift.
-// Keep registry compilable until policy.swift lands.
-struct VoicePolicy {
-    struct ProviderEntry { var enabled: Bool }
-    struct VoicesSection { var disabled: [String]; var promote: [String] }
-    var providers: [String: ProviderEntry] = [:]
-    var voices: VoicesSection = VoicesSection(disabled: [], promote: [])
-    var session_preferences: [String: String] = [:]
-}
