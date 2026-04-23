@@ -1441,7 +1441,8 @@ class UnifiedDaemon {
         if new.voice.enabled {
             if old.voice.voice != new.voice.voice {
                 if let voiceID = new.voice.voice {
-                    speechEngine?.setVoice(voiceID)
+                    let rawVoiceID = VoiceID.parse(voiceID)?.providerVoiceID ?? voiceID
+                    speechEngine?.setVoice(rawVoiceID)
                 }
             }
             if old.voice.rate != new.voice.rate, let rate = new.voice.rate {
@@ -1459,7 +1460,8 @@ class UnifiedDaemon {
     private func initSpeechEngine() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.speechEngine = SpeechEngine(voice: self.currentConfig.voice.voice)
+            let voiceID = self.currentConfig.voice.voice.map { VoiceID.parse($0)?.providerVoiceID ?? $0 }
+            self.speechEngine = SpeechEngine(voice: voiceID)
             if let rate = self.currentConfig.voice.rate {
                 self.speechEngine?.setRate(rate)
             }
@@ -1481,9 +1483,11 @@ class UnifiedDaemon {
     func announce(_ text: String, voiceID: String? = nil) {
         guard currentConfig.voice.enabled, let engine = speechEngine else { return }
         DispatchQueue.main.async {
-            let resolvedVoiceID = voiceID ?? self.currentConfig.voice.voice ?? SpeechEngine.resolvedDefaultVoiceID
-            if !resolvedVoiceID.isEmpty {
-                engine.setVoice(resolvedVoiceID)
+            let configuredVoiceID = voiceID ?? self.currentConfig.voice.voice
+            let rawVoiceID = configuredVoiceID.map { VoiceID.parse($0)?.providerVoiceID ?? $0 }
+                ?? SpeechEngine.resolvedDefaultVoiceID
+            if !rawVoiceID.isEmpty {
+                engine.setVoice(rawVoiceID)
             }
             if let rate = self.currentConfig.voice.rate {
                 engine.setRate(rate)
