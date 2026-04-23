@@ -34,14 +34,14 @@ assert isinstance(voices, list), f"voices not list: {d}"
 '
 echo "PASS: voice.list"
 
-# voice.leases returns status ok
-OUT="$(echo '{"v":1,"service":"voice","action":"leases","data":{}}' | send_envelope)"
+# voice.assignments returns status ok
+OUT="$(echo '{"v":1,"service":"voice","action":"assignments","data":{}}' | send_envelope)"
 echo "$OUT" | python3 -c '
 import json, sys
 d = json.loads(sys.stdin.read())
 assert d.get("status") in ("ok","success"), f"unexpected: {d}"
 '
-echo "PASS: voice.leases"
+echo "PASS: voice.assignments"
 
 # voice.final_response with empty hook_payload and no session_id returns MISSING_SESSION_ID
 OUT="$(echo '{"v":1,"service":"voice","action":"final_response","data":{"hook_payload":{}}}' | send_envelope)"

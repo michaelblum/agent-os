@@ -210,9 +210,8 @@ and other significant actions without the agent needing to call `aos say`.
 Voice attempts and final-response ingress failures are logged to
 `~/.config/aos/{mode}/voice-events.jsonl` without storing full message bodies.
 Voice policy and durable session preferences now live in
-`~/.config/aos/{mode}/voice/policy.json`; older
-`coordination/voice-assignments.json` files are migrated once and renamed
-`.migrated`. See `docs/api/aos.md` for the policy layout and migration details.
+`~/.config/aos/{mode}/voice/policy.json`. See `docs/api/aos.md` for the
+policy layout.
 New sessions use a rotation + cooldown allocator that biases toward variety
 without enforcing exclusivity; explicit `aos voice bind` updates the stored
 session preference and the next-allocation bias.

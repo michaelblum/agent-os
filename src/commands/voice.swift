@@ -28,12 +28,6 @@ func voiceCommand(args: [String]) {
         let data = try! JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys, .prettyPrinted])
         print(String(data: data, encoding: .utf8)!)
         exit(0)
-    case "_internal-migrate-policy":
-        let store = VoicePolicyStore()
-        let migrated = store.migrateLegacyAssignmentsIfNeeded()
-        let result = ["migrated": migrated, "policy_path": store.filePath] as [String: Any]
-        print(String(data: try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]), encoding: .utf8)!)
-        exit(0)
     case "_internal-allocator-test":
         voiceInternalAllocatorTest(args: Array(args.dropFirst())); return
     case "list":
@@ -44,9 +38,6 @@ func voiceCommand(args: [String]) {
         response = sendEnvelopeRequest(service: "voice", action: "refresh", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "providers":
         response = sendEnvelopeRequest(service: "voice", action: "providers", data: [:], autoStartBinary: CommandLine.arguments[0])
-    case "leases":
-        FileHandle.standardError.write("Deprecation: aos voice leases is now aos voice assignments\n".data(using: .utf8)!)
-        response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "bind":
         response = voiceBindEnvelope(args: Array(args.dropFirst()))
     case "final-response":

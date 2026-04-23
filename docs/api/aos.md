@@ -293,7 +293,6 @@ assignments, and final-response ingress:
 ```bash
 aos voice list [--provider <name>] [--speakable-only]
 aos voice assignments
-aos voice leases
 aos voice bind --session-id <id> --voice <voice-id>
 aos voice refresh
 aos voice providers
@@ -324,10 +323,7 @@ cannot currently synthesize. Records include provider metadata, canonical `id`,
 provider-native `provider_voice_id`, availability, capabilities, locale, and
 quality tier.
 
-`aos voice assignments` returns the active session-centric assignments. `aos
-voice leases` remains as a deprecated alias for compatibility, but the command
-surface and JSON schema are now assignment-oriented rather than exclusive
-lease-oriented.
+`aos voice assignments` returns the active session-centric assignments.
 
 `aos voice bind` stores a preferred voice for a live session and immediately
 rebiases allocation away from that voice for the next fresh session. Bind
@@ -347,11 +343,6 @@ into four sections:
 - `voices.disabled` — canonical voice ids to suppress from allocation
 - `voices.promote` — canonical voice ids to sort ahead of their natural order
 - `session_preferences` — durable `session_id -> voice_uri` bindings
-
-On first use, the daemon performs a one-shot migration from the legacy
-`~/.config/aos/{mode}/coordination/voice-assignments.json` file into
-`voice/policy.json`. Successful migrations rename the old file to
-`voice-assignments.json.migrated` for forensics.
 
 `aos voice final-response` is unchanged as the daemon-owned ingress for harness
 final-response events. It resolves the final assistant text, applies the

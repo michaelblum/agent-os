@@ -40,7 +40,6 @@ class CoordinationBus {
         self.voiceRegistry = voiceRegistry ?? VoiceRegistry(policyLoader: { voicePolicyStore.load() })
         self.voiceAllocator = voiceAllocator
         self.sessionExpiryInterval = sessionExpiryInterval
-        voicePolicyStore.migrateLegacyAssignmentsIfNeeded()
         restoreSessionsSnapshot()
         seedAllocatorAfterRestore()
         pruneExpiredSessionsLocked()
@@ -251,11 +250,6 @@ class CoordinationBus {
                 if let name = info.name { entry["name"] = name }
                 return entry
             }
-    }
-
-    func voiceLeases() -> [[String: Any]] {
-        fputs("Deprecation: aos voice leases is now aos voice assignments\n", stderr)
-        return voiceAssignments()
     }
 
     func voiceRefresh() -> [[String: Any]] {

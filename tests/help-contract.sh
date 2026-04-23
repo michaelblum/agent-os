@@ -113,10 +113,11 @@ fi
 OUT=$(./aos help voice --json 2>/dev/null)
 if echo "$OUT" | grep -q '"path" : \[' &&
    echo "$OUT" | grep -q '"voice-list"' &&
-   echo "$OUT" | grep -q '"voice-leases"'; then
-    pass "voice help exposes curated bank and lease forms"
+   echo "$OUT" | grep -q '"voice-assignments"' &&
+   ! echo "$OUT" | grep -q '"voice-leases"'; then
+    pass "voice help exposes registry-backed assignment forms"
 else
-    fail "voice help is missing bank/lease forms: $OUT"
+    fail "voice help drifted from assignment surface: $OUT"
 fi
 
 # --- 12. aos help config --json exposes the discoverable config surface ---

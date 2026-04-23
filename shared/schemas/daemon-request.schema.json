@@ -52,8 +52,6 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "providers" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
-    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "leases" } } },
-      "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "bind" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceBindData" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "final_response" } } },

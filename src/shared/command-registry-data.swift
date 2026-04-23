@@ -538,14 +538,6 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSON,
             examples: ["aos voice assignments"]),
-        InvocationForm(id: "voice-leases", usage: "aos voice leases",
-            args: [
-                pos("leases", "Deprecated alias for `aos voice assignments`", required: false)
-            ],
-            stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
-            output: outJSON,
-            examples: ["aos voice leases"]),
         InvocationForm(id: "voice-refresh", usage: "aos voice refresh",
             args: [
                 pos("refresh", "Re-enumerate voices and reseed allocator order", required: false)

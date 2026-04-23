@@ -46,7 +46,6 @@ Error response:
 | `voice.assignments` | List session-centric voice assignments. | (none) |
 | `voice.refresh` | Re-enumerate voices and reseed allocator order. | (none) |
 | `voice.providers` | List providers with availability and catalog counts. | (none) |
-| `voice.leases` | Deprecated alias of `voice.assignments` for one release. | (none) |
 | `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id` (URI or bare id accepted). |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
