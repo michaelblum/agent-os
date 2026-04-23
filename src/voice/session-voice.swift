@@ -34,20 +34,6 @@ struct SessionVoiceDescriptor: Codable {
         self.lease_session_name = lease_session_name
     }
 
-    init(voiceInfo: SpeechEngine.VoiceInfo, leaseSessionID: String? = nil, leaseSessionName: String? = nil) {
-        self.init(
-            provider: voiceInfo.provider,
-            id: voiceInfo.id,
-            name: voiceInfo.name,
-            locale: voiceInfo.language,
-            gender: voiceInfo.gender,
-            quality_tier: voiceInfo.quality_tier,
-            available: true,
-            lease_session_id: leaseSessionID,
-            lease_session_name: leaseSessionName
-        )
-    }
-
     init(record: VoiceRecord, leaseSessionID: String? = nil, leaseSessionName: String? = nil) {
         self.init(
             provider: record.provider,
@@ -115,41 +101,6 @@ struct VoiceRenderResult {
             payload["fallback_style"] = fallback_style
         }
         return payload
-    }
-}
-
-@available(*, deprecated, message: "Use VoiceRegistry directly. SessionVoiceBank is a transitional shim.")
-enum SessionVoiceBank {
-    static func curatedVoices() -> [SessionVoiceDescriptor] {
-        let store = VoicePolicyStore()
-        let registry = VoiceRegistry(policyLoader: { store.load() })
-        let allocatable = registry.allocatableSnapshot()
-        let descriptors = allocatable.map { SessionVoiceDescriptor(record: $0) }
-        return applyTestBankOverride(descriptors)
-    }
-
-    static func hasVoice(id: String) -> Bool {
-        let canonical = VoiceID.canonicalize(id)
-        return curatedVoices().contains { $0.id == canonical }
-    }
-
-    static func voice(id: String) -> SessionVoiceDescriptor? {
-        let canonical = VoiceID.canonicalize(id)
-        return curatedVoices().first { $0.id == canonical }
-    }
-
-    private static func applyTestBankOverride(_ voices: [SessionVoiceDescriptor]) -> [SessionVoiceDescriptor] {
-        guard let raw = ProcessInfo.processInfo.environment["AOS_TEST_VOICE_BANK_IDS"]?
-            .split(separator: ",")
-            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
-            .filter({ !$0.isEmpty }),
-              !raw.isEmpty else {
-            return voices
-        }
-
-        let allowed = Set(raw.map(VoiceID.canonicalize))
-        let filtered = voices.filter { allowed.contains($0.id) }
-        return filtered.isEmpty ? voices : filtered
     }
 }
 
