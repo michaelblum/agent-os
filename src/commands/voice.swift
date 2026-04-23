@@ -42,6 +42,8 @@ func voiceCommand(args: [String]) {
         response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "refresh":
         response = sendEnvelopeRequest(service: "voice", action: "refresh", data: [:], autoStartBinary: CommandLine.arguments[0])
+    case "providers":
+        response = sendEnvelopeRequest(service: "voice", action: "providers", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
         FileHandle.standardError.write("Deprecation: aos voice leases is now aos voice assignments\n".data(using: .utf8)!)
         response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])

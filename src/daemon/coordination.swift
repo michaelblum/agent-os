@@ -267,6 +267,12 @@ class CoordinationBus {
         return snap.map { $0.dictionary() }
     }
 
+    func voiceProviders() -> [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        return voiceRegistry.providersInfo().map { $0.dictionary() }
+    }
+
     func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
         lock.lock()
         defer { lock.unlock() }
