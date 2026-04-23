@@ -23,7 +23,6 @@ class CoordinationBus {
 
     // Durable voice ownership: canonical session_id → voice_id
     private var voiceAssignments: [String: String] = [:]
-    private var nextVoiceAssignmentIndex: Int = 0
 
     // Secondary lookup: human-readable name → canonical session_id
     private var sessionIDsByName: [String: String] = [:]
@@ -53,7 +52,6 @@ class CoordinationBus {
         seedAllocatorAfterRestore()
         pruneExpiredSessionsLocked()
         persistSessionsLocked()
-        persistVoiceAssignmentsLocked()
     }
 
     struct SessionInfo {
@@ -107,7 +105,6 @@ class CoordinationBus {
         }
 
         persistSessionsLocked()
-        persistVoiceAssignmentsLocked()
 
         var response: [String: Any] = [
             "status": "ok",
@@ -430,13 +427,7 @@ class CoordinationBus {
                 return lhs < rhs
             }
 
-        guard let data = try? JSONSerialization.data(
-            withJSONObject: [
-                "assignments": snapshot,
-                "next_index": nextVoiceAssignmentIndex
-            ],
-            options: [.sortedKeys]
-        ) else {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["assignments": snapshot], options: [.sortedKeys]) else {
             return
         }
 
@@ -491,11 +482,7 @@ class CoordinationBus {
             let harness = normalizeName(payload["harness"] as? String) ?? "unknown"
             let registeredAt = dateValue(payload["registered_at"]) ?? Date()
             let lastHeartbeat = dateValue(payload["last_heartbeat"]) ?? registeredAt
-            let assignedVoiceID = voiceAssignments[sessionID]
             let restored = restoredVoice(payload["voice"])
-            if assignedVoiceID == nil, let restored {
-                voiceAssignments[sessionID] = restored.id
-            }
 
             restoredSessions[sessionID] = SessionInfo(
                 sessionID: sessionID,
@@ -504,7 +491,7 @@ class CoordinationBus {
                 harness: harness,
                 registeredAt: registeredAt,
                 lastHeartbeat: lastHeartbeat,
-                voice: assignedVoiceID.flatMap(SessionVoiceBank.voice(id:)) ?? restored
+                voice: restored
             )
 
             if let normalizedName {
@@ -514,7 +501,6 @@ class CoordinationBus {
 
         sessions = restoredSessions
         sessionIDsByName = restoredIDsByName
-        repairVoiceLeasesLocked()
     }
 
     private func restoreVoiceAssignments() {
@@ -525,7 +511,6 @@ class CoordinationBus {
         }
 
         var restored: [String: String] = [:]
-        let restoredNextIndex = root["next_index"] as? Int
         for payload in snapshot {
             guard let sessionID = normalizeSessionID(payload["session_id"] as? String),
                   let voiceID = normalizeName(payload["voice_id"] as? String) else {
@@ -534,8 +519,6 @@ class CoordinationBus {
             restored[sessionID] = voiceID
         }
         voiceAssignments = restored
-        nextVoiceAssignmentIndex = restoredNextIndex ?? restored.count
-        repairVoiceAssignmentsLocked()
     }
 
     private func pruneExpiredSessionsLocked(now: Date = Date()) {
@@ -565,57 +548,59 @@ class CoordinationBus {
         return trimmed
     }
 
-    private func assignVoiceLocked(existingVoice: SessionVoiceDescriptor?, excludingSessionID: String) -> SessionVoiceDescriptor? {
-        if let assignedVoiceID = voiceAssignments[excludingSessionID],
-           let assignedVoice = SessionVoiceBank.voice(id: assignedVoiceID) {
-            return assignedVoice
-        }
-        if let existingVoice,
-           SessionVoiceBank.hasVoice(id: existingVoice.id),
-           voiceAssignments[excludingSessionID] == nil {
-            voiceAssignments[excludingSessionID] = existingVoice.id
+    private func assignVoiceLocked(existingVoice: SessionVoiceDescriptor?, excludingSessionID sid: String) -> SessionVoiceDescriptor? {
+        if let existingVoice {
+            // Session is being re-registered with a known voice; reaffirm cooldown.
+            voiceAllocator.markUsed(existingVoice.id)
             return existingVoice
         }
 
-        let availableVoices = SessionVoiceBank.curatedVoices()
-        guard !availableVoices.isEmpty else {
+        // Apply stored preference only if record is fully allocatable.
+        if let preferredURI = voicePolicyStore.preferred(sessionID: sid) {
+            let canonical = VoiceID.canonicalize(preferredURI)
+            if let record = voiceRegistry.lookup(canonical), record.isAllocatable {
+                voiceAllocator.markUsed(canonical)
+                return SessionVoiceDescriptor(record: record)
+            } else {
+                emitVoiceEvent([
+                    "kind": "preference_skipped",
+                    "session_id": sid,
+                    "voice_id": canonical,
+                    "reason": preferenceSkipReason(canonical)
+                ])
+            }
+        }
+
+        guard let chosenURI = voiceAllocator.next(),
+              let record = voiceRegistry.lookup(chosenURI) else {
             return nil
         }
-        let index = nextVoiceAssignmentIndex % availableVoices.count
-        let voice = availableVoices[index]
-        nextVoiceAssignmentIndex += 1
-        voiceAssignments[excludingSessionID] = voice.id
-        return voice
+        return SessionVoiceDescriptor(record: record)
     }
 
-    private func repairVoiceLeasesLocked() {
-        repairVoiceAssignmentsLocked()
-        let orderedIDs = sessions.values
-            .sorted { lhs, rhs in
-                if lhs.registeredAt != rhs.registeredAt {
-                    return lhs.registeredAt < rhs.registeredAt
-                }
-                return lhs.sessionID < rhs.sessionID
-            }
-            .map(\.sessionID)
-
-        for sessionID in orderedIDs {
-            guard var session = sessions[sessionID] else { continue }
-            if let assignedVoiceID = voiceAssignments[sessionID],
-               let voice = SessionVoiceBank.voice(id: assignedVoiceID) {
-                session.voice = voice
-            } else {
-                session.voice = nil
-            }
-            sessions[sessionID] = session
-        }
+    private func preferenceSkipReason(_ uri: String) -> String {
+        guard let record = voiceRegistry.lookup(uri) else { return "voice_not_found" }
+        if !record.capabilities.speak_supported { return "voice_not_speakable" }
+        if !record.availability.allocatable { return "voice_not_allocatable" }
+        return "unknown"
     }
 
-    private func repairVoiceAssignmentsLocked() {
-        let repaired = voiceAssignments.filter { SessionVoiceBank.hasVoice(id: $0.value) }
-        voiceAssignments = repaired
-        if nextVoiceAssignmentIndex < 0 {
-            nextVoiceAssignmentIndex = 0
+    private func emitVoiceEvent(_ event: [String: Any]) {
+        let path = aosVoiceEventsPath()
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: nil)
+        var payload = event
+        payload["timestamp"] = ISO8601DateFormatter().string(from: Date())
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+           let line = String(data: data, encoding: .utf8) {
+            if let handle = FileHandle(forWritingAtPath: path) ?? {
+                _ = FileManager.default.createFile(atPath: path, contents: nil)
+                return FileHandle(forWritingAtPath: path)
+            }() {
+                handle.seekToEndOfFile()
+                handle.write((line + "\n").data(using: .utf8)!)
+                try? handle.close()
+            }
         }
     }
 

@@ -155,6 +155,10 @@ func aosVoiceAssignmentsPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosCoordinationDir(for: mode))/voice-assignments.json"
 }
 
+func aosVoiceEventsPath(for mode: AOSRuntimeMode? = nil) -> String {
+    "\(aosStateDir(for: mode))/voice-events.jsonl"
+}
+
 func aosCLIErrorLogPath(for mode: AOSRuntimeMode? = nil) -> String {
     "\(aosStateDir(for: mode))/cli-errors.jsonl"
 }
