@@ -2526,12 +2526,23 @@ git commit -m "test(voice): voice-session-allocation asserts exact LRU voices fo
 **Files:**
 - Create: `tests/voice-policy-reload.sh`
 
-This test must observe the watcher firing across **two consecutive** atomic
-rewrites of `policy.json`, not just one. Each rewrite is a
-write-tmp + remove + rename cycle on the file inode. A single observation
-would pass even if the watcher's fd attached to the first inode and went
-silent after rename — exactly the bug Task 11's parent-directory watch is
-designed to prevent. Two rewrites prove the watcher continues to fire.
+This test covers the **full** policy-reload contract from spec Section 6,
+not just the watcher-fires-twice surface:
+
+1. After a disable, `voice list` reflects `availability.enabled = false`.
+2. After a disable, the **allocator was reseeded** — a fresh registration
+   does not receive the disabled voice. This is the load-bearing
+   handlePolicyReload assertion that distinguishes a reload that updated
+   policy state from one that also reseeded the deque.
+3. A second atomic rewrite is observed (proves the parent-directory fd
+   in Task 11 survived rewrite #1's write-tmp + remove + rename cycle).
+4. Live sessions are not auto-reassigned on policy change.
+
+Determinism setup matches Task 27: pre-write `policy.json` disabling the
+system + elevenlabs providers so the allocatable pool is exactly the 5
+mock voices in known order. With nothing registered yet, the initial
+allocator deque is `[alpha, bravo, charlie, delta, echo]`. That makes
+the post-disable fresh-session assignment exactly predictable.
 
 - [ ] **Step 1: Write test**
 
@@ -2554,16 +2565,26 @@ export AOS_VOICE_TEST_PROVIDERS=mock
 cleanup() { aos_test_kill_root "$ROOT"; rm -rf "$ROOT"; }
 trap cleanup EXIT
 
+V_ALPHA="voice://mock/mock-alpha"
+V_BRAVO="voice://mock/mock-bravo"
+
+# Pre-write policy with system + elevenlabs disabled so the allocatable pool
+# is exactly the 5 mock voices. Daemon must not be running yet —
+# VoicePolicyStore.load() caches on first read.
 mkdir -p "$ROOT/repo/voice"
+cat > "$ROOT/repo/voice/policy.json" <<JSON
+{
+  "schema_version": 1,
+  "providers": {
+    "system":     { "enabled": false },
+    "elevenlabs": { "enabled": false }
+  },
+  "voices":              { "disabled": [], "promote": [] },
+  "session_preferences": {}
+}
+JSON
+
 aos_test_start_daemon "$ROOT"
-
-SID="cccccccc-cccc-cccc-cccc-cccccccccccc"
-./aos tell --register --session-id "$SID" --name policy-reload-test >/dev/null
-
-held=$(./aos voice assignments --json | python3 -c "
-import json, sys
-print(next(e['voice']['id'] for e in json.loads(sys.stdin.read())['assignments'] if e['session_id']=='$SID'))
-")
 
 availability_enabled() {
     local voice_id="$1"
@@ -2575,47 +2596,97 @@ print('missing' if target is None else str(target['availability']['enabled']))
 "
 }
 
-# --- First atomic rewrite: disable the voice held by the live session ---
-cat > "$ROOT/repo/voice/policy.json" <<JSON
-{"schema_version":1,"providers":{},"voices":{"disabled":["$held"],"promote":[]},"session_preferences":{}}
-JSON
-
-# Allow watcher debounce + reload.
-sleep 1
-
-state1="$(availability_enabled "$held")"
-[[ "$state1" == "False" ]] || { echo "FAIL [reload-1]: expected $held availability.enabled=False after first rewrite; got $state1" >&2; exit 1; }
-echo "first-reload reflected"
-
-# Live session retains its descriptor — no auto-reassign on policy change.
-after_first=$(./aos voice assignments --json | python3 -c "
+voice_for() {
+    local sid="$1"
+    ./aos voice assignments --json | python3 -c "
 import json, sys
-print(next(e['voice']['id'] for e in json.loads(sys.stdin.read())['assignments'] if e['session_id']=='$SID'))
-")
-[[ "$after_first" == "$held" ]] || { echo "FAIL: live session reassigned after first rewrite: before=$held after=$after_first" >&2; exit 1; }
+sid = '$sid'
+data = json.loads(sys.stdin.read())['assignments']
+match = next((e for e in data if e['session_id'] == sid and e.get('voice')), None)
+print(match['voice']['id'] if match else '')
+"
+}
 
-# --- Second atomic rewrite: re-enable, observe watcher still firing.
-# This exercises the parent-directory fd's continued attachment across the
-# write-tmp + rename cycle from rewrite #1. A file-fd watcher that lost its
-# inode after rewrite #1 would see no event for rewrite #2 and the assertion
-# below would fail with state2 still "False".
-# ---
+assert_eq() {
+    local got="$1"; local want="$2"; local label="$3"
+    if [[ "$got" != "$want" ]]; then
+        echo "FAIL [$label]: got=$got want=$want" >&2
+        exit 1
+    fi
+}
+
+# -------------------------------------------------------------------------
+# Rewrite #1: disable mock-alpha. With reseed, the allocator deque drops
+# alpha:
+#   before: [alpha, bravo, charlie, delta, echo]
+#   after:  [bravo, charlie, delta, echo]
+# -------------------------------------------------------------------------
 cat > "$ROOT/repo/voice/policy.json" <<JSON
-{"schema_version":1,"providers":{},"voices":{"disabled":[],"promote":[]},"session_preferences":{}}
+{
+  "schema_version": 1,
+  "providers": {
+    "system":     { "enabled": false },
+    "elevenlabs": { "enabled": false }
+  },
+  "voices":              { "disabled": ["$V_ALPHA"], "promote": [] },
+  "session_preferences": {}
+}
 JSON
-
 sleep 1
 
-state2="$(availability_enabled "$held")"
-[[ "$state2" == "True" ]] || { echo "FAIL [reload-2]: expected $held availability.enabled=True after second rewrite; got $state2 (watcher likely went silent after first atomic rename)" >&2; exit 1; }
+state1="$(availability_enabled "$V_ALPHA")"
+assert_eq "$state1" "False" "rewrite-1: voice list shows alpha availability.enabled=False"
+echo "first-reload reflected in voice list"
+
+# -------------------------------------------------------------------------
+# Allocator-reseed proof. Register a fresh session AFTER the disable.
+# The post-reseed deque front is bravo, so a correctly reseeded allocator
+# must hand bravo to S1.
+#
+# Bug-detection: if handlePolicyReload updated voice list state but did
+# NOT call voiceAllocator.reseed(), the deque would still be the original
+# [alpha, bravo, charlie, delta, echo] and S1 would receive alpha — the
+# very voice the policy just disabled. The exact-equals assertion below
+# distinguishes the two states; the != assertion above it makes the
+# failure mode explicit in the diagnostic output.
+# -------------------------------------------------------------------------
+SID="cccccccc-cccc-cccc-cccc-cccccccccccc"
+./aos tell --register --session-id "$SID" --name policy-reload-test >/dev/null
+held="$(voice_for "$SID")"
+[[ "$held" != "$V_ALPHA" ]] || { echo "FAIL [reseed]: fresh session received disabled voice $V_ALPHA — handlePolicyReload did not reseed allocator" >&2; exit 1; }
+assert_eq "$held" "$V_BRAVO" "rewrite-1: fresh session picks bravo (front of post-reseed deque)"
+echo "first-reload reflected in allocator (reseed observed)"
+
+# -------------------------------------------------------------------------
+# Rewrite #2: re-enable alpha. This is the watcher-continuity check —
+# rewrite #1 was a write-tmp + remove + rename cycle that retired the
+# original policy.json inode; only the parent-directory fd in Task 11
+# stays attached across that. A file-fd watcher would have detached and
+# the assertion below would fail with state2 still "False".
+# -------------------------------------------------------------------------
+cat > "$ROOT/repo/voice/policy.json" <<JSON
+{
+  "schema_version": 1,
+  "providers": {
+    "system":     { "enabled": false },
+    "elevenlabs": { "enabled": false }
+  },
+  "voices":              { "disabled": [], "promote": [] },
+  "session_preferences": {}
+}
+JSON
+sleep 1
+
+state2="$(availability_enabled "$V_ALPHA")"
+assert_eq "$state2" "True" "rewrite-2: voice list shows alpha availability.enabled=True (watcher survived atomic rename)"
 echo "second-reload reflected (watcher survived atomic rename)"
 
-# Live session still retains its descriptor across both reloads.
-after_second=$(./aos voice assignments --json | python3 -c "
-import json, sys
-print(next(e['voice']['id'] for e in json.loads(sys.stdin.read())['assignments'] if e['session_id']=='$SID'))
-")
-[[ "$after_second" == "$held" ]] || { echo "FAIL: live session reassigned after second rewrite: before=$held after=$after_second" >&2; exit 1; }
+# -------------------------------------------------------------------------
+# Live session not auto-reassigned across either reload.
+# -------------------------------------------------------------------------
+after="$(voice_for "$SID")"
+assert_eq "$after" "$held" "live session retains descriptor across both reloads"
+echo "live session not auto-reassigned"
 
 ./aos tell --unregister --session-id "$SID" >/dev/null 2>&1 || true
 echo "ok"
@@ -2630,8 +2701,10 @@ bash tests/voice-policy-reload.sh
 ```
 Expected output (final lines):
 ```
-first-reload reflected
+first-reload reflected in voice list
+first-reload reflected in allocator (reseed observed)
 second-reload reflected (watcher survived atomic rename)
+live session not auto-reassigned
 ok
 ```
 
@@ -2639,7 +2712,7 @@ ok
 
 ```bash
 git add tests/voice-policy-reload.sh
-git commit -m "test(voice): policy reload survives two atomic rewrites; live session not reassigned"
+git commit -m "test(voice): policy reload covers voice-list update + allocator reseed + watcher continuity + live-session retention"
 ```
 
 ---
