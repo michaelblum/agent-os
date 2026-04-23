@@ -112,6 +112,7 @@ canonicalize(uri)
   ↓
 registry.contains(uri)? else error VOICE_NOT_FOUND
 record.speak_supported? else error VOICE_NOT_SPEAKABLE
+record.isAllocatable (enabled && installed && reachable)? else error VOICE_NOT_ALLOCATABLE
   ↓
 policy.setPreferred(sid, uri)  (writes voice/policy.json)
   ↓
@@ -359,8 +360,9 @@ Shim deleted in the final checkpoint of the workstream. Tests touching it migrat
 {
   "schema_version": 1,
   "providers": {
-    "elevenlabs": { "enabled": false }
-    // entries default to { "enabled": true } if absent
+    // Entries default to { "enabled": true } if absent.
+    // Example (commented) of an explicit override:
+    //   "elevenlabs": { "enabled": false }
   },
   "voices": {
     "disabled": [
@@ -482,7 +484,8 @@ Two distinct concepts:
 Rules:
 
 - `voice = nil` is the truthful state — `aos voice assignments` reports it as `null`. Allocator does not invent a phantom assignment.
-- Daemon `announce()` and `tell human --from-session-id <sid>` paths use `descriptor?.id ?? SpeechEngine.resolvedDefaultVoiceID` for resilience. Fallback delivery voice is NOT registry state, NOT subject to rotation/cooldown, NOT visible in `voice list` overlays.
+- Daemon `announce()` and `tell human --from-session-id <sid>` paths resolve a target via `descriptor?.id ?? SpeechEngine.resolvedDefaultVoiceID` for resilience. Fallback delivery voice is NOT registry state, NOT subject to rotation/cooldown, NOT visible in `voice list` overlays.
+- **Engine handoff:** speech paths convert registry URI ids back to raw provider voice ids via `VoiceID.parse(uri)?.providerVoiceID` before calling `SpeechEngine.setVoice` / `SpeechEngine(voice:)`. The fallback delivery target returned by `SpeechEngine.resolvedDefaultVoiceID` is already a raw engine id and bypasses parsing. `SpeechEngine` itself never sees URI form.
 - Telemetry: append `voice-events.jsonl` event `{ kind: "fallback_voice_used", session_id, fallback_voice_id, reason: <"no_allocatable_voice" | "assigned_voice_not_speakable"> }`.
 
 ### Command surface (`src/commands/voice.swift`)
@@ -511,7 +514,13 @@ Replaces `aos voice leases`. Old name kept one release as deprecated alias — e
 aos voice bind --session-id <sid> --voice <uri-or-bare-id>
 ```
 
-Resolves `--voice` through `canonicalize()` so bare ids still work. Validates: registry contains, `speak_supported`. Rejects with structured error otherwise (`VOICE_NOT_FOUND` or `VOICE_NOT_SPEAKABLE`). Persists `session_preferences[sid] = uri` to `voice/policy.json`. Updates live session descriptor in place. Calls `allocator.markUsed(uri)` to cool. Returns `{ status: "ok", session_id, voice: VoiceRecord }`.
+Resolves `--voice` through `canonicalize()` so bare ids still work. Validates full allocatability — three distinct error codes:
+
+- `VOICE_NOT_FOUND` — not present in registry snapshot.
+- `VOICE_NOT_SPEAKABLE` — present but `capabilities.speak_supported = false` (e.g. ElevenLabs stub voices in v1).
+- `VOICE_NOT_ALLOCATABLE` — present and speakable, but `enabled && installed && reachable` is false (operator-disabled, missing install, or provider unreachable). Distinct from `VOICE_NOT_SPEAKABLE` so callers can tell "this voice can never speak in v1" from "this voice could speak but policy/availability blocks it right now."
+
+On success: persists `session_preferences[sid] = uri` to `voice/policy.json`. Updates live session descriptor in place. Calls `allocator.markUsed(uri)` to cool. Returns `{ status: "ok", session_id, voice: VoiceRecord }`. Bind validation matches the preferred-voice resolution rule in Section 5 — only allocatable voices may be assigned, whether by allocator rotation or operator override.
 
 ```
 aos voice refresh
@@ -608,8 +617,10 @@ Unchanged ingress path. Audit confirms compatibility — payload resolution unto
 `tests/voice-bind.sh` (existing file, expanded):
 
 - Bind to non-existent URI → `VOICE_NOT_FOUND`.
-- Bind to stub URI → `VOICE_NOT_SPEAKABLE`.
-- Bind to disabled URI → `VOICE_NOT_SPEAKABLE`.
+- Bind to stub URI (`speak_supported = false`) → `VOICE_NOT_SPEAKABLE`.
+- Bind to disabled URI (in `voices.disabled[]`) → `VOICE_NOT_ALLOCATABLE`.
+- Bind to URI whose provider has `providers.<name>.enabled = false` → `VOICE_NOT_ALLOCATABLE`.
+- Bind to URI whose provider is currently `reachable = false` (mock toggled in test) → `VOICE_NOT_ALLOCATABLE`.
 - Bind succeeds → `voice/policy.json` updated, `aos voice assignments --json` reflects new voice.
 - Re-bind same session to different voice → preference replaces.
 
