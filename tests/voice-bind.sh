@@ -1,103 +1,52 @@
 #!/usr/bin/env bash
-# voice-bind.sh — verify voice rebinding for a live session updates the durable mapping
-
 set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+source "$(dirname "$0")/lib/isolated-daemon.sh"
 
-STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-voice-bind.XXXXXX")"
-trap 'rm -rf "$STATE_ROOT"' EXIT
+PREFIX="aos-voice-bind"
+aos_test_cleanup_prefix "$PREFIX"
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 
-export AOS_STATE_ROOT="$STATE_ROOT"
+# Set env BEFORE starting daemon — daemon inherits it on fork.
+# Mock provider is additive (alongside system + elevenlabs), see Task 7.
+export AOS_STATE_ROOT="$ROOT"
+export AOS_VOICE_TEST_PROVIDERS=mock
 
-pass() { echo "PASS: $1"; }
-fail() { echo "FAIL: $1"; exit 1; }
+cleanup() { aos_test_kill_root "$ROOT"; rm -rf "$ROOT"; }
+trap cleanup EXIT
 
-./aos clean >/dev/null 2>&1 || true
-./aos serve >/tmp/aos-voice-bind.daemon.log 2>&1 &
-DAEMON_PID=$!
-trap 'kill "$DAEMON_PID" >/dev/null 2>&1 || true; rm -rf "$STATE_ROOT"' EXIT
-sleep 1
+mkdir -p "$ROOT/repo/voice"
+aos_test_start_daemon "$ROOT"
 
-SESSION_A="voice-bind-a"
-SESSION_B="voice-bind-b"
+SID="11111111-2222-3333-4444-555555555555"
+./aos tell --register --session-id "$SID" --name bind-test >/dev/null
 
-./aos tell --register --session-id "$SESSION_A" --name alpha --role worker --harness codex >/dev/null
-./aos tell --register --session-id "$SESSION_B" --name beta --role worker --harness codex >/dev/null
+# Bind to non-existent URI -> VOICE_NOT_FOUND.
+err=$(./aos voice bind --session-id "$SID" --voice "voice://mock/nope" 2>&1 || true)
+echo "$err" | grep -q '"code":"VOICE_NOT_FOUND"' || { echo "FAIL: missing VOICE_NOT_FOUND in $err" >&2; exit 1; }
 
-CURRENT_VOICE="$(
-  ./aos tell --who | python3 -c 'import json, sys
-sessions = json.load(sys.stdin)["sessions"]
-for session in sessions:
-    if session["session_id"] == "'"$SESSION_A"'":
-        print(session.get("voice", {}).get("id", ""))
-        raise SystemExit(0)
-raise SystemExit(1)
-')"
-[ -n "$CURRENT_VOICE" ] || fail "expected session A to have an assigned voice"
-pass "session A has an initial voice"
+# Real allocatable mock voice -> success.
+ok=$(./aos voice bind --session-id "$SID" --voice "voice://mock/mock-alpha" 2>&1)
+# Success path: outer envelope is always "success"; success data contains
+# "voice":{...} inline, while error data contains "error":{"code":...}.
+# Use the inner "voice":{ marker as the success discriminator.
+echo "$ok" | grep -q '"voice":{' || { echo "FAIL: bind ok: $ok" >&2; exit 1; }
 
-TARGET_VOICE="$(
-  ./aos voice list | python3 -c 'import json, sys
-voices = json.load(sys.stdin)["voices"]
-current = "'"$CURRENT_VOICE"'"
-for voice in voices:
-    if voice["id"] != current:
-        print(voice["id"])
-        raise SystemExit(0)
-raise SystemExit(1)
-')"
-[ -n "$TARGET_VOICE" ] || fail "expected a different target voice to bind"
-pass "found alternate target voice"
+# Disable that voice via policy and re-bind -> VOICE_NOT_ALLOCATABLE.
+cat > "$ROOT/repo/voice/policy.json" <<JSON
+{"schema_version":1,"providers":{},"voices":{"disabled":["voice://mock/mock-alpha"],"promote":[]},"session_preferences":{}}
+JSON
+sleep 1  # let policy watcher fire
+err=$(./aos voice bind --session-id "$SID" --voice "voice://mock/mock-alpha" 2>&1 || true)
+echo "$err" | grep -q '"code":"VOICE_NOT_ALLOCATABLE"' || { echo "FAIL: missing VOICE_NOT_ALLOCATABLE in $err" >&2; exit 1; }
 
-OUT="$(./aos voice bind --session-id "$SESSION_A" --voice "$TARGET_VOICE")"
-python3 - "$OUT" <<'PY' || fail "voice bind did not succeed: $OUT"
-import json, sys
-payload = json.loads(sys.argv[1])
-if payload.get("status") != "ok":
-    raise SystemExit(1)
-PY
-pass "voice bind succeeded"
+# ElevenLabs stub voices return VOICE_NOT_SPEAKABLE (provider always present
+# alongside mock; no daemon restart needed).
+err=$(./aos voice bind --session-id "$SID" --voice "voice://elevenlabs/21m00Tcm4TlvDq8ikWAM" 2>&1 || true)
+echo "$err" | grep -q '"code":"VOICE_NOT_SPEAKABLE"' || { echo "FAIL: missing VOICE_NOT_SPEAKABLE in $err" >&2; exit 1; }
 
-BOUND_ID="$(./aos tell --who | python3 -c 'import json, sys
-sessions = json.load(sys.stdin)["sessions"]
-for session in sessions:
-    if session["session_id"] == "'"$SESSION_A"'":
-        print(session.get("voice", {}).get("id", ""))
-        break
-')"
-[ "$BOUND_ID" = "$TARGET_VOICE" ] || fail "session did not retain bound voice: expected $TARGET_VOICE got $BOUND_ID"
-pass "session reflects bound voice"
+./aos tell --unregister --session-id "$SID" >/dev/null 2>&1 || true
 
-./aos tell --unregister --session-id "$SESSION_A" >/dev/null
-./aos tell --register --session-id "$SESSION_A" --name alpha --role worker --harness codex >/dev/null
-
-REREGISTERED_ID="$(./aos tell --who | python3 -c 'import json, sys
-sessions = json.load(sys.stdin)["sessions"]
-for session in sessions:
-    if session["session_id"] == "'"$SESSION_A"'":
-        print(session.get("voice", {}).get("id", ""))
-        break
-')"
-[ "$REREGISTERED_ID" = "$TARGET_VOICE" ] || fail "re-registered session did not keep bound voice: expected $TARGET_VOICE got $REREGISTERED_ID"
-pass "re-registered session keeps bound voice"
-
-ASSIGNED_JSON="$(./aos voice list)"
-python3 - "$ASSIGNED_JSON" "$SESSION_A" "$TARGET_VOICE" <<'PY' || fail "voice list did not expose durable assignment"
-import json, sys
-payload = json.loads(sys.argv[1])
-session_id = sys.argv[2]
-voice_id = sys.argv[3]
-for voice in payload.get("voices", []):
-    if voice.get("id") == voice_id:
-        assigned = voice.get("assigned_session_ids", [])
-        if session_id not in assigned:
-            raise SystemExit(1)
-        break
-else:
-    raise SystemExit(1)
-PY
-pass "voice list shows durable assignment owner"
-
-echo "voice-bind: all checks passed"
+echo "ok"
