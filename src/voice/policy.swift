@@ -51,7 +51,7 @@ final class VoicePolicyStore {
         let dir = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         guard let data = try? encoder.encode(policy) else { return }
         let tmp = path + ".tmp"
         do {
@@ -105,5 +105,42 @@ final class VoicePolicyStore {
             i = text.index(after: i)
         }
         return out.data(using: .utf8) ?? data
+    }
+}
+
+extension VoicePolicyStore {
+    /// One-shot: voice-assignments.json (bare ids) → voice/policy.json session_preferences (URI form).
+    /// Idempotent: skips when target already populated OR when source already renamed to .migrated.
+    @discardableResult
+    func migrateLegacyAssignmentsIfNeeded() -> Bool {
+        let legacyPath = aosVoiceAssignmentsPath()
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: legacyPath) else { return false }
+
+        var policy = load()
+        if !policy.session_preferences.isEmpty {
+            // Source of truth already on the new file; rename legacy to .migrated.
+            try? fm.moveItem(atPath: legacyPath, toPath: legacyPath + ".migrated")
+            return false
+        }
+
+        guard let data = fm.contents(atPath: legacyPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        let assignments = (json["assignments"] as? [String: String]) ?? (json as? [String: String]) ?? [:]
+
+        var migrated: [String: String] = [:]
+        for (sid, voiceID) in assignments {
+            migrated[sid] = VoiceID.canonicalize(voiceID)
+        }
+        guard !migrated.isEmpty else {
+            try? fm.moveItem(atPath: legacyPath, toPath: legacyPath + ".migrated")
+            return false
+        }
+        policy.session_preferences = migrated
+        save(policy)
+        try? fm.moveItem(atPath: legacyPath, toPath: legacyPath + ".migrated")
+        return true
     }
 }

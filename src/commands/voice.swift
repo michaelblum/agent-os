@@ -28,6 +28,12 @@ func voiceCommand(args: [String]) {
         let data = try! JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys, .prettyPrinted])
         print(String(data: data, encoding: .utf8)!)
         exit(0)
+    case "_internal-migrate-policy":
+        let store = VoicePolicyStore()
+        let migrated = store.migrateLegacyAssignmentsIfNeeded()
+        let result = ["migrated": migrated, "policy_path": store.filePath] as [String: Any]
+        print(String(data: try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]), encoding: .utf8)!)
+        exit(0)
     case "list":
         response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
