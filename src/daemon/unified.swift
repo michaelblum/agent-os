@@ -9,6 +9,8 @@ class UnifiedDaemon {
     let config: AosConfig
     private(set) var currentConfig: AosConfig
     private let configWatcher = ConfigWatcher()
+    // Constructed lazily because it needs the bus's VoicePolicyStore (see below).
+    private var voicePolicyWatcher: VoicePolicyWatcher?
     let startTime = Date()
 
     // Modules
@@ -350,6 +352,14 @@ class UnifiedDaemon {
             self.onConfigChanged(old: oldConfig, new: newConfig)
         }
         configWatcher.start()
+
+        let policyWatcher = VoicePolicyWatcher(store: coordination.voicePolicyStore)
+        policyWatcher.onChange = { [weak self] policy in
+            guard let self else { return }
+            self.coordination.handlePolicyReload(policy)
+        }
+        policyWatcher.start()
+        voicePolicyWatcher = policyWatcher
 
         // Initialize voice if enabled
         if currentConfig.voice.enabled {

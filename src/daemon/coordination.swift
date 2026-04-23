@@ -288,6 +288,21 @@ class CoordinationBus {
         ]
     }
 
+    func handlePolicyReload(_ policy: VoicePolicy) {
+        lock.lock()
+        defer { lock.unlock() }
+        // The watcher already called `voicePolicyStore.reload()` on the same
+        // instance VoiceRegistry's policyLoader uses, so allocatableSnapshot()
+        // here resolves against the freshly-loaded policy. The `policy`
+        // argument is provided for future hooks (e.g. emitting a diff event)
+        // but is not required to drive reseed.
+        _ = policy
+        let allocatable = voiceRegistry.allocatableSnapshot().map { $0.id }
+        voiceAllocator.reseed(uris: allocatable)
+        // Do NOT auto-reassign live sessions; they keep their current descriptor
+        // until they re-register or a new explicit bind happens.
+    }
+
     // MARK: - Messages
 
     /// Post a message to a channel. Returns the message.
