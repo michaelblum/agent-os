@@ -2667,8 +2667,13 @@ assert_eq() {
 # alpha:
 #   before: [alpha, bravo, charlie, delta, echo]
 #   after:  [bravo, charlie, delta, echo]
+#
+# Use write-tmp + atomic rename — the parent-directory fd in Task 11 fires
+# .write events for in-directory entry changes (create/remove/rename), NOT
+# for in-place truncate+overwrite of an existing file. `cat > policy.json`
+# would silently keep the old inode and miss the watcher entirely.
 # -------------------------------------------------------------------------
-cat > "$ROOT/repo/voice/policy.json" <<JSON
+cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
 {
   "schema_version": 1,
   "providers": {
@@ -2679,6 +2684,7 @@ cat > "$ROOT/repo/voice/policy.json" <<JSON
   "session_preferences": {}
 }
 JSON
+mv "$ROOT/repo/voice/policy.json.tmp" "$ROOT/repo/voice/policy.json"
 sleep 1
 
 state1="$(availability_enabled "$V_ALPHA")"
@@ -2706,12 +2712,14 @@ echo "first-reload reflected in allocator (reseed observed)"
 
 # -------------------------------------------------------------------------
 # Rewrite #2: re-enable alpha. This is the watcher-continuity check —
-# rewrite #1 was a write-tmp + remove + rename cycle that retired the
-# original policy.json inode; only the parent-directory fd in Task 11
-# stays attached across that. A file-fd watcher would have detached and
-# the assertion below would fail with state2 still "False".
+# rewrite #1 was a write-tmp + atomic rename that retired the original
+# policy.json inode; only the parent-directory fd in Task 11 stays
+# attached across that. A file-fd watcher would have detached and the
+# assertion below would fail with state2 still "False".
+#
+# Same write-tmp + mv pattern as rewrite #1 (see comment there for why).
 # -------------------------------------------------------------------------
-cat > "$ROOT/repo/voice/policy.json" <<JSON
+cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
 {
   "schema_version": 1,
   "providers": {
@@ -2722,6 +2730,7 @@ cat > "$ROOT/repo/voice/policy.json" <<JSON
   "session_preferences": {}
 }
 JSON
+mv "$ROOT/repo/voice/policy.json.tmp" "$ROOT/repo/voice/policy.json"
 sleep 1
 
 state2="$(availability_enabled "$V_ALPHA")"
