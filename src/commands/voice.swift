@@ -17,6 +17,10 @@ func voiceCommand(args: [String]) {
 
     let response: [String: Any]?
     switch subcommand {
+    case "_internal-id-roundtrip":
+        voiceInternalIDRoundtrip(args: Array(args.dropFirst())); return
+    case "_internal-canonicalize":
+        voiceInternalCanonicalize(args: Array(args.dropFirst())); return
     case "list":
         response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
@@ -76,6 +80,46 @@ private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
         "session_id": sessionID,
         "voice_id": voiceID
     ], autoStartBinary: CommandLine.arguments[0])
+}
+
+private func voiceInternalIDRoundtrip(args: [String]) {
+    var provider: String?
+    var suffix: String?
+    var raw: String?
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--provider": i += 1; provider = i < args.count ? args[i] : nil
+        case "--suffix": i += 1; suffix = i < args.count ? args[i] : nil
+        case "--raw": i += 1; raw = i < args.count ? args[i] : nil
+        default: break
+        }
+        i += 1
+    }
+    if let raw {
+        if let parsed = VoiceID.parse(raw) {
+            print("\(raw)|\(parsed.provider)|\(parsed.providerVoiceID)"); exit(0)
+        }
+        FileHandle.standardError.write("VOICE_ID_INVALID\n".data(using: .utf8)!)
+        exit(2)
+    }
+    guard let provider, let suffix else { exitError("missing --provider/--suffix", code: "MISSING_ARG") }
+    let uri = VoiceID.make(provider: provider, providerVoiceID: suffix)
+    guard let parsed = VoiceID.parse(uri) else { exitError("VOICE_ID_INVALID", code: "VOICE_ID_INVALID") }
+    print("\(uri)|\(parsed.provider)|\(parsed.providerVoiceID)")
+    exit(0)
+}
+
+private func voiceInternalCanonicalize(args: [String]) {
+    var id: String?
+    var i = 0
+    while i < args.count {
+        if args[i] == "--id" { i += 1; id = i < args.count ? args[i] : nil }
+        i += 1
+    }
+    guard let id else { exitError("missing --id", code: "MISSING_ARG") }
+    print(VoiceID.canonicalize(id))
+    exit(0)
 }
 
 private func voiceFinalResponseEnvelope(args: [String]) -> [String: Any]? {
