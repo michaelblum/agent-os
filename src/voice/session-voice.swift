@@ -48,6 +48,20 @@ struct SessionVoiceDescriptor: Codable {
         )
     }
 
+    init(record: VoiceRecord, leaseSessionID: String? = nil, leaseSessionName: String? = nil) {
+        self.init(
+            provider: record.provider,
+            id: record.id,
+            name: record.display_name ?? record.name,
+            locale: record.locale ?? record.language ?? "unknown",
+            gender: record.gender,
+            quality_tier: record.quality_tier,
+            available: record.availability.allocatable,
+            lease_session_id: leaseSessionID,
+            lease_session_name: leaseSessionName
+        )
+    }
+
     func withLease(sessionID: String?, sessionName: String?) -> SessionVoiceDescriptor {
         SessionVoiceDescriptor(
             provider: provider,
@@ -104,80 +118,24 @@ struct VoiceRenderResult {
     }
 }
 
+@available(*, deprecated, message: "Use VoiceRegistry directly. SessionVoiceBank is a transitional shim.")
 enum SessionVoiceBank {
-    private struct PreferredVoiceMatcher {
-        let id: String?
-        let name: String?
-    }
-
-    private static let preferredVoices = [
-        PreferredVoiceMatcher(id: "com.apple.voice.premium.en-US.Zoe", name: "Zoe"),
-        PreferredVoiceMatcher(id: "com.apple.voice.premium.en-US.Ava", name: "Ava"),
-        PreferredVoiceMatcher(id: "com.apple.ttsbundle.gryphon-neuralAX_Damon_en-US_premium", name: "Voice 3"),
-        PreferredVoiceMatcher(id: "com.apple.voice.premium.en-GB.Malcolm", name: "Jamie")
-    ]
-
     static func curatedVoices() -> [SessionVoiceDescriptor] {
-        let discovered = SpeechEngine.availableVoices()
-        let eligible = discovered.filter { voice in
-            let tier = voice.quality_tier
-            guard tier == "premium" || tier == "enhanced" else { return false }
-            let locale = voice.language.lowercased()
-            return locale.hasPrefix("en")
-        }
-
-        var ordered: [SpeechEngine.VoiceInfo] = []
-        var seen = Set<String>()
-
-        for matcher in preferredVoices {
-            if let match = eligible.first(where: { voice in
-                if let id = matcher.id, voice.id == id { return true }
-                if let name = matcher.name, voice.name == name { return true }
-                return false
-            }), seen.insert(match.id).inserted {
-                ordered.append(match)
-            }
-        }
-
-        let remaining = eligible
-            .filter { !seen.contains($0.id) }
-            .sorted { lhs, rhs in
-                let lhsQuality = voiceQualityWeight(lhs.quality_tier)
-                let rhsQuality = voiceQualityWeight(rhs.quality_tier)
-                if lhsQuality != rhsQuality {
-                    return lhsQuality > rhsQuality
-                }
-                if lhs.gender != rhs.gender {
-                    return lhs.gender < rhs.gender
-                }
-                if lhs.language != rhs.language {
-                    return lhs.language < rhs.language
-                }
-                return lhs.name < rhs.name
-            }
-
-        ordered.append(contentsOf: remaining)
-        let descriptors = ordered.map { SessionVoiceDescriptor(voiceInfo: $0) }
+        let store = VoicePolicyStore()
+        let registry = VoiceRegistry(policyLoader: { store.load() })
+        let allocatable = registry.allocatableSnapshot()
+        let descriptors = allocatable.map { SessionVoiceDescriptor(record: $0) }
         return applyTestBankOverride(descriptors)
     }
 
     static func hasVoice(id: String) -> Bool {
-        curatedVoices().contains { $0.id == id }
+        let canonical = VoiceID.canonicalize(id)
+        return curatedVoices().contains { $0.id == canonical }
     }
 
     static func voice(id: String) -> SessionVoiceDescriptor? {
-        curatedVoices().first { $0.id == id }
-    }
-
-    private static func voiceQualityWeight(_ quality: String) -> Int {
-        switch quality {
-        case "premium":
-            return 3
-        case "enhanced":
-            return 2
-        default:
-            return 1
-        }
+        let canonical = VoiceID.canonicalize(id)
+        return curatedVoices().first { $0.id == canonical }
     }
 
     private static func applyTestBankOverride(_ voices: [SessionVoiceDescriptor]) -> [SessionVoiceDescriptor] {
@@ -189,7 +147,7 @@ enum SessionVoiceBank {
             return voices
         }
 
-        let allowed = Set(raw)
+        let allowed = Set(raw.map(VoiceID.canonicalize))
         let filtered = voices.filter { allowed.contains($0.id) }
         return filtered.isEmpty ? voices : filtered
     }
