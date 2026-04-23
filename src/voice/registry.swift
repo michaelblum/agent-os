@@ -122,3 +122,127 @@ extension VoiceRecord {
         return dict
     }
 }
+
+struct ProviderInfo: Codable {
+    let name: String
+    let rank: Int
+    let availability: ProviderAvailability
+    let voice_count: Int
+    let enabled: Bool
+
+    func dictionary() -> [String: Any] {
+        return [
+            "name": name,
+            "rank": rank,
+            "availability": [
+                "reachable": availability.reachable,
+                "reason": availability.reason as Any
+            ].compactMapValues { ($0 is NSNull) ? nil : $0 },
+            "voice_count": voice_count,
+            "enabled": enabled
+        ]
+    }
+}
+
+final class VoiceRegistry {
+    private let providers: [VoiceProvider]
+    private let policyLoader: () -> VoicePolicy?
+
+    init(providers: [VoiceProvider]? = nil, policyLoader: @escaping () -> VoicePolicy?) {
+        self.providers = providers ?? VoiceRegistry.defaultProviders()
+        self.policyLoader = policyLoader
+    }
+
+    static func defaultProviders() -> [VoiceProvider] {
+        var providers: [VoiceProvider] = [SystemVoiceProvider(), ElevenLabsStubProvider()]
+        let env = ProcessInfo.processInfo.environment["AOS_VOICE_TEST_PROVIDERS"]
+        if env == "mock" {
+            providers.append(MockVoiceProvider(name: "mock", providerRank: 5))
+        }
+        return providers
+    }
+
+    func providersInfo() -> [ProviderInfo] {
+        let policy = policyLoader()
+        return providers.map { p in
+            let voices = p.enumerate()
+            let enabled = policy?.providers[p.name]?.enabled ?? true
+            return ProviderInfo(
+                name: p.name,
+                rank: p.providerRank,
+                availability: p.availability,
+                voice_count: voices.count,
+                enabled: enabled
+            )
+        }.sorted { $0.rank < $1.rank }
+    }
+
+    func snapshot() -> [VoiceRecord] {
+        let policy = policyLoader()
+        let disabledURIs = Set(policy?.voices.disabled ?? [])
+        let promoteOrder: [String: Int] = {
+            var out: [String: Int] = [:]
+            for (idx, uri) in (policy?.voices.promote ?? []).enumerated() { out[uri] = idx }
+            return out
+        }()
+
+        var combined: [(record: VoiceRecord, providerRank: Int)] = []
+        for p in providers {
+            let providerEnabled = policy?.providers[p.name]?.enabled ?? true
+            for var rec in p.enumerate() {
+                if !providerEnabled || disabledURIs.contains(rec.id) {
+                    rec.availability.enabled = false
+                }
+                combined.append((rec, p.providerRank))
+            }
+        }
+
+        return combined.sorted { lhs, rhs in
+            let lp = promoteOrder[lhs.record.id]
+            let rp = promoteOrder[rhs.record.id]
+            switch (lp, rp) {
+            case let (l?, r?): if l != r { return l < r }
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: break
+            }
+            if lhs.providerRank != rhs.providerRank { return lhs.providerRank < rhs.providerRank }
+            let lq = qualityWeight(lhs.record.quality_tier)
+            let rq = qualityWeight(rhs.record.quality_tier)
+            if lq != rq { return lq > rq }
+            return lhs.record.name < rhs.record.name
+        }.map { $0.record }
+    }
+
+    func lookup(_ uri: String) -> VoiceRecord? {
+        let canonical = VoiceID.canonicalize(uri)
+        return snapshot().first { $0.id == canonical }
+    }
+
+    func contains(_ uri: String) -> Bool { lookup(uri) != nil }
+
+    func refresh() -> [VoiceRecord] { snapshot() }
+
+    func allocatableSnapshot() -> [VoiceRecord] {
+        snapshot().filter { $0.isAllocatable }
+    }
+
+    private func qualityWeight(_ tier: String) -> Int {
+        switch tier {
+        case "premium": return 3
+        case "enhanced": return 2
+        case "standard": return 1
+        default: return 0
+        }
+    }
+}
+
+// TEMP stub — replaced in Task 9 by full type in src/voice/policy.swift.
+// Keep registry compilable until policy.swift lands.
+struct VoicePolicy {
+    struct ProviderEntry { var enabled: Bool }
+    struct VoicesSection { var disabled: [String]; var promote: [String] }
+    var providers: [String: ProviderEntry] = [:]
+    var voices: VoicesSection = VoicesSection(disabled: [], promote: [])
+    var session_preferences: [String: String] = [:]
+}
