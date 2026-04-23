@@ -21,6 +21,13 @@ func voiceCommand(args: [String]) {
         voiceInternalIDRoundtrip(args: Array(args.dropFirst())); return
     case "_internal-canonicalize":
         voiceInternalCanonicalize(args: Array(args.dropFirst())); return
+    case "_internal-registry-snapshot":
+        let policyLoader: () -> VoicePolicy? = { nil }
+        let reg = VoiceRegistry(policyLoader: policyLoader)
+        let snap = reg.snapshot().map { $0.dictionary() }
+        let data = try! JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys, .prettyPrinted])
+        print(String(data: data, encoding: .utf8)!)
+        exit(0)
     case "list":
         response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
