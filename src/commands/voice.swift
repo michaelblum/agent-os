@@ -34,6 +34,8 @@ func voiceCommand(args: [String]) {
         let result = ["migrated": migrated, "policy_path": store.filePath] as [String: Any]
         print(String(data: try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]), encoding: .utf8)!)
         exit(0)
+    case "_internal-allocator-test":
+        voiceInternalAllocatorTest(args: Array(args.dropFirst())); return
     case "list":
         response = sendEnvelopeRequest(service: "voice", action: "list", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "leases":
@@ -132,6 +134,30 @@ private func voiceInternalCanonicalize(args: [String]) {
     }
     guard let id else { exitError("missing --id", code: "MISSING_ARG") }
     print(VoiceID.canonicalize(id))
+    exit(0)
+}
+
+private func voiceInternalAllocatorTest(args: [String]) {
+    // args is a sequence: seed:A,B,C  next  next  used:B  reseed:B,C,D  next ...
+    let alloc = VoiceAllocator()
+    var output: [Any] = []
+    for cmd in args {
+        if cmd.hasPrefix("seed:") {
+            alloc.seed(uris: String(cmd.dropFirst(5)).split(separator: ",").map(String.init))
+            output.append(["op": "seed", "deque": alloc.currentDeque()])
+        } else if cmd.hasPrefix("reseed:") {
+            alloc.reseed(uris: String(cmd.dropFirst(7)).split(separator: ",").map(String.init))
+            output.append(["op": "reseed", "deque": alloc.currentDeque()])
+        } else if cmd.hasPrefix("used:") {
+            alloc.markUsed(String(cmd.dropFirst(5)))
+            output.append(["op": "used", "deque": alloc.currentDeque()])
+        } else if cmd == "next" {
+            let n = alloc.next() ?? ""
+            output.append(["op": "next", "value": n, "deque": alloc.currentDeque()])
+        }
+    }
+    let data = try! JSONSerialization.data(withJSONObject: output, options: [.sortedKeys, .prettyPrinted])
+    print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
 
