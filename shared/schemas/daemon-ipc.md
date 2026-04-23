@@ -43,8 +43,11 @@ Error response:
 | `session.unregister` | Remove session presence. | `session_id` or `name`. |
 | `session.who` | List online sessions. | (none) |
 | `voice.list` | List voice bank. | (none) |
-| `voice.leases` | List active voice leases. | (none) |
-| `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id`. |
+| `voice.assignments` | List session-centric voice assignments. | (none) |
+| `voice.refresh` | Re-enumerate voices and reseed allocator order. | (none) |
+| `voice.providers` | List providers with availability and catalog counts. | (none) |
+| `voice.leases` | Deprecated alias of `voice.assignments` for one release. | (none) |
+| `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id` (URI or bare id accepted). |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
@@ -68,9 +71,27 @@ Error response:
 | `PARSE_ERROR` | Request not JSON, schema violation, or legacy flat-string request. |
 | `SESSION_NOT_FOUND` | Referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | Daemon could not resolve a session id for an action that requires one. |
+| `VOICE_NOT_FOUND` | `voice.bind` target URI does not exist in the registry snapshot. |
+| `VOICE_NOT_SPEAKABLE` | `voice.bind` target exists but cannot synthesize in this version. |
+| `VOICE_NOT_ALLOCATABLE` | `voice.bind` target exists and is speakable, but policy or availability blocks allocation. |
 | `CANVAS_NOT_FOUND` | Referenced canvas `id` does not exist. |
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INTERNAL` | Unexpected daemon error. |
+
+## Voice Payload Shapes
+
+`daemon-response.schema.json` now includes `$defs.VoiceRecord` for the registry-backed voice payload returned by `voice.list`, `voice.refresh`, `voice.bind`, and the nested `voice` objects inside `voice.assignments`.
+
+`VoiceRecord` fields:
+
+- `id`, `provider`, `provider_voice_id`, `name`
+- optional `display_name`, `locale`, `language`, `region`
+- `gender`, `kind`, `quality_tier`, `tags`
+- `capabilities { local, streaming, ssml, speak_supported }`
+- `availability { installed, enabled, reachable }`
+- `metadata` as JSON-safe passthrough values
+
+`voice.providers` returns `ProviderInfo[]` with `name`, `rank`, `availability { reachable, reason? }`, `voice_count`, and `enabled`.
 
 ## Versioning
 

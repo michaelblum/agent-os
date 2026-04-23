@@ -33,6 +33,9 @@
             "PARSE_ERROR",
             "SESSION_NOT_FOUND",
             "MISSING_SESSION_ID",
+            "VOICE_NOT_FOUND",
+            "VOICE_NOT_SPEAKABLE",
+            "VOICE_NOT_ALLOCATABLE",
             "CANVAS_NOT_FOUND",
             "PERMISSION_DENIED",
             "INTERNAL"
@@ -41,5 +44,100 @@
         "ref": { "type": "string" }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "JSONValue": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "integer" },
+        { "type": "number" },
+        { "type": "boolean" },
+        { "type": "null" },
+        { "type": "array", "items": { "$ref": "#/$defs/JSONValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/JSONValue" } }
+      ]
+    },
+    "VoiceCapabilities": {
+      "type": "object",
+      "required": ["local", "streaming", "ssml", "speak_supported"],
+      "additionalProperties": false,
+      "properties": {
+        "local": { "type": "boolean" },
+        "streaming": { "type": "boolean" },
+        "ssml": { "type": "boolean" },
+        "speak_supported": { "type": "boolean" }
+      }
+    },
+    "VoiceAvailability": {
+      "type": "object",
+      "required": ["installed", "enabled", "reachable"],
+      "additionalProperties": false,
+      "properties": {
+        "installed": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "reachable": { "type": "boolean" }
+      }
+    },
+    "ProviderAvailability": {
+      "type": "object",
+      "required": ["reachable"],
+      "additionalProperties": false,
+      "properties": {
+        "reachable": { "type": "boolean" },
+        "reason": { "type": "string" }
+      }
+    },
+    "VoiceRecord": {
+      "type": "object",
+      "required": [
+        "id",
+        "provider",
+        "provider_voice_id",
+        "name",
+        "gender",
+        "kind",
+        "quality_tier",
+        "tags",
+        "capabilities",
+        "availability",
+        "metadata"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "provider_voice_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "display_name": { "type": "string" },
+        "locale": { "type": "string" },
+        "language": { "type": "string" },
+        "region": { "type": "string" },
+        "gender": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "quality_tier": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "capabilities": { "$ref": "#/$defs/VoiceCapabilities" },
+        "availability": { "$ref": "#/$defs/VoiceAvailability" },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/JSONValue" }
+        }
+      }
+    },
+    "ProviderInfo": {
+      "type": "object",
+      "required": ["name", "rank", "availability", "voice_count", "enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "rank": { "type": "integer" },
+        "availability": { "$ref": "#/$defs/ProviderAvailability" },
+        "voice_count": { "type": "integer", "minimum": 0 },
+        "enabled": { "type": "boolean" }
+      }
+    }
+  }
 }
