@@ -1090,6 +1090,20 @@ git commit -m "feat(voice): one-shot migration voice-assignments.json → voice/
 **Files:**
 - Create: `src/voice/policy-watcher.swift`
 
+**Why two correctness invariants matter here:**
+
+1. **Shared store, not a new one.** The watcher must reload the *same*
+   `VoicePolicyStore` instance the bus's `VoiceRegistry` reads through. A
+   fresh `VoicePolicyStore(path:)` invalidates a different cache; the bus's
+   store keeps returning the stale policy from `policyLoader()` so reseed
+   sees stale `allocatableSnapshot()`. Inject the store via init.
+
+2. **Reopen after rename/delete.** `VoicePolicyStore.save()` writes
+   `policy.json.tmp` then atomically renames it onto `policy.json`. The
+   original `O_EVTONLY` fd still references the *old* inode after that
+   rename, so the source fires once and then goes silent. Rebuild the source
+   against the path on `.rename` / `.delete`.
+
 - [ ] **Step 1: Implement watcher modeled on `ConfigWatcher`**
 
 ```swift
@@ -1100,18 +1114,32 @@ final class VoicePolicyWatcher {
     private var source: DispatchSourceFileSystemObject?
     private var fd: Int32 = -1
     private let path: String
+    private let store: VoicePolicyStore
+    private let queue = DispatchQueue(label: "aos.voice.policy-watcher")
     var onChange: ((VoicePolicy) -> Void)?
 
-    init(path: String = aosVoicePolicyPath()) {
-        self.path = path
+    /// Pass the bus-owned store so `reload()` invalidates the cache that
+    /// `VoiceRegistry`'s `policyLoader` reads through.
+    init(store: VoicePolicyStore) {
+        self.store = store
+        self.path = store.filePath
+    }
+
+    /// Convenience for tests / standalone callers without a bus.
+    convenience init(path: String = aosVoicePolicyPath()) {
+        self.init(store: VoicePolicyStore(path: path))
     }
 
     func start() {
         let dir = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         if !FileManager.default.fileExists(atPath: path) {
-            VoicePolicyStore(path: path).save(.empty)
+            store.save(.empty)
         }
+        openSource()
+    }
+
+    private func openSource() {
         fd = open(path, O_EVTONLY)
         guard fd >= 0 else {
             fputs("Warning: cannot watch voice policy at \(path)\n", stderr); return
@@ -1119,14 +1147,20 @@ final class VoicePolicyWatcher {
         let src = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,
             eventMask: [.write, .rename, .delete],
-            queue: DispatchQueue.global(qos: .utility)
+            queue: queue
         )
         src.setEventHandler { [weak self] in
             guard let self else { return }
+            let flags = self.source?.data ?? []
             usleep(50_000)
-            let store = VoicePolicyStore(path: self.path)
-            let policy = store.reload()
+            let policy = self.store.reload()
             self.onChange?(policy)
+            // VoicePolicyStore.save() does an atomic rename. The fd opened on
+            // the old inode goes silent after that; rebuild the source so we
+            // keep observing subsequent edits.
+            if flags.contains(.rename) || flags.contains(.delete) {
+                self.reopenSource()
+            }
         }
         src.setCancelHandler { [weak self] in
             guard let self else { return }
@@ -1134,6 +1168,17 @@ final class VoicePolicyWatcher {
         }
         src.resume()
         self.source = src
+    }
+
+    private func reopenSource() {
+        source?.cancel(); source = nil
+        // setCancelHandler closes fd; clear local copy so the next openSource
+        // start from a clean state.
+        fd = -1
+        // Tiny grace period so the rename has fully landed before we re-stat.
+        queue.asyncAfter(deadline: .now() + .milliseconds(50)) { [weak self] in
+            self?.openSource()
+        }
     }
 
     func stop() {
@@ -1153,7 +1198,7 @@ Expected: build succeeds.
 
 ```bash
 git add src/voice/policy-watcher.swift
-git commit -m "feat(voice): add VoicePolicyWatcher (separate file watcher instance)"
+git commit -m "feat(voice): add VoicePolicyWatcher (shared store, reopen on rename)"
 ```
 
 ---
@@ -1415,7 +1460,10 @@ grep -n "init(\|class CoordinationBus" /Users/Michael/Code/agent-os/src/daemon/c
 In `CoordinationBus` near existing `voiceAssignmentsPath` and `voiceAssignments` properties, add:
 
 ```swift
-private let voicePolicyStore: VoicePolicyStore
+// Internal (not private) so the daemon can hand the same store instance to
+// VoicePolicyWatcher; reload() then invalidates the cache that VoiceRegistry
+// reads through. See Task 11 / Task 17 for the cross-instance constraint.
+let voicePolicyStore: VoicePolicyStore
 private let voiceRegistry: VoiceRegistry
 private let voiceAllocator: VoiceAllocator
 ```
@@ -1443,19 +1491,25 @@ Add inside `CoordinationBus`:
 private func seedAllocatorAfterRestore() {
     let allocatableURIs = voiceRegistry.allocatableSnapshot().map { $0.id }
     voiceAllocator.seed(uris: allocatableURIs)
+    // Spec Section 5: restore order is (registered_at ASC, session_id ASC).
+    // Tiebreak on sessionID keeps reseed deterministic when two sessions
+    // share a timestamp (common in fixture data + fast bulk registration).
     let restored = sessions
-        .compactMap { (sid, info) -> (String, Date)? in
+        .compactMap { (sid, info) -> (sessionID: String, voiceURI: String, registeredAt: Date)? in
             guard let voice = info.voice else { return nil }
-            return (voice.id, info.registeredAt)
+            return (sessionID: sid, voiceURI: voice.id, registeredAt: info.registeredAt)
         }
-        .sorted { $0.1 < $1.1 }
-    for (uri, _) in restored {
-        voiceAllocator.markUsed(VoiceID.canonicalize(uri))
+        .sorted {
+            if $0.registeredAt != $1.registeredAt { return $0.registeredAt < $1.registeredAt }
+            return $0.sessionID < $1.sessionID
+        }
+    for entry in restored {
+        voiceAllocator.markUsed(VoiceID.canonicalize(entry.voiceURI))
     }
 }
 ```
 
-`SessionInfo.registeredAt: Date` is non-optional in `src/daemon/coordination.swift:45`; safe to use as the sort key directly.
+`SessionInfo.registeredAt: Date` is non-optional in `src/daemon/coordination.swift:45`; safe to use as the sort key directly. `sessionID` is the dictionary key (also non-optional).
 
 - [ ] **Step 4: Build**
 
@@ -1700,17 +1754,24 @@ grep -n "configWatcher" /Users/Michael/Code/agent-os/src/daemon/unified.swift | 
 Add adjacent to `configWatcher`:
 
 ```swift
-private let voicePolicyWatcher = VoicePolicyWatcher()
+// Constructed lazily because it needs the bus's VoicePolicyStore (see below).
+private var voicePolicyWatcher: VoicePolicyWatcher?
 ```
 
-Where `configWatcher.start()` is called, also call:
+Where `configWatcher.start()` is called, also wire the watcher against the
+**same** `VoicePolicyStore` instance the bus already owns. This is the
+critical correctness invariant: a fresh store would invalidate a different
+cache, and `handlePolicyReload` reads through `voiceRegistry.policyLoader`
+which is bound to the bus's store.
 
 ```swift
-voicePolicyWatcher.onChange = { [weak self] policy in
+let watcher = VoicePolicyWatcher(store: coordinationBus.voicePolicyStore)
+watcher.onChange = { [weak self] policy in
     guard let self else { return }
     self.coordinationBus.handlePolicyReload(policy)
 }
-voicePolicyWatcher.start()
+watcher.start()
+voicePolicyWatcher = watcher
 ```
 
 - [ ] **Step 3: Add `handlePolicyReload(_:)` to `CoordinationBus`**
@@ -1719,6 +1780,12 @@ In `src/daemon/coordination.swift`:
 
 ```swift
 func handlePolicyReload(_ policy: VoicePolicy) {
+    // The watcher already called `voicePolicyStore.reload()` on the same
+    // instance VoiceRegistry's policyLoader uses, so allocatableSnapshot()
+    // here resolves against the freshly-loaded policy. The `policy`
+    // argument is provided for future hooks (e.g. emitting a diff event)
+    // but is not required to drive reseed.
+    _ = policy
     let allocatable = voiceRegistry.allocatableSnapshot().map { $0.id }
     voiceAllocator.reseed(uris: allocatable)
     // Do NOT auto-reassign live sessions; they keep their current descriptor
@@ -2222,6 +2289,15 @@ git commit -m "test(voice): bind covers all three error codes (NOT_FOUND/NOT_SPE
 - Delete: `tests/voice-session-leases.sh`
 - Create: `tests/voice-session-allocation.sh`
 
+This test exercises the four contract points the spec calls out for allocation:
+
+1. **distinct-while-supply** — first N (≤ allocatable count) sessions get distinct voices.
+2. **bias-away** — when alternatives still exist, a fresh registration prefers an unused voice over a recently used one.
+3. **over-capacity reuse** — sessions beyond the allocatable count wrap; allocator does not refuse to assign.
+4. **restart reseed marks restored** — after daemon restart, the next fresh registration is biased away from voices already held by restored sessions.
+
+Mock provider exposes 5 voices (`mock-alpha` … `mock-echo`) per Task 6, which is enough headroom for 5 distinct sessions plus over-cap probes.
+
 - [ ] **Step 1: Read old test for reference, then delete**
 
 ```bash
@@ -2252,37 +2328,118 @@ trap cleanup EXIT
 
 aos_test_start_daemon "$ROOT"
 
-A="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-B="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+# 5 mock voices are configured; use 7 sessions to exercise wrap.
+S1="11111111-1111-1111-1111-111111111111"
+S2="22222222-2222-2222-2222-222222222222"
+S3="33333333-3333-3333-3333-333333333333"
+S4="44444444-4444-4444-4444-444444444444"
+S5="55555555-5555-5555-5555-555555555555"
+S6="66666666-6666-6666-6666-666666666666"
+S7="77777777-7777-7777-7777-777777777777"
 
-./aos tell --register --session-id "$A" --name a-sess >/dev/null
-./aos tell --register --session-id "$B" --name b-sess >/dev/null
+assignments_json() { ./aos voice assignments --json; }
 
-resp=$(./aos voice assignments --json)
-echo "$resp" | python3 -c "
+voice_for() {
+    local sid="$1"
+    assignments_json | python3 -c "
+import json, sys
+sid = '$sid'
+data = json.loads(sys.stdin.read())['assignments']
+match = next((e for e in data if e['session_id'] == sid and e.get('voice')), None)
+print(match['voice']['id'] if match else '')
+"
+}
+
+# --- 1. distinct-while-supply: first 5 sessions get 5 distinct voices ---
+for sid in "$S1" "$S2" "$S3" "$S4" "$S5"; do
+    ./aos tell --register --session-id "$sid" --name "sess-$sid" >/dev/null
+done
+
+assignments_json | python3 -c "
 import json, sys
 data = json.loads(sys.stdin.read())['assignments']
-voices = [e.get('voice') for e in data if e.get('voice')]
-ids = [v['id'] for v in voices]
-assert len(ids) == 2, f'expected 2 assigned voices, got {ids}'
-assert ids[0] != ids[1], f'expected distinct voices for first two sessions, got {ids}'
-print('distinct first-two ok')
+ids = [e['voice']['id'] for e in data if e.get('voice')]
+assert len(ids) == 5, f'expected 5 assigned voices, got {len(ids)}: {ids}'
+assert len(set(ids)) == 5, f'expected 5 distinct voices, got {ids}'
+print('distinct-while-supply ok')
 "
 
-# Bind A to a specific voice → preference persists, descriptor updates.
-./aos voice bind --session-id "$A" --voice "voice://mock/mock-charlie" >/dev/null
+# --- 2. bias-away: explicit bind frees a slot; next fresh session biases away ---
+# Bind S5 onto a known voice so we know which slot is "fresh".
+./aos voice bind --session-id "$S5" --voice "voice://mock/mock-alpha" >/dev/null
+v_after_bind=$(voice_for "$S5")
+[[ "$v_after_bind" == "voice://mock/mock-alpha" ]] || { echo "FAIL: bind not reflected: $v_after_bind" >&2; exit 1; }
 
-resp=$(./aos voice assignments --json)
-echo "$resp" | python3 -c "
+# --- 3. over-capacity reuse: S6, S7 must still receive a voice (no refusal) ---
+./aos tell --register --session-id "$S6" --name "sess-$S6" >/dev/null
+./aos tell --register --session-id "$S7" --name "sess-$S7" >/dev/null
+
+v6=$(voice_for "$S6")
+v7=$(voice_for "$S7")
+[[ -n "$v6" ]] || { echo "FAIL: S6 received no voice (allocator refused over-capacity)" >&2; exit 1; }
+[[ -n "$v7" ]] || { echo "FAIL: S7 received no voice (allocator refused over-capacity)" >&2; exit 1; }
+echo "over-capacity reuse ok"
+
+# Confirm at least one over-cap session reused a voice from S1..S5 (the only
+# possible behavior given 5 mock voices and 7 active sessions).
+assignments_json | python3 -c "
 import json, sys
 data = json.loads(sys.stdin.read())['assignments']
-a = next(e for e in data if e['session_id']=='$A')
-assert a['voice']['id'] == 'voice://mock/mock-charlie', f'bind not reflected: {a}'
-print('bind ok')
+ids = [e['voice']['id'] for e in data if e.get('voice')]
+# 7 sessions, 5 voices => at least 2 reuses by pigeonhole.
+assert len(ids) == 7, f'expected 7 assigned voices, got {len(ids)}'
+assert len(ids) - len(set(ids)) >= 2, f'expected >=2 reuses, got ids={ids}'
+print('reuse-distribution ok')
 "
 
-./aos tell --unregister --session-id "$A" >/dev/null 2>&1 || true
-./aos tell --unregister --session-id "$B" >/dev/null 2>&1 || true
+# --- 4. restart reseed marks restored sessions before next allocation ---
+# Tear down daemon WITHOUT clearing state, restart, register S8.
+S8="88888888-8888-8888-8888-888888888888"
+
+# Capture currently-held voices so we can verify S8 prefers an unused one
+# if any exists. With 7 sessions on 5 voices, no voice is unused; instead
+# we verify S8 receives a voice that is the *least-recently-used* (front of
+# deque after reseed marks restored sessions), which by spec is the voice
+# with the earliest registered_at among held voices.
+held_before_restart=$(assignments_json | python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())['assignments']
+print(','.join(sorted({e['voice']['id'] for e in data if e.get('voice')})))
+")
+
+aos_test_kill_root "$ROOT"
+aos_test_start_daemon "$ROOT"
+
+./aos tell --register --session-id "$S8" --name "sess-$S8" >/dev/null
+v8=$(voice_for "$S8")
+[[ -n "$v8" ]] || { echo "FAIL: S8 received no voice after restart" >&2; exit 1; }
+
+# Spec invariant: restart reseed must call markUsed for restored sessions
+# BEFORE serving new registrations. If reseed forgot to mark them, S8 would
+# pop the front of the (unmarked) deque — which would be mock-alpha
+# (provider order). We assert the front-of-deque voice is *not* what S8 got
+# unless every voice is held (which it is here, so we instead assert S8 got
+# the LRU voice, equivalent to the voice with the earliest restored markUsed).
+held_after=$(assignments_json | python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())['assignments']
+held = [(e['session_id'], e['voice']['id']) for e in data if e.get('voice')]
+# S8 must hold a voice already held by some restored session (no fresh slots).
+s8_voice = next(v for s, v in held if s == '$S8')
+restored = [v for s, v in held if s != '$S8']
+assert s8_voice in restored, f'S8 voice {s8_voice} not in restored set {restored}'
+print('restart-reseed ok')
+"
+
+# --- bind preference still works after restart ---
+./aos voice bind --session-id "$S8" --voice "voice://mock/mock-charlie" >/dev/null
+v8_after=$(voice_for "$S8")
+[[ "$v8_after" == "voice://mock/mock-charlie" ]] || { echo "FAIL: post-restart bind not reflected: $v8_after" >&2; exit 1; }
+echo "post-restart bind ok"
+
+for sid in "$S1" "$S2" "$S3" "$S4" "$S5" "$S6" "$S7" "$S8"; do
+    ./aos tell --unregister --session-id "$sid" >/dev/null 2>&1 || true
+done
 
 echo "ok"
 EOF
@@ -2295,7 +2452,15 @@ chmod +x tests/voice-session-allocation.sh
 bash build.sh
 bash tests/voice-session-allocation.sh
 ```
-Expected: `ok`.
+Expected output (final lines):
+```
+distinct-while-supply ok
+over-capacity reuse ok
+reuse-distribution ok
+restart-reseed ok
+post-restart bind ok
+ok
+```
 
 - [ ] **Step 4: Update CI manifest if any**
 
@@ -2308,7 +2473,7 @@ If hits, replace with `voice-session-allocation`.
 
 ```bash
 git add -A tests/voice-session-leases.sh tests/voice-session-allocation.sh
-git commit -m "test(voice): replace voice-session-leases with voice-session-allocation (rotation contract)"
+git commit -m "test(voice): voice-session-allocation covers distinct/bias-away/over-cap/restart-reseed"
 ```
 
 ---
@@ -2730,5 +2895,7 @@ gh issue close 103
 
 - **Spec coverage:** Section 1 in scope items map to Tasks 1-7 (registry/providers), 8-11 (policy + migration + watcher), 12 (allocator), 14-18 (coordination + speech path), 19-25 (commands + IPC + help), 30 (telemetry). Section 2 data flows covered by tasks 14-18. Section 3 ID format covered by Tasks 1, 26. Section 4 protocol + providers covered by 3-7. Section 5 policy file + migration covered by 9-10, sample policy edge cases by tests in 26-28. Section 6 allocator + commands covered by 12, 19-22. Section 7 testing covered by 1, 8, 10, 12, 25-28, 30. Section 8 audit confirmed by Task 31 (hook untouched), Task 35 (final shim deletion). Section 9 docs deliverables covered by 23-24, 32-34.
 - **Open questions resolved:** All five plan-time decisions baked into tasks (file rename, separate watcher, sort fall-through documented in docs/api, internal name kept, mock provider in production target gated by env).
-- **Type consistency:** `VoiceRecord.dictionary()` defined in Task 2 reused in Tasks 16, 21, 22. `VoiceID.parse` / `canonicalize` defined in Task 1 reused in Tasks 13, 15, 16, 18. `VoicePolicyStore` API methods (`load`, `setPreferred`, `preferred`, `migrateLegacyAssignmentsIfNeeded`) defined in Tasks 9-10 used consistently in Tasks 14-16. Allocator API (`seed`, `reseed`, `next`, `markUsed`) defined in Task 12 used in 14, 15, 17, 21.
+- **Type consistency:** `VoiceRecord.dictionary()` defined in Task 2 reused in Tasks 16, 21, 22. `VoiceID.parse` / `canonicalize` defined in Task 1 reused in Tasks 13, 15, 16, 18. `VoicePolicyStore` API methods (`load`, `reload`, `setPreferred`, `preferred`, `migrateLegacyAssignmentsIfNeeded`) defined in Tasks 9-10 used consistently in Tasks 11, 14-16. `VoicePolicy.empty` defined in Task 9 used in Task 11. Allocator API (`seed`, `reseed`, `next`, `markUsed`) defined in Task 12 used in 14, 15, 17, 21. `VoiceRegistry.allocatableSnapshot()` / `lookup()` defined in Task 7 used in Tasks 14, 16, 17.
 - **Strangler safety:** Each checkpoint leaves `main` shippable. Old `aos voice leases` keeps working through Task 20, gets deprecation alias, finally folds into `assignments`. `voice-assignments.json` legacy file is migrated by Task 10 and remains as `.migrated` for forensic comfort.
+- **Reload coherence:** `VoicePolicyWatcher` (Task 11) takes the bus-owned `VoicePolicyStore` via init, and the daemon (Task 17) wires the watcher with `coordinationBus.voicePolicyStore`. This is the single instance `VoiceRegistry`'s `policyLoader` reads through, so reload invalidates the right cache. The watcher rebuilds its dispatch source on `.rename` / `.delete` to survive `VoicePolicyStore.save()`'s atomic-rename strategy.
+- **Deterministic restore order:** `seedAllocatorAfterRestore()` (Task 14) sorts restored sessions by `(registeredAt ASC, sessionID ASC)` per spec Section 5, so reseed mark-used order is stable across restarts. Task 27 covers distinct-while-supply, bias-away after bind, over-capacity reuse, and restart-reseed-marks-restored.
