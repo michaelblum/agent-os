@@ -2286,7 +2286,10 @@ echo "$err" | grep -q '"code":"VOICE_NOT_FOUND"' || { echo "FAIL: missing VOICE_
 
 # Real allocatable mock voice → success.
 ok=$(./aos voice bind --session-id "$SID" --voice "voice://mock/mock-alpha" 2>&1)
-echo "$ok" | grep -q '"status":"ok"' || { echo "FAIL: bind ok: $ok" >&2; exit 1; }
+# Success path: outer envelope is always "success"; success data contains
+# "voice":{...} inline, while error data contains "error":{"code":...}.
+# Use the inner "voice":{ marker as the success discriminator.
+echo "$ok" | grep -q '"voice":{' || { echo "FAIL: bind ok: $ok" >&2; exit 1; }
 
 # Disable that voice via policy and re-bind → VOICE_NOT_ALLOCATABLE.
 cat > "$ROOT/repo/voice/policy.json" <<JSON
