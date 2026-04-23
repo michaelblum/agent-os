@@ -900,7 +900,13 @@ final class VoicePolicyStore {
         let dir = (path as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        // .withoutEscapingSlashes is load-bearing: voice URIs (voice://system/...)
+        // appear in session_preferences values + voices.disabled / voices.promote
+        // arrays. Foundation's default JSONEncoder escapes '/' to '\/'. The escape
+        // is RFC-8259 valid and JSONDecoder round-trips it cleanly, but the file
+        // is operator-edited and grep'd by tests (Task 10 + Task 28); leaving the
+        // backslashes in produces ugly noise + breaks literal grep assumptions.
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         guard let data = try? encoder.encode(policy) else { return }
         let tmp = path + ".tmp"
         do {
@@ -986,7 +992,29 @@ git commit -m "feat(voice): add VoicePolicy + VoicePolicyStore + aosVoicePolicyP
 
 **Files:**
 - Modify: `src/voice/policy.swift`
+- Modify: `src/commands/voice.swift`
 - Create: `tests/voice-migration.sh`
+
+- [ ] **Step 0: Patch `VoicePolicyStore.save()` encoder options**
+
+Inherited from Task 9: the `save()` method must use
+`.withoutEscapingSlashes` on its `JSONEncoder.outputFormatting`,
+otherwise voice URIs land in policy.json as
+`voice:\/\/system\/...` and the literal grep assertions in
+Step 4 (and in Task 28) fail. Edit `src/voice/policy.swift`
+inside `save()`:
+
+```swift
+// REPLACE:
+encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+// WITH:
+encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+```
+
+The Task 9 code block higher in this plan was patched to
+include `.withoutEscapingSlashes` for posterity; this Step 0
+exists for engineers executing Task 10 against a checkout
+where Task 9 was already committed without it.
 
 - [ ] **Step 1: Append migration to `policy.swift`**
 
