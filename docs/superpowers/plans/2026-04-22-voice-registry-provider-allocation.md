@@ -2991,24 +2991,43 @@ git commit -m "docs(arch): voice row notes registry-backed, provider-pluggable"
 - Modify: `src/voice/session-voice.swift`
 - Modify: `src/voice/engine.swift`
 - Modify: `src/voice/say.swift`
+- Modify: `src/voice/policy.swift`
 - Modify: `src/daemon/coordination.swift`
 - Modify: `src/daemon/unified.swift`
 - Modify: `shared/swift/ipc/runtime-paths.swift`
 
 > **Audit note (added in plan patch):** the original file list omitted
-> `src/daemon/unified.swift` and `src/daemon/coordination.swift`. The
-> daemon's `routeForHumanAudience` calls `SpeechEngine.availableVoice(id:)`
-> and `SpeechEngine.qualityTier(forVoiceID:)`, and constructs a
-> `SessionVoiceDescriptor` via the `init(voiceInfo:)` initializer. All three
-> dependencies disappear in Steps 1+2, so the daemon must be lifted onto
-> the registry first (Step 5 below). Verify the call surface before
-> editing:
+> `src/daemon/unified.swift`, `src/daemon/coordination.swift`, and
+> `src/voice/policy.swift`. Two distinct call-surface gaps:
+>
+> 1. The daemon's `routeForHumanAudience` calls
+>    `SpeechEngine.availableVoice(id:)` and
+>    `SpeechEngine.qualityTier(forVoiceID:)`, and constructs a
+>    `SessionVoiceDescriptor` via the `init(voiceInfo:)` initializer.
+>    All three dependencies disappear in Steps 1+2, so the daemon must
+>    be lifted onto the registry first (Step 5 below).
+>
+> 2. `VoicePolicyStore.migrateLegacyAssignmentsIfNeeded()` (the active
+>    one-shot upgrade path, called from `coordination.swift:43` and
+>    `commands/voice.swift:33`) is the sole remaining caller of
+>    `aosVoiceAssignmentsPath()`. The migration shim is NOT being
+>    retired in this task — only the legacy `SessionVoiceBank` shim is.
+>    Step 4 (helper deletion) must be preceded by inlining the path
+>    literal into `policy.swift` so the migration code keeps building.
+>
+> Verify both surfaces before editing:
 >
 > ```bash
 > grep -rn "SpeechEngine\.availableVoice\b\|SpeechEngine\.qualityTier\b\|SpeechEngine\.VoiceInfo\b\|SessionVoiceDescriptor(voiceInfo:" src/ shared/
+> grep -rn "aosVoiceAssignmentsPath" src/ shared/ tests/
 > ```
-> Expected: only the four sites this task replaces — three in unified.swift,
-> one in session-voice.swift (the dead initializer itself).
+>
+> Expected:
+> - First grep: four sites — three in `unified.swift`, one in
+>   `session-voice.swift` (the dead initializer itself).
+> - Second grep: two sites — one definition in `runtime-paths.swift`,
+>   one call in `policy.swift:116`. (No test references — tests
+>   reference the literal `voice-assignments.json` filename only.)
 
 - [ ] **Step 1: Delete `SessionVoiceBank` enum and the `init(voiceInfo:)` initializer**
 
@@ -3045,15 +3064,39 @@ let listed = records.map { rec -> [String: Any] in
 
 `--voice <id>` continues to accept bare ids — no change there.
 
-- [ ] **Step 4: Delete `aosVoiceAssignmentsPath()` from `runtime-paths.swift`**
+- [ ] **Step 4: Inline the legacy path literal, then delete `aosVoiceAssignmentsPath()`**
 
-Remove the `@available(*, deprecated, ...)` function entirely. Audit for stragglers:
+The migration shim `VoicePolicyStore.migrateLegacyAssignmentsIfNeeded()` is the sole remaining caller of `aosVoiceAssignmentsPath()` (verified in the audit grep at the top of T35). The shim itself is NOT being retired here — it's the live one-shot upgrade path that any user upgrading from pre-#103 hits, called from `coordination.swift:43` and `commands/voice.swift:33`. So Step 4 must inline the path string into the migration code first, then drop the shared helper.
+
+**Step 4a: Inline the legacy path literal into `policy.swift`**
+
+Edit `src/voice/policy.swift` and find this line in `migrateLegacyAssignmentsIfNeeded()` (currently at line 116):
+
+```swift
+let legacyPath = aosVoiceAssignmentsPath()
+```
+
+Replace it with:
+
+```swift
+let legacyPath = "\(aosCoordinationDir())/voice-assignments.json"
+```
+
+`aosCoordinationDir()` is still alive (it has other callers). The migration shim now owns the only literal reference to the legacy filename, which matches its single-purpose role.
+
+**Step 4b: Delete `aosVoiceAssignmentsPath()` from `runtime-paths.swift`**
+
+Remove the `@available(*, deprecated, ...)` function entirely.
+
+**Step 4c: Re-grep for stragglers**
 
 ```bash
 grep -rn "aosVoiceAssignmentsPath\|voice-assignments.json" src/ shared/ tests/
 ```
 
-`tests/voice-migration.sh` references the literal path — that's fine, it's testing the legacy file. Production references should be zero.
+Expected:
+- Zero hits for `aosVoiceAssignmentsPath` anywhere.
+- Hits for `voice-assignments.json` only in `src/voice/policy.swift` (the inlined literal from Step 4a) and in `tests/voice-migration.sh` (testing the legacy filename — leave untouched).
 
 - [ ] **Step 5: Lift the daemon's voice-route fallback onto the registry**
 
@@ -3127,7 +3170,7 @@ Expected: all green.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/voice/session-voice.swift src/voice/engine.swift src/voice/say.swift src/daemon/coordination.swift src/daemon/unified.swift shared/swift/ipc/runtime-paths.swift
+git add src/voice/session-voice.swift src/voice/engine.swift src/voice/say.swift src/voice/policy.swift src/daemon/coordination.swift src/daemon/unified.swift shared/swift/ipc/runtime-paths.swift
 git commit -m "refactor(voice): delete SessionVoiceBank shim + lift qualityTier into provider"
 ```
 
