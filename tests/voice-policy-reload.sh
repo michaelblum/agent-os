@@ -65,6 +65,26 @@ assert_eq() {
     fi
 }
 
+# Poll voice availability up to 5s. Replaces a fixed `sleep 1` after a
+# policy rewrite — under suite load, the dispatch chain
+#   parent-dir NOTE_WRITE -> handler queue -> 50ms debounce -> store.reload()
+#   -> coordination.handlePolicyReload -> registry state
+# can exceed 1s while still being correct. 5s elastic deadline tolerates
+# loaded machines without masking real watcher misbehavior (a true drop
+# still surfaces as a timeout with the last observed value).
+poll_assert_availability() {
+    local voice_id="$1"; local want="$2"; local label="$3"
+    local deadline=$(($(date +%s) + 5))
+    local got=""
+    while (( $(date +%s) < deadline )); do
+        got="$(availability_enabled "$voice_id")"
+        [[ "$got" == "$want" ]] && return 0
+        sleep 0.1
+    done
+    echo "FAIL [$label]: timed out after 5s; last got=$got want=$want" >&2
+    exit 1
+}
+
 # -------------------------------------------------------------------------
 # Rewrite #1: disable mock-alpha. With reseed, the allocator deque drops
 # alpha:
@@ -88,10 +108,8 @@ cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
 }
 JSON
 mv "$ROOT/repo/voice/policy.json.tmp" "$ROOT/repo/voice/policy.json"
-sleep 1
 
-state1="$(availability_enabled "$V_ALPHA")"
-assert_eq "$state1" "False" "rewrite-1: voice list shows alpha availability.enabled=False"
+poll_assert_availability "$V_ALPHA" "False" "rewrite-1: voice list shows alpha availability.enabled=False"
 echo "first-reload reflected in voice list"
 
 # -------------------------------------------------------------------------
@@ -134,10 +152,8 @@ cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
 }
 JSON
 mv "$ROOT/repo/voice/policy.json.tmp" "$ROOT/repo/voice/policy.json"
-sleep 1
 
-state2="$(availability_enabled "$V_ALPHA")"
-assert_eq "$state2" "True" "rewrite-2: voice list shows alpha availability.enabled=True (watcher survived atomic rename)"
+poll_assert_availability "$V_ALPHA" "True" "rewrite-2: voice list shows alpha availability.enabled=True (watcher survived atomic rename)"
 echo "second-reload reflected (watcher survived atomic rename)"
 
 # -------------------------------------------------------------------------
