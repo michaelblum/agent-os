@@ -17,10 +17,10 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 
 ## Goals
 
-1. Make a browser tab a valid target for `see capture`, `do <action>`, and `show create --anchor …` using a single target-addressing grammar (`browser:<session>[/<ref>]`).
+1. Make a browser tab a valid target for `see capture`, `do <action>`, and `show create --anchor-browser …` using a single target-addressing grammar (`browser:<session>[/<ref>]`).
 2. Support both user-attached sessions (agent joins the user's running Chrome) and agent-launched sessions (headed or headless), with attach-mode as the primary codepath.
-3. Map `playwright-cli` sessions 1:1 onto aos focus channels so the same channel-id vocabulary that addresses window/AX trees also addresses browser sessions.
-4. Anchor `show` canvases to browser page elements using the existing `show.create --anchor_window + --offset` contract. v1 anchors are **static**: computed once at create time and re-tracked only for Chrome window movement (which the daemon already handles via `anchor_window`). Scroll, in-viewport resize, zoom change, and navigation invalidate the overlay until the agent re-issues `show update --anchor …`.
+3. Map `playwright-cli` sessions 1:1 onto aos focus channels: the user-supplied `--id <name>` on `aos focus create` is used verbatim as both the focus channel id and the `playwright-cli -s=<name>` session name.
+4. Anchor `show` canvases to browser page elements using the existing `show.create --anchor_window + --offset` contract (surfaced as `--anchor-browser` on the CLI). v1 anchors are **static**: computed once at create time and re-tracked only for Chrome window movement (which the daemon already handles via `anchor_window`). Scroll, in-viewport resize, zoom change, and navigation invalidate the overlay until the agent re-issues `show update --anchor-browser …`.
 5. Preserve `playwright-cli` as a directly-callable escape hatch; never shadow or hide it.
 6. Retire the `chrome-harness` skill in favor of a single aos-authored browser skill that wraps this adapter.
 
@@ -150,7 +150,7 @@ aos focus create --id <name> --target browser://new [--headed | --headless] [--u
 
 ### Session-to-channel binding
 
-- `aos focus create --target browser://…` returns a focus channel id `ch-<uuid>`. That id becomes the `<session>` in `browser:<session>` target strings for the lifetime of the channel.
+- `aos focus create --id <name> --target browser://…` uses `<name>` verbatim as both the focus channel id and the `playwright-cli -s=<name>` session name. No UUIDs are generated. The `<name>` becomes the `<session>` segment in `browser:<session>` target strings for the lifetime of the channel. Names must satisfy whatever character constraints `playwright-cli -s=` imposes (the plan must document this and validate at the CLI edge).
 - Browser focus channels and window focus channels have **different record shapes**. `SpatialChannelSummary` (`src/perceive/spatial.swift:738`) has a required `window_id: Int` that headless browser sessions cannot supply. The shapes cannot be unified without schema change.
 - `aos focus list` emits a typed union. Each entry carries a `kind` discriminator and only the fields valid for that kind:
 
@@ -170,74 +170,74 @@ Deferred. See Target Addressing Grammar above — v1 operates on whichever tab `
 
 ### `see`
 
-| aos invocation | `playwright-cli` call (deterministic filename always passed via `--filename=<tmp>`) |
+| aos invocation | `playwright-cli` calls (deterministic filename via `--filename=<tmp>`) |
 |---|---|
 | `aos see capture browser:<s>` | `playwright-cli -s=<s> screenshot --filename=<tmp>` |
 | `aos see capture browser:<s>/<ref>` | `playwright-cli -s=<s> screenshot <ref> --filename=<tmp>` |
-| `aos see capture browser:<s> --xray` | `playwright-cli -s=<s> snapshot --filename=<tmp>` → parse YAML → emit `AXElementJSON[]` with a new `ref` field per element |
-| `aos see capture browser:<s> --xray --label` | snapshot + screenshot + overlay composition client-side (same as macOS path) |
+| `aos see capture browser:<s> --xray` | `playwright-cli -s=<s> snapshot --filename=<tmp>` → parse markdown tree → emit `AXElementJSON[]` with `ref` but **`bounds` omitted** |
+| `aos see capture browser:<s> --xray --label` | snapshot + one `eval` per visible ref to get `getBoundingClientRect()` → populate `bounds` → screenshot + overlay composition client-side |
 
-**Xray schema.** The existing `AXElementJSON` shape in `src/perceive/models.swift:225` is flat (no `children`) and has these fields:
+**Snapshot output is geometry-free.** `playwright-cli snapshot` emits an accessibility-tree markdown file (indented list like `- button "Click me" [ref=e2]`). It contains role, accessible name, and ref. It **does not contain element bounds**. Any geometry must come from separate `playwright-cli eval "(e)=>e.getBoundingClientRect()" <ref>` calls — one per ref — or from an escape-hatch `run-code` batched helper (see Open Questions). This fact shapes the xray pipeline:
 
-```swift
-struct AXElementJSON: Encodable {
-  let role: String
-  let title: String?
-  let label: String?
-  let value: String?
-  let enabled: Bool
-  let context_path: [String]
-  let bounds: BoundsJSON
-}
-```
+- **`--xray` without `--label` is the fast path.** Single `snapshot` subprocess call. Each emitted `AXElementJSON` carries `role/title/ref/context_path` (and `label/value/enabled` when the snapshot form exposes them — see below). The `bounds` field is absent from the JSON output for browser-sourced elements. Agents doing ref-based interaction (`aos do click browser:<s>/<ref>`) don't need bounds.
+- **`--xray --label` is the slow path.** After the snapshot, the adapter issues one `eval` per ref to fetch bounds, populates `bounds` in the emitted JSON, and runs the same label-composition pass the macOS `--xray --label` path uses. This is N+1 subprocess calls per xray. For small pages it's fine; for large pages the plan should evaluate a batched `run-code` alternative (see Open Questions).
 
-For browser targets the adapter emits the same flat shape with one additive field: `ref: String?`. Population rules:
+**Xray schema.** The existing `AXElementJSON` shape in `src/perceive/models.swift:225` is flat (no `children`) with `role/title/label/value/enabled/context_path/bounds`. For browser targets the adapter emits the same flat shape with two changes:
 
-| Field | macOS source | Browser source (from snapshot YAML) |
-|---|---|---|
-| `role` | AX role | ARIA role / tag-derived role |
-| `title` | AX title | `name` from snapshot |
-| `label` | AX label | `description` / `aria-label` from snapshot |
-| `value` | AX value | `value` for form fields, text content otherwise |
-| `enabled` | AX enabled | not-disabled / not-[aria-disabled] |
-| `context_path` | AX ancestor roles | snapshot ancestor role/ref chain |
-| `bounds` | AX frame in LCS | viewport rect from snapshot (LCS, viewport-relative) |
-| `ref` | `nil` (macOS path does not populate) | `"e21"` etc. |
+- **Additive field `ref: String?`** — populated for browser-sourced elements, `nil` for macOS-sourced.
+- **`bounds` becomes optional in practice for browser xray** — the field remains part of the Swift struct (macOS path always populates it), but for browser elements the serializer omits it when not computed, and downstream consumers that read `bounds.x/y/w/h` must tolerate absence. (Swift-side: change `bounds: BoundsJSON` to `bounds: BoundsJSON?` at the struct level.) This is a minor contract change — document it in `shared/schemas/` and call it out in the migration notes.
 
-The `ref` field is optional at the schema level so macOS xray output is unchanged. An earlier iteration of this spec described `role/name/bounds/children` — that was wrong. The actual output is flat; we preserve that.
+Population rules for browser-sourced elements:
 
-- The `bounds` field is in Local Coordinate System (LCS) relative to the captured viewport — matching the coord model documented in `ARCHITECTURE.md`.
+| Field | Browser source |
+|---|---|
+| `role` | Role token from the snapshot line (e.g. `button`, `textbox`, `link`) |
+| `title` | Quoted accessible name from the snapshot line (`"Click me"`) |
+| `label` | Extra qualifiers the snapshot exposes (e.g. `aria-label` hints); null otherwise |
+| `value` | Value qualifier for inputs (snapshot sometimes emits `textbox "placeholder" [value="foo"]`); null otherwise |
+| `enabled` | `false` if the snapshot line carries a `[disabled]` marker; else `true` |
+| `context_path` | Walked from the indentation hierarchy of the snapshot markdown |
+| `bounds` | Omitted unless `--label` was set (then per-ref `eval getBoundingClientRect()`) |
+| `ref` | The ref from the snapshot line (`e21`, `e34`, …) |
+
+The exact markdown grammar `playwright-cli snapshot` emits is version-dependent; the plan must pin a parser to a minimum `@playwright/cli` version (see Open Questions) and include golden fixtures in `tests/browser/` so version drift is caught.
+
+- The `bounds` field, when populated, is in Local Coordinate System (LCS) relative to the captured viewport — matching the coord model documented in `ARCHITECTURE.md`.
 - `see observe` streaming on browser channels (DOM mutation events, console, navigation) is **deferred** to v1.5. v1 delivers only stateless `see capture`.
 
 ### `do`
 
-Verb mapping must respect existing aos `do` semantics (`src/shared/command-registry-data.swift`):
+The full existing `do` subcommand set (verified at `src/main.swift:149`) is:
+`click, hover, drag, scroll, type, key, press, set-value, focus, raise, move, resize, tell, session, profiles`.
+
+Verb mapping must respect existing semantics:
 
 - `aos do press --pid <pid> --role <role>` is **AX element activation** (macOS). It is not keyboard input. The spec does **not** overload `do press` with a browser meaning.
 - `aos do key <combo>` is **keyboard input** (combos like `cmd+s`). Browser keyboard work maps through this verb.
-- `aos do type <text>` is **text entry**. Browser text entry maps through this verb.
+- `aos do type <text>` is **text entry** (append). Browser text entry maps through this verb.
+- `aos do scroll` already exists. Browser scroll dispatches on target shape.
+
+**Extending `do` for browser targets.** Browser work needs two verbs that don't exist today: `fill` (clear-then-type into an input) and `navigate` (URL navigation). Both are **new `do` subcommands** added by this spec, and both are browser-only in v1 (error if target shape is not `browser:…`).
 
 | aos invocation | `playwright-cli` call |
 |---|---|
-| `aos do click browser:<s>/<ref>` | `playwright-cli -s=<s> click <ref>` |
+| `aos do click browser:<s>/<ref>` | `playwright-cli -s=<s> click <ref>` (existing verb, dispatch on target) |
 | `aos do click browser:<s>/<ref> --right` | `playwright-cli -s=<s> click <ref> right` |
 | `aos do click browser:<s>/<ref> --double` | `playwright-cli -s=<s> dblclick <ref>` |
-| `aos do hover browser:<s>/<ref>` | `playwright-cli -s=<s> hover <ref>` |
-| `aos do drag browser:<s>/<ref1> browser:<s>/<ref2>` | `playwright-cli -s=<s> drag <ref1> <ref2>` |
-| `aos do type browser:<s> "<text>"` | `playwright-cli -s=<s> type "<text>"` |
-| `aos do fill browser:<s>/<ref> "<text>"` | `playwright-cli -s=<s> fill <ref> "<text>"` |
-| `aos do key browser:<s> <combo>` | `playwright-cli -s=<s> press <combo>` (single keys or combos; modifier translation happens in the adapter) |
-| `aos do check browser:<s>/<ref>` | `playwright-cli -s=<s> check <ref>` |
-| `aos do uncheck browser:<s>/<ref>` | `playwright-cli -s=<s> uncheck <ref>` |
-| `aos do select browser:<s>/<ref> <value>` | `playwright-cli -s=<s> select <ref> <value>` |
-| `aos do scroll browser:<s> <dx>,<dy>` | `playwright-cli -s=<s> mousewheel <dx> <dy>` |
-| `aos do navigate browser:<s> <url>` | `playwright-cli -s=<s> goto <url>` |
+| `aos do hover browser:<s>/<ref>` | `playwright-cli -s=<s> hover <ref>` (existing verb) |
+| `aos do drag browser:<s>/<ref1> browser:<s>/<ref2>` | `playwright-cli -s=<s> drag <ref1> <ref2>` (existing verb) |
+| `aos do scroll browser:<s> <dx>,<dy>` | `playwright-cli -s=<s> mousewheel <dx> <dy>` (existing verb) |
+| `aos do type browser:<s> "<text>"` | `playwright-cli -s=<s> type "<text>"` (existing verb) |
+| `aos do key browser:<s> <combo>` | `playwright-cli -s=<s> press <combo>` (existing verb) |
+| **`aos do fill browser:<s>/<ref> "<text>"`** | `playwright-cli -s=<s> fill <ref> "<text>"` (**new subcommand**, browser-only in v1) |
+| **`aos do navigate browser:<s> <url>`** | `playwright-cli -s=<s> goto <url>` (**new subcommand**, browser-only in v1) |
 | `aos do click <x,y>` (no browser target) | unchanged — CGEventTap on macOS |
 
 **Not wrapped in v1 (use escape hatch):**
-- `playwright-cli upload <file>` — takes a file path, not a ref; doesn't fit the `do <verb> <ref>` shape cleanly. Agents upload by calling `playwright-cli -s=<s> upload <file>` directly.
-- `keydown` / `keyup` / `mousedown` / `mouseup` — low-level pair primitives; not common enough in coding-agent workflows to justify aos verbs. Escape hatch covers them.
-- `dialog-accept` / `dialog-dismiss`, `go-back` / `go-forward` / `reload` — minor navigation affordances; escape hatch. `do navigate` is the v1 one that's worth having ergonomically because URL navigation is the common case.
+- `playwright-cli check / uncheck / select` — form-control mutations; worth wrapping eventually but not common enough to earn new `do` subcommands in v1. Agents use `playwright-cli -s=<s> check <ref>` directly.
+- `playwright-cli upload <file>` — takes a file path, not a ref; doesn't fit the `do <verb> <target>` shape cleanly. Escape hatch.
+- `keydown` / `keyup` / `mousedown` / `mouseup` — low-level pair primitives; not common enough in coding-agent workflows to justify aos verbs. Escape hatch.
+- `dialog-accept` / `dialog-dismiss`, `go-back` / `go-forward` / `reload` — minor navigation affordances; escape hatch. `do navigate` is the one URL-level navigation we wrap because it's the common case.
 
 Pixel-level verbs (`aos do click <x,y>` without a `browser:` target) work regardless of what's on screen. They do **not** need browser-flavored equivalents — a coordinate click inside a Chrome window already works via the existing CGEvent path. Browser-target verbs always speak refs; pixel-target verbs always speak desktop coords. The mode is selected by the target argument's shape.
 
@@ -302,9 +302,9 @@ All additive. No existing command shape changes.
 - `aos focus remove --id <name>` — dispatches on registry lookup; closes `playwright-cli` session for agent-launched browser channels, detaches for user-attached, otherwise forwards to the daemon.
 - `aos see capture <target>` — accepts `browser:<session>[/<ref>]` as `<target>` (no tab/frame segments in v1). Bare `browser:` (no session) is accepted when `PLAYWRIGHT_CLI_SESSION` is set in the environment; it resolves to `browser:$PLAYWRIGHT_CLI_SESSION`.
 - `aos see capture browser:<s> --xray [--label]` — DOM xray with playwright refs.
-- `aos do <action> <target>` — all existing do-actions accept `browser:…` targets where semantically valid (see Verb Mapping tables).
-- `aos do navigate <browser-target> <url>` — new action specific to browser targets.
-- `aos do scroll <browser-target> <dx>,<dy>` — new action specific to browser targets.
+- `aos do click|hover|drag|scroll|type|key <target …>` — existing `do` subcommands extended to accept `browser:…` targets; dispatch on target shape.
+- `aos do fill <browser-target> "<text>"` — **new** `do` subcommand, browser-only in v1.
+- `aos do navigate <browser-target> <url>` — **new** `do` subcommand, browser-only in v1.
 - `aos show create --anchor-browser browser:<s>/<ref> --offset …` — new flag `--anchor-browser`. The existing `--anchor-window` / `--anchor-channel` flags (verified at `src/display/client.swift:143–146`) are unchanged; `--anchor-browser` is an additional sibling that the CLI resolves to a concrete `anchor_window + offset` pair before sending `show.create` to the daemon. The three are mutually exclusive.
 - `aos show update --anchor-browser browser:<s>/<ref> --offset …` — same flag, same resolution, routed to `show.update` with `anchor_window + offset`. This is the primary path for re-anchoring a canvas after page scroll/nav (see Show verb mapping).
 
@@ -348,12 +348,13 @@ The following files are the intended artifacts of the implementation plan that f
 | `src/browser/browser-adapter.swift` | Spawns `playwright-cli`, parses output, routes commands. |
 | `src/browser/snapshot-parser.swift` | Converts `playwright-cli snapshot` YAML into aos `Element[]` JSON. |
 | `src/browser/session-registry.swift` | CLI-local registry mapping focus channel id ↔ `playwright-cli` session. |
-| `src/browser/target-parser.swift` | Parses `browser:<session>[/<ref>]` target strings (no tab/frame segments in v1). |
+| `src/browser/target-parser.swift` | Parses `browser:` / `browser:<session>` / `browser:<session>/<ref>` target strings (no tab/frame segments in v1). Bare `browser:` resolves via `PLAYWRIGHT_CLI_SESSION`. |
 | `src/browser/anchor-resolver.swift` | One-shot resolution of `browser:<s>/<ref>` → `(CGWindowID, offset)` for `show create` / `show update`. No watcher; pure resolution. |
 | `src/browser/playwright-version-check.swift` | Detects installed `@playwright/cli` version and validates it meets the minimum requirement (the plan will pin the exact version once it's been verified). |
 | `src/browser/CLAUDE.md` | Subtree-local guidance for future work. |
 | `src/perceive/capture-pipeline.swift` | Add dispatch to browser adapter when target is `browser:…`. |
-| `src/act/act-cli.swift` (+ helpers) | Add dispatch to browser adapter for `do` actions on browser targets. |
+| `src/act/act-cli.swift` (+ helpers) | Add dispatch to browser adapter for existing `do` verbs (`click`, `hover`, `drag`, `scroll`, `type`, `key`) when the target starts with `browser:`. Add two new subcommand entry points: `cliFill` and `cliNavigate` (browser-only in v1). |
+| `src/main.swift:149` switch | Add `case "fill":` and `case "navigate":` branches dispatching to the new handlers. |
 | `src/display/client.swift` | Add `--anchor-browser <browser:…>` flag to `show create` and `show update` parsers (alongside existing `--anchor-window` at line 143 and `--anchor-channel` at line 146). The CLI resolves `--anchor-browser` through `anchor-resolver.swift` to a concrete `anchor_window + offset` pair before sending the daemon request. The three anchor flags are mutually exclusive. |
 | `src/perceive/focus-commands.swift` | Add `--target` flag parsing to `focusCreateCommand` (existing `--id --window <wid>` path unchanged; `--target browser://…` is the new branch). `focusListCommand` merges daemon result with browser registry. `focusRemoveCommand` dispatches on registry lookup before falling through to the daemon. |
 | `src/shared/command-registry-data.swift` | Register new flags/forms for agent introspection. |
@@ -372,6 +373,8 @@ These are genuinely open and should be answered during the writing-plans phase, 
 5. **Chrome content-viewport geometry source.** Step 3 of static-anchor resolution depends on measuring the content-view inset. Options: (a) pick the narrowest AX descendant window that frames the web content area (works when Chrome exposes it as a child AX window; not guaranteed cross-version), (b) calibrate per-session by comparing a known-positioned element's viewport rect (via `eval`) to its global pixel position (via `--xray` on the Chrome AX window), (c) drop to `playwright-cli run-code` to invoke `page.context()._cdpSession().send('Page.getLayoutMetrics')` — CDP access is not available through `playwright-cli eval`. The plan picks (a) with (b) as fallback for v1; (c) is escape-hatch territory and not relied on internally.
 6. **Session persistence across aos CLI restarts.** The registry file persists channel-id ↔ session-name mappings, but `playwright-cli` sessions themselves live in the `playwright-cli` process. After an aos CLI restart, `playwright-cli -s=<name>` still finds the existing session. Do we rehydrate channels automatically, or require the user to `focus create --target browser://attach --session-name <name>`? Probably the latter for v1.
 7. **Concurrency.** Multiple aos CLI invocations running against the same session simultaneously (e.g., two agent workers, or an agent + an overlay re-anchor). `playwright-cli` presumably serializes via its session-process; the plan needs a quick check + test, and a documented race-resolution behavior for our side.
+8. **Bounds-for-xray performance.** `--xray --label` requires one `eval` per ref to fetch `getBoundingClientRect()`. For a page with 200 refs this is 200 subprocess invocations plus IPC round-trips — slow. Alternatives: (a) accept the N+1 cost and recommend `--xray` without `--label` as the default; (b) use `playwright-cli run-code` internally with a batched helper script that iterates a ref array in one call; (c) invoke a small Playwright Node helper via a pooled long-lived subprocess. (b) is cleanest but couples the internal path to the escape-hatch primitive; (c) re-introduces process state we've been avoiding. Plan picks based on measured perf on a realistic page.
+9. **Snapshot markdown grammar stability.** The parser in `snapshot-parser.swift` consumes `playwright-cli snapshot` markdown output, whose exact grammar is not formally specified by Microsoft and has changed between versions. The plan must commit to a minimum version (see #3), include golden fixtures in `tests/browser/`, and document the escape-hatch fallback when grammar surprises arrive in a future `@playwright/cli` release.
 
 ## Out of Scope (Future Work)
 
