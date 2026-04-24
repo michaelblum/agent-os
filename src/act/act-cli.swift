@@ -397,12 +397,15 @@ func cliDrag(args: [String]) {
                 args: [fromRef, toRef],
                 withTempFilename: false
             ))
+            try requireSuccess(r, action: "drag")
             emitDoResult(r)
             return
         } catch BrowserTargetError.invalid(let msg) {
             exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
         } catch BrowserTargetError.missingSession {
             exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
+        } catch BrowserAdapterError.subprocess(let msg, let code) {
+            exitError(msg, code: code)
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
@@ -664,6 +667,7 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
                 // Translate `aos do click --double browser:<s>/<ref>` into
                 // playwright's dblclick verb.
                 let r = try doVerb("dblclick", target: t)
+                try requireSuccess(r, action: "dblclick")
                 emitDoResult(r)
                 return
             }
@@ -691,6 +695,7 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
             break
         }
         let r = try doVerb(pwVerb, target: t, extraArgs: extra)
+        try requireSuccess(r, action: pwVerb)
         emitDoResult(r)
     } catch BrowserTargetError.invalid(let msg) {
         exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")

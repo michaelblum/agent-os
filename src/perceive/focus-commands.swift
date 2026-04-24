@@ -93,9 +93,7 @@ func focusCreateBrowser(id: String, targetSpec: String, rest: [String]) {
             let r = try runPlaywright(PlaywrightInvocation(
                 session: id, verb: "attach", args: pwArgs, withTempFilename: false
             ))
-            guard r.exit_code == 0 else {
-                exitError("playwright attach failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
-            }
+            try requireSuccess(r, action: "playwright attach")
             let winID = resolveBrowserWindowID(session: id)
             try addRegistryRecord(BrowserSessionRecord(
                 id: id, mode: "attach", attach_kind: attachKind, headless: nil,
@@ -111,9 +109,7 @@ func focusCreateBrowser(id: String, targetSpec: String, rest: [String]) {
             let r = try runPlaywright(PlaywrightInvocation(
                 session: id, verb: "open", args: openArgs, withTempFilename: false
             ))
-            guard r.exit_code == 0 else {
-                exitError("playwright open failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
-            }
+            try requireSuccess(r, action: "playwright open")
             let winID = resolveBrowserWindowID(session: id)
             try addRegistryRecord(BrowserSessionRecord(
                 id: id, mode: "launched", attach_kind: nil, headless: headless,
@@ -126,6 +122,8 @@ func focusCreateBrowser(id: String, targetSpec: String, rest: [String]) {
     } catch SessionRegistryError.duplicateID {
         exitError("focus channel '\(id)' already exists", code: "DUPLICATE_ID")
     } catch BrowserAdapterError.versionCheckFailed(let msg, let code) {
+        exitError(msg, code: code)
+    } catch BrowserAdapterError.subprocess(let msg, let code) {
         exitError(msg, code: code)
     } catch {
         exitError("\(error)", code: "INTERNAL")

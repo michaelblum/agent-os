@@ -80,6 +80,14 @@ SNAP
         ;;
     click|hover|drag|dblclick|mousewheel|type|press|fill|goto|open|close)
         shift
+        # Simulate real playwright-cli behavior: when FAKE_PWCLI_ERROR_VERB
+        # matches the current verb, emit an "### Error" marker on stdout while
+        # still exiting 0. Exercises the orchestrator's requireSuccess() guard.
+        if [[ "${FAKE_PWCLI_ERROR_VERB:-}" == "${VERB}" ]]; then
+            echo "### Error"
+            echo "${FAKE_PWCLI_ERROR_MSG:-fake ${VERB} error}"
+            exit 0
+        fi
         # Format the invocation two ways — a loose "fake <verb> invoked: ..."
         # that Task 9's tests grep for, and a full-argv form with the stripped
         # session prefix ("fake <verb> invoked: -s=<s> <verb> <args>") that
@@ -92,8 +100,27 @@ SNAP
         exit 0
         ;;
     eval)
-        # Canned rect for anchor-resolver: x=100,y=200,w=300,h=40.
-        echo '{"x":100,"y":200,"w":300,"h":40}'
+        # Mimic real playwright-cli: wrap the value in a "### Result" envelope.
+        # The canned rect serves anchor-resolver. When FAKE_PWCLI_EVAL_MODE is
+        # set, produce alternative shapes for regression coverage:
+        #   (default)            -> plain object, our primary decode path
+        #   stringified          -> a quoted JSON string (JSON.stringify'd in JS)
+        #   error                -> "### Error" marker
+        case "${FAKE_PWCLI_EVAL_MODE:-object}" in
+            object)
+                printf '### Result\n{"x":100,"y":200,"w":300,"h":40}\n'
+                ;;
+            stringified)
+                printf '### Result\n"{\\"x\\":100,\\"y\\":200,\\"w\\":300,\\"h\\":40}"\n'
+                ;;
+            error)
+                printf '### Error\n%s\n' "${FAKE_PWCLI_ERROR_MSG:-blocked by browser}"
+                ;;
+            *)
+                echo "fake shim: unknown FAKE_PWCLI_EVAL_MODE=${FAKE_PWCLI_EVAL_MODE}" >&2
+                exit 2
+                ;;
+        esac
         exit 0
         ;;
     *)

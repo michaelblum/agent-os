@@ -19,9 +19,7 @@ func seeCaptureScreenshot(target: BrowserTarget, outPath: String) throws -> Stri
     let r = try runPlaywright(PlaywrightInvocation(
         session: target.session, verb: "screenshot", args: args, withTempFilename: false
     ))
-    guard r.exit_code == 0 else {
-        throw BrowserAdapterError.subprocess("screenshot failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
-    }
+    try requireSuccess(r, action: "screenshot")
     return outPath
 }
 
@@ -32,8 +30,9 @@ func seeCaptureXray(target: BrowserTarget, withBounds: Bool) throws -> [AXElemen
     let r = try runPlaywright(PlaywrightInvocation(
         session: target.session, verb: "snapshot", args: [], withTempFilename: true
     ))
-    guard r.exit_code == 0, let path = r.filename else {
-        throw BrowserAdapterError.subprocess("snapshot failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
+    try requireSuccess(r, action: "snapshot")
+    guard let path = r.filename else {
+        throw BrowserAdapterError.subprocess("snapshot produced no filename", code: "PLAYWRIGHT_CLI_FAILED")
     }
     defer { try? FileManager.default.removeItem(atPath: path) }
     let contents = try String(contentsOfFile: path, encoding: .utf8)
@@ -66,19 +65,45 @@ func doVerb(_ verb: String, target: BrowserTarget, extraArgs: [String] = []) thr
     ))
 }
 
-/// Fetch getBoundingClientRect() for a specific ref. Returns nil on zero-size rect.
+/// Fetch getBoundingClientRect() for a specific ref. Returns nil on zero-size
+/// rect or any probe failure. The JS returns an object directly (not
+/// JSON.stringify'd) so playwright-cli's `### Result` envelope contains bare
+/// JSON we decode with parsePlaywrightResultBody.
 func boundsViaEval(session: String, ref: String) throws -> BoundsJSON? {
-    let js = "(e) => { const r = e.getBoundingClientRect(); return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height}); }"
+    let js = "(e) => { const r = e.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; }"
     let r = try runPlaywright(PlaywrightInvocation(
         session: session, verb: "eval", args: [js, ref], withTempFilename: false
     ))
-    guard r.exit_code == 0 else { return nil }
-    // stdout is a JSON string; parse
+    if r.exit_code != 0 { return nil }
+    // Treat a "### Error" marker as probe failure (eval against a detached ref,
+    // CSP violations, etc.) — return nil rather than throwing, so the caller's
+    // best-effort per-ref loop can skip missing bounds.
+    if detectPlaywrightErrorMarker(r.stdout) != nil { return nil }
+    guard let data = try? parsePlaywrightResultBody(r.stdout) else { return nil }
     struct Rect: Decodable { let x: Double; let y: Double; let w: Double; let h: Double }
-    guard let data = r.stdout.data(using: .utf8),
-          let rect = try? JSONDecoder().decode(Rect.self, from: data) else { return nil }
+    guard let rect = try? JSONDecoder().decode(Rect.self, from: data) else { return nil }
     if rect.w == 0 && rect.h == 0 { return nil }
     return BoundsJSON(x: Int(rect.x), y: Int(rect.y), width: Int(rect.w), height: Int(rect.h))
+}
+
+/// Throw BrowserAdapterError.subprocess when a PlaywrightResult indicates
+/// failure via either non-zero exit code or a `### Error` marker in stdout
+/// (which real playwright-cli sometimes emits at exit 0). Use at every
+/// orchestrator entry point that needs success-or-fail semantics.
+func requireSuccess(_ r: PlaywrightResult, action: String) throws {
+    if r.exit_code != 0 {
+        let msg = r.stderr.isEmpty ? r.stdout : r.stderr
+        throw BrowserAdapterError.subprocess(
+            "\(action) failed (exit \(r.exit_code)): \(msg)",
+            code: "PLAYWRIGHT_CLI_FAILED"
+        )
+    }
+    if let err = detectPlaywrightErrorMarker(r.stdout) {
+        throw BrowserAdapterError.subprocess(
+            "\(action) failed: \(err)",
+            code: "PLAYWRIGHT_CLI_FAILED"
+        )
+    }
 }
 
 // One probe per CLI invocation. Each ./aos call is a fresh process, so the
