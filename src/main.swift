@@ -129,6 +129,14 @@ struct AOS {
     }
 }
 
+// Browser targets (`browser:<session>[/<ref>]`) route through @playwright/cli
+// and do not touch macOS Accessibility or Screen Recording APIs. Skip the
+// interactive preflight for see/do verbs when the first positional arg is a
+// browser target — the adapter does its own version/availability gating.
+private func hasBrowserTarget(_ args: [String]) -> Bool {
+    return args.first(where: { !$0.hasPrefix("--") })?.hasPrefix("browser:") == true
+}
+
 func handleDo(args: [String]) {
     guard let sub = args.first else {
         printCommandHelp(["do"], json: false)
@@ -150,22 +158,22 @@ func handleDo(args: [String]) {
 
     switch sub {
     case "click":
-        ensureInteractivePreflight(command: "aos do click")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do click") }
         cliClick(args: subArgs)
     case "hover":
-        ensureInteractivePreflight(command: "aos do hover")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do hover") }
         cliHover(args: subArgs)
     case "drag":
-        ensureInteractivePreflight(command: "aos do drag")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag") }
         cliDrag(args: subArgs)
     case "scroll":
-        ensureInteractivePreflight(command: "aos do scroll")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll") }
         cliScroll(args: subArgs)
     case "type":
-        ensureInteractivePreflight(command: "aos do type")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do type") }
         cliType(args: subArgs)
     case "key":
-        ensureInteractivePreflight(command: "aos do key")
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key") }
         cliKey(args: subArgs)
     case "press":
         ensureInteractivePreflight(command: "aos do press")
@@ -223,13 +231,7 @@ func handleSee(args: [String]) {
             printCommandHelp(["see"], json: subArgs.contains("--json"))
             exit(0)
         }
-        // Browser targets don't use local screen/AX sensors, so preflight
-        // gating doesn't apply. The @playwright/cli subprocess has its own
-        // version/availability checks inside the adapter.
-        let firstPositional = subArgs.first(where: { !$0.hasPrefix("--") })
-        if firstPositional?.hasPrefix("browser:") != true {
-            ensureInteractivePreflight(command: "aos see capture")
-        }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
         runCaptureAsync(args: subArgs)
     case "list":
         ensureInteractivePreflight(command: "aos see list")

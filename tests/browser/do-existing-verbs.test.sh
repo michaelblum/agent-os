@@ -5,9 +5,6 @@ FIX="$(cd "$(dirname "$0")" && pwd)/fixtures"
 export PATH="$FIX:$PATH"
 export FAKE_PWCLI_VERSION="0.9.9"
 export FAKE_PWCLI_MODE="new"
-# Browser-target tests don't touch macOS input APIs; bypass the interactive
-# preflight so CI/headless runs don't depend on permissions onboarding.
-export AOS_BYPASS_PREFLIGHT=1
 
 check_verb() {
     local aos_verb="$1" expected_substring="$2"; shift 2
