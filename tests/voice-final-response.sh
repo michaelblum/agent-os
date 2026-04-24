@@ -73,6 +73,45 @@ if route.get("delivered") is not False or route.get("reason") != "voice.enabled 
     raise SystemExit(f"FAIL: expected disabled-voice acknowledgement without delivery, got {route}")
 PY
 
+CLAUDE_SESSION_ID="019d99f1-0001-7000-b000-000000000002"
+./aos tell --register --session-id "$CLAUDE_SESSION_ID" --name "claude-reader" --role worker --harness claude-code >/dev/null
+
+CLAUDE_TRANSCRIPT_PATH="$ROOT/$CLAUDE_SESSION_ID.jsonl"
+cat >"$CLAUDE_TRANSCRIPT_PATH" <<'EOF'
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"First sentence. Second sentence."}]}}
+{"type":"assistant","isSidechain":true,"message":{"role":"assistant","content":[{"type":"text","text":"Subagent chatter should not win."}]}}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"thinking","thinking":"hidden"},{"type":"text","text":"Earlier main-agent sentence."},{"type":"tool_use","id":"t1","name":"Bash","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"Final main-agent sentence."}]}}
+{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{}}]}}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}
+EOF
+
+CLAUDE_HOOK_PAYLOAD="$(python3 - "$CLAUDE_TRANSCRIPT_PATH" <<'PY'
+import json, sys
+print(json.dumps({"transcript_path": sys.argv[1]}))
+PY
+)"
+
+OUT="$(printf '%s' "$CLAUDE_HOOK_PAYLOAD" | ./aos voice final-response --harness claude-code)"
+python3 - "$OUT" "$CLAUDE_SESSION_ID" <<'PY'
+import json, sys
+
+payload = json.loads(sys.argv[1])
+session_id = sys.argv[2]
+data = payload.get("data", {})
+route = data.get("routes", [{}])[0]
+rendered = route.get("rendered", {})
+source = route.get("source", {})
+
+if data.get("session_id") != session_id:
+    raise SystemExit(f"FAIL: expected claude-code ingress to recover session id {session_id}, got {payload}")
+if rendered.get("text") != "Final main-agent sentence.":
+    raise SystemExit(f"FAIL: expected last main-agent text block, got {rendered}")
+if source.get("message_source") != "claude.assistant":
+    raise SystemExit(f"FAIL: expected claude.assistant source metadata, got {source}")
+PY
+
 ./aos set voice.policies.final_response.style last_n_chars >/dev/null
 ./aos set voice.policies.final_response.last_n_chars 12 >/dev/null
 sleep 1

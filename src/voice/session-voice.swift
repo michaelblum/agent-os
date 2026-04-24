@@ -356,6 +356,16 @@ private func codexTranscriptContentText(_ content: Any?) -> String? {
     return parts.joined(separator: "\n")
 }
 
+private func claudeTranscriptContentText(_ content: Any?) -> String? {
+    guard let items = content as? [[String: Any]] else { return nil }
+    let parts = items.compactMap { item -> String? in
+        guard let type = item["type"] as? String, type == "text" else { return nil }
+        return normalizeNonEmpty(item["text"] as? String)
+    }
+    guard !parts.isEmpty else { return nil }
+    return parts.joined(separator: "\n\n")
+}
+
 private func resolveClaudeFinalResponseTranscript(path: String) -> FinalResponseTranscriptResolution? {
     guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
     var lastAny: String?
@@ -365,14 +375,10 @@ private func resolveClaudeFinalResponseTranscript(path: String) -> FinalResponse
         guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
 
-        if let type = obj["type"] as? String, type == "assistant",
-           let text = normalizeNonEmpty(obj["text"] as? String) {
-            lastAny = text
-        }
-
-        if let payload = obj["payload"] as? [String: Any],
-           let role = payload["role"] as? String, role == "assistant",
-           let text = normalizeNonEmpty(payload["text"] as? String) {
+        if let sidechain = obj["isSidechain"] as? Bool, sidechain { continue }
+        guard let type = obj["type"] as? String, type == "assistant" else { continue }
+        guard let message = obj["message"] as? [String: Any] else { continue }
+        if let text = claudeTranscriptContentText(message["content"]) {
             lastAny = text
         }
     }
