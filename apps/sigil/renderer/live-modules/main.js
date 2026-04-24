@@ -14,6 +14,7 @@ import { createRenderLoopScheduler } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
+import { createVisibilityTransitionController } from './visibility-transition.js';
 import {
     clampPointToDisplays,
     computeDesktopWorldBounds,
@@ -56,7 +57,6 @@ const liveJs = {
     avatarVisible: false,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
-    _visibility: null,
 };
 
 window.liveJs = liveJs;
@@ -219,6 +219,16 @@ function clearGestureState() {
     liveJs.mousedownAvatarPos = null;
 }
 
+const visibilityTransition = createVisibilityTransitionController({
+    host,
+    state,
+    liveJs,
+    projectStagePoint: stagePoint,
+    getExcludedCanvasIds() {
+        return ['avatar-main', hitTarget.hit.id].filter(Boolean);
+    },
+});
+
 function queueFastTravel(x, y) {
     startFastTravel(liveJs, liveJs.displays, x, y);
 }
@@ -270,7 +280,7 @@ function startMarkHeartbeat() {
 
 function setAvatarVisibility(visible) {
     const next = !!visible;
-    if (liveJs.avatarVisible === next && !liveJs._visibility) return;
+    if (liveJs.avatarVisible === next && !visibilityTransition.active) return;
     liveJs.avatarVisible = next;
     if (!next) {
         clearGestureState();
@@ -281,22 +291,20 @@ function setAvatarVisibility(visible) {
     emitAvatarMark();
 }
 
-function animateVisibility(visible, lifecycleAction = null) {
+function animateVisibility(visible, lifecycleAction = null, origin = null) {
     const targetVisible = !!visible;
-    const startScale = Number.isFinite(state.appScale) ? state.appScale : (targetVisible ? 0 : 1);
-    liveJs._visibility = {
-        fromScale: startScale,
-        toScale: targetVisible ? 1 : 0,
-        elapsed: 0,
-        duration: 0.18,
+    if (liveJs.avatarVisible === targetVisible && !visibilityTransition.active) return;
+    if (targetVisible) setAvatarVisibility(true);
+    visibilityTransition.begin({
         targetVisible,
         lifecycleAction,
-    };
-    if (targetVisible) setAvatarVisibility(true);
+        origin,
+        avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null,
+    });
 }
 
-function toggleAvatarVisibility() {
-    animateVisibility(!liveJs.avatarVisible);
+function toggleAvatarVisibility(origin = null) {
+    animateVisibility(!liveJs.avatarVisible, null, origin);
 }
 
 function setAvatarPosition(x, y) {
@@ -433,6 +441,13 @@ function normalizeMessage(msg) {
     return merged;
 }
 
+function originFromMessage(msg = {}) {
+    const x = Number(msg.origin_x ?? msg.originX);
+    const y = Number(msg.origin_y ?? msg.originY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return nativeToDesktopWorldPoint({ x, y }, liveJs.displays) ?? { x, y, valid: true };
+}
+
 function handleHostMessage(rawMsg) {
     const msg = normalizeMessage(rawMsg);
 
@@ -442,19 +457,20 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.toggle') {
-        if (msg.target_state === 'visible') animateVisibility(true, 'enter');
-        else if (msg.target_state === 'hidden') animateVisibility(false, 'exit');
-        else toggleAvatarVisibility();
+        const origin = originFromMessage(msg);
+        if (msg.target_state === 'visible') animateVisibility(true, 'enter', origin);
+        else if (msg.target_state === 'hidden') animateVisibility(false, 'exit', origin);
+        else toggleAvatarVisibility(origin);
         return;
     }
 
     if (msg.type === 'status_item.show') {
-        animateVisibility(true);
+        animateVisibility(true, null, originFromMessage(msg));
         return;
     }
 
     if (msg.type === 'status_item.hide') {
-        animateVisibility(false);
+        animateVisibility(false, null, originFromMessage(msg));
         return;
     }
 
@@ -476,10 +492,11 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'lifecycle') {
+        const origin = originFromMessage(msg);
         if (msg.action === 'enter') {
-            animateVisibility(true, 'enter');
+            animateVisibility(true, 'enter', origin);
         } else if (msg.action === 'exit') {
-            animateVisibility(false, 'exit');
+            animateVisibility(false, 'exit', origin);
         } else if (msg.action === 'suspend') {
             rendererSuspended = true;
             renderLoop.suspend();
@@ -553,6 +570,7 @@ function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
     overlay.mount();
+    visibilityTransition.mount();
     host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
     startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
@@ -587,15 +605,33 @@ function animate() {
         });
     }
 
-    if (liveJs.avatarPos.valid) {
-        const avatarStagePos = stagePoint(liveJs.avatarPos);
-        const projected = projectAvatarToScene(liveJs.avatarPos.x, liveJs.avatarPos.y);
+    let renderAvatarPos = liveJs.avatarPos;
+    const transitionState = visibilityTransition.active
+        ? visibilityTransition.tick(dt, { avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null })
+        : null;
+    if (transitionState?.appScale != null) {
+        state.appScale = transitionState.appScale;
+    }
+    if (transitionState?.avatarPos?.valid) {
+        renderAvatarPos = transitionState.avatarPos;
+    }
+    if (transitionState && !transitionState.active) {
+        state.appScale = transitionState.appScale;
+        setAvatarVisibility(transitionState.targetVisible);
+        if (transitionState.lifecycleAction) {
+            host.post('lifecycle.complete', { action: transitionState.lifecycleAction });
+        }
+    }
+
+    if (renderAvatarPos.valid) {
+        const avatarStagePos = stagePoint(renderAvatarPos);
+        const projected = projectAvatarToScene(renderAvatarPos.x, renderAvatarPos.y);
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
         window.__sigilRenderDebug = {
             desktopWorld: {
-                x: Math.round(liveJs.avatarPos.x),
-                y: Math.round(liveJs.avatarPos.y),
+                x: Math.round(renderAvatarPos.x),
+                y: Math.round(renderAvatarPos.y),
             },
             stage_local: avatarStagePos ? {
                 x: Math.round(avatarStagePos.x),
@@ -603,23 +639,6 @@ function animate() {
             } : null,
             globalBounds: liveJs.globalBounds,
         };
-    }
-
-    if (liveJs._visibility) {
-        const transition = liveJs._visibility;
-        transition.elapsed += dt;
-        let progress = transition.elapsed / transition.duration;
-        if (progress > 1.0) progress = 1.0;
-        const ease = progress * progress * (3 - (2 * progress));
-        state.appScale = transition.fromScale + ((transition.toScale - transition.fromScale) * ease);
-        if (progress >= 1.0) {
-            liveJs._visibility = null;
-            state.appScale = transition.toScale;
-            setAvatarVisibility(transition.targetVisible);
-            if (transition.lifecycleAction) {
-                host.post('lifecycle.complete', { action: transition.lifecycleAction });
-            }
-        }
     }
 
     if (!state.isPaused) {
@@ -643,7 +662,7 @@ function animate() {
         const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
         hitTarget.sync(nativeAvatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
     }
-    const avatarStagePos = stagePoint(liveJs.avatarPos);
+    const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
     overlay.draw({
         state: liveJs.currentState,
@@ -653,6 +672,7 @@ function animate() {
         menuRingRadius: liveJs.menuRingRadius,
         dragCancelRadius: liveJs.dragCancelRadius,
     });
+    visibilityTransition.draw({ avatarStagePos });
 
     if (window.__sigilBootFirstFrameAt === null) {
         window.__sigilBootFirstFrameAt = Date.now();
@@ -682,6 +702,7 @@ window.__sigilDebug = {
             avatarVisible: liveJs.avatarVisible,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
+            transition: visibilityTransition.active?.effect ?? null,
         };
     },
 };

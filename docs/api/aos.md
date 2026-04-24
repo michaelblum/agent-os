@@ -190,6 +190,14 @@ aos see capture --canvas canvas-inspector --perception
 aos see capture --region 1172,442,320,480 --perception
 ```
 
+Useful capture modifiers include:
+
+- `--window` to restrict `user_active`/window captures to the window frame
+- `--region <x,y,w,h>` for explicit CG-coordinate regions
+- `--canvas <id>` / `--channel <id>` for surface-relative captures
+- `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
+- `--perception` to attach spatial metadata alongside the image payload
+
 `--perception` augments the capture response with:
 
 - global capture bounds

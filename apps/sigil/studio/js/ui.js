@@ -7,6 +7,7 @@ import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from
 export { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from '../../renderer/phenomena.js';
 import { applySkin } from '../../renderer/skins.js';
 import { EFFECTS } from '../../renderer/fx-registry.js';
+import { DEFAULT_TRANSITION_EFFECT, TRANSITION_EFFECTS, normalizeTransitionEffect } from '../../renderer/transition-registry.js';
 import { randomizeAll } from './randomize.js';
 import { loadAgentIntoStudio, markDraftChanged, setupStudioSession, updateDraftIdentity } from './studio-session.js';
 
@@ -16,6 +17,27 @@ const REF_SCALE = 1.1;
 const REF_HEIGHT = 1080;
 function computeBaseScale(base) {
     return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
+}
+
+function populateTransitionEffectSelects() {
+    ['transitionEnterEffectSelect', 'transitionExitEffectSelect'].forEach((id) => {
+        const select = document.getElementById(id);
+        if (!select || select.options.length > 0) return;
+        TRANSITION_EFFECTS.forEach((effect) => {
+            const option = document.createElement('option');
+            option.value = effect.id;
+            option.textContent = effect.label;
+            select.appendChild(option);
+        });
+    });
+}
+
+function updateTransitionSettingsVisibility() {
+    const container = document.getElementById('wormholeTransitionSettings');
+    const enter = document.getElementById('transitionEnterEffectSelect')?.value;
+    const exit = document.getElementById('transitionExitEffectSelect')?.value;
+    if (!container) return;
+    container.style.display = (enter === 'wormhole' || exit === 'wormhole') ? 'block' : 'none';
 }
 
 function makeEditable(id, getMin, getMax, isFloat, onChange) {
@@ -226,6 +248,16 @@ function getConfig() {
         dragCancelRadius: state.dragCancelRadius,
         gotoRingRadius: state.gotoRingRadius,
         menuRingRadius: state.menuRingRadius,
+        transitionEnterEffect: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_TRANSITION_EFFECT),
+        transitionExitEffect: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_TRANSITION_EFFECT),
+        transitionScaleDuration: state.transitionScaleDuration,
+        wormholeCaptureRadius: state.wormholeCaptureRadius,
+        wormholeImplosionDuration: state.wormholeImplosionDuration,
+        wormholeReboundDuration: state.wormholeReboundDuration,
+        wormholeDistortionStrength: state.wormholeDistortionStrength,
+        wormholeWhitePointIntensity: state.wormholeWhitePointIntensity,
+        wormholeStarburstIntensity: state.wormholeStarburstIntensity,
+        wormholeLensFlareIntensity: state.wormholeLensFlareIntensity,
     };
 }
 
@@ -404,8 +436,19 @@ function applyConfig(c) {
     if (c.dragCancelRadius !== undefined) setUI('dragCancelRadiusSlider', c.dragCancelRadius, String(c.dragCancelRadius));
     if (c.gotoRingRadius !== undefined) setUI('gotoRingRadiusSlider', c.gotoRingRadius, String(c.gotoRingRadius));
     if (c.menuRingRadius !== undefined) setUI('menuRingRadiusSlider', c.menuRingRadius, String(c.menuRingRadius));
+    if (c.transitionEnterEffect !== undefined) setUI('transitionEnterEffectSelect', normalizeTransitionEffect(c.transitionEnterEffect, DEFAULT_TRANSITION_EFFECT));
+    if (c.transitionExitEffect !== undefined) setUI('transitionExitEffectSelect', normalizeTransitionEffect(c.transitionExitEffect, DEFAULT_TRANSITION_EFFECT));
+    if (c.transitionScaleDuration !== undefined) setUI('transitionScaleDurationSlider', c.transitionScaleDuration, c.transitionScaleDuration.toFixed(2));
+    if (c.wormholeCaptureRadius !== undefined) setUI('wormholeCaptureRadiusSlider', c.wormholeCaptureRadius, String(c.wormholeCaptureRadius));
+    if (c.wormholeImplosionDuration !== undefined) setUI('wormholeImplosionDurationSlider', c.wormholeImplosionDuration, c.wormholeImplosionDuration.toFixed(2));
+    if (c.wormholeReboundDuration !== undefined) setUI('wormholeReboundDurationSlider', c.wormholeReboundDuration, c.wormholeReboundDuration.toFixed(2));
+    if (c.wormholeDistortionStrength !== undefined) setUI('wormholeDistortionStrengthSlider', c.wormholeDistortionStrength, c.wormholeDistortionStrength.toFixed(2));
+    if (c.wormholeWhitePointIntensity !== undefined) setUI('wormholeWhitePointIntensitySlider', c.wormholeWhitePointIntensity, c.wormholeWhitePointIntensity.toFixed(2));
+    if (c.wormholeStarburstIntensity !== undefined) setUI('wormholeStarburstIntensitySlider', c.wormholeStarburstIntensity, c.wormholeStarburstIntensity.toFixed(2));
+    if (c.wormholeLensFlareIntensity !== undefined) setUI('wormholeLensFlareIntensitySlider', c.wormholeLensFlareIntensity, c.wormholeLensFlareIntensity.toFixed(2));
 
     updateAllColors();
+    updateTransitionSettingsVisibility();
 }
 
 /**
@@ -583,6 +626,17 @@ export function syncUIFromState() {
     setVal('dragCancelRadiusSlider', state.dragCancelRadius, String(state.dragCancelRadius));
     setVal('gotoRingRadiusSlider', state.gotoRingRadius, String(state.gotoRingRadius));
     setVal('menuRingRadiusSlider', state.menuRingRadius, String(state.menuRingRadius));
+    setVal('transitionEnterEffectSelect', normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_TRANSITION_EFFECT));
+    setVal('transitionExitEffectSelect', normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_TRANSITION_EFFECT));
+    setVal('transitionScaleDurationSlider', state.transitionScaleDuration, state.transitionScaleDuration.toFixed(2));
+    setVal('wormholeCaptureRadiusSlider', state.wormholeCaptureRadius, String(state.wormholeCaptureRadius));
+    setVal('wormholeImplosionDurationSlider', state.wormholeImplosionDuration, state.wormholeImplosionDuration.toFixed(2));
+    setVal('wormholeReboundDurationSlider', state.wormholeReboundDuration, state.wormholeReboundDuration.toFixed(2));
+    setVal('wormholeDistortionStrengthSlider', state.wormholeDistortionStrength, state.wormholeDistortionStrength.toFixed(2));
+    setVal('wormholeWhitePointIntensitySlider', state.wormholeWhitePointIntensity, state.wormholeWhitePointIntensity.toFixed(2));
+    setVal('wormholeStarburstIntensitySlider', state.wormholeStarburstIntensity, state.wormholeStarburstIntensity.toFixed(2));
+    setVal('wormholeLensFlareIntensitySlider', state.wormholeLensFlareIntensity, state.wormholeLensFlareIntensity.toFixed(2));
+    updateTransitionSettingsVisibility();
 }
 
 function buildFxGrid() {
@@ -664,6 +718,7 @@ export function setupUI() {
     state.gridMode = 'off';
     if (state.gridHelper) state.gridHelper.visible = false;
     state.isSwarmEnabled = false;
+    populateTransitionEffectSelects();
 
     // Slider fill tracks — apply to all range inputs and update on input
     document.querySelectorAll('input[type="range"]').forEach(el => {
@@ -1705,6 +1760,46 @@ export function setupUI() {
     document.getElementById('menuRingRadiusSlider').addEventListener('input', (e) => {
         state.menuRingRadius = parseInt(e.target.value, 10);
         document.getElementById('menuRingRadiusVal').innerText = state.menuRingRadius;
+    });
+    document.getElementById('transitionEnterEffectSelect').addEventListener('change', (e) => {
+        state.transitionEnterEffect = normalizeTransitionEffect(e.target.value, DEFAULT_TRANSITION_EFFECT);
+        updateTransitionSettingsVisibility();
+    });
+    document.getElementById('transitionExitEffectSelect').addEventListener('change', (e) => {
+        state.transitionExitEffect = normalizeTransitionEffect(e.target.value, DEFAULT_TRANSITION_EFFECT);
+        updateTransitionSettingsVisibility();
+    });
+    document.getElementById('transitionScaleDurationSlider').addEventListener('input', (e) => {
+        state.transitionScaleDuration = parseFloat(e.target.value);
+        document.getElementById('transitionScaleDurationVal').innerText = state.transitionScaleDuration.toFixed(2);
+    });
+    document.getElementById('wormholeCaptureRadiusSlider').addEventListener('input', (e) => {
+        state.wormholeCaptureRadius = parseInt(e.target.value, 10);
+        document.getElementById('wormholeCaptureRadiusVal').innerText = state.wormholeCaptureRadius;
+    });
+    document.getElementById('wormholeImplosionDurationSlider').addEventListener('input', (e) => {
+        state.wormholeImplosionDuration = parseFloat(e.target.value);
+        document.getElementById('wormholeImplosionDurationVal').innerText = state.wormholeImplosionDuration.toFixed(2);
+    });
+    document.getElementById('wormholeReboundDurationSlider').addEventListener('input', (e) => {
+        state.wormholeReboundDuration = parseFloat(e.target.value);
+        document.getElementById('wormholeReboundDurationVal').innerText = state.wormholeReboundDuration.toFixed(2);
+    });
+    document.getElementById('wormholeDistortionStrengthSlider').addEventListener('input', (e) => {
+        state.wormholeDistortionStrength = parseFloat(e.target.value);
+        document.getElementById('wormholeDistortionStrengthVal').innerText = state.wormholeDistortionStrength.toFixed(2);
+    });
+    document.getElementById('wormholeWhitePointIntensitySlider').addEventListener('input', (e) => {
+        state.wormholeWhitePointIntensity = parseFloat(e.target.value);
+        document.getElementById('wormholeWhitePointIntensityVal').innerText = state.wormholeWhitePointIntensity.toFixed(2);
+    });
+    document.getElementById('wormholeStarburstIntensitySlider').addEventListener('input', (e) => {
+        state.wormholeStarburstIntensity = parseFloat(e.target.value);
+        document.getElementById('wormholeStarburstIntensityVal').innerText = state.wormholeStarburstIntensity.toFixed(2);
+    });
+    document.getElementById('wormholeLensFlareIntensitySlider').addEventListener('input', (e) => {
+        state.wormholeLensFlareIntensity = parseFloat(e.target.value);
+        document.getElementById('wormholeLensFlareIntensityVal').innerText = state.wormholeLensFlareIntensity.toFixed(2);
     });
 
     // --- URL query string handling ---

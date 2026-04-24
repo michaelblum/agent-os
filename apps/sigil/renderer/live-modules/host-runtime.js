@@ -127,5 +127,25 @@ export function createHostRuntime() {
             if (!position) return;
             post('position.set', { key, x: position.x, y: position.y });
         },
+        captureRegion(region, opts = {}) {
+            return request('capture.region', {
+                ...region,
+                format: opts.format ?? 'jpg',
+                quality: opts.quality ?? 'med',
+                exclude_canvas_ids: opts.excludeCanvasIds ?? [],
+            }, {
+                timeoutMs: opts.timeoutMs ?? 1500,
+                mapResult(msg) {
+                    if (typeof msg.base64 !== 'string' || typeof msg.mime_type !== 'string') {
+                        throw new Error('capture.region returned no image payload');
+                    }
+                    return {
+                        base64: msg.base64,
+                        mimeType: msg.mime_type,
+                        region: msg.region ?? region,
+                    };
+                },
+            });
+        },
     };
 }

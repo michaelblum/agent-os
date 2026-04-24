@@ -31,6 +31,20 @@ of the main display at boot.
       "accretion": { "enabled": false, "count": 1 },
       "neutrino":  { "enabled": false, "count": 1 }
     },
+    "transitions": {
+      "enter": "scale",
+      "exit": "scale",
+      "scaleDuration": 0.18,
+      "wormhole": {
+        "captureRadius": 96,
+        "implosionDuration": 0.22,
+        "reboundDuration": 0.34,
+        "distortionStrength": 0.82,
+        "whitePointIntensity": 1.0,
+        "starburstIntensity": 0.95,
+        "lensFlareIntensity": 0.8
+      }
+    },
     "trails": { "enabled": true, "count": 6, "opacity": 0.5, "fadeMs": 400, "style": "omega" }
   },
   "minds": { "skills": [], "tools": [], "workflows": [] },

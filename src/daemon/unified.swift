@@ -202,6 +202,9 @@ class UnifiedDaemon {
                 case "position.set":
                     self.handlePositionSet(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "capture.region":
+                    self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "canvas_object.marks":
                     // Fan out to any canvas that subscribed; don't echo back to sender.
                     var markPayload: [String: Any] = [:]
@@ -968,6 +971,120 @@ class UnifiedDaemon {
         lastPositionsLock.lock()
         lastPositions[key] = (x: x, y: y)
         lastPositionsLock.unlock()
+    }
+
+    /// Request/response: capture a CG-coordinate region and return a base64 image.
+    /// Intended for small renderer-side sampling windows such as transition FX.
+    private func handleCaptureRegion(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let number: (String) -> Double? = { key in
+            if let raw = payload[key] as? NSNumber { return raw.doubleValue }
+            if let raw = payload[key] as? Double { return raw }
+            if let raw = payload[key] as? Int { return Double(raw) }
+            if let raw = payload[key] as? String { return Double(raw) }
+            return nil
+        }
+
+        guard let x = number("x"),
+              let y = number("y"),
+              let width = number("width") ?? number("w"),
+              let height = number("height") ?? number("h"),
+              x.isFinite, y.isFinite, width.isFinite, height.isFinite,
+              width > 0, height > 0 else {
+            dispatchCanvasResponse(
+                to: callerID,
+                requestID: requestID,
+                status: "error",
+                code: "INVALID_REGION",
+                message: "capture.region requires finite x, y, width, height"
+            )
+            return
+        }
+
+        let format = (payload["format"] as? String)?.lowercased() ?? "jpg"
+        let quality = (payload["quality"] as? String)?.lowercased() ?? "med"
+        let excludeCanvasIDs = (payload["exclude_canvas_ids"] as? [String] ?? [])
+            .filter { !$0.isEmpty }
+
+        let excludeWindowIDs: [Int] = {
+            guard !excludeCanvasIDs.isEmpty else { return [] }
+            if Thread.isMainThread {
+                return excludeCanvasIDs.compactMap { self.canvasManager.canvas(forID: $0)?.window.windowNumber }
+            }
+            var ids: [Int] = []
+            DispatchQueue.main.sync {
+                ids = excludeCanvasIDs.compactMap { self.canvasManager.canvas(forID: $0)?.window.windowNumber }
+            }
+            return ids
+        }()
+
+        let region = String(format: "%.3f,%.3f,%.3f,%.3f", x, y, width, height)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            var arguments = [
+                "see", "capture",
+                "--region", region,
+                "--base64",
+                "--format", format,
+                "--quality", quality,
+            ]
+            for windowID in excludeWindowIDs {
+                arguments.append(contentsOf: ["--exclude-window", String(windowID)])
+            }
+
+            let process = runProcess(aosExecutablePath(), arguments: arguments)
+            guard process.exitCode == 0 else {
+                self.dispatchCanvasResponse(
+                    to: callerID,
+                    requestID: requestID,
+                    status: "error",
+                    code: "CAPTURE_FAILED",
+                    message: process.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? "capture.region failed with exit code \(process.exitCode)"
+                        : process.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+                return
+            }
+
+            guard let data = process.stdout.data(using: .utf8),
+                  let parsed = try? JSONSerialization.jsonObject(with: data, options: []),
+                  let dict = parsed as? [String: Any],
+                  let imageBase64 = (dict["base64"] as? [String])?.first else {
+                self.dispatchCanvasResponse(
+                    to: callerID,
+                    requestID: requestID,
+                    status: "error",
+                    code: "INVALID_CAPTURE_RESPONSE",
+                    message: "capture.region returned malformed JSON"
+                )
+                return
+            }
+
+            let mimeType: String = {
+                switch format {
+                case "png": return "image/png"
+                case "heic": return "image/heic"
+                default: return "image/jpeg"
+                }
+            }()
+
+            self.dispatchCanvasResponse(
+                to: callerID,
+                requestID: requestID,
+                status: "ok",
+                extra: [
+                    "base64": imageBase64,
+                    "mime_type": mimeType,
+                    "region": [
+                        "x": x,
+                        "y": y,
+                        "width": width,
+                        "height": height,
+                    ],
+                ]
+            )
+        }
     }
 
     // MARK: - Connection Handling
