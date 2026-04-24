@@ -464,6 +464,37 @@
                     <button class="btn-action" id="btn-quick-spin" style="margin-top: 5px;">Quick Spin Burst</button>
                 </div>
 
+                <h2 style="font-size:0.9rem;">Transitions</h2>
+                <div class="control-group">
+                    <label>Enter Effect</label>
+                    <select id="transitionEnterEffectSelect"></select>
+                    <label style="margin-top: 8px;">Exit Effect</label>
+                    <select id="transitionExitEffectSelect"></select>
+                    <div class="control-row" style="margin-top: 8px;">
+                        <label>Scale Duration</label>
+                        <div class="val-display"><span id="transitionScaleDurationVal">0.18</span></div>
+                    </div>
+                    <input type="range" id="transitionScaleDurationSlider" min="0.08" max="0.60" step="0.01" value="0.18">
+
+                    <div id="wormholeTransitionSettings" style="display:none; margin-top: 12px;">
+                        <div class="sub-heading">Wormhole Settings</div>
+                        <div class="control-row"><label style="font-size:0.6rem;">Capture Radius</label><div class="val-display"><span id="wormholeCaptureRadiusVal">96</span></div></div>
+                        <input type="range" id="wormholeCaptureRadiusSlider" min="56" max="220" step="2" value="96">
+                        <div class="control-row"><label style="font-size:0.6rem;">Implosion</label><div class="val-display"><span id="wormholeImplosionDurationVal">0.22</span></div></div>
+                        <input type="range" id="wormholeImplosionDurationSlider" min="0.08" max="0.60" step="0.01" value="0.22">
+                        <div class="control-row"><label style="font-size:0.6rem;">Rebound</label><div class="val-display"><span id="wormholeReboundDurationVal">0.34</span></div></div>
+                        <input type="range" id="wormholeReboundDurationSlider" min="0.12" max="0.90" step="0.01" value="0.34">
+                        <div class="control-row"><label style="font-size:0.6rem;">Distortion</label><div class="val-display"><span id="wormholeDistortionStrengthVal">0.82</span></div></div>
+                        <input type="range" id="wormholeDistortionStrengthSlider" min="0.10" max="1.40" step="0.01" value="0.82">
+                        <div class="control-row"><label style="font-size:0.6rem;">White Point</label><div class="val-display"><span id="wormholeWhitePointIntensityVal">1.00</span></div></div>
+                        <input type="range" id="wormholeWhitePointIntensitySlider" min="0.10" max="2.00" step="0.01" value="1.00">
+                        <div class="control-row"><label style="font-size:0.6rem;">Starburst</label><div class="val-display"><span id="wormholeStarburstIntensityVal">0.95</span></div></div>
+                        <input type="range" id="wormholeStarburstIntensitySlider" min="0.00" max="2.00" step="0.01" value="0.95">
+                        <div class="control-row"><label style="font-size:0.6rem;">Lens Flare</label><div class="val-display"><span id="wormholeLensFlareIntensityVal">0.80</span></div></div>
+                        <input type="range" id="wormholeLensFlareIntensitySlider" min="0.00" max="2.00" step="0.01" value="0.80">
+                    </div>
+                </div>
+
                 <h2 style="font-size:0.9rem;">Aura</h2>
                 <div class="control-group">
                     <label class="checkbox-label"><input type="checkbox" id="auraToggle" checked> Enable Aura Glow</label>

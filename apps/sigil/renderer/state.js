@@ -144,6 +144,18 @@ const defaults = {
     gotoRingRadius: 60,
     menuRingRadius: 120,
 
+    // Visibility transitions
+    transitionEnterEffect: 'scale',
+    transitionExitEffect: 'scale',
+    transitionScaleDuration: 0.18,
+    wormholeCaptureRadius: 96,
+    wormholeImplosionDuration: 0.22,
+    wormholeReboundDuration: 0.34,
+    wormholeDistortionStrength: 0.82,
+    wormholeWhitePointIntensity: 1.0,
+    wormholeStarburstIntensity: 0.95,
+    wormholeLensFlareIntensity: 0.8,
+
     // Turbulence Configs (value, speed, mode)
     turbState: {
         p: { val: 0.2, spd: 1.0, mod: 'staggered' },

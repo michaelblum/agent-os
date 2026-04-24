@@ -879,8 +879,13 @@ func stitchSurfaceSegments(
 // MARK: - ScreenCaptureKit Capture
 
 @available(macOS 14.0, *)
-func captureDisplay(_ scDisplay: SCDisplay, scaleFactor: Double, showCursor: Bool) async throws -> CGImage {
-    let filter = SCContentFilter(display: scDisplay, excludingApplications: [], exceptingWindows: [])
+func captureDisplay(
+    _ scDisplay: SCDisplay,
+    scaleFactor: Double,
+    showCursor: Bool,
+    excludingWindows: [SCWindow] = []
+) async throws -> CGImage {
+    let filter = SCContentFilter(display: scDisplay, excludingWindows: excludingWindows)
     let config = SCStreamConfiguration()
     config.width = Int(Double(scDisplay.width) * scaleFactor)
     config.height = Int(Double(scDisplay.height) * scaleFactor)
@@ -912,6 +917,7 @@ struct CaptureOptions {
     var region: String? = nil
     var canvasID: String? = nil
     var channelID: String? = nil
+    var excludedWindowIDs: [Int] = []
     var format: String = "png"
     var quality: String = "high"
     var perception: Bool = false
@@ -996,6 +1002,13 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
             i += 1
             guard i < args.count else { exitError("--channel requires a focus channel id", code: "MISSING_ARG") }
             opts.channelID = args[i]
+        case "--exclude-window":
+            i += 1
+            guard i < args.count else { exitError("--exclude-window requires a CGWindowID", code: "MISSING_ARG") }
+            guard let windowID = Int(args[i]), windowID > 0 else {
+                exitError("--exclude-window must be a positive integer CGWindowID", code: "INVALID_ARG")
+            }
+            opts.excludedWindowIDs.append(windowID)
         case "--format":
             i += 1
             guard i < args.count else { exitError("--format requires a value", code: "MISSING_ARG") }
@@ -1950,6 +1963,8 @@ func captureCommand(args: [String]) async {
     }
 
     let displays = getCaptureDisplays()
+    let excludedWindowIDs = Set(opts.excludedWindowIDs)
+    let excludedSCWindows = content.windows.filter { excludedWindowIDs.contains(Int($0.windowID)) }
     let explicitSurface = resolveCaptureSurface(opts: opts, displays: displays)
 
     // ── Resolve target ──
@@ -2087,7 +2102,12 @@ func captureCommand(args: [String]) async {
             }
             let displayImage: CGImage
             do {
-                displayImage = try await captureDisplay(scDisplay, scaleFactor: segment.display.scaleFactor, showCursor: opts.showCursor)
+                displayImage = try await captureDisplay(
+                    scDisplay,
+                    scaleFactor: segment.display.scaleFactor,
+                    showCursor: opts.showCursor,
+                    excludingWindows: excludedSCWindows
+                )
             } catch {
                 exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED")
             }
@@ -2218,7 +2238,14 @@ func captureCommand(args: [String]) async {
                     guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
                         exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
                     }
-                    do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                    do {
+                        image = try await captureDisplay(
+                            scDisplay,
+                            scaleFactor: entry.scaleFactor,
+                            showCursor: opts.showCursor,
+                            excludingWindows: excludedSCWindows
+                        )
+                    }
                     catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
                 } else {
                     do {
@@ -2230,7 +2257,14 @@ func captureCommand(args: [String]) async {
                         guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
                             exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
                         }
-                        do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                        do {
+                            image = try await captureDisplay(
+                                scDisplay,
+                                scaleFactor: entry.scaleFactor,
+                                showCursor: opts.showCursor,
+                                excludingWindows: excludedSCWindows
+                            )
+                        }
                         catch { exitError("Display capture also failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
                     }
                 }
@@ -2238,7 +2272,14 @@ func captureCommand(args: [String]) async {
                 guard let scDisplay = content.displays.first(where: { $0.displayID == cgID }) else {
                     exitError("Display \(entry.ordinal) not available", code: "DISPLAY_NOT_FOUND")
                 }
-                do { image = try await captureDisplay(scDisplay, scaleFactor: entry.scaleFactor, showCursor: opts.showCursor) }
+                do {
+                    image = try await captureDisplay(
+                        scDisplay,
+                        scaleFactor: entry.scaleFactor,
+                        showCursor: opts.showCursor,
+                        excludingWindows: excludedSCWindows
+                    )
+                }
                 catch { exitError("Display capture failed: \(error.localizedDescription)", code: "CAPTURE_FAILED") }
             }
 

@@ -17,6 +17,7 @@ import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
 import { applySkin } from './skins.js';
+import { DEFAULT_TRANSITION_EFFECT, normalizeTransitionEffect } from './transition-registry.js';
 
 const REF_BASE = 300;
 const REF_SCALE = 1.1;
@@ -90,6 +91,21 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         dragCancelRadius: 40,
         gotoRingRadius: 60,
         menuRingRadius: 120,
+    },
+
+    transitions: {
+        enter: DEFAULT_TRANSITION_EFFECT,
+        exit: DEFAULT_TRANSITION_EFFECT,
+        scaleDuration: 0.18,
+        wormhole: {
+            captureRadius: 96,
+            implosionDuration: 0.22,
+            reboundDuration: 0.34,
+            distortionStrength: 0.82,
+            whitePointIntensity: 1.0,
+            starburstIntensity: 0.95,
+            lensFlareIntensity: 0.8,
+        },
     },
 
     // Colors (all gradient pairs)
@@ -289,6 +305,19 @@ export function applyAppearance(blob) {
     state.dragCancelRadius = interaction.dragCancelRadius ?? D.interaction.dragCancelRadius;
     state.gotoRingRadius = interaction.gotoRingRadius ?? D.interaction.gotoRingRadius;
     state.menuRingRadius = interaction.menuRingRadius ?? D.interaction.menuRingRadius;
+
+    const transitions = blob.transitions ?? D.transitions;
+    const wormhole = transitions.wormhole ?? D.transitions.wormhole;
+    state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
+    state.transitionExitEffect = normalizeTransitionEffect(transitions.exit, D.transitions.exit);
+    state.transitionScaleDuration = transitions.scaleDuration ?? D.transitions.scaleDuration;
+    state.wormholeCaptureRadius = wormhole.captureRadius ?? D.transitions.wormhole.captureRadius;
+    state.wormholeImplosionDuration = wormhole.implosionDuration ?? D.transitions.wormhole.implosionDuration;
+    state.wormholeReboundDuration = wormhole.reboundDuration ?? D.transitions.wormhole.reboundDuration;
+    state.wormholeDistortionStrength = wormhole.distortionStrength ?? D.transitions.wormhole.distortionStrength;
+    state.wormholeWhitePointIntensity = wormhole.whitePointIntensity ?? D.transitions.wormhole.whitePointIntensity;
+    state.wormholeStarburstIntensity = wormhole.starburstIntensity ?? D.transitions.wormhole.starburstIntensity;
+    state.wormholeLensFlareIntensity = wormhole.lensFlareIntensity ?? D.transitions.wormhole.lensFlareIntensity;
 
     // Colors — replace the whole map so stale keys go away.
     const colors = blob.colors ?? D.colors;
@@ -513,6 +542,21 @@ export function snapshotAppearance() {
             dragCancelRadius: state.dragCancelRadius,
             gotoRingRadius: state.gotoRingRadius,
             menuRingRadius: state.menuRingRadius,
+        },
+
+        transitions: {
+            enter: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_APPEARANCE.transitions.enter),
+            exit: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_APPEARANCE.transitions.exit),
+            scaleDuration: state.transitionScaleDuration ?? DEFAULT_APPEARANCE.transitions.scaleDuration,
+            wormhole: {
+                captureRadius: state.wormholeCaptureRadius ?? DEFAULT_APPEARANCE.transitions.wormhole.captureRadius,
+                implosionDuration: state.wormholeImplosionDuration ?? DEFAULT_APPEARANCE.transitions.wormhole.implosionDuration,
+                reboundDuration: state.wormholeReboundDuration ?? DEFAULT_APPEARANCE.transitions.wormhole.reboundDuration,
+                distortionStrength: state.wormholeDistortionStrength ?? DEFAULT_APPEARANCE.transitions.wormhole.distortionStrength,
+                whitePointIntensity: state.wormholeWhitePointIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.whitePointIntensity,
+                starburstIntensity: state.wormholeStarburstIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.starburstIntensity,
+                lensFlareIntensity: state.wormholeLensFlareIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.lensFlareIntensity,
+            },
         },
 
         colors: (() => {
