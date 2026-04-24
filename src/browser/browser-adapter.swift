@@ -84,7 +84,7 @@ func boundsViaEval(session: String, ref: String) throws -> BoundsJSON? {
 // One probe per CLI invocation. Each ./aos call is a fresh process, so the
 // memoization never carries stale state across invocations.
 private var versionChecked = false
-private func ensureVersion() throws {
+func ensureVersion() throws {
     if versionChecked { return }
     do {
         _ = try probePlaywrightVersion()

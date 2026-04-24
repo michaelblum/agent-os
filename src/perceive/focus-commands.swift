@@ -21,7 +21,21 @@ func focusCreateCommand(args: [String]) {
     guard let id = getArg(args, "--id") else {
         exitError("--id is required", code: "MISSING_ARG")
     }
-    guard let widStr = getArg(args, "--window"), let wid = Int(widStr) else {
+    let target = getArg(args, "--target")
+    let widStr = getArg(args, "--window")
+
+    // --target and --window are mutually exclusive. Check this before the
+    // --window required-guard below, otherwise the mutex message never fires.
+    if target != nil && widStr != nil {
+        exitError("--target and --window are mutually exclusive", code: "INVALID_ARG")
+    }
+
+    if let t = target {
+        focusCreateBrowser(id: id, targetSpec: t, rest: args)
+        return
+    }
+
+    guard let widStr = widStr, let wid = Int(widStr) else {
         exitError("--window <id> is required", code: "MISSING_ARG")
     }
     let subtree = parseSubtreeArgs(args)
@@ -41,6 +55,85 @@ func focusCreateCommand(args: [String]) {
 
     printDaemonResult(sendEnvelopeRequest(service: "focus", action: "create", data: data, autoStartBinary: aosExecutablePath()))
 }
+
+// MARK: - Browser Focus Channels
+//
+// `aos focus create --target browser://<kind>` creates a CLI-local focus
+// channel backed by the browser registry (Task 6). Two kinds:
+//   - browser://attach  — attach to an existing browser (extension | CDP)
+//   - browser://new     — launch an agent-owned browser (headed|headless)
+//
+// `focus list` merges daemon window channels (kind=window) with registry
+// browser channels (kind=browser) into a typed union.
+//
+// `focus remove` dispatches on registry lookup first; for mode=launched it
+// also runs `playwright-cli close` so the agent-launched process exits.
+
+func focusCreateBrowser(id: String, targetSpec: String, rest: [String]) {
+    guard let url = URL(string: targetSpec),
+          url.scheme == "browser",
+          let kind = url.host else {
+        exitError("invalid --target; expected browser://attach or browser://new", code: "INVALID_ARG")
+    }
+
+    do {
+        try ensureVersion()
+        switch kind {
+        case "attach":
+            var attachKind = "extension"
+            var cdp: String? = nil
+            if rest.contains("--extension") { attachKind = "extension" }
+            if let cdpVal = getArg(rest, "--cdp") { attachKind = "cdp"; cdp = cdpVal }
+            let pwArgs: [String]
+            switch attachKind {
+            case "extension": pwArgs = ["--extension"]
+            case "cdp":       pwArgs = cdp.map { ["--cdp=\($0)"] } ?? ["--cdp=chrome"]
+            default:          pwArgs = ["--extension"]
+            }
+            let r = try runPlaywright(PlaywrightInvocation(
+                session: id, verb: "attach", args: pwArgs, withTempFilename: false
+            ))
+            guard r.exit_code == 0 else {
+                exitError("playwright attach failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
+            }
+            let winID = resolveBrowserWindowID(session: id)
+            try addRegistryRecord(BrowserSessionRecord(
+                id: id, mode: "attach", attach_kind: attachKind, headless: nil,
+                browser_window_id: winID, active_url: nil, updated_at: isoNow()
+            ))
+            print("{\"status\":\"success\",\"id\":\"\(id)\",\"mode\":\"attach\",\"attach\":\"\(attachKind)\"}")
+        case "new":
+            let headless = rest.contains("--headless")
+            var openArgs: [String] = []
+            if !headless { openArgs.append("--headed") }
+            if let u = getArg(rest, "--url") { openArgs.append(u) }
+            if rest.contains("--persistent") { openArgs.append("--persistent") }
+            let r = try runPlaywright(PlaywrightInvocation(
+                session: id, verb: "open", args: openArgs, withTempFilename: false
+            ))
+            guard r.exit_code == 0 else {
+                exitError("playwright open failed: \(r.stderr)", code: "PLAYWRIGHT_CLI_FAILED")
+            }
+            let winID = resolveBrowserWindowID(session: id)
+            try addRegistryRecord(BrowserSessionRecord(
+                id: id, mode: "launched", attach_kind: nil, headless: headless,
+                browser_window_id: winID, active_url: nil, updated_at: isoNow()
+            ))
+            print("{\"status\":\"success\",\"id\":\"\(id)\",\"mode\":\"launched\",\"headless\":\(headless)}")
+        default:
+            exitError("invalid --target kind: \(kind)", code: "INVALID_ARG")
+        }
+    } catch SessionRegistryError.duplicateID {
+        exitError("focus channel '\(id)' already exists", code: "DUPLICATE_ID")
+    } catch BrowserAdapterError.versionCheckFailed(let msg, let code) {
+        exitError(msg, code: code)
+    } catch {
+        exitError("\(error)", code: "INTERNAL")
+    }
+}
+
+// Stubbed for v1; Task 13 fills in with AX resolution via anchor-resolver.
+func resolveBrowserWindowID(session: String) -> Int? { nil }
 
 func focusUpdateCommand(args: [String]) {
     guard let id = getArg(args, "--id") else {
@@ -63,12 +156,68 @@ func focusUpdateCommand(args: [String]) {
 }
 
 func focusListCommand() {
-    printDaemonResult(sendEnvelopeRequest(service: "focus", action: "list", data: [:], autoStartBinary: aosExecutablePath()))
+    // Merge daemon window channels (kind=window) with the browser registry
+    // (kind=browser) into a typed union. We do not pass autoStartBinary: the
+    // registry is always available even when the daemon is down, and
+    // auto-start stderr noise would interleave with callers that grep stdout.
+    // A nil or error daemon response degrades to "zero window channels".
+    let daemonResp = sendEnvelopeRequest(service: "focus", action: "list", data: [:])
+
+    var merged: [[String: Any]] = []
+    if let resp = daemonResp, resp["error"] == nil,
+       let chans = resp["channels"] as? [[String: Any]] {
+        for var entry in chans {
+            entry["kind"] = "window"
+            merged.append(entry)
+        }
+    }
+
+    if let registry = try? readRegistry() {
+        for r in registry {
+            var dict: [String: Any] = [
+                "kind": "browser",
+                "id": r.id,
+                "session": r.id,
+                "mode": r.mode,
+                "updated_at": r.updated_at
+            ]
+            if let v = r.attach_kind { dict["attach"] = v }
+            if let v = r.headless { dict["headless"] = v }
+            if let v = r.browser_window_id { dict["browser_window_id"] = v }
+            if let v = r.active_url { dict["active_url"] = v }
+            merged.append(dict)
+        }
+    }
+
+    let payload: [String: Any] = ["status": "ok", "channels": merged]
+    if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+       let s = String(data: data, encoding: .utf8) {
+        print(s)
+    } else {
+        exitError("failed to serialize focus list", code: "SERIALIZE_ERROR")
+    }
 }
 
 func focusRemoveCommand(args: [String]) {
     guard let id = getArg(args, "--id") else {
         exitError("--id is required", code: "MISSING_ARG")
+    }
+    // Registry-first dispatch. Browser-backed channels live in the CLI-local
+    // registry, not the daemon — so we resolve there before falling through
+    // to the daemon's window-channel path. For mode=launched we also run
+    // `playwright-cli close` so the agent-launched browser process exits.
+    if let record = (try? findRegistryRecord(id: id)) ?? nil {
+        do {
+            if record.mode == "launched" {
+                _ = try? runPlaywright(PlaywrightInvocation(
+                    session: id, verb: "close", args: [], withTempFilename: false))
+            }
+            try removeRegistryRecord(id: id)
+            print("{\"status\":\"ok\"}")
+            return
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     }
     printDaemonResult(sendEnvelopeRequest(service: "focus", action: "remove", data: ["id": id], autoStartBinary: aosExecutablePath()))
 }
