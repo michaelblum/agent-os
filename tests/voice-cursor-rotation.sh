@@ -157,7 +157,18 @@ if [[ "$NEW_CURSOR" -le "$CURSOR_BEFORE2" ]]; then
 fi
 echo "out-of-pool voice next ok"
 
-# ---- 6. zero-match filter falls back to allocatable random ----
+# ---- 6. restore-time revalidation drops out-of-filter voices ----
+# Filter is still premium-only from scenario 5.
+# S1 is on alpha (premium) -> should survive daemon restart.
+# S2 is on bravo (standard) -> should be dropped to null on restore.
+aos_test_kill_root "$ROOT"
+aos_test_start_daemon "$ROOT"
+
+assert_eq "$(voice_for "$S1")" "$V_ALPHA" "S1 alpha survives restore under premium filter"
+assert_eq "$(voice_for "$S2")" ""         "S2 bravo dropped on restore (out of filter)"
+echo "restore-time revalidation ok"
+
+# ---- 7. zero-match filter falls back to allocatable random ----
 ./aos config set voice.filter.language xx >/dev/null
 sleep 0.3
 

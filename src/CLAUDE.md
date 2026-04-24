@@ -190,9 +190,12 @@ New sessions keep an explicit bound voice when they have one; otherwise the
 daemon rotates through a filtered pool (see `voice.filter.*`) using the
 persistent `voice_cursor` in `voice/policy.json`, falling back to a random
 allocatable voice when the filter yields zero matches. Voices are reusable
-across sessions. `aos voice bind` updates the stored session preference; `aos
-voice next` cycles the session forward within the filtered pool and auditions
-the new voice.
+across sessions. Cursor-picked restored sessions whose persisted voice is no
+longer in the filtered pool have that voice dropped on daemon startup; the
+next session re-register re-picks through the cursor. `aos voice bind`
+explicitly pins a session's voice and survives restore-time revalidation;
+`aos voice next` cycles the session forward within the filtered pool and
+auditions the new voice (does not pin).
 
 ### Config Keys
 

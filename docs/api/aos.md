@@ -314,7 +314,12 @@ speakable voices using a persistent integer cursor. The filter is driven by
 `["premium", "enhanced"]`) in `config.json`; the cursor lives in `voice/policy.json`
 and advances by one on each session-start assignment. Voices are reusable across
 sessions. If the filter yields zero matches, the daemon falls back to a random
-allocatable voice and records a `filter_empty` voice event. There is no
+allocatable voice and records a `filter_empty` voice event. Cursor-picked
+restored sessions whose persisted voice is no longer in the filtered pool have
+that voice dropped on daemon startup (recorded as a `restore_voice_dropped`
+voice event); the next session re-register re-picks through the cursor.
+Explicit `voice.bind` assignments are treated as user-pinned and survive
+restore-time revalidation regardless of the current filter. There is no
 reservation, lease, or promotion model.
 
 Voice identifiers are canonical URIs of the form

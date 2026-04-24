@@ -50,6 +50,7 @@ class CoordinationBus {
         let registeredAt: Date
         var lastHeartbeat: Date
         var voice: SessionVoiceDescriptor?
+        var voicePinned: Bool = false
     }
 
     struct ChannelMessage {
@@ -85,7 +86,8 @@ class CoordinationBus {
             harness: harness,
             registeredAt: registeredAt,
             lastHeartbeat: now,
-            voice: assignedVoice
+            voice: assignedVoice,
+            voicePinned: (existingSession?.voicePinned ?? false) && assignedVoice?.id == existingVoice?.id
         )
 
         if let normalizedName {
@@ -316,6 +318,7 @@ class CoordinationBus {
         let descriptor = SessionVoiceDescriptor(record: selectedRecord)
         if var info = sessions[sessionID] {
             info.voice = descriptor
+            info.voicePinned = true
             sessions[sessionID] = info
             persistSessionsLocked()
         }
@@ -424,6 +427,9 @@ class CoordinationBus {
                 if let voice = session.voice {
                     payload["voice"] = voice.dictionary()
                 }
+                if session.voicePinned {
+                    payload["voice_pinned"] = true
+                }
                 return payload
             }.sorted {
                 let lhs = $0["session_id"] as? String ?? ""
@@ -464,6 +470,8 @@ class CoordinationBus {
         var restoredSessions: [String: SessionInfo] = [:]
         var restoredIDsByName: [String: String] = [:]
 
+        let filterIDs = Set(filteredAllocatableVoicesLocked().map { $0.id })
+
         for payload in snapshot {
             guard let sessionID = normalizeSessionID(payload["session_id"] as? String) else { continue }
 
@@ -472,7 +480,17 @@ class CoordinationBus {
             let harness = normalizeName(payload["harness"] as? String) ?? "unknown"
             let registeredAt = dateValue(payload["registered_at"]) ?? Date()
             let lastHeartbeat = dateValue(payload["last_heartbeat"]) ?? registeredAt
-            let restored = restoredVoice(payload["voice"])
+            var restored = restoredVoice(payload["voice"])
+            let pinned = (payload["voice_pinned"] as? Bool) ?? false
+
+            if let voice = restored, !pinned, !filterIDs.contains(voice.id) {
+                emitVoiceEvent([
+                    "kind": "restore_voice_dropped",
+                    "session_id": sessionID,
+                    "voice_id": voice.id
+                ])
+                restored = nil
+            }
 
             restoredSessions[sessionID] = SessionInfo(
                 sessionID: sessionID,
@@ -481,7 +499,8 @@ class CoordinationBus {
                 harness: harness,
                 registeredAt: registeredAt,
                 lastHeartbeat: lastHeartbeat,
-                voice: restored
+                voice: restored,
+                voicePinned: (restored != nil) ? pinned : false
             )
 
             if let normalizedName {
@@ -597,6 +616,7 @@ class CoordinationBus {
 
         voicePolicyStore.setPreferred(sessionID: sessionID, voiceURI: picked.id)
         info.voice = SessionVoiceDescriptor(record: picked)
+        info.voicePinned = false
         sessions[sessionID] = info
         persistSessionsLocked()
 
