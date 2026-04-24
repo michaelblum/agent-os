@@ -1310,7 +1310,14 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos browser _registry find --id=sess-a"])
+            examples: ["aos browser _registry find --id=sess-a"]),
+        InvocationForm(id: "browser-resolve-anchor",
+            usage: "aos browser _resolve-anchor <target>",
+            args: [pos("target", "Browser target (browser:<session>[/<ref>])")],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _resolve-anchor browser:todo/e21"])
         // More forms will be added by later tasks.
     ]))
 

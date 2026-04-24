@@ -139,6 +139,32 @@ func handleBrowserInternal(args: [String]) {
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
+    case "_resolve-anchor":
+        guard let input = rest.first else {
+            exitError("Usage: aos browser _resolve-anchor <target>", code: "MISSING_ARG")
+        }
+        do {
+            let t = try parseBrowserTarget(input)
+            let anchor = try resolveBrowserAnchor(target: t)
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.sortedKeys]
+            print(String(data: try enc.encode(anchor), encoding: .utf8)!)
+        } catch AnchorResolveError.notFound(let id) {
+            exitError("browser session '\(id)' not registered", code: "NOT_FOUND")
+        } catch AnchorResolveError.headless {
+            exitError("headless browser sessions cannot be anchored (no CGWindowID)",
+                      code: "BROWSER_HEADLESS")
+        } catch AnchorResolveError.notLocal(let msg) {
+            exitError(msg, code: "BROWSER_NOT_LOCAL")
+        } catch AnchorResolveError.evalFailed(let msg) {
+            exitError(msg, code: "ANCHOR_EVAL_FAILED")
+        } catch BrowserTargetError.invalid(let msg) {
+            exitError(msg, code: "INVALID_TARGET")
+        } catch BrowserTargetError.missingSession {
+            exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     default:
         exitError("Unknown internal subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
