@@ -1821,10 +1821,75 @@ private func findSelectedText(in element: AXUIElement, depth: Int = 0, maxDepth:
 // MARK: - Command: capture
 
 @available(macOS 14.0, *)
+/// Handle `aos see capture browser:<session>[/<ref>]`. Xray-only runs snapshot
+/// (no bounds). `--label` runs snapshot + per-ref eval for bounds and composes
+/// a badge overlay over a PNG. Errors from version check, target parse, and
+/// subprocess propagate as structured codes.
+func captureBrowserTarget(opts: CaptureOptions) async {
+    do {
+        let bt = try parseBrowserTarget(opts.target)
+        if opts.xray {
+            let elements = try seeCaptureXray(target: bt, withBounds: opts.label)
+            var resp = SuccessResponse()
+            resp.elements = elements
+            if opts.label {
+                let anns = buildAnnotations(from: elements)
+                resp.annotations = anns
+                let dst = opts.resolvedOutputPath
+                _ = try seeCaptureScreenshot(target: bt, outPath: dst)
+                if let base = CGDataProvider(url: URL(fileURLWithPath: dst) as CFURL).flatMap({
+                    CGImage(pngDataProviderSource: $0, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
+                }) {
+                    let badgeHTML = generateBadgeHTML(annotations: anns, width: base.width, height: base.height, scaleFactor: 1.0)
+                    var composited = base
+                    if let overlay = renderHTMLToBitmap(html: badgeHTML, width: base.width, height: base.height) {
+                        composited = compositeOverlay(overlay, onto: base)
+                    }
+                    _ = writeImage(composited, to: dst, format: .png, quality: 1.0)
+                }
+                resp.files = [dst]
+            }
+            print(jsonString(resp))
+            return
+        }
+
+        // Screenshot-only path
+        let dst = opts.resolvedOutputPath
+        _ = try seeCaptureScreenshot(target: bt, outPath: dst)
+        var resp = SuccessResponse()
+        resp.files = [dst]
+        print(jsonString(resp))
+        return
+    } catch BrowserTargetError.missingSession {
+        exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
+    } catch BrowserTargetError.invalid(let msg) {
+        exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
+    } catch BrowserAdapterError.versionCheckFailed(let msg, let code) {
+        exitError(msg, code: code)
+    } catch BrowserAdapterError.subprocess(let msg, let code) {
+        exitError(msg, code: code)
+    } catch BrowserAdapterError.invalidTarget(let msg) {
+        exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
+    } catch BrowserAdapterError.notLocalBrowser(let msg) {
+        exitError(msg, code: "NOT_LOCAL_BROWSER")
+    } catch {
+        exitError("\(error)", code: "INTERNAL")
+    }
+}
+
 func captureCommand(args: [String]) async {
     var opts = parseCaptureArgs(args)
     let fmt = resolveUTType(for: opts.format)
     let quality = resolveQuality(for: opts.quality)
+
+    // ── Browser target dispatch ──
+    // Browser targets route through BrowserAdapter (snapshot + screenshot via
+    // @playwright/cli), bypassing ScreenCaptureKit, AX permissions, zone
+    // resolution, and all the local-sensor plumbing below.
+    if opts.target.hasPrefix("browser:") {
+        await captureBrowserTarget(opts: opts)
+        return
+    }
 
     if opts.region != nil && opts.crop != nil {
         exitError("--region and --crop cannot be used together", code: "INVALID_ARG")

@@ -223,7 +223,13 @@ func handleSee(args: [String]) {
             printCommandHelp(["see"], json: subArgs.contains("--json"))
             exit(0)
         }
-        ensureInteractivePreflight(command: "aos see capture")
+        // Browser targets don't use local screen/AX sensors, so preflight
+        // gating doesn't apply. The @playwright/cli subprocess has its own
+        // version/availability checks inside the adapter.
+        let firstPositional = subArgs.first(where: { !$0.hasPrefix("--") })
+        if firstPositional?.hasPrefix("browser:") != true {
+            ensureInteractivePreflight(command: "aos see capture")
+        }
         runCaptureAsync(args: subArgs)
     case "list":
         ensureInteractivePreflight(command: "aos see list")
