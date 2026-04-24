@@ -179,7 +179,8 @@ func traverseAXElements(
                     bounds: BoundsJSON(
                         x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
                         width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
-                    )
+                    ),
+                    ref: nil
                 ))
             }
         }

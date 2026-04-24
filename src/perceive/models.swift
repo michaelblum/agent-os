@@ -229,7 +229,8 @@ struct AXElementJSON: Encodable {
     let value: String?
     let enabled: Bool
     let context_path: [String]
-    let bounds: BoundsJSON
+    let bounds: BoundsJSON?
+    let ref: String?
 }
 
 // MARK: - Annotation Output Model (annotation.schema.json v0.1.0)

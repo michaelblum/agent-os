@@ -45,4 +45,6 @@ The schema describes WHAT to label, not HOW to render it. An HTML/CSS/SVG templa
 
 ## Relationship to `aos see --xray`
 
-`--xray` returns a flat array of interactive UI elements with `role`, `title`, `label`, `value`, `bounds`. `--label` converts these into the annotation schema format, using the AX element's `title` or `label` as the annotation label. The annotation array is a strict subset of the xray data — just `bounds` + `label`.
+`--xray` returns a flat array of interactive UI elements with `role`, `title`, `label`, `value`, `enabled`, `context_path`, and (for macOS-sourced elements or browser-sourced elements captured with `--label`) `bounds`. Browser-sourced elements captured with `--xray` alone carry a `ref` identifier instead of `bounds`; their geometry is fetched per-element on demand when `--label` is passed.
+
+`--label` converts annotatable elements (those with `bounds`) into the annotation schema format, using the AX element's `title` or `label` as the annotation label. Elements without `bounds` are silently skipped by `buildAnnotations`. The annotation array is a strict subset of the xray data — just `bounds` + `label`.

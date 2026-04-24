@@ -738,13 +738,14 @@ func drawRects(on image: CGImage, rects: [RectOverlay], thickness: CGFloat, shad
 
 /// Convert xray elements to annotation schema format.
 func buildAnnotations(from elements: [AXElementJSON]) -> [AnnotationJSON] {
-    return elements.map { el in
-        AnnotationJSON(
+    return elements.compactMap { el -> AnnotationJSON? in
+        guard let bounds = el.bounds else { return nil }
+        return AnnotationJSON(
             bounds: AnnotationBoundsJSON(
-                x: Double(el.bounds.x),
-                y: Double(el.bounds.y),
-                width: Double(el.bounds.width),
-                height: Double(el.bounds.height)
+                x: Double(bounds.x),
+                y: Double(bounds.y),
+                width: Double(bounds.width),
+                height: Double(bounds.height)
             ),
             label: [el.title, el.label].compactMap { $0?.isEmpty == false ? $0 : nil }.first
         )
