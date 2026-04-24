@@ -92,6 +92,7 @@ private struct CanvasMutationOptions {
     var at: String? = nil
     var anchorWindow: Int? = nil
     var anchorChannel: String? = nil
+    var anchorBrowser: String? = nil
     var offset: String? = nil
     var htmlValue: String? = nil
     var fileValue: String? = nil
@@ -144,6 +145,8 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
             options.anchorWindow = nextCanvasIntArg(args, index: &i, invalidMessage: "--anchor-window requires an integer")
         case "--anchor-channel":
             options.anchorChannel = nextCanvasArg(args, index: &i, missingMessage: "--anchor-channel requires a channel ID")
+        case "--anchor-browser":
+            options.anchorBrowser = nextCanvasArg(args, index: &i, missingMessage: "--anchor-browser requires browser:<s>[/<ref>]")
         case "--offset":
             options.offset = nextCanvasArg(args, index: &i, missingMessage: "--offset requires x,y,w,h")
         case "--html":
@@ -194,6 +197,40 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
 }
 
 private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to request: inout CanvasRequest, kind: CanvasMutationKind) {
+    var options = options
+
+    // Resolve --anchor-browser into an (anchor_window, offset) pair before
+    // the regular anchor/offset plumbing below. Mutually exclusive with
+    // --anchor-window and --anchor-channel.
+    if let browserSpec = options.anchorBrowser {
+        if options.anchorWindow != nil || options.anchorChannel != nil {
+            exitError(
+                "--anchor-browser is mutually exclusive with --anchor-window and --anchor-channel",
+                code: "INVALID_ARG"
+            )
+        }
+        do {
+            let t = try parseBrowserTarget(browserSpec)
+            let anchor = try resolveBrowserAnchor(target: t)
+            options.anchorWindow = anchor.anchor_window
+            options.offset = "\(anchor.offset[0]),\(anchor.offset[1]),\(anchor.offset[2]),\(anchor.offset[3])"
+        } catch AnchorResolveError.notFound(let id) {
+            exitError("browser session '\(id)' not registered", code: "NOT_FOUND")
+        } catch AnchorResolveError.headless {
+            exitError("headless browser sessions cannot be anchored", code: "BROWSER_HEADLESS")
+        } catch AnchorResolveError.notLocal(let msg) {
+            exitError(msg, code: "BROWSER_NOT_LOCAL")
+        } catch AnchorResolveError.evalFailed(let msg) {
+            exitError(msg, code: "ANCHOR_EVAL_FAILED")
+        } catch BrowserTargetError.invalid(let msg) {
+            exitError(msg, code: "INVALID_TARGET")
+        } catch BrowserTargetError.missingSession {
+            exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
+    }
+
     if let ttlStr = options.ttlValue {
         request.ttl = parseDuration(ttlStr)
     }

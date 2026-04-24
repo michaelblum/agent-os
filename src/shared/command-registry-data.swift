@@ -203,15 +203,26 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      ])),
                 flag("anchor-window", "--anchor-window", "Anchor to window ID"),
                 flag("anchor-channel", "--anchor-channel", "Anchor to focus channel ID"),
+                flag("anchor-browser", "--anchor-browser", "Anchor to browser target (browser:<s>[/<ref>])"),
                 flag("offset", "--offset", "Offset from anchor as x,y,w,h")
             ],
             stdin: nil,
-            constraints: ConstraintSet(requires: nil, conflicts: [["at", "track"], ["html", "file", "url"]], oneOf: nil, implies: nil),
+            constraints: ConstraintSet(
+                requires: nil,
+                conflicts: [
+                    ["at", "track"],
+                    ["html", "file", "url"],
+                    ["anchor-window", "anchor-channel", "anchor-browser"]
+                ],
+                oneOf: nil,
+                implies: nil
+            ),
             execution: execMutating(daemon: true),
             output: outJSON,
             examples: [
                 "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
-                "aos show create --id avatar --url aos://sigil/renderer/index.html --track union"
+                "aos show create --id avatar --url aos://sigil/renderer/index.html --track union",
+                "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
             ]),
         InvocationForm(id: "show-update", usage: "aos show update --id <name> [options]",
             args: [
@@ -225,9 +236,16 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("auto-project", "--auto-project", "New projection mode"),
                 flag("track", "--track", "New track target"),
                 flag("anchor-window", "--anchor-window", "New anchor window"),
+                flag("anchor-browser", "--anchor-browser", "New anchor browser target (browser:<s>[/<ref>])"),
                 flag("offset", "--offset", "New offset")
             ],
-            stdin: nil, constraints: nil,
+            stdin: nil,
+            constraints: ConstraintSet(
+                requires: nil,
+                conflicts: [["anchor-window", "anchor-browser"]],
+                oneOf: nil,
+                implies: nil
+            ),
             execution: execMutating(daemon: true),
             output: outJSON,
             examples: ["aos show update --id ball --at 200,200,200,200"]),
