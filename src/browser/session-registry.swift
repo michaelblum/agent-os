@@ -56,6 +56,11 @@ func writeRegistry(_ records: [BrowserSessionRecord]) throws {
     }
 }
 
+// Registry mutations assume a single CLI writer per invocation. Two concurrent
+// `aos browser _registry add` calls can race on the read-modify-write cycle —
+// this is acceptable for a CLI (users wire up focus channels serially); if we
+// ever move to concurrent writers, move to file-locking or a daemon-mediated
+// path.
 func addRegistryRecord(_ r: BrowserSessionRecord) throws {
     var all = try readRegistry()
     if all.contains(where: { $0.id == r.id }) {

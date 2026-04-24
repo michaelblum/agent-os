@@ -30,9 +30,18 @@ out=$(./aos browser _registry list)
 echo "$out" | jq -e 'length == 1' >/dev/null || { echo "FAIL case 4: $out" >&2; exit 1; }
 echo "$out" | jq -e '.[0].id == "sess-b"' >/dev/null || { echo "FAIL case 4 id: $out" >&2; exit 1; }
 
-# Case 5: duplicate add returns error
-if ./aos browser _registry add --id=sess-b --mode=launched 2>/dev/null; then
+# Case 5: duplicate add returns DUPLICATE_ID error
+if err=$(./aos browser _registry add --id=sess-b --mode=launched 2>&1 >/dev/null); then
     echo "FAIL case 5: duplicate add should error" >&2; exit 1
 fi
+echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"DUPLICATE_ID"' \
+    || { echo "FAIL case 5 error code: $err" >&2; exit 1; }
+
+# Case 6: remove nonexistent id returns NOT_FOUND
+if err=$(./aos browser _registry remove --id=does-not-exist 2>&1 >/dev/null); then
+    echo "FAIL case 6: remove missing id should error" >&2; exit 1
+fi
+echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"NOT_FOUND"' \
+    || { echo "FAIL case 6 error code: $err" >&2; exit 1; }
 
 echo "PASS"
