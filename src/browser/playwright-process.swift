@@ -5,9 +5,16 @@
 // pipe-buffer deadlock on large outputs), exit-code translation, and
 // optional --filename=<tmp> allocation for verbs that emit files.
 //
+// Allowed roots: real @playwright/cli refuses --filename arguments outside
+// its allow-list (currently ~/.playwright-cli and the CLI's CWD). Absolute
+// /tmp paths are rejected with "File access denied ... outside allowed
+// roots." We therefore write tempfiles under <CWD>/.aos-browser-tmp/ so the
+// path lives inside the CWD root. The .aos-browser-tmp directory name is
+// .gitignore'd at repo root.
+//
 // Caller cleanup: when PlaywrightInvocation.withTempFilename is true,
-// result.filename points at a /tmp/aos-pw-<uuid>.md file owned by the
-// caller. runPlaywright() does not delete it. Consumers (e.g.
+// result.filename points at a <CWD>/.aos-browser-tmp/aos-pw-<uuid>.md file
+// owned by the caller. runPlaywright() does not delete it. Consumers (e.g.
 // snapshot-parser.swift) are responsible for reading and unlinking.
 
 import Foundation
@@ -36,7 +43,12 @@ func runPlaywright(_ inv: PlaywrightInvocation) throws -> PlaywrightResult {
 
     var tmpPath: String? = nil
     if inv.withTempFilename {
-        let path = "/tmp/aos-pw-\(UUID().uuidString).md"
+        let cwd = FileManager.default.currentDirectoryPath
+        let scratchDir = "\(cwd)/.aos-browser-tmp"
+        try? FileManager.default.createDirectory(
+            atPath: scratchDir, withIntermediateDirectories: true
+        )
+        let path = "\(scratchDir)/aos-pw-\(UUID().uuidString).md"
         argv.append("--filename=\(path)")
         tmpPath = path
     }

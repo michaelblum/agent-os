@@ -24,3 +24,8 @@ clipboard.txt
 # Local gateway secrets
 packages/gateway/.env
 packages/gateway/.env.local
+
+# Playwright adapter scratch — tempfiles for --filename allocations.
+# Real @playwright/cli requires these paths to live under an allowed root
+# (CWD or ~/.playwright-cli); see src/browser/playwright-process.swift.
+.aos-browser-tmp/
