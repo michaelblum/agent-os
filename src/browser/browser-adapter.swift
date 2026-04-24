@@ -35,7 +35,7 @@ func seeCaptureXray(target: BrowserTarget, withBounds: Bool) throws -> [AXElemen
         throw BrowserAdapterError.subprocess("snapshot produced no filename", code: "PLAYWRIGHT_CLI_FAILED")
     }
     defer { try? FileManager.default.removeItem(atPath: path) }
-    let contents = try String(contentsOfFile: path, encoding: .utf8)
+    let contents = try readSnapshotMarkdown(atPath: path)
     var elements = parseSnapshotMarkdown(contents)
     if withBounds {
         elements = try elements.map { el in
@@ -49,6 +49,17 @@ func seeCaptureXray(target: BrowserTarget, withBounds: Bool) throws -> [AXElemen
         }
     }
     return elements
+}
+
+func readSnapshotMarkdown(atPath path: String) throws -> String {
+    do {
+        return try String(contentsOfFile: path, encoding: .utf8)
+    } catch {
+        throw BrowserAdapterError.subprocess(
+            "cannot read snapshot markdown \(path): \(error)",
+            code: "SNAPSHOT_READ_FAILED"
+        )
+    }
 }
 
 /// Dispatch `do` verbs on browser targets. Returns the raw PlaywrightResult;

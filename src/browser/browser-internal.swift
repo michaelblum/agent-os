@@ -74,14 +74,14 @@ func handleBrowserInternal(args: [String]) {
         guard let path = rest.first else {
             exitError("Usage: aos browser _parse-snapshot <markdown-file>", code: "MISSING_ARG")
         }
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
-            exitError("cannot read \(path)", code: "READ_ERROR")
-        }
-        let elements = parseSnapshotMarkdown(contents)
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.sortedKeys, .prettyPrinted]
         do {
+            let contents = try readSnapshotMarkdown(atPath: path)
+            let elements = parseSnapshotMarkdown(contents)
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.sortedKeys, .prettyPrinted]
             print(String(data: try enc.encode(elements), encoding: .utf8)!)
+        } catch BrowserAdapterError.subprocess(let msg, let code) {
+            exitError(msg, code: code)
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }

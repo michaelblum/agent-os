@@ -1,0 +1,38 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "t1",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "t2",
+    "role": "group",
+    "title": "Tab Panel"
+  },
+  {
+    "context_path": [
+      "generic",
+      "group"
+    ],
+    "enabled": true,
+    "ref": "t3",
+    "role": "button",
+    "title": "Inside tab"
+  },
+  {
+    "context_path": [
+      "generic",
+      "group"
+    ],
+    "enabled": true,
+    "ref": "t4",
+    "role": "textbox",
+    "title": "Mixed space tab",
+    "value": "ok"
+  }
+]

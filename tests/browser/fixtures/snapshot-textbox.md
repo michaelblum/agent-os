@@ -1,0 +1,3 @@
+- generic [ref=x1]:
+  - textbox "Email address" [value="alice@example.com"] [ref=x2]
+  - textbox "Search" [ref=x3]
