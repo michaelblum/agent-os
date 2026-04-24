@@ -27,6 +27,27 @@ func handleBrowserInternal(args: [String]) {
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
+    case "_check-version":
+        do {
+            let ok = try probePlaywrightVersion()
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.sortedKeys]
+            print(String(data: try enc.encode(ok), encoding: .utf8)!)
+        } catch PlaywrightVersionError.notFound {
+            exitError(
+                "@playwright/cli is not installed. Run: npm install -g @playwright/cli@\(kMinPlaywrightCLIVersion) or newer.",
+                code: "PLAYWRIGHT_CLI_NOT_FOUND"
+            )
+        } catch PlaywrightVersionError.tooOld(let found, let min) {
+            exitError(
+                "@playwright/cli \(found) is below the minimum \(min). Run: npm install -g @playwright/cli@latest.",
+                code: "PLAYWRIGHT_CLI_TOO_OLD"
+            )
+        } catch PlaywrightVersionError.probeFailed(let msg) {
+            exitError("Version probe failed: \(msg)", code: "PLAYWRIGHT_CLI_PROBE_FAILED")
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     default:
         exitError("Unknown internal subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }

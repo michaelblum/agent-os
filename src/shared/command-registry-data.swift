@@ -1238,7 +1238,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos browser _parse-target browser:todo/e21"])
+            examples: ["aos browser _parse-target browser:todo/e21"]),
+        InvocationForm(id: "browser-check-version", usage: "aos browser _check-version",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _check-version"])
         // More forms will be added by later tasks.
     ]))
 

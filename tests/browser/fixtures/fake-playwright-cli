@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Canned responses for aos browser-adapter tests.
+# Invoked as `playwright-cli <verb> [args]`. Behavior is controlled by
+# FAKE_PWCLI_VERSION and FAKE_PWCLI_MODE env vars set by each test.
+set -uo pipefail
+
+VERB="${1:-}"
+
+case "$VERB" in
+    --version)
+        echo "${FAKE_PWCLI_VERSION:-0.9.9}"
+        exit 0
+        ;;
+    attach)
+        if [[ "${FAKE_PWCLI_MODE:-new}" == "old" ]]; then
+            echo "Unknown command: attach" >&2
+            exit 1
+        fi
+        # New-mode attach --help output shape used by version probe
+        shift
+        if [[ "${1:-}" == "--help" ]]; then
+            cat <<'EOF'
+Usage: playwright-cli attach [options]
+
+Options:
+  --extension       connect via browser extension
+  --cdp=<target>    attach to CDP endpoint
+  --help            display help
+EOF
+            exit 0
+        fi
+        echo "fake attach invoked: $*"
+        exit 0
+        ;;
+    *)
+        echo "fake-playwright-cli does not implement: $VERB" >&2
+        exit 2
+        ;;
+esac
