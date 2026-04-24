@@ -119,6 +119,8 @@ struct AOS {
             introspectCommand(args: Array(args.dropFirst()))
         case "wiki":
             wikiCommand(args: Array(args.dropFirst()))
+        case "browser":
+            handleBrowserInternal(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:

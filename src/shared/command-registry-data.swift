@@ -1231,6 +1231,17 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos wiki migrate-namespaces"])
     ]))
 
+    // ── browser (internal) ────────────────────────────────
+    reg.append(CommandDescriptor(path: ["browser"], summary: "Internal browser-adapter debug helpers (not user-facing)", forms: [
+        InvocationForm(id: "browser-parse-target", usage: "aos browser _parse-target <target>",
+            args: [pos("target", "Target string to parse (e.g. 'browser:todo/e21')")],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _parse-target browser:todo/e21"])
+        // More forms will be added by later tasks.
+    ]))
+
     // ── help ──────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["help"], summary: "Show help for commands", forms: [
         InvocationForm(id: "help-full", usage: "aos help [--json]",
