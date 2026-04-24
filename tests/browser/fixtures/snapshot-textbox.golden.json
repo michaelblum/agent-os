@@ -1,0 +1,27 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "x1",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "x2",
+    "role": "textbox",
+    "title": "Email address",
+    "value": "alice@example.com"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "x3",
+    "role": "textbox",
+    "title": "Search"
+  }
+]

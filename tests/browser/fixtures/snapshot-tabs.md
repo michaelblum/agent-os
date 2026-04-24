@@ -1,0 +1,4 @@
+- generic [ref=t1]:
+	- group "Tab Panel" [ref=t2]:
+		- button "Inside tab" [ref=t3]
+	  - textbox "Mixed space tab" [value="ok"] [ref=t4]

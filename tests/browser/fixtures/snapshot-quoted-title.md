@@ -1,0 +1,6 @@
+- generic [ref=q1]:
+  - button "literal [ref=e999] [disabled]" [ref=q2]
+  - link "Save [value=draft]" [cursor=pointer] [ref=q3]:
+    - /url: "#"
+  - button "fake-only [ref=e404]"
+  - textbox "Search [ref=e404]" [value="ready [ref=e777]"] [ref=q4]

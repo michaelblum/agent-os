@@ -7,7 +7,7 @@
 //   - <role> "<name>" [value="<v>"] [ref=<id>]
 //   - <role> "<name>" [disabled] [ref=<id>]
 //   - <role> "<name>" [ref=<id>] [cursor=pointer]:
-// Indentation (2 spaces per level) indicates parent-child in the AX tree.
+// Indentation (2 spaces or one tab per level) indicates parent-child in the AX tree.
 //
 // Lines without a [ref=<id>] (e.g. `- /url: "#"`, plain text nodes emitted as
 // content under a link) are treated as decoration and skipped. Unknown inline
@@ -45,24 +45,26 @@ func parseSnapshotMarkdown(_ contents: String) -> [AXElementJSON] {
     return elements
 }
 
-// Strip leading spaces + "- " list marker. Returns the 2-space indent level
-// and the remaining body, or nil if the line doesn't match the list-item
-// shape (blank line, no leading dash, etc.).
+// Strip leading indentation + "- " list marker. Returns the indent level and
+// the remaining body, or nil if the line doesn't match the list-item shape
+// (blank line, no leading dash, etc.). Playwright 0.1.x usually emits two
+// spaces per level, but observed markdown can include tabs; normalize one tab
+// to one level so parent context stays stable across formatter drift.
 private func stripListMarker(_ line: String) -> (indent: Int, body: String)? {
-    var spaceCount = 0
+    var columns = 0
     var idx = line.startIndex
-    while idx < line.endIndex, line[idx] == " " {
-        spaceCount += 1
+    while idx < line.endIndex, line[idx] == " " || line[idx] == "\t" {
+        columns += (line[idx] == "\t") ? 2 : 1
         idx = line.index(after: idx)
     }
     guard idx < line.endIndex, line[idx] == "-" else { return nil }
     idx = line.index(after: idx)
-    while idx < line.endIndex, line[idx] == " " {
+    while idx < line.endIndex, line[idx] == " " || line[idx] == "\t" {
         idx = line.index(after: idx)
     }
     let body = String(line[idx...])
     guard !body.isEmpty else { return nil }
-    return (indent: spaceCount / 2, body: body)
+    return (indent: columns / 2, body: body)
 }
 
 private struct LineParts {
@@ -90,11 +92,11 @@ private func parseLineBody(_ body: String) -> LineParts? {
     // reject below since valid AX lines always carry a ref.
     let role: String
     let rest: String
-    if let firstSpace = s.firstIndex(where: { $0 == " " }) {
-        role = String(s[..<firstSpace])
-        rest = String(s[s.index(after: firstSpace)...])
+    if let firstWhitespace = s.firstIndex(where: { $0.isWhitespace }) {
+        role = String(s[..<firstWhitespace])
+        rest = String(s[s.index(after: firstWhitespace)...])
     } else {
-        role = s.trimmingCharacters(in: .whitespaces)
+        role = s.trimmingCharacters(in: .whitespacesAndNewlines)
         rest = ""
     }
     guard !role.isEmpty else { return nil }
@@ -103,42 +105,143 @@ private func parseLineBody(_ body: String) -> LineParts? {
     // — they describe the previous element, not a new one. Skip.
     if role.hasPrefix("/") { return nil }
 
+    let inline = parseInlineFields(rest)
+
     // Require a ref. Lines without one are either decoration we haven't
-    // enumerated or forward-compat additions we shouldn't guess about.
-    guard let ref = extractBracketValue(rest, key: "ref") else { return nil }
+    // enumerated or forward-compat additions we shouldn't guess about. The ref
+    // must be an actual marker outside the title; names like "literal [ref=e9]"
+    // are display text, not element identity.
+    guard let ref = inline.markers["ref"], isValidRef(ref) else { return nil }
 
-    let title = extractQuoted(rest)
-    let value = extractBracketQuoted(rest, key: "value")
-    let disabled = rest.contains("[disabled]")
-
-    return LineParts(role: role, title: title, value: value, disabled: disabled, ref: ref)
+    return LineParts(
+        role: role,
+        title: inline.title,
+        value: inline.markers["value"],
+        disabled: inline.flags.contains("disabled"),
+        ref: ref
+    )
 }
 
-// First double-quoted substring in `s`, excluding the quotes. Used for the
-// element title. Assumes no escaped quotes — playwright-cli 0.1.x does not
-// appear to escape; tighten if needed later.
-private func extractQuoted(_ s: String) -> String? {
-    guard let startQ = s.firstIndex(of: "\"") else { return nil }
-    let after = s.index(after: startQ)
-    guard let endQ = s[after...].firstIndex(of: "\"") else { return nil }
-    return String(s[after..<endQ])
+private struct InlineFields {
+    let title: String?
+    let markers: [String: String]
+    let flags: Set<String>
 }
 
-// Extract [<key>=<id>] where <id> matches [A-Za-z0-9_-]+. Used for ref.
-private func extractBracketValue(_ s: String, key: String) -> String? {
-    let pattern = "\\[\(key)=([A-Za-z0-9_\\-]+)\\]"
-    guard let range = s.range(of: pattern, options: .regularExpression) else { return nil }
-    let match = String(s[range])
-    let inner = match.dropFirst("[\(key)=".count).dropLast() // drop trailing ]
-    return String(inner)
+// Parse quoted title text and bracket markers outside that title. This avoids
+// treating element names such as `"literal [ref=e999]"` as real markers.
+private func parseInlineFields(_ s: String) -> InlineFields {
+    var title: String?
+    var markers: [String: String] = [:]
+    var flags = Set<String>()
+    var idx = s.startIndex
+
+    while idx < s.endIndex {
+        let ch = s[idx]
+        if ch == "\"" {
+            if let quoted = readQuoted(s, openingQuote: idx) {
+                if title == nil { title = quoted.value }
+                idx = quoted.next
+                continue
+            }
+        } else if ch == "[" {
+            if let close = findClosingBracket(s, openingBracket: idx) {
+                let innerStart = s.index(after: idx)
+                let inner = String(s[innerStart..<close])
+                if let marker = parseBracketMarker(inner) {
+                    if let value = marker.value {
+                        markers[marker.key] = value
+                    } else {
+                        flags.insert(marker.key)
+                    }
+                }
+                idx = s.index(after: close)
+                continue
+            }
+        }
+        idx = s.index(after: idx)
+    }
+
+    return InlineFields(title: title, markers: markers, flags: flags)
 }
 
-// Extract [<key>="<quoted>"] where <quoted> may contain any non-quote chars.
-// Used for value. Regex requires the closing `"]` literal, hence dropLast(2).
-private func extractBracketQuoted(_ s: String, key: String) -> String? {
-    let pattern = "\\[\(key)=\"([^\"]*)\"\\]"
-    guard let range = s.range(of: pattern, options: .regularExpression) else { return nil }
-    let match = String(s[range])
-    let inner = match.dropFirst("[\(key)=\"".count).dropLast(2) // drop trailing "]
-    return String(inner)
+private func readQuoted(_ s: String, openingQuote: String.Index) -> (value: String, next: String.Index)? {
+    var value = ""
+    var idx = s.index(after: openingQuote)
+    var escaped = false
+
+    while idx < s.endIndex {
+        let ch = s[idx]
+        if escaped {
+            value.append(ch)
+            escaped = false
+        } else if ch == "\\" {
+            escaped = true
+        } else if ch == "\"" {
+            return (value, s.index(after: idx))
+        } else {
+            value.append(ch)
+        }
+        idx = s.index(after: idx)
+    }
+
+    return nil
+}
+
+private func findClosingBracket(_ s: String, openingBracket: String.Index) -> String.Index? {
+    var idx = s.index(after: openingBracket)
+    var inQuote = false
+    var escaped = false
+
+    while idx < s.endIndex {
+        let ch = s[idx]
+        if escaped {
+            escaped = false
+        } else if inQuote {
+            if ch == "\\" {
+                escaped = true
+            } else if ch == "\"" {
+                inQuote = false
+            }
+        } else if ch == "\"" {
+            inQuote = true
+        } else if ch == "]" {
+            return idx
+        }
+        idx = s.index(after: idx)
+    }
+
+    return nil
+}
+
+private func parseBracketMarker(_ inner: String) -> (key: String, value: String?)? {
+    let trimmed = inner.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return nil }
+
+    guard let equals = trimmed.firstIndex(of: "=") else {
+        return (key: trimmed, value: nil)
+    }
+
+    let key = String(trimmed[..<equals]).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !key.isEmpty else { return nil }
+
+    let rawStart = trimmed.index(after: equals)
+    let rawValue = String(trimmed[rawStart...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    if rawValue.hasPrefix("\""),
+       let quoted = readQuoted(rawValue, openingQuote: rawValue.startIndex),
+       quoted.next == rawValue.endIndex {
+        return (key: key, value: quoted.value)
+    }
+    return (key: key, value: rawValue)
+}
+
+private func isValidRef(_ value: String) -> Bool {
+    !value.isEmpty && value.unicodeScalars.allSatisfy { scalar in
+        switch scalar.value {
+        case 48...57, 65...90, 97...122: // 0-9, A-Z, a-z
+            return true
+        default:
+            return scalar == "_" || scalar == "-"
+        }
+    }
 }

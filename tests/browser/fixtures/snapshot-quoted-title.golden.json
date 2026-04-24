@@ -1,0 +1,36 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "q1",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "q2",
+    "role": "button",
+    "title": "literal [ref=e999] [disabled]"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "q3",
+    "role": "link",
+    "title": "Save [value=draft]"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "q4",
+    "role": "textbox",
+    "title": "Search [ref=e404]",
+    "value": "ready [ref=e777]"
+  }
+]
