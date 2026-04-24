@@ -394,6 +394,15 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: permAction,
             output: outJSON,
             examples: ["aos do fill browser:todo/e21 \"buy groceries\""]),
+        InvocationForm(id: "do-navigate", usage: "aos do navigate <browser:<s>> <url>",
+            args: [
+                pos("target", "Browser target (browser:<session>)"),
+                pos("url", "URL to navigate to")
+            ],
+            stdin: nil, constraints: nil,
+            execution: permAction,
+            output: outJSON,
+            examples: ["aos do navigate browser:todo https://example.com"]),
         InvocationForm(id: "do-press", usage: "aos do press --pid <pid> --role <role> [filters]",
             args: [
                 flag("pid", "--pid", "Process ID", type: .int, required: true),
