@@ -29,7 +29,9 @@ export AOS_RUNTIME_MODE="repo"
 # playwright-cli's `open --url` counts as that — it returns "### Error\n
 # Access to file: URL is blocked" and leaves the tab at about:blank.
 # Serve the fixture over an ephemeral loopback HTTP server instead.
-(cd "$FIX" && python3 -m http.server 0 --bind 127.0.0.1 >"$tmproot.server.log" 2>&1) &
+# Python 3 buffers stderr when backgrounded; force unbuffered so the
+# "Serving HTTP on ... port <N>" line is readable immediately.
+(cd "$FIX" && PYTHONUNBUFFERED=1 python3 -m http.server 0 --bind 127.0.0.1 >"$tmproot.server.log" 2>&1) &
 HTTP_PID=$!
 # Wait for the server to report its port.
 for _ in $(seq 1 40); do
