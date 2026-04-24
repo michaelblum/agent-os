@@ -13,7 +13,7 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 
 **Co-presence is a primary mode.** The user and agent often share one browser: the user demonstrates a flow, the agent observes and annotates, the user refines, the agent replays. This is not a follow-up capability — it shapes v1. The agent cannot live in a sibling headless browser while the user works in their real Chrome; the workflow loop requires both acting in the same tab.
 
-**The design thesis.** aos wraps `playwright-cli` the same way it already wraps CGEvent, AppleScript, and AX: as an adapter at the seam, not a replacement. Agents get unified verbs (`aos see capture browser:…`, `aos do click browser:…`, `aos show create --anchor browser:…`). Raw `playwright-cli` remains directly callable as an escape hatch for Playwright-native primitives aos doesn't surface (tracing, codegen, route mocking, `run-code`). The space-suit metaphor is literal: one verb grammar, a browser-flavored "visor and claws" swap in under the hood when the target is a browser.
+**The design thesis.** aos wraps `playwright-cli` the same way it already wraps CGEvent, AppleScript, and AX: as an adapter at the seam, not a replacement. Agents get unified verbs (`aos see capture browser:…`, `aos do click browser:…`, `aos show create --anchor-browser browser:…`). Raw `playwright-cli` remains directly callable as an escape hatch for Playwright-native primitives aos doesn't surface (tracing, codegen, route mocking, `run-code`). The space-suit metaphor is literal: one verb grammar, a browser-flavored "visor and claws" swap in under the hood when the target is a browser.
 
 ## Goals
 
@@ -82,7 +82,7 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 ```
 
 - The seam is one Swift component (`BrowserAdapter`) inside the aos CLI process.
-- It owns: spawning `playwright-cli`, parsing its stdout + snapshot YAML, translating results into aos's existing `see`/`do`/`show` response shapes, and (for `show`) feeding offset updates to the daemon as `show.update` calls.
+- It owns: spawning `playwright-cli`, parsing its stdout + snapshot YAML, translating results into aos's existing `see`/`do`/`show` response shapes, and (for `show create` / `show update` against browser anchors) performing **one-shot geometry resolution** — measuring the current element viewport rect and emitting a single `(anchor_window, offset)` pair that the daemon then tracks for Chrome window movement. No long-lived watcher; each `show` invocation resolves geometry once and returns.
 - The daemon is uninvolved for perception and action on browser targets (consistent with `see capture` and `do.*` already being CLI-client-side per the 04-17 IPC spec). The daemon handles `show` exactly as it does today; it doesn't know the anchored window is a Chrome tab.
 
 ### Subprocess lifecycle
@@ -105,11 +105,13 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 A single grammar for browser targets, parseable at the CLI layer and consumed by all three verbs:
 
 ```
-browser:<session>            # current (active) tab of the session
+browser:                     # implicit session: $PLAYWRIGHT_CLI_SESSION (error if env var unset)
+browser:<session>            # current (active) tab of the named session
 browser:<session>/<ref>      # element by playwright-cli ref in the active tab
 ```
 
 - `<session>` is any identifier valid for `playwright-cli -s=<name>`. Sessions are namespaced by `playwright-cli`; aos does not impose its own naming convention beyond "the session name matches the focus channel id."
+- Bare `browser:` (no session segment) resolves to `browser:$PLAYWRIGHT_CLI_SESSION` at parse time. If `PLAYWRIGHT_CLI_SESSION` is unset, the CLI returns `code: "MISSING_SESSION"` with a message pointing at the env var. This mirrors `playwright-cli`'s own convention for session defaulting.
 - `<ref>` is a ref string emitted by the most recent `playwright-cli snapshot` against that session (e.g., `e21`, `e34`). Refs are valid until the next structural DOM change.
 - Refs are opaque to aos. The adapter does not re-derive or rewrite them; it passes them through to `playwright-cli`.
 - **Tab addressing is out of scope for v1.** `browser:<session>/tab/<index>` is not accepted. Multi-tab targeting requires a tab introspection primitive we're deferring; in v1 the adapter always operates on whichever tab `playwright-cli` considers active for the session, matching `playwright-cli`'s own default semantics. Agents that need to switch tabs use the escape hatch (`playwright-cli -s=<session> tab-select <index>`), then subsequent `aos` calls target the newly-active tab.
@@ -126,20 +128,20 @@ Two classes of browser session, both modeled as aos focus channels.
 ### User-attached (primary)
 
 ```
-aos focus create --target browser://attach [--extension | --cdp=chrome | --cdp=<url>]
+aos focus create --id <name> --target browser://attach [--extension | --cdp=chrome | --cdp=<url>]
 ```
 
 - Binds to an already-running Chrome/Edge that the user launched normally.
 - `--extension` uses `playwright-cli attach --extension` (browser-extension bridge; friendliest setup path for end users).
 - `--cdp=chrome` uses `playwright-cli attach --cdp=chrome` (attaches to Chrome launched with `--remote-debugging-port=<N>`).
-- `--cdp=<url>` attaches to an arbitrary CDP endpoint for advanced use.
-- Lifecycle is **user-owned**: the focus channel's session survives until the user closes Chrome (or explicitly runs `aos focus remove <id>`, which detaches without closing the browser).
+- `--cdp=<url>` attaches to an arbitrary CDP endpoint for advanced use. Note: remote CDP endpoints (non-local browser) result in a null `browser_window_id` for the resulting focus channel, which disables `show` anchoring for that session.
+- Lifecycle is **user-owned**: the focus channel's session survives until the user closes Chrome (or explicitly runs `aos focus remove --id <name>`, which detaches without closing the browser).
 - This is the codepath for the "user and agent in the same tab" workflow that shapes v1.
 
 ### Agent-launched
 
 ```
-aos focus create --target browser://new [--headed | --headless] [--url=<initial>] [--persistent]
+aos focus create --id <name> --target browser://new [--headed | --headless] [--url=<initial>] [--persistent]
 ```
 
 - Spawns a fresh `playwright-cli -s=<session>` session.
@@ -156,7 +158,7 @@ aos focus create --target browser://new [--headed | --headless] [--url=<initial>
   {"kind": "window",  "id": "…", "window_id": 12345, "app": "Finder",  "elements_count": 23, "updated_at": "…"}
   {"kind": "browser", "id": "…", "session": "todo-app", "mode": "attach|launched", "attach": "extension|cdp", "browser_window_id": 67890, "active_url": "…", "updated_at": "…"}
   ```
-  The `kind` field is present on every entry for forward compatibility. `browser_window_id` is the Chrome/Edge window's CGWindowID when it can be resolved (always for attach-mode and headed launched; null for headless). Consumers discriminate on `kind` before reading kind-specific fields.
+  The `kind` field is present on every entry for forward compatibility. `browser_window_id` is the Chrome/Edge window's CGWindowID when aos can resolve it to a visible local window — true for attach-mode with local extension/CDP and headed launched sessions. It is **null** for: headless launched sessions, remote `--cdp=<url>` endpoints pointing at another machine, and any attach-mode session where aos cannot match the browser to a local AX window. When `browser_window_id` is null, `show` anchoring against the session returns a structured error and does not issue a daemon call. Consumers discriminate on `kind` before reading kind-specific fields.
 - Under the hood `aos focus list` issues the daemon `focus.list` IPC call (returns `SpatialChannelSummary[]` → tagged with `kind: "window"`) and reads the CLI-local browser registry (tagged with `kind: "browser"`), then emits the merged list. Order is daemon entries first, then browser entries, preserving existing caller expectations.
 - The `PLAYWRIGHT_CLI_SESSION` env var, when set in the aos CLI environment, resolves the default session for bare `browser:` targets (no session segment). This matches `playwright-cli`'s own convention and lets `PLAYWRIGHT_CLI_SESSION=todo-app aos see capture browser: --xray` work.
 
@@ -242,18 +244,19 @@ Pixel-level verbs (`aos do click <x,y>` without a `browser:` target) work regard
 ### `show`
 
 ```
-aos show create --id <canvas> --anchor browser:<s>/<ref> --offset 0,0,W,H --html ...
+aos show create --id <canvas> --anchor-browser browser:<s>/<ref> --offset 0,0,W,H --html ...
+aos show update --id <canvas> --anchor-browser browser:<s>/<ref> --offset 0,0,W,H
 ```
 
 **Static-anchor resolution (v1).** The CLI parses `browser:<s>/<ref>` and computes a one-shot anchor:
 
-1. **Resolve the Chrome content window's CGWindowID** via macOS AX: the browser adapter asks `playwright-cli` for the session's browser type + window title (or CDP target), then finds the matching window in `aos`'s spatial topology. For attach-mode sessions this is direct; for headed launched sessions we find the Playwright-owned window that came up. For headless launched sessions this resolution fails — `show` anchoring is not supported on headless targets in v1.
+1. **Resolve the Chrome content window's CGWindowID** via macOS AX: the browser adapter asks `playwright-cli` for the session's browser type + window title (or CDP target), then finds the matching window in aos's spatial topology. Works for: attach-mode sessions (user's local Chrome), and headed agent-launched sessions (Playwright spawns a local window we can find). **Fails for:** headless sessions (no window), and remote `--cdp=<url>` sessions where the browser lives on another machine. When resolution fails, `show` anchoring returns a structured error (`code: "BROWSER_NOT_LOCAL"` or `"BROWSER_HEADLESS"`) and the CLI does not issue the daemon call.
 2. **Get the element viewport rect** via `playwright-cli -s=<s> eval "(e) => { const r = e.getBoundingClientRect(); return {x: r.left, y: r.top, w: r.width, h: r.height}; }" <ref>`. `getBoundingClientRect()` is **viewport-relative**; it already accounts for current scroll. We do not add scroll on top.
-3. **Compute the content-view inset.** The Chrome content window we track via CGWindowID may include the page viewport only (when AX exposes the web content area as its own AX window), or it may include the tab strip + address bar. The adapter picks the narrowest AX window that maps to the content viewport to minimize the inset. Any residual inset comes from `Page.getLayoutMetrics` (via `playwright-cli eval`) or is measured once per session by comparing the AX window frame to the viewport rect of a known-positioned element.
-4. **Page zoom + device scale.** `window.devicePixelRatio` and `document.documentElement.clientWidth` vs layout viewport are queried via `playwright-cli eval` and folded into the offset. Values are frozen at create time; v1 does not re-measure on zoom change.
+3. **Measure the Chrome content-view inset.** The CGWindowID we track may frame only the web content area (when AX exposes it as a distinct child window) or the whole browser window including tab strip and address bar. The adapter prefers the narrowest AX descendant that maps to the web content; if no such AX window exists, it falls back to a one-time per-session calibration — query a known-positioned element's viewport rect via `eval`, compare to its global pixel position inferred from `--xray` on the Chrome AX window, and cache the resulting inset. No CDP methods (e.g. `Page.getLayoutMetrics`) are used here; `playwright-cli eval` runs in the page/element JavaScript context, not the CDP channel. CDP access would require `run-code`, which is explicitly an escape-hatch primitive in v1.
+4. **Page zoom + device scale.** `eval` queries `window.devicePixelRatio`, and if `window.visualViewport` is present, `visualViewport.scale`, `visualViewport.offsetLeft`, `visualViewport.offsetTop`. These describe the current visual viewport relative to the layout viewport and are folded into the offset. Values are frozen at create time; v1 does not re-measure on zoom change.
 5. **Call `show.create`** with `anchor_window=<contentWindowID>`, `offset=[x, y, w, h]` where x/y are the element's LCS position inside the content window and w/h are the caller's size hints. The daemon's existing CGWindowID tracking keeps the overlay aligned when the user drags the Chrome window.
 
-**Updates preserve the anchor.** When the agent wants to reposition the overlay (re-anchor after scrolling, say), it calls `aos show update --id <canvas> --anchor browser:<s>/<ref> --offset …`. The adapter re-runs steps 2–4 and issues `show.update` with **`anchor_window` + `offset`** (never `at`). Verified in `src/display/canvas.swift:1022–` — the update handler already accepts `(anchor_window, offset)` and preserves the anchor; in contrast, passing `at` at `src/display/canvas.swift:963–966` clears `anchorWindowID`, `anchorChannelID`, and `offset`, turning the canvas into a free-floating rect. No daemon schema change is required; the `(anchor_window, offset)` update path already exists. The 04-17 IPC spec's `show.update` table under-documents this (it lists `at` and `track` but not `anchor_window`/`offset`) — that's pre-existing spec/code drift this design does not try to fix.
+**Updates preserve the anchor.** When the agent wants to reposition the overlay (re-anchor after scrolling, say), it calls `aos show update --id <canvas> --anchor-browser browser:<s>/<ref> --offset …`. The adapter re-runs steps 2–4 and issues `show.update` with **`anchor_window` + `offset`** (never `at`). Verified in `src/display/canvas.swift:1022–` — the update handler already accepts `(anchor_window, offset)` and preserves the anchor; in contrast, passing `at` at `src/display/canvas.swift:963–966` clears `anchorWindowID`, `anchorChannelID`, and `offset`, turning the canvas into a free-floating rect. No daemon schema change is required.
 
 **No dynamic watcher in v1.** As stated in Non-Goals and Subprocess Lifecycle, the CLI is one-shot; `aos show create` returns and the process exits. There is no foreground polling loop, no CLI-spawned background process, no eval-at-30Hz. Scroll/zoom/nav/resize invalidate the overlay's apparent position; the agent is responsible for re-issuing `show update` when it needs to re-anchor. Dynamic anchor tracking is future work (see Out of Scope).
 
@@ -277,11 +280,15 @@ Browser focus channels live in a small CLI-side registry (probably `src/browser/
 
 This state is CLI-local; aos's daemon does not read or write it. Every aos CLI invocation reads the state file to resolve `browser:<session>` target strings and to surface browser channels in `focus list`.
 
-**Dispatch split on `focus create` and `focus list`:** the daemon's `focus.create` action takes `window_id: int` (CGWindowID) and only supports macOS window focus channels — see the 04-17 IPC spec. Browser focus channels therefore **do not go through the daemon's `focus.create`**. The CLI-side `aos focus create` dispatches on target form:
-- `--target window:<id>` or bare `<window-id>` → daemon IPC `focus.create` (existing path).
-- `--target browser://…` → CLI-local path: the browser adapter creates the channel, starts the `playwright-cli` session, writes to the registry, and returns a channel id to the caller. No daemon call.
+**Dispatch split on `focus create`, `focus list`, and `focus remove`:** the daemon's `focus.create` action takes `window_id: int` (CGWindowID) and only supports macOS window focus channels — see the 04-17 IPC spec. Browser focus channels therefore **do not go through the daemon's `focus.create`**. The CLI-side `aos focus create` dispatches on which flags are present:
 
-Similarly `aos focus list` issues the daemon `focus.list` IPC call *and* reads the browser registry, then emits a merged list. `aos focus remove <id>` inspects the registry first and routes to the daemon only if the id is not a browser channel.
+- **Existing macOS path (unchanged):** `aos focus create --id <name> --window <wid> [--pid <p>] [--depth <d>] [--subtree-*]` → sends `focus.create` daemon IPC (verified against `src/perceive/focus-commands.swift:20`). Unchanged by this spec.
+- **New browser path:** `aos focus create --id <name> --target browser://attach [--extension | --cdp=chrome | --cdp=<url>]` or `--target browser://new [--headed|--headless] [--url=<u>] [--persistent]` → CLI-local path: the browser adapter creates the channel, starts the `playwright-cli` session, writes to the registry, and returns a channel id. No daemon call.
+- `--target` and `--window` are mutually exclusive on `focus create`. Dispatching on which one is present keeps the macOS path byte-for-byte compatible.
+
+Similarly:
+- `aos focus list` issues the daemon `focus.list` IPC call *and* reads the browser registry, then emits a merged list.
+- `aos focus remove --id <name>` inspects the registry first: if the id is a browser channel, the adapter closes the `playwright-cli` session (if agent-launched) and removes the registry entry. Otherwise the CLI forwards to the daemon's `focus.remove` (existing path, verified at `src/perceive/focus-commands.swift:69`).
 
 **Rationale for CLI-local state:** keeps the daemon's responsibility scope pure (macOS spatial + coordination). When/if we need cross-process browser-channel subscription, we migrate the registry into the daemon with a schema change — but that's a capability we don't have evidence we need in v1.
 
@@ -289,15 +296,17 @@ Similarly `aos focus list` issues the daemon `focus.list` IPC call *and* reads t
 
 All additive. No existing command shape changes.
 
-- `aos focus create --target browser://new [--headed|--headless] [--url=<u>] [--persistent]`
-- `aos focus create --target browser://attach [--extension | --cdp=chrome | --cdp=<url>]`
-- `aos focus list` — now includes browser channels alongside window channels.
-- `aos focus remove <id>` — closes agent-launched sessions; detaches user-attached.
-- `aos see capture <target>` — accepts `browser:<session>[/<ref>]` as `<target>` (no tab/frame segments in v1).
+- `aos focus create --id <name> --target browser://new [--headed|--headless] [--url=<u>] [--persistent]` — new flag `--target`, handled CLI-side for browser targets.
+- `aos focus create --id <name> --target browser://attach [--extension | --cdp=chrome | --cdp=<url>]` — same.
+- `aos focus list` — now merges daemon channels with the browser registry; emits a typed union (see Session-to-channel binding).
+- `aos focus remove --id <name>` — dispatches on registry lookup; closes `playwright-cli` session for agent-launched browser channels, detaches for user-attached, otherwise forwards to the daemon.
+- `aos see capture <target>` — accepts `browser:<session>[/<ref>]` as `<target>` (no tab/frame segments in v1). Bare `browser:` (no session) is accepted when `PLAYWRIGHT_CLI_SESSION` is set in the environment; it resolves to `browser:$PLAYWRIGHT_CLI_SESSION`.
 - `aos see capture browser:<s> --xray [--label]` — DOM xray with playwright refs.
-- `aos do <action> <target>` — all existing do-actions accept `browser:…` targets where semantically valid.
+- `aos do <action> <target>` — all existing do-actions accept `browser:…` targets where semantically valid (see Verb Mapping tables).
 - `aos do navigate <browser-target> <url>` — new action specific to browser targets.
-- `aos show create --anchor browser:<s>/<ref> --offset …` — browser-flavored anchor.
+- `aos do scroll <browser-target> <dx>,<dy>` — new action specific to browser targets.
+- `aos show create --anchor-browser browser:<s>/<ref> --offset …` — new flag `--anchor-browser`. The existing `--anchor-window` / `--anchor-channel` flags (verified at `src/display/client.swift:143–146`) are unchanged; `--anchor-browser` is an additional sibling that the CLI resolves to a concrete `anchor_window + offset` pair before sending `show.create` to the daemon. The three are mutually exclusive.
+- `aos show update --anchor-browser browser:<s>/<ref> --offset …` — same flag, same resolution, routed to `show.update` with `anchor_window + offset`. This is the primary path for re-anchoring a canvas after page scroll/nav (see Show verb mapping).
 
 Tab introspection (listing tabs, switching active tab) is **not** exposed as an aos verb in v1. Agents use the escape hatch: `playwright-cli -s=<session> tab-list` / `tab-select` / `tab-new`. A future `aos see list --target browser:<s>` or equivalent is deferred (see Out of Scope).
 
@@ -345,8 +354,8 @@ The following files are the intended artifacts of the implementation plan that f
 | `src/browser/CLAUDE.md` | Subtree-local guidance for future work. |
 | `src/perceive/capture-pipeline.swift` | Add dispatch to browser adapter when target is `browser:…`. |
 | `src/act/act-cli.swift` (+ helpers) | Add dispatch to browser adapter for `do` actions on browser targets. |
-| `src/display/client.swift` or equivalent | Recognize `--anchor browser:…` in `show create` and resolve to `anchor_window + offset` before the daemon call. |
-| `src/perceive/focus-commands.swift` | Recognize `--target browser://…` in `focus create`. |
+| `src/display/client.swift` | Add `--anchor-browser <browser:…>` flag to `show create` and `show update` parsers (alongside existing `--anchor-window` at line 143 and `--anchor-channel` at line 146). The CLI resolves `--anchor-browser` through `anchor-resolver.swift` to a concrete `anchor_window + offset` pair before sending the daemon request. The three anchor flags are mutually exclusive. |
+| `src/perceive/focus-commands.swift` | Add `--target` flag parsing to `focusCreateCommand` (existing `--id --window <wid>` path unchanged; `--target browser://…` is the new branch). `focusListCommand` merges daemon result with browser registry. `focusRemoveCommand` dispatches on registry lookup before falling through to the daemon. |
 | `src/shared/command-registry-data.swift` | Register new flags/forms for agent introspection. |
 | `ARCHITECTURE.md` | Brief note that browser joins macOS as a supported target medium. |
 | `skills/browser-adapter/SKILL.md` (or equivalent) | Agent-facing usage guide. |
@@ -360,7 +369,7 @@ These are genuinely open and should be answered during the writing-plans phase, 
 2. **Default attach mode.** `--extension` (friendlier user setup) vs. `--cdp=chrome` (no extension install, but requires `--remote-debugging-port` flag on the user's Chrome). The spec currently leaves this to the user on every `focus create`; the plan should decide whether one is the default when `--target browser://attach` is given without a sub-flag.
 3. **Minimum `@playwright/cli` version and detection UX.** The spec requires `attach --extension` and `attach --cdp`, which some older versions of `@playwright/cli` (e.g., `0.1.1`) don't ship. The plan must: (a) identify the exact minimum version that supports both flags from upstream release notes, (b) pin it in `playwright-version-check.swift`, (c) decide the error UX when the version is too old or the tool is missing (one-line structured error with install/upgrade instructions vs. auto-invoke `npm install -g @playwright/cli@latest` vs. fall back to `npx`).
 4. **Launched-session default: headed vs. headless.** `playwright-cli` is headless by default. For `aos focus create --target browser://new` without `--headed`/`--headless`, does aos default to headed (matches v1's primary co-presence mode and supports anchored overlays) or headless (matches `playwright-cli`'s own default)? The spec currently implies headed; the plan must commit. Note: `show` anchoring is only supported on headed targets (step 1 of static-anchor resolution requires a CGWindowID, which headless sessions don't have).
-5. **Chrome content-viewport geometry source.** Step 3 of static-anchor resolution depends on measuring the content-view inset. Options: (a) pick the narrowest AX window that maps to the web content area (works when Chrome exposes it as a child AX window; not guaranteed cross-version), (b) query `Page.getLayoutMetrics` via `playwright-cli eval`, (c) calibrate per-session by comparing a known-positioned element's viewport rect to its AX rect. The plan picks one or a fallback chain and documents the observed reliability.
+5. **Chrome content-viewport geometry source.** Step 3 of static-anchor resolution depends on measuring the content-view inset. Options: (a) pick the narrowest AX descendant window that frames the web content area (works when Chrome exposes it as a child AX window; not guaranteed cross-version), (b) calibrate per-session by comparing a known-positioned element's viewport rect (via `eval`) to its global pixel position (via `--xray` on the Chrome AX window), (c) drop to `playwright-cli run-code` to invoke `page.context()._cdpSession().send('Page.getLayoutMetrics')` — CDP access is not available through `playwright-cli eval`. The plan picks (a) with (b) as fallback for v1; (c) is escape-hatch territory and not relied on internally.
 6. **Session persistence across aos CLI restarts.** The registry file persists channel-id ↔ session-name mappings, but `playwright-cli` sessions themselves live in the `playwright-cli` process. After an aos CLI restart, `playwright-cli -s=<name>` still finds the existing session. Do we rehydrate channels automatically, or require the user to `focus create --target browser://attach --session-name <name>`? Probably the latter for v1.
 7. **Concurrency.** Multiple aos CLI invocations running against the same session simultaneously (e.g., two agent workers, or an agent + an overlay re-anchor). `playwright-cli` presumably serializes via its session-process; the plan needs a quick check + test, and a documented race-resolution behavior for our side.
 
