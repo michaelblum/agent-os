@@ -562,6 +562,22 @@ func cliKey(args: [String]) {
     cliPrintLegacy(action: "key", backend: "cgevent", target: target, dryRun: false)
 }
 
+/// `aos do fill` — browser-only in v1. Clears and enters text into an input
+/// element identified by a `browser:<session>/<ref>` target.
+func cliFill(args: [String]) {
+    let positional = positionalArgs(args)
+    guard positional.count >= 2 else {
+        exitError("Usage: aos do fill <browser:<s>/<ref>> <text>", code: "MISSING_ARG")
+    }
+    let targetString = positional[0]
+    let text = positional[1]
+    guard targetString.hasPrefix("browser:") else {
+        exitError("aos do fill is browser-only in v1. Target must be browser:<s>/<ref>.",
+                  code: "BROWSER_ONLY")
+    }
+    dispatchBrowserVerb("fill", targetString: targetString, remaining: [text], flags: args)
+}
+
 // MARK: - AppleScript CLI Command
 
 /// `aos do tell` — run AppleScript tell block.
@@ -645,6 +661,13 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
                     extra = [parts[0], parts[1]]
                 }
             }
+        case "fill":
+            // fill requires target.ref to know which element to fill.
+            guard t.ref != nil else {
+                exitError("aos do fill requires a ref (browser:<session>/<ref>)",
+                          code: "INVALID_TARGET")
+            }
+            if remaining.indices.contains(0) { extra.append(remaining[0]) }
         default:
             break
         }

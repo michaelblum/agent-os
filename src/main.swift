@@ -166,6 +166,10 @@ func handleDo(args: [String]) {
     case "drag":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag") }
         cliDrag(args: subArgs)
+    case "fill":
+        // Browser-only in v1: cliFill errors with BROWSER_ONLY on non-browser
+        // targets, so no interactive preflight is needed.
+        cliFill(args: subArgs)
     case "scroll":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll") }
         cliScroll(args: subArgs)
