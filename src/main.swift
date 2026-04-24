@@ -175,6 +175,10 @@ func handleDo(args: [String]) {
     case "key":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key") }
         cliKey(args: subArgs)
+    case "navigate":
+        // Browser-only in v1 — no macOS preflight. cliNavigate owns the
+        // BROWSER_ONLY rejection for non-browser targets.
+        cliNavigate(args: subArgs)
     case "press":
         ensureInteractivePreflight(command: "aos do press")
         cliPress(args: subArgs)

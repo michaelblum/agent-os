@@ -599,6 +599,22 @@ func cliTell(args: [String]) {
     cliPrintLegacy(action: "tell", backend: "applescript", target: target, detail: detail, dryRun: false)
 }
 
+/// `aos do navigate` — browser-only in v1. Navigates the session to a URL by
+/// dispatching playwright-cli's `goto` verb. macOS equivalent is deferred.
+func cliNavigate(args: [String]) {
+    guard args.count >= 2 else {
+        exitError("Usage: aos do navigate <browser:<s>> <url>", code: "MISSING_ARG")
+    }
+    let targetString = args[0]
+    let url = args[1]
+    guard targetString.hasPrefix("browser:") else {
+        exitError("aos do navigate is browser-only in v1.", code: "BROWSER_ONLY")
+    }
+    // navigate is aos's alias for playwright's "goto" verb; pass aosVerb="navigate"
+    // so the translation reaches goto via the switch in dispatchBrowserVerb.
+    dispatchBrowserVerb("navigate", targetString: targetString, remaining: [url], flags: [])
+}
+
 // MARK: - Browser-Target Dispatch (Task 9)
 
 /// Route an aos `do` verb to playwright-cli when the first positional argument
@@ -616,9 +632,10 @@ func cliTell(args: [String]) {
 func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [String], flags: [String]) {
     let pwVerb: String
     switch aosVerb {
-    case "key":    pwVerb = "press"
-    case "scroll": pwVerb = "mousewheel"
-    default:       pwVerb = aosVerb
+    case "key":      pwVerb = "press"
+    case "scroll":   pwVerb = "mousewheel"
+    case "navigate": pwVerb = "goto"
+    default:         pwVerb = aosVerb
     }
     do {
         let t = try parseBrowserTarget(targetString)
@@ -645,6 +662,8 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
                     extra = [parts[0], parts[1]]
                 }
             }
+        case "goto":
+            if remaining.indices.contains(0) { extra.append(remaining[0]) }
         default:
             break
         }
