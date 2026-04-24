@@ -48,6 +48,13 @@ assert_error "browser:todo/" "INVALID_TARGET"
 assert_error "browser:todo/e21/extra" "INVALID_TARGET"
 assert_error "" "INVALID_TARGET"
 
+# ASCII-only validation: non-ASCII session names and refs rejected
+assert_error "browser:sëssion" "INVALID_TARGET"
+assert_error "browser:日本語" "INVALID_TARGET"
+assert_error "browser:ñame/e1" "INVALID_TARGET"
+assert_error "browser:app/ëe1" "INVALID_TARGET"
+assert_error "browser:app/日本" "INVALID_TARGET"
+
 # Session names with hyphens, underscores, digits allowed
 assert_parse "browser:todo_app-v2/e1" '{"ref":"e1","session":"todo_app-v2"}'
 

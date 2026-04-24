@@ -70,8 +70,12 @@ func parseBrowserTarget(_ input: String, env: [String: String] = ProcessInfo.pro
     }
 }
 
-private let sessionAllowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
-private let refAllowed = CharacterSet.alphanumerics
+// ASCII-only allowlists. CharacterSet.alphanumerics is Unicode (accepts ë, 日, ñ,
+// etc.), but the spec says session=[A-Za-z0-9_-]+ and ref=[A-Za-z0-9]+. Unicode
+// in session names leaks downstream into registry JSON paths, playwright-cli
+// argv, and focus-channel ids — reject it at the CLI edge.
+private let sessionAllowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+private let refAllowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 private func validateSession(_ s: String) throws {
     guard !s.isEmpty else { throw BrowserTargetError.invalid("empty session name") }
