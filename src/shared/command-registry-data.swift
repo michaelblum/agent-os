@@ -757,20 +757,31 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── focus ─────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["focus"], summary: "Focus channels — track window AX trees", forms: [
-        InvocationForm(id: "focus-create", usage: "aos focus create --id <name> --window <wid> [options]",
+        InvocationForm(id: "focus-create", usage: "aos focus create --id <name> (--window <wid> | --target browser://<kind>) [options]",
             args: [
                 flag("id", "--id", "Channel name", required: true),
-                flag("window", "--window", "Window ID to track", type: .int, required: true),
+                flag("window", "--window", "Window ID to track (mutually exclusive with --target)", type: .int),
+                flag("target", "--target", "Target URI: browser://attach or browser://new (mutually exclusive with --window)"),
                 flag("pid", "--pid", "Process ID", type: .int),
                 flag("depth", "--depth", "AX traversal depth", type: .int),
                 flag("subtree-role", "--subtree-role", "Filter by AX role"),
                 flag("subtree-title", "--subtree-title", "Filter by title"),
-                flag("subtree-identifier", "--subtree-identifier", "Filter by identifier")
+                flag("subtree-identifier", "--subtree-identifier", "Filter by identifier"),
+                flag("extension", "--extension", "Attach via browser extension (browser://attach)", type: .bool),
+                flag("cdp", "--cdp", "Attach via CDP endpoint (browser://attach)"),
+                flag("headless", "--headless", "Launch browser headless (browser://new)", type: .bool),
+                flag("url", "--url", "Initial URL for launched browser (browser://new)"),
+                flag("persistent", "--persistent", "Reuse a persistent browser profile (browser://new)", type: .bool)
             ],
-            stdin: nil, constraints: nil,
+            stdin: nil,
+            constraints: ConstraintSet(requires: nil, conflicts: [["window", "target"]], oneOf: [["window", "target"]], implies: nil),
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos focus create --id work --window 1234 --depth 2"]),
+            examples: [
+                "aos focus create --id work --window 1234 --depth 2",
+                "aos focus create --id todo --target browser://attach --extension",
+                "aos focus create --id scratch --target browser://new --headless --url https://example.com"
+            ]),
         InvocationForm(id: "focus-update", usage: "aos focus update --id <name> [options]",
             args: [
                 flag("id", "--id", "Channel name", required: true),
