@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# requires: @playwright/cli
+# requires: @playwright/cli, python3
 #
 # Opt-in end-to-end test. CI skips unless PLAYWRIGHT_SMOKE=1.
 
@@ -14,20 +14,43 @@ if ! command -v playwright-cli >/dev/null; then
     echo "SKIP (playwright-cli not installed)"
     exit 0
 fi
+if ! command -v python3 >/dev/null; then
+    echo "SKIP (python3 not available for fixture server)"
+    exit 0
+fi
 
 FIX="$(cd "$(dirname "$0")" && pwd)/fixtures"
 SID="aos-smoke-$$"
 tmproot="/tmp/aos-smoke-$$"
 export AOS_STATE_ROOT="$tmproot"
 export AOS_RUNTIME_MODE="repo"
+
+# Chrome blocks navigation to file:// URLs from a non-user gesture and
+# playwright-cli's `open --url` counts as that — it returns "### Error\n
+# Access to file: URL is blocked" and leaves the tab at about:blank.
+# Serve the fixture over an ephemeral loopback HTTP server instead.
+(cd "$FIX" && python3 -m http.server 0 --bind 127.0.0.1 >"$tmproot.server.log" 2>&1) &
+HTTP_PID=$!
+# Wait for the server to report its port.
+for _ in $(seq 1 40); do
+    if [[ -s "$tmproot.server.log" ]] && grep -q "Serving HTTP on" "$tmproot.server.log"; then
+        break
+    fi
+    sleep 0.1
+done
+PORT=$(grep -oE "port [0-9]+" "$tmproot.server.log" | awk '{print $2}' | head -1)
+[[ -n "$PORT" ]] || { kill $HTTP_PID 2>/dev/null || true; echo "FAIL: fixture server did not start" >&2; exit 1; }
+URL="http://127.0.0.1:$PORT/smoke.html"
+
 trap "
   ./aos focus remove --id $SID >/dev/null 2>&1 || true
   playwright-cli -s=$SID close >/dev/null 2>&1 || true
-  rm -rf $tmproot
+  kill $HTTP_PID 2>/dev/null || true
+  rm -rf $tmproot $tmproot.server.log
 " EXIT
 
-# Launch headed browser against smoke.html
-./aos focus create --id "$SID" --target browser://new --url "file://$FIX/smoke.html" >/dev/null
+# Launch headed browser against smoke.html served via local HTTP
+./aos focus create --id "$SID" --target browser://new --url "$URL" >/dev/null
 
 # Capture xray
 out=$(./aos see capture "browser:$SID" --xray)

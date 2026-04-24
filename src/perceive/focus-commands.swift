@@ -172,17 +172,20 @@ func focusListCommand() {
 
     if let registry = try? readRegistry() {
         for r in registry {
-            var dict: [String: Any] = [
+            // Emit stable keys with NSNull for absent optionals so the typed
+            // browser entry shape is always the same — callers can jq
+            // .browser_window_id without checking existence first.
+            let dict: [String: Any] = [
                 "kind": "browser",
                 "id": r.id,
                 "session": r.id,
                 "mode": r.mode,
-                "updated_at": r.updated_at
+                "updated_at": r.updated_at,
+                "attach": r.attach_kind as Any? ?? NSNull(),
+                "headless": r.headless as Any? ?? NSNull(),
+                "browser_window_id": r.browser_window_id as Any? ?? NSNull(),
+                "active_url": r.active_url as Any? ?? NSNull()
             ]
-            if let v = r.attach_kind { dict["attach"] = v }
-            if let v = r.headless { dict["headless"] = v }
-            if let v = r.browser_window_id { dict["browser_window_id"] = v }
-            if let v = r.active_url { dict["active_url"] = v }
             merged.append(dict)
         }
     }

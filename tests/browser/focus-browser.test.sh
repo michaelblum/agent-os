@@ -19,6 +19,16 @@ out=$(./aos focus list)
 echo "$out" | jq -e '[.channels[]? // .data.channels[]? | select(.kind == "browser" and .id == "test-attach")] | length == 1' >/dev/null \
     || { echo "FAIL list: $out" >&2; exit 1; }
 
+# Case 2b: browser entries must carry stable keys with null for missing
+# optionals so agents can jq without conditional existence checks.
+out=$(./aos focus list)
+echo "$out" | jq -e '.channels[] | select(.id == "test-attach") | has("browser_window_id") and has("attach") and has("headless") and has("active_url")' >/dev/null \
+    || { echo "FAIL null keys present: $out" >&2; exit 1; }
+echo "$out" | jq -e '.channels[] | select(.id == "test-attach") | .browser_window_id == null and .headless == null and .active_url == null' >/dev/null \
+    || { echo "FAIL null key values: $out" >&2; exit 1; }
+echo "$out" | jq -e '.channels[] | select(.id == "test-attach") | .attach == "extension"' >/dev/null \
+    || { echo "FAIL attach populated: $out" >&2; exit 1; }
+
 # Case 3: create launched headed
 out=$(./aos focus create --id test-launched --target browser://new 2>&1)
 echo "$out" | grep -q '"status":[[:space:]]*"success"' || { echo "FAIL launched: $out" >&2; exit 1; }
