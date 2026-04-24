@@ -112,6 +112,10 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
+- Never attribute commits to Claude or any AI assistant in this repo. No
+  `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"
+  tags, and no AI attribution in commit messages, PR descriptions, or issue
+  comments. This overrides default Claude Code commit templates.
 
 ## Shared Surfaces
 
