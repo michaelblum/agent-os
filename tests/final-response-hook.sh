@@ -59,48 +59,21 @@ if before_match != after_match:
     raise SystemExit(f"FAIL: final-response relay should not mutate session presence: before={before_match} after={after_match}")
 PY
 
-python3 - "$PWD/.codex/hooks.json" <<'PY'
+python3 - "$PWD/.codex/hooks.json" "$PWD/.claude/settings.json" <<'PY'
 import json, sys
 
-hooks = json.load(open(sys.argv[1])).get("hooks", {})
-stop_hooks = [
-    hook
-    for matcher in hooks.get("Stop", [])
-    for hook in matcher.get("hooks", [])
-]
-stop_commands = [hook.get("command", "") for hook in stop_hooks]
-if not any("final-response.sh" in command for command in stop_commands):
-    raise SystemExit(f"FAIL: expected codex Stop hook to relay through final-response.sh: {stop_commands}")
-if not any("session-stop.sh" in command for command in stop_commands):
-    raise SystemExit(f"FAIL: expected codex Stop hook to retain session-stop.sh: {stop_commands}")
-final_idx = next((idx for idx, command in enumerate(stop_commands) if "final-response.sh" in command), None)
-stop_idx = next((idx for idx, command in enumerate(stop_commands) if "session-stop.sh" in command), None)
-if final_idx is None or stop_idx is None or final_idx > stop_idx:
-    raise SystemExit(f"FAIL: expected codex final-response relay to run before unregistering: {stop_commands}")
-if any(hook.get("async") for hook in stop_hooks if "final-response.sh" in hook.get("command", "")):
-    raise SystemExit(f"FAIL: expected codex final-response relay to stay synchronous: {stop_hooks}")
-PY
-
-python3 - "$PWD/.claude/settings.json" <<'PY'
-import json, sys
-
-hooks = json.load(open(sys.argv[1])).get("hooks", {})
-stop_hooks = [
-    hook
-    for matcher in hooks.get("Stop", [])
-    for hook in matcher.get("hooks", [])
-]
-stop_commands = [hook.get("command", "") for hook in stop_hooks]
-if not any("final-response.sh" in command for command in stop_commands):
-    raise SystemExit(f"FAIL: expected claude Stop hook to relay through final-response.sh: {stop_commands}")
-if not any("session-stop.sh" in command for command in stop_commands):
-    raise SystemExit(f"FAIL: expected claude Stop hook to retain session-stop.sh: {stop_commands}")
-final_idx = next((idx for idx, command in enumerate(stop_commands) if "final-response.sh" in command), None)
-stop_idx = next((idx for idx, command in enumerate(stop_commands) if "session-stop.sh" in command), None)
-if final_idx is None or stop_idx is None or final_idx > stop_idx:
-    raise SystemExit(f"FAIL: expected claude Stop hook to speak before unregistering: {stop_commands}")
-if any(hook.get("async") for hook in stop_hooks if "final-response.sh" in hook.get("command", "")):
-    raise SystemExit(f"FAIL: expected claude final-response relay to stay synchronous: {stop_hooks}")
+for path in sys.argv[1:]:
+    hooks = json.load(open(path)).get("hooks", {})
+    stop_hooks = [
+        hook
+        for matcher in hooks.get("Stop", [])
+        for hook in matcher.get("hooks", [])
+    ]
+    stop_commands = [hook.get("command", "") for hook in stop_hooks]
+    if not any("final-response.sh" in command for command in stop_commands):
+        raise SystemExit(f"FAIL: {path} Stop hook missing final-response.sh relay: {stop_commands}")
+    if any(hook.get("async") for hook in stop_hooks if "final-response.sh" in hook.get("command", "")):
+        raise SystemExit(f"FAIL: {path} final-response relay must stay synchronous: {stop_hooks}")
 PY
 
 echo "PASS"

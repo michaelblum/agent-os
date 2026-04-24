@@ -2,10 +2,6 @@
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
-  "env": {
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-    "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
-  },
   "hooks": {
     "SessionStart": [
       {
@@ -18,39 +14,6 @@
           {
             "type": "command",
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/git-health.sh\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/pre-tool-use.sh\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/check-messages.sh\"",
-            "timeout": 3
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/post-tool-use.sh\"",
             "timeout": 10
           }
         ]
@@ -75,17 +38,11 @@
             "type": "command",
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/final-response.sh\"",
             "timeout": 30
-          },
-          {
-            "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/session-stop.sh\"",
-            "timeout": 5
           }
         ]
       }
     ]
   },
-  "enableAllProjectMcpServers": true,
   "statusLine": {
     "type": "command",
     "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.claude/statusline-command.sh\""

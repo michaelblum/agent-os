@@ -6,6 +6,11 @@ cd "$ROOT"
 
 SESSION_JSON="$(cat || true)"
 
+# Snapshot the actual Claude Code statusLine stdin for schema inspection.
+# The schema is not fully documented; keep a current copy so we can verify
+# which fields really arrive (e.g., reasoning effort, output style).
+printf '%s' "$SESSION_JSON" > /tmp/claude-statusline-input.json 2>/dev/null || true
+
 if [ -x "./aos" ]; then
   STATUS_JSON="$(./aos status --json 2>/dev/null || true)"
 else
@@ -76,31 +81,13 @@ REPO_SETTINGS = load_file(os.path.join(ROOT, ".claude", "settings.json"))
 RUNTIME_SETTINGS = load_file(os.path.join(ROOT, ".runtime", "claude", "settings.json"))
 
 
-def infer_default_effort(model_name: str) -> str:
-    normalized = (model_name or "").lower().replace(" ", "").replace("[1m]", "")
-    if "opus4.7" in normalized or "opus-4-7" in normalized:
-        return "xhigh"
-    return "auto"
-
-
-def compact_effort(session, model_name: str):
-    for path in (
-        ("model", "effort_level"),
-        ("model", "effort"),
-        ("effort_level",),
-        ("effort",),
-    ):
-        cur = nested_get(session, *path)
-        if isinstance(cur, str) and cur and cur != "auto":
-            return cur
-    env_effort = os.environ.get("CLAUDE_CODE_EFFORT_LEVEL", "")
-    if env_effort and env_effort != "auto":
-        return env_effort
-    for settings in (REPO_SETTINGS, RUNTIME_SETTINGS):
-        configured = settings.get("effortLevel")
-        if isinstance(configured, str) and configured and configured != "auto":
-            return configured
-    return infer_default_effort(model_name)
+def compact_output_style(session) -> str:
+    name = nested_get(session, "output_style", "name")
+    if isinstance(name, str):
+        lowered = name.strip().lower()
+        if lowered and lowered != "default":
+            return name.strip()
+    return ""
 
 
 def compact_ctx_size(size):
@@ -175,7 +162,7 @@ status = load("STATUS_JSON")
 
 model_name = session.get("model", {}).get("display_name") or session.get("model", {}).get("id") or ""
 model = compact_model(model_name)
-effort = compact_effort(session, model_name)
+style = compact_output_style(session)
 ctx = session.get("context_window", {}) if isinstance(session.get("context_window", {}), dict) else {}
 used = ctx.get("used_percentage")
 left = ctx.get("remaining_percentage")
@@ -187,7 +174,11 @@ color = ctx_color(used)
 reset = "\033[0m" if color else ""
 ctx_segment = f"{color}ctx {used_s} {bar} {left_s} {size}{reset}"
 badge = compaction_badge(session, status)
-line1 = f"{model} | {effort} | {ctx_segment}"
+segments = [model]
+if style:
+    segments.append(style)
+segments.append(ctx_segment)
+line1 = " | ".join(segments)
 if badge:
     line1 = f"{line1} {badge}"
 

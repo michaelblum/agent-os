@@ -82,7 +82,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos voice assignments           # Active session-centric voice assignments
 ./aos voice refresh               # Refresh provider snapshots
 ./aos voice providers             # Provider availability + counts
-./aos voice bind --session-id <id> --voice <voice-id>
+./aos voice bind --session-id <id> [--voice <voice-id>]
 ./aos voice final-response --harness codex --session-id <id> < hook.json
 ./aos config get voice.controls.cancel.key_code
 ./aos config get voice.enabled    # Discoverable config read
@@ -91,38 +91,11 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
 ./aos tell human "Hello"          # Speak (same as aos say)
 ./aos tell human --from-session-id <id> --purpose final_response "Done."
-./aos tell handoff "task complete"    # Post to coordination channel
-./aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name my-session
-./aos tell --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c "status update"
-./aos tell --who                     # List online sessions
-./aos listen handoff                 # Read channel messages
-./aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c
-./aos listen handoff --follow        # Stream messages in real-time
 ./aos listen --channels              # List known channels
 ./aos set voice.enabled true         # Configure settings
 ./aos inspect                        # Live AX element inspector overlay
 ./aos log push "message"             # Push to log console
 ```
-
-### Session Coordination
-
-Sessions register themselves on startup. Use the canonical `session_id` as the
-direct inbox/channel once a peer is discovered; human-readable names are display
-metadata and a fallback alias, not the primary routing key.
-
-```bash
-scripts/session-name --current                    # Inspect current session_id/name
-scripts/session-name --name wiki-focus            # Rename the current session
-./aos tell --who                                 # List live peers + canonical ids
-./aos tell --session-id <peer-id> "STEER: ..."   # Direct peer message
-./aos listen --session-id <this-session-id>      # Read this session's inbox
-scripts/parallel-codex                           # Prepare paired display/wiki launchers
-```
-
-Shared session hooks live under `.agents/hooks/`. Startup and message polling
-run in both Claude Code and Codex. Clean stop unregistering is wired through
-the shared Stop hook contract in both runtimes. See `docs/SESSION_CONTRACT.md`
-for the canonical session/bootstrap surface.
 
 ### Capture (aos see capture)
 
@@ -212,9 +185,9 @@ Voice attempts and final-response ingress failures are logged to
 Voice policy and durable session preferences now live in
 `~/.config/aos/{mode}/voice/policy.json`. See `docs/api/aos.md` for the
 policy layout.
-New sessions use a rotation + cooldown allocator that biases toward variety
-without enforcing exclusivity; explicit `aos voice bind` updates the stored
-session preference and the next-allocation bias.
+New sessions keep an explicit bound voice when they have one; otherwise the
+daemon picks a random enabled + speakable voice. Voices are reusable across
+sessions, and `aos voice bind` simply updates the stored session preference.
 
 ### Config Keys
 

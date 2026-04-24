@@ -1,22 +1,17 @@
 #!/bin/bash
 # Shared session-start hook for agent-os providers.
+#
+# Ensures the aos daemon is up, then prints a compact session snapshot
+# (daemon health, git state, stale resources).
 
 set -euo pipefail
 ROOT="$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="$ROOT/aos"
 cd "$ROOT"
-HOOK_INPUT="$(cat || true)"
 
 # shellcheck source=/dev/null
 source "$(dirname "$0")/session-common.sh"
 
-SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
-SESSION_HARNESS="$(aos_detect_harness)"
-SESSION_NAME="$(aos_resolve_session_name "$SESSION_ID" "$SESSION_HARNESS")"
-SESSION_CHANNEL="$(aos_session_channel "$SESSION_ID" "$SESSION_NAME")"
-SESSION_SOURCE="$(aos_session_name_source "$SESSION_ID")"
-REGISTRATION_STATUS="skipped"
-BOOTSTRAP_FILE=""
 AOS_DOCTOR_JSON=""
 AOS_STARTUP_STATE="missing"
 
@@ -91,37 +86,7 @@ ensure_aos_runtime() {
   return 1
 }
 
-if [ -n "$SESSION_NAME" ]; then
-  BOOTSTRAP_FILE="$(aos_session_bootstrap_payload_file "$SESSION_NAME")"
-  if [ -f "$BOOTSTRAP_FILE" ]; then
-    if ! BRIEF="$(python3 - "$BOOTSTRAP_FILE" <<'PY' 2>/dev/null
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    payload = json.load(handle)
-
-print(payload.get("brief", ""))
-PY
-    )"; then
-      BRIEF="(failed to parse bootstrap file)"
-    fi
-    echo ""
-    echo "## Handoff Brief"
-    echo "$BRIEF"
-    rm -f "$BOOTSTRAP_FILE"
-  fi
-fi
-
 ensure_aos_runtime || true
-
-if [ -x "$AOS" ] && [ -n "$SESSION_NAME" ]; then
-  if aos_refresh_session_registration "$SESSION_ID" "$SESSION_NAME" "worker" "$SESSION_HARNESS" "$AOS"; then
-    REGISTRATION_STATUS="ok"
-  else
-    REGISTRATION_STATUS="failed"
-  fi
-fi
 
 STALE_STATUS="UNKNOWN"
 if [ -x "$AOS" ]; then
@@ -150,17 +115,6 @@ AHEAD=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo "?
 DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
-echo "## Session"
-if [ -n "$SESSION_ID" ]; then
-  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} session_id=${SESSION_ID} channel=${SESSION_CHANNEL} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
-else
-  echo "name=${SESSION_NAME} harness=${SESSION_HARNESS} source=${SESSION_SOURCE} registered=${REGISTRATION_STATUS}"
-fi
-if [ "$SESSION_SOURCE" = "generated" ]; then
-  echo "Rename later with: scripts/session-name --name <meaningful-name>"
-fi
-
-echo ""
 echo "## Snapshot"
 if [ -x "$AOS" ]; then
   STATUS="$(printf '%s' "$AOS_DOCTOR_JSON" | python3 -c "
@@ -184,7 +138,6 @@ fi
 
 echo "branch=$BRANCH ahead=$AHEAD dirty=$DIRTY"
 echo "stale=$STALE_STATUS"
-echo "trust=AGENTS.md docs/SESSION_CONTRACT.md"
+echo "trust=AGENTS.md"
 echo "entry=./aos status"
 echo "visual=./aos see"
-echo "handoff=scripts/handoff"
