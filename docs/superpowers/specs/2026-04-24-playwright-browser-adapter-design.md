@@ -9,7 +9,7 @@
 
 aos already exposes an embodied verb model — `see`, `do`, `show`, `tell`, `listen`, `say` — over a unified Swift binary. The agent's "control surface" today covers macOS apps: `see capture` uses ScreenCaptureKit, `do click` uses CGEvent, `show create` uses WebKit canvases anchored by CGWindowID. A browser tab running inside Chrome is out of reach of that surface: the agent can screenshot the window as pixels, but it cannot perceive DOM structure, cannot interact by element, and cannot anchor overlays to page content that scrolls.
 
-Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper over Playwright. It ships ref-first interaction (`click e21`, `fill e34 "hello"`), snapshot-derived YAML element trees, named in-memory sessions with `-s=<name>` + `--persistent` profiles, attach modes for already-running Chrome (`attach --extension`, `attach --cdp=chrome`), and a visual session dashboard. Its own README frames its design tradeoff cleanly: CLI for high-throughput coding agents (token-efficient, per-call), MCP for "specialized agentic loops that benefit from persistent state, rich introspection, and iterative reasoning." aos's primary use case is the former.
+Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper over Playwright. It ships ref-first interaction (`click e21`, `fill e34 "hello"`), snapshot-derived accessibility-tree markdown (indented role/name lines with refs), named in-memory sessions with `-s=<name>` + `--persistent` profiles, attach modes for already-running Chrome (`attach --extension`, `attach --cdp=chrome`), and a visual session dashboard. Its own README frames its design tradeoff cleanly: CLI for high-throughput coding agents (token-efficient, per-call), MCP for "specialized agentic loops that benefit from persistent state, rich introspection, and iterative reasoning." aos's primary use case is the former.
 
 **Co-presence is a primary mode.** The user and agent often share one browser: the user demonstrates a flow, the agent observes and annotates, the user refines, the agent replays. This is not a follow-up capability — it shapes v1. The agent cannot live in a sibling headless browser while the user works in their real Chrome; the workflow loop requires both acting in the same tab.
 
@@ -82,7 +82,7 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 ```
 
 - The seam is one Swift component (`BrowserAdapter`) inside the aos CLI process.
-- It owns: spawning `playwright-cli`, parsing its stdout + snapshot YAML, translating results into aos's existing `see`/`do`/`show` response shapes, and (for `show create` / `show update` against browser anchors) performing **one-shot geometry resolution** — measuring the current element viewport rect and emitting a single `(anchor_window, offset)` pair that the daemon then tracks for Chrome window movement. No long-lived watcher; each `show` invocation resolves geometry once and returns.
+- It owns: spawning `playwright-cli`, parsing its stdout and snapshot markdown files, translating results into aos's existing `see`/`do`/`show` response shapes, and (for `show create` / `show update` against browser anchors) performing **one-shot geometry resolution** — measuring the current element viewport rect and emitting a single `(anchor_window, offset)` pair that the daemon then tracks for Chrome window movement. No long-lived watcher; each `show` invocation resolves geometry once and returns.
 - The daemon is uninvolved for perception and action on browser targets (consistent with `see capture` and `do.*` already being CLI-client-side per the 04-17 IPC spec). The daemon handles `show` exactly as it does today; it doesn't know the anchored window is a Chrome tab.
 
 ### Subprocess lifecycle
@@ -175,7 +175,7 @@ Deferred. See Target Addressing Grammar above — v1 operates on whichever tab `
 | `aos see capture browser:<s>` | `playwright-cli -s=<s> screenshot --filename=<tmp>` |
 | `aos see capture browser:<s>/<ref>` | `playwright-cli -s=<s> screenshot <ref> --filename=<tmp>` |
 | `aos see capture browser:<s> --xray` | `playwright-cli -s=<s> snapshot --filename=<tmp>` → parse markdown tree → emit `AXElementJSON[]` with `ref` but **`bounds` omitted** |
-| `aos see capture browser:<s> --xray --label` | snapshot + one `eval` per visible ref to get `getBoundingClientRect()` → populate `bounds` → screenshot + overlay composition client-side |
+| `aos see capture browser:<s> --xray --label` | snapshot + one `eval` per ref to get `getBoundingClientRect()` → populate `bounds` → filter out refs whose rect is zero-sized or falls entirely outside the viewport → screenshot + overlay composition client-side |
 
 **Snapshot output is geometry-free.** `playwright-cli snapshot` emits an accessibility-tree markdown file (indented list like `- button "Click me" [ref=e2]`). It contains role, accessible name, and ref. It **does not contain element bounds**. Any geometry must come from separate `playwright-cli eval "(e)=>e.getBoundingClientRect()" <ref>` calls — one per ref — or from an escape-hatch `run-code` batched helper (see Open Questions). This fact shapes the xray pipeline:
 
@@ -346,13 +346,15 @@ The following files are the intended artifacts of the implementation plan that f
 |------|------|
 | `src/browser/` | New subtree for the adapter. |
 | `src/browser/browser-adapter.swift` | Spawns `playwright-cli`, parses output, routes commands. |
-| `src/browser/snapshot-parser.swift` | Converts `playwright-cli snapshot` YAML into aos `Element[]` JSON. |
+| `src/browser/snapshot-parser.swift` | Parses `playwright-cli snapshot` markdown (indented accessibility-tree output with `[ref=<id>]` annotations) into aos `AXElementJSON[]`. Walks indentation to recover `context_path`. |
 | `src/browser/session-registry.swift` | CLI-local registry mapping focus channel id ↔ `playwright-cli` session. |
 | `src/browser/target-parser.swift` | Parses `browser:` / `browser:<session>` / `browser:<session>/<ref>` target strings (no tab/frame segments in v1). Bare `browser:` resolves via `PLAYWRIGHT_CLI_SESSION`. |
 | `src/browser/anchor-resolver.swift` | One-shot resolution of `browser:<s>/<ref>` → `(CGWindowID, offset)` for `show create` / `show update`. No watcher; pure resolution. |
 | `src/browser/playwright-version-check.swift` | Detects installed `@playwright/cli` version and validates it meets the minimum requirement (the plan will pin the exact version once it's been verified). |
 | `src/browser/CLAUDE.md` | Subtree-local guidance for future work. |
-| `src/perceive/capture-pipeline.swift` | Add dispatch to browser adapter when target is `browser:…`. |
+| `src/perceive/models.swift` | Change `AXElementJSON.bounds` from `BoundsJSON` to `BoundsJSON?` (optional). Macs always populate it; browser-sourced elements without bounds (the `--xray` fast path) leave it absent. Existing consumers must read it through an optional. |
+| `src/perceive/capture-pipeline.swift` | Add dispatch to browser adapter when target is `browser:…`. Update `buildAnnotations` at line 740 to filter out elements whose `bounds` is nil (`compactMap` the optional and skip). Update the `--label` entry points at lines 2096 and 2256 to pass only elements with populated bounds to `buildAnnotations`, since labels require geometry. Document that elements without bounds are silently dropped from annotations (they are never labelable). |
+| `shared/schemas/annotation.md` | Update line 48 wording. Current text: `"--xray returns a flat array of interactive UI elements with role, title, label, value, bounds"`. Revise to note that `bounds` is present for macOS xray and for browser xray with `--label`, and absent for browser xray without `--label` (where snapshots carry no geometry). Update examples if needed. |
 | `src/act/act-cli.swift` (+ helpers) | Add dispatch to browser adapter for existing `do` verbs (`click`, `hover`, `drag`, `scroll`, `type`, `key`) when the target starts with `browser:`. Add two new subcommand entry points: `cliFill` and `cliNavigate` (browser-only in v1). |
 | `src/main.swift:149` switch | Add `case "fill":` and `case "navigate":` branches dispatching to the new handlers. |
 | `src/display/client.swift` | Add `--anchor-browser <browser:…>` flag to `show create` and `show update` parsers (alongside existing `--anchor-window` at line 143 and `--anchor-channel` at line 146). The CLI resolves `--anchor-browser` through `anchor-resolver.swift` to a concrete `anchor_window + offset` pair before sending the daemon request. The three anchor flags are mutually exclusive. |
