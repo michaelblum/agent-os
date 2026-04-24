@@ -1265,7 +1265,41 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos browser _parse-snapshot /tmp/snap.md"])
+            examples: ["aos browser _parse-snapshot /tmp/snap.md"]),
+        InvocationForm(id: "browser-registry-list",
+            usage: "aos browser _registry list",
+            args: [],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _registry list"]),
+        InvocationForm(id: "browser-registry-add",
+            usage: "aos browser _registry add --id=<s> --mode=<m> [--attach-kind=<k>] [--headless=<b>] [--browser-window-id=<n>]",
+            args: [
+                flag("id", "--id", "Session id", required: true),
+                flag("mode", "--mode", "attach|launched", required: true),
+                flag("attach-kind", "--attach-kind", "extension|cdp (attach mode only)"),
+                flag("headless", "--headless", "Headless flag (launched mode only)", type: .bool),
+                flag("browser-window-id", "--browser-window-id", "CGWindowID for local+visible windows", type: .int)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos browser _registry add --id=sess-a --mode=attach --attach-kind=extension"]),
+        InvocationForm(id: "browser-registry-remove",
+            usage: "aos browser _registry remove --id=<s>",
+            args: [flag("id", "--id", "Session id", required: true)],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos browser _registry remove --id=sess-a"]),
+        InvocationForm(id: "browser-registry-find",
+            usage: "aos browser _registry find --id=<s>",
+            args: [flag("id", "--id", "Session id", required: true)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _registry find --id=sess-a"])
         // More forms will be added by later tasks.
     ]))
 

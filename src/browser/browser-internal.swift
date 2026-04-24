@@ -85,6 +85,60 @@ func handleBrowserInternal(args: [String]) {
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
+    case "_registry":
+        guard let op = rest.first else {
+            exitError("Usage: aos browser _registry <op> ...", code: "MISSING_ARG")
+        }
+        let opArgs = Array(rest.dropFirst())
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys]
+        do {
+            switch op {
+            case "list":
+                let all = try readRegistry()
+                print(String(data: try enc.encode(all), encoding: .utf8)!)
+            case "add":
+                var id = "", mode = "", attachKind: String? = nil, headless: Bool? = nil, winID: Int? = nil
+                for a in opArgs {
+                    if a.hasPrefix("--id=") { id = String(a.dropFirst(5)) }
+                    else if a.hasPrefix("--mode=") { mode = String(a.dropFirst(7)) }
+                    else if a.hasPrefix("--attach-kind=") { attachKind = String(a.dropFirst(14)) }
+                    else if a.hasPrefix("--headless=") { headless = (String(a.dropFirst(11)) == "true") }
+                    else if a.hasPrefix("--browser-window-id=") { winID = Int(String(a.dropFirst(20))) }
+                }
+                guard !id.isEmpty, !mode.isEmpty else {
+                    exitError("--id and --mode required", code: "MISSING_ARG")
+                }
+                try addRegistryRecord(BrowserSessionRecord(
+                    id: id, mode: mode, attach_kind: attachKind, headless: headless,
+                    browser_window_id: winID, active_url: nil, updated_at: isoNow()
+                ))
+                print("{\"status\":\"ok\"}")
+            case "remove":
+                var id = ""
+                for a in opArgs where a.hasPrefix("--id=") { id = String(a.dropFirst(5)) }
+                guard !id.isEmpty else { exitError("--id required", code: "MISSING_ARG") }
+                try removeRegistryRecord(id: id)
+                print("{\"status\":\"ok\"}")
+            case "find":
+                var id = ""
+                for a in opArgs where a.hasPrefix("--id=") { id = String(a.dropFirst(5)) }
+                guard !id.isEmpty else { exitError("--id required", code: "MISSING_ARG") }
+                if let r = try findRegistryRecord(id: id) {
+                    print(String(data: try enc.encode(r), encoding: .utf8)!)
+                } else {
+                    exitError("not found: \(id)", code: "NOT_FOUND")
+                }
+            default:
+                exitError("Unknown registry op: \(op)", code: "UNKNOWN_SUBCOMMAND")
+            }
+        } catch SessionRegistryError.duplicateID(let id) {
+            exitError("session already registered: \(id)", code: "DUPLICATE_ID")
+        } catch SessionRegistryError.notFound(let id) {
+            exitError("session not found: \(id)", code: "NOT_FOUND")
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     default:
         exitError("Unknown internal subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
