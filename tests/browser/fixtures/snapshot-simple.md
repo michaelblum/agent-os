@@ -1,0 +1,5 @@
+- generic [active] [ref=e1]:
+  - button "Click me" [ref=e2]
+  - link "Go" [ref=e3] [cursor=pointer]:
+    - /url: "#"
+  - textbox "name" [ref=e4]

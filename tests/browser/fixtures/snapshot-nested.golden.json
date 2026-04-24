@@ -1,0 +1,44 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "e2",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e3",
+    "role": "navigation"
+  },
+  {
+    "context_path": [
+      "generic",
+      "navigation"
+    ],
+    "enabled": true,
+    "ref": "e4",
+    "role": "link",
+    "title": "Home"
+  },
+  {
+    "context_path": [
+      "generic",
+      "navigation"
+    ],
+    "enabled": true,
+    "ref": "e5",
+    "role": "link",
+    "title": "About"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e6",
+    "role": "paragraph"
+  }
+]

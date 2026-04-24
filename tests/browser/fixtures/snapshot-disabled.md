@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - button "Cannot click" [disabled] [ref=e2]
+  - textbox "locked" [disabled] [ref=e3]
+  - button "OK" [ref=e4]

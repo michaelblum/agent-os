@@ -1,0 +1,35 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "e1",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e2",
+    "role": "button",
+    "title": "Click me"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e3",
+    "role": "link",
+    "title": "Go"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e4",
+    "role": "textbox",
+    "title": "name"
+  }
+]

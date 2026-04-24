@@ -1258,7 +1258,14 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execMutating(),
             output: outJSON,
-            examples: ["aos browser _run --session=todo --verb=attach"])
+            examples: ["aos browser _run --session=todo --verb=attach"]),
+        InvocationForm(id: "browser-parse-snapshot",
+            usage: "aos browser _parse-snapshot <markdown-file>",
+            args: [pos("path", "Path to a playwright-cli snapshot markdown file")],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: ["aos browser _parse-snapshot /tmp/snap.md"])
         // More forms will be added by later tasks.
     ]))
 

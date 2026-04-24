@@ -1,0 +1,7 @@
+- generic [ref=e2]:
+  - navigation [ref=e3]:
+    - link "Home" [ref=e4] [cursor=pointer]:
+      - /url: "#home"
+    - link "About" [ref=e5] [cursor=pointer]:
+      - /url: "#about"
+  - paragraph [ref=e6]: Welcome

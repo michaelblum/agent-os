@@ -70,6 +70,21 @@ func handleBrowserInternal(args: [String]) {
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
+    case "_parse-snapshot":
+        guard let path = rest.first else {
+            exitError("Usage: aos browser _parse-snapshot <markdown-file>", code: "MISSING_ARG")
+        }
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+            exitError("cannot read \(path)", code: "READ_ERROR")
+        }
+        let elements = parseSnapshotMarkdown(contents)
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.sortedKeys, .prettyPrinted]
+        do {
+            print(String(data: try enc.encode(elements), encoding: .utf8)!)
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     default:
         exitError("Unknown internal subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }

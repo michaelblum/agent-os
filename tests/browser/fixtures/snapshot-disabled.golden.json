@@ -1,0 +1,35 @@
+[
+  {
+    "context_path": [],
+    "enabled": true,
+    "ref": "e1",
+    "role": "generic"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": false,
+    "ref": "e2",
+    "role": "button",
+    "title": "Cannot click"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": false,
+    "ref": "e3",
+    "role": "textbox",
+    "title": "locked"
+  },
+  {
+    "context_path": [
+      "generic"
+    ],
+    "enabled": true,
+    "ref": "e4",
+    "role": "button",
+    "title": "OK"
+  }
+]
