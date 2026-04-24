@@ -130,9 +130,6 @@ func focusCreateBrowser(id: String, targetSpec: String, rest: [String]) {
     }
 }
 
-// Stubbed for v1; Task 13 fills in with AX resolution via anchor-resolver.
-func resolveBrowserWindowID(session: String) -> Int? { nil }
-
 func focusUpdateCommand(args: [String]) {
     guard let id = getArg(args, "--id") else {
         exitError("--id is required", code: "MISSING_ARG")

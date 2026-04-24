@@ -14,6 +14,13 @@ trap 'rm -rf "$tmproot"' EXIT
 # daemon is not involved in anchor resolution, only in show create).
 ./aos browser _registry add --id=sess --mode=attach --attach-kind=extension --browser-window-id=88888 >/dev/null
 
+# Regression: resolve-anchor on a session with a populated browser_window_id
+# must actually succeed. Before the real-CLI fixes this returned
+# BROWSER_NOT_LOCAL because the window-id stub always wrote nil.
+out=$(./aos browser _resolve-anchor "browser:sess/e1")
+echo "$out" | jq -e '.anchor_window == 88888' >/dev/null \
+    || { echo "FAIL seed anchor_window: $out" >&2; exit 1; }
+
 # Case 1: mutual exclusion with --anchor-window
 if out=$(./aos show create --id demo --anchor-browser "browser:sess/e1" --anchor-window 12345 --html "<div/>" 2>&1); then
     echo "FAIL mutual-excl: expected error, got: $out" >&2; exit 1

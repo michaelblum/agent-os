@@ -29,6 +29,16 @@ echo "$out" | jq -e '.channels[] | select(.id == "test-attach") | .browser_windo
 echo "$out" | jq -e '.channels[] | select(.id == "test-attach") | .attach == "extension"' >/dev/null \
     || { echo "FAIL attach populated: $out" >&2; exit 1; }
 
+# Case 2c: with AOS_TEST_BROWSER_WINDOW_ID injected, a new session's
+# browser_window_id should be populated. This exercises the plumbing
+# between focus create → resolveBrowserWindowID → registry; the real
+# CG/eval match path is exercised by the opt-in smoke test.
+AOS_TEST_BROWSER_WINDOW_ID=91234 ./aos focus create --id test-with-wid --target browser://attach --extension >/dev/null
+out=$(./aos focus list)
+echo "$out" | jq -e '.channels[] | select(.id == "test-with-wid") | .browser_window_id == 91234' >/dev/null \
+    || { echo "FAIL window-id injection: $out" >&2; exit 1; }
+./aos focus remove --id test-with-wid >/dev/null
+
 # Case 3: create launched headed
 out=$(./aos focus create --id test-launched --target browser://new 2>&1)
 echo "$out" | grep -q '"status":[[:space:]]*"success"' || { echo "FAIL launched: $out" >&2; exit 1; }
