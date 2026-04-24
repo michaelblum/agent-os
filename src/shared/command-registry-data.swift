@@ -1244,7 +1244,18 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSON,
-            examples: ["aos browser _check-version"])
+            examples: ["aos browser _check-version"]),
+        InvocationForm(id: "browser-run",
+            usage: "aos browser _run --session=<s> --verb=<v> [--with-filename]",
+            args: [
+                flag("session", "--session", "playwright-cli session name", required: true),
+                flag("verb", "--verb", "playwright-cli verb", required: true),
+                flag("with-filename", "--with-filename", "Allocate and pass --filename=<tmp>", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSON,
+            examples: ["aos browser _run --session=todo --verb=attach"])
         // More forms will be added by later tasks.
     ]))
 

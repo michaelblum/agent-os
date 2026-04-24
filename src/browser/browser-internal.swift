@@ -48,6 +48,28 @@ func handleBrowserInternal(args: [String]) {
         } catch {
             exitError("\(error)", code: "INTERNAL")
         }
+    case "_run":
+        var session = "", verb = "", withFilename = false
+        for a in rest {
+            if a.hasPrefix("--session=") { session = String(a.dropFirst("--session=".count)) }
+            else if a.hasPrefix("--verb=") { verb = String(a.dropFirst("--verb=".count)) }
+            else if a == "--with-filename" { withFilename = true }
+        }
+        guard !session.isEmpty, !verb.isEmpty else {
+            exitError("--session=<s> and --verb=<v> are required", code: "MISSING_ARG")
+        }
+        do {
+            let r = try runPlaywright(PlaywrightInvocation(
+                session: session, verb: verb, args: [], withTempFilename: withFilename
+            ))
+            let enc = JSONEncoder()
+            enc.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            print(String(data: try enc.encode(r), encoding: .utf8)!)
+        } catch PlaywrightInvocationError.launchFailed(let msg) {
+            exitError("launch failed: \(msg)", code: "PLAYWRIGHT_CLI_LAUNCH_FAILED")
+        } catch {
+            exitError("\(error)", code: "INTERNAL")
+        }
     default:
         exitError("Unknown internal subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }

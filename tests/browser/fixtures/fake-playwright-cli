@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Canned responses for aos browser-adapter tests.
-# Invoked as `playwright-cli <verb> [args]`. Behavior is controlled by
-# FAKE_PWCLI_VERSION and FAKE_PWCLI_MODE env vars set by each test.
+# Invoked as `playwright-cli [-s=<session>] <verb> [args]`. Behavior is
+# controlled by FAKE_PWCLI_VERSION and FAKE_PWCLI_MODE env vars set by each
+# test.
 set -uo pipefail
 
+# Skip -s=<session> prefix if present (real playwright-cli accepts it as a
+# global flag; runPlaywright always emits it).
+if [[ "${1:-}" == -s=* ]]; then
+    shift
+fi
 VERB="${1:-}"
 
 case "$VERB" in
@@ -30,6 +36,30 @@ EOF
             exit 0
         fi
         echo "fake attach invoked: $*"
+        exit 0
+        ;;
+    snapshot)
+        shift
+        echo "fake snapshot invoked: $*"
+        # If --filename=/path passed, touch the file so the Swift side sees it
+        for arg in "$@"; do
+            case "$arg" in
+                --filename=*) : > "${arg#--filename=}" ;;
+            esac
+        done
+        exit 0
+        ;;
+    screenshot)
+        shift
+        echo "fake screenshot invoked: $*"
+        for arg in "$@"; do
+            case "$arg" in
+                --filename=*)
+                    # PNG magic so `file` recognizes output as PNG
+                    printf '\x89PNG\r\n\x1a\nfake' > "${arg#--filename=}"
+                    ;;
+            esac
+        done
         exit 0
         ;;
     *)
