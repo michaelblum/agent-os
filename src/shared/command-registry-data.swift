@@ -1245,6 +1245,9 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(),
             output: outJSON,
             examples: ["aos browser _check-version"]),
+        // No requires-permissions: runPlaywright spawns a subprocess and doesn't
+        // itself need Accessibility or Screen Recording. The browser has whatever
+        // permissions it already has via its own app sandbox.
         InvocationForm(id: "browser-run",
             usage: "aos browser _run --session=<s> --verb=<v> [--with-filename]",
             args: [

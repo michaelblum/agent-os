@@ -62,6 +62,12 @@ EOF
         done
         exit 0
         ;;
+    bigstdout)
+        # Emit ~128 KB to stress the pipe buffer
+        # (macOS pipe buffer is typically 16KB or 64KB).
+        for i in $(seq 1 2048); do printf '%064d\n' "$i"; done
+        exit 0
+        ;;
     *)
         echo "fake-playwright-cli does not implement: $VERB" >&2
         exit 2

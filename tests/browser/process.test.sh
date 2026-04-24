@@ -22,4 +22,14 @@ out=$(./aos browser _run --session=todo --verb=bogus 2>&1 || true)
 echo "$out" | grep -q '"exit_code":2' \
     || { echo "FAIL case 3: $out" >&2; exit 1; }
 
+# Case 4: large stdout must not deadlock
+out=$(./aos browser _run --session=todo --verb=bigstdout 2>&1)
+echo "$out" | grep -q '"exit_code":0' || { echo "FAIL case 4: $out" >&2; exit 1; }
+# Verify stdout was captured — length check on the JSON value
+stdout_len=$(echo "$out" | jq -r '.stdout | length')
+if [[ "$stdout_len" -lt 100000 ]]; then
+    echo "FAIL case 4 length: got $stdout_len bytes in stdout, expected >=100KB" >&2
+    exit 1
+fi
+
 echo "PASS"
