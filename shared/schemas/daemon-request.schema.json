@@ -54,6 +54,8 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "bind" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceBindData" } } } },
+    { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "next" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/VoiceNextData" } } } },
     { "if": { "properties": { "service": { "const": "voice" }, "action": { "const": "final_response" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceFinalResponseData" } } } },
     { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "ping" } } },
@@ -219,10 +221,29 @@
     },
     "VoiceBindData": {
       "type": "object",
-      "required": ["session_id", "voice_id"],
+      "required": ["session_id"],
       "properties": {
         "session_id": { "type": "string", "minLength": 1 },
-        "voice_id": { "type": "string", "minLength": 1 }
+        "voice_id": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "gender": { "type": "string", "minLength": 1 },
+        "locale": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 1 },
+        "region": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "quality_tier": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": true
+    },
+    "VoiceNextData": {
+      "type": "object",
+      "required": ["session_id"],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": true
     },

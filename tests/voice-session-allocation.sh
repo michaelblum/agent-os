@@ -15,10 +15,6 @@ export AOS_VOICE_TEST_PROVIDERS=mock
 cleanup() { aos_test_kill_root "$ROOT"; rm -rf "$ROOT"; }
 trap cleanup EXIT
 
-# Pre-write policy.json that disables system + elevenlabs so the allocatable
-# pool is exactly the 5 mock voices (alpha..echo) in known order. Daemon
-# must not be running yet — VoicePolicyStore.load() is read on first use
-# and cached, so this file must exist before the daemon comes up.
 mkdir -p "$ROOT/repo/voice"
 cat > "$ROOT/repo/voice/policy.json" <<JSON
 {
@@ -27,7 +23,7 @@ cat > "$ROOT/repo/voice/policy.json" <<JSON
     "system":     { "enabled": false },
     "elevenlabs": { "enabled": false }
   },
-  "voices":              { "disabled": [], "promote": [] },
+  "voices":              { "disabled": [] },
   "session_preferences": {}
 }
 JSON
@@ -70,101 +66,55 @@ assert_eq() {
     fi
 }
 
-# -------------------------------------------------------------------------
-# 1. distinct-while-supply
-# Initial deque: [alpha, bravo, charlie, delta, echo]
-# After S1.next() = alpha   ->  [bravo, charlie, delta, echo, alpha]
-# After S2.next() = bravo   ->  [charlie, delta, echo, alpha, bravo]
-# After S3.next() = charlie ->  [delta, echo, alpha, bravo, charlie]
-# -------------------------------------------------------------------------
-./aos tell --register --session-id "$S1" --name "sess-1" >/dev/null
-./aos tell --register --session-id "$S2" --name "sess-2" >/dev/null
-./aos tell --register --session-id "$S3" --name "sess-3" >/dev/null
+assert_in_pool() {
+    local got="$1"; local label="$2"
+    case "$got" in
+        "$V_ALPHA"|"$V_BRAVO"|"$V_CHARLIE"|"$V_DELTA"|"$V_ECHO") ;;
+        *)
+            echo "FAIL [$label]: unexpected pool voice $got" >&2
+            exit 1
+            ;;
+    esac
+}
 
-assert_eq "$(voice_for $S1)" "$V_ALPHA"   "S1 picks alpha"
-assert_eq "$(voice_for $S2)" "$V_BRAVO"   "S2 picks bravo"
-assert_eq "$(voice_for $S3)" "$V_CHARLIE" "S3 picks charlie"
-echo "distinct-while-supply ok"
-
-# -------------------------------------------------------------------------
-# 2. bias-away: bind S2 onto delta (an unused voice).
-# bindVoice calls voiceAllocator.markUsed(delta), so delta moves to back.
-# Deque before bind: [delta, echo, alpha, bravo, charlie]
-# After markUsed(delta):  [echo, alpha, bravo, charlie, delta]
-# Next fresh registration must NOT pick delta and MUST pick echo (LRU).
-# -------------------------------------------------------------------------
-./aos voice bind --session-id "$S2" --voice "$V_DELTA" >/dev/null
-assert_eq "$(voice_for $S2)" "$V_DELTA" "S2 bind reflected"
-
-./aos tell --register --session-id "$S4" --name "sess-4" >/dev/null
-S4_VOICE="$(voice_for $S4)"
-[[ "$S4_VOICE" != "$V_DELTA" ]] || { echo "FAIL [bias-away]: S4 picked just-bound voice $V_DELTA" >&2; exit 1; }
-assert_eq "$S4_VOICE" "$V_ECHO" "S4 picks echo (LRU after bind moved delta to back)"
-echo "bias-away ok"
-
-# -------------------------------------------------------------------------
-# 3. over-capacity reuse
-# Deque after S4: [alpha, bravo, charlie, delta, echo]
-# S5.next() = alpha   (REUSE: S1 also has alpha)
-# S6.next() = bravo
-# S7.next() = charlie (REUSE: S3 also has charlie)
-# -------------------------------------------------------------------------
-./aos tell --register --session-id "$S5" --name "sess-5" >/dev/null
-./aos tell --register --session-id "$S6" --name "sess-6" >/dev/null
-./aos tell --register --session-id "$S7" --name "sess-7" >/dev/null
-
-assert_eq "$(voice_for $S5)" "$V_ALPHA"   "S5 wraps to alpha (over-cap)"
-assert_eq "$(voice_for $S6)" "$V_BRAVO"   "S6 picks bravo"
-assert_eq "$(voice_for $S7)" "$V_CHARLIE" "S7 wraps to charlie (over-cap)"
+# Fresh sessions get random enabled+speakable voices from the pool.
+for sid in "$S1" "$S2" "$S3" "$S4" "$S5" "$S6" "$S7"; do
+    ./aos tell --register --session-id "$sid" --name "sess-${sid:0:1}" >/dev/null
+    assert_in_pool "$(voice_for "$sid")" "$sid gets pool voice"
+done
 
 assignments_json | python3 -c "
 import json, sys
+allowed = {'$V_ALPHA','$V_BRAVO','$V_CHARLIE','$V_DELTA','$V_ECHO'}
 data = json.loads(sys.stdin.read())['data']['assignments']
 ids = [e['voice']['id'] for e in data if e.get('voice')]
 assert len(ids) == 7, f'expected 7 assigned voices, got {ids}'
-held = set(ids)
-assert held <= {'$V_ALPHA','$V_BRAVO','$V_CHARLIE','$V_DELTA','$V_ECHO'}, f'unexpected voices in pool: {held}'
-print('over-capacity reuse ok')
+assert set(ids) <= allowed, f'unexpected voice outside pool: {set(ids) - allowed}'
+assert len(set(ids)) < len(ids), f'expected duplicates once sessions exceed pool size: {ids}'
+print('random fallback ok')
 "
 
-# -------------------------------------------------------------------------
-# 4. restart reseed marks restored sessions before serving new
-# Pre-restart per-session voices:
-#   S1=alpha  S2=delta(bound)  S3=charlie  S4=echo
-#   S5=alpha  S6=bravo  S7=charlie
-# Reseed walks restored in (registeredAt ASC, sessionID ASC) order:
-#   S1..S7 lexicographic on uuid -> S1, S2, S3, S4, S5, S6, S7.
-#
-# Trace the markUsed sequence on a fresh deque [alpha, bravo, charlie, delta, echo]:
-#   markUsed(alpha)   -> [bravo, charlie, delta, echo, alpha]
-#   markUsed(delta)   -> [bravo, charlie, echo, alpha, delta]
-#   markUsed(charlie) -> [bravo, echo, alpha, delta, charlie]
-#   markUsed(echo)    -> [bravo, alpha, delta, charlie, echo]
-#   markUsed(alpha)   -> [bravo, delta, charlie, echo, alpha]
-#   markUsed(bravo)   -> [delta, charlie, echo, alpha, bravo]
-#   markUsed(charlie) -> [delta, echo, alpha, bravo, charlie]
-#
-# Final deque front = delta. So S8.next() = delta.
-#
-# Bug-detection: if reseed FORGOT to call markUsed for restored sessions,
-# the deque after reseed would still be [alpha, bravo, charlie, delta, echo]
-# and S8.next() would be alpha. The exact-equals assertion below distinguishes
-# the two states.
-# -------------------------------------------------------------------------
+# Exact bind pins a concrete voice.
+./aos voice bind --session-id "$S2" --voice "$V_DELTA" >/dev/null
+assert_eq "$(voice_for "$S2")" "$V_DELTA" "S2 exact bind reflected"
+echo "exact bind ok"
+
+# Restart should preserve stored concrete session voices.
 aos_test_kill_root "$ROOT"
 aos_test_start_daemon "$ROOT"
 
-./aos tell --register --session-id "$S8" --name "sess-8" >/dev/null
-S8_VOICE="$(voice_for $S8)"
-[[ "$S8_VOICE" != "$V_ALPHA" ]] || { echo "FAIL [restart-reseed]: S8 got front-of-unmarked-deque ($V_ALPHA); reseed did not mark restored" >&2; exit 1; }
-assert_eq "$S8_VOICE" "$V_DELTA" "S8 picks delta (deterministic post-reseed LRU)"
-echo "restart-reseed ok"
+assert_eq "$(voice_for "$S2")" "$V_DELTA" "S2 retains bound voice after restart"
+assert_in_pool "$(voice_for "$S1")" "S1 restored from snapshot"
+echo "restart persistence ok"
 
-# -------------------------------------------------------------------------
-# Post-restart bind survives + watcher coherence
-# -------------------------------------------------------------------------
+# New sessions after restart still pick from the same pool.
+./aos tell --register --session-id "$S8" --name "sess-8" >/dev/null
+assert_in_pool "$(voice_for "$S8")" "S8 gets pool voice after restart"
+echo "post-restart random fallback ok"
+
+# Rebinding still works after restart.
 ./aos voice bind --session-id "$S8" --voice "$V_CHARLIE" >/dev/null
-assert_eq "$(voice_for $S8)" "$V_CHARLIE" "post-restart bind persists"
+assert_eq "$(voice_for "$S8")" "$V_CHARLIE" "post-restart bind persists"
 echo "post-restart bind ok"
 
 for sid in "$S1" "$S2" "$S3" "$S4" "$S5" "$S6" "$S7" "$S8"; do

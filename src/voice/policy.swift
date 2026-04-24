@@ -4,15 +4,15 @@ struct VoicePolicy: Codable, Equatable {
     struct ProviderEntry: Codable, Equatable { var enabled: Bool }
     struct VoicesSection: Codable, Equatable {
         var disabled: [String]
-        var promote: [String]
-        init(disabled: [String] = [], promote: [String] = []) {
-            self.disabled = disabled; self.promote = promote
+        init(disabled: [String] = []) {
+            self.disabled = disabled
         }
     }
     var schema_version: Int = 1
     var providers: [String: ProviderEntry] = [:]
     var voices: VoicesSection = VoicesSection()
     var session_preferences: [String: String] = [:]
+    var voice_cursor: Int?
 
     static let empty = VoicePolicy()
 }
@@ -80,6 +80,16 @@ final class VoicePolicyStore {
 
     func preferred(sessionID: String) -> String? {
         load().session_preferences[sessionID]
+    }
+
+    /// Returns the cursor value BEFORE advancement. Callers use the returned value
+    /// modulo the current filtered voice count; next invocation gets cursor+1.
+    func advanceCursor() -> Int {
+        var p = load()
+        let cur = p.voice_cursor ?? 0
+        p.voice_cursor = cur &+ 1
+        save(p)
+        return cur
     }
 
     private func stripJSONComments(_ data: Data) -> Data {

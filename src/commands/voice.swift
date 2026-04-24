@@ -28,8 +28,6 @@ func voiceCommand(args: [String]) {
         let data = try! JSONSerialization.data(withJSONObject: snap, options: [.sortedKeys, .prettyPrinted])
         print(String(data: data, encoding: .utf8)!)
         exit(0)
-    case "_internal-allocator-test":
-        voiceInternalAllocatorTest(args: Array(args.dropFirst())); return
     case "list":
         response = voiceListEnvelope(args: Array(args.dropFirst()))
     case "assignments":
@@ -40,6 +38,8 @@ func voiceCommand(args: [String]) {
         response = sendEnvelopeRequest(service: "voice", action: "providers", data: [:], autoStartBinary: CommandLine.arguments[0])
     case "bind":
         response = voiceBindEnvelope(args: Array(args.dropFirst()))
+    case "next":
+        response = voiceNextEnvelope(args: Array(args.dropFirst()))
     case "final-response":
         response = voiceFinalResponseEnvelope(args: Array(args.dropFirst()))
     default:
@@ -86,6 +86,8 @@ private func voiceListEnvelope(args: [String]) -> [String: Any]? {
 private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
     var sessionID: String?
     var voiceID: String?
+    var filter = VoiceFilter()
+    var tags: [String] = []
 
     var i = 0
     while i < args.count {
@@ -98,6 +100,40 @@ private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
             i += 1
             guard i < args.count else { exitError("--voice requires a value", code: "MISSING_ARG") }
             voiceID = args[i]
+        case "--provider":
+            i += 1
+            guard i < args.count else { exitError("--provider requires a value", code: "MISSING_ARG") }
+            filter.provider = args[i]
+        case "--gender":
+            i += 1
+            guard i < args.count else { exitError("--gender requires a value", code: "MISSING_ARG") }
+            filter.gender = args[i]
+        case "--locale":
+            i += 1
+            guard i < args.count else { exitError("--locale requires a value", code: "MISSING_ARG") }
+            filter.locale = args[i]
+        case "--language":
+            i += 1
+            guard i < args.count else { exitError("--language requires a value", code: "MISSING_ARG") }
+            filter.language = args[i]
+        case "--region":
+            i += 1
+            guard i < args.count else { exitError("--region requires a value", code: "MISSING_ARG") }
+            filter.region = args[i]
+        case "--kind":
+            i += 1
+            guard i < args.count else { exitError("--kind requires a value", code: "MISSING_ARG") }
+            filter.kind = args[i]
+        case "--quality-tier":
+            i += 1
+            guard i < args.count else { exitError("--quality-tier requires a value", code: "MISSING_ARG") }
+            filter.quality_tier = args[i]
+        case "--tag":
+            i += 1
+            guard i < args.count else { exitError("--tag requires a value", code: "MISSING_ARG") }
+            tags.append(args[i])
+        case "--json":
+            break
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -107,13 +143,50 @@ private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
     guard let sessionID, !sessionID.isEmpty else {
         exitError("bind requires --session-id <id>", code: "MISSING_ARG")
     }
-    guard let voiceID, !voiceID.isEmpty else {
-        exitError("bind requires --voice <id>", code: "MISSING_ARG")
+    filter.tags = tags
+    if voiceID != nil && !filter.isEmpty {
+        exitError("bind accepts either --voice or filter flags, not both", code: "INVALID_ARG")
     }
-    return sendEnvelopeRequest(service: "voice", action: "bind", data: [
-        "session_id": sessionID,
-        "voice_id": voiceID
-    ], autoStartBinary: CommandLine.arguments[0])
+    var data: [String: Any] = ["session_id": sessionID]
+    if let voiceID, !voiceID.isEmpty {
+        data["voice_id"] = voiceID
+    }
+    if let provider = filter.provider { data["provider"] = provider }
+    if let gender = filter.gender { data["gender"] = gender }
+    if let locale = filter.locale { data["locale"] = locale }
+    if let language = filter.language { data["language"] = language }
+    if let region = filter.region { data["region"] = region }
+    if let kind = filter.kind { data["kind"] = kind }
+    if let qualityTier = filter.quality_tier { data["quality_tier"] = qualityTier }
+    if !filter.tags.isEmpty { data["tags"] = filter.tags }
+    return sendEnvelopeRequest(service: "voice", action: "bind", data: data, autoStartBinary: CommandLine.arguments[0])
+}
+
+private func voiceNextEnvelope(args: [String]) -> [String: Any]? {
+    var sessionID: String?
+    var i = 0
+    while i < args.count {
+        switch args[i] {
+        case "--session-id":
+            i += 1
+            guard i < args.count else { exitError("--session-id requires a value", code: "MISSING_ARG") }
+            sessionID = args[i]
+        case "--json":
+            break
+        default:
+            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
+        }
+        i += 1
+    }
+    guard let sessionID, !sessionID.isEmpty else {
+        exitError("next requires --session-id <id>", code: "MISSING_ARG")
+    }
+    return sendEnvelopeRequest(
+        service: "voice",
+        action: "next",
+        data: ["session_id": sessionID],
+        autoStartBinary: CommandLine.arguments[0]
+    )
 }
 
 private func voiceInternalIDRoundtrip(args: [String]) {
@@ -153,30 +226,6 @@ private func voiceInternalCanonicalize(args: [String]) {
     }
     guard let id else { exitError("missing --id", code: "MISSING_ARG") }
     print(VoiceID.canonicalize(id))
-    exit(0)
-}
-
-private func voiceInternalAllocatorTest(args: [String]) {
-    // args is a sequence: seed:A,B,C  next  next  used:B  reseed:B,C,D  next ...
-    let alloc = VoiceAllocator()
-    var output: [Any] = []
-    for cmd in args {
-        if cmd.hasPrefix("seed:") {
-            alloc.seed(uris: String(cmd.dropFirst(5)).split(separator: ",").map(String.init))
-            output.append(["op": "seed", "deque": alloc.currentDeque()])
-        } else if cmd.hasPrefix("reseed:") {
-            alloc.reseed(uris: String(cmd.dropFirst(7)).split(separator: ",").map(String.init))
-            output.append(["op": "reseed", "deque": alloc.currentDeque()])
-        } else if cmd.hasPrefix("used:") {
-            alloc.markUsed(String(cmd.dropFirst(5)))
-            output.append(["op": "used", "deque": alloc.currentDeque()])
-        } else if cmd == "next" {
-            let n = alloc.next() ?? ""
-            output.append(["op": "next", "value": n, "deque": alloc.currentDeque()])
-        }
-    }
-    let data = try! JSONSerialization.data(withJSONObject: output, options: [.sortedKeys, .prettyPrinted])
-    print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
 

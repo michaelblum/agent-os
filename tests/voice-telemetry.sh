@@ -18,10 +18,10 @@ trap cleanup EXIT
 mkdir -p "$ROOT/repo/voice"
 
 # Seed a non-allocatable preference for a session BEFORE daemon start so the
-# allocator sees the disabled-voice preference on first registration.
+# daemon sees the disabled-voice preference on first registration.
 SID="dddddddd-dddd-dddd-dddd-dddddddddddd"
 cat > "$ROOT/repo/voice/policy.json" <<JSON
-{"schema_version":1,"providers":{},"voices":{"disabled":["voice://mock/mock-bravo"],"promote":[]},"session_preferences":{"$SID":"voice://mock/mock-bravo"}}
+{"schema_version":1,"providers":{},"voices":{"disabled":["voice://mock/mock-bravo"]},"session_preferences":{"$SID":"voice://mock/mock-bravo"}}
 JSON
 
 aos_test_start_daemon "$ROOT"

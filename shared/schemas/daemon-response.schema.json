@@ -129,11 +129,10 @@
     },
     "ProviderInfo": {
       "type": "object",
-      "required": ["name", "rank", "availability", "voice_count", "enabled"],
+      "required": ["name", "availability", "voice_count", "enabled"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "rank": { "type": "integer" },
         "availability": { "$ref": "#/$defs/ProviderAvailability" },
         "voice_count": { "type": "integer", "minimum": 0 },
         "enabled": { "type": "boolean" }

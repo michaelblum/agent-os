@@ -1075,6 +1075,7 @@ class UnifiedDaemon {
         case ("voice", "refresh"):            return "voice-refresh"
         case ("voice", "providers"):          return "voice-providers"
         case ("voice", "bind"):               return "voice-bind"
+        case ("voice", "next"):               return "voice-next"
         case ("voice", "final_response"):     return "voice-final-response"
         case ("system", "ping"):              return "ping"
         // Content server actions
@@ -1348,11 +1349,35 @@ class UnifiedDaemon {
                 sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
-            guard let voiceID = json["voice_id"] as? String, !voiceID.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "voice_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+            var filter = VoiceFilter()
+            filter.provider = json["provider"] as? String
+            filter.gender = json["gender"] as? String
+            filter.locale = json["locale"] as? String
+            filter.language = json["language"] as? String
+            filter.region = json["region"] as? String
+            filter.kind = json["kind"] as? String
+            filter.quality_tier = json["quality_tier"] as? String
+            filter.tags = json["tags"] as? [String] ?? []
+            let result = coordination.bindVoice(sessionID: sessionID, voiceID: json["voice_id"] as? String, filter: filter)
+            sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "voice-next":
+            guard let sessionID = json["session_id"] as? String, !sessionID.isEmpty else {
+                sendResponseJSON(to: clientFD, ["error": "session_id required", "code": "MISSING_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
                 return
             }
-            let result = coordination.bindVoice(sessionID: sessionID, voiceID: voiceID)
+            let result = coordination.rotateSessionVoice(sessionID: sessionID)
+            if result["error"] == nil,
+               let voice = result["voice"] as? [String: Any],
+               let providerVoiceID = voice["provider_voice_id"] as? String {
+                let name = (voice["name"] as? String) ?? providerVoiceID
+                if speechEngine == nil { initSpeechEngine() }
+                if let engine = speechEngine {
+                    engine.stop()
+                    engine.setVoice(providerVoiceID)
+                    engine.speak("Hi, I'm \(name).")
+                }
+            }
             sendResponseJSON(to: clientFD, result, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "voice-final-response":

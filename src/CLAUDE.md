@@ -83,6 +83,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos voice refresh               # Refresh provider snapshots
 ./aos voice providers             # Provider availability + counts
 ./aos voice bind --session-id <id> [--voice <voice-id>]
+./aos voice next --session-id <id>   # Cycle session voice forward + audition
 ./aos voice final-response --harness codex --session-id <id> < hook.json
 ./aos config get voice.controls.cancel.key_code
 ./aos config get voice.enabled    # Discoverable config read
@@ -186,8 +187,12 @@ Voice policy and durable session preferences now live in
 `~/.config/aos/{mode}/voice/policy.json`. See `docs/api/aos.md` for the
 policy layout.
 New sessions keep an explicit bound voice when they have one; otherwise the
-daemon picks a random enabled + speakable voice. Voices are reusable across
-sessions, and `aos voice bind` simply updates the stored session preference.
+daemon rotates through a filtered pool (see `voice.filter.*`) using the
+persistent `voice_cursor` in `voice/policy.json`, falling back to a random
+allocatable voice when the filter yields zero matches. Voices are reusable
+across sessions. `aos voice bind` updates the stored session preference; `aos
+voice next` cycles the session forward within the filtered pool and auditions
+the new voice.
 
 ### Config Keys
 
@@ -200,6 +205,8 @@ sessions, and `aos voice bind` simply updates the stored session preference.
 | voice.policies.final_response.style | string | last_sentence | Final-response shaping policy (`full`, `last_sentence`, `last_n_chars`) |
 | voice.policies.final_response.last_n_chars | int | 400 | Character tail used by the final-response fallback / `last_n_chars` style |
 | voice.controls.cancel.key_code | int\|none | 53 | Global speech-cancel key code (Esc by default) |
+| voice.filter.language | string | "en" | Lowercase language code used to filter the session voice pool |
+| voice.filter.tiers | string[] | ["premium","enhanced"] | Quality tiers eligible for session voice selection (written via comma-separated scalar) |
 | perception.default_depth | int | 1 | Default perception depth (0-3) |
 | perception.settle_threshold_ms | int | 200 | Cursor settle threshold |
 | feedback.visual | bool | true | Visual feedback overlays |

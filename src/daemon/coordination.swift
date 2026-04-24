@@ -15,7 +15,6 @@ class CoordinationBus {
     // reads through. See Task 11 / Task 17 for the cross-instance constraint.
     let voicePolicyStore: VoicePolicyStore
     private let voiceRegistry: VoiceRegistry
-    private let voiceAllocator: VoiceAllocator
 
     // Sessions: canonical session_id → SessionInfo
     private var sessions: [String: SessionInfo] = [:]
@@ -32,16 +31,13 @@ class CoordinationBus {
         sessionsPath: String = aosCoordinationSessionsPath(),
         voicePolicyStore: VoicePolicyStore = VoicePolicyStore(),
         voiceRegistry: VoiceRegistry? = nil,
-        voiceAllocator: VoiceAllocator = VoiceAllocator(),
         sessionExpiryInterval: TimeInterval = 24 * 60 * 60
     ) {
         self.sessionsPath = sessionsPath
         self.voicePolicyStore = voicePolicyStore
         self.voiceRegistry = voiceRegistry ?? VoiceRegistry(policyLoader: { voicePolicyStore.load() })
-        self.voiceAllocator = voiceAllocator
         self.sessionExpiryInterval = sessionExpiryInterval
         restoreSessionsSnapshot()
-        seedAllocatorAfterRestore()
         pruneExpiredSessionsLocked()
         persistSessionsLocked()
     }
@@ -255,10 +251,7 @@ class CoordinationBus {
     func voiceRefresh() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
-        let snap = voiceRegistry.refresh()
-        let allocatable = snap.filter { $0.isAllocatable }.map { $0.id }
-        voiceAllocator.reseed(uris: allocatable)
-        return snap.map { $0.dictionary() }
+        return voiceRegistry.refresh().map { $0.dictionary() }
     }
 
     func voiceProviders() -> [[String: Any]] {
@@ -272,24 +265,55 @@ class CoordinationBus {
         return voiceRegistry.lookup(canonical)
     }
 
-    func bindVoice(sessionID: String, voiceID: String) -> [String: Any] {
+    func bindVoice(sessionID: String, voiceID: String?, filter: VoiceFilter = VoiceFilter()) -> [String: Any] {
         lock.lock()
         defer { lock.unlock() }
         pruneExpiredSessionsLocked()
 
-        let canonical = VoiceID.canonicalize(voiceID)
-        guard let record = voiceRegistry.lookup(canonical) else {
-            return ["error": ["code": "VOICE_NOT_FOUND", "message": "voice not found in registry: \(canonical)"]]
+        guard sessions[sessionID] != nil else {
+            return ["error": ["code": "SESSION_NOT_FOUND", "message": "session not found: \(sessionID)"]]
         }
-        if !record.capabilities.speak_supported {
-            return ["error": ["code": "VOICE_NOT_SPEAKABLE", "message": "voice cannot synthesize in this version: \(canonical)"]]
+
+        let selectedRecord: VoiceRecord
+        if let voiceID, !voiceID.isEmpty {
+            let canonical = VoiceID.canonicalize(voiceID)
+            guard let record = voiceRegistry.lookup(canonical) else {
+                return ["error": ["code": "VOICE_NOT_FOUND", "message": "voice not found in registry: \(canonical)"]]
+            }
+            if !record.capabilities.speak_supported {
+                return ["error": ["code": "VOICE_NOT_SPEAKABLE", "message": "voice cannot synthesize in this version: \(canonical)"]]
+            }
+            if !record.availability.allocatable {
+                return ["error": ["code": "VOICE_NOT_ALLOCATABLE", "message": "voice not allocatable (enabled/installed/reachable check failed): \(canonical)"]]
+            }
+            selectedRecord = record
+        } else {
+            let allMatches = filter.isEmpty ? voiceRegistry.snapshot() : voiceRegistry.snapshot(matching: filter)
+            guard !allMatches.isEmpty else {
+                return ["error": ["code": "VOICE_NOT_FOUND", "message": "no voices matched the requested filter"]]
+            }
+            let allocatableMatches = allMatches.filter { $0.isAllocatable }
+            guard !allocatableMatches.isEmpty else {
+                return ["error": ["code": "VOICE_NOT_ALLOCATABLE", "message": "matching voices are not allocatable"]]
+            }
+
+            let currentVoiceID = sessions[sessionID]?.voice?.id
+            var candidates = allocatableMatches
+            if candidates.count > 1, let currentVoiceID {
+                let differentVoices = candidates.filter { $0.id != currentVoiceID }
+                if !differentVoices.isEmpty {
+                    candidates = differentVoices
+                }
+            }
+
+            guard let picked = candidates.randomElement() else {
+                return ["error": ["code": "VOICE_NOT_ALLOCATABLE", "message": "matching voices are not allocatable"]]
+            }
+            selectedRecord = picked
         }
-        if !record.availability.allocatable {
-            return ["error": ["code": "VOICE_NOT_ALLOCATABLE", "message": "voice not allocatable (enabled/installed/reachable check failed): \(canonical)"]]
-        }
-        voicePolicyStore.setPreferred(sessionID: sessionID, voiceURI: canonical)
-        voiceAllocator.markUsed(canonical)
-        let descriptor = SessionVoiceDescriptor(record: record)
+
+        voicePolicyStore.setPreferred(sessionID: sessionID, voiceURI: selectedRecord.id)
+        let descriptor = SessionVoiceDescriptor(record: selectedRecord)
         if var info = sessions[sessionID] {
             info.voice = descriptor
             sessions[sessionID] = info
@@ -298,7 +322,7 @@ class CoordinationBus {
         return [
             "status": "ok",
             "session_id": sessionID,
-            "voice": record.dictionary()
+            "voice": selectedRecord.dictionary()
         ]
     }
 
@@ -306,15 +330,9 @@ class CoordinationBus {
         lock.lock()
         defer { lock.unlock() }
         // The watcher already called `voicePolicyStore.reload()` on the same
-        // instance VoiceRegistry's policyLoader uses, so allocatableSnapshot()
-        // here resolves against the freshly-loaded policy. The `policy`
-        // argument is provided for future hooks (e.g. emitting a diff event)
-        // but is not required to drive reseed.
+        // instance VoiceRegistry's policyLoader uses. Live sessions keep their
+        // current voice until they re-register or a new bind happens.
         _ = policy
-        let allocatable = voiceRegistry.allocatableSnapshot().map { $0.id }
-        voiceAllocator.reseed(uris: allocatable)
-        // Do NOT auto-reassign live sessions; they keep their current descriptor
-        // until they re-register or a new explicit bind happens.
     }
 
     // MARK: - Messages
@@ -387,26 +405,6 @@ class CoordinationBus {
             return nil
         }
         return trimmed
-    }
-
-    private func seedAllocatorAfterRestore() {
-        let allocatableURIs = voiceRegistry.allocatableSnapshot().map { $0.id }
-        voiceAllocator.seed(uris: allocatableURIs)
-        // Spec Section 5: restore order is (registered_at ASC, session_id ASC).
-        // Tiebreak on sessionID keeps reseed deterministic when two sessions
-        // share a timestamp (common in fixture data + fast bulk registration).
-        let restored = sessions
-            .compactMap { (sid, info) -> (sessionID: String, voiceURI: String, registeredAt: Date)? in
-                guard let voice = info.voice else { return nil }
-                return (sessionID: sid, voiceURI: voice.id, registeredAt: info.registeredAt)
-            }
-            .sorted {
-                if $0.registeredAt != $1.registeredAt { return $0.registeredAt < $1.registeredAt }
-                return $0.sessionID < $1.sessionID
-            }
-        for entry in restored {
-            voiceAllocator.markUsed(VoiceID.canonicalize(entry.voiceURI))
-        }
     }
 
     private func persistSessionsLocked() {
@@ -524,16 +522,13 @@ class CoordinationBus {
 
     private func assignVoiceLocked(existingVoice: SessionVoiceDescriptor?, excludingSessionID sid: String) -> SessionVoiceDescriptor? {
         if let existingVoice {
-            // Session is being re-registered with a known voice; reaffirm cooldown.
-            voiceAllocator.markUsed(existingVoice.id)
             return existingVoice
         }
 
-        // Apply stored preference only if record is fully allocatable.
+        // Apply stored concrete preference only if the record is allocatable.
         if let preferredURI = voicePolicyStore.preferred(sessionID: sid) {
             let canonical = VoiceID.canonicalize(preferredURI)
             if let record = voiceRegistry.lookup(canonical), record.isAllocatable {
-                voiceAllocator.markUsed(canonical)
                 return SessionVoiceDescriptor(record: record)
             } else {
                 emitVoiceEvent([
@@ -545,11 +540,73 @@ class CoordinationBus {
             }
         }
 
-        guard let chosenURI = voiceAllocator.next(),
-              let record = voiceRegistry.lookup(chosenURI) else {
-            return nil
+        let filtered = filteredAllocatableVoicesLocked()
+        guard !filtered.isEmpty else {
+            emitVoiceEvent([
+                "kind": "filter_empty",
+                "session_id": sid
+            ])
+            return voiceRegistry.allocatableSnapshot().randomElement().map { SessionVoiceDescriptor(record: $0) }
         }
-        return SessionVoiceDescriptor(record: record)
+
+        let cursor = voicePolicyStore.advanceCursor()
+        let picked = filtered[moduloIndex(cursor, count: filtered.count)]
+        voicePolicyStore.setPreferred(sessionID: sid, voiceURI: picked.id)
+        return SessionVoiceDescriptor(record: picked)
+    }
+
+    private func filteredAllocatableVoicesLocked() -> [VoiceRecord] {
+        let config = loadConfig()
+        let (language, tiers) = effectiveVoiceFilter(config)
+        let tierSet = Set(tiers)
+        return voiceRegistry.allocatableSnapshot().filter { rec in
+            guard (rec.language ?? "").lowercased() == language else { return false }
+            return tierSet.contains(rec.quality_tier.lowercased())
+        }
+    }
+
+    private func moduloIndex(_ value: Int, count: Int) -> Int {
+        precondition(count > 0, "moduloIndex requires count > 0")
+        let r = value % count
+        return r < 0 ? r + count : r
+    }
+
+    func rotateSessionVoice(sessionID: String) -> [String: Any] {
+        lock.lock()
+        defer { lock.unlock() }
+        pruneExpiredSessionsLocked()
+
+        guard var info = sessions[sessionID] else {
+            return ["error": ["code": "SESSION_NOT_FOUND", "message": "session not found: \(sessionID)"]]
+        }
+
+        let filtered = filteredAllocatableVoicesLocked()
+        guard !filtered.isEmpty else {
+            return ["error": ["code": "VOICE_NOT_FOUND", "message": "no voices matched the active filter"]]
+        }
+
+        let nextIdx: Int
+        if let currentID = info.voice?.id,
+           let currentIdx = filtered.firstIndex(where: { $0.id == currentID }) {
+            nextIdx = (currentIdx + 1) % filtered.count
+        } else {
+            let cursor = voicePolicyStore.advanceCursor()
+            nextIdx = moduloIndex(cursor, count: filtered.count)
+        }
+        let picked = filtered[nextIdx]
+
+        voicePolicyStore.setPreferred(sessionID: sessionID, voiceURI: picked.id)
+        info.voice = SessionVoiceDescriptor(record: picked)
+        sessions[sessionID] = info
+        persistSessionsLocked()
+
+        return [
+            "status": "ok",
+            "session_id": sessionID,
+            "voice": picked.dictionary(),
+            "index": nextIdx,
+            "total": filtered.count
+        ]
     }
 
     private func preferenceSkipReason(_ uri: String) -> String {

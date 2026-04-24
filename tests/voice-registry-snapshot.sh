@@ -9,15 +9,9 @@ voices = json.loads(sys.stdin.read())
 assert len(voices) > 0, 'snapshot empty'
 mock_voices = [v for v in voices if v['provider'] == 'mock']
 assert len(mock_voices) >= 3, f'expected >=3 mock voices, got {len(mock_voices)}'
-# Mock provider rank=5 (Task 6) is below system (10) and elevenlabs (20):
-# every mock voice must precede every non-mock voice in the snapshot order.
-providers = [v['provider'] for v in voices]
-last_mock = max(i for i,p in enumerate(providers) if p == 'mock')
-first_non_mock_idx = next((i for i,p in enumerate(providers) if p != 'mock'), len(providers))
-assert last_mock < first_non_mock_idx, \
-    f'mock voices must precede non-mock by rank: last_mock={last_mock}, first_non_mock={first_non_mock_idx}'
-# Within mock, premium tier sorts before standard.
-assert mock_voices[0]['quality_tier'] == 'premium', \
-    f'premium not first within mock provider, got {mock_voices[0]}'
+mock_names = [v['name'] for v in mock_voices]
+assert mock_names == sorted(mock_names), f'mock voices should be name-sorted, got {mock_names}'
+echo_voice = next(v for v in mock_voices if v['id'] == 'voice://mock/mock-echo')
+assert 'novelty' in echo_voice['tags'], f'expected novelty tag on mock echo, got {echo_voice}'
 print('ok')
 "

@@ -2,7 +2,6 @@ import Foundation
 
 struct ElevenLabsStubProvider: VoiceProvider {
     let name = "elevenlabs"
-    let providerRank = 20
     var availability: ProviderAvailability {
         if ProcessInfo.processInfo.environment["AOS_VOICE_TEST_ELEVENLABS_UNREACHABLE"] == "1" {
             return ProviderAvailability(reachable: false, reason: "test override")
@@ -33,7 +32,7 @@ struct ElevenLabsStubProvider: VoiceProvider {
                 gender: gender,
                 kind: kind,
                 quality_tier: "standard",
-                tags: [],
+                tags: [kind, "remote", "stub"],
                 capabilities: VoiceCapabilities(local: false, streaming: true, ssml: false, speak_supported: false),
                 availability: VoiceAvailability(installed: true, enabled: true, reachable: reachable),
                 metadata: ["cost_class": .string(costClass)]

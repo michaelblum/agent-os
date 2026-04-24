@@ -44,6 +44,12 @@ struct AosConfig: Codable {
         var rate: Float?         // Speech rate in words per minute (nil = default ~180)
         var policies: VoicePoliciesConfig?
         var controls: VoiceControlsConfig?
+        var filter: VoiceFilterConfig?
+    }
+
+    struct VoiceFilterConfig: Codable {
+        var language: String?
+        var tiers: [String]?
     }
 
     struct VoicePoliciesConfig: Codable {
@@ -98,7 +104,8 @@ struct AosConfig: Codable {
             ),
             controls: VoiceControlsConfig(
                 cancel: VoiceKeyControlConfig(key_code: 53)
-            )
+            ),
+            filter: VoiceFilterConfig(language: "en", tiers: ["premium", "enhanced"])
         ),
         perception: PerceptionConfig(default_depth: 1, settle_threshold_ms: 200),
         feedback: FeedbackConfig(visual: true, sound: false),
@@ -136,6 +143,12 @@ private func canvasInspectorBundleDefaults() -> AosConfig.CanvasInspectorBundleC
                 xray: false
             )
         )
+}
+
+func effectiveVoiceFilter(_ config: AosConfig) -> (language: String, tiers: [String]) {
+    let language = (config.voice.filter?.language?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()).flatMap { $0.isEmpty ? nil : $0 } ?? "en"
+    let tiers = (config.voice.filter?.tiers?.map { $0.lowercased() }.filter { !$0.isEmpty }).flatMap { $0.isEmpty ? nil : $0 } ?? ["premium", "enhanced"]
+    return (language, tiers)
 }
 
 func effectiveCanvasInspectorBundleConfig(_ config: AosConfig) -> AosConfig.CanvasInspectorBundleConfig {
@@ -274,6 +287,21 @@ func setConfigValue(key: String, value: String) {
         } else {
             exitError("voice.policies.final_response.last_n_chars must be a positive integer", code: "INVALID_VALUE")
         }
+    case "voice.filter.language":
+        if config.voice.filter == nil { config.voice.filter = AosConfig.VoiceFilterConfig(language: nil, tiers: nil) }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { exitError("voice.filter.language must be a non-empty language code", code: "INVALID_VALUE") }
+        config.voice.filter?.language = normalized
+    case "voice.filter.tiers":
+        if config.voice.filter == nil { config.voice.filter = AosConfig.VoiceFilterConfig(language: nil, tiers: nil) }
+        let parts = value
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        guard !parts.isEmpty else {
+            exitError("voice.filter.tiers must be a non-empty comma-separated list (e.g. premium,enhanced)", code: "INVALID_VALUE")
+        }
+        config.voice.filter?.tiers = parts
     case "voice.controls.cancel.key_code":
         if config.voice.controls == nil { config.voice.controls = AosConfig.VoiceControlsConfig(cancel: nil) }
         if value == "none" || value == "disabled" {

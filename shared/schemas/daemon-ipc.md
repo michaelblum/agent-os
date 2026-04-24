@@ -42,11 +42,12 @@ Error response:
 | `session.register` | Register session presence. | `session_id`. |
 | `session.unregister` | Remove session presence. | `session_id` or `name`. |
 | `session.who` | List online sessions. | (none) |
-| `voice.list` | List voice bank. | optional `provider`; optional `speakable_only`. |
+| `voice.list` | List voice registry entries. | optional `provider`; optional `speakable_only`. |
 | `voice.assignments` | List session-centric voice assignments. | (none) |
-| `voice.refresh` | Re-enumerate voices and reseed allocator order. | (none) |
+| `voice.refresh` | Re-enumerate voices from all providers. | (none) |
 | `voice.providers` | List providers with availability and catalog counts. | (none) |
-| `voice.bind` | Bind a voice to a session. | `session_id`, `voice_id` (URI or bare id accepted). |
+| `voice.bind` | Bind a voice to a session. | `session_id`; optional `voice_id`; optional simple filter fields (`provider`, `gender`, `locale`, `language`, `region`, `kind`, `quality_tier`, `tags`). |
+| `voice.next` | Cycle the session voice forward within the filtered pool and audition it. | `session_id`. |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
 | `focus.list` | List focus channels. | (none) |
@@ -70,9 +71,9 @@ Error response:
 | `PARSE_ERROR` | Request not JSON, schema violation, or legacy flat-string request. |
 | `SESSION_NOT_FOUND` | Referenced `session_id` is not registered. |
 | `MISSING_SESSION_ID` | Daemon could not resolve a session id for an action that requires one. |
-| `VOICE_NOT_FOUND` | `voice.bind` target URI does not exist in the registry snapshot. |
+| `VOICE_NOT_FOUND` | `voice.bind` target URI does not exist in the registry snapshot, or the `voice.next` filtered pool resolved to zero voices. |
 | `VOICE_NOT_SPEAKABLE` | `voice.bind` target exists but cannot synthesize in this version. |
-| `VOICE_NOT_ALLOCATABLE` | `voice.bind` target exists and is speakable, but policy or availability blocks allocation. |
+| `VOICE_NOT_ALLOCATABLE` | `voice.bind` target exists and is speakable, but policy or availability blocks selection. |
 | `CANVAS_NOT_FOUND` | Referenced canvas `id` does not exist. |
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
 | `INTERNAL` | Unexpected daemon error. |
@@ -90,7 +91,7 @@ Error response:
 - `availability { installed, enabled, reachable }`
 - `metadata` as JSON-safe passthrough values
 
-`voice.providers` returns `ProviderInfo[]` with `name`, `rank`, `availability { reachable, reason? }`, `voice_count`, and `enabled`.
+`voice.providers` returns `ProviderInfo[]` with `name`, `availability { reachable, reason? }`, `voice_count`, and `enabled`.
 
 ## Versioning
 

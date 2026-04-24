@@ -520,7 +520,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             args: [
                 pos("list", "List discovered voices from the registry", required: false),
                 flag("provider", "--provider", "Filter to one provider name"),
-                flag("speakable-only", "--speakable-only", "Show only allocator-eligible voices", type: .bool)
+                flag("speakable-only", "--speakable-only", "Show only enabled voices that can actually synthesize", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(daemon: true),
@@ -540,7 +540,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos voice assignments"]),
         InvocationForm(id: "voice-refresh", usage: "aos voice refresh",
             args: [
-                pos("refresh", "Re-enumerate voices and reseed allocator order", required: false)
+                pos("refresh", "Re-enumerate voices from all providers", required: false)
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
@@ -554,15 +554,37 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSON,
             examples: ["aos voice providers"]),
-        InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> --voice <voice-id>",
+        InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> [--voice <voice-id>] [--provider <name>] [--gender <value>] [--tag <tag>] [--kind <value>] [--locale <value>] [--language <value>] [--region <value>] [--quality-tier <value>]",
             args: [
                 flag("session-id", "--session-id", "Canonical session id", required: true),
-                flag("voice", "--voice", "Voice identifier from `aos voice list` (URI or bare id)", required: true)
+                flag("voice", "--voice", "Exact voice identifier from `aos voice list` (URI or bare id)"),
+                flag("provider", "--provider", "Filter random selection to one provider"),
+                flag("gender", "--gender", "Filter random selection by gender"),
+                flag("tag", "--tag", "Filter random selection by tag; repeatable"),
+                flag("kind", "--kind", "Filter random selection by kind"),
+                flag("locale", "--locale", "Filter random selection by locale"),
+                flag("language", "--language", "Filter random selection by language"),
+                flag("region", "--region", "Filter random selection by region"),
+                flag("quality-tier", "--quality-tier", "Filter random selection by quality tier")
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),
             output: outJSON,
-            examples: ["aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan"]),
+            examples: [
+                "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan",
+                "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --gender female --language en",
+                "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
+            ]),
+        InvocationForm(id: "voice-next", usage: "aos voice next --session-id <id>",
+            args: [
+                flag("session-id", "--session-id", "Canonical session id", required: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSON,
+            examples: [
+                "aos voice next --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
+            ]),
         InvocationForm(id: "voice-final-response", usage: "aos voice final-response [--session-id <id>] [--harness <name>]",
             args: [
                 pos("final-response", "Relay a harness final-response event into the daemon speech system", required: false),

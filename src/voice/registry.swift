@@ -63,6 +63,28 @@ struct VoiceRecord: Codable, Equatable {
     var isAllocatable: Bool { availability.allocatable && capabilities.speak_supported }
 }
 
+struct VoiceFilter {
+    var provider: String?
+    var gender: String?
+    var locale: String?
+    var language: String?
+    var region: String?
+    var kind: String?
+    var quality_tier: String?
+    var tags: [String] = []
+
+    var isEmpty: Bool {
+        provider == nil
+            && gender == nil
+            && locale == nil
+            && language == nil
+            && region == nil
+            && kind == nil
+            && quality_tier == nil
+            && tags.isEmpty
+    }
+}
+
 struct ProviderAvailability: Codable, Equatable {
     var reachable: Bool
     var reason: String?
@@ -125,7 +147,6 @@ extension VoiceRecord {
 
 struct ProviderInfo: Codable {
     let name: String
-    let rank: Int
     let availability: ProviderAvailability
     let voice_count: Int
     let enabled: Bool
@@ -133,7 +154,6 @@ struct ProviderInfo: Codable {
     func dictionary() -> [String: Any] {
         return [
             "name": name,
-            "rank": rank,
             "availability": [
                 "reachable": availability.reachable,
                 "reason": availability.reason as Any
@@ -157,7 +177,7 @@ final class VoiceRegistry {
         var providers: [VoiceProvider] = [SystemVoiceProvider(), ElevenLabsStubProvider()]
         let env = ProcessInfo.processInfo.environment["AOS_VOICE_TEST_PROVIDERS"]
         if env == "mock" {
-            providers.append(MockVoiceProvider(name: "mock", providerRank: 5))
+            providers.append(MockVoiceProvider(name: "mock"))
         }
         return providers
     }
@@ -169,49 +189,42 @@ final class VoiceRegistry {
             let enabled = policy?.providers[p.name]?.enabled ?? true
             return ProviderInfo(
                 name: p.name,
-                rank: p.providerRank,
                 availability: p.availability,
                 voice_count: voices.count,
                 enabled: enabled
             )
-        }.sorted { $0.rank < $1.rank }
+        }.sorted { lhs, rhs in
+            if lhs.name != rhs.name {
+                return lhs.name < rhs.name
+            }
+            return lhs.voice_count < rhs.voice_count
+        }
     }
 
     func snapshot() -> [VoiceRecord] {
         let policy = policyLoader()
         let disabledURIs = Set(policy?.voices.disabled ?? [])
-        let promoteOrder: [String: Int] = {
-            var out: [String: Int] = [:]
-            for (idx, uri) in (policy?.voices.promote ?? []).enumerated() { out[uri] = idx }
-            return out
-        }()
 
-        var combined: [(record: VoiceRecord, providerRank: Int)] = []
+        var combined: [VoiceRecord] = []
         for p in providers {
             let providerEnabled = policy?.providers[p.name]?.enabled ?? true
             for var rec in p.enumerate() {
                 if !providerEnabled || disabledURIs.contains(rec.id) {
                     rec.availability.enabled = false
                 }
-                combined.append((rec, p.providerRank))
+                combined.append(rec)
             }
         }
 
         return combined.sorted { lhs, rhs in
-            let lp = promoteOrder[lhs.record.id]
-            let rp = promoteOrder[rhs.record.id]
-            switch (lp, rp) {
-            case let (l?, r?): if l != r { return l < r }
-            case (_?, nil): return true
-            case (nil, _?): return false
-            default: break
+            if lhs.provider != rhs.provider {
+                return lhs.provider < rhs.provider
             }
-            if lhs.providerRank != rhs.providerRank { return lhs.providerRank < rhs.providerRank }
-            let lq = qualityWeight(lhs.record.quality_tier)
-            let rq = qualityWeight(rhs.record.quality_tier)
-            if lq != rq { return lq > rq }
-            return lhs.record.name < rhs.record.name
-        }.map { $0.record }
+            if lhs.name != rhs.name {
+                return lhs.name < rhs.name
+            }
+            return lhs.provider_voice_id < rhs.provider_voice_id
+        }
     }
 
     func lookup(_ uri: String) -> VoiceRecord? {
@@ -227,12 +240,46 @@ final class VoiceRegistry {
         snapshot().filter { $0.isAllocatable }
     }
 
-    private func qualityWeight(_ tier: String) -> Int {
-        switch tier {
-        case "premium": return 3
-        case "enhanced": return 2
-        case "standard": return 1
-        default: return 0
+    func snapshot(matching filter: VoiceFilter) -> [VoiceRecord] {
+        snapshot().filter { record in
+            matches(record: record, filter: filter)
         }
+    }
+
+    func allocatableSnapshot(matching filter: VoiceFilter) -> [VoiceRecord] {
+        snapshot(matching: filter).filter { $0.isAllocatable }
+    }
+
+    private func matches(record: VoiceRecord, filter: VoiceFilter) -> Bool {
+        if let provider = filter.provider, record.provider.caseInsensitiveCompare(provider) != .orderedSame {
+            return false
+        }
+        if let gender = filter.gender, record.gender.caseInsensitiveCompare(gender) != .orderedSame {
+            return false
+        }
+        if let locale = filter.locale, (record.locale ?? "").caseInsensitiveCompare(locale) != .orderedSame {
+            return false
+        }
+        if let language = filter.language, (record.language ?? "").caseInsensitiveCompare(language) != .orderedSame {
+            return false
+        }
+        if let region = filter.region, (record.region ?? "").caseInsensitiveCompare(region) != .orderedSame {
+            return false
+        }
+        if let kind = filter.kind, record.kind.caseInsensitiveCompare(kind) != .orderedSame {
+            return false
+        }
+        if let qualityTier = filter.quality_tier, record.quality_tier.caseInsensitiveCompare(qualityTier) != .orderedSame {
+            return false
+        }
+        if !filter.tags.isEmpty {
+            let availableTags = Set(record.tags.map { $0.lowercased() })
+            for tag in filter.tags.map({ $0.lowercased() }) {
+                if !availableTags.contains(tag) {
+                    return false
+                }
+            }
+        }
+        return true
     }
 }

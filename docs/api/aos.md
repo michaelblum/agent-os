@@ -293,7 +293,8 @@ assignments, and final-response ingress:
 ```bash
 aos voice list [--provider <name>] [--speakable-only]
 aos voice assignments
-aos voice bind --session-id <id> --voice <voice-id>
+aos voice bind --session-id <id> [--voice <voice-id>]
+aos voice next --session-id <id>
 aos voice refresh
 aos voice providers
 printf '%s' "$HOOK_JSON" | aos voice final-response --harness codex --session-id <id>
@@ -306,11 +307,15 @@ catalog includes:
 - `elevenlabs` — a catalog-only stub provider used for selection, validation,
   and future remote synthesis wiring
 
-Session allocation is best-effort variety pressure, not exclusivity. The daemon
-uses a rotation + cooldown allocator that prefers recently-unused voices while
-still allowing reuse once the pool wraps. There is no `--share` override
-because the allocator already treats voices as reusable rather than
-single-holder leases.
+Voice selection is intentionally simple. A session keeps its explicitly bound
+voice when it has one; otherwise the daemon rotates through a filtered pool of
+speakable voices using a persistent integer cursor. The filter is driven by
+`voice.filter.language` (default `en`) and `voice.filter.tiers` (default
+`["premium", "enhanced"]`) in `config.json`; the cursor lives in `voice/policy.json`
+and advances by one on each session-start assignment. Voices are reusable across
+sessions. If the filter yields zero matches, the daemon falls back to a random
+allocatable voice and records a `filter_empty` voice event. There is no
+reservation, lease, or promotion model.
 
 Voice identifiers are canonical URIs of the form
 `voice://<provider>/<provider_voice_id>`. Commands accept either URI form or
@@ -325,24 +330,35 @@ quality tier.
 
 `aos voice assignments` returns the active session-centric assignments.
 
-`aos voice bind` stores a preferred voice for a live session and immediately
-rebiases allocation away from that voice for the next fresh session. Bind
-failures return one of three machine codes:
+`aos voice bind` stores a concrete voice for a live session. If you omit
+`--voice`, it will choose a random enabled + speakable voice, optionally
+filtered by simple fields such as `--provider`, `--gender`, `--tag`, `--kind`,
+`--locale`, `--language`, `--region`, or `--quality-tier`. Bind failures return
+one of three machine codes:
 
 - `VOICE_NOT_FOUND`
 - `VOICE_NOT_SPEAKABLE`
 - `VOICE_NOT_ALLOCATABLE`
 
+`aos voice next --session-id <id>` cycles the session's voice forward within the
+filtered pool without touching the global cursor, and auditions the new voice
+by speaking `"Hi, I'm <name>."` through the system speech engine. If the
+session's current voice is in the filtered pool, the next pick is the neighbour
+one step ahead (wrapping around); if it is not in the pool (for example because
+tiers changed), the daemon advances the global cursor to pick the next
+rotation voice instead. `aos voice next` returns `SESSION_NOT_FOUND` when the
+session is unknown and `VOICE_NOT_FOUND` when the pool is empty.
+
 `aos voice refresh` forces a fresh provider enumeration. `aos voice providers`
-lists provider reachability, policy enablement, rank, and voice counts.
+lists provider reachability, policy enablement, and voice counts.
 
 Voice policy lives at `~/.config/aos/{mode}/voice/policy.json` and is split
 into four sections:
 
 - `providers` — per-provider enable/disable gates
-- `voices.disabled` — canonical voice ids to suppress from allocation
-- `voices.promote` — canonical voice ids to sort ahead of their natural order
+- `voices.disabled` — canonical voice ids to suppress from rotation, random fallback, and filter-based selection
 - `session_preferences` — durable `session_id -> voice_uri` bindings
+- `voice_cursor` — integer rotation cursor advanced on each new-session assignment
 
 `aos voice final-response` is unchanged as the daemon-owned ingress for harness
 final-response events. It resolves the final assistant text, applies the
@@ -363,6 +379,8 @@ aos config get voice.enabled
 aos config get content.port --json
 aos config get see.canvas_inspector_bundle --json
 aos config set voice.enabled true
+aos config set voice.filter.language en
+aos config set voice.filter.tiers premium,enhanced
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
 ```
 

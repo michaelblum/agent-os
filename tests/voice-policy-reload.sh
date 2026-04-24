@@ -29,7 +29,7 @@ cat > "$ROOT/repo/voice/policy.json" <<JSON
     "system":     { "enabled": false },
     "elevenlabs": { "enabled": false }
   },
-  "voices":              { "disabled": [], "promote": [] },
+  "voices":              { "disabled": [] },
   "session_preferences": {}
 }
 JSON
@@ -86,10 +86,7 @@ poll_assert_availability() {
 }
 
 # -------------------------------------------------------------------------
-# Rewrite #1: disable mock-alpha. With reseed, the allocator deque drops
-# alpha:
-#   before: [alpha, bravo, charlie, delta, echo]
-#   after:  [bravo, charlie, delta, echo]
+# Rewrite #1: disable mock-alpha.
 #
 # Use write-tmp + atomic rename — the parent-directory fd in Task 11 fires
 # .write events for in-directory entry changes (create/remove/rename), NOT
@@ -103,7 +100,7 @@ cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
     "system":     { "enabled": false },
     "elevenlabs": { "enabled": false }
   },
-  "voices":              { "disabled": ["$V_ALPHA"], "promote": [] },
+  "voices":              { "disabled": ["$V_ALPHA"] },
   "session_preferences": {}
 }
 JSON
@@ -113,23 +110,19 @@ poll_assert_availability "$V_ALPHA" "False" "rewrite-1: voice list shows alpha a
 echo "first-reload reflected in voice list"
 
 # -------------------------------------------------------------------------
-# Allocator-reseed proof. Register a fresh session AFTER the disable.
-# The post-reseed deque front is bravo, so a correctly reseeded allocator
-# must hand bravo to S1.
+# Fresh-session proof. Register a fresh session AFTER the disable.
 #
-# Bug-detection: if handlePolicyReload updated voice list state but did
-# NOT call voiceAllocator.reseed(), the deque would still be the original
-# [alpha, bravo, charlie, delta, echo] and S1 would receive alpha — the
-# very voice the policy just disabled. The exact-equals assertion below
-# distinguishes the two states; the != assertion above it makes the
-# failure mode explicit in the diagnostic output.
+# Bug-detection: the new session must never receive the disabled voice.
 # -------------------------------------------------------------------------
 SID="cccccccc-cccc-cccc-cccc-cccccccccccc"
 ./aos tell --register --session-id "$SID" --name policy-reload-test >/dev/null
 held="$(voice_for "$SID")"
-[[ "$held" != "$V_ALPHA" ]] || { echo "FAIL [reseed]: fresh session received disabled voice $V_ALPHA — handlePolicyReload did not reseed allocator" >&2; exit 1; }
-assert_eq "$held" "$V_BRAVO" "rewrite-1: fresh session picks bravo (front of post-reseed deque)"
-echo "first-reload reflected in allocator (reseed observed)"
+[[ "$held" != "$V_ALPHA" ]] || { echo "FAIL [fresh-session]: fresh session received disabled voice $V_ALPHA" >&2; exit 1; }
+echo "$held" | grep -Eq '^voice://mock/mock-(bravo|charlie|delta|echo)$' || {
+    echo "FAIL [fresh-session]: unexpected fallback voice $held" >&2
+    exit 1
+}
+echo "first-reload reflected in fresh-session selection"
 
 # -------------------------------------------------------------------------
 # Rewrite #2: re-enable alpha. This is the watcher-continuity check —
@@ -147,7 +140,7 @@ cat > "$ROOT/repo/voice/policy.json.tmp" <<JSON
     "system":     { "enabled": false },
     "elevenlabs": { "enabled": false }
   },
-  "voices":              { "disabled": [], "promote": [] },
+  "voices":              { "disabled": [] },
   "session_preferences": {}
 }
 JSON
