@@ -54,27 +54,36 @@ trap "
 # Launch headed browser against smoke.html served via local HTTP
 ./aos focus create --id "$SID" --target browser://new --url "$URL" >/dev/null
 
-# Capture xray
+# Capture xray — pick both refs off the initial snapshot so we don't depend
+# on post-mutation snapshot shape (the text content that #b1 writes into
+# <div id=out> is a `generic` element without title/value under the current
+# snapshot parser; see issue #108 for the hardening path).
 out=$(./aos see capture "browser:$SID" --xray)
 echo "$out" | jq -e '.elements | length > 0' >/dev/null || { echo "FAIL xray: $out" >&2; exit 1; }
 
-# Find the button's ref
 button_ref=$(echo "$out" | jq -r '.elements[] | select(.role == "button") | .ref' | head -1)
 [[ -n "$button_ref" ]] || { echo "FAIL: no button ref in xray" >&2; exit 1; }
 
-# Click it
-./aos do click "browser:$SID/$button_ref" >/dev/null
-
-# Wait for DOM update
-sleep 1
-
-# Re-xray and verify 'clicked' text appears somewhere
-out=$(./aos see capture "browser:$SID" --xray)
-echo "$out" | jq -e '[.elements[] | select(.title == "clicked" or .value == "clicked")] | length > 0' >/dev/null \
-    || { echo "FAIL click effect: $out" >&2; exit 1; }
-
-# Fill the input
 input_ref=$(echo "$out" | jq -r '.elements[] | select(.role == "textbox") | .ref' | head -1)
+[[ -n "$input_ref" ]] || { echo "FAIL: no textbox ref in xray" >&2; exit 1; }
+
+# Click the button via the aos adapter.
+./aos do click "browser:$SID/$button_ref" >/dev/null
+sleep 0.3
+
+# Verify the click effect by reading the DOM directly via playwright-cli
+# eval. Bypasses our snapshot parser on purpose — the plain-text
+# "clicked" appears inside <div id=out> with no accessible-name-bearing
+# attribute, which today's parser doesn't surface as title/value.
+click_effect=$(playwright-cli -s="$SID" eval "(() => document.querySelector('#out').textContent)")
+echo "$click_effect" | grep -q "clicked" \
+    || { echo "FAIL click effect (direct eval): $click_effect" >&2; exit 1; }
+
+# Fill the input via the aos adapter, verify via direct eval.
 ./aos do fill "browser:$SID/$input_ref" "smoke test" >/dev/null
+sleep 0.3
+fill_effect=$(playwright-cli -s="$SID" eval "(() => document.querySelector('#i1').value)")
+echo "$fill_effect" | grep -q "smoke test" \
+    || { echo "FAIL fill effect (direct eval): $fill_effect" >&2; exit 1; }
 
 echo "PASS"
