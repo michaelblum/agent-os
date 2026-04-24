@@ -126,6 +126,10 @@ The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to del
 
 **`do tell` is a different level.** AppleScript `do tell` talks to *apps*. `tell` talks to *agents and humans*. Three tiers: human (`tell human`), agent (`tell <channel>`), app (`do tell`).
 
+### Browser as a target
+
+As of spec `docs/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`, a browser tab is a first-class target for `see`, `do`, and `show` verbs. The adapter lives entirely in the CLI process (`src/browser/`) and shells out to Microsoft's `playwright-cli`; the daemon is unchanged. Targets use the grammar `browser:<session>[/<ref>]` where `<session>` is the `playwright-cli -s=<name>` session (registered as an aos focus channel) and `<ref>` is a ref from a prior `aos see capture browser:<session> --xray`. Overlays anchored to browser elements are static in v1 — they follow Chrome window movement (via `anchor_window`) but not page scroll; agents re-issue `aos show update --anchor-browser …` to re-anchor.
+
 ### Communication Routing
 
 ```
