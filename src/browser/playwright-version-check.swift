@@ -29,7 +29,7 @@ struct PlaywrightVersionOK: Encodable {
 
 func probePlaywrightVersion() throws -> PlaywrightVersionOK {
     let proc = Process()
-    proc.launchPath = "/usr/bin/env"
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     proc.arguments = ["playwright-cli", "--version"]
     let out = Pipe(), err = Pipe()
     proc.standardOutput = out
@@ -62,6 +62,10 @@ func probePlaywrightVersion() throws -> PlaywrightVersionOK {
         encoding: .utf8
     ) ?? ""
     let version = stdoutStr.trimmingCharacters(in: .whitespacesAndNewlines)
+    // Guard unparseable version output (e.g. corrupt binary, forked CLI).
+    if parseVersionSegments(version).isEmpty {
+        throw PlaywrightVersionError.probeFailed("unparseable version: \(version)")
+    }
     guard compareVersions(version, kMinPlaywrightCLIVersion) >= 0 else {
         throw PlaywrightVersionError.tooOld(
             found: version,
@@ -75,14 +79,18 @@ func probePlaywrightVersion() throws -> PlaywrightVersionOK {
     )
 }
 
+// Split a version string into integer segments. Pre-release suffixes
+// (e.g. "1.2.3-rc.1") are dropped and only the numeric part retained.
+// Returns an empty array when no numeric segment can be parsed.
+private func parseVersionSegments(_ s: String) -> [Int] {
+    let base = s.split(separator: "-").first.map(String.init) ?? s
+    return base.split(separator: ".").compactMap { Int($0) }
+}
+
 // Semver-ish integer-by-integer compare. Pre-release suffixes (e.g. "1.2.3-rc.1")
 // are dropped and the numeric part compared.
 func compareVersions(_ a: String, _ b: String) -> Int {
-    func parse(_ s: String) -> [Int] {
-        let base = s.split(separator: "-").first.map(String.init) ?? s
-        return base.split(separator: ".").compactMap { Int($0) }
-    }
-    let pa = parse(a), pb = parse(b)
+    let pa = parseVersionSegments(a), pb = parseVersionSegments(b)
     let n = max(pa.count, pb.count)
     for i in 0..<n {
         let ai = i < pa.count ? pa[i] : 0

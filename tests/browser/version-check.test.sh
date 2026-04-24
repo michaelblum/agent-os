@@ -14,6 +14,13 @@ export FAKE_PWCLI_MODE="new"
 out=$(./aos browser _check-version 2>&1)
 echo "$out" | grep -q '"status":"ok"' || { echo "FAIL case 1: $out" >&2; exit 1; }
 
+# Case 1b: happy path, strictly-newer version
+export FAKE_PWCLI_VERSION="0.2.0"
+export FAKE_PWCLI_MODE="new"
+out=$(./aos browser _check-version 2>&1)
+echo "$out" | grep -q '"status":"ok"' || { echo "FAIL case 1b: $out" >&2; exit 1; }
+echo "$out" | grep -q '"version":"0.2.0"' || { echo "FAIL case 1b version echo: $out" >&2; exit 1; }
+
 # Case 2: old-mode CLI — version too old
 export FAKE_PWCLI_VERSION="0.1.1"
 export FAKE_PWCLI_MODE="old"

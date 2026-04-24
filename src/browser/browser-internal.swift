@@ -35,7 +35,7 @@ func handleBrowserInternal(args: [String]) {
             print(String(data: try enc.encode(ok), encoding: .utf8)!)
         } catch PlaywrightVersionError.notFound {
             exitError(
-                "@playwright/cli is not installed. Run: npm install -g @playwright/cli@\(kMinPlaywrightCLIVersion) or newer.",
+                "@playwright/cli is not installed. Run: npm install -g @playwright/cli@latest",
                 code: "PLAYWRIGHT_CLI_NOT_FOUND"
             )
         } catch PlaywrightVersionError.tooOld(let found, let min) {
