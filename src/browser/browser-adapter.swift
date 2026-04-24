@@ -5,7 +5,7 @@ import Foundation
 enum BrowserAdapterError: Error {
     case versionCheckFailed(String, code: String)
     case subprocess(String, code: String)
-    case invalidTarget(String)
+    case invalidTarget(String)    // forward-declared for Tasks 8-12 verb dispatchers
     case notLocalBrowser(String)  // used by anchor-resolver
 }
 
@@ -52,7 +52,10 @@ func seeCaptureXray(target: BrowserTarget, withBounds: Bool) throws -> [AXElemen
     return elements
 }
 
-/// Dispatch `do` verbs on browser targets.
+/// Dispatch `do` verbs on browser targets. Returns the raw PlaywrightResult;
+/// per-verb callers in Tasks 8-12 decide whether a non-zero exit is an error
+/// and shape the user-facing message (`see*` helpers above wrap non-zero into
+/// BrowserAdapterError.subprocess because they must resolve to a value).
 func doVerb(_ verb: String, target: BrowserTarget, extraArgs: [String] = []) throws -> PlaywrightResult {
     try ensureVersion()
     var args: [String] = []
@@ -78,6 +81,8 @@ func boundsViaEval(session: String, ref: String) throws -> BoundsJSON? {
     return BoundsJSON(x: Int(rect.x), y: Int(rect.y), width: Int(rect.w), height: Int(rect.h))
 }
 
+// One probe per CLI invocation. Each ./aos call is a fresh process, so the
+// memoization never carries stale state across invocations.
 private var versionChecked = false
 private func ensureVersion() throws {
     if versionChecked { return }
