@@ -12,6 +12,31 @@ private struct PermissionsState: Encodable {
     let screen_recording: Bool
 }
 
+private struct DaemonViewBlock: Encodable {
+    let reachable: Bool
+    let accessibility: Bool?
+    let input_tap: PermissionsInputTapBlock?
+}
+
+private struct PermissionsInputTapBlock: Encodable {
+    let status: String
+    let attempts: Int
+    let listen_access: Bool
+    let post_access: Bool
+}
+
+private struct CLIViewBlock: Encodable {
+    let accessibility: Bool
+    let screen_recording: Bool
+    let listen_access: Bool
+    let post_access: Bool
+}
+
+private struct DisagreementEntry: Encodable {
+    let cli: Bool
+    let daemon: Bool
+}
+
 private struct PermissionRequirement: Encodable {
     let id: String
     let granted: Bool
@@ -105,11 +130,36 @@ private struct DoctorResponse: Encodable {
 private struct PermissionsResponse: Encodable {
     let status: String
     let permissions: PermissionsState
+    let daemon_view: DaemonViewBlock
+    let cli_view: CLIViewBlock
     let requirements: [PermissionRequirement]
     let setup: PermissionsSetupState
     let missing_permissions: [String]
     let ready_for_testing: Bool
+    let ready_source: String
+    let disagreement: [String: DisagreementEntry]?
     let notes: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case status, permissions, daemon_view, cli_view, requirements, setup
+        case missing_permissions, ready_for_testing, ready_source
+        case disagreement, notes
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(permissions, forKey: .permissions)
+        try c.encode(daemon_view, forKey: .daemon_view)
+        try c.encode(cli_view, forKey: .cli_view)
+        try c.encode(requirements, forKey: .requirements)
+        try c.encode(setup, forKey: .setup)
+        try c.encode(missing_permissions, forKey: .missing_permissions)
+        try c.encode(ready_for_testing, forKey: .ready_for_testing)
+        try c.encode(ready_source, forKey: .ready_source)
+        try c.encodeIfPresent(disagreement, forKey: .disagreement)
+        try c.encode(notes, forKey: .notes)
+    }
 }
 
 private struct PermissionsSetupResponse: Encodable {
@@ -568,16 +618,92 @@ private func permissionsCheckCommand(args: [String], usage: String) {
         exitError("Unknown flag: \(unknown). Usage: \(usage)", code: "UNKNOWN_FLAG")
     }
 
-    let permissions = currentPermissionsState()
-    let requirements = currentPermissionRequirements(permissions: permissions)
-    let setup = currentPermissionsSetupState(permissions: permissions)
-    let missing = missingPermissionIDs(permissions)
+    let cliPermissions = currentPermissionsState()
+    let cliView = CLIViewBlock(
+        accessibility: cliPermissions.accessibility,
+        screen_recording: cliPermissions.screen_recording,
+        listen_access: preflightListenEventAccess(),
+        post_access: preflightPostEventAccess()
+    )
+
+    let mode = aosCurrentRuntimeMode()
+    let daemonView: DaemonViewBlock
+    var daemonHealth: DaemonHealthView? = nil
+    if let response = sendEnvelopeRequest(
+        service: "system",
+        action: "ping",
+        data: [:],
+        socketPath: aosSocketPath(for: mode),
+        timeoutMs: 250
+    ), let view = parseDaemonHealthView(from: response) {
+        daemonHealth = view
+        daemonView = DaemonViewBlock(
+            reachable: true,
+            accessibility: view.permissions.accessibility,
+            input_tap: PermissionsInputTapBlock(
+                status: view.inputTap.status,
+                attempts: view.inputTap.attempts,
+                listen_access: view.inputTap.listenAccess,
+                post_access: view.inputTap.postAccess
+            )
+        )
+    } else {
+        daemonView = DaemonViewBlock(reachable: false, accessibility: nil, input_tap: nil)
+    }
+
+    let setup = currentPermissionsSetupState(permissions: cliPermissions)
+
+    var requirements = currentPermissionRequirements(permissions: cliPermissions)
+    requirements.append(PermissionRequirement(
+        id: "listen_access",
+        granted: daemonHealth?.inputTap.listenAccess ?? cliView.listen_access,
+        required_for: ["global input tap", "perception"],
+        setup_trigger: "Input Monitoring TCC grant"
+    ))
+    requirements.append(PermissionRequirement(
+        id: "post_access",
+        granted: daemonHealth?.inputTap.postAccess ?? cliView.post_access,
+        required_for: ["synthetic events (aos do click/type)"],
+        setup_trigger: "Input Monitoring TCC grant"
+    ))
+
+    let readyForTesting: Bool
+    let readySource: String
+    if let view = daemonHealth {
+        readyForTesting = view.permissions.accessibility
+            && view.inputTap.status == "active"
+            && setup.setup_completed
+        readySource = "daemon"
+    } else {
+        readyForTesting = cliPermissions.accessibility
+            && cliPermissions.screen_recording
+            && setup.setup_completed
+        readySource = "cli"
+    }
+
+    let missing = missingPermissionIDsFor(
+        daemon: daemonHealth,
+        cli: cliView
+    )
+
+    var disagreement: [String: DisagreementEntry] = [:]
+    if let view = daemonHealth {
+        if view.permissions.accessibility != cliView.accessibility {
+            disagreement["accessibility"] = DisagreementEntry(cli: cliView.accessibility, daemon: view.permissions.accessibility)
+        }
+        if view.inputTap.listenAccess != cliView.listen_access {
+            disagreement["listen_access"] = DisagreementEntry(cli: cliView.listen_access, daemon: view.inputTap.listenAccess)
+        }
+        if view.inputTap.postAccess != cliView.post_access {
+            disagreement["post_access"] = DisagreementEntry(cli: cliView.post_access, daemon: view.inputTap.postAccess)
+        }
+    }
 
     var notes: [String] = []
-    if !permissions.accessibility {
-        notes.append("Accessibility permission is not granted.")
+    if !cliPermissions.accessibility {
+        notes.append("Accessibility permission is not granted (CLI view).")
     }
-    if !permissions.screen_recording {
+    if !cliPermissions.screen_recording {
         notes.append("Screen Recording permission is not granted.")
     }
     if !setup.marker_exists {
@@ -588,17 +714,49 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     if let command = setup.recommended_command {
         notes.append("Run '\(command)' before interactive testing.")
     }
+    if daemonHealth == nil {
+        notes.append("Daemon unreachable; readiness computed from CLI preflights only.")
+    } else if let view = daemonHealth, view.inputTap.status != "active" {
+        notes.append(inputTapRecoveryGuidance(
+            context: .default,
+            status: view.inputTap.status,
+            attempts: view.inputTap.attempts
+        ))
+        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+            notes.append(inputMonitoringSubGuidance(
+                listenAccess: view.inputTap.listenAccess,
+                postAccess: view.inputTap.postAccess,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
+            ))
+        }
+    }
 
     let response = PermissionsResponse(
         status: notes.isEmpty ? "ok" : "degraded",
-        permissions: permissions,
+        permissions: cliPermissions,
+        daemon_view: daemonView,
+        cli_view: cliView,
         requirements: requirements,
         setup: setup,
         missing_permissions: missing,
-        ready_for_testing: missing.isEmpty && setup.setup_completed,
+        ready_for_testing: readyForTesting,
+        ready_source: readySource,
+        disagreement: disagreement.isEmpty ? nil : disagreement,
         notes: notes
     )
     print(jsonString(response))
+}
+
+private func missingPermissionIDsFor(daemon: DaemonHealthView?, cli: CLIViewBlock) -> [String] {
+    var missing: [String] = []
+    let accessibility = daemon?.permissions.accessibility ?? cli.accessibility
+    let listen = daemon?.inputTap.listenAccess ?? cli.listen_access
+    let post = daemon?.inputTap.postAccess ?? cli.post_access
+    if !accessibility { missing.append("accessibility") }
+    if !cli.screen_recording { missing.append("screen_recording") }
+    if !listen { missing.append("listen_access") }
+    if !post { missing.append("post_access") }
+    return missing
 }
 
 private func currentRuntimeState() -> RuntimeState {
@@ -842,6 +1000,20 @@ private func repoArtifactList() -> [String] {
 private func preflightScreenRecordingAccess() -> Bool {
     if #available(macOS 10.15, *) {
         return CGPreflightScreenCaptureAccess()
+    }
+    return true
+}
+
+private func preflightListenEventAccess() -> Bool {
+    if #available(macOS 10.15, *) {
+        return CGPreflightListenEventAccess()
+    }
+    return true
+}
+
+private func preflightPostEventAccess() -> Bool {
+    if #available(macOS 10.15, *) {
+        return CGPreflightPostEventAccess()
     }
     return true
 }
