@@ -514,6 +514,47 @@ Consumers should assume:
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
 
+## Daemon-aware readiness
+
+The daemon's `system.ping` response carries a structured `input_tap` block
+and a `permissions` block sourced from inside the daemon process. Because
+the launchd-managed daemon is a different process from the CLI, its TCC
+grants can diverge from the CLI's. The fields below are the canonical view
+when judging whether the daemon can actually observe and inject input.
+
+```json
+"input_tap": {
+  "status": "active",        // active | retrying | unavailable
+  "attempts": 1,
+  "listen_access": true,     // CGPreflightListenEventAccess() in daemon
+  "post_access": true,       // CGPreflightPostEventAccess() in daemon
+  "last_error_at": null      // ISO-8601 of most recent CGEventTap failure
+},
+"permissions": {
+  "accessibility": true      // AXIsProcessTrusted() in daemon
+}
+```
+
+Consumers:
+- `aos permissions check --json` exposes `daemon_view`, `cli_view`,
+  `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
+  from the daemon view when reachable and from the CLI view as fallback.
+- `aos status --json` exposes `runtime.input_tap` (full block) plus the
+  legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
+- `aos status` text mode includes `tap=<status>` in the one-line summary.
+- `aos doctor --json` exposes top-level `ready_for_testing` and
+  `ready_source`.
+- `aos service install`, `start`, and `restart` block-and-poll for up to 5s
+  after launchctl kickstart and exit non-zero with `reason: "input_tap_not_active"`
+  or `"socket_unreachable"` when the daemon is not fully ready.
+- `aos do click/type/...` preflight exits with `INPUT_TAP_NOT_ACTIVE` when
+  the daemon is reachable but its tap is inactive.
+
+Test entry point: `aos service _verify-readiness [--json] [--budget-ms N]`
+runs the readiness probe against the running daemon and emits the same
+response shape `service install/start/restart` produce. Used by
+`tests/input-tap-readiness-classifier.sh`. Not advertised in user help.
+
 ## Content Server Contract
 
 Toolkit and app canvases are typically loaded through `aos://...` URLs backed by the content server.
