@@ -6,6 +6,13 @@ private func serviceLabel(for mode: AOSRuntimeMode) -> String {
     aosServiceLabel(for: mode)
 }
 
+private struct ServiceInputTapBlock: Encodable {
+    let status: String
+    let attempts: Int
+    let listen_access: Bool
+    let post_access: Bool
+}
+
 private struct ServiceStatusResponse: Encodable {
     let status: String
     let mode: String
@@ -19,7 +26,38 @@ private struct ServiceStatusResponse: Encodable {
     let expected_log_path: String
     let plist_path: String
     let state_dir: String
+    let reason: String?
+    let input_tap: ServiceInputTapBlock?
+    let recovery: [String]?
     let notes: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case status, mode, installed, running, pid, launchd_label
+        case actual_binary_path, expected_binary_path
+        case actual_log_path, expected_log_path
+        case plist_path, state_dir
+        case reason, input_tap, recovery, notes
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(installed, forKey: .installed)
+        try c.encode(running, forKey: .running)
+        try c.encodeIfPresent(pid, forKey: .pid)
+        try c.encode(launchd_label, forKey: .launchd_label)
+        try c.encodeIfPresent(actual_binary_path, forKey: .actual_binary_path)
+        try c.encode(expected_binary_path, forKey: .expected_binary_path)
+        try c.encodeIfPresent(actual_log_path, forKey: .actual_log_path)
+        try c.encode(expected_log_path, forKey: .expected_log_path)
+        try c.encode(plist_path, forKey: .plist_path)
+        try c.encode(state_dir, forKey: .state_dir)
+        try c.encodeIfPresent(reason, forKey: .reason)
+        try c.encodeIfPresent(input_tap, forKey: .input_tap)
+        try c.encodeIfPresent(recovery, forKey: .recovery)
+        try c.encode(notes, forKey: .notes)
+    }
 }
 
 func serviceCommand(args: [String]) {
@@ -52,6 +90,10 @@ func serviceCommand(args: [String]) {
         emitAOSServiceStatus(asJSON: options.asJSON, mode: options.mode)
     case "logs":
         serviceLogsCommand(args: subArgs)
+    case "_verify-readiness":
+        let options = parseServiceOptions(subArgs, usage: "aos service _verify-readiness [--mode repo|installed] [--json] [--budget-ms N]", extraFlags: ["--budget-ms"])
+        let outcome = verifyServiceReadiness(mode: options.mode, budgetMs: options.budgetMs)
+        emitReadinessAndExit(outcome: outcome, mode: options.mode, context: .default, asJSON: options.asJSON)
     default:
         exitError("Unknown service subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -217,6 +259,9 @@ private func currentAOSServiceStatus(mode: AOSRuntimeMode) -> ServiceStatusRespo
         expected_log_path: paths.stderrLogPath,
         plist_path: paths.plistPath,
         state_dir: paths.logDir,
+        reason: nil,
+        input_tap: nil,
+        recovery: nil,
         notes: notes
     )
 }
@@ -273,12 +318,14 @@ private struct ServiceCommandOptions {
     let mode: AOSRuntimeMode
     let asJSON: Bool
     let tailCount: Int
+    let budgetMs: Int
 }
 
 private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [String] = []) -> ServiceCommandOptions {
     var asJSON = false
     var mode: AOSRuntimeMode? = nil
     var tailCount = 200
+    var budgetMs = 5000
     var i = 0
 
     while i < args.count {
@@ -297,13 +344,24 @@ private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [S
                 exitError("--tail requires an integer", code: "INVALID_ARG")
             }
             tailCount = value
+        case "--budget-ms" where extraFlags.contains("--budget-ms"):
+            i += 1
+            guard i < args.count, let value = Int(args[i]), value > 0 else {
+                exitError("--budget-ms requires a positive integer", code: "INVALID_ARG")
+            }
+            budgetMs = value
         default:
             exitError("Unknown flag: \(args[i])", code: "UNKNOWN_FLAG")
         }
         i += 1
     }
 
-    return ServiceCommandOptions(mode: mode ?? aosCurrentRuntimeMode(), asJSON: asJSON, tailCount: tailCount)
+    return ServiceCommandOptions(
+        mode: mode ?? aosCurrentRuntimeMode(),
+        asJSON: asJSON,
+        tailCount: tailCount,
+        budgetMs: budgetMs
+    )
 }
 
 // MARK: - Utility
@@ -320,4 +378,129 @@ private func plistValue(_ plistPath: String, keyPath: String) -> String? {
     guard output.exitCode == 0 else { return nil }
     let value = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     return value.isEmpty ? nil : value
+}
+
+// MARK: - Readiness Probe
+
+/// Block-and-poll the daemon socket for up to `budgetMs` milliseconds,
+/// classifying the daemon's input-tap subsystem.
+///
+/// - Returns:
+///   - `.ok(view)` when the socket is reachable and `input_tap.status == "active"`.
+///   - `.inputTapInactive(view)` when the socket is reachable but the tap is
+///     `retrying` or `unavailable` after the budget.
+///   - `.socketUnreachable` when the budget elapses without any successful ping.
+func verifyServiceReadiness(mode: AOSRuntimeMode, budgetMs: Int = 5000) -> ServiceReadinessOutcome {
+    let socketPath = aosSocketPath(for: mode)
+    let deadline = Date().addingTimeInterval(Double(budgetMs) / 1000.0)
+    let pollIntervalUs: UInt32 = 100_000  // 100 ms
+
+    var lastView: DaemonHealthView? = nil
+
+    while Date() < deadline {
+        if let response = sendEnvelopeRequest(
+            service: "system",
+            action: "ping",
+            data: [:],
+            socketPath: socketPath,
+            timeoutMs: 250
+        ), let view = parseDaemonHealthView(from: response) {
+            lastView = view
+            if view.inputTap.status == "active" {
+                return .ok(view: view)
+            }
+        }
+        usleep(pollIntervalUs)
+    }
+
+    if let view = lastView {
+        return .inputTapInactive(view: view)
+    }
+    return .socketUnreachable
+}
+
+/// Build a ServiceStatusResponse from a readiness outcome by overlaying
+/// readiness fields onto the launchd-state response.
+private func readinessResponse(
+    outcome: ServiceReadinessOutcome,
+    mode: AOSRuntimeMode,
+    context: RecoveryGuidanceContext
+) -> ServiceStatusResponse {
+    let base = currentAOSServiceStatus(mode: mode)
+    let inputTap: ServiceInputTapBlock?
+    if let view = outcome.view {
+        inputTap = ServiceInputTapBlock(
+            status: view.inputTap.status,
+            attempts: view.inputTap.attempts,
+            listen_access: view.inputTap.listenAccess,
+            post_access: view.inputTap.postAccess
+        )
+    } else {
+        inputTap = nil
+    }
+
+    var notes = base.notes
+    if case .inputTapInactive(let view) = outcome {
+        notes.append(inputTapRecoveryGuidance(
+            context: context,
+            status: view.inputTap.status,
+            attempts: view.inputTap.attempts
+        ))
+        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+            notes.append(inputMonitoringSubGuidance(
+                listenAccess: view.inputTap.listenAccess,
+                postAccess: view.inputTap.postAccess,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
+            ))
+        }
+    } else if case .socketUnreachable = outcome {
+        notes.append("Daemon socket was not reachable within the readiness budget.")
+    }
+
+    let recovery: [String]?
+    if case .inputTapInactive = outcome {
+        recovery = inputTapRecoveryCommands(context: context)
+    } else {
+        recovery = nil
+    }
+
+    return ServiceStatusResponse(
+        status: outcome.statusString,
+        mode: base.mode,
+        installed: base.installed,
+        running: base.running,
+        pid: base.pid,
+        launchd_label: base.launchd_label,
+        actual_binary_path: base.actual_binary_path,
+        expected_binary_path: base.expected_binary_path,
+        actual_log_path: base.actual_log_path,
+        expected_log_path: base.expected_log_path,
+        plist_path: base.plist_path,
+        state_dir: base.state_dir,
+        reason: outcome.reason,
+        input_tap: inputTap,
+        recovery: recovery,
+        notes: notes
+    )
+}
+
+private func emitReadinessAndExit(
+    outcome: ServiceReadinessOutcome,
+    mode: AOSRuntimeMode,
+    context: RecoveryGuidanceContext,
+    asJSON: Bool
+) -> Never {
+    let response = readinessResponse(outcome: outcome, mode: mode, context: context)
+    if asJSON {
+        print(jsonString(response))
+    } else {
+        print("mode=\(response.mode) installed=\(response.installed) running=\(response.running) pid=\(response.pid?.description ?? "none") label=\(response.launchd_label) status=\(response.status)\(response.reason.map { " reason=\($0)" } ?? "")")
+        if let tap = response.input_tap {
+            print("input_tap status=\(tap.status) attempts=\(tap.attempts) listen=\(tap.listen_access) post=\(tap.post_access)")
+        }
+        for note in response.notes where !note.isEmpty {
+            print(note)
+        }
+    }
+    exit(Int32(outcome.exitCode))
 }

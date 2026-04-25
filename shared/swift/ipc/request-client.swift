@@ -85,12 +85,15 @@ class DaemonSession {
             fputs("ipc: failed to launch service start: \(error)\n", stderr)
             return false
         }
-        guard proc.terminationStatus == 0 else {
+        // service start exits non-zero when the input tap is not active even
+        // though the socket is reachable; non-input commands should still
+        // auto-start successfully. Forward stderr for diagnostics, but let the
+        // socket poll below be the arbiter of success.
+        if proc.terminationStatus != 0 {
             let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()
             if let text = String(data: data, encoding: .utf8), !text.isEmpty {
-                fputs("ipc: service start failed: \(text)", stderr)
+                fputs("ipc: service start exited \(proc.terminationStatus): \(text)", stderr)
             }
-            return false
         }
         return true
     }
