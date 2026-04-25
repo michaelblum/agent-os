@@ -1524,6 +1524,14 @@ class UnifiedDaemon {
             let mode = aosCurrentRuntimeMode()
             let pid = Int(getpid())
             let startedAt = ISO8601DateFormatter().string(from: startTime)
+
+            let lastErrorAt: Any
+            if let date = perception.inputTapLastErrorAt {
+                lastErrorAt = ISO8601DateFormatter().string(from: date)
+            } else {
+                lastErrorAt = NSNull()
+            }
+
             var response: [String: Any] = [
                 "status": "ok",
                 "uptime": uptime,
@@ -1533,8 +1541,21 @@ class UnifiedDaemon {
                 "started_at": startedAt,
                 "perception_channels": perceptionChannels,
                 "subscribers": subscriberCount,
+                // Legacy flat fields preserved
                 "input_tap_status": perception.inputTapStatus,
                 "input_tap_attempts": perception.inputTapAttempts,
+                // New nested input_tap block
+                "input_tap": [
+                    "status": perception.inputTapStatus,
+                    "attempts": perception.inputTapAttempts,
+                    "listen_access": perception.inputTapListenAccess,
+                    "post_access": perception.inputTapPostAccess,
+                    "last_error_at": lastErrorAt,
+                ] as [String: Any],
+                // New nested permissions block (daemon-sourced)
+                "permissions": [
+                    "accessibility": perception.daemonAccessibilityGranted,
+                ] as [String: Any],
             ]
             if let lockOwnerPID = aosDaemonLockOwnerPID(for: mode) {
                 response["lock_owner_pid"] = lockOwnerPID

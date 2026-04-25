@@ -36,6 +36,7 @@ class PerceptionEngine {
     private var eventTap: CFMachPort?
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
+    private var lastEventTapErrorAt: Date?
 
     var inputTapStatus: String {
         if eventTap != nil { return "active" }
@@ -45,6 +46,28 @@ class PerceptionEngine {
 
     var inputTapAttempts: Int {
         eventTapStartAttempts
+    }
+
+    var inputTapLastErrorAt: Date? {
+        lastEventTapErrorAt
+    }
+
+    var inputTapListenAccess: Bool {
+        if #available(macOS 10.15, *) {
+            return CGPreflightListenEventAccess()
+        }
+        return true
+    }
+
+    var inputTapPostAccess: Bool {
+        if #available(macOS 10.15, *) {
+            return CGPreflightPostEventAccess()
+        }
+        return true
+    }
+
+    var daemonAccessibilityGranted: Bool {
+        AXIsProcessTrusted()
     }
 
     init(config: AosConfig) {
@@ -139,6 +162,7 @@ class PerceptionEngine {
     }
 
     private func logEventTapFailure() {
+        lastEventTapErrorAt = Date()
         let ax = AXIsProcessTrusted()
         if #available(macOS 10.15, *) {
             let listen = CGPreflightListenEventAccess()

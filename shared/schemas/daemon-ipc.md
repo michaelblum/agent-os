@@ -106,6 +106,14 @@ the response may include:
 - `lock_owner_pid` — pid recorded in `daemon.lock` for the current mode
 - `input_tap_status` — `active`, `retrying`, or `unavailable`
 - `input_tap_attempts` — startup attempt count for the global input tap
+- `input_tap` (object) — daemon-sourced structured view of the global input tap. Always present.
+  - `status` — `active`, `retrying`, or `unavailable`. Mirrors the flat `input_tap_status` field.
+  - `attempts` — startup attempt count. Mirrors the flat `input_tap_attempts` field.
+  - `listen_access` (bool) — `CGPreflightListenEventAccess()` evaluated **inside the daemon process**. The CLI must not fabricate this from its own preflight.
+  - `post_access` (bool) — `CGPreflightPostEventAccess()` evaluated inside the daemon.
+  - `last_error_at` (string|null) — ISO 8601 timestamp of the most recent `CGEventTap` failure. `null` when no failure has occurred since daemon start.
+- `permissions` (object) — daemon-sourced TCC view. Always present.
+  - `accessibility` (bool) — `AXIsProcessTrusted()` evaluated inside the daemon.
 
 These fields are additive and intended for operator surfaces such as `status`,
 `doctor`, and startup hooks that need to distinguish a healthy current daemon
