@@ -522,6 +522,32 @@ func ensureInteractivePreflight(command: String) {
             code: "PERMISSIONS_SETUP_REQUIRED"
         )
     }
+
+    // If the daemon is reachable, gate on its tap state. An "active" tap is
+    // the only signal that input commands will actually work.
+    let mode = aosCurrentRuntimeMode()
+    if let response = sendEnvelopeRequest(
+        service: "system",
+        action: "ping",
+        data: [:],
+        socketPath: aosSocketPath(for: mode),
+        timeoutMs: 250
+    ), let view = parseDaemonHealthView(from: response), view.inputTap.status != "active" {
+        let guidance = inputTapRecoveryGuidance(
+            context: .default,
+            status: view.inputTap.status,
+            attempts: view.inputTap.attempts
+        )
+        var message = "\(command) requires an active input tap, but the daemon reports input_tap.status=\(view.inputTap.status). \(guidance)"
+        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+            message += "\n" + inputMonitoringSubGuidance(
+                listenAccess: view.inputTap.listenAccess,
+                postAccess: view.inputTap.postAccess,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
+            )
+        }
+        exitError(message, code: "INPUT_TAP_NOT_ACTIVE")
+    }
 }
 
 func showExistsCommand(args: [String]) {

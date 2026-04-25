@@ -12,6 +12,21 @@ export AOS_STATE_ROOT="$STATE_ROOT"
 SOCK="$STATE_ROOT/repo/sock"
 mkdir -p "$(dirname "$SOCK")"
 
+# Seed the permissions onboarding marker so the do-family preflight clears the
+# PERMISSIONS_SETUP_REQUIRED guard and reaches the daemon-input_tap gate. The
+# marker's bundle_path must match Bundle.main.bundlePath for ./aos at runtime,
+# which for a CLI is the directory containing the executable (the repo root).
+cat >"$STATE_ROOT/repo/permissions-onboarding.json" <<EOF
+{
+  "bundle_path": "$ROOT",
+  "completed_at": "2026-04-24T00:00:00Z",
+  "permissions": {
+    "accessibility": true,
+    "screen_recording": true
+  }
+}
+EOF
+
 cleanup() {
   if [[ -n "${MOCK_PID:-}" ]] && kill -0 "$MOCK_PID" 2>/dev/null; then
     kill "$MOCK_PID" 2>/dev/null || true
@@ -88,6 +103,20 @@ OUT_TEXT="$(./aos status 2>&1 | head -1)"
 case "$OUT_TEXT" in
   *"tap=retrying"*) echo "PASS: status text one-liner" ;;
   *) echo "FAIL: status text one-liner missing tap=retrying: $OUT_TEXT"; exit 1 ;;
+esac
+
+# do click should fail at the preflight gate with INPUT_TAP_NOT_ACTIVE.
+set +e
+DO_OUT="$(./aos do click 500,300 2>&1)"
+DO_RC=$?
+set -e
+if [ "$DO_RC" -eq 0 ]; then
+  echo "FAIL: do click unexpectedly exited 0 against degraded tap: $DO_OUT"
+  exit 1
+fi
+case "$DO_OUT" in
+  *INPUT_TAP_NOT_ACTIVE*) echo "PASS: do click exits with INPUT_TAP_NOT_ACTIVE" ;;
+  *) echo "FAIL: do click error code missing INPUT_TAP_NOT_ACTIVE: $DO_OUT (rc=$DO_RC)"; exit 1 ;;
 esac
 
 echo "PASS"

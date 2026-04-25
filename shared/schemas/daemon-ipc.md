@@ -76,6 +76,7 @@ Error response:
 | `VOICE_NOT_ALLOCATABLE` | `voice.bind` target exists and is speakable, but policy or availability blocks selection. |
 | `CANVAS_NOT_FOUND` | Referenced canvas `id` does not exist. |
 | `PERMISSION_DENIED` | macOS permission (Accessibility, Screen Recording) missing. |
+| `INPUT_TAP_NOT_ACTIVE` | Daemon is reachable but its global input tap is not active. Emitted by `do`-family preflight when the daemon's `system.ping` reports `input_tap.status != "active"`, and surfaced as `reason` in service install/start/restart responses when the tap-inactive branch is hit. |
 | `INTERNAL` | Unexpected daemon error. |
 
 ## Voice Payload Shapes
