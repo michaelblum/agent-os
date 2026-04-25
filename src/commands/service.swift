@@ -487,8 +487,13 @@ private func readinessResponse(
         recovery = nil
     }
 
+    // An .ok readiness outcome confirms tap state but must not upgrade a
+    // base launchd-degraded status (e.g., plist binary mismatch). Only
+    // override toward "degraded".
+    let mergedStatus = outcome.statusString == "ok" ? base.status : outcome.statusString
+
     return ServiceStatusResponse(
-        status: outcome.statusString,
+        status: mergedStatus,
         mode: base.mode,
         installed: base.installed,
         running: base.running,
