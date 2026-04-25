@@ -8,11 +8,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; AOS_SESSION_HARNESS=claude-code bash \"$ROOT/.agents/hooks/session-start.sh\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
             "command": "ROOT=\"${AOS_HOOK_REPO_ROOT:-/Users/Michael/Code/agent-os}\"; bash \"$ROOT/.agents/hooks/git-health.sh\"",
             "timeout": 10
           }

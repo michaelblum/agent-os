@@ -8,23 +8,25 @@ python3 - "$ROOT/.codex/hooks.json" "$ROOT/.claude/settings.json" <<'PY'
 import json
 import sys
 
-def flatten_commands(payload):
+def flatten_commands(payload, hook_name):
     hooks = payload.get("hooks", {})
     commands = []
-    for key in ("SessionStart", "Stop"):
-        for matcher in hooks.get(key, []):
-            for hook in matcher.get("hooks", []):
-                commands.append((key, hook.get("command", "")))
+    for matcher in hooks.get(hook_name, []):
+        for hook in matcher.get("hooks", []):
+            commands.append(hook.get("command", ""))
     return hooks, commands
 
 def assert_hooks(label, path):
     payload = json.load(open(path))
-    _, commands = flatten_commands(payload)
-    command_strings = [command for _, command in commands]
-    required = ["session-start.sh", "git-health.sh", "final-response.sh"]
-    for needle in required:
-        if not any(needle in command for command in command_strings):
-            raise SystemExit(f"FAIL: {label} missing required hook command containing {needle!r}: {command_strings}")
+    _, session_start = flatten_commands(payload, "SessionStart")
+    _, stop_hooks = flatten_commands(payload, "Stop")
+
+    if not any("git-health.sh" in command for command in session_start):
+        raise SystemExit(f"FAIL: {label} missing SessionStart git-health hook: {session_start}")
+    if any("session-start.sh" in command for command in session_start):
+        raise SystemExit(f"FAIL: {label} SessionStart should not invoke session-start.sh: {session_start}")
+    if not any("final-response.sh" in command for command in stop_hooks):
+        raise SystemExit(f"FAIL: {label} missing Stop final-response hook: {stop_hooks}")
 
 assert_hooks("codex", sys.argv[1])
 assert_hooks("claude", sys.argv[2])
