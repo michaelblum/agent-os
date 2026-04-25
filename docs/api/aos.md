@@ -555,6 +555,49 @@ runs the readiness probe against the running daemon and emits the same
 response shape `service install/start/restart` produce. Used by
 `tests/input-tap-readiness-classifier.sh`. Not advertised in user help.
 
+Example readiness response (`service _verify-readiness --json` against a
+mock daemon reporting `tap=retrying`):
+
+```json
+{
+  "status": "degraded",
+  "mode": "repo",
+  "installed": true,
+  "running": true,
+  "pid": 12345,
+  "launchd_label": "com.agent-os.aos.repo",
+  "expected_binary_path": "/Users/.../aos",
+  "plist_path": "/Users/.../Library/LaunchAgents/com.agent-os.aos.repo.plist",
+  "state_dir": "/Users/.../.config/aos/repo",
+  "reason": "input_tap_not_active",
+  "input_tap": {
+    "status": "retrying",
+    "attempts": 3,
+    "listen_access": false,
+    "post_access": false
+  },
+  "recovery": [
+    "./aos service restart",
+    "./aos permissions setup --once",
+    "./aos serve --idle-timeout none"
+  ],
+  "notes": [
+    "Input tap is not active (status=retrying, attempts=3). Try: ..."
+  ]
+}
+```
+
+When the readiness probe outcome is `.ok`, the `reason`, `recovery`, and
+`input_tap.last_error_at` fields are absent (omitted from JSON via
+`encodeIfPresent`). The top-level `status` may still be `"degraded"` if
+the launchd-derived base state has unrelated divergences (e.g., plist
+binary path mismatch); discriminate `.ok` outcomes by absence of `reason`
+plus `input_tap.status == "active"`.
+
+**See also:**
+- [`shared/schemas/daemon-ipc.md`](../../shared/schemas/daemon-ipc.md) for the canonical `system.ping` payload schema.
+- [`shared/schemas/CONTRACT-GOVERNANCE.md`](../../shared/schemas/CONTRACT-GOVERNANCE.md) for the contract rules these consumers follow.
+
 ## Content Server Contract
 
 Toolkit and app canvases are typically loaded through `aos://...` URLs backed by the content server.

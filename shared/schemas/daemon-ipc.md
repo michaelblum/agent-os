@@ -1,5 +1,8 @@
 # Daemon IPC v1 — Reference
 
+> **See also:** [`CONTRACT-GOVERNANCE.md`](./CONTRACT-GOVERNANCE.md) for the
+> rules governing daemon ↔ CLI capability contracts.
+
 Wire contract between the `aos` CLI (and future SDK/MCP adapter) and the unified daemon. Canonical source: `shared/schemas/daemon-request.schema.json` and `shared/schemas/daemon-response.schema.json`. Design rationale: `docs/superpowers/specs/2026-04-17-daemon-ipc-request-schema-v1-design.md`.
 
 ## Transport
