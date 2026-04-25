@@ -17,6 +17,14 @@ should follow it.
    make the source explicit (e.g. `ready_source: "cli"` vs `"daemon"`). No
    silent merging of daemon-evaluated and CLI-evaluated views.
 
+   When the daemon IS reachable but its view and the CLI's view disagree on
+   a comparable field (e.g. CLI sees `accessibility=true` but the daemon
+   says `false` because TCC was granted to the CLI binary but not the
+   daemon binary), expose **both** views and a `disagreement` marker
+   listing the diverging fields. Don't pick one silently. The
+   `aos permissions check` response (`daemon_view`/`cli_view`/`disagreement`)
+   is the canonical pattern.
+
 3. **Lifecycle commands that claim readiness must fail on degraded
    daemon-owned capability state.** `aos service install/start/restart` and
    any future "make it ready" lifecycle verb cannot exit 0 when a
@@ -41,8 +49,11 @@ should follow it.
 
 ## Out of scope (intentionally)
 
-- CODEOWNERS for `shared/schemas/`
-- Snapshot-pinned compatibility tests
-- Schema versioning automation
-
-These can be revisited if the contract starts drifting again.
+- **CODEOWNERS for `shared/schemas/`** — revisit if a schema change lands
+  without review from someone familiar with the contract (signal: a breaking
+  field rename or removal slips through).
+- **Snapshot-pinned compatibility tests** — revisit if a regression escapes
+  the integration tests because the JSON shape changed silently.
+- **Schema versioning automation** — revisit if the canonical schema files
+  drift out of sync with their consumers (signal: a Swift struct gains a
+  field that `daemon-ipc.md` doesn't mention).

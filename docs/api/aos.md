@@ -567,6 +567,7 @@ mock daemon reporting `tap=retrying`):
   "pid": 12345,
   "launchd_label": "com.agent-os.aos.repo",
   "expected_binary_path": "/Users/.../aos",
+  "actual_binary_path": "/Users/.../aos",
   "plist_path": "/Users/.../Library/LaunchAgents/com.agent-os.aos.repo.plist",
   "state_dir": "/Users/.../.config/aos/repo",
   "reason": "input_tap_not_active",
