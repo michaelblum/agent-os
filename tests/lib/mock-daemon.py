@@ -27,7 +27,7 @@ def parse_bool(value: str) -> bool:
 
 
 def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "status": "ok",
         "uptime": 1.0,
         "pid": os.getpid(),
@@ -36,19 +36,24 @@ def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
         "started_at": "2026-04-24T00:00:00Z",
         "perception_channels": 0,
         "subscribers": 0,
+        # Legacy flat fields. A pre-input-tap-readiness-contract daemon emitted
+        # only these — newer daemons emit them alongside the structured blocks
+        # for compatibility (CONTRACT-GOVERNANCE rule 4).
         "input_tap_status": args.tap_status,
         "input_tap_attempts": args.attempts,
-        "input_tap": {
+    }
+    if not args.legacy:
+        payload["input_tap"] = {
             "status": args.tap_status,
             "attempts": args.attempts,
             "listen_access": parse_bool(args.listen_access),
             "post_access": parse_bool(args.post_access),
             "last_error_at": None if args.tap_status == "active" else "2026-04-24T00:00:00Z",
-        },
-        "permissions": {
+        }
+        payload["permissions"] = {
             "accessibility": parse_bool(args.accessibility),
-        },
-    }
+        }
+    return payload
 
 
 def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
@@ -108,6 +113,10 @@ def main() -> None:
     parser.add_argument("--listen-access", default="true")
     parser.add_argument("--post-access", default="true")
     parser.add_argument("--accessibility", default="true")
+    parser.add_argument("--legacy", action="store_true",
+                        help="Emit only legacy flat fields; omit the structured "
+                             "input_tap/permissions blocks (simulates a "
+                             "pre-readiness-contract daemon binary).")
     args = parser.parse_args()
 
     if os.path.exists(args.socket):
