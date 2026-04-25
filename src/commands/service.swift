@@ -9,8 +9,23 @@ private func serviceLabel(for mode: AOSRuntimeMode) -> String {
 private struct ServiceInputTapBlock: Encodable {
     let status: String
     let attempts: Int
-    let listen_access: Bool
-    let post_access: Bool
+    // Optional: a legacy daemon (lacking the structured `input_tap` block)
+    // doesn't expose these. Emitted with `encodeIfPresent` so consumers see
+    // the field absent rather than a fabricated `false`.
+    let listen_access: Bool?
+    let post_access: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case status, attempts, listen_access, post_access
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(listen_access, forKey: .listen_access)
+        try c.encodeIfPresent(post_access, forKey: .post_access)
+    }
 }
 
 private struct ServiceStatusResponse: Encodable {
@@ -469,7 +484,7 @@ private func readinessResponse(
             status: view.inputTap.status,
             attempts: view.inputTap.attempts
         ))
-        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+        if view.inputTap.listenAccess == false || view.inputTap.postAccess == false {
             notes.append(inputMonitoringSubGuidance(
                 listenAccess: view.inputTap.listenAccess,
                 postAccess: view.inputTap.postAccess,
@@ -524,7 +539,9 @@ private func emitReadinessAndExit(
     } else {
         print("mode=\(response.mode) installed=\(response.installed) running=\(response.running) pid=\(response.pid?.description ?? "none") label=\(response.launchd_label) status=\(response.status)\(response.reason.map { " reason=\($0)" } ?? "")")
         if let tap = response.input_tap {
-            print("input_tap status=\(tap.status) attempts=\(tap.attempts) listen=\(tap.listen_access) post=\(tap.post_access)")
+            let listen = tap.listen_access.map { $0 ? "true" : "false" } ?? "unknown"
+            let post = tap.post_access.map { $0 ? "true" : "false" } ?? "unknown"
+            print("input_tap status=\(tap.status) attempts=\(tap.attempts) listen=\(listen) post=\(post)")
         }
         for note in response.notes where !note.isEmpty {
             print(note)

@@ -21,8 +21,23 @@ private struct DaemonViewBlock: Encodable {
 private struct PermissionsInputTapBlock: Encodable {
     let status: String
     let attempts: Int
-    let listen_access: Bool
-    let post_access: Bool
+    // Optional: a legacy daemon (lacking the structured `input_tap` block)
+    // doesn't expose these. Emit with encodeIfPresent so consumers can detect
+    // "unknown" rather than reading a fabricated `false`.
+    let listen_access: Bool?
+    let post_access: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case status, attempts, listen_access, post_access
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(listen_access, forKey: .listen_access)
+        try c.encodeIfPresent(post_access, forKey: .post_access)
+    }
 }
 
 private struct CLIViewBlock: Encodable {
@@ -58,9 +73,25 @@ private struct PermissionsSetupState: Encodable {
 private struct RuntimeInputTapBlock: Encodable {
     let status: String
     let attempts: Int
-    let listen_access: Bool
-    let post_access: Bool
+    // Optional: a legacy daemon (lacking the structured `input_tap` block)
+    // doesn't expose these. Emit with encodeIfPresent so consumers see "field
+    // absent" rather than a fabricated `false`.
+    let listen_access: Bool?
+    let post_access: Bool?
     let last_error_at: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case status, attempts, listen_access, post_access, last_error_at
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(listen_access, forKey: .listen_access)
+        try c.encodeIfPresent(post_access, forKey: .post_access)
+        try c.encodeIfPresent(last_error_at, forKey: .last_error_at)
+    }
 }
 
 private struct RuntimeState: Encodable {
@@ -266,7 +297,7 @@ func statusCommand(args: [String]) {
             status: tap.status,
             attempts: tap.attempts
         ))
-        if !tap.listen_access || !tap.post_access {
+        if tap.listen_access == false || tap.post_access == false {
             notes.append(inputMonitoringSubGuidance(
                 listenAccess: tap.listen_access,
                 postAccess: tap.post_access,
@@ -417,18 +448,12 @@ func doctorCommand(args: [String]) {
         notes.append("Repo build artifacts are still present: \(runtime.repo_artifacts.joined(separator: ", ")).")
     }
 
-    let readyForTesting: Bool
-    let readySource: String
-    if runtime.socket_reachable, let tap = runtime.input_tap, let daemonAcc = daemonHealth?.daemonAccessibility {
-        // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
-        // (the daemon doesn't track it). Including it here keeps ready_for_testing
-        // consistent with consumers that look at permissions.screen_recording.
-        readyForTesting = daemonAcc && tap.status == "active" && permissions.screen_recording && permissionsSetup.setup_completed
-        readySource = "daemon"
-    } else {
-        readyForTesting = permissions.accessibility && permissions.screen_recording && permissionsSetup.setup_completed
-        readySource = "cli"
-    }
+    let evaluation = evaluateReadyForTesting(
+        daemon: daemonHealth?.asView,
+        cliAccessibility: permissions.accessibility,
+        cliScreenRecording: permissions.screen_recording,
+        setupCompleted: permissionsSetup.setup_completed
+    )
 
     if runtime.socket_reachable, let tap = runtime.input_tap, tap.status != "active" {
         notes.append(inputTapRecoveryGuidance(
@@ -436,7 +461,7 @@ func doctorCommand(args: [String]) {
             status: tap.status,
             attempts: tap.attempts
         ))
-        if !tap.listen_access || !tap.post_access {
+        if tap.listen_access == false || tap.post_access == false {
             notes.append(inputMonitoringSubGuidance(
                 listenAccess: tap.listen_access,
                 postAccess: tap.post_access,
@@ -470,8 +495,8 @@ func doctorCommand(args: [String]) {
         permissions_setup: permissionsSetup,
         runtime: runtime,
         aos_service: aosService,
-        ready_for_testing: readyForTesting,
-        ready_source: readySource,
+        ready_for_testing: evaluation.readyForTesting,
+        ready_source: evaluation.readySource,
         notes: notes
     )
     print(jsonString(response))
@@ -540,7 +565,7 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
             attempts: view.inputTap.attempts
         )
         var message = "\(command) requires an active input tap, but the daemon reports input_tap.status=\(view.inputTap.status). \(guidance)"
-        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+        if view.inputTap.listenAccess == false || view.inputTap.postAccess == false {
             message += "\n" + inputMonitoringSubGuidance(
                 listenAccess: view.inputTap.listenAccess,
                 postAccess: view.inputTap.postAccess,
@@ -765,39 +790,32 @@ private func permissionsCheckCommand(args: [String], usage: String) {
         setup_trigger: "Input Monitoring TCC grant"
     ))
 
-    let readyForTesting: Bool
-    let readySource: String
-    if let view = daemonHealth {
-        // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
-        // (the daemon doesn't track it). Including it here keeps ready_for_testing
-        // consistent with missing_permissions on the daemon-reachable path.
-        readyForTesting = view.permissions.accessibility
-            && view.inputTap.status == "active"
-            && cliPermissions.screen_recording
-            && setup.setup_completed
-        readySource = "daemon"
-    } else {
-        readyForTesting = cliPermissions.accessibility
-            && cliPermissions.screen_recording
-            && setup.setup_completed
-        readySource = "cli"
-    }
+    let evaluation = evaluateReadyForTesting(
+        daemon: daemonHealth,
+        cliAccessibility: cliPermissions.accessibility,
+        cliScreenRecording: cliPermissions.screen_recording,
+        setupCompleted: setup.setup_completed
+    )
 
     let missing = missingPermissionIDsFor(
         daemon: daemonHealth,
         cli: cliView
     )
 
+    // Disagreement only flags fields where BOTH sides have an opinion. A
+    // legacy daemon that doesn't expose a field (Bool? == nil) is treated as
+    // "no opinion", not as a divergence vs. the CLI view (CONTRACT-GOVERNANCE
+    // rule 2: "comparable field").
     var disagreement: [String: DisagreementEntry] = [:]
     if let view = daemonHealth {
-        if view.permissions.accessibility != cliView.accessibility {
-            disagreement["accessibility"] = DisagreementEntry(cli: cliView.accessibility, daemon: view.permissions.accessibility)
+        if let daemonAcc = view.permissions.accessibility, daemonAcc != cliView.accessibility {
+            disagreement["accessibility"] = DisagreementEntry(cli: cliView.accessibility, daemon: daemonAcc)
         }
-        if view.inputTap.listenAccess != cliView.listen_access {
-            disagreement["listen_access"] = DisagreementEntry(cli: cliView.listen_access, daemon: view.inputTap.listenAccess)
+        if let daemonListen = view.inputTap.listenAccess, daemonListen != cliView.listen_access {
+            disagreement["listen_access"] = DisagreementEntry(cli: cliView.listen_access, daemon: daemonListen)
         }
-        if view.inputTap.postAccess != cliView.post_access {
-            disagreement["post_access"] = DisagreementEntry(cli: cliView.post_access, daemon: view.inputTap.postAccess)
+        if let daemonPost = view.inputTap.postAccess, daemonPost != cliView.post_access {
+            disagreement["post_access"] = DisagreementEntry(cli: cliView.post_access, daemon: daemonPost)
         }
     }
 
@@ -824,7 +842,7 @@ private func permissionsCheckCommand(args: [String], usage: String) {
             status: view.inputTap.status,
             attempts: view.inputTap.attempts
         ))
-        if !view.inputTap.listenAccess || !view.inputTap.postAccess {
+        if view.inputTap.listenAccess == false || view.inputTap.postAccess == false {
             notes.append(inputMonitoringSubGuidance(
                 listenAccess: view.inputTap.listenAccess,
                 postAccess: view.inputTap.postAccess,
@@ -841,8 +859,8 @@ private func permissionsCheckCommand(args: [String], usage: String) {
         requirements: requirements,
         setup: setup,
         missing_permissions: missing,
-        ready_for_testing: readyForTesting,
-        ready_source: readySource,
+        ready_for_testing: evaluation.readyForTesting,
+        ready_source: evaluation.readySource,
         disagreement: disagreement.isEmpty ? nil : disagreement,
         notes: notes
     )
@@ -883,15 +901,14 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
     )
 
     let inputTapBlock: RuntimeInputTapBlock?
-    if let status = health?.inputTapStatus,
-       let attempts = health?.inputTapAttempts,
-       let listen = health?.inputTapListenAccess,
-       let post = health?.inputTapPostAccess {
+    if let status = health?.inputTapStatus, let attempts = health?.inputTapAttempts {
+        // listen/post may be nil when talking to a legacy daemon that doesn't
+        // expose them; preserve the unknown signal rather than coercing to false.
         inputTapBlock = RuntimeInputTapBlock(
             status: status,
             attempts: attempts,
-            listen_access: listen,
-            post_access: post,
+            listen_access: health?.inputTapListenAccess,
+            post_access: health?.inputTapPostAccess,
             last_error_at: health?.inputTapLastErrorAt
         )
     } else {
@@ -1004,17 +1021,40 @@ private func fetchDaemonHealth(socketPath: String) -> DaemonHealthState? {
         return nil
     }
     let payload = (response["data"] as? [String: Any]) ?? response
+    // parseDaemonHealthView already accepts both the structured `input_tap`
+    // block and the legacy flat `input_tap_status`/`input_tap_attempts` shape.
     let view = parseDaemonHealthView(from: response)
     return DaemonHealthState(
         servingPID: payload["pid"] as? Int,
         uptime: payload["uptime"] as? Double,
-        inputTapStatus: view?.inputTap.status ?? (payload["input_tap_status"] as? String),
-        inputTapAttempts: view?.inputTap.attempts ?? (payload["input_tap_attempts"] as? Int),
+        inputTapStatus: view?.inputTap.status,
+        inputTapAttempts: view?.inputTap.attempts,
         inputTapListenAccess: view?.inputTap.listenAccess,
         inputTapPostAccess: view?.inputTap.postAccess,
         inputTapLastErrorAt: view?.inputTap.lastErrorAt,
         daemonAccessibility: view?.permissions.accessibility
     )
+}
+
+extension DaemonHealthState {
+    /// Reconstruct the typed daemon health view from this state. Returns nil
+    /// when the minimum (status + attempts) is missing — i.e. the daemon
+    /// either was unreachable or returned a payload that the parser couldn't
+    /// classify. Listen/post/accessibility carry their unknown (nil) signal
+    /// through unchanged for the legacy-daemon case.
+    var asView: DaemonHealthView? {
+        guard let status = inputTapStatus, let attempts = inputTapAttempts else { return nil }
+        return DaemonHealthView(
+            inputTap: InputTapHealth(
+                status: status,
+                attempts: attempts,
+                listenAccess: inputTapListenAccess,
+                postAccess: inputTapPostAccess,
+                lastErrorAt: inputTapLastErrorAt
+            ),
+            permissions: DaemonPermissions(accessibility: daemonAccessibility)
+        )
+    }
 }
 
 private func currentOwnershipState(
@@ -1160,7 +1200,16 @@ private func permissionsSetupCommand(args: [String]) {
     }
 
     print("completed=\(response.completed) accessibility=\(response.permissions.accessibility) screen_recording=\(response.permissions.screen_recording)")
-    print("ready_for_testing=\(response.completed && response.missing_permissions.isEmpty && response.setup.setup_completed)")
+    // The setup command is local-only; daemon view isn't fetched here, so the
+    // helper falls through to the CLI path. Sharing the formula keeps this
+    // line in lockstep with `aos doctor` and `aos permissions check`.
+    let setupEval = evaluateReadyForTesting(
+        daemon: nil,
+        cliAccessibility: response.permissions.accessibility,
+        cliScreenRecording: response.permissions.screen_recording,
+        setupCompleted: response.setup.setup_completed
+    )
+    print("ready_for_testing=\(setupEval.readyForTesting)")
     if !response.restarted_services.isEmpty {
         print("restarted=\(response.restarted_services.joined(separator: ","))")
     }
