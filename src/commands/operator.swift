@@ -252,6 +252,90 @@ private struct StatusResponse: Encodable {
     let notes: [String]
 }
 
+private struct ReadyStartupBlock: Encodable {
+    let attempted: Bool
+    let command: String
+    let exit_code: Int32
+    let status: String
+}
+
+private struct ReadyBlocker: Encodable {
+    let kind: String
+    let id: String
+    let scope: String?
+    let message: String
+    let target_path: String?
+    let settings_url: String?
+    let blocks: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, id, scope, message, target_path, settings_url, blocks
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(id, forKey: .id)
+        try c.encodeIfPresent(scope, forKey: .scope)
+        try c.encode(message, forKey: .message)
+        try c.encodeIfPresent(target_path, forKey: .target_path)
+        try c.encodeIfPresent(settings_url, forKey: .settings_url)
+        try c.encode(blocks, forKey: .blocks)
+    }
+}
+
+private struct ReadyNextAction: Encodable {
+    let type: String
+    let label: String
+    let command: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case type, label, command
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(type, forKey: .type)
+        try c.encode(label, forKey: .label)
+        try c.encodeIfPresent(command, forKey: .command)
+    }
+}
+
+private struct ReadyActionStep: Encodable {
+    let step: String
+    let result: String
+    let detail: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case step, result, detail
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(step, forKey: .step)
+        try c.encode(result, forKey: .result)
+        try c.encodeIfPresent(detail, forKey: .detail)
+    }
+}
+
+private struct ReadyResponse: Encodable {
+    let status: String
+    let ready: Bool
+    let phase: String
+    let diagnosis: String
+    let mode: String
+    let ready_source: String
+    let startup: ReadyStartupBlock
+    let runtime: RuntimeState
+    let permissions: PermissionsState
+    let permissions_setup: PermissionsSetupState
+    let blocked_capabilities: [String]
+    let blockers: [ReadyBlocker]
+    let next_actions: [ReadyNextAction]
+    let action_trace: [ReadyActionStep]
+    let notes: [String]
+}
+
 private struct DaemonHealthState {
     let servingPID: Int?
     let uptime: Double?
@@ -264,6 +348,154 @@ private struct DaemonHealthState {
 }
 
 // MARK: - Public Commands
+
+func readyCommand(args: [String]) {
+    if args.contains("--help") || args.contains("-h") {
+        printCommandHelp(["ready"], json: args.contains("--json"))
+        exit(0)
+    }
+    guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" }) else {
+        let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" }) ?? ""
+        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair]", code: "UNKNOWN_FLAG")
+    }
+
+    let asJSON = args.contains("--json")
+    let repair = args.contains("--repair")
+    let mode = aosCurrentRuntimeMode()
+    let prefix = aosInvocationDisplayName()
+    let serviceArgs = ["service", "start", "--mode", mode.rawValue, "--json"]
+    let startupResult = runProcess(aosExecutablePath(), arguments: serviceArgs)
+    let startup = ReadyStartupBlock(
+        attempted: true,
+        command: "\(prefix) \(serviceArgs.joined(separator: " "))",
+        exit_code: startupResult.exitCode,
+        status: startupResult.exitCode == 0 ? "ok" : "degraded"
+    )
+
+    var actionTrace: [ReadyActionStep] = []
+    var response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
+
+    if startupResult.exitCode != 0 {
+        actionTrace.append(ReadyActionStep(
+            step: "service_start",
+            result: "degraded",
+            detail: compactProcessDetail(startupResult)
+        ))
+    } else {
+        actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
+    }
+
+    if repair && !response.ready {
+        if response.blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" }) {
+            let restartArgs = ["service", "restart", "--mode", mode.rawValue, "--json"]
+            let restart = runProcess(aosExecutablePath(), arguments: restartArgs)
+            actionTrace.append(ReadyActionStep(
+                step: "service_restart",
+                result: restart.exitCode == 0 ? "ok" : "degraded",
+                detail: compactProcessDetail(restart)
+            ))
+            response = waitForReadyResponse(
+                startup: startup,
+                actionTrace: actionTrace,
+                mode: mode,
+                prefix: prefix,
+                budgetMs: 20_000
+            )
+            actionTrace = response.action_trace
+        }
+
+        if !response.ready, let settingsBlocker = firstSettingsBlocker(in: response.blockers),
+           let url = settingsBlocker.settings_url {
+            actionTrace.append(ReadyActionStep(
+                step: "settings_handoff",
+                result: "human_required",
+                detail: "\(settingsOpenReason(for: settingsBlocker)) (\(url))"
+            ))
+            response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
+        }
+    } else {
+        response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
+    }
+
+    if asJSON {
+        print(jsonString(response))
+    } else {
+        if response.ready {
+            print("ready=true mode=\(mode.rawValue) daemon=reachable tap=\(response.runtime.input_tap_status ?? "unknown")")
+        } else {
+            let daemonState = response.runtime.socket_reachable ? "reachable" : (response.runtime.daemon_running ? "running" : "down")
+            print("ready=false phase=\(response.phase) diagnosis=\(response.diagnosis) mode=\(mode.rawValue) daemon=\(daemonState) tap=\(response.runtime.input_tap_status ?? "unknown") blocked=\(response.blocked_capabilities.joined(separator: ","))")
+            if !response.action_trace.isEmpty {
+                print("Action trace:")
+                for step in response.action_trace {
+                    print("  \(step.step): \(step.result)")
+                    if let detail = step.detail, !detail.isEmpty {
+                        print("    \(detail)")
+                    }
+                }
+            }
+            for blocker in response.blockers {
+                print("- \(blocker.message)")
+                if let target = blocker.target_path {
+                    print("  target: \(target)")
+                }
+                if let settings = blocker.settings_url {
+                    print("  settings: \(settings)")
+                }
+            }
+            printReadyHumanHandoff(response: response, mode: mode, prefix: prefix)
+            if !response.next_actions.isEmpty {
+                print("Next:")
+                for action in response.next_actions {
+                    if let command = action.command {
+                        print("  \(command)  # \(action.label)")
+                    } else {
+                        print("  \(action.label)")
+                    }
+                }
+            }
+        }
+    }
+
+    exit(response.ready ? 0 : 1)
+}
+
+private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMode, prefix: String) {
+    guard response.phase == "human_required" else { return }
+    let permissionBlockers = response.blockers.filter { $0.kind == "permission" }
+    guard !permissionBlockers.isEmpty else { return }
+
+    print("")
+    print("Human action needed:")
+    print("AOS tried the automated checks it can do safely. macOS is still denying the \(runtimeIdentityLabel(mode: mode)) daemon.")
+    if mode == .repo {
+        let path = aosExpectedBinaryPath(program: "aos", mode: mode)
+        print("Settings may already show the repo-mode 'aos' row as enabled. If so, remove that 'aos' row and add this binary again:")
+        print("  \(path)")
+    }
+
+    let settingsURLs = Array(Set(permissionBlockers.compactMap(\.settings_url))).sorted()
+    print("Steps:")
+    if settingsURLs.isEmpty {
+        print("  1. Open System Settings > Privacy & Security.")
+    } else if settingsURLs.count == 1 {
+        print("  1. Ask the agent to open this Settings pane, or run:")
+        print("     open \"\(settingsURLs[0])\"")
+    } else {
+        print("  1. Ask the agent to open each needed Settings pane, or run:")
+        for url in settingsURLs {
+            print("     open \"\(url)\"")
+        }
+    }
+    print("  2. Grant the reported permissions for \(runtimeIdentityLabel(mode: mode)).")
+    if mode == .repo {
+        print("  3. If 'aos' is already enabled but AOS still reports stale grants, remove the 'aos' row and add /Users/Michael/Code/agent-os/aos again.")
+    } else {
+        print("  3. If AOS.app is already enabled but AOS still reports stale grants, re-grant AOS.app.")
+    }
+    print("  4. Come back to this session and say: ready")
+    print("  5. The agent should run: \(prefix) ready")
+}
 
 func statusCommand(args: [String]) {
     if args.contains("--help") || args.contains("-h") {
@@ -879,6 +1111,408 @@ private func missingPermissionIDsFor(daemon: DaemonHealthView?, cli: CLIViewBloc
     return missing
 }
 
+private func buildReadyResponse(
+    startup: ReadyStartupBlock,
+    actionTrace: [ReadyActionStep],
+    mode: AOSRuntimeMode,
+    prefix: String
+) -> ReadyResponse {
+    let permissions = currentPermissionsState()
+    let setup = currentPermissionsSetupState(permissions: permissions)
+    let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
+    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
+    let evaluation = evaluateReadyForTesting(
+        daemon: daemonHealth?.asView,
+        cliAccessibility: permissions.accessibility,
+        cliScreenRecording: permissions.screen_recording,
+        setupCompleted: setup.setup_completed
+    )
+    let blockers = readyBlockers(
+        runtime: runtime,
+        daemon: daemonHealth?.asView,
+        permissions: permissions,
+        setup: setup,
+        mode: mode
+    )
+    let ready = runtime.socket_reachable && evaluation.readyForTesting && blockers.isEmpty
+    let blockedCapabilities = Array(Set(blockers.flatMap(\.blocks))).sorted()
+    let phase = readyPhase(ready: ready, blockers: blockers)
+    let diagnosis = readyDiagnosis(
+        ready: ready,
+        blockers: blockers,
+        daemon: daemonHealth?.asView,
+        permissions: permissions
+    )
+
+    return ReadyResponse(
+        status: ready ? "ok" : "degraded",
+        ready: ready,
+        phase: phase,
+        diagnosis: diagnosis,
+        mode: mode.rawValue,
+        ready_source: evaluation.readySource,
+        startup: startup,
+        runtime: runtime,
+        permissions: permissions,
+        permissions_setup: setup,
+        blocked_capabilities: blockedCapabilities,
+        blockers: blockers,
+        next_actions: readyNextActions(blockers: blockers, setup: setup, mode: mode, prefix: prefix),
+        action_trace: actionTrace,
+        notes: readyNotes(
+            runtime: runtime,
+            daemon: daemonHealth?.asView,
+            permissions: permissions,
+            setup: setup,
+            mode: mode
+        )
+    )
+}
+
+private func waitForReadyResponse(
+    startup: ReadyStartupBlock,
+    actionTrace: [ReadyActionStep],
+    mode: AOSRuntimeMode,
+    prefix: String,
+    budgetMs: Int
+) -> ReadyResponse {
+    let deadline = Date().addingTimeInterval(Double(budgetMs) / 1000.0)
+    var trace = actionTrace
+    var response = buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+    while Date() < deadline {
+        response = buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+        if response.ready {
+            trace.append(ReadyActionStep(step: "wait_for_recovery", result: "ready", detail: "daemon became ready during repair wait"))
+            return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+        }
+        usleep(500_000)
+    }
+    trace.append(ReadyActionStep(step: "wait_for_recovery", result: "timed_out", detail: "daemon did not become ready within \(budgetMs)ms"))
+    return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+}
+
+private func firstSettingsBlocker(in blockers: [ReadyBlocker]) -> ReadyBlocker? {
+    blockers.first(where: { $0.settings_url != nil })
+}
+
+private func settingsOpenReason(for blocker: ReadyBlocker) -> String {
+    switch blocker.id {
+    case "accessibility":
+        return "review Accessibility access for \(blocker.scope ?? "AOS")"
+    case "screen_recording":
+        return "review Screen Recording access for \(blocker.scope ?? "AOS")"
+    case "input_monitoring_listen", "input_monitoring_post":
+        return "review Input Monitoring access for \(blocker.scope ?? "AOS")"
+    default:
+        return "review \(blocker.id)"
+    }
+}
+
+private func runtimeIdentityLabel(mode: AOSRuntimeMode) -> String {
+    switch mode {
+    case .repo:
+        return "repo-mode 'aos'"
+    case .installed:
+        return "installed-mode 'AOS.app'"
+    }
+}
+
+private func staleGrantGuidance(mode: AOSRuntimeMode, service: String) -> String {
+    let identity = runtimeIdentityLabel(mode: mode)
+    let path = aosExpectedBinaryPath(program: "aos", mode: mode)
+    switch mode {
+    case .repo:
+        return "The \(identity) row may already be enabled in Settings, but the launchd daemon running \(path) is still denied \(service). Remove the 'aos' row, add \(path) again if needed, enable it, then run ./aos ready."
+    case .installed:
+        return "The \(identity) row may already be enabled in Settings, but the installed daemon is still denied \(service). Re-grant AOS.app in Settings, then run aos ready."
+    }
+}
+
+private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
+    if ready { return "ready" }
+    if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
+    if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
+    return "degraded"
+}
+
+private func readyDiagnosis(
+    ready: Bool,
+    blockers: [ReadyBlocker],
+    daemon: DaemonHealthView?,
+    permissions: PermissionsState
+) -> String {
+    if ready { return "ready" }
+    if blockers.contains(where: { $0.id == "daemon_unreachable" }) {
+        return "daemon_socket_unreachable"
+    }
+    if let view = daemon,
+       (view.permissions.accessibility == false && permissions.accessibility) ||
+        (view.inputTap.listenAccess == false || view.inputTap.postAccess == false) {
+        return "daemon_tcc_grant_stale_or_missing"
+    }
+    if blockers.contains(where: { $0.id == "input_tap_not_active" }) {
+        return "input_tap_not_active"
+    }
+    if blockers.contains(where: { $0.kind == "setup" }) {
+        return "permissions_onboarding_required"
+    }
+    return "not_ready"
+}
+
+private func readyBlockers(
+    runtime: RuntimeState,
+    daemon: DaemonHealthView?,
+    permissions: PermissionsState,
+    setup: PermissionsSetupState,
+    mode: AOSRuntimeMode
+) -> [ReadyBlocker] {
+    var blockers: [ReadyBlocker] = []
+    let daemonPath = aosExpectedBinaryPath(program: "aos", mode: mode)
+    let currentPath = aosExecutablePath()
+
+    if !runtime.socket_reachable {
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "daemon_unreachable",
+            scope: "daemon",
+            message: runtime.daemon_running
+                ? "Daemon process appears to be running, but the socket is not reachable."
+                : "Daemon is not running or did not become reachable.",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "show", "tell", "listen"]
+        ))
+    }
+
+    if !permissions.accessibility {
+        blockers.append(ReadyBlocker(
+            kind: "permission",
+            id: "accessibility",
+            scope: "cli",
+            message: "CLI lacks Accessibility permission.",
+            target_path: currentPath,
+            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            blocks: ["see", "do", "inspect"]
+        ))
+    }
+
+    if daemon?.permissions.accessibility == false {
+        blockers.append(ReadyBlocker(
+            kind: "permission",
+            id: "accessibility",
+            scope: "daemon",
+            message: staleGrantGuidance(mode: mode, service: "Accessibility"),
+            target_path: daemonPath,
+            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+            blocks: ["see", "do", "inspect", "listen"]
+        ))
+    }
+
+    if !permissions.screen_recording {
+        blockers.append(ReadyBlocker(
+            kind: "permission",
+            id: "screen_recording",
+            scope: "cli",
+            message: "CLI lacks Screen Recording permission.",
+            target_path: currentPath,
+            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+            blocks: ["see"]
+        ))
+    }
+
+    if let tap = daemon?.inputTap, tap.status != "active" {
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "input_tap_not_active",
+            scope: "daemon",
+            message: "Daemon input tap is not active (status=\(tap.status), attempts=\(tap.attempts)).",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "listen"]
+        ))
+    }
+
+    if daemon?.inputTap.listenAccess == false {
+        blockers.append(ReadyBlocker(
+            kind: "permission",
+            id: "input_monitoring_listen",
+            scope: "daemon",
+            message: staleGrantGuidance(mode: mode, service: "Input Monitoring listen access"),
+            target_path: daemonPath,
+            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            blocks: ["see", "listen"]
+        ))
+    }
+
+    if daemon?.inputTap.postAccess == false {
+        blockers.append(ReadyBlocker(
+            kind: "permission",
+            id: "input_monitoring_post",
+            scope: "daemon",
+            message: staleGrantGuidance(mode: mode, service: "Input Monitoring post access"),
+            target_path: daemonPath,
+            settings_url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+            blocks: ["do"]
+        ))
+    }
+
+    if !setup.setup_completed {
+        blockers.append(ReadyBlocker(
+            kind: "setup",
+            id: "permissions_onboarding",
+            scope: nil,
+            message: "Permission onboarding has not completed for this runtime identity.",
+            target_path: nil,
+            settings_url: nil,
+            blocks: ["see", "do", "inspect"]
+        ))
+    }
+
+    return blockers
+}
+
+private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupState, mode: AOSRuntimeMode, prefix: String) -> [ReadyNextAction] {
+    var actions: [ReadyNextAction] = []
+    var seen = Set<String>()
+
+    func append(_ action: ReadyNextAction) {
+        let key = "\(action.type)|\(action.command ?? action.label)"
+        if seen.insert(key).inserted {
+            actions.append(action)
+        }
+    }
+
+    if blockers.isEmpty {
+        return actions
+    }
+
+    if blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" || $0.kind == "permission" }) {
+        append(ReadyNextAction(
+            type: "command",
+            label: "run automated repair: restart/recheck, then print human instructions if needed",
+            command: "\(prefix) ready --repair"
+        ))
+    }
+
+    if blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" }) {
+        append(ReadyNextAction(
+            type: "command",
+            label: "restart the managed daemon and re-check readiness",
+            command: "\(prefix) service restart --mode \(mode.rawValue)"
+        ))
+    }
+
+    if !setup.setup_completed {
+        append(ReadyNextAction(
+            type: "command",
+            label: "run permission onboarding",
+            command: setup.recommended_command ?? "\(prefix) permissions setup --once"
+        ))
+    }
+
+    for blocker in blockers where blocker.kind == "permission" {
+        if let settingsURL = blocker.settings_url {
+            append(ReadyNextAction(
+                type: "open_settings",
+                label: "open System Settings to \(settingsOpenReason(for: blocker))",
+                command: "open \"\(settingsURL)\""
+            ))
+        }
+    }
+
+    append(ReadyNextAction(
+        type: "command",
+        label: "re-check readiness",
+        command: "\(prefix) ready"
+    ))
+
+    return actions
+}
+
+private func compactProcessDetail(_ output: ProcessOutput) -> String? {
+    let combined = [output.stderr, output.stdout]
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !combined.isEmpty else { return nil }
+
+    if let data = combined.data(using: .utf8),
+       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        if let error = object["error"] as? [String: Any] {
+            let code = error["code"].map { "\($0)" } ?? "unknown"
+            let message = error["message"].map { "\($0)" } ?? ""
+            return message.isEmpty ? "error=\(code)" : "error=\(code): \(message)"
+        }
+        let status = object["status"].map { "\($0)" }
+        let reason = object["reason"].map { "\($0)" }
+        let inputTap = object["input_tap"] as? [String: Any]
+        let tapStatus = inputTap?["status"].map { "\($0)" }
+        let attempts = inputTap?["attempts"].map { "\($0)" }
+        let parts = [
+            status.map { "status=\($0)" },
+            reason.map { "reason=\($0)" },
+            tapStatus.map { "tap=\($0)" },
+            attempts.map { "attempts=\($0)" }
+        ].compactMap { $0 }
+        if !parts.isEmpty {
+            return parts.joined(separator: " ")
+        }
+    }
+
+    let lines = combined.split(separator: "\n").prefix(6).map(String.init)
+    let clipped = lines.joined(separator: "\n")
+    if clipped.count <= 700 {
+        return clipped
+    }
+    return String(clipped.prefix(700)) + "..."
+}
+
+private func readyNotes(
+    runtime: RuntimeState,
+    daemon: DaemonHealthView?,
+    permissions: PermissionsState,
+    setup: PermissionsSetupState,
+    mode: AOSRuntimeMode
+) -> [String] {
+    var notes: [String] = []
+    if !runtime.daemon_running {
+        notes.append("Daemon is not running.")
+    } else if !runtime.socket_reachable {
+        notes.append("Daemon process appears to be running, but the socket is not reachable.")
+    }
+    notes.append(contentsOf: runtimeHealthNotes(runtime))
+    if let tap = daemon?.inputTap, tap.status != "active" {
+        notes.append(inputTapRecoveryGuidance(
+            context: .default,
+            status: tap.status,
+            attempts: tap.attempts
+        ))
+        if tap.listenAccess == false || tap.postAccess == false {
+            notes.append(inputMonitoringSubGuidance(
+                listenAccess: tap.listenAccess,
+                postAccess: tap.postAccess,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
+            ))
+        }
+    }
+    if !permissions.accessibility {
+        notes.append("Accessibility permission is not granted (CLI view).")
+    }
+    if daemon?.permissions.accessibility == false {
+        notes.append("Accessibility permission is not granted (daemon view).")
+    }
+    if !permissions.screen_recording {
+        notes.append("Screen Recording permission is not granted.")
+    }
+    if !setup.setup_completed, let command = setup.recommended_command {
+        notes.append("Run '\(command)' before interactive testing.")
+    }
+    return notes
+}
+
 private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> RuntimeState {
     let mode = aosCurrentRuntimeMode()
     let socketPath = aosSocketPath(for: mode)
@@ -1357,10 +1991,11 @@ private func preparePermissionsSetupUI() {
 private func permissionSetupIntroAlert() -> NSApplication.ModalResponse {
     NSApp.activate(ignoringOtherApps: true)
     let alert = NSAlert()
+    let identity = runtimeIdentityLabel(mode: aosCurrentRuntimeMode())
     alert.alertStyle = .informational
     alert.messageText = "AOS permissions setup"
     alert.informativeText = """
-    AOS will request the remaining macOS permissions one at a time from the packaged AOS.app identity.
+    AOS will request the remaining macOS permissions one at a time for the current \(identity) identity.
 
     This flow only uses safe prompt-triggering probes. It does not perform destructive actions.
 

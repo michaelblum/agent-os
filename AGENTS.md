@@ -64,13 +64,26 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
 
 - `aos` CLI is the canonical interface for development inside agent-os. MCP tools
   exist as an optional adapter for external consumers, not for dev work.
-- In repo mode, start with `./aos status`. That is the primary runtime/session
-  entrypoint for agent work inside this repo.
+- In repo mode, start with `./aos ready`. That is the primary readiness gate for
+  agent work inside this repo: it starts/checks the managed daemon, reports
+  blockers, and exits non-zero when AOS is not ready. Use `./aos status` for a
+  read-only runtime snapshot after that.
+- If `./aos ready` reports blockers and the user wants repair, run
+  `./aos ready --repair`. It performs safe automated recovery steps, records a
+  trace, and prints plain-English human instructions when macOS privacy settings
+  still require manual action. It does not open Settings or show permission
+  dialogs by itself.
+- If `./aos ready --repair --json` returns `phase=human_required`, do not dump
+  raw JSON at the user. Give a concise, assertive summary. For
+  `diagnosis=daemon_tcc_grant_stale_or_missing`, say the repo-mode `aos` macOS
+  permission grant is stale and must be removed/re-added. Offer short numbered
+  choices: more detail, open the listed `open_settings` panes, or stop. Tell the
+  user to come back and say `ready`; when they do, run `./aos ready`.
 - Use `./aos introspect review` for self-review or recovery after repeated failed
   `./aos` attempts.
-- The startup hook already handles daemon bring-up and stale-resource detection.
-  Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
-  the first move.
+- Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
+  the first move. `./aos ready` is the explicit daemon bring-up and readiness
+  gate; startup hooks should stay lightweight and avoid hidden runtime mutation.
 
 - Do not default to `bash build.sh` before every test or verification step.
   Rebuild `./aos` only when the work changes Swift sources in `src/` or

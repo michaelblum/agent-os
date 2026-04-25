@@ -53,7 +53,9 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 
 ```bash
 ./aos permissions setup --once   # One-time Accessibility + Screen Recording flow
-./aos status                     # Primary runtime/session entrypoint
+./aos ready                      # Primary readiness gate
+./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
+./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed
 ```
 
@@ -66,7 +68,9 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ### One-Shot Commands (no daemon needed)
 
 ```bash
-./aos status                      # Primary runtime/session entrypoint
+./aos ready                       # Start/check AOS and report readiness blockers
+./aos ready --repair              # Restart/wait/recheck, then human instructions if needed
+./aos status                      # Read-only runtime/session snapshot
 ./aos introspect review           # Self-review / recovery after failed attempts
 ./aos see cursor                  # What's under the cursor
 ./aos see capture main --out /tmp/screen.png   # Screenshot main display
@@ -151,7 +155,8 @@ echo "lines" | aos log            # Stream stdin to log overlay
 ### Runtime and Service Management
 
 ```bash
-./aos status [--json]             # Primary runtime/session status
+./aos ready [--json] [--repair]   # Start/check AOS and report readiness blockers
+./aos status [--json]             # Read-only runtime/session status
 ./aos introspect review [--json]  # Review recent ./aos usage for this session
 ./aos runtime status [--json]     # Runtime identity, signing, mode
 ./aos runtime path                # Print current executable path

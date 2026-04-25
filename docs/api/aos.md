@@ -18,14 +18,16 @@ When you are developing inside the `agent-os` repo, invoke the binary as
 Start here:
 
 ```bash
-./aos status
+./aos ready
 ./aos help <command> [--json]
 ./aos introspect review
 ```
 
-`./aos status` is the primary runtime/session entrypoint. Use `doctor`,
-`daemon-snapshot`, and `clean` when you need deeper diagnostics or explicit
-cleanup, not as the default first move.
+`./aos ready` is the primary runtime readiness entrypoint. It starts/checks the
+managed daemon and exits non-zero when AOS is not ready. Use `./aos status` for
+a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
+`clean` when you need deeper diagnostics or explicit cleanup, not as the default
+first move.
 
 ## Contract
 
@@ -69,7 +71,8 @@ The current top-level commands are:
 
 | Command | Role |
 | --- | --- |
-| `aos status` | primary runtime/session status entrypoint |
+| `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
+| `aos status` | read-only runtime/session status snapshot |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -490,7 +493,7 @@ These are still public, but they are more specialized:
 | --- | --- |
 | `aos inspect` | you want the built-in live AX overlay |
 | `aos log` | you want the built-in log console overlay |
-| `aos permissions` | you need machine-readable readiness checks |
+| `aos permissions` | you need low-level permission diagnostics |
 | `aos doctor` | you need a fuller runtime health snapshot than `aos status` |
 | `aos clean` | `aos status` reports stale resources and you want explicit cleanup |
 | `aos daemon-snapshot` | you need the low-level spatial snapshot directly |
@@ -510,7 +513,8 @@ Consumers should assume:
 
 - `aos show`, `aos inspect`, and some graph/focus flows may talk to the daemon
 - a persistent canvas outlives the creating command unless it is connection-scoped
-- `aos serve` is the daemon entry point
+- `aos serve` is the foreground daemon entry point
+- `aos ready` is the front-door managed-daemon readiness gate
 - `aos status` / `aos doctor` are observational; they should not be relied on to
   implicitly start a daemon for the current runtime
 
@@ -536,6 +540,13 @@ when judging whether the daemon can actually observe and inject input.
 ```
 
 Consumers:
+- `aos ready [--json] [--repair]` starts/checks the managed daemon, evaluates
+  the existing readiness contract, exits `0` only when ready, and returns
+  structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
+  `action_trace` fields for agents. `--repair` runs safe automated recovery
+  steps first: restart, wait/recheck, then report plain-English human
+  instructions when macOS privacy settings still require manual action. It does
+  not open Settings or show permission dialogs by itself.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.

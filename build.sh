@@ -111,5 +111,11 @@ echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
 
 # Restart daemon if it's running as a service
 if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | grep -q '"running"'; then
-    "$OUTPUT_PATH" service restart 2>/dev/null && echo "Daemon restarted" || true
+    if "$OUTPUT_PATH" service restart >/dev/null 2>&1; then
+        echo "Daemon restarted"
+    else
+        echo "Build succeeded, but daemon readiness is degraded:" >&2
+        "$OUTPUT_PATH" status || true
+        echo "Next: ./aos ready --repair" >&2
+    fi
 fi

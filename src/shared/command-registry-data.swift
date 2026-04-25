@@ -1019,6 +1019,19 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos status", "aos status --json"])
     ]))
 
+    // ── ready ─────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["ready"], summary: "Start/check AOS and report the readiness gate", forms: [
+        InvocationForm(id: "ready", usage: "aos ready [--json] [--repair]",
+            args: [
+                flag("json", "--json", "Emit machine-readable readiness response", type: .bool),
+                flag("repair", "--repair", "Restart/recheck before reporting blockers and human instructions", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSONFlag,
+            examples: ["aos ready", "aos ready --repair", "aos ready --json"])
+    ]))
+
     // ── doctor ────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["doctor"], summary: "Detailed runtime and permission diagnostics", forms: [
         InvocationForm(id: "doctor", usage: "aos doctor [--json]",

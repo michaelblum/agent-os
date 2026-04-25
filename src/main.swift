@@ -62,6 +62,8 @@ struct AOS {
             runtimeCommand(args: Array(args.dropFirst()))
         case "status":
             statusCommand(args: Array(args.dropFirst()))
+        case "ready":
+            readyCommand(args: Array(args.dropFirst()))
         case "doctor":
             doctorCommand(args: Array(args.dropFirst()))
         case "reset":
