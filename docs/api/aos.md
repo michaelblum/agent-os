@@ -595,6 +595,23 @@ the launchd-derived base state has unrelated divergences (e.g., plist
 binary path mismatch); discriminate `.ok` outcomes by absence of `reason`
 plus `input_tap.status == "active"`.
 
+### Legacy daemon interop
+
+A daemon binary that predates this contract emits only the flat
+`input_tap_status` / `input_tap_attempts` fields, with no structured
+`input_tap` or `permissions` block. The CLI parser falls back to those
+flat fields so `status` / `attempts` still propagate. Fields the legacy
+daemon doesn't expose — `input_tap.listen_access`, `input_tap.post_access`,
+`input_tap.last_error_at`, and `permissions.accessibility` — are
+**omitted** from CLI output rather than fabricated as `false`. Consumers
+should treat their absence as "unknown, not denied."
+
+In that mode, `aos permissions check` and `aos doctor` report
+`ready_source: "cli"` regardless of socket reachability — readiness can't
+be daemon-sourced when the daemon doesn't expose the daemon-process TCC
+view (CONTRACT-GOVERNANCE rule 1+2: no silent merging of daemon tap
+status with CLI accessibility).
+
 **See also:**
 - [`shared/schemas/daemon-ipc.md`](../../shared/schemas/daemon-ipc.md) for the canonical `system.ping` payload schema.
 - [`shared/schemas/CONTRACT-GOVERNANCE.md`](../../shared/schemas/CONTRACT-GOVERNANCE.md) for the contract rules these consumers follow.
