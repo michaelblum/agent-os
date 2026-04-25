@@ -160,7 +160,7 @@ The non-zero exit originates from the CLI lifecycle command only. The daemon pro
   "installed": true,
   "running": true,
   "pid": 82838,
-  "launchd_label": "com.symphonytalent.aos.repo",
+  "launchd_label": "com.agent-os.aos.repo",
   "reason": "input_tap_not_active",
   "input_tap": { "status": "retrying", "attempts": 3,
                  "listen_access": false, "post_access": false },
@@ -239,8 +239,10 @@ Consequences:
 
 **`ready_for_testing` computation:**
 
-- If daemon reachable: `daemon_view.accessibility && daemon_view.input_tap.status == "active" && setup.setup_completed && missing_permissions.isEmpty`. `ready_source: "daemon"`.
-- If daemon unreachable: `cli_view.accessibility && cli_view.screen_recording && setup.setup_completed && missing_permissions.isEmpty` — the existing pre-change computation, now explicitly based on `cli_view`. `ready_source: "cli"`. Add note: "Daemon unreachable; readiness computed from CLI preflights only."
+- If daemon reachable: `daemon_view.accessibility && daemon_view.input_tap.status == "active" && setup.setup_completed`. `ready_source: "daemon"`. Note that `daemon_view.input_tap.status == "active"` already implies `listen_access` and `post_access` are functional — the daemon could not have created an active tap otherwise — so listen/post are not separate gate clauses.
+- If daemon unreachable: `cli_view.accessibility && cli_view.screen_recording && setup.setup_completed`. `ready_source: "cli"`. Add note: "Daemon unreachable; readiness computed from CLI preflights only."
+
+`missing_permissions` is reported as a diagnostic list of permission IDs whose `granted` value is `false` in the **chosen view** (daemon when reachable, CLI otherwise). It is informational; it does not directly gate `ready_for_testing` — the boolean checks above are authoritative. This avoids mixing daemon-sourced authority with CLI-sourced state inside a single boolean clause.
 
 **Requirements list** gains two entries, always present, with `granted` filled from the appropriate source:
 
@@ -266,7 +268,7 @@ Consequences:
   ```
   `tap` values: `active`, `retrying`, `unavailable`, `unknown` (unknown = daemon unreachable). When `daemon=unreachable`, `tap=unknown` is displayed but the primary failure stays the loud signal — no tap-specific recovery note in that branch, only the existing daemon-recovery note.
 - JSON mode: existing flat fields unchanged; `runtime.input_tap` is the new nested block.
-- Notes: when `daemon_view.input_tap.listen_access` or `post_access` is false, append Input Monitoring sub-guidance (see Recovery Guidance).
+- Notes: when `runtime.input_tap.listen_access` or `runtime.input_tap.post_access` is false (daemon-sourced), append Input Monitoring sub-guidance (see Recovery Guidance).
 
 **`./aos doctor`** (`operator.swift:274-357`):
 
@@ -347,7 +349,8 @@ New mock: `tests/lib/mock-daemon.py`. Small Python script that speaks IPC v1 NDJ
 
 New test: `tests/input-tap-readiness.sh`. Starts the mock with `--tap-status retrying --listen-access false --post-access false`, then asserts:
 
-- `./aos permissions check --json` returns `ready_for_testing: false`, `ready_source: "daemon"`, daemon-sourced `input_tap` fields, `disagreement` block present (CLI sees true, daemon sees false), recovery notes present.
+- `./aos permissions check --json` returns `ready_for_testing: false`, `ready_source: "daemon"`, daemon-sourced `input_tap` fields (`listen_access: false`, `post_access: false`), and recovery notes present.
+- The `disagreement` block is **not** asserted unconditionally: a CI/dev machine may legitimately have CLI `listen_access=false` (no Input Monitoring grant for the test runner), in which case daemon=false + CLI=false produces no disagreement. The presence-of-`disagreement`-when-views-differ behavior is exercised by a separate fixture that controls both views — either by pinning the CLI's preflight result via a test-only override (e.g. an `AOS_TEST_FORCE_CLI_PREFLIGHT_LISTEN=true` env var honored only in test builds), or by structuring the test so it skips the disagreement assertion when the CLI's local listen/post preflight returns `false`.
 - `./aos status --json` includes `runtime.input_tap.status == "retrying"` and the tap note.
 - `./aos status` (text) prints `tap=retrying` in the one-liner.
 - `./aos do click 500,300` exits non-zero with `INPUT_TAP_NOT_ACTIVE` error code. (`ensureInteractivePreflight` is invoked from `main.swift:161`.)
