@@ -1758,7 +1758,10 @@ In `doctorCommand` (around line 274–356), replace the response-building sectio
     let readyForTesting: Bool
     let readySource: String
     if runtime.socket_reachable, let tap = runtime.input_tap, let daemonAcc = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.daemonAccessibility {
-        readyForTesting = daemonAcc && tap.status == "active" && setup.setup_completed
+        // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
+        // (the daemon doesn't track it). Including it here keeps ready_for_testing
+        // consistent with consumers that look at permissions.screen_recording.
+        readyForTesting = daemonAcc && tap.status == "active" && permissions.screen_recording && setup.setup_completed
         readySource = "daemon"
     } else {
         readyForTesting = permissions.accessibility && permissions.screen_recording && setup.setup_completed
