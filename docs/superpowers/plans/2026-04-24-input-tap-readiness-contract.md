@@ -1372,8 +1372,12 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     let readyForTesting: Bool
     let readySource: String
     if let view = daemonHealth {
+        // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
+        // (the daemon doesn't track it). Including it here keeps ready_for_testing
+        // consistent with missing_permissions on the daemon-reachable path.
         readyForTesting = view.permissions.accessibility
             && view.inputTap.status == "active"
+            && cliPermissions.screen_recording
             && setup.setup_completed
         readySource = "daemon"
     } else {
