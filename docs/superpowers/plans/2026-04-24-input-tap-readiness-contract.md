@@ -2261,8 +2261,218 @@ the hidden _verify-readiness subcommand against the Python mock for active /
 retrying / unreachable cases. docs/api/aos.md gains a daemon-aware readiness
 section documenting the new ping fields and consumer behavior.
 
+Refs #109."
+```
+
+---
+
+## Task 9: Schema contract governance doc + cross-references
+
+**Files:**
+- Create: `shared/schemas/CONTRACT-GOVERNANCE.md`
+- Modify: `shared/schemas/daemon-ipc.md` (add a "See also" pointer near the top)
+- Modify: `docs/api/aos.md` (add a "See also" line in the Daemon-aware readiness section from Task 8.3)
+
+### Steps
+
+- [ ] **Step 9.1: Create the governance doc**
+
+Write `shared/schemas/CONTRACT-GOVERNANCE.md`:
+
+```markdown
+# Schema & IPC Contract Governance
+
+This document captures the rule the input-tap readiness contract (issue #109)
+established for daemon ↔ CLI capability surfaces. Future schema/IPC changes
+should follow it.
+
+## Rule
+
+1. **Daemon-owned capabilities must be daemon-sourced.** Capabilities that
+   live inside the daemon process (CGEventTap state, AX permissions evaluated
+   by the daemon, channel state, etc.) must be reported by the daemon. The
+   CLI must not fabricate these from its own preflight calls — it can only
+   forward what the daemon says.
+
+2. **CLI fallbacks must label their source.** When the daemon is unreachable
+   and the CLI falls back to its own probe, the consumer-facing payload must
+   make the source explicit (e.g. `ready_source: "cli"` vs `"daemon"`). No
+   silent merging of daemon-evaluated and CLI-evaluated views.
+
+3. **Lifecycle commands that claim readiness must fail on degraded
+   daemon-owned capability state.** `aos service install/start/restart` and
+   any future "make it ready" lifecycle verb cannot exit 0 when a
+   daemon-owned readiness check is reporting degraded.
+
+4. **Compatibility fields may be preserved, but new structured fields are
+   the forward contract.** Flat legacy fields (e.g. top-level
+   `input_tap_status`) can stay byte-for-byte for compatibility, but new
+   consumers should bind to the structured nested block (e.g. `input_tap.*`).
+   Don't expand the legacy flat surface.
+
+5. **Tests must cover both happy path and degraded daemon-reported state.**
+   A single happy-path assertion is insufficient. Use the mock-daemon
+   fixture (`tests/lib/mock-daemon.py`) to drive degraded states without a
+   real launchd lifecycle.
+
+## Where this rule was established
+
+- Spec: `docs/superpowers/specs/2026-04-24-input-tap-readiness-contract-design.md`
+- Plan: `docs/superpowers/plans/2026-04-24-input-tap-readiness-contract.md`
+- Tracking: GitHub issue #109
+
+## Out of scope (intentionally)
+
+- CODEOWNERS for `shared/schemas/`
+- Snapshot-pinned compatibility tests
+- Schema versioning automation
+
+These can be revisited if the contract starts drifting again.
+```
+
+- [ ] **Step 9.2: Cross-reference from `shared/schemas/daemon-ipc.md`**
+
+Edit `shared/schemas/daemon-ipc.md`. Add a "See also" line near the top of
+the file (immediately under the document title or top-level heading):
+
+```markdown
+> **See also:** [`CONTRACT-GOVERNANCE.md`](./CONTRACT-GOVERNANCE.md) for the
+> rules governing daemon ↔ CLI capability contracts.
+```
+
+If a "See also" / "Related" block already exists at the top, append the
+governance link to it instead of creating a new block.
+
+- [ ] **Step 9.3: Cross-reference from `docs/api/aos.md`**
+
+Edit `docs/api/aos.md`. In the "Daemon-aware readiness" section added in
+Task 8.3, append a final paragraph:
+
+```markdown
+The contract rules these consumers follow live in
+[`shared/schemas/CONTRACT-GOVERNANCE.md`](../../shared/schemas/CONTRACT-GOVERNANCE.md).
+```
+
+Adjust the relative path to whatever resolves from `docs/api/aos.md`'s
+actual location to `shared/schemas/CONTRACT-GOVERNANCE.md`. Verify by
+opening the rendered file or by `ls` from the linked path.
+
+- [ ] **Step 9.4: Verify the doc exists and links resolve**
+
+Run:
+
+```bash
+ls shared/schemas/CONTRACT-GOVERNANCE.md
+grep -n "CONTRACT-GOVERNANCE" shared/schemas/daemon-ipc.md docs/api/aos.md
+```
+
+Expected: file exists, two grep hits (one in each consumer doc).
+
+- [ ] **Step 9.5: Commit**
+
+```bash
+git add shared/schemas/CONTRACT-GOVERNANCE.md shared/schemas/daemon-ipc.md docs/api/aos.md
+git commit -m "docs(schemas): capture daemon ↔ CLI contract rule in CONTRACT-GOVERNANCE.md
+
+Codifies the rule established by the input-tap readiness work (issue #109):
+daemon-owned capabilities are daemon-sourced, CLI fallbacks label their
+source, lifecycle commands fail on degraded daemon-owned state, legacy flat
+fields stay for compatibility while new structured fields are the forward
+contract, and tests cover both happy and degraded daemon-reported states.
+
 Closes #109."
 ```
+
+---
+
+## Task 10: File SDK readiness follow-on GitHub issue
+
+**Files:**
+- None modified locally. Issue is filed via `gh`.
+
+### Steps
+
+- [ ] **Step 10.1: Verify the previous tasks landed**
+
+```bash
+git log --oneline -n 12
+```
+
+Expected: commits from Tasks 1–9 are present on the branch (or `main`). If
+anything is missing, do not file the follow-on issue yet — close the gap
+first. The follow-on issue references the daemon-side contract; filing it
+before the daemon-side contract lands would mislead downstream consumers.
+
+- [ ] **Step 10.2: File the SDK readiness uptake issue**
+
+Run:
+
+```bash
+gh issue create \
+  --title "SDK readiness uptake: consume runtime.input_tap and ready_source" \
+  --label "sdk,readiness" \
+  --body "$(cat <<'EOF'
+## Context
+
+Issue #109 landed the daemon-side input-tap readiness contract. The daemon's
+`system.ping` now exposes a structured `input_tap` block and a `permissions`
+block. `aos status`, `aos doctor`, and `aos permissions check` now expose
+`runtime.input_tap`, `ready_for_testing`, `ready_source`, and `disagreement`
+fields. `aos service install/start/restart` fail on degraded daemon-owned
+state, and `aos do` preflight gates on `INPUT_TAP_NOT_ACTIVE`.
+
+The SDK / packaged consumer surface has not yet picked up these signals.
+This issue tracks that uptake.
+
+## Surfaces to update
+
+- `packages/gateway/` — gateway should expose the daemon-aware readiness
+  signal to its consumers and gate command-execution APIs on
+  `input_tap.status == "active"` for input-class verbs.
+- `packages/host/` — host-level readiness reporting should include the
+  daemon view and label the source.
+- TypeScript SDK clients (any consumer that talks to `aos` over IPC or
+  HTTP) — surface `runtime.input_tap`, `ready_source`, and daemon-vs-CLI
+  source attribution to SDK callers, and add SDK-level capability
+  preconditions that mirror the CLI preflight gates.
+
+## Acceptance criteria
+
+- Gateway and host readiness payloads include `input_tap.status`,
+  `ready_for_testing`, and `ready_source` (or equivalent labeled fields).
+- Input-class SDK calls (click/type/scroll) fail fast with a structured
+  error when the daemon reports input_tap not active, mirroring the CLI's
+  `INPUT_TAP_NOT_ACTIVE` semantics.
+- Existing happy-path SDK tests are joined by at least one degraded-state
+  test driven by `tests/lib/mock-daemon.py` (or a TS equivalent).
+- Contract rules in `shared/schemas/CONTRACT-GOVERNANCE.md` are followed:
+  daemon-sourced when reachable, labeled CLI fallback when not.
+
+## Non-goals
+
+- Re-implementing the daemon-side probe in the SDK.
+- Adding new readiness taxonomy beyond what the daemon exposes.
+- Schema versioning automation.
+
+## References
+
+- Spec: `docs/superpowers/specs/2026-04-24-input-tap-readiness-contract-design.md`
+- Plan: `docs/superpowers/plans/2026-04-24-input-tap-readiness-contract.md`
+- Governance: `shared/schemas/CONTRACT-GOVERNANCE.md`
+EOF
+)"
+```
+
+If `--label sdk,readiness` fails because either label does not yet exist,
+either create the labels first (`gh label create sdk` and
+`gh label create readiness`) or rerun without the `--label` flag and apply
+labels through the GitHub UI. Do not skip filing the issue.
+
+- [ ] **Step 10.3: Capture the new issue number**
+
+`gh issue create` prints a URL when it succeeds. Note the issue number for
+any post-merge cross-link. No commit is required — this task only files a
+follow-on issue and produces no local artifacts.
 
 ---
 
@@ -2277,7 +2487,11 @@ After all tasks land, the executor should verify the following before closing #1
   - AC4 (recovery guidance is explicit): shared helper in Task 2 used by Tasks 4–7.
   - AC5 (regression test for `input_tap_status=retrying` daemon): Tasks 5 + 6 + 7 + 8 (mock-daemon + classifier).
 
-- **Files touched matches the spec's "Files touched" list.**
+- **Governance:** `shared/schemas/CONTRACT-GOVERNANCE.md` exists, captures the five-rule contract, and is referenced from `shared/schemas/daemon-ipc.md` and `docs/api/aos.md` (Task 9).
+
+- **Follow-on tracker filed:** SDK readiness uptake issue created via `gh issue create` (Task 10) and the issue number captured for cross-linking.
+
+- **Files touched matches the spec's "Files touched" list, plus the governance doc and its cross-references.**
 
 - **Commit messages contain no `Co-Authored-By: Claude ...` or `Generated with Claude Code` lines.** (`AGENTS.md` forbids these.)
 
