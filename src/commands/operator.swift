@@ -374,8 +374,14 @@ func doctorCommand(args: [String]) {
     let permissions = currentPermissionsState()
     let permissionRequirements = currentPermissionRequirements(permissions: permissions)
     let permissionsSetup = currentPermissionsSetupState(permissions: permissions)
-    let runtime = currentRuntimeState()
     let mode = aosCurrentRuntimeMode()
+    // Fetch daemon health once and share it with currentRuntimeState so the
+    // ready_for_testing computation below consumes the same view that populated
+    // runtime.input_tap. Avoids a race where a second fetch could fail and flip
+    // ready_for_testing to the CLI fallback while recovery notes still cite the
+    // daemon-reported tap state.
+    let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
+    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
     let aosService = launchAgentState(
         label: aosServiceLabel(for: mode),
         expectedBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode),
@@ -413,7 +419,7 @@ func doctorCommand(args: [String]) {
 
     let readyForTesting: Bool
     let readySource: String
-    if runtime.socket_reachable, let tap = runtime.input_tap, let daemonAcc = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.daemonAccessibility {
+    if runtime.socket_reachable, let tap = runtime.input_tap, let daemonAcc = daemonHealth?.daemonAccessibility {
         // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
         // (the daemon doesn't track it). Including it here keeps ready_for_testing
         // consistent with consumers that look at permissions.screen_recording.
@@ -828,14 +834,14 @@ private func missingPermissionIDsFor(daemon: DaemonHealthView?, cli: CLIViewBloc
     return missing
 }
 
-private func currentRuntimeState() -> RuntimeState {
+private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> RuntimeState {
     let mode = aosCurrentRuntimeMode()
     let socketPath = aosSocketPath(for: mode)
     let otherModeSocketPath = aosSocketPath(for: mode.other)
     let socketExists = FileManager.default.fileExists(atPath: socketPath)
     let socketReachable = socketIsReachable(socketPath)
     let otherSocketReachable = socketIsReachable(otherModeSocketPath)
-    let health = fetchDaemonHealth(socketPath: socketPath)
+    let health = preFetchedHealth ?? fetchDaemonHealth(socketPath: socketPath)
     let explicitStateRootOverride = aosHasExplicitStateRootOverride()
     let servicePID = explicitStateRootOverride ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
     let lockOwnerPID = aosDaemonLockOwnerPID(for: mode)
@@ -1005,7 +1011,11 @@ private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
         let service = runtime.service_pid.map(String.init) ?? "none"
         notes.append("Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).")
     }
-    if runtime.event_tap_expected, let tapStatus = runtime.input_tap_status, tapStatus != "active" {
+    // Suppress when the typed runtime.input_tap block is present: callers
+    // (statusCommand, doctorCommand) emit a richer headline via
+    // inputTapRecoveryGuidance that supersedes this short one.
+    if runtime.event_tap_expected, let tapStatus = runtime.input_tap_status,
+       tapStatus != "active", runtime.input_tap == nil {
         notes.append("Perception input tap is not active (status=\(tapStatus)).")
     }
     return notes
