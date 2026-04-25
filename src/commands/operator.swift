@@ -55,6 +55,14 @@ private struct PermissionsSetupState: Encodable {
     let recommended_command: String?
 }
 
+private struct RuntimeInputTapBlock: Encodable {
+    let status: String
+    let attempts: Int
+    let listen_access: Bool
+    let post_access: Bool
+    let last_error_at: String?
+}
+
 private struct RuntimeState: Encodable {
     let mode: String
     let state_dir: String
@@ -74,6 +82,7 @@ private struct RuntimeState: Encodable {
     let event_tap_expected: Bool
     let input_tap_status: String?
     let input_tap_attempts: Int?
+    let input_tap: RuntimeInputTapBlock?
     let installed_app_path: String
     let installed_app_exists: Bool
     let legacy_state_dir: String
@@ -124,6 +133,8 @@ private struct DoctorResponse: Encodable {
     let permissions_setup: PermissionsSetupState
     let runtime: RuntimeState
     let aos_service: LaunchAgentState
+    let ready_for_testing: Bool
+    let ready_source: String
     let notes: [String]
 }
 
@@ -215,6 +226,10 @@ private struct DaemonHealthState {
     let uptime: Double?
     let inputTapStatus: String?
     let inputTapAttempts: Int?
+    let inputTapListenAccess: Bool?
+    let inputTapPostAccess: Bool?
+    let inputTapLastErrorAt: String?
+    let daemonAccessibility: Bool?
 }
 
 // MARK: - Public Commands
@@ -245,6 +260,20 @@ func statusCommand(args: [String]) {
         notes.append("Daemon process appears to be running, but the socket is not reachable.")
     }
     notes.append(contentsOf: runtimeHealthNotes(runtime))
+    if runtime.socket_reachable, let tap = runtime.input_tap, tap.status != "active" {
+        notes.append(inputTapRecoveryGuidance(
+            context: .default,
+            status: tap.status,
+            attempts: tap.attempts
+        ))
+        if !tap.listen_access || !tap.post_access {
+            notes.append(inputMonitoringSubGuidance(
+                listenAccess: tap.listen_access,
+                postAccess: tap.post_access,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode())
+            ))
+        }
+    }
     if !permissions.accessibility {
         notes.append("Accessibility permission is not granted.")
     }
@@ -308,8 +337,14 @@ func statusCommand(args: [String]) {
     let windows = snapshotResult.snapshot?.windows ?? 0
     let channels = snapshotResult.snapshot?.channels ?? 0
     let staleCanvasCount = cleanReport.canvases.count
+    let tapValue: String
+    if !runtime.socket_reachable {
+        tapValue = "unknown"
+    } else {
+        tapValue = runtime.input_tap_status ?? "unknown"
+    }
     let daemonState = runtime.socket_reachable ? "reachable" : (runtime.daemon_running ? "running" : "down")
-    var line = "status=\(response.status) mode=\(runtime.mode) daemon=\(daemonState) pid=\(runtime.daemon_pid.map { String($0) } ?? "?") focused_app=\(focusedApp) displays=\(displays) windows=\(windows) channels=\(channels) stale_canvases=\(staleCanvasCount)"
+    var line = "status=\(response.status) mode=\(runtime.mode) daemon=\(daemonState) pid=\(runtime.daemon_pid.map { String($0) } ?? "?") tap=\(tapValue) focused_app=\(focusedApp) displays=\(displays) windows=\(windows) channels=\(channels) stale_canvases=\(staleCanvasCount)"
     if let git {
         let ahead = git.ahead_of_origin_main.map { String($0) } ?? "?"
         line += " branch=\(git.branch) ahead=\(ahead) dirty=\(git.dirty_files)"
@@ -376,6 +411,34 @@ func doctorCommand(args: [String]) {
         notes.append("Repo build artifacts are still present: \(runtime.repo_artifacts.joined(separator: ", ")).")
     }
 
+    let readyForTesting: Bool
+    let readySource: String
+    if runtime.socket_reachable, let tap = runtime.input_tap, let daemonAcc = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.daemonAccessibility {
+        // Daemon owns accessibility + input_tap; screen_recording is CLI-evaluated
+        // (the daemon doesn't track it). Including it here keeps ready_for_testing
+        // consistent with consumers that look at permissions.screen_recording.
+        readyForTesting = daemonAcc && tap.status == "active" && permissions.screen_recording && permissionsSetup.setup_completed
+        readySource = "daemon"
+    } else {
+        readyForTesting = permissions.accessibility && permissions.screen_recording && permissionsSetup.setup_completed
+        readySource = "cli"
+    }
+
+    if runtime.socket_reachable, let tap = runtime.input_tap, tap.status != "active" {
+        notes.append(inputTapRecoveryGuidance(
+            context: .default,
+            status: tap.status,
+            attempts: tap.attempts
+        ))
+        if !tap.listen_access || !tap.post_access {
+            notes.append(inputMonitoringSubGuidance(
+                listenAccess: tap.listen_access,
+                postAccess: tap.post_access,
+                daemonBinaryPath: aosExpectedBinaryPath(program: "aos", mode: mode)
+            ))
+        }
+    }
+
     let version = ProcessInfo.processInfo.operatingSystemVersion
     let identity = aosCurrentRuntimeIdentity(program: "aos")
     let response = DoctorResponse(
@@ -401,6 +464,8 @@ func doctorCommand(args: [String]) {
         permissions_setup: permissionsSetup,
         runtime: runtime,
         aos_service: aosService,
+        ready_for_testing: readyForTesting,
+        ready_source: readySource,
         notes: notes
     )
     print(jsonString(response))
@@ -784,6 +849,22 @@ private func currentRuntimeState() -> RuntimeState {
         servicePID: servicePID
     )
 
+    let inputTapBlock: RuntimeInputTapBlock?
+    if let status = health?.inputTapStatus,
+       let attempts = health?.inputTapAttempts,
+       let listen = health?.inputTapListenAccess,
+       let post = health?.inputTapPostAccess {
+        inputTapBlock = RuntimeInputTapBlock(
+            status: status,
+            attempts: attempts,
+            listen_access: listen,
+            post_access: post,
+            last_error_at: health?.inputTapLastErrorAt
+        )
+    } else {
+        inputTapBlock = nil
+    }
+
     return RuntimeState(
         mode: mode.rawValue,
         state_dir: aosStateDir(for: mode),
@@ -803,6 +884,7 @@ private func currentRuntimeState() -> RuntimeState {
         event_tap_expected: true,
         input_tap_status: health?.inputTapStatus,
         input_tap_attempts: health?.inputTapAttempts,
+        input_tap: inputTapBlock,
         installed_app_path: aosInstallAppPath(),
         installed_app_exists: FileManager.default.fileExists(atPath: aosInstallAppPath()),
         legacy_state_dir: aosLegacyStateDir(),
@@ -889,11 +971,16 @@ private func fetchDaemonHealth(socketPath: String) -> DaemonHealthState? {
         return nil
     }
     let payload = (response["data"] as? [String: Any]) ?? response
+    let view = parseDaemonHealthView(from: response)
     return DaemonHealthState(
         servingPID: payload["pid"] as? Int,
         uptime: payload["uptime"] as? Double,
-        inputTapStatus: payload["input_tap_status"] as? String,
-        inputTapAttempts: payload["input_tap_attempts"] as? Int
+        inputTapStatus: view?.inputTap.status ?? (payload["input_tap_status"] as? String),
+        inputTapAttempts: view?.inputTap.attempts ?? (payload["input_tap_attempts"] as? Int),
+        inputTapListenAccess: view?.inputTap.listenAccess,
+        inputTapPostAccess: view?.inputTap.postAccess,
+        inputTapLastErrorAt: view?.inputTap.lastErrorAt,
+        daemonAccessibility: view?.permissions.accessibility
     )
 }
 

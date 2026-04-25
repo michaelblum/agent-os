@@ -64,4 +64,30 @@ assert "./aos service restart" in joined, f"missing restart suggestion: {notes}"
 '
 echo "PASS: permissions check (degraded tap)"
 
+# status --json should expose runtime.input_tap with daemon-sourced fields.
+OUT="$(./aos status --json)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+runtime = d.get("runtime", {})
+tap = runtime.get("input_tap")
+assert isinstance(tap, dict), f"runtime.input_tap missing: {d}"
+assert tap.get("status") == "retrying", f"runtime.input_tap.status: {tap}"
+assert tap.get("listen_access") is False, f"listen_access: {tap}"
+assert tap.get("post_access") is False, f"post_access: {tap}"
+
+notes = d.get("notes", [])
+joined = "\n".join(notes)
+assert "Input tap is not active" in joined, f"missing tap headline: {notes}"
+assert "Input Monitoring" in joined, f"missing Input Monitoring sub-guidance: {notes}"
+'
+echo "PASS: status --json (degraded tap)"
+
+# status (text) one-liner should include tap=retrying.
+OUT_TEXT="$(./aos status 2>&1 | head -1)"
+case "$OUT_TEXT" in
+  *"tap=retrying"*) echo "PASS: status text one-liner" ;;
+  *) echo "FAIL: status text one-liner missing tap=retrying: $OUT_TEXT"; exit 1 ;;
+esac
+
 echo "PASS"

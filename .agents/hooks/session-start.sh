@@ -123,17 +123,49 @@ try:
     d = json.load(sys.stdin)
     mode = d.get('identity',{}).get('mode','?')
     status = d.get('status','?')
-    pid = d.get('runtime',{}).get('daemon_pid','?')
+    runtime = d.get('runtime', {})
+    pid = runtime.get('daemon_pid','?')
     acc = d.get('permissions',{}).get('accessibility', False)
     scr = d.get('permissions',{}).get('screen_recording', False)
     commit = d.get('identity',{}).get('git_commit','?')
-    print(f'mode={mode} status={status} pid={pid} startup=${AOS_STARTUP_STATE} commit={commit} acc={\"ok\" if acc else \"NO\"} scr={\"ok\" if scr else \"NO\"}')
+    socket_reachable = runtime.get('socket_reachable', False)
+    tap_block = runtime.get('input_tap')
+    if not socket_reachable:
+        tap_value = 'unknown'
+    elif isinstance(tap_block, dict):
+        tap_value = tap_block.get('status', 'unknown')
+    else:
+        tap_value = runtime.get('input_tap_status', 'unknown')
+    print(f'mode={mode} status={status} pid={pid} startup=${AOS_STARTUP_STATE} commit={commit} acc={\"ok\" if acc else \"NO\"} scr={\"ok\" if scr else \"NO\"} tap={tap_value}')
 except Exception:
     print('aos doctor failed to parse')
 " 2>/dev/null || echo "aos not running or not built")"
   echo "aos=$STATUS"
 else
   echo "aos=missing"
+fi
+
+# When tap is non-active and the daemon is reachable, point at status for full
+# guidance. Skip when daemon=unreachable: the daemon-recovery story is the
+# bigger signal in that case.
+if [ -x "$AOS" ]; then
+  TAP_PTR="$(printf '%s' "$AOS_DOCTOR_JSON" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    runtime = d.get('runtime', {})
+    if not runtime.get('socket_reachable', False):
+        sys.exit(0)
+    tap_block = runtime.get('input_tap')
+    status = tap_block.get('status') if isinstance(tap_block, dict) else runtime.get('input_tap_status')
+    if status and status != 'active':
+        print(f\"input_tap inactive (status={status}) — run './aos service restart' (see './aos status' for full guidance)\")
+except Exception:
+    pass
+" 2>/dev/null)"
+  if [ -n "$TAP_PTR" ]; then
+    echo "$TAP_PTR"
+  fi
 fi
 
 echo "branch=$BRANCH ahead=$AHEAD dirty=$DIRTY"
