@@ -1163,7 +1163,7 @@ cd "$ROOT"
 PREFIX="aos-input-tap-readiness"
 STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$STATE_ROOT"
-SOCK="$STATE_ROOT/repo/aos.sock"
+SOCK="$STATE_ROOT/repo/sock"
 mkdir -p "$(dirname "$SOCK")"
 
 cleanup() {
@@ -2086,7 +2086,7 @@ cd "$ROOT"
 PREFIX="aos-readiness-classifier"
 STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$STATE_ROOT"
-SOCK="$STATE_ROOT/repo/aos.sock"
+SOCK="$STATE_ROOT/repo/sock"
 mkdir -p "$(dirname "$SOCK")"
 
 cleanup() {
@@ -2189,7 +2189,7 @@ Run: `bash tests/input-tap-readiness-classifier.sh`
 
 Expected: all three PASS lines (`active -> ok`, `retrying -> input_tap_not_active`, `unreachable -> socket_unreachable`) followed by final `PASS`.
 
-If the third case fails because `service _verify-readiness` finds a different reachable daemon (e.g. your real one), confirm `AOS_STATE_ROOT` is being honored — `aosSocketPath(for:)` should resolve to `$AOS_STATE_ROOT/repo/aos.sock`. If the resolution doesn't honor `AOS_STATE_ROOT` for hidden subcommands, the test won't isolate; check `shared/swift/ipc/runtime-paths.swift` and ensure no special-case shortcut bypasses the override.
+If the third case fails because `service _verify-readiness` finds a different reachable daemon (e.g. your real one), confirm `AOS_STATE_ROOT` is being honored — `aosSocketPath(for:)` should resolve to `$AOS_STATE_ROOT/repo/sock`. If the resolution doesn't honor `AOS_STATE_ROOT` for hidden subcommands, the test won't isolate; check `shared/swift/ipc/runtime-paths.swift` and ensure no special-case shortcut bypasses the override.
 
 - [ ] **Step 8.3: Add a "daemon-aware readiness" section to docs/api/aos.md**
 
