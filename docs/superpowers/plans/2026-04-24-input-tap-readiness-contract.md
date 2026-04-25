@@ -1953,11 +1953,21 @@ Refs #109."
 - Modify: `tests/input-tap-readiness.sh` (add do click assertion)
 - Modify: `shared/schemas/daemon-ipc.md` (add the new error code to the vocabulary)
 
+The new tap gate ONLY applies to `do`-family callers. `see` and `inspect` callers
+share the same `ensureInteractivePreflight` helper but do NOT depend on the
+daemon's CGEventTap; they retain pre-Task-7 behavior. The helper takes a
+`requiresInputTap: Bool = false` parameter — do-family call sites pass
+`requiresInputTap: true`, see/inspect keep the default.
+
 ### Steps
 
 - [ ] **Step 7.1: Append the do click assertion to the readiness test**
 
-Append to `tests/input-tap-readiness.sh` before `echo "PASS"`:
+In `tests/input-tap-readiness.sh`, export `AOS_BYPASS_PERMISSIONS_SETUP=1` near
+the top (after `export AOS_STATE_ROOT=...`, before the mock daemon spawn) so
+the test can drive `do click` past the setup gate without depending on live
+TCC grants for the `./aos` binary on the running machine. Then append the
+following before `echo "PASS"`:
 
 ```bash
 # do click should fail at the preflight gate with INPUT_TAP_NOT_ACTIVE.
@@ -1981,32 +1991,39 @@ Run: `bash tests/input-tap-readiness.sh`
 
 Expected: failure on the new `INPUT_TAP_NOT_ACTIVE` assertion. The current `ensureInteractivePreflight` exits with `PERMISSIONS_SETUP_REQUIRED` if at all, not the new code.
 
-- [ ] **Step 7.3: Widen ensureInteractivePreflight**
+- [ ] **Step 7.3: Widen ensureInteractivePreflight (do-family only)**
 
-In `src/commands/operator.swift`. Replace `ensureInteractivePreflight` (around line 386) with:
+In `src/commands/operator.swift`. Replace `ensureInteractivePreflight` with:
 
 ```swift
-func ensureInteractivePreflight(command: String) {
+func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false) {
     if ProcessInfo.processInfo.environment["AOS_BYPASS_PREFLIGHT"] == "1" {
         return
     }
 
-    let permissions = currentPermissionsState()
-    let setup = currentPermissionsSetupState(permissions: permissions)
-    guard setup.setup_completed else {
-        let missing = missingPermissionIDs(permissions)
-        let details = missing.isEmpty
-            ? "Permissions appear granted, but onboarding has not been completed for this runtime identity."
-            : "Missing permissions: \(missing.joined(separator: ", "))."
-        let nextStep = setup.recommended_command ?? "aos permissions setup --once"
-        exitError(
-            "\(command) requires upfront permissions onboarding. \(details) Run '\(nextStep)' before interactive testing.",
-            code: "PERMISSIONS_SETUP_REQUIRED"
-        )
+    // The setup gate may be skipped via AOS_BYPASS_PERMISSIONS_SETUP for
+    // tests that want to exercise the input-tap gate without depending on
+    // live macOS TCC grants for the running binary.
+    if ProcessInfo.processInfo.environment["AOS_BYPASS_PERMISSIONS_SETUP"] != "1" {
+        let permissions = currentPermissionsState()
+        let setup = currentPermissionsSetupState(permissions: permissions)
+        guard setup.setup_completed else {
+            let missing = missingPermissionIDs(permissions)
+            let details = missing.isEmpty
+                ? "Permissions appear granted, but onboarding has not been completed for this runtime identity."
+                : "Missing permissions: \(missing.joined(separator: ", "))."
+            let nextStep = setup.recommended_command ?? "aos permissions setup --once"
+            exitError(
+                "\(command) requires upfront permissions onboarding. \(details) Run '\(nextStep)' before interactive testing.",
+                code: "PERMISSIONS_SETUP_REQUIRED"
+            )
+        }
     }
 
-    // If the daemon is reachable, gate on its tap state. An "active" tap is
-    // the only signal that input commands will actually work.
+    // Only do-family commands gate on tap state. see/inspect commands don't
+    // need the input tap.
+    guard requiresInputTap else { return }
+
     let mode = aosCurrentRuntimeMode()
     if let response = sendEnvelopeRequest(
         service: "system",
@@ -2032,6 +2049,11 @@ func ensureInteractivePreflight(command: String) {
     }
 }
 ```
+
+Update each `do`-family call site in `src/main.swift` (click, hover, drag,
+scroll, type, key, press, set-value, focus, raise, move, resize, tell,
+session) to pass `requiresInputTap: true`. The `see` callers and
+`src/commands/inspect.swift` keep the default and are NOT gated on tap state.
 
 When the daemon is unreachable, `ensureInteractivePreflight` keeps the existing pre-change behavior (the daemon will be auto-started by the per-command socket connection a moment later; if startup itself is broken the failure will be visible at that layer with daemon-side error codes).
 

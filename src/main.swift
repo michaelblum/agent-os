@@ -158,54 +158,54 @@ func handleDo(args: [String]) {
 
     switch sub {
     case "click":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do click") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do click", requiresInputTap: true) }
         cliClick(args: subArgs)
     case "hover":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do hover") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do hover", requiresInputTap: true) }
         cliHover(args: subArgs)
     case "drag":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag", requiresInputTap: true) }
         cliDrag(args: subArgs)
     case "fill":
         // Browser-only in v1: cliFill errors with BROWSER_ONLY on non-browser
         // targets, so no interactive preflight is needed.
         cliFill(args: subArgs)
     case "scroll":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll", requiresInputTap: true) }
         cliScroll(args: subArgs)
     case "type":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do type") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do type", requiresInputTap: true) }
         cliType(args: subArgs)
     case "key":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key") }
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key", requiresInputTap: true) }
         cliKey(args: subArgs)
     case "navigate":
         // Browser-only in v1 — no macOS preflight. cliNavigate owns the
         // BROWSER_ONLY rejection for non-browser targets.
         cliNavigate(args: subArgs)
     case "press":
-        ensureInteractivePreflight(command: "aos do press")
+        ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
         cliPress(args: subArgs)
     case "set-value":
-        ensureInteractivePreflight(command: "aos do set-value")
+        ensureInteractivePreflight(command: "aos do set-value", requiresInputTap: true)
         cliSetValue(args: subArgs)
     case "focus":
-        ensureInteractivePreflight(command: "aos do focus")
+        ensureInteractivePreflight(command: "aos do focus", requiresInputTap: true)
         cliFocusElement(args: subArgs)
     case "raise":
-        ensureInteractivePreflight(command: "aos do raise")
+        ensureInteractivePreflight(command: "aos do raise", requiresInputTap: true)
         cliRaise(args: subArgs)
     case "move":
-        ensureInteractivePreflight(command: "aos do move")
+        ensureInteractivePreflight(command: "aos do move", requiresInputTap: true)
         cliMove(args: subArgs)
     case "resize":
-        ensureInteractivePreflight(command: "aos do resize")
+        ensureInteractivePreflight(command: "aos do resize", requiresInputTap: true)
         cliResize(args: subArgs)
     case "tell":
-        ensureInteractivePreflight(command: "aos do tell")
+        ensureInteractivePreflight(command: "aos do tell", requiresInputTap: true)
         cliTell(args: subArgs)
     case "session":
-        ensureInteractivePreflight(command: "aos do session")
+        ensureInteractivePreflight(command: "aos do session", requiresInputTap: true)
         runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
     case "profiles":
         if let name = subArgs.first, name != "list" {

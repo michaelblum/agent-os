@@ -12,20 +12,10 @@ export AOS_STATE_ROOT="$STATE_ROOT"
 SOCK="$STATE_ROOT/repo/sock"
 mkdir -p "$(dirname "$SOCK")"
 
-# Seed the permissions onboarding marker so the do-family preflight clears the
-# PERMISSIONS_SETUP_REQUIRED guard and reaches the daemon-input_tap gate. The
-# marker's bundle_path must match Bundle.main.bundlePath for ./aos at runtime,
-# which for a CLI is the directory containing the executable (the repo root).
-cat >"$STATE_ROOT/repo/permissions-onboarding.json" <<EOF
-{
-  "bundle_path": "$ROOT",
-  "completed_at": "2026-04-24T00:00:00Z",
-  "permissions": {
-    "accessibility": true,
-    "screen_recording": true
-  }
-}
-EOF
+# Bypass the permissions-onboarding gate so the test can exercise the input-tap
+# gate without depending on live macOS TCC grants for the running ./aos binary.
+# This isolates the test from developer-machine state and makes it portable.
+export AOS_BYPASS_PERMISSIONS_SETUP=1
 
 cleanup() {
   if [[ -n "${MOCK_PID:-}" ]] && kill -0 "$MOCK_PID" 2>/dev/null; then

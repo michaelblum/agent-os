@@ -498,33 +498,34 @@ func permissionsCommand(args: [String]) {
     }
 }
 
-func interactivePreflightReady() -> Bool {
-    let permissions = currentPermissionsState()
-    let setup = currentPermissionsSetupState(permissions: permissions)
-    return setup.setup_completed
-}
-
-func ensureInteractivePreflight(command: String) {
+func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false) {
     if ProcessInfo.processInfo.environment["AOS_BYPASS_PREFLIGHT"] == "1" {
         return
     }
 
-    let permissions = currentPermissionsState()
-    let setup = currentPermissionsSetupState(permissions: permissions)
-    guard setup.setup_completed else {
-        let missing = missingPermissionIDs(permissions)
-        let details = missing.isEmpty
-            ? "Permissions appear granted, but onboarding has not been completed for this runtime identity."
-            : "Missing permissions: \(missing.joined(separator: ", "))."
-        let nextStep = setup.recommended_command ?? "aos permissions setup --once"
-        exitError(
-            "\(command) requires upfront permissions onboarding. \(details) Run '\(nextStep)' before interactive testing.",
-            code: "PERMISSIONS_SETUP_REQUIRED"
-        )
+    // The setup gate may be skipped via AOS_BYPASS_PERMISSIONS_SETUP for
+    // tests that want to exercise the input-tap gate without depending on
+    // live macOS TCC grants for the running binary.
+    if ProcessInfo.processInfo.environment["AOS_BYPASS_PERMISSIONS_SETUP"] != "1" {
+        let permissions = currentPermissionsState()
+        let setup = currentPermissionsSetupState(permissions: permissions)
+        guard setup.setup_completed else {
+            let missing = missingPermissionIDs(permissions)
+            let details = missing.isEmpty
+                ? "Permissions appear granted, but onboarding has not been completed for this runtime identity."
+                : "Missing permissions: \(missing.joined(separator: ", "))."
+            let nextStep = setup.recommended_command ?? "aos permissions setup --once"
+            exitError(
+                "\(command) requires upfront permissions onboarding. \(details) Run '\(nextStep)' before interactive testing.",
+                code: "PERMISSIONS_SETUP_REQUIRED"
+            )
+        }
     }
 
-    // If the daemon is reachable, gate on its tap state. An "active" tap is
-    // the only signal that input commands will actually work.
+    // Only do-family commands gate on tap state. see/inspect commands don't
+    // need the input tap.
+    guard requiresInputTap else { return }
+
     let mode = aosCurrentRuntimeMode()
     if let response = sendEnvelopeRequest(
         service: "system",
