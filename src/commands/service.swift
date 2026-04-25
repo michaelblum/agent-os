@@ -84,7 +84,23 @@ func serviceCommand(args: [String]) {
     case "restart":
         let options = parseServiceOptions(subArgs, usage: "aos service restart [--mode repo|installed] [--json]")
         stopAOSService(asJSON: false, mode: options.mode, emitStatus: false)
-        startAOSService(asJSON: options.asJSON, mode: options.mode)
+        let paths = aosServicePaths(mode: options.mode)
+        guardBinaryExists(paths.binaryPath)
+        if !FileManager.default.fileExists(atPath: paths.plistPath) {
+            installAOSService(asJSON: options.asJSON, mode: options.mode)
+            return
+        }
+        if !isServiceLoaded(label: serviceLabel(for: options.mode)) {
+            launchctlBootstrap(paths.plistPath)
+        }
+        launchctlKickstart(serviceLabel(for: options.mode))
+        let outcome = verifyServiceReadiness(mode: options.mode)
+        emitReadinessAndExit(
+            outcome: outcome,
+            mode: options.mode,
+            context: .afterServiceRestart,
+            asJSON: options.asJSON
+        )
     case "status":
         let options = parseServiceOptions(subArgs, usage: "aos service status [--mode repo|installed] [--json]")
         emitAOSServiceStatus(asJSON: options.asJSON, mode: options.mode)
@@ -170,13 +186,18 @@ private func installAOSService(asJSON: Bool, mode: AOSRuntimeMode) {
     }
     launchctlBootstrap(paths.plistPath, tolerateAlreadyBootstrapped: true)
     launchctlKickstart(serviceLabel(for: mode))
-    emitAOSServiceStatus(asJSON: asJSON, mode: mode)
+
+    let outcome = verifyServiceReadiness(mode: mode)
+    emitReadinessAndExit(outcome: outcome, mode: mode, context: .default, asJSON: asJSON)
 }
 
 private func startAOSService(asJSON: Bool, mode: AOSRuntimeMode) {
     let paths = aosServicePaths(mode: mode)
     guardBinaryExists(paths.binaryPath)
     if !FileManager.default.fileExists(atPath: paths.plistPath) {
+        // First-run: install + bootstrap + kickstart, then run the same
+        // readiness probe. installAOSService exits via emitReadinessAndExit,
+        // so control does not return.
         installAOSService(asJSON: asJSON, mode: mode)
         return
     }
@@ -184,7 +205,9 @@ private func startAOSService(asJSON: Bool, mode: AOSRuntimeMode) {
         launchctlBootstrap(paths.plistPath)
     }
     launchctlKickstart(serviceLabel(for: mode))
-    emitAOSServiceStatus(asJSON: asJSON, mode: mode)
+
+    let outcome = verifyServiceReadiness(mode: mode)
+    emitReadinessAndExit(outcome: outcome, mode: mode, context: .default, asJSON: asJSON)
 }
 
 private func stopAOSService(asJSON: Bool, mode: AOSRuntimeMode, emitStatus: Bool) {
