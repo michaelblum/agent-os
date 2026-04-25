@@ -90,12 +90,13 @@ assert d.get("input_tap", {}).get("status") == "retrying", d
 echo "PASS: legacy retrying -> input_tap_not_active"
 stop_mock
 
-# Case 3: legacy daemon, permissions check should:
+# Case 3: legacy active daemon, permissions check should:
 #   - report daemon_view.reachable=true
 #   - report daemon_view.input_tap.status=active (parser threaded it)
 #   - omit daemon_view.input_tap.listen_access / post_access (unknown)
 #   - omit daemon_view.accessibility (unknown)
-#   - fall back to ready_source="cli" for ready_for_testing
+#   - fall back to ready_source="cli" for ready_for_testing because the tap is
+#     active but daemon accessibility remains unknown
 #   - emit no disagreement entries (legacy fields are not "comparable")
 export AOS_BYPASS_PERMISSIONS_SETUP=1
 start_legacy_mock active
@@ -120,6 +121,42 @@ disagreement = d.get("disagreement")
 assert disagreement in (None, {}), f"disagreement should be empty, got: {disagreement}"
 '
 echo "PASS: permissions check (legacy daemon) → ready_source=cli, no fabricated fields"
+stop_mock
+
+# Case 4: legacy retrying daemon, permissions check should fail closed even
+# though daemon accessibility remains unknown. A reachable daemon-owned tap
+# status of retrying is sufficient to cap readiness to false.
+start_legacy_mock retrying
+OUT="$(./aos permissions check --json)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+dv = d.get("daemon_view", {})
+assert dv.get("reachable") is True, f"daemon_view.reachable: {dv}"
+tap = dv.get("input_tap") or {}
+assert tap.get("status") == "retrying", f"daemon_view.input_tap.status: {tap}"
+assert d.get("ready_for_testing") is False, f"ready_for_testing should fail closed: {d}"
+assert d.get("ready_source") == "daemon", f"ready_source should be daemon for reachable broken tap: {d}"
+notes = "\n".join(d.get("notes", []))
+assert "Input tap is not active" in notes, f"missing inactive-tap note: {notes}"
+'
+echo "PASS: permissions check (legacy retrying) → ready_for_testing=false, ready_source=daemon"
+
+# Case 5: doctor should mirror the same fail-closed behavior for a reachable
+# legacy daemon reporting a broken tap.
+OUT="$(./aos doctor --json)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+runtime = d.get("runtime", {})
+tap = runtime.get("input_tap") or {}
+assert tap.get("status") == "retrying", f"runtime.input_tap.status: {tap}"
+assert d.get("ready_for_testing") is False, f"doctor ready_for_testing should fail closed: {d}"
+assert d.get("ready_source") == "daemon", f"doctor ready_source should be daemon: {d}"
+notes = "\n".join(d.get("notes", []))
+assert "Input tap is not active" in notes, f"missing inactive-tap note: {notes}"
+'
+echo "PASS: doctor (legacy retrying) → ready_for_testing=false, ready_source=daemon"
 stop_mock
 
 echo "PASS"

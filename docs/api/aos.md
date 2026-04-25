@@ -606,11 +606,16 @@ daemon doesn't expose — `input_tap.listen_access`, `input_tap.post_access`,
 **omitted** from CLI output rather than fabricated as `false`. Consumers
 should treat their absence as "unknown, not denied."
 
-In that mode, `aos permissions check` and `aos doctor` report
-`ready_source: "cli"` regardless of socket reachability — readiness can't
-be daemon-sourced when the daemon doesn't expose the daemon-process TCC
-view (CONTRACT-GOVERNANCE rule 1+2: no silent merging of daemon tap
-status with CLI accessibility).
+In that mode, the source label depends on which side provides the decisive
+answer:
+
+- When the reachable legacy daemon reports `input_tap.status == "active"`,
+  `aos permissions check` and `aos doctor` fall back to
+  `ready_source: "cli"` because daemon accessibility is still unknown.
+- When the reachable legacy daemon reports `input_tap.status != "active"`,
+  `ready_for_testing` is forced to `false` and `ready_source: "daemon"`
+  because the daemon-owned tap status is sufficient to fail readiness
+  closed, even though daemon accessibility remains unknown.
 
 **See also:**
 - [`shared/schemas/daemon-ipc.md`](../../shared/schemas/daemon-ipc.md) for the canonical `system.ping` payload schema.

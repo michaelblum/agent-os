@@ -126,15 +126,20 @@ extension ServiceReadinessOutcome {
 /// `aos permissions check`, and `aos permissions setup`. Per
 /// `shared/schemas/CONTRACT-GOVERNANCE.md` rules 1 & 2:
 ///
-/// - When the daemon is reachable AND exposes `permissions.accessibility`
-///   (i.e., new-shape daemon), readiness is computed from the daemon view
-///   for daemon-owned fields (accessibility, input_tap.status), with
-///   screen_recording sourced from the CLI (the daemon doesn't track it),
-///   plus the local setup marker. `ready_source = "daemon"`.
-/// - Otherwise (daemon unreachable, OR a legacy daemon that doesn't expose
-///   `permissions.accessibility`), readiness falls back to the CLI view.
-///   `ready_source = "cli"`. We do not silently merge a daemon-sourced tap
-///   status with a CLI-sourced accessibility check.
+/// 1. **Reachable-daemon tap status is authoritative.** If the daemon is
+///    reachable and reports `input_tap.status != "active"`, readiness is
+///    `false` regardless of CLI fallbacks. This holds for legacy daemons
+///    (no `permissions` block) too — without this guard, a mixed-version
+///    setup where the legacy daemon's tap is broken but the CLI's TCC
+///    grants are fine would falsely report `ready_for_testing=true`.
+/// 2. **Otherwise, accessibility source determines `ready_source`:**
+///    - Daemon reachable + tap active + `permissions.accessibility` known:
+///      daemon-sourced (`ready_source="daemon"`).
+///    - Daemon unreachable, OR daemon reachable + tap active + legacy daemon
+///      (accessibility absent): CLI fallback (`ready_source="cli"`). No
+///      silent merging of a daemon-sourced tap status with a CLI-sourced
+///      accessibility check — and the tap-inactive case has already been
+///      handled above so this branch only runs when the tap is OK.
 struct ReadinessEvaluation {
     let readyForTesting: Bool
     let readySource: String  // "daemon" | "cli"
@@ -146,13 +151,21 @@ func evaluateReadyForTesting(
     cliScreenRecording: Bool,
     setupCompleted: Bool
 ) -> ReadinessEvaluation {
+    // Reachable daemon reporting a non-active tap caps readiness to false
+    // even when accessibility is missing from the payload. The daemon's tap
+    // status is daemon-owned and authoritative whenever the daemon answers
+    // the ping at all.
+    if let view = daemon, view.inputTap.status != "active" {
+        return ReadinessEvaluation(readyForTesting: false, readySource: "daemon")
+    }
+
     if let view = daemon, let daemonAccessibility = view.permissions.accessibility {
         let ready = daemonAccessibility
-            && view.inputTap.status == "active"
             && cliScreenRecording
             && setupCompleted
         return ReadinessEvaluation(readyForTesting: ready, readySource: "daemon")
     }
+
     let ready = cliAccessibility && cliScreenRecording && setupCompleted
     return ReadinessEvaluation(readyForTesting: ready, readySource: "cli")
 }
