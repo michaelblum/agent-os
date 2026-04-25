@@ -2372,19 +2372,69 @@ the file (immediately under the document title or top-level heading):
 If a "See also" / "Related" block already exists at the top, append the
 governance link to it instead of creating a new block.
 
-- [ ] **Step 9.3: Cross-reference from `docs/api/aos.md`**
+- [ ] **Step 9.3: Cross-reference from `docs/api/aos.md` and add a worked response example**
 
 Edit `docs/api/aos.md`. In the "Daemon-aware readiness" section added in
-Task 8.3, append a final paragraph:
+Task 8.3:
+
+(a) Append a "See also" paragraph at the end of the section:
 
 ```markdown
-The contract rules these consumers follow live in
-[`shared/schemas/CONTRACT-GOVERNANCE.md`](../../shared/schemas/CONTRACT-GOVERNANCE.md).
+**See also:**
+- [`shared/schemas/daemon-ipc.md`](../../shared/schemas/daemon-ipc.md) for the canonical `system.ping` payload schema.
+- [`shared/schemas/CONTRACT-GOVERNANCE.md`](../../shared/schemas/CONTRACT-GOVERNANCE.md) for the contract rules these consumers follow.
 ```
 
-Adjust the relative path to whatever resolves from `docs/api/aos.md`'s
-actual location to `shared/schemas/CONTRACT-GOVERNANCE.md`. Verify by
-opening the rendered file or by `ls` from the linked path.
+Adjust the relative paths if `docs/api/aos.md`'s depth differs from the
+assumption above. Verify by opening the rendered file or by `ls` from the
+linked path.
+
+(b) Insert a worked-example response block AFTER the consumer list and
+BEFORE the "See also" paragraph, so external readers see the readiness
+response shape without having to read Swift source. Use the response shape
+emitted by `service install/start/restart` and the hidden
+`_verify-readiness` subcommand:
+
+````markdown
+Example readiness response (`service _verify-readiness --json` against a
+mock daemon reporting `tap=retrying`):
+
+```json
+{
+  "status": "degraded",
+  "mode": "repo",
+  "installed": true,
+  "running": true,
+  "pid": 12345,
+  "launchd_label": "com.agent-os.aos.repo",
+  "expected_binary_path": "/Users/.../aos",
+  "plist_path": "/Users/.../Library/LaunchAgents/com.agent-os.aos.repo.plist",
+  "state_dir": "/Users/.../.config/aos/repo",
+  "reason": "input_tap_not_active",
+  "input_tap": {
+    "status": "retrying",
+    "attempts": 3,
+    "listen_access": false,
+    "post_access": false
+  },
+  "recovery": [
+    "./aos service restart",
+    "./aos permissions setup --once",
+    "./aos serve --idle-timeout none"
+  ],
+  "notes": [
+    "Input tap is not active (status=retrying, attempts=3). Try: ..."
+  ]
+}
+```
+
+When the readiness probe outcome is `.ok`, the `reason`, `recovery`, and
+`input_tap.last_error_at` fields are absent (omitted from JSON via
+`encodeIfPresent`). The top-level `status` may still be `"degraded"` if
+the launchd-derived base state has unrelated divergences (e.g., plist
+binary path mismatch); discriminate `.ok` outcomes by absence of `reason`
+plus `input_tap.status == "active"`.
+````
 
 - [ ] **Step 9.4: Verify the doc exists and links resolve**
 
@@ -2393,9 +2443,12 @@ Run:
 ```bash
 ls shared/schemas/CONTRACT-GOVERNANCE.md
 grep -n "CONTRACT-GOVERNANCE" shared/schemas/daemon-ipc.md docs/api/aos.md
+grep -n "daemon-ipc.md" docs/api/aos.md
 ```
 
-Expected: file exists, two grep hits (one in each consumer doc).
+Expected: file exists, two CONTRACT-GOVERNANCE grep hits (one in each
+consumer doc), and at least one `daemon-ipc.md` cross-link in
+`docs/api/aos.md`.
 
 - [ ] **Step 9.5: Commit**
 
