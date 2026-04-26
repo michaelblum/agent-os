@@ -15,7 +15,7 @@ import { createLightning, animateLightning } from '../lightning.js';
 import { createMagneticField, animateMagneticField, updateMagneticTentacleCount } from '../magnetic.js';
 import { createOmega, animateOmega } from '../omega.js';
 import { animateSkins } from '../skins.js';
-import { applyAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
+import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
 import { createRenderLoopScheduler } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
@@ -75,6 +75,9 @@ const liveJs = {
     avatarVisible: false,
     contextMenu: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
+    appearanceVersion: 0,
+    appliedAppearanceVersion: null,
+    lastPublishedAppearanceVersion: null,
     surfaceRenderSnapshot: null,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
@@ -197,6 +200,14 @@ function syncTopologyDisplays(topology = []) {
 
 function applySurfaceRenderSnapshot(snapshot) {
     if (!snapshot || typeof snapshot !== 'object') return;
+    if (
+        snapshot.appearance
+        && Number.isFinite(snapshot.appearanceVersion)
+        && snapshot.appearanceVersion !== liveJs.appliedAppearanceVersion
+    ) {
+        applyAppearance(snapshot.appearance);
+        liveJs.appliedAppearanceVersion = snapshot.appearanceVersion;
+    }
     if (snapshot.avatarPos?.valid) liveJs.avatarPos = { ...snapshot.avatarPos };
     if (snapshot.renderAvatarPos?.valid) liveJs.surfaceRenderSnapshot = snapshot;
     if (snapshot.pointerPos) liveJs.pointerPos = { ...snapshot.pointerPos };
@@ -224,7 +235,7 @@ function applySurfaceRenderSnapshot(snapshot) {
 }
 
 function surfaceRenderSnapshot(renderAvatarPos) {
-    return {
+    const snapshot = {
         avatarPos: liveJs.avatarPos,
         renderAvatarPos,
         pointerPos: liveJs.pointerPos,
@@ -234,6 +245,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         currentState: liveJs.currentState,
         appScale: state.appScale,
         globalTime: state.globalTime,
+        appearanceVersion: liveJs.appearanceVersion,
         omega: {
             enabled: state.isOmegaEnabled,
             interDimensional: state.omegaInterDimensional,
@@ -241,6 +253,11 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         contextMenu: contextMenu?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
     };
+    if (liveJs.lastPublishedAppearanceVersion !== liveJs.appearanceVersion) {
+        snapshot.appearance = snapshotAppearance();
+        liveJs.lastPublishedAppearanceVersion = liveJs.appearanceVersion;
+    }
+    return snapshot;
 }
 
 function desktopWorldToSegmentLocalPoint(point) {
@@ -277,8 +294,13 @@ const contextMenu = createSigilContextMenu({
     updateAccretion,
     updateNeutrinos,
     updateMagneticTentacleCount,
+    onAppearanceChange: markAppearanceChanged,
     onUtilityAction: toggleUtilityCanvas,
 });
+
+function markAppearanceChanged() {
+    liveJs.appearanceVersion += 1;
+}
 
 function mainDisplayVisibleBounds() {
     const displays = liveJs.displays || [];
@@ -583,7 +605,7 @@ function cancelInteraction(reason) {
 }
 
 function openContextMenuAt(x, y) {
-    if (!liveJs.avatarVisible || !isOnAvatar(x, y)) return false;
+    if (!liveJs.avatarVisible || liveJs.currentState !== 'IDLE' || !isOnAvatar(x, y)) return false;
     cancelInteraction('context-menu');
     contextMenu.openAt({ x, y, valid: true });
     return true;
@@ -666,7 +688,11 @@ function handleInputEvent(msg) {
         && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved'].includes(msg.type)
         && typeof msg.x === 'number'
         && typeof msg.y === 'number'
-        && contextMenu.handlePointerEvent(msg.type, { x: msg.x, y: msg.y, valid: true })
+        && contextMenu.handlePointerEvent(
+            msg.type,
+            { x: msg.x, y: msg.y, valid: true },
+            { assumeInside: msg.fromHitTarget === true }
+        )
     ) {
         return;
     }
@@ -729,7 +755,7 @@ function handleHitCanvasEvent(payload = {}) {
     if (payload.source !== 'sigil-hit') return;
     const point = pointFromHitPayload(payload);
     if (!point) return;
-    handleInputEvent({ type: payload.kind, x: point.x, y: point.y });
+    handleInputEvent({ type: payload.kind, x: point.x, y: point.y, fromHitTarget: true });
 }
 
 function normalizeMessage(msg) {
@@ -769,6 +795,7 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'live_appearance') {
         if (msg.appearance) applyAppearance(msg.appearance);
+        markAppearanceChanged();
         return;
     }
 
@@ -803,6 +830,7 @@ function handleHostMessage(rawMsg) {
     if (msg.type === 'sigil.set_geometry') {
         if (Number.isFinite(Number(msg.geometry))) {
             updateGeometry(Number(msg.geometry));
+            markAppearanceChanged();
         }
         return;
     }

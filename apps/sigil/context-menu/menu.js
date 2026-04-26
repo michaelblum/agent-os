@@ -190,6 +190,7 @@ export function createSigilContextMenu({
     updateAccretion,
     updateNeutrinos,
     updateMagneticTentacleCount,
+    onAppearanceChange,
     onUtilityAction,
     onBoundsChange,
 } = {}) {
@@ -439,16 +440,17 @@ export function createSigilContextMenu({
         return true;
     }
 
-    function handlePointerEvent(kind, point) {
+    function handlePointerEvent(kind, point, options = {}) {
         if (!menuState.open) return false;
-        const inside = containsDesktopPoint(point);
+        const inside = !!options.assumeInside || containsDesktopPoint(point);
         if (kind === 'left_mouse_down') {
             menuState.pointerDownInside = inside;
+            if (!inside) return true;
         }
 
         if (!inside && !menuState.pointerDownInside) {
-            if (kind === 'left_mouse_down') close('outside-click');
-            return false;
+            if (kind === 'left_mouse_up') close('outside-click');
+            return true;
         }
 
         const active = menuState.activeRange;
@@ -499,22 +501,34 @@ export function createSigilContextMenu({
                 const value = Number(el.value);
                 setValueLabel(id, value);
                 setter?.(value);
+                onAppearanceChange?.({ controlId: id, value });
             });
         };
         const onCheckbox = (id, setter) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
-            el.addEventListener('change', () => setter?.(!!el.checked));
+            el.addEventListener('change', () => {
+                const value = !!el.checked;
+                setter?.(value);
+                onAppearanceChange?.({ controlId: id, value });
+            });
         };
         const onSelect = (id, setter) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
-            el.addEventListener('change', () => setter?.(Number(el.value)));
+            el.addEventListener('change', () => {
+                const value = Number(el.value);
+                setter?.(value);
+                onAppearanceChange?.({ controlId: id, value });
+            });
         };
         const onChoice = (id, setter) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
-            el.addEventListener('change', () => setter?.(el.value));
+            el.addEventListener('change', () => {
+                setter?.(el.value);
+                onAppearanceChange?.({ controlId: id, value: el.value });
+            });
         };
         const onColor = (id, colorKey, index) => {
             const el = layer.querySelector(`#${id}`);
@@ -523,6 +537,7 @@ export function createSigilContextMenu({
                 if (!state.colors[colorKey]) state.colors[colorKey] = ['#ffffff', '#ffffff'];
                 state.colors[colorKey][index] = el.value;
                 updateAllColors?.();
+                onAppearanceChange?.({ controlId: id, value: el.value });
             });
         };
         const onAction = (action, handler) => {
