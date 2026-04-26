@@ -1,4 +1,5 @@
 import { createStackMenu } from '/toolkit/runtime/stack-menu.js';
+import { createDesktopWorldInteractionRouter } from '/toolkit/runtime/interaction-region.js';
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -204,10 +205,14 @@ export function createSigilContextMenu({
         open: false,
         bounds: null,
         activeRange: null,
-        pointerDownInside: false,
-        suppressNextOutsideMouseUp: false,
         snapshot: null,
     };
+    const interactionRouter = createDesktopWorldInteractionRouter({
+        onOutsidePointer(event) {
+            if (event.phase === 'up') close('outside-click');
+            return true;
+        },
+    });
     let stack = null;
     stack = createStackMenu(anchor, {
         rootId: 'sigil-menu-root',
@@ -357,8 +362,7 @@ export function createSigilContextMenu({
         menuState.open = false;
         menuState.bounds = null;
         menuState.activeRange = null;
-        menuState.pointerDownInside = false;
-        menuState.suppressNextOutsideMouseUp = false;
+        interactionRouter.reset();
         if (state) state.isMenuOpen = false;
         stack.close(reason);
         syncSnapshot();
@@ -370,8 +374,7 @@ export function createSigilContextMenu({
         menuState.open = open;
         menuState.bounds = open && next.bounds ? { ...next.bounds } : null;
         menuState.activeRange = null;
-        menuState.pointerDownInside = false;
-        menuState.suppressNextOutsideMouseUp = false;
+        interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
             stack.close('snapshot');
@@ -427,11 +430,7 @@ export function createSigilContextMenu({
         return document.elementFromPoint(local.x, local.y);
     }
 
-    function eventSource(options = {}) {
-        return options.assumeInside ? 'hit' : 'global';
-    }
-
-    function rangeDragState(input, source) {
+    function rangeDragState(input) {
         const rect = input.getBoundingClientRect();
         const anchorRect = anchor.getBoundingClientRect();
         const b = menuState.bounds;
@@ -440,7 +439,6 @@ export function createSigilContextMenu({
             input,
             desktopLeft: b.x + (rect.left - anchorRect.left),
             desktopWidth: rect.width,
-            source,
         };
     }
 
@@ -461,35 +459,15 @@ export function createSigilContextMenu({
         return true;
     }
 
-    function handlePointerEvent(kind, point, options = {}) {
-        if (!menuState.open) return false;
-        const source = eventSource(options);
-        const inside = !!options.assumeInside || containsDesktopPoint(point);
-        if (kind === 'left_mouse_down') {
-            menuState.pointerDownInside = menuState.pointerDownInside || inside;
-            if (!inside) return true;
-        }
-
-        if (!inside && !menuState.pointerDownInside) {
-            if (kind === 'left_mouse_up' && menuState.suppressNextOutsideMouseUp) {
-                menuState.suppressNextOutsideMouseUp = false;
-                return true;
-            }
-            if (kind === 'left_mouse_up') close('outside-click');
-            return true;
-        }
-
+    function handleMenuPointer(event) {
+        const kind = event.type;
+        const point = event.point;
         const active = menuState.activeRange;
-        if (active && active.source && active.source !== source) {
-            return true;
-        }
         if (active && (kind === 'left_mouse_dragged' || kind === 'mouse_moved')) {
             return updateRange(active, point);
         }
         if (active && kind === 'left_mouse_up') {
             menuState.activeRange = null;
-            menuState.pointerDownInside = false;
-            menuState.suppressNextOutsideMouseUp = true;
             return updateRange(active, point, true);
         }
 
@@ -501,7 +479,7 @@ export function createSigilContextMenu({
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
-            menuState.activeRange = rangeDragState(input, source);
+            menuState.activeRange = rangeDragState(input);
             return updateRange(menuState.activeRange, point);
         }
 
@@ -509,22 +487,34 @@ export function createSigilContextMenu({
             if (input.matches('input[type="checkbox"]')) {
                 input.checked = !input.checked;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
-                menuState.suppressNextOutsideMouseUp = true;
                 return true;
             }
             if (input.matches('button, .ctx-menu-card.pushed')) {
                 input.click();
                 syncSnapshot();
-                menuState.pointerDownInside = false;
-                menuState.suppressNextOutsideMouseUp = true;
                 return true;
             }
         }
-        if (kind === 'left_mouse_up') {
-            menuState.pointerDownInside = false;
-            menuState.suppressNextOutsideMouseUp = true;
-        }
         return true;
+    }
+
+    interactionRouter.registerRegion({
+        id: 'sigil-context-menu',
+        priority: 100,
+        contains: containsDesktopPoint,
+        onPointer: handleMenuPointer,
+    });
+
+    function handlePointerEvent(kind, point, options = {}) {
+        if (!menuState.open) return false;
+        return interactionRouter.route(
+            { type: kind, x: point.x, y: point.y },
+            {
+                source: options.assumeInside ? 'hit' : 'global',
+                assumeInside: options.assumeInside,
+                regionId: options.assumeInside ? 'sigil-context-menu' : undefined,
+            }
+        );
     }
 
     function bindControls() {
