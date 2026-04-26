@@ -13,7 +13,7 @@ import {
 import { createParticleObjects, animateParticles, animateTrails } from '../particles.js';
 import { createLightning, animateLightning } from '../lightning.js';
 import { createMagneticField, animateMagneticField, updateMagneticTentacleCount } from '../magnetic.js';
-import { createOmega, animateOmega } from '../omega.js';
+import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../omega.js';
 import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
@@ -233,6 +233,7 @@ function applySurfaceRenderSnapshot(snapshot) {
         contextMenu.applySnapshot(snapshot.contextMenu);
     }
     fastTravel.applySnapshot(snapshot.fastTravel);
+    syncOmegaTrailToTravelOrigin();
 }
 
 function surfaceRenderSnapshot(renderAvatarPos) {
@@ -586,9 +587,41 @@ const fastTravel = createFastTravelController({
         return ['avatar-main', hitTarget.hit.id].filter(Boolean);
     },
 });
+let omegaTrailTravelKey = null;
+
+function travelVectorKey(travel) {
+    if (!travel) return null;
+    const from = travel.from ?? { x: travel.fromX, y: travel.fromY };
+    const to = travel.to ?? { x: travel.toX, y: travel.toY };
+    if (!Number.isFinite(Number(from.x)) || !Number.isFinite(Number(from.y))) return null;
+    if (!Number.isFinite(Number(to.x)) || !Number.isFinite(Number(to.y))) return null;
+    return [
+        travel.effect,
+        Math.round(Number(from.x) || 0),
+        Math.round(Number(from.y) || 0),
+        Math.round(Number(to.x) || 0),
+        Math.round(Number(to.y) || 0),
+        Math.round(Number(travel.startMs) || 0),
+    ].join(':');
+}
+
+function syncOmegaTrailToTravelOrigin() {
+    const travel = liveJs.travel;
+    const key = travelVectorKey(travel);
+    if (!key) {
+        omegaTrailTravelKey = null;
+        return;
+    }
+    if (omegaTrailTravelKey === key) return;
+    omegaTrailTravelKey = key;
+    const origin = travel.from ?? { x: travel.fromX, y: travel.fromY, valid: true };
+    if (!origin?.valid) return;
+    resetOmegaInterdimensionalTrail(projectAvatarToScene(origin.x, origin.y));
+}
 
 function queueFastTravel(x, y) {
     fastTravel.start(x, y, { pointer: { x, y, valid: true } });
+    syncOmegaTrailToTravelOrigin();
 }
 
 function emitStatusItemState() {

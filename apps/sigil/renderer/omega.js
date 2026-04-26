@@ -25,6 +25,19 @@ export function createOmega() {
     state.omegaGhosts = [];
 }
 
+export function resetOmegaInterdimensionalTrail(position = null) {
+    _ensureScratch();
+    _cleanupAllGhosts();
+    state.omegaGhostTimer = 0;
+    if (position && state.omegaGroup) {
+        state.omegaGroup.position.copy(position);
+        _lastPos.copy(position);
+        _lastPosInitialized = true;
+        return;
+    }
+    _lastPosInitialized = false;
+}
+
 export function animateOmega(dt) {
     if (!state.omegaGroup) return;
     _ensureScratch();

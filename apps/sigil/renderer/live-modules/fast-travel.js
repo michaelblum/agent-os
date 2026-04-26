@@ -130,6 +130,8 @@ function lineTravel(liveJs, displays, toX, toY) {
         fromY,
         toX: clamped.x,
         toY: clamped.y,
+        from: { x: fromX, y: fromY, valid: true },
+        to: { x: clamped.x, y: clamped.y, valid: true },
         startMs: performance.now(),
         durationMs: durationForDistance({ x: fromX, y: fromY }, clamped),
     };
