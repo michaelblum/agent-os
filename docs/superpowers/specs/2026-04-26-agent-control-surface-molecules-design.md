@@ -92,15 +92,47 @@ Expected affordances:
 
 ```bash
 ./aos ops list
-./aos ops search canvas
 ./aos ops explain canvas/window-level-smoke
 ./aos ops dry-run canvas/window-level-smoke --json
 ./aos ops run canvas/window-level-smoke --json
 ```
 
+`ops search` is useful, but it should be post-v1. The first slice should prove
+exact-ID discovery, explanation, dry-run, and execution contracts before adding
+fuzzy lookup or symptom routing.
+
 The `explain` path should show the primitive commands, why they are ordered
 that way, what mutates state, what resources are owned by the run, what cleanup
 is registered, and what output predicates count as success.
+
+## Dry-Run Semantics
+
+V1 `ops dry-run` should be static expansion and validation. It must not execute
+recipe steps, start daemons, create canvases, run `show update`, or perform
+runtime observation on the user's behalf.
+
+Static dry-run should:
+
+- parse and schema-validate the recipe
+- resolve generated run IDs, declared resources, literal args, and explicit
+  user-provided inputs
+- verify that each command reference exists in the command registry
+- classify each step as read-only or mutating from registry metadata plus recipe
+  declarations
+- validate timeouts, cleanup ownership, JSON-path assertions, and output schema
+  references
+- return the exact planned step list with `would_run`, `mutates`, and
+  `supports_delegate_dry_run` fields
+
+The engine may delegate to an underlying command form only when that form
+explicitly advertises `supports_dry_run=true`. Forms such as `show-create` and
+`show-update` currently do not, so the dry-run engine can explain that they
+would run but must not call them.
+
+If expansion needs live state that was not provided as input, dry-run should
+fail with a stable code such as `DRY_RUN_UNRESOLVED_INPUT`. A later
+`ops dry-run --observe` mode can be considered for read-only probes, but v1
+should keep dry-run side-effect free.
 
 ## Wiki Invoke Distinction
 
@@ -126,7 +158,9 @@ only when needed. Shell strings are not sufficient for truthful dry-run or
 explain because they hide argument interpolation, mutation classification,
 timeouts, output schemas, cleanup, and resource ownership.
 
-Prefer structured steps keyed to command-registry form IDs:
+Prefer structured steps keyed to fully qualified command-registry form
+references. Do not rely on bare form IDs being globally unique; the registry
+models command paths and invocation forms separately.
 
 ```json
 {
@@ -143,7 +177,10 @@ Prefer structured steps keyed to command-registry form IDs:
   "steps": [
     {
       "id": "create-screen-saver-canvas",
-      "form": "show-create",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-create"
+      },
       "argv": [
         "--id", "${resources.canvas_id}",
         "--at", "20,20,40,40",
@@ -156,7 +193,10 @@ Prefer structured steps keyed to command-registry form IDs:
     },
     {
       "id": "assert-created-level",
-      "form": "show-list",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-list"
+      },
       "assertions": [
         {
           "json_path": "$.canvases[?(@.id == '${resources.canvas_id}')].windowLevel",
@@ -167,7 +207,10 @@ Prefer structured steps keyed to command-registry form IDs:
     },
     {
       "id": "update-status-bar-level",
-      "form": "show-update",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-update"
+      },
       "argv": [
         "--id", "${resources.canvas_id}",
         "--window-level", "status_bar"
@@ -177,7 +220,10 @@ Prefer structured steps keyed to command-registry form IDs:
     },
     {
       "id": "cleanup",
-      "form": "show-remove",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-remove"
+      },
       "argv": ["--id", "${resources.canvas_id}"],
       "finally": true,
       "mutates": true
@@ -204,7 +250,8 @@ input and output contracts:
 ```json
 {
   "status": "success|failure|partial|dry_run",
-  "code": "OK|ASSERTION_FAILED|COMMAND_FAILED|CLEANUP_FAILED|TIMEOUT|INVALID_RECIPE",
+  "code": "OK|DRY_RUN_UNRESOLVED_INPUT|ASSERTION_FAILED|COMMAND_FAILED|CLEANUP_FAILED|TIMEOUT|INVALID_RECIPE",
+  "error": null,
   "recipe": {
     "id": "canvas/window-level-smoke",
     "version": 1
@@ -225,8 +272,12 @@ input and output contracts:
     {
       "id": "create-screen-saver-canvas",
       "status": "success",
-      "form": "show-create",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-create"
+      },
       "mutates": true,
+      "supports_delegate_dry_run": false,
       "duration_ms": 120,
       "observed": {}
     }
@@ -239,6 +290,30 @@ input and output contracts:
 ```
 
 Failure codes must be stable enough for agents to branch on them.
+
+## Process Contract
+
+All `ops --json` commands should follow the global `aos` process contract:
+machine-readable success is emitted on stdout with exit code 0, and
+machine-readable failure is emitted on stderr with a non-zero exit code.
+Incidental logs must not be mixed into the JSON stream.
+
+For `ops explain` and static `ops dry-run`, exit 0 means the recipe was found,
+expanded, and validated. `dry_run` is a successful status when no side effects
+were performed and no unresolved inputs or invalid contracts remain.
+
+For `ops run`, exit 0 means every required step succeeded, every assertion
+passed, and cleanup either succeeded or was not needed. `failure` exits non-zero
+when a step, assertion, timeout, command, or recipe validation fails. `partial`
+exits non-zero when AOS cannot prove the run was fully cleaned up, especially
+when primary steps succeeded but cleanup failed. `CLEANUP_FAILED` is therefore
+an exit-1 condition even if the behavioral smoke passed.
+
+The same result schema should be used on stdout for success and stderr for
+failure. Failure and partial results should populate `error` with a concise
+human-readable message and expose stable `code` values such as
+`INVALID_RECIPE`, `DRY_RUN_UNRESOLVED_INPUT`, `ASSERTION_FAILED`,
+`COMMAND_FAILED`, `TIMEOUT`, and `CLEANUP_FAILED`.
 
 ## Storage And Namespaces
 
@@ -266,14 +341,36 @@ Discovery should preserve ownership metadata:
 {
   "id": "sigil/state",
   "owner": "apps/sigil",
-  "path": "apps/sigil/recipes/state.json"
+  "path": "apps/sigil/recipes/state.json",
+  "source_kind": "app"
 }
 ```
 
-Repo mode uses repo source recipes. Installed mode uses packaged source
-recipes. User-owned wiki workflow plugins remain runtime-mode isolated under
-`~/.config/aos/{mode}/wiki/` and should be listed separately from source-backed
-ops recipes.
+Repo mode uses working-tree source recipes. Installed mode must not depend on a
+checkout; packaged AOS should include a generated recipe index built from
+`recipes/`, `packages/toolkit/recipes/`, and `apps/<app>/recipes/` at package
+time. That index should preserve recipe ID, version, owner, source path,
+source kind, and the AOS build/package version that carried it.
+
+Discovery order and namespace ownership should be explicit:
+
+1. repo-wide recipes under `recipes/`
+2. toolkit-owned recipes under their `toolkit/` namespace
+3. app-owned recipes under their app namespace, such as `sigil/`
+4. user-owned wiki workflow plugins, listed separately and never allowed to
+   shadow a source-backed ops recipe without an explicit future override model
+
+In repo mode, the first three classes come from the working tree. In installed
+mode, the first three classes come from the packaged recipe index.
+
+Duplicate source-backed recipe IDs should be a validation error. User-owned
+wiki workflow plugins remain runtime-mode isolated under
+`~/.config/aos/{mode}/wiki/` and should be reported as instruction bundles, not
+source-backed executable ops recipes.
+
+The first implementation should include both repo-mode discovery tests and an
+installed-mode packaging/discovery test that proves packaged recipes are visible
+without reading the source checkout.
 
 ## Ownership And Cleanup
 
@@ -357,6 +454,11 @@ Add a separate runtime-aware diagnosis surface instead:
 ./aos diagnose recipe canvas/window-level-smoke
 ```
 
+`aos diagnose` should be post-v1. The first `ops` PR may reserve the concept in
+docs, but it should not introduce a hidden or partial `diagnose` command. When
+diagnosis is implemented, it needs the same command-registry, API docs, and
+architecture updates as `ops`.
+
 Runtime-aware diagnosis must not silently start daemons, repair permissions, or
 mutate state. Output should label its evidence source: command registry, daemon
 snapshot, `show list`, filesystem, or schema.
@@ -428,8 +530,9 @@ Future, gated:
 - Wiki workflows and source recipes could overlap confusingly. Mitigation:
   document ownership: source-backed for repo/operator contracts, wiki-backed for
   user-owned and exploratory instruction bundles.
-- A premature DSL could slow progress. Mitigation: start with command-registry
-  form IDs, argv arrays, JSON assertions, and named helpers only where needed.
+- A premature DSL could slow progress. Mitigation: start with fully qualified
+  command-registry refs, argv arrays, JSON assertions, and named helpers only
+  where needed.
 - State-gathering diagnosis could mutate accidentally. Mitigation: keep
   diagnosis read-only and separate from `help`.
 
@@ -445,10 +548,12 @@ The first implementation pass should be intentionally small:
 1. Choose `aos ops` as the proposed public command group and update command
    registry/docs/API references in the same PR.
 2. Add source-backed recipe discovery with `ops list`, `ops explain`, and
-   `ops dry-run`.
-3. Define the JSON output schema for dry-run/run step results.
-4. Implement one executable read-only recipe: `runtime/status-snapshot`.
-5. Add registry-vs-implementation drift tests for forms used by recipes.
-6. Add one mutating canvas smoke only after ownership, TTL, timeout, and cleanup
-   contracts are in place.
-
+   static, side-effect-free `ops dry-run`. Do not include `ops search` in v1.
+3. Define the JSON output schema and process contract for dry-run/run step
+   results, including stdout/stderr and exit-code behavior.
+4. Implement `ops run` for one executable read-only recipe:
+   `runtime/status-snapshot`.
+5. Add repo-mode and installed-mode recipe discovery tests.
+6. Add registry-vs-implementation drift tests for forms used by recipes.
+7. Add one mutating canvas smoke only after ownership, TTL, timeout, cleanup,
+   and dry-run contracts are in place.
