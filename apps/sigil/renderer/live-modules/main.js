@@ -190,6 +190,12 @@ function applySurfaceRenderSnapshot(snapshot) {
     if (snapshot.avatarPos?.valid) liveJs.avatarPos = { ...snapshot.avatarPos };
     if (snapshot.renderAvatarPos?.valid) liveJs.surfaceRenderSnapshot = snapshot;
     if (snapshot.pointerPos) liveJs.pointerPos = { ...snapshot.pointerPos };
+    if ('mousedownPos' in snapshot) {
+        liveJs.mousedownPos = snapshot.mousedownPos ? { ...snapshot.mousedownPos } : null;
+    }
+    if ('mousedownAvatarPos' in snapshot) {
+        liveJs.mousedownAvatarPos = snapshot.mousedownAvatarPos ? { ...snapshot.mousedownAvatarPos } : null;
+    }
     if (typeof snapshot.avatarVisible === 'boolean') liveJs.avatarVisible = snapshot.avatarVisible;
     if (snapshot.currentState) {
         liveJs.currentState = snapshot.currentState;
@@ -197,6 +203,11 @@ function applySurfaceRenderSnapshot(snapshot) {
     }
     if (Number.isFinite(snapshot.appScale)) state.appScale = snapshot.appScale;
     if (Number.isFinite(snapshot.globalTime)) state.globalTime = snapshot.globalTime;
+    if (snapshot.omega && typeof snapshot.omega === 'object') {
+        if (typeof snapshot.omega.enabled === 'boolean') state.isOmegaEnabled = snapshot.omega.enabled;
+        if (typeof snapshot.omega.interDimensional === 'boolean') state.omegaInterDimensional = snapshot.omega.interDimensional;
+    }
+    fastTravel.applySnapshot(snapshot.fastTravel);
 }
 
 function surfaceRenderSnapshot(renderAvatarPos) {
@@ -204,10 +215,17 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         avatarPos: liveJs.avatarPos,
         renderAvatarPos,
         pointerPos: liveJs.pointerPos,
+        mousedownPos: liveJs.mousedownPos,
+        mousedownAvatarPos: liveJs.mousedownAvatarPos,
         avatarVisible: liveJs.avatarVisible,
         currentState: liveJs.currentState,
         appScale: state.appScale,
         globalTime: state.globalTime,
+        omega: {
+            enabled: state.isOmegaEnabled,
+            interDimensional: state.omegaInterDimensional,
+        },
+        fastTravel: fastTravel.exportSnapshot(),
     };
 }
 

@@ -816,8 +816,11 @@ class CanvasManager {
             }
             canvas.parent = explicitParent
         }
-        // Born suspended: if parent is suspended and cascade is true, start hidden
+        // Born suspended: if explicitly requested, or if parent is suspended
+        // and cascade is true, start hidden while still allowing the web view
+        // to load and warm its runtime.
         let bornSuspended: Bool = {
+            if req.suspended == true { return true }
             guard canvas.cascadeFromParent, let pid = canvas.parent,
                   let parentCanvas = canvases[pid] else { return false }
             return parentCanvas.suspended

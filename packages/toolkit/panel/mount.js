@@ -6,7 +6,7 @@ import { mountChrome } from './chrome.js'
 import { wireBridge, emit } from '../runtime/bridge.js'
 import { subscribe } from '../runtime/subscribe.js'
 import { evalCanvas, spawnChild } from '../runtime/canvas.js'
-import { declareManifest, emitReady } from '../runtime/manifest.js'
+import { declareManifest, emitLifecycleComplete, emitReady } from '../runtime/manifest.js'
 import { createRouter } from './router.js'
 
 export function mountPanel({ title = 'AOS', layout, draggable = true, container = document.body } = {}) {
@@ -35,6 +35,11 @@ function mountSingle(chrome, content) {
     hostByContent: new Map([[content, host]]),
   })
   wireBridge(router)
+  wireBridge((msg) => {
+    if (msg?.type === 'lifecycle' && (msg.action === 'resume' || msg.action === 'suspend')) {
+      emitLifecycleComplete(msg.action)
+    }
+  })
 
   // Render
   const rendered = content.render(host)

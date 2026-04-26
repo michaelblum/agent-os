@@ -96,6 +96,23 @@ function createCanvasOverlay() {
     return { mount: ensure, context, clear, destroy };
 }
 
+function clonePoint(point) {
+    if (!point || typeof point !== 'object') return null;
+    const x = Number(point.x);
+    const y = Number(point.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, valid: point.valid ?? true };
+}
+
+function cloneCurve(curve) {
+    if (!curve || typeof curve !== 'object') return null;
+    return {
+        x: Number(curve.x) || 0,
+        y: Number(curve.y) || 0,
+        amount: Number(curve.amount) || 0,
+    };
+}
+
 function durationForDistance(from, to) {
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
     return Math.max(120, Math.min(300, (dist / 5000) * 1000));
@@ -380,6 +397,83 @@ export function createFastTravelController({
         if (!liveJs.travel) overlay.clear();
     }
 
+    function exportSnapshot() {
+        const now = performance.now();
+        const travel = liveJs.travel;
+        return {
+            gesture: gesture ? {
+                effect: gesture.effect,
+                origin: clonePoint(gesture.origin),
+                pointer: clonePoint(gesture.pointer),
+                openedElapsedMs: Math.max(0, now - gesture.openedAt),
+                exitCreated: !!gesture.exitCreated,
+            } : null,
+            travel: travel ? {
+                effect: travel.effect,
+                phase: travel.phase,
+                fromX: travel.fromX,
+                fromY: travel.fromY,
+                toX: travel.toX,
+                toY: travel.toY,
+                from: clonePoint(travel.from) ?? { x: travel.fromX, y: travel.fromY, valid: true },
+                to: clonePoint(travel.to) ?? { x: travel.toX, y: travel.toY, valid: true },
+                pointer: clonePoint(travel.pointer),
+                elapsedMs: Math.max(0, now - travel.startMs),
+                durationMs: travel.durationMs,
+                entryMs: travel.entryMs,
+                transitMs: travel.transitMs,
+                exitMs: travel.exitMs,
+                captureRadius: travel.captureRadius,
+                curve: cloneCurve(travel.curve),
+            } : null,
+        };
+    }
+
+    function applySnapshot(snapshot) {
+        if (!snapshot || typeof snapshot !== 'object') return;
+        const now = performance.now();
+        if (snapshot.gesture) {
+            gesture = {
+                effect: snapshot.gesture.effect,
+                origin: clonePoint(snapshot.gesture.origin),
+                pointer: clonePoint(snapshot.gesture.pointer),
+                openedAt: now - Math.max(0, Number(snapshot.gesture.openedElapsedMs) || 0),
+                exitCreated: !!snapshot.gesture.exitCreated,
+            };
+        } else {
+            gesture = null;
+        }
+
+        if (snapshot.travel) {
+            const travel = snapshot.travel;
+            const from = clonePoint(travel.from) ?? { x: Number(travel.fromX) || 0, y: Number(travel.fromY) || 0, valid: true };
+            const to = clonePoint(travel.to) ?? { x: Number(travel.toX) || from.x, y: Number(travel.toY) || from.y, valid: true };
+            liveJs.travel = {
+                effect: travel.effect,
+                phase: travel.phase,
+                fromX: Number(travel.fromX) || from.x,
+                fromY: Number(travel.fromY) || from.y,
+                toX: Number(travel.toX) || to.x,
+                toY: Number(travel.toY) || to.y,
+                from,
+                to,
+                pointer: clonePoint(travel.pointer) ?? to,
+                startMs: now - Math.max(0, Number(travel.elapsedMs) || 0),
+                durationMs: Number(travel.durationMs) || durationForDistance(from, to),
+                entryMs: Number(travel.entryMs) || 160,
+                transitMs: Number(travel.transitMs) || 80,
+                exitMs: Number(travel.exitMs) || 220,
+                captureRadius: Number(travel.captureRadius) || Math.max(56, Number(rendererState.wormholeCaptureRadius) || 96),
+                curve: cloneCurve(travel.curve) ?? curveFor(from, to, Number(travel.captureRadius) || 96),
+                captures: {},
+                captureErrors: {},
+            };
+        } else {
+            liveJs.travel = null;
+            if (!gesture) overlay.clear();
+        }
+    }
+
     function start(toX, toY, options = {}) {
         const currentEffect = effect();
         if (currentEffect !== 'wormhole') {
@@ -553,6 +647,8 @@ export function createFastTravelController({
         start,
         tick,
         draw,
+        exportSnapshot,
+        applySnapshot,
         destroy() {
             gesture = null;
             overlay.destroy();

@@ -30,6 +30,7 @@ class StatusItemManager {
     // handleClick is always called on main; isAnimating is read/written on main only.
     private var isAnimating = false
     private var persistentVisible = false
+    private var utilityWarmStarted = false
     private let positionFile: String
     private let utilityStateFile: String
     private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
@@ -58,6 +59,8 @@ class StatusItemManager {
         statusItem?.button?.toolTip = Self.accessibilityLabel
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
         restoreUtilityPanels()
+        warmPersistentCanvasIfNeeded()
+        warmUtilityCanvases()
     }
 
     func teardown() {
@@ -77,6 +80,7 @@ class StatusItemManager {
             persistentVisible = canvasManager.hasCanvas(toggleId) && !isCanvasSuspended()
         } else if !canvasManager.hasCanvas(toggleId) {
             persistentVisible = false
+            warmPersistentCanvasIfNeeded()
         }
         updateIcon()
     }
@@ -127,8 +131,11 @@ class StatusItemManager {
     private func togglePersistentCanvas() {
         if !canvasManager.hasCanvas(toggleId) {
             fputs("[status-item] toggle target '\(toggleId)' is missing; recreating warm canvas\n", stderr)
+            isAnimating = true
+            updateIcon()
             summonCanvas()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                self?.isAnimating = false
                 self?.showPersistentCanvas()
             }
             return
@@ -189,7 +196,7 @@ class StatusItemManager {
         menu.addItem(quitItem)
 
         guard let button = statusItem?.button else { return }
-        let pos = NSPoint(x: 0, y: button.bounds.maxY + 5)
+        let pos = NSPoint(x: 0, y: button.bounds.minY)
         menu.popUp(positioning: nil, at: pos, in: button)
     }
 
@@ -227,10 +234,20 @@ class StatusItemManager {
 
     private func toggleUtilityCanvas(id: String, url: String, frame: [CGFloat], restoring: Bool = false) {
         if canvasManager.hasCanvas(id) {
-            var remove = CanvasRequest(action: "remove")
-            remove.id = id
-            _ = canvasManager.handle(remove)
-            persistUtilityCanvasVisible(id: id, visible: false)
+            if isUtilityCanvasSuspended(id: id) {
+                var resume = CanvasRequest(action: "resume")
+                resume.id = id
+                _ = canvasManager.handle(resume)
+                if !restoring {
+                    canvasManager.canvas(forID: id)?.grabFocus()
+                }
+                persistUtilityCanvasVisible(id: id, visible: true)
+            } else {
+                var suspend = CanvasRequest(action: "suspend")
+                suspend.id = id
+                _ = canvasManager.handle(suspend)
+                persistUtilityCanvasVisible(id: id, visible: false)
+            }
             return
         }
 
@@ -240,6 +257,7 @@ class StatusItemManager {
         req.at = frame
         req.interactive = true
         req.focus = !restoring
+        req.suspended = false
         _ = canvasManager.handle(req)
         persistUtilityCanvasVisible(id: id, visible: true)
     }
@@ -265,7 +283,46 @@ class StatusItemManager {
     }
 
     private func isUtilityCanvasVisible(id: String) -> Bool {
-        canvasManager.hasCanvas(id)
+        canvasManager.hasCanvas(id) && !isUtilityCanvasSuspended(id: id)
+    }
+
+    private func isUtilityCanvasSuspended(id: String) -> Bool {
+        canvasManager.canvas(forID: id)?.suspended == true
+    }
+
+    private func warmUtilityCanvases() {
+        guard !utilityWarmStarted else { return }
+        utilityWarmStarted = true
+        let state = loadUtilityPanelState()
+        if state[logConsoleId] != true && !canvasManager.hasCanvas(logConsoleId) {
+            createUtilityCanvas(
+                id: logConsoleId,
+                url: logConsoleUrl,
+                frame: logConsoleFrame(),
+                suspended: true,
+                focus: false
+            )
+        }
+        if state[canvasInspectorId] != true && !canvasManager.hasCanvas(canvasInspectorId) {
+            createUtilityCanvas(
+                id: canvasInspectorId,
+                url: canvasInspectorUrl,
+                frame: canvasInspectorFrame(),
+                suspended: true,
+                focus: false
+            )
+        }
+    }
+
+    private func createUtilityCanvas(id: String, url: String, frame: [CGFloat], suspended: Bool, focus: Bool) {
+        var req = CanvasRequest(action: "create")
+        req.id = id
+        req.url = urlResolver?(url) ?? url
+        req.at = frame
+        req.interactive = true
+        req.focus = focus
+        req.suspended = suspended
+        _ = canvasManager.handle(req)
     }
 
     private func loadUtilityPanelState() -> [String: Bool] {
@@ -427,6 +484,11 @@ class StatusItemManager {
             _ = canvasManager.handle(req)
             updateIcon()
         }
+    }
+
+    private func warmPersistentCanvasIfNeeded() {
+        guard usesPersistentCanvas, !toggleUrl.isEmpty, !canvasManager.hasCanvas(toggleId) else { return }
+        summonCanvas()
     }
 
     // MARK: - Persistent Intent Flow
