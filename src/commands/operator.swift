@@ -10,6 +10,8 @@ import CoreGraphics
 private struct PermissionsState: Encodable {
     let accessibility: Bool
     let screen_recording: Bool
+    let listen_access: Bool
+    let post_access: Bool
 }
 
 private struct DaemonViewBlock: Encodable {
@@ -363,19 +365,41 @@ func readyCommand(args: [String]) {
     let repair = args.contains("--repair")
     let mode = aosCurrentRuntimeMode()
     let prefix = aosInvocationDisplayName()
+    // Test-only escape hatch: readiness regression tests run against isolated
+    // mock sockets and must not rewrite or kickstart the developer LaunchAgent.
+    let skipServiceStart = ProcessInfo.processInfo.environment["AOS_TEST_SKIP_READY_SERVICE_START"] == "1"
     let serviceArgs = ["service", "start", "--mode", mode.rawValue, "--json"]
-    let startupResult = runProcess(aosExecutablePath(), arguments: serviceArgs)
-    let startup = ReadyStartupBlock(
-        attempted: true,
-        command: "\(prefix) \(serviceArgs.joined(separator: " "))",
-        exit_code: startupResult.exitCode,
-        status: startupResult.exitCode == 0 ? "ok" : "degraded"
-    )
+    let startupResult: ProcessOutput?
+    let startup: ReadyStartupBlock
+    if skipServiceStart {
+        startupResult = nil
+        startup = ReadyStartupBlock(
+            attempted: false,
+            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
+            exit_code: 0,
+            status: "skipped"
+        )
+    } else {
+        let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
+        startupResult = result
+        startup = ReadyStartupBlock(
+            attempted: true,
+            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
+            exit_code: result.exitCode,
+            status: result.exitCode == 0 ? "ok" : "degraded"
+        )
+    }
 
     var actionTrace: [ReadyActionStep] = []
     var response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
 
-    if startupResult.exitCode != 0 {
+    if skipServiceStart {
+        actionTrace.append(ReadyActionStep(
+            step: "service_start",
+            result: "skipped",
+            detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
+        ))
+    } else if let startupResult, startupResult.exitCode != 0 {
         actionTrace.append(ReadyActionStep(
             step: "service_start",
             result: "degraded",
@@ -386,7 +410,7 @@ func readyCommand(args: [String]) {
     }
 
     if repair && !response.ready {
-        if response.blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" }) {
+        if response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
             let restartArgs = ["service", "restart", "--mode", mode.rawValue, "--json"]
             let restart = runProcess(aosExecutablePath(), arguments: restartArgs)
             actionTrace.append(ReadyActionStep(
@@ -435,6 +459,9 @@ func readyCommand(args: [String]) {
                 }
             }
             for blocker in response.blockers {
+                if response.phase == "human_required", blocker.kind == "permission" {
+                    continue
+                }
                 print("- \(blocker.message)")
                 if let target = blocker.target_path {
                     print("  target: \(target)")
@@ -447,6 +474,9 @@ func readyCommand(args: [String]) {
             if !response.next_actions.isEmpty {
                 print("Next:")
                 for action in response.next_actions {
+                    if response.phase == "human_required", action.type == "open_settings" {
+                        continue
+                    }
                     if let command = action.command {
                         print("  \(command)  # \(action.label)")
                     } else {
@@ -467,34 +497,13 @@ private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMod
 
     print("")
     print("Human action needed:")
-    print("AOS tried the automated checks it can do safely. macOS is still denying the \(runtimeIdentityLabel(mode: mode)) daemon.")
-    if mode == .repo {
-        let path = aosExpectedBinaryPath(program: "aos", mode: mode)
-        print("Settings may already show the repo-mode 'aos' row as enabled. If so, remove that 'aos' row and add this binary again:")
-        print("  \(path)")
+    print("Permissions to fix:")
+    for line in permissionFixLines(blockers: permissionBlockers, mode: mode) {
+        print("  \(line)")
     }
 
-    let settingsURLs = Array(Set(permissionBlockers.compactMap(\.settings_url))).sorted()
-    print("Steps:")
-    if settingsURLs.isEmpty {
-        print("  1. Open System Settings > Privacy & Security.")
-    } else if settingsURLs.count == 1 {
-        print("  1. Ask the agent to open this Settings pane, or run:")
-        print("     open \"\(settingsURLs[0])\"")
-    } else {
-        print("  1. Ask the agent to open each needed Settings pane, or run:")
-        for url in settingsURLs {
-            print("     open \"\(url)\"")
-        }
-    }
-    print("  2. Grant the reported permissions for \(runtimeIdentityLabel(mode: mode)).")
-    if mode == .repo {
-        print("  3. If 'aos' is already enabled but AOS still reports stale grants, remove the 'aos' row and add /Users/Michael/Code/agent-os/aos again.")
-    } else {
-        print("  3. If AOS.app is already enabled but AOS still reports stale grants, re-grant AOS.app.")
-    }
-    print("  4. Come back to this session and say: ready")
-    print("  5. The agent should run: \(prefix) ready")
+    print("After fixing those rows, come back and say: ready")
+    print("The agent should run: \(prefix) ready")
 }
 
 func statusCommand(args: [String]) {
@@ -915,7 +924,9 @@ private func currentGitStatus() -> GitStatusState? {
 private func currentPermissionsState() -> PermissionsState {
     PermissionsState(
         accessibility: AXIsProcessTrusted(),
-        screen_recording: preflightScreenRecordingAccess()
+        screen_recording: preflightScreenRecordingAccess(),
+        listen_access: preflightListenEventAccess(),
+        post_access: preflightPostEventAccess()
     )
 }
 
@@ -932,6 +943,18 @@ private func currentPermissionRequirements(permissions: PermissionsState) -> [Pe
             granted: permissions.screen_recording,
             required_for: ["screen capture", "perception", "visual debugging"],
             setup_trigger: "CGRequestScreenCaptureAccess prompt"
+        ),
+        PermissionRequirement(
+            id: "listen_access",
+            granted: permissions.listen_access,
+            required_for: ["global input tap", "input event fan-out", "hotkeys"],
+            setup_trigger: "CGRequestListenEventAccess prompt"
+        ),
+        PermissionRequirement(
+            id: "post_access",
+            granted: permissions.post_access,
+            required_for: ["synthetic events", "mouse/keyboard actions", "AX element actions"],
+            setup_trigger: "CGRequestPostEventAccess prompt"
         )
     ]
 }
@@ -945,6 +968,8 @@ private func currentPermissionsSetupState(permissions: PermissionsState) -> Perm
     let bundleMatchesCurrent = bundlePath == nil ? false : bundlePath == currentBundlePath
     let setupCompleted = permissions.accessibility &&
         permissions.screen_recording &&
+        permissions.listen_access &&
+        permissions.post_access &&
         marker != nil &&
         bundleMatchesCurrent
 
@@ -964,6 +989,8 @@ private func missingPermissionIDs(_ permissions: PermissionsState) -> [String] {
     var missing: [String] = []
     if !permissions.accessibility { missing.append("accessibility") }
     if !permissions.screen_recording { missing.append("screen_recording") }
+    if !permissions.listen_access { missing.append("listen_access") }
+    if !permissions.post_access { missing.append("post_access") }
     return missing
 }
 
@@ -974,12 +1001,7 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     }
 
     let cliPermissions = currentPermissionsState()
-    let cliView = CLIViewBlock(
-        accessibility: cliPermissions.accessibility,
-        screen_recording: cliPermissions.screen_recording,
-        listen_access: preflightListenEventAccess(),
-        post_access: preflightPostEventAccess()
-    )
+    let cliView = cliView(from: cliPermissions)
 
     let mode = aosCurrentRuntimeMode()
     let daemonView: DaemonViewBlock
@@ -1008,19 +1030,7 @@ private func permissionsCheckCommand(args: [String], usage: String) {
 
     let setup = currentPermissionsSetupState(permissions: cliPermissions)
 
-    var requirements = currentPermissionRequirements(permissions: cliPermissions)
-    requirements.append(PermissionRequirement(
-        id: "listen_access",
-        granted: daemonHealth?.inputTap.listenAccess ?? cliView.listen_access,
-        required_for: ["global input tap", "perception"],
-        setup_trigger: "Input Monitoring TCC grant"
-    ))
-    requirements.append(PermissionRequirement(
-        id: "post_access",
-        granted: daemonHealth?.inputTap.postAccess ?? cliView.post_access,
-        required_for: ["synthetic events (aos do click/type)"],
-        setup_trigger: "Input Monitoring TCC grant"
-    ))
+    let requirements = currentPermissionRequirements(permissions: cliPermissions)
 
     let evaluation = evaluateReadyForTesting(
         daemon: daemonHealth,
@@ -1057,6 +1067,12 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     }
     if !cliPermissions.screen_recording {
         notes.append("Screen Recording permission is not granted.")
+    }
+    if !cliPermissions.listen_access {
+        notes.append("Input Monitoring listen access is not granted (CLI view).")
+    }
+    if !cliPermissions.post_access {
+        notes.append("Input Monitoring post access is not granted (CLI view).")
     }
     if !setup.marker_exists {
         notes.append("Permission onboarding has not been completed for this runtime identity.")
@@ -1109,6 +1125,77 @@ private func missingPermissionIDsFor(daemon: DaemonHealthView?, cli: CLIViewBloc
     if !listen { missing.append("listen_access") }
     if !post { missing.append("post_access") }
     return missing
+}
+
+private func cliView(from permissions: PermissionsState) -> CLIViewBlock {
+    CLIViewBlock(
+        accessibility: permissions.accessibility,
+        screen_recording: permissions.screen_recording,
+        listen_access: permissions.listen_access,
+        post_access: permissions.post_access
+    )
+}
+
+private func permissionRecoveryNotes(missing: [String], mode: AOSRuntimeMode) -> [String] {
+    var notes: [String] = []
+    for id in missing {
+        switch id {
+        case "accessibility":
+            notes.append(staleGrantGuidance(mode: mode, service: "Accessibility"))
+        case "screen_recording":
+            notes.append("Screen Recording permission is not granted. Run \(aosInvocationDisplayName()) permissions setup --once or grant Screen Recording in System Settings.")
+        case "listen_access":
+            notes.append(staleGrantGuidance(mode: mode, service: "Input Monitoring listen access"))
+        case "post_access":
+            notes.append(staleGrantGuidance(mode: mode, service: "Input Monitoring post access"))
+        default:
+            notes.append("Missing permission: \(id).")
+        }
+    }
+    return notes
+}
+
+private func permissionPanel(for id: String) -> String {
+    switch id {
+    case "accessibility":
+        return "Accessibility"
+    case "screen_recording":
+        return "Screen Recording"
+    case "listen_access", "post_access", "input_monitoring_listen", "input_monitoring_post":
+        return "Input Monitoring"
+    default:
+        return id
+    }
+}
+
+private func permissionEntryName(mode: AOSRuntimeMode) -> String {
+    switch mode {
+    case .repo:
+        return "aos"
+    case .installed:
+        return "AOS.app"
+    }
+}
+
+private func permissionAction(for blocker: ReadyBlocker, mode: AOSRuntimeMode) -> String {
+    if mode == .repo, blocker.scope == "daemon" {
+        return "remove/add back"
+    }
+    return "enable"
+}
+
+private func permissionFixLines(blockers: [ReadyBlocker], mode: AOSRuntimeMode) -> [String] {
+    var seen = Set<String>()
+    var lines: [String] = []
+    for blocker in blockers {
+        let panel = permissionPanel(for: blocker.id)
+        let action = permissionAction(for: blocker, mode: mode)
+        let key = "\(panel)|\(action)"
+        if seen.insert(key).inserted {
+            lines.append("\(panel) -> \(permissionEntryName(mode: mode)) (\(action))")
+        }
+    }
+    return lines
 }
 
 private func buildReadyResponse(
@@ -1218,19 +1305,27 @@ private func runtimeIdentityLabel(mode: AOSRuntimeMode) -> String {
 }
 
 private func staleGrantGuidance(mode: AOSRuntimeMode, service: String) -> String {
-    let identity = runtimeIdentityLabel(mode: mode)
-    let path = aosExpectedBinaryPath(program: "aos", mode: mode)
+    let panel: String
+    if service.lowercased().contains("input monitoring") {
+        panel = "Input Monitoring"
+    } else if service.lowercased().contains("screen") {
+        panel = "Screen Recording"
+    } else {
+        panel = "Accessibility"
+    }
+    let entry = permissionEntryName(mode: mode)
     switch mode {
     case .repo:
-        return "The \(identity) row may already be enabled in Settings, but the launchd daemon running \(path) is still denied \(service). Remove the 'aos' row, add \(path) again if needed, enable it, then run ./aos ready."
+        return "\(panel) -> \(entry) (remove/add back)"
     case .installed:
-        return "The \(identity) row may already be enabled in Settings, but the installed daemon is still denied \(service). Re-grant AOS.app in Settings, then run aos ready."
+        return "\(panel) -> \(entry) (enable)"
     }
 }
 
 private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
@@ -1244,6 +1339,9 @@ private func readyDiagnosis(
     permissions: PermissionsState
 ) -> String {
     if ready { return "ready" }
+    if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) {
+        return "daemon_ownership_mismatch"
+    }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) {
         return "daemon_socket_unreachable"
     }
@@ -1280,6 +1378,21 @@ private func readyBlockers(
             message: runtime.daemon_running
                 ? "Daemon process appears to be running, but the socket is not reachable."
                 : "Daemon is not running or did not become reachable.",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "show", "tell", "listen"]
+        ))
+    }
+
+    if runtime.ownership_state == "mismatch" {
+        let serving = runtime.serving_pid.map(String.init) ?? "none"
+        let lock = runtime.lock_owner_pid.map(String.init) ?? "none"
+        let service = runtime.service_pid.map(String.init) ?? "none"
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "daemon_ownership_mismatch",
+            scope: "daemon",
+            message: "Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).",
             target_path: daemonPath,
             settings_url: nil,
             blocks: ["see", "do", "show", "tell", "listen"]
@@ -1373,6 +1486,12 @@ private func readyBlockers(
     return blockers
 }
 
+private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
+    return id == "daemon_unreachable" ||
+        id == "daemon_ownership_mismatch" ||
+        id == "input_tap_not_active"
+}
+
 private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupState, mode: AOSRuntimeMode, prefix: String) -> [ReadyNextAction] {
     var actions: [ReadyNextAction] = []
     var seen = Set<String>()
@@ -1388,7 +1507,7 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         return actions
     }
 
-    if blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" || $0.kind == "permission" }) {
+    if blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) || $0.kind == "permission" }) {
         append(ReadyNextAction(
             type: "command",
             label: "run automated repair: restart/recheck, then print human instructions if needed",
@@ -1396,7 +1515,7 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         ))
     }
 
-    if blockers.contains(where: { $0.id == "daemon_unreachable" || $0.id == "input_tap_not_active" }) {
+    if blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
         append(ReadyNextAction(
             type: "command",
             label: "restart the managed daemon and re-check readiness",
@@ -1820,6 +1939,20 @@ private func preflightPostEventAccess() -> Bool {
     return true
 }
 
+private func requestListenEventAccess() -> Bool {
+    if #available(macOS 10.15, *) {
+        return CGRequestListenEventAccess()
+    }
+    return true
+}
+
+private func requestPostEventAccess() -> Bool {
+    if #available(macOS 10.15, *) {
+        return CGRequestPostEventAccess()
+    }
+    return true
+}
+
 private struct PermissionsSetupOptions {
     let asJSON: Bool
     let once: Bool
@@ -1833,10 +1966,9 @@ private func permissionsSetupCommand(args: [String]) {
         return
     }
 
-    print("completed=\(response.completed) accessibility=\(response.permissions.accessibility) screen_recording=\(response.permissions.screen_recording)")
-    // The setup command is local-only; daemon view isn't fetched here, so the
-    // helper falls through to the CLI path. Sharing the formula keeps this
-    // line in lockstep with `aos doctor` and `aos permissions check`.
+    print("completed=\(response.completed) accessibility=\(response.permissions.accessibility) screen_recording=\(response.permissions.screen_recording) listen_access=\(response.permissions.listen_access) post_access=\(response.permissions.post_access)")
+    // This summary line is the CLI-side setup state. The structured response
+    // below can still be degraded when daemon-owned grants are stale.
     let setupEval = evaluateReadyForTesting(
         daemon: nil,
         cliAccessibility: response.permissions.accessibility,
@@ -1875,11 +2007,17 @@ private func parsePermissionsSetupArgs(_ args: [String]) -> PermissionsSetupOpti
 
 private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
     let markerPath = aosPermissionsMarkerPath()
+    let mode = aosCurrentRuntimeMode()
     let initial = currentPermissionsState()
     let initialSetup = currentPermissionsSetupState(permissions: initial)
     let initialRequirements = currentPermissionRequirements(permissions: initial)
+    let initialDaemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.asView
+    let initialMissing = missingPermissionIDsFor(
+        daemon: initialDaemonHealth,
+        cli: cliView(from: initial)
+    )
 
-    if once && initialSetup.setup_completed {
+    if once && initialSetup.setup_completed && initialMissing.isEmpty {
         return PermissionsSetupResponse(
             status: "ok",
             completed: true,
@@ -1893,7 +2031,26 @@ private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
         )
     }
 
-    if once && initial.accessibility && initial.screen_recording {
+    if once && initialSetup.setup_completed && !initialMissing.isEmpty {
+        return PermissionsSetupResponse(
+            status: "degraded",
+            completed: false,
+            permissions: initial,
+            requirements: initialRequirements,
+            setup: initialSetup,
+            missing_permissions: initialMissing,
+            marker_path: markerPath,
+            restarted_services: [],
+            notes: permissionRecoveryNotes(missing: initialMissing, mode: mode)
+        )
+    }
+
+    if once &&
+        initial.accessibility &&
+        initial.screen_recording &&
+        initial.listen_access &&
+        initial.post_access &&
+        initialMissing.isEmpty {
         writePermissionsSetupMarker(path: markerPath, permissions: initial)
         let restartedServices = restartPermissionsDependentServices()
         var notes = ["Permissions were already granted; onboarding marker was recorded without additional prompts."]
@@ -1914,6 +2071,25 @@ private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
             marker_path: markerPath,
             restarted_services: restartedServices,
             notes: notes
+        )
+    }
+
+    if once &&
+        initial.accessibility &&
+        initial.screen_recording &&
+        initial.listen_access &&
+        initial.post_access &&
+        !initialMissing.isEmpty {
+        return PermissionsSetupResponse(
+            status: "degraded",
+            completed: false,
+            permissions: initial,
+            requirements: initialRequirements,
+            setup: initialSetup,
+            missing_permissions: initialMissing,
+            marker_path: markerPath,
+            restarted_services: [],
+            notes: permissionRecoveryNotes(missing: initialMissing, mode: mode)
         )
     }
 
@@ -1945,12 +2121,28 @@ private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
         notes.append("Screen Recording permission setup was cancelled before completion.")
     }
 
+    let afterScreen = currentPermissionsState()
+    if notes.isEmpty && !afterScreen.listen_access && !requestListenEventPermission() {
+        notes.append("Input Monitoring listen access setup was cancelled before completion.")
+    }
+
+    let afterListen = currentPermissionsState()
+    if notes.isEmpty && !afterListen.post_access && !requestPostEventPermission() {
+        notes.append("Input Monitoring post access setup was cancelled before completion.")
+    }
+
     let finalPermissions = currentPermissionsState()
     if !finalPermissions.accessibility {
         notes.append("Accessibility permission is still not granted.")
     }
     if !finalPermissions.screen_recording {
         notes.append("Screen Recording permission is still not granted.")
+    }
+    if !finalPermissions.listen_access {
+        notes.append("Input Monitoring listen access is still not granted.")
+    }
+    if !finalPermissions.post_access {
+        notes.append("Input Monitoring post access is still not granted.")
     }
 
     let completed = notes.isEmpty
@@ -1967,11 +2159,18 @@ private func runPermissionsSetup(once: Bool) -> PermissionsSetupResponse {
 
     let requirements = currentPermissionRequirements(permissions: finalPermissions)
     let setup = currentPermissionsSetupState(permissions: finalPermissions)
-    let missing = missingPermissionIDs(finalPermissions)
+    let finalDaemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))?.asView
+    let missing = missingPermissionIDsFor(
+        daemon: finalDaemonHealth,
+        cli: cliView(from: finalPermissions)
+    )
+    if completed && !missing.isEmpty {
+        notes.append(contentsOf: permissionRecoveryNotes(missing: missing, mode: mode))
+    }
 
     return PermissionsSetupResponse(
-        status: completed ? "ok" : "degraded",
-        completed: completed,
+        status: completed && missing.isEmpty ? "ok" : "degraded",
+        completed: completed && missing.isEmpty,
         permissions: finalPermissions,
         requirements: requirements,
         setup: setup,
@@ -2065,6 +2264,26 @@ private func requestScreenRecordingPermission() -> Bool {
     )
 }
 
+private func requestListenEventPermission() -> Bool {
+    requestPermissionWithDialog(
+        title: "Grant Input Monitoring Listen Access",
+        description: "Input Monitoring listen access is required for the daemon's global input tap, input event fan-out, and hotkeys.",
+        settingsAnchor: "Privacy_ListenEvent",
+        isGranted: { preflightListenEventAccess() },
+        triggerPrompt: { _ = requestListenEventAccess() }
+    )
+}
+
+private func requestPostEventPermission() -> Bool {
+    requestPermissionWithDialog(
+        title: "Grant Input Monitoring Post Access",
+        description: "Input Monitoring post access is required for synthetic mouse and keyboard actions.",
+        settingsAnchor: "Privacy_ListenEvent",
+        isGranted: { preflightPostEventAccess() },
+        triggerPrompt: { _ = requestPostEventAccess() }
+    )
+}
+
 
 private func readPermissionsSetupMarker(path: String) -> [String: Any]? {
     guard let data = FileManager.default.contents(atPath: path),
@@ -2083,7 +2302,9 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
         "completed_at": iso8601Now(),
         "permissions": [
             "accessibility": permissions.accessibility,
-            "screen_recording": permissions.screen_recording
+            "screen_recording": permissions.screen_recording,
+            "listen_access": permissions.listen_access,
+            "post_access": permissions.post_access
         ]
     ]
 

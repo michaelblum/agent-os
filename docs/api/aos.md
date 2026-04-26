@@ -550,6 +550,15 @@ Consumers:
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
+  The top-level `permissions` object is the CLI-side view and includes
+  `accessibility`, `screen_recording`, `listen_access`, and `post_access`.
+  The daemon-side Accessibility and Input Monitoring view remains under
+  `daemon_view` / `runtime.input_tap`; daemon Screen Recording is not reported.
+- `aos permissions setup --once` checks the full CLI permission set
+  (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
+  post). If the CLI grant is present but the daemon reports stale or missing
+  daemon-owned grants, setup returns degraded with remove/re-add guidance
+  instead of silently declaring onboarding complete.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
 - `aos status` text mode includes `tap=<status>` in the one-line summary.
