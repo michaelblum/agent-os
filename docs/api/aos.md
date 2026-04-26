@@ -591,10 +591,13 @@ Consumers:
 - `aos ready [--json] [--repair]` starts/checks the managed daemon, evaluates
   the existing readiness contract, exits `0` only when ready, and returns
   structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
-  `action_trace` fields for agents. `--repair` runs safe automated recovery
-  steps first: restart, wait/recheck, then report plain-English human
-  instructions when macOS privacy settings still require manual action. It does
-  not open Settings or show permission dialogs by itself.
+  `action_trace` fields for agents. Plain `ready` performs one short automatic
+  daemon restart/recheck when it detects a daemon ownership mismatch, because
+  that state commonly appears after a human refreshes macOS privacy grants.
+  `--repair` runs the longer safe recovery path: restart, wait/recheck, then
+  report plain-English human instructions when macOS privacy settings still
+  require manual action. It does not open Settings or show permission dialogs by
+  itself.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.

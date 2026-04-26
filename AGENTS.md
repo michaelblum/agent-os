@@ -66,8 +66,9 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   exist as an optional adapter for external consumers, not for dev work.
 - In repo mode, start with `./aos ready`. That is the primary readiness gate for
   agent work inside this repo: it starts/checks the managed daemon, reports
-  blockers, and exits non-zero when AOS is not ready. Use `./aos status` for a
-  read-only runtime snapshot after that.
+  blockers, performs one short daemon restart/recheck for ownership mismatch,
+  and exits non-zero when AOS is not ready. Use `./aos status` for a read-only
+  runtime snapshot after that.
 - If `./aos ready` reports blockers and the user wants repair, run
   `./aos ready --repair`. It performs safe automated recovery steps, records a
   trace, and prints plain-English human instructions when macOS privacy settings

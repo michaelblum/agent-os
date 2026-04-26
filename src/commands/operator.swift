@@ -409,21 +409,27 @@ func readyCommand(args: [String]) {
         actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
     }
 
+    if !repair && !skipServiceStart && shouldAutoRepairRuntimeDrift(response) {
+        response = runReadyRuntimeRepair(
+            startup: startup,
+            actionTrace: actionTrace,
+            mode: mode,
+            prefix: prefix,
+            budgetMs: 10_000,
+            reason: "automatic after daemon ownership mismatch"
+        )
+        actionTrace = response.action_trace
+    }
+
     if repair && !response.ready {
         if response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
-            let restartArgs = ["service", "restart", "--mode", mode.rawValue, "--json"]
-            let restart = runProcess(aosExecutablePath(), arguments: restartArgs)
-            actionTrace.append(ReadyActionStep(
-                step: "service_restart",
-                result: restart.exitCode == 0 ? "ok" : "degraded",
-                detail: compactProcessDetail(restart)
-            ))
-            response = waitForReadyResponse(
+            response = runReadyRuntimeRepair(
                 startup: startup,
                 actionTrace: actionTrace,
                 mode: mode,
                 prefix: prefix,
-                budgetMs: 20_000
+                budgetMs: 20_000,
+                reason: nil
             )
             actionTrace = response.action_trace
         }
@@ -1276,6 +1282,39 @@ private func waitForReadyResponse(
     }
     trace.append(ReadyActionStep(step: "wait_for_recovery", result: "timed_out", detail: "daemon did not become ready within \(budgetMs)ms"))
     return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+}
+
+private func shouldAutoRepairRuntimeDrift(_ response: ReadyResponse) -> Bool {
+    response.blockers.contains(where: { $0.id == "daemon_ownership_mismatch" })
+}
+
+private func runReadyRuntimeRepair(
+    startup: ReadyStartupBlock,
+    actionTrace: [ReadyActionStep],
+    mode: AOSRuntimeMode,
+    prefix: String,
+    budgetMs: Int,
+    reason: String?
+) -> ReadyResponse {
+    let restartArgs = ["service", "restart", "--mode", mode.rawValue, "--json"]
+    let restart = runProcess(aosExecutablePath(), arguments: restartArgs)
+    let details = [reason, compactProcessDetail(restart)]
+        .compactMap { $0 }
+        .filter { !$0.isEmpty }
+        .joined(separator: "\n")
+    var trace = actionTrace
+    trace.append(ReadyActionStep(
+        step: "service_restart",
+        result: restart.exitCode == 0 ? "ok" : "degraded",
+        detail: details.isEmpty ? nil : details
+    ))
+    return waitForReadyResponse(
+        startup: startup,
+        actionTrace: trace,
+        mode: mode,
+        prefix: prefix,
+        budgetMs: budgetMs
+    )
 }
 
 private func firstSettingsBlocker(in blockers: [ReadyBlocker]) -> ReadyBlocker? {
