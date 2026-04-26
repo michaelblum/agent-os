@@ -190,6 +190,15 @@ segment set. Subscribers can either follow individual deltas or wait for the
 settled snapshot. Indexes are stable only within a snapshot, not across
 snapshots — a hot-plug can shift index assignments.
 
+**Subscription bootstrap ordering** (a normative contract, not an
+implementation hint): when a subscriber attaches to `canvas_lifecycle`, the
+daemon delivers, before any other event for a given desktop-world surface,
+exactly one synthetic `canvas_topology_settled` carrying that surface's
+current ordered segment set. After the bootstrap settled events, live
+deltas (`canvas_segment_added`/`removed`/`changed`) and subsequent settled
+events stream in normally. A subscriber therefore never has to ask "what is
+the topology right now?" — it sees a settled event first, then deltas.
+
 Sub-events are scoped to surfaces created with `surface == "desktop-world"`
 (or the equivalent `track == "union"`). Normal canvases never emit them.
 
@@ -218,27 +227,40 @@ CanvasInfo {
 normal canvases. The values match what the most recent
 `canvas_topology_settled` event carried for that surface.
 
-The same snapshot is included in any subscription bootstrap payload that
-delivers initial state for `canvas_lifecycle` (e.g. the inspector
-subscribing late). Implementations should drive both
-`canvas_topology_settled` events and `CanvasInfo.segments` from a single
-source of truth in the daemon's surface registry to prevent drift.
+`CanvasInfo.segments`, the bootstrap `canvas_topology_settled` events, and
+post-bootstrap delta events must all be driven from a single source of
+truth in the daemon's surface registry. This rules out a class of races
+where a one-shot `aos show list` and a live subscriber disagree about
+topology because they read from divergent caches.
 
 ## Input
 
 For `DesktopWorldSurface` consumers whose contract is passthrough/visual
-(notably `avatar-main` and any future global overlay), input is delivered via
-the existing daemon-routed global input event stream in DesktopWorld
-coordinates, not via per-segment window hit-testing. This matches what the
-canvas inspector already does and what Sigil's current input path consumes.
+(notably `avatar-main` and any future global overlay), input continues to
+come from the existing global daemon-routed input event stream — which today
+emits coordinates in native screen space, not DesktopWorld. Consumers
+(Sigil, canvas inspector, spatial telemetry) re-anchor those events into
+DesktopWorld on the JS side using `nativeToDesktopWorldPoint` from
+`packages/toolkit/runtime/spatial.js:*` and the latest `display_geometry`
+snapshot. This is the current behavior described in
+`docs/superpowers/plans/2026-04-19-desktopworld-daemon-reanchor.md`.
+
+The toolkit adapter base class normalizes input to DesktopWorld at the
+**adapter boundary** before invoking `onInput(event)` on the app. The app
+sees DesktopWorld coordinates; it does not deal with native coords or
+re-anchoring. If and when the in-flight DesktopWorld input re-anchor plan
+moves the normalization into the daemon, the adapter contract does not
+change — adapters become a thin pass-through instead of a normalization
+step, but apps continue to see DesktopWorld events.
 
 The surface itself does **not** synthesize a per-segment input stream. The
-daemon does not promise that an event delivered into a segment NSWindow under
-the surface will be routed across to a sibling segment when a drag crosses
-displays — segment NSWindows for a `DesktopWorldSurface` are expected to be
-non-interactive (passthrough) at the macOS level. Consumers that need
-interactivity inside a desktop-spanning surface use a normal child canvas
-(e.g. the existing `avatar-hit` pattern), not the surface itself.
+daemon does not promise that an event delivered into a segment NSWindow
+under the surface will be routed across to a sibling segment when a drag
+crosses displays — segment NSWindows for a `DesktopWorldSurface` are
+expected to be non-interactive (passthrough) at the macOS level. Consumers
+that need interactivity inside a desktop-spanning surface use a normal
+child canvas (e.g. the existing `avatar-hit` pattern), not the surface
+itself.
 
 This is a deliberate scope-limit. We are not redesigning interactive
 desktop-spanning surfaces in this spec.
@@ -302,8 +324,28 @@ should expose a helper such as `surface.runOnPrimary(fn)` so eval payloads
 can express "do this once per surface" without each consumer reinventing
 the gate.
 
+**`eval` return-value semantics.** `aos show eval --id <surface>` is a
+single logical operation and returns a single result to the caller, even
+though the script ran in N segment web views. The contract:
+
+- The daemon executes the script in every segment.
+- The daemon waits for all segment results (or a per-segment timeout) and
+  returns the **elected primary segment's result** to the caller. Other
+  segment results are discarded.
+- If the elected primary's segment errors or times out, the eval returns
+  that error/timeout — the daemon does not silently fall back to a
+  follower's result. This keeps the caller's mental model identical to a
+  single-canvas eval.
+- Scripts wrapped in `runOnPrimary(fn)` resolve to `fn`'s return value on
+  the primary and to `undefined` on followers; the caller still sees the
+  primary's value because of the rule above.
+- A debugging-oriented per-segment results variant is out of scope for
+  this spec; if needed later, it should be a distinct subcommand or flag
+  rather than a different default.
+
 `post` carries the same hazard at a lower amplitude (most consumers route
-posts into a state diff that is idempotent). Adapter authors should still
+posts into a state diff that is idempotent). `post` is fire-and-forget —
+no return value semantics to define — but adapter authors should still
 prefer the `runOnPrimary` pattern for any post handler that mutates state
 rather than just reads it.
 
