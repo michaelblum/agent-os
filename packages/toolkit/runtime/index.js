@@ -18,6 +18,12 @@ export {
 } from './desktop-world-surface-three.js'
 export { isCanvasInputEventType, normalizeCanvasInputMessage } from './input-events.js'
 export {
+  createStackMenu,
+  createStackMenuModel,
+  applyStackMenuState,
+  stackMenuPushedStyle,
+} from './stack-menu.js'
+export {
   rectFromAt,
   normalizeDisplays,
   sortDisplaysSpatially,

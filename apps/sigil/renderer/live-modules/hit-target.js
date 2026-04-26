@@ -21,6 +21,7 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         creating: false,
         interactive: true,
         size,
+        frame: [-1000, -1000, size, size],
     };
 
     async function ensureCreated() {
@@ -30,7 +31,7 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
             await runtime.canvasCreate({
                 id: hit.id,
                 url: appendQuery(url, { parent: 'avatar-main', id: hit.id }),
-                frame: [-1000, -1000, hit.size, hit.size],
+                frame: hit.frame,
                 interactive: true,
             });
             hit.ready = true;
@@ -46,19 +47,27 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         }
     }
 
-    function sync(center, interactive) {
-        if (!hit.ready || !center?.valid) return;
+    function syncFrame(frame, interactive) {
+        if (!hit.ready || !Array.isArray(frame) || frame.length < 4) return;
+        const nextFrame = frame.map((value) => Math.round(Number(value) || 0));
         const nextInteractive = !!interactive;
-        const targetCenter = nextInteractive ? center : { x: -10000, y: -10000 };
         const update = {
             id: hit.id,
-            frame: frameFor(targetCenter, hit.size),
+            frame: nextInteractive ? nextFrame : [-10000, -10000, hit.size, hit.size],
         };
+        hit.frame = update.frame;
         if (nextInteractive !== hit.interactive) {
             update.interactive = nextInteractive;
             hit.interactive = nextInteractive;
         }
         runtime.canvasUpdate(update);
+    }
+
+    function sync(center, interactive) {
+        if (!hit.ready || !center?.valid) return;
+        const nextInteractive = !!interactive;
+        const targetCenter = nextInteractive ? center : { x: -10000, y: -10000 };
+        syncFrame(frameFor(targetCenter, hit.size), nextInteractive);
     }
 
     function setSize(size) {
@@ -84,6 +93,7 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         hit,
         ensureCreated,
         sync,
+        syncFrame,
         setSize,
         remove,
     };

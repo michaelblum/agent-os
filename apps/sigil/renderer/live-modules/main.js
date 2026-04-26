@@ -1,5 +1,5 @@
 import state from '../state.js';
-import { updateGeometry, updateInnerEdgePulse } from '../geometry.js';
+import { updateGeometry, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
 import { createAuraObjects, animateAura } from '../aura.js';
 import { createPhenomena, animatePhenomena } from '../phenomena.js';
@@ -26,6 +26,7 @@ import {
     normalizeDisplays,
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
+import { createSigilContextMenu } from '../../context-menu/menu.js';
 
 const host = createHostRuntime();
 const desktopWorldSurface = (
@@ -65,6 +66,7 @@ const liveJs = {
     mousedownPos: null,
     mousedownAvatarPos: null,
     avatarVisible: false,
+    contextMenu: { open: false, bounds: null, stack: null },
     surfaceRenderSnapshot: null,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
@@ -207,6 +209,9 @@ function applySurfaceRenderSnapshot(snapshot) {
         if (typeof snapshot.omega.enabled === 'boolean') state.isOmegaEnabled = snapshot.omega.enabled;
         if (typeof snapshot.omega.interDimensional === 'boolean') state.omegaInterDimensional = snapshot.omega.interDimensional;
     }
+    if (snapshot.contextMenu && typeof snapshot.contextMenu === 'object') {
+        contextMenu.applySnapshot(snapshot.contextMenu);
+    }
     fastTravel.applySnapshot(snapshot.fastTravel);
 }
 
@@ -225,6 +230,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
             enabled: state.isOmegaEnabled,
             interDimensional: state.omegaInterDimensional,
         },
+        contextMenu: contextMenu?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
     };
 }
@@ -250,6 +256,15 @@ function desktopWorldToSegmentLocalPoint(point) {
 function stagePoint(point) {
     return desktopWorldToSegmentLocalPoint(point);
 }
+
+const contextMenu = createSigilContextMenu({
+    state,
+    liveJs,
+    projectPoint: desktopWorldToSegmentLocalPoint,
+    updateGeometry,
+    updateOmegaGeometry,
+    updateAllColors,
+});
 
 function projectAvatarToScene(screenX, screenY, yOffset = 0) {
     const local = desktopWorldToSegmentLocalPoint({ x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
@@ -422,6 +437,7 @@ function setAvatarVisibility(visible) {
     if (liveJs.avatarVisible === next && !visibilityTransition.active) return;
     liveJs.avatarVisible = next;
     if (!next) {
+        contextMenu.close('avatar-hidden');
         clearGestureState();
         liveJs.currentState = 'IDLE';
         liveJs.state = 'IDLE';
@@ -461,6 +477,13 @@ function cancelInteraction(reason) {
     clearGestureState();
     fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
+}
+
+function openContextMenuAt(x, y) {
+    if (!liveJs.avatarVisible || !isOnAvatar(x, y)) return false;
+    cancelInteraction('context-menu');
+    contextMenu.openAt({ x, y, valid: true });
+    return true;
 }
 
 function handleLeftMouseDown(x, y) {
@@ -535,6 +558,16 @@ function handleInputEvent(msg) {
         }
     }
 
+    if (
+        contextMenu.isOpen()
+        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved'].includes(msg.type)
+        && typeof msg.x === 'number'
+        && typeof msg.y === 'number'
+        && contextMenu.handlePointerEvent(msg.type, { x: msg.x, y: msg.y, valid: true })
+    ) {
+        return;
+    }
+
     switch (msg.type) {
         case 'left_mouse_down':
             handleLeftMouseDown(msg.x, msg.y);
@@ -547,6 +580,8 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
+            if (typeof msg.x === 'number' && typeof msg.y === 'number' && openContextMenuAt(msg.x, msg.y)) return;
+            contextMenu.close('right-click-away');
             cancelInteraction('right-click');
             return;
         case 'key_down':
@@ -560,12 +595,13 @@ function handleInputEvent(msg) {
 function pointFromHitPayload(payload = {}) {
     const localX = Number(payload.offsetX);
     const localY = Number(payload.offsetY);
-    const size = hitTarget.hit.size;
-    if (Number.isFinite(localX) && Number.isFinite(localY) && liveJs.avatarPos.valid) {
-        return {
-            x: (liveJs.avatarPos.x - (size / 2)) + localX,
-            y: (liveJs.avatarPos.y - (size / 2)) + localY,
+    const frame = hitTarget.hit.frame;
+    if (Number.isFinite(localX) && Number.isFinite(localY) && Array.isArray(frame) && frame.length >= 4) {
+        const nativePoint = {
+            x: Number(frame[0]) + localX,
+            y: Number(frame[1]) + localY,
         };
+        return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
     }
 
     const screenX = Number(payload.x ?? payload.screenX);
@@ -574,6 +610,13 @@ function pointFromHitPayload(payload = {}) {
         return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
     }
     return null;
+}
+
+function nativeFrameFromDesktopRect(rect) {
+    if (!rect) return null;
+    const native = desktopWorldToNativePoint({ x: rect.x, y: rect.y }, liveJs.displays);
+    if (!native) return null;
+    return [native.x, native.y, rect.w, rect.h];
 }
 
 function handleHitCanvasEvent(payload = {}) {
@@ -884,7 +927,12 @@ function animate() {
     updateInnerEdgePulse(false);
     updateInnerEdgePulse(true);
 
-    if (primarySegment && liveJs.avatarPos.valid) {
+    contextMenu.updateSegmentPosition();
+
+    if (primarySegment && contextMenu.isOpen()) {
+        const frame = nativeFrameFromDesktopRect(contextMenu.bounds());
+        if (frame) hitTarget.syncFrame(frame, true);
+    } else if (primarySegment && liveJs.avatarPos.valid) {
         hitTarget.setSize(state.avatarHitRadius * 2)
         const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
         nativeAvatarPos.valid = true;

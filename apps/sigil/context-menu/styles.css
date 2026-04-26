@@ -1,0 +1,280 @@
+/* Sigil avatar context menu — Celestial v1 deck-card skin. */
+
+.sigil-context-menu-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    pointer-events: auto;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ctx-anchor {
+    position: absolute;
+    display: none;
+    width: 292px;
+    z-index: 100;
+}
+
+.ctx-anchor.visible {
+    display: block;
+}
+
+.ctx-menu-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: none;
+    flex-direction: column;
+    width: 268px;
+    max-height: 424px;
+    overflow-y: auto;
+    padding: 12px;
+    color: #fff;
+    background: rgba(20, 10, 30, 0.95);
+    border: 1px solid rgba(209, 135, 255, 0.6);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(12px);
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        filter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ctx-menu-card.active {
+    position: relative;
+    display: flex;
+    z-index: 20;
+    animation: sigilCardSlideIn 0.25s ease-out;
+}
+
+.ctx-menu-card.ctx-sub {
+    gap: 6px;
+}
+
+.ctx-menu-card.pushed {
+    display: flex;
+    overflow-y: hidden;
+    cursor: pointer;
+    border-color: rgba(209, 135, 255, 0.35);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes sigilCardSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.ctx-tabs {
+    display: flex;
+    gap: 4px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(188, 19, 254, 0.4);
+}
+
+.ctx-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    color: rgba(209, 135, 255, 0.7);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+}
+
+.ctx-tab:hover {
+    color: #d187ff;
+    background: rgba(188, 19, 254, 0.2);
+}
+
+.ctx-tab.active {
+    color: #fff;
+    background: #bc13fe;
+}
+
+.ctx-tab svg,
+.ctx-actions svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+.ctx-panel {
+    display: none;
+}
+
+.ctx-panel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ctx-menu-card h3 {
+    margin: 0 0 4px;
+    padding-bottom: 4px;
+    color: #fff;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #bc13fe;
+}
+
+.ctx-menu-card label {
+    margin-bottom: -4px;
+    color: #d187ff;
+    font-size: 0.65rem;
+}
+
+.ctx-menu-card select,
+.ctx-menu-card input[type="color"] {
+    height: 28px;
+    padding: 4px;
+}
+
+.ctx-menu-card select {
+    color: #fff;
+    background: rgba(30, 15, 50, 0.9);
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.ctx-menu-card input[type="range"] {
+    width: 100%;
+    accent-color: #bc13fe;
+}
+
+.ctx-range-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+    align-items: center;
+}
+
+.ctx-value {
+    color: rgba(255, 255, 255, 0.78);
+    font: 0.65rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: right;
+}
+
+.ctx-color-row {
+    display: flex;
+    gap: 4px;
+}
+
+.ctx-color-row input {
+    flex: 1;
+}
+
+.ctx-menu-card input[type="color"] {
+    background: transparent;
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+}
+
+.ctx-menu-card .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 0;
+    color: #d187ff;
+    font-size: 0.75rem;
+}
+
+.ctx-menu-card .checkbox-label input[type="checkbox"] {
+    accent-color: #bc13fe;
+}
+
+.ctx-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.ctx-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 5px 8px;
+    color: #d187ff;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.ctx-trigger:hover {
+    background: rgba(188, 19, 254, 0.15);
+}
+
+.ctx-trigger::after {
+    content: "\203A";
+    padding-left: 8px;
+    margin-left: auto;
+    font-size: 1rem;
+    line-height: 1;
+    opacity: 0.6;
+}
+
+.ctx-divider {
+    height: 1px;
+    margin: 4px 0;
+    background: rgba(188, 19, 254, 0.3);
+    border: none;
+}
+
+.ctx-actions {
+    display: flex;
+    gap: 6px;
+    padding-top: 6px;
+    margin-top: 2px;
+    border-top: 1px solid rgba(188, 19, 254, 0.25);
+}
+
+.ctx-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: #d187ff;
+    background: rgba(30, 15, 50, 0.6);
+    border: 1px solid rgba(209, 135, 255, 0.4);
+    border-radius: 4px;
+}
+
+.ctx-actions button:hover {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.25);
+    border-color: #bc13fe;
+}
+
+.ctx-menu-card::-webkit-scrollbar {
+    width: 5px;
+}
+
+.ctx-menu-card::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ctx-menu-card::-webkit-scrollbar-thumb {
+    background: rgba(188, 19, 254, 0.4);
+    border-radius: 3px;
+}
