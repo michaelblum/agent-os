@@ -143,14 +143,10 @@ function lineTravel(liveJs, displays, toX, toY) {
 function tickLineTravel(liveJs, onComplete) {
     const travel = liveJs.travel;
     if (!travel) return null;
-    const elapsed = performance.now() - travel.startMs;
-    const progress = clamp01(elapsed / travel.durationMs);
-    const eased = easeOutQuart(progress);
-    liveJs.avatarPos.x = travel.fromX + ((travel.toX - travel.fromX) * eased);
-    liveJs.avatarPos.y = travel.fromY + ((travel.toY - travel.fromY) * eased);
-    liveJs.avatarPos.valid = true;
+    const stateForElapsed = lineTravelStateForElapsed(travel, performance.now() - travel.startMs);
+    if (stateForElapsed.avatarPos?.valid) liveJs.avatarPos = { ...stateForElapsed.avatarPos };
 
-    if (progress < 1) return { active: true, effect: 'line', phase: 'line' };
+    if (stateForElapsed.active) return stateForElapsed;
 
     const landed = { x: travel.toX, y: travel.toY, valid: true };
     liveJs.avatarPos = landed;
@@ -161,6 +157,23 @@ function tickLineTravel(liveJs, onComplete) {
     state.omegaInterDimensional = false;
     if (typeof onComplete === 'function') onComplete(landed);
     return { active: false, effect: 'line', phase: 'complete', avatarPos: landed, appScale: 1 };
+}
+
+function lineTravelStateForElapsed(travel, elapsedMs) {
+    const progress = clamp01(elapsedMs / travel.durationMs);
+    const eased = easeOutQuart(progress);
+    const avatarPos = {
+        x: travel.fromX + ((travel.toX - travel.fromX) * eased),
+        y: travel.fromY + ((travel.toY - travel.fromY) * eased),
+        valid: true,
+    };
+    return {
+        active: progress < 1,
+        effect: 'line',
+        phase: progress < 1 ? 'line' : 'complete',
+        avatarPos,
+        appScale: progress < 1 ? undefined : 1,
+    };
 }
 
 function vectorBetween(a, b) {
@@ -530,6 +543,33 @@ export function createFastTravelController({
         if (travel.effect !== 'wormhole') return tickLineTravel(liveJs, onComplete);
 
         const elapsed = performance.now() - travel.startMs;
+        const stateForElapsed = wormholeTravelStateForElapsed(travel, elapsed);
+        const progress = clamp01(elapsed / travel.durationMs);
+
+        if (travel.phase !== stateForElapsed.phase) {
+            travel.phase = stateForElapsed.phase;
+            record(`wormhole.phase.${stateForElapsed.phase}`, { progress: Number(progress.toFixed(3)) });
+        }
+
+        if (stateForElapsed.active) return stateForElapsed;
+
+        const landed = { ...travel.to };
+        liveJs.avatarPos = landed;
+        liveJs.currentCursor = landed;
+        liveJs.cursorTarget = landed;
+        liveJs.travel = null;
+        state.isOmegaEnabled = travel.previousOmegaEnabled ?? false;
+        state.omegaInterDimensional = false;
+        overlay.clear();
+        record('wormhole.complete', {
+            x: Math.round(landed.x),
+            y: Math.round(landed.y),
+        });
+        if (typeof onComplete === 'function') onComplete(landed);
+        return { active: false, effect: 'wormhole', phase: 'complete', appScale: 1, avatarPos: landed };
+    }
+
+    function wormholeTravelStateForElapsed(travel, elapsed) {
         const entryEnd = travel.entryMs;
         const transitEnd = travel.entryMs + travel.transitMs;
         const progress = clamp01(elapsed / travel.durationMs);
@@ -562,29 +602,22 @@ export function createFastTravelController({
             renderAvatarPos = travel.to;
         }
 
-        if (travel.phase !== phase) {
-            travel.phase = phase;
-            record(`wormhole.phase.${phase}`, { progress: Number(progress.toFixed(3)) });
-        }
-
         if (progress < 1) {
             return { active: true, effect: 'wormhole', phase, appScale, avatarPos: renderAvatarPos };
         }
 
-        const landed = { ...travel.to };
-        liveJs.avatarPos = landed;
-        liveJs.currentCursor = landed;
-        liveJs.cursorTarget = landed;
-        liveJs.travel = null;
-        state.isOmegaEnabled = travel.previousOmegaEnabled ?? false;
-        state.omegaInterDimensional = false;
-        overlay.clear();
-        record('wormhole.complete', {
-            x: Math.round(landed.x),
-            y: Math.round(landed.y),
-        });
-        if (typeof onComplete === 'function') onComplete(landed);
-        return { active: false, effect: 'wormhole', phase: 'complete', appScale: 1, avatarPos: landed };
+        return { active: false, effect: 'wormhole', phase: 'complete', appScale: 1, avatarPos: { ...travel.to } };
+    }
+
+    function preview() {
+        const travel = liveJs.travel;
+        if (!travel) return null;
+        const elapsed = performance.now() - travel.startMs;
+        const stateForElapsed = travel.effect === 'wormhole'
+            ? wormholeTravelStateForElapsed(travel, elapsed)
+            : lineTravelStateForElapsed(travel, elapsed);
+        travel.phase = stateForElapsed.phase;
+        return stateForElapsed;
     }
 
     function draw() {
@@ -648,6 +681,7 @@ export function createFastTravelController({
         clearGesture,
         start,
         tick,
+        preview,
         draw,
         exportSnapshot,
         applySnapshot,

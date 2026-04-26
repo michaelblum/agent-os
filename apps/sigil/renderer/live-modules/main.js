@@ -622,6 +622,9 @@ function syncOmegaTrailToTravelOrigin() {
 function queueFastTravel(x, y) {
     fastTravel.start(x, y, { pointer: { x, y, valid: true } });
     syncOmegaTrailToTravelOrigin();
+    if (desktopWorldSurface?.isPrimary) {
+        desktopWorldSurface.publishState(surfaceRenderSnapshot(liveJs.avatarPos));
+    }
 }
 
 function emitStatusItemState() {
@@ -1128,20 +1131,18 @@ function animate() {
         ? liveJs.surfaceRenderSnapshot.renderAvatarPos
         : liveJs.avatarPos;
 
-    if (primarySegment) {
-        const fastTravelState = liveJs.travel
-            ? fastTravel.tick(dt, () => {
+    const fastTravelState = liveJs.travel
+        ? (
+            primarySegment
+                ? fastTravel.tick(dt, () => {
                 postLastPositionToDaemon();
             })
-            : null;
+                : fastTravel.preview()
+        )
+        : null;
 
+    if (primarySegment) {
         renderAvatarPos = liveJs.avatarPos;
-        if (fastTravelState?.appScale != null) {
-            state.appScale = fastTravelState.appScale;
-        }
-        if (fastTravelState?.avatarPos?.valid) {
-            renderAvatarPos = fastTravelState.avatarPos;
-        }
         const transitionState = visibilityTransition.active
             ? visibilityTransition.tick(dt, { avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null })
             : null;
@@ -1158,6 +1159,12 @@ function animate() {
                 host.post('lifecycle.complete', { action: transitionState.lifecycleAction });
             }
         }
+    }
+    if (fastTravelState?.appScale != null) {
+        state.appScale = fastTravelState.appScale;
+    }
+    if (fastTravelState?.avatarPos?.valid) {
+        renderAvatarPos = fastTravelState.avatarPos;
     }
 
     const visualActive = liveJs.avatarVisible
@@ -1270,6 +1277,9 @@ window.__sigilDebug = {
     },
     avatarDefinition,
     importAvatarDefinitionText,
+    fastTravelPreview() {
+        return fastTravel.preview();
+    },
 };
 
 export async function boot() {
