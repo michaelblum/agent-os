@@ -2,10 +2,17 @@ import state from '../state.js';
 import { updateGeometry, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
 import { createAuraObjects, animateAura } from '../aura.js';
-import { createPhenomena, animatePhenomena } from '../phenomena.js';
+import {
+    createPhenomena,
+    animatePhenomena,
+    updatePulsars,
+    updateGammaRays,
+    updateAccretion,
+    updateNeutrinos,
+} from '../phenomena.js';
 import { createParticleObjects, animateParticles, animateTrails } from '../particles.js';
 import { createLightning, animateLightning } from '../lightning.js';
-import { createMagneticField, animateMagneticField } from '../magnetic.js';
+import { createMagneticField, animateMagneticField, updateMagneticTentacleCount } from '../magnetic.js';
 import { createOmega, animateOmega } from '../omega.js';
 import { animateSkins } from '../skins.js';
 import { applyAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
@@ -264,6 +271,11 @@ const contextMenu = createSigilContextMenu({
     updateGeometry,
     updateOmegaGeometry,
     updateAllColors,
+    updatePulsars,
+    updateGammaRays,
+    updateAccretion,
+    updateNeutrinos,
+    updateMagneticTentacleCount,
 });
 
 function projectAvatarToScene(screenX, screenY, yOffset = 0) {

@@ -70,23 +70,45 @@ export function createMagneticField() {
     state.magneticTentacleGroup = new THREE.Group();
     state.magneticTentacleGroup.visible = false;
     state.polyGroup.add(state.magneticTentacleGroup);
+    updateMagneticTentacleCount(state.magneticTentacleCount);
+}
 
-    // Create tentacles with Fibonacci spiral distribution on unit sphere
-    const count = state.magneticTentacleCount;
+function createTentacleAt(index, count) {
     const phi = Math.PI * (3.0 - Math.sqrt(5.0));
-    for (let i = 0; i < count; i++) {
-        const y = 1.0 - (i / (count - 1)) * 2.0;
-        const radius = Math.sqrt(1 - y * y);
-        const theta = phi * i;
-        const base = new THREE.Vector3(
-            radius * Math.cos(theta),
-            y,
-            radius * Math.sin(theta)
-        );
+    const y = count <= 1 ? 0 : 1.0 - (index / (count - 1)) * 2.0;
+    const radius = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = phi * index;
+    const base = new THREE.Vector3(
+        radius * Math.cos(theta),
+        y,
+        radius * Math.sin(theta)
+    );
+    return new Tentacle(base, 2.5);
+}
 
-        const t = new Tentacle(base, 2.5);
-        state.magneticTentacles.push(t);
-        state.magneticTentacleGroup.add(t.mesh);
+function disposeTentacle(tentacle) {
+    if (!tentacle) return;
+    state.magneticTentacleGroup?.remove(tentacle.mesh);
+    tentacle.mesh.geometry?.dispose?.();
+    tentacle.material?.dispose?.();
+}
+
+export function updateMagneticTentacleCount(count) {
+    if (!state.magneticTentacleGroup) return;
+    const nextCount = Math.max(0, Math.round(Number(count) || 0));
+    if (state.magneticTentacles.length === nextCount) {
+        state.magneticTentacleCount = nextCount;
+        return;
+    }
+    state.magneticTentacleCount = nextCount;
+
+    state.magneticTentacles.forEach(disposeTentacle);
+    state.magneticTentacles = [];
+
+    while (state.magneticTentacles.length < nextCount) {
+        const tentacle = createTentacleAt(state.magneticTentacles.length, nextCount);
+        state.magneticTentacles.push(tentacle);
+        state.magneticTentacleGroup.add(tentacle.mesh);
     }
 }
 

@@ -182,6 +182,11 @@ export function createSigilContextMenu({
     updateGeometry,
     updateOmegaGeometry,
     updateAllColors,
+    updatePulsars,
+    updateGammaRays,
+    updateAccretion,
+    updateNeutrinos,
+    updateMagneticTentacleCount,
     onBoundsChange,
 } = {}) {
     const layer = document.createElement('div');
@@ -233,6 +238,12 @@ export function createSigilContextMenu({
         setValueLabel(id, el.value);
     }
 
+    function setColorValue(id, value) {
+        const el = layer.querySelector(`#${id}`);
+        if (!el || typeof value !== 'string') return;
+        el.value = value;
+    }
+
     function syncFromState() {
         if (!state) return;
         setControlValue('sigil-menu-shape-select', state.currentGeometryType ?? state.currentType);
@@ -245,6 +256,19 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-aura-intensity', state.auraIntensity ?? 1);
         setControlValue('sigil-menu-spin', state.idleSpinSpeed ?? 0.01);
         setControlValue('sigil-menu-ring', state.menuRingRadius ?? 120);
+        setControlValue('sigil-menu-pulsar', null, state.isPulsarEnabled);
+        setControlValue('sigil-menu-accretion', null, state.isAccretionEnabled);
+        setControlValue('sigil-menu-gamma', null, state.isGammaEnabled);
+        setControlValue('sigil-menu-neutrino', null, state.isNeutrinosEnabled);
+        setControlValue('sigil-menu-lightning', null, state.isLightningEnabled);
+        setControlValue('sigil-menu-magnetic', null, state.isMagneticEnabled);
+        setControlValue('sigil-menu-lightning-length', state.lightningBoltLength ?? 100);
+        setControlValue('sigil-menu-lightning-frequency', state.lightningFrequency ?? 2);
+        setControlValue('sigil-menu-lightning-branching', state.lightningBranching ?? 0.08);
+        setControlValue('sigil-menu-magnetic-count', state.magneticTentacleCount ?? 10);
+        setControlValue('sigil-menu-magnetic-speed', state.magneticTentacleSpeed ?? 1);
+        setControlValue('sigil-menu-magnetic-wander', state.magneticWander ?? 3);
+        setControlValue('sigil-menu-grid-mode', state.gridMode ?? 'off');
         setControlValue('sigil-menu-omega-enabled', null, state.isOmegaEnabled);
         setControlValue('sigil-menu-omega-shape', state.omegaGeometryType ?? state.omegaType ?? 4);
         setControlValue('sigil-menu-omega-scale', state.omegaScale ?? 1);
@@ -255,6 +279,20 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-trail-enabled', null, state.isTrailEnabled);
         setControlValue('sigil-menu-trail-length', state.trailLength ?? 20);
         setControlValue('sigil-menu-cancel-radius', liveJs?.dragCancelRadius ?? state.dragCancelRadius ?? 40);
+        setColorValue('sigil-menu-primary-color', state.colors?.face?.[0]);
+        setColorValue('sigil-menu-edge-color', state.colors?.edge?.[0]);
+        setColorValue('sigil-menu-face1', state.colors?.face?.[0]);
+        setColorValue('sigil-menu-face2', state.colors?.face?.[1]);
+        setColorValue('sigil-menu-edge1', state.colors?.edge?.[0]);
+        setColorValue('sigil-menu-edge2', state.colors?.edge?.[1]);
+        setColorValue('sigil-menu-aura1', state.colors?.aura?.[0]);
+        setColorValue('sigil-menu-aura2', state.colors?.aura?.[1]);
+        setColorValue('sigil-menu-lightning1', state.colors?.lightning?.[0]);
+        setColorValue('sigil-menu-lightning2', state.colors?.lightning?.[1]);
+        setColorValue('sigil-menu-magnetic1', state.colors?.magnetic?.[0]);
+        setColorValue('sigil-menu-magnetic2', state.colors?.magnetic?.[1]);
+        setColorValue('sigil-menu-grid1', state.colors?.grid?.[0]);
+        setColorValue('sigil-menu-grid2', state.colors?.grid?.[1]);
     }
 
     function clampToVisible(point) {
@@ -435,6 +473,20 @@ export function createSigilContextMenu({
             if (!el) return;
             el.addEventListener('change', () => setter?.(Number(el.value)));
         };
+        const onChoice = (id, setter) => {
+            const el = layer.querySelector(`#${id}`);
+            if (!el) return;
+            el.addEventListener('change', () => setter?.(el.value));
+        };
+        const onColor = (id, colorKey, index) => {
+            const el = layer.querySelector(`#${id}`);
+            if (!el) return;
+            el.addEventListener('input', () => {
+                if (!state.colors[colorKey]) state.colors[colorKey] = ['#ffffff', '#ffffff'];
+                state.colors[colorKey][index] = el.value;
+                updateAllColors?.();
+            });
+        };
 
         onRange('sigil-menu-stellation', (value) => {
             state.stellationFactor = value;
@@ -463,6 +515,37 @@ export function createSigilContextMenu({
         });
         onRange('sigil-menu-aura-reach', (value) => { state.auraReach = value; });
         onRange('sigil-menu-aura-intensity', (value) => { state.auraIntensity = value; });
+        onCheckbox('sigil-menu-pulsar', (value) => {
+            state.isPulsarEnabled = value;
+            if (value && state.pulsarRayCount <= 0) state.pulsarRayCount = 1;
+            updatePulsars?.(state.pulsarRayCount);
+        });
+        onCheckbox('sigil-menu-accretion', (value) => {
+            state.isAccretionEnabled = value;
+            if (value && state.accretionDiskCount <= 0) state.accretionDiskCount = 1;
+            updateAccretion?.(state.accretionDiskCount);
+        });
+        onCheckbox('sigil-menu-gamma', (value) => {
+            state.isGammaEnabled = value;
+            if (value && state.gammaRayCount <= 0) state.gammaRayCount = 3;
+            updateGammaRays?.(state.gammaRayCount);
+        });
+        onCheckbox('sigil-menu-neutrino', (value) => {
+            state.isNeutrinosEnabled = value;
+            if (value && state.neutrinoJetCount <= 0) state.neutrinoJetCount = 1;
+            updateNeutrinos?.(state.neutrinoJetCount);
+        });
+        onCheckbox('sigil-menu-lightning', (value) => { state.isLightningEnabled = value; });
+        onCheckbox('sigil-menu-magnetic', (value) => { state.isMagneticEnabled = value; });
+        onRange('sigil-menu-lightning-length', (value) => { state.lightningBoltLength = value; });
+        onRange('sigil-menu-lightning-frequency', (value) => { state.lightningFrequency = value; });
+        onRange('sigil-menu-lightning-branching', (value) => { state.lightningBranching = value; });
+        onRange('sigil-menu-magnetic-count', (value) => {
+            updateMagneticTentacleCount?.(value);
+        });
+        onRange('sigil-menu-magnetic-speed', (value) => { state.magneticTentacleSpeed = value; });
+        onRange('sigil-menu-magnetic-wander', (value) => { state.magneticWander = value; });
+        onChoice('sigil-menu-grid-mode', (value) => { state.gridMode = value; });
         onRange('sigil-menu-ring', (value) => {
             state.menuRingRadius = value;
             if (liveJs) liveJs.menuRingRadius = value;
@@ -477,20 +560,30 @@ export function createSigilContextMenu({
             state.omegaStellationFactor = value;
             updateOmegaGeometry?.(state.omegaGeometryType ?? state.omegaType);
         });
+        onRange('sigil-menu-omega-scale', (value) => { state.omegaScale = value; });
+        onCheckbox('sigil-menu-omega-counterspin', (value) => { state.omegaCounterSpin = value; });
+        onCheckbox('sigil-menu-omega-lock', (value) => { state.omegaLockPosition = value; });
+        onCheckbox('sigil-menu-omega-interdim', (value) => { state.omegaInterDimensional = value; });
         onCheckbox('sigil-menu-trail-enabled', (value) => { state.isTrailEnabled = value; });
         onRange('sigil-menu-trail-length', (value) => { state.trailLength = value; });
         onRange('sigil-menu-cancel-radius', (value) => {
             state.dragCancelRadius = value;
             if (liveJs) liveJs.dragCancelRadius = value;
         });
-        layer.querySelector('#sigil-menu-primary-color')?.addEventListener('input', (event) => {
-            state.colors.face[0] = event.target.value;
-            updateAllColors?.();
-        });
-        layer.querySelector('#sigil-menu-edge-color')?.addEventListener('input', (event) => {
-            state.colors.edge[0] = event.target.value;
-            updateAllColors?.();
-        });
+        onColor('sigil-menu-primary-color', 'face', 0);
+        onColor('sigil-menu-edge-color', 'edge', 0);
+        onColor('sigil-menu-face1', 'face', 0);
+        onColor('sigil-menu-face2', 'face', 1);
+        onColor('sigil-menu-edge1', 'edge', 0);
+        onColor('sigil-menu-edge2', 'edge', 1);
+        onColor('sigil-menu-aura1', 'aura', 0);
+        onColor('sigil-menu-aura2', 'aura', 1);
+        onColor('sigil-menu-lightning1', 'lightning', 0);
+        onColor('sigil-menu-lightning2', 'lightning', 1);
+        onColor('sigil-menu-magnetic1', 'magnetic', 0);
+        onColor('sigil-menu-magnetic2', 'magnetic', 1);
+        onColor('sigil-menu-grid1', 'grid', 0);
+        onColor('sigil-menu-grid2', 'grid', 1);
     }
 
     bindControls();
