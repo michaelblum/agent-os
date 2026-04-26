@@ -108,6 +108,7 @@ function lineTravel(liveJs, displays, toX, toY) {
     liveJs.travel = {
         effect: 'line',
         phase: 'line',
+        previousOmegaEnabled: state.isOmegaEnabled,
         fromX,
         fromY,
         toX: clamped.x,
@@ -137,6 +138,7 @@ function tickLineTravel(liveJs, onComplete) {
     liveJs.currentCursor = landed;
     liveJs.cursorTarget = landed;
     liveJs.travel = null;
+    state.isOmegaEnabled = travel.previousOmegaEnabled ?? false;
     state.omegaInterDimensional = false;
     if (typeof onComplete === 'function') onComplete(landed);
     return { active: false, effect: 'line', phase: 'complete', avatarPos: landed, appScale: 1 };
@@ -398,6 +400,7 @@ export function createFastTravelController({
             fromY: from.y,
             toX: to.x,
             toY: to.y,
+            previousOmegaEnabled: state.isOmegaEnabled,
             from,
             to,
             pointer: options.pointer ?? to,
@@ -477,6 +480,7 @@ export function createFastTravelController({
         liveJs.currentCursor = landed;
         liveJs.cursorTarget = landed;
         liveJs.travel = null;
+        state.isOmegaEnabled = travel.previousOmegaEnabled ?? false;
         state.omegaInterDimensional = false;
         overlay.clear();
         record('wormhole.complete', {

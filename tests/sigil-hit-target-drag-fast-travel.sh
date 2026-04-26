@@ -134,10 +134,12 @@ landed = wait_until(
         lambda snap: snap
         if snap["state"] == "IDLE"
         and snap["travel"] is None
+        and snap["omegaEnabled"] is False
+        and snap["omegaInterDimensional"] is False
         and math.isclose(snap["avatarPos"]["x"], target["x"], abs_tol=1.0)
         and math.isclose(snap["avatarPos"]["y"], target["y"], abs_tol=1.0)
         else None
-    )(show_eval_json("JSON.stringify({ state: window.liveJs.currentState, travel: window.liveJs.travel, avatarPos: window.liveJs.avatarPos })")),
+    )(show_eval_json("JSON.stringify({ state: window.liveJs.currentState, travel: window.liveJs.travel, avatarPos: window.liveJs.avatarPos, omegaEnabled: window.state.isOmegaEnabled, omegaInterDimensional: window.state.omegaInterDimensional })")),
     timeout=5.0,
 )
 
@@ -194,11 +196,13 @@ wormhole_landed = wait_until(
         lambda snap: snap
         if snap["state"] == "IDLE"
         and snap["travel"] is None
+        and snap["omegaEnabled"] is False
+        and snap["omegaInterDimensional"] is False
         and math.isclose(snap["avatarPos"]["x"], wormhole_target["x"], abs_tol=1.0)
         and math.isclose(snap["avatarPos"]["y"], wormhole_target["y"], abs_tol=1.0)
         and "wormhole.complete" in {event["stage"] for event in snap["events"]}
         else None
-    )(show_eval_json("JSON.stringify({ state: window.liveJs.currentState, travel: window.liveJs.travel, avatarPos: window.liveJs.avatarPos, events: window.liveJs.fastTravelEvents })")),
+    )(show_eval_json("JSON.stringify({ state: window.liveJs.currentState, travel: window.liveJs.travel, avatarPos: window.liveJs.avatarPos, omegaEnabled: window.state.isOmegaEnabled, omegaInterDimensional: window.state.omegaInterDimensional, events: window.liveJs.fastTravelEvents })")),
     timeout=5.0,
 )
 
