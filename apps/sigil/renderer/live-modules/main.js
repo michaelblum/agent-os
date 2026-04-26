@@ -430,19 +430,22 @@ function handleInputEvent(msg) {
 }
 
 function pointFromHitPayload(payload = {}) {
+    const localX = Number(payload.offsetX);
+    const localY = Number(payload.offsetY);
+    const size = hitTarget.hit.size;
+    if (Number.isFinite(localX) && Number.isFinite(localY) && liveJs.avatarPos.valid) {
+        return {
+            x: (liveJs.avatarPos.x - (size / 2)) + localX,
+            y: (liveJs.avatarPos.y - (size / 2)) + localY,
+        };
+    }
+
     const screenX = Number(payload.x ?? payload.screenX);
     const screenY = Number(payload.y ?? payload.screenY);
     if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
         return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
     }
-    const localX = Number(payload.offsetX);
-    const localY = Number(payload.offsetY);
-    const size = hitTarget.hit.size;
-    if (!Number.isFinite(localX) || !Number.isFinite(localY) || !liveJs.avatarPos.valid) return null;
-    return {
-        x: (liveJs.avatarPos.x - (size / 2)) + localX,
-        y: (liveJs.avatarPos.y - (size / 2)) + localY,
-    };
+    return null;
 }
 
 function handleHitCanvasEvent(payload = {}) {
@@ -686,7 +689,7 @@ function animate() {
         hitTarget.setSize(state.avatarHitRadius * 2)
         const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
         nativeAvatarPos.valid = true;
-        hitTarget.sync(nativeAvatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
+        hitTarget.sync(nativeAvatarPos, liveJs.avatarVisible && ['IDLE', 'PRESS', 'DRAG'].includes(liveJs.currentState));
     }
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);

@@ -12,6 +12,9 @@ html, body { margin: 0; width: 100%; height: 100%; background: transparent; over
 // here instead of passing through to the desktop.
 window.headsup = window.headsup || {};
 const HIT_SOURCE = 'sigil-hit';
+const HIT_PARAMS = new URLSearchParams(window.location.search);
+const HIT_PARENT_ID = HIT_PARAMS.get('parent') || 'avatar-main';
+const HIT_ID = HIT_PARAMS.get('id') || null;
 
 function emit(kind, event) {
     const rect = document.body.getBoundingClientRect();
@@ -24,7 +27,17 @@ function emit(kind, event) {
         offsetY: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
     };
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
-        window.webkit.messageHandlers.headsup.postMessage(payload);
+        window.webkit.messageHandlers.headsup.postMessage({
+            type: 'canvas.send',
+            payload: {
+                target: HIT_PARENT_ID,
+                message: {
+                    type: 'canvas_message',
+                    id: HIT_ID,
+                    payload,
+                },
+            },
+        });
     }
 }
 

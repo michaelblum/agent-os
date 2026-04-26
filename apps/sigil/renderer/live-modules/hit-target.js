@@ -8,12 +8,18 @@ function frameFor(center, size) {
     ];
 }
 
+function appendQuery(url, params) {
+    const separator = url.includes('?') ? '&' : '?';
+    const query = new URLSearchParams(params).toString();
+    return `${url}${separator}${query}`;
+}
+
 export function createHitTargetController({ runtime, url, size = 80, idPrefix = 'sigil-hit' }) {
     const hit = {
         id: `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`,
         ready: false,
         creating: false,
-        interactive: false,
+        interactive: true,
         size,
     };
 
@@ -23,9 +29,9 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
         try {
             await runtime.canvasCreate({
                 id: hit.id,
-                url,
+                url: appendQuery(url, { parent: 'avatar-main', id: hit.id }),
                 frame: [-1000, -1000, hit.size, hit.size],
-                interactive: false,
+                interactive: true,
             });
             hit.ready = true;
             return hit.id;
