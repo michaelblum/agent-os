@@ -70,6 +70,7 @@ struct CanvasRequest: Codable {
     var scope: String?          // "connection" or "global" (default: global)
     var autoProject: String?    // auto-projection mode: "cursor_trail", "highlight_focused", "label_elements"
     var track: String?          // tracking target (e.g. "union") — bounds auto-resolve + auto-update
+    var surface: String?        // surface target (e.g. "desktop-world") — canvas placement surface
     var parent: String?         // parent canvas ID (nil = infer from source canvas)
     var cascade: Bool?          // lifecycle cascade from parent (default true; false = survive parent suspend/remove)
     var suspended: Bool?        // create hidden/suspended without showing a window first

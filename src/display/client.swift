@@ -36,6 +36,7 @@ class DaemonClient {
         if let scope = request.scope { dataDict["scope"] = scope }
         if let ap = request.autoProject { dataDict["auto_project"] = ap }
         if let track = request.track { dataDict["track"] = track }
+        if let surface = request.surface { dataDict["surface"] = surface }
         if let parent = request.parent { dataDict["parent"] = parent }
         if let cas = request.cascade { dataDict["cascade"] = cas }
         if let sus = request.suspended { dataDict["suspended"] = sus }
@@ -103,6 +104,7 @@ private struct CanvasMutationOptions {
     var scope: String? = nil
     var autoProject: String? = nil
     var track: String? = nil
+    var surface: String? = nil
 }
 
 private func nextCanvasArg(_ args: [String], index: inout Int, missingMessage: String, code: String = "MISSING_ARG") -> String {
@@ -187,6 +189,14 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
                 exitError("Unknown --track target: \(track). Supported: union", code: "INVALID_ARG")
             }
             options.track = track
+        case "--surface":
+            let value = nextCanvasArg(args, index: &i,
+                                      missingMessage: "--surface requires a target")
+            guard value == "desktop-world" else {
+                exitError("Unknown --surface target: \(value). Supported: desktop-world",
+                          code: "INVALID_ARG")
+            }
+            options.surface = value
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }
@@ -259,6 +269,7 @@ private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to req
     if let scope = options.scope { request.scope = scope }
     if let autoProject = options.autoProject { request.autoProject = autoProject }
     if let track = options.track { request.track = track }
+    if let surface = options.surface { request.surface = surface }
 
     if let url = options.urlValue {
         request.url = url
