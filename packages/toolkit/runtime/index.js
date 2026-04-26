@@ -22,6 +22,11 @@ export {
   pointerPhase,
 } from './interaction-region.js'
 export {
+  createDesktopWorldRangeDrag,
+  desktopWorldRangeValue,
+  updateDesktopWorldRangeDrag,
+} from './range-drag.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,

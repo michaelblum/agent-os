@@ -1,5 +1,9 @@
 import { createStackMenu } from '/toolkit/runtime/stack-menu.js';
 import { createDesktopWorldInteractionRouter } from '/toolkit/runtime/interaction-region.js';
+import {
+    createDesktopWorldRangeDrag,
+    updateDesktopWorldRangeDrag,
+} from '/toolkit/runtime/range-drag.js';
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -430,45 +434,16 @@ export function createSigilContextMenu({
         return document.elementFromPoint(local.x, local.y);
     }
 
-    function rangeDragState(input) {
-        const rect = input.getBoundingClientRect();
-        const anchorRect = anchor.getBoundingClientRect();
-        const b = menuState.bounds;
-        if (!b || rect.width <= 0) return null;
-        return {
-            input,
-            desktopLeft: b.x + (rect.left - anchorRect.left),
-            desktopWidth: rect.width,
-        };
-    }
-
-    function updateRange(active, point, commit = false) {
-        const input = active?.input || active;
-        const desktopLeft = Number(active?.desktopLeft);
-        const desktopWidth = Number(active?.desktopWidth);
-        if (!input || !Number.isFinite(desktopLeft) || !Number.isFinite(desktopWidth) || desktopWidth <= 0) return true;
-        const min = Number(input.min || 0);
-        const max = Number(input.max || 100);
-        const step = Number(input.step || 1);
-        const ratio = clamp((point.x - desktopLeft) / desktopWidth, 0, 1);
-        const raw = min + (max - min) * ratio;
-        const next = Math.round(raw / step) * step;
-        input.value = String(clamp(next, min, max));
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        if (commit) input.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-    }
-
     function handleMenuPointer(event) {
         const kind = event.type;
         const point = event.point;
         const active = menuState.activeRange;
         if (active && (kind === 'left_mouse_dragged' || kind === 'mouse_moved')) {
-            return updateRange(active, point);
+            return updateDesktopWorldRangeDrag(active, point);
         }
         if (active && kind === 'left_mouse_up') {
             menuState.activeRange = null;
-            return updateRange(active, point, true);
+            return updateDesktopWorldRangeDrag(active, point, { commit: true });
         }
 
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
@@ -479,8 +454,11 @@ export function createSigilContextMenu({
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
-            menuState.activeRange = rangeDragState(input);
-            return updateRange(menuState.activeRange, point);
+            menuState.activeRange = createDesktopWorldRangeDrag(input, {
+                anchor,
+                desktopBounds: menuState.bounds,
+            });
+            return updateDesktopWorldRangeDrag(menuState.activeRange, point);
         }
 
         if (kind === 'left_mouse_up') {
