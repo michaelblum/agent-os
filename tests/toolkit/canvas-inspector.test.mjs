@@ -70,14 +70,14 @@ test('computeMinimapLayout keeps self canvases marked and scaled into the same b
 
 test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
   const canvases = [
-    { id: 'avatar-main', at: [-96, -540, 3520, 2068] },
-    { id: 'sigil-hit', parent: 'avatar-main', at: [974, -286, 80, 80] },
+    { id: 'avatar-main', at: [-207, 0, 1920, 2062] },
+    { id: 'sigil-hit', parent: 'avatar-main', at: [1093, 240, 80, 80] },
     { id: 'canvas-inspector', at: [1172, 442, 320, 480] },
   ];
   const layout = computeMinimapLayout(displays, canvases, 300);
   assert.ok(layout);
 
-  const cursor = projectPointToMinimap(layout, { x: 1300, y: 280 });
+  const cursor = projectPointToMinimap(layout, { x: 1340, y: 280 });
   assert.ok(cursor);
   assert.ok(cursor.x >= 0 && cursor.x <= layout.mapW);
   assert.ok(cursor.y >= 0 && cursor.y <= layout.mapH);
@@ -90,7 +90,7 @@ test('projectPointToMinimap maps the cursor into minimap coordinates', () => {
   assert.ok(cursor.y <= avatarHit.y + avatarHit.h);
 });
 
-test('resolveCanvasFrames converts parent-local child canvases into global minimap rects', () => {
+test('resolveCanvasFrames keeps daemon global child canvas rects intact', () => {
   const resolved = resolveCanvasFrames([
     { id: 'avatar-main', at: [-96, -540, 3520, 2068] },
     { id: 'sigil-hit', parent: 'avatar-main', at: [974, -286, 80, 80] },
@@ -99,9 +99,42 @@ test('resolveCanvasFrames converts parent-local child canvases into global minim
     resolved.map(({ id, atResolved }) => ({ id, atResolved })),
     [
       { id: 'avatar-main', atResolved: [-96, -540, 3520, 2068] },
-      { id: 'sigil-hit', atResolved: [1070, 254, 80, 80] },
+      { id: 'sigil-hit', atResolved: [974, -286, 80, 80] },
     ]
   );
+});
+
+test('computeMinimapLayout aligns global native child canvas frames with DesktopWorld marks', () => {
+  const liveDisplays = [
+    {
+      id: 3,
+      width: 1920,
+      height: 1080,
+      is_main: false,
+      bounds: { x: -185, y: 982, w: 1920, h: 1080 },
+    },
+    {
+      id: 1,
+      width: 1512,
+      height: 982,
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    },
+  ];
+  const layout = computeMinimapLayout(liveDisplays, [
+    { id: 'avatar-main', at: [-185, 0, 1920, 2062] },
+    { id: 'sigil-hit', parent: 'avatar-main', at: [895, 1460, 80, 80] },
+  ], 300);
+  assert.ok(layout);
+
+  const avatarMark = projectPointToMinimap(layout, { x: 1120, y: 1500 });
+  const avatarHit = layout.canvases.find((entry) => entry.canvas.id === 'sigil-hit');
+  assert.ok(avatarMark);
+  assert.ok(avatarHit);
+  assert.ok(avatarMark.x >= avatarHit.x);
+  assert.ok(avatarMark.x <= avatarHit.x + avatarHit.w);
+  assert.ok(avatarMark.y >= avatarHit.y);
+  assert.ok(avatarMark.y <= avatarHit.y + avatarHit.h);
 });
 
 test('projectPointToMinimap rejects invalid cursor payloads', () => {

@@ -473,9 +473,7 @@ export default function CanvasInspector() {
     const resolved = resolveCanvasFrames(list)
     return resolved.map((canvas) => {
       const worldResolved = nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), displays)
-      const worldAt = !canvas.parent
-        ? nativeToDesktopWorldRect(rectFromAt(canvas.at), displays)
-        : rectFromAt(canvas.at)
+      const worldAt = nativeToDesktopWorldRect(rectFromAt(canvas.at), displays)
       return {
         ...canvas,
         at: rectToAt(worldAt) ?? canvas.at,

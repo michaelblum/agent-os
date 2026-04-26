@@ -393,21 +393,7 @@ export function resolveCanvasFrame(canvas, canvasById, resolving = new Set()) {
   const explicitResolved = Array.isArray(canvas?.atResolved) && canvas.atResolved.length >= 4 ? canvas.atResolved : null
   if (explicitResolved) return explicitResolved
   const at = Array.isArray(canvas?.at) && canvas.at.length >= 4 ? canvas.at : null
-  if (!at) return null
-  if (!canvas?.parent) return at
-  if (resolving.has(canvas.id)) return at
-  const parent = canvasById.get(canvas.parent)
-  if (!parent) return at
-  resolving.add(canvas.id)
-  const parentAt = resolveCanvasFrame(parent, canvasById, resolving)
-  resolving.delete(canvas.id)
-  if (!parentAt) return at
-  return [
-    at[0] - parentAt[0],
-    at[1] - parentAt[1],
-    at[2],
-    at[3],
-  ]
+  return at
 }
 
 export function resolveCanvasFrames(list = []) {

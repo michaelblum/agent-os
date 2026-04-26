@@ -72,8 +72,8 @@ test('buildSpatialTelemetrySnapshot reports display/canvas/mark/cursor spaces', 
   assert.deepEqual(snapshot.visibleDesktopWorld, { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0, maxX: 1920, maxY: 2062 });
   assert.deepEqual(snapshot.nativeDesktopBounds, { x: -191, y: 0, w: 1920, h: 2062, minX: -191, minY: 0, maxX: 1729, maxY: 2062 });
   assert.equal(snapshot.canvasRows[0].owner, 'union');
-  assert.deepEqual(snapshot.canvasRows[1].worldRect, { x: 1602, y: 784, w: 80, h: 80 });
-  assert.deepEqual(snapshot.canvasRows[1].parentLocal, { x: 1602, y: 784, w: 80, h: 80 });
+  assert.deepEqual(snapshot.canvasRows[1].worldRect, { x: 1411, y: 784, w: 80, h: 80 });
+  assert.deepEqual(snapshot.canvasRows[1].parentLocal, { x: 1411, y: 784, w: 80, h: 80 });
   assert.equal(snapshot.markRows[0].owner, 'main');
   assert.deepEqual(snapshot.markRows[0].worldPoint, { x: 1260, y: 824 });
   assert.deepEqual(snapshot.markRows[0].canvasLocal, { x: 1260, y: 824 });
