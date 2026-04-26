@@ -272,6 +272,7 @@ aos ops list --json
 aos ops explain runtime/status-snapshot --json
 aos ops dry-run runtime/status-snapshot --json
 aos ops run runtime/status-snapshot --json
+aos ops dry-run canvas/window-level-smoke --json
 ```
 
 `ops dry-run` is static in v1: it does not start daemons, create canvases,
@@ -279,10 +280,11 @@ mutate resources, or run read-only observation probes. It validates the recipe,
 resolves declared resources, verifies command-registry references, and returns
 the planned steps. Without `--json`, it emits a concise text plan.
 
-`ops run` initially supports the read-only `runtime/status-snapshot` recipe.
-Mutating canvas smokes are intentionally deferred until ownership, cleanup,
-TTL, timeout, and dry-run behavior are covered by tests. Without `--json`, it
-emits a concise text summary on success.
+`ops run` supports read-only recipes and the first mutating canvas smoke,
+`canvas/window-level-smoke`. Mutating recipes must declare `owned_resources`
+and `finally` cleanup steps; cleanup steps can only target resources declared
+as owned by the current run. Without `--json`, successful runs emit a concise
+text summary.
 
 `--json` follows the global process contract: success and dry-run success emit
 JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on

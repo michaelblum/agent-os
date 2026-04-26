@@ -1,0 +1,118 @@
+{
+  "id": "canvas/window-level-smoke",
+  "version": 1,
+  "summary": "Create, inspect, update, and clean up an owned temporary canvas.",
+  "scope": "source",
+  "mutates": true,
+  "requires": ["show"],
+  "docs": "docs/api/aos.md#aos-ops",
+  "resources": {
+    "canvas_id": "ops-${run_id}-window-level-smoke"
+  },
+  "owned_resources": [
+    {
+      "name": "canvas",
+      "type": "canvas",
+      "id": "${resources.canvas_id}",
+      "ttl_seconds": 30
+    }
+  ],
+  "steps": [
+    {
+      "id": "create-canvas",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-create"
+      },
+      "argv": [
+        "create",
+        "--id",
+        "${resources.canvas_id}",
+        "--at",
+        "-10000,-10000,96,64",
+        "--html",
+        "<!doctype html><html><body style=\"margin:0;background:#1d4ed8;color:white;font:12px system-ui\">ops</body></html>",
+        "--ttl",
+        "30s",
+        "--scope",
+        "global",
+        "--window-level",
+        "floating"
+      ],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    },
+    {
+      "id": "inspect-canvas",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-list"
+      },
+      "argv": ["list"],
+      "timeout_ms": 10000,
+      "mutates": false,
+      "assertions": [
+        {
+          "select": {
+            "path": ["canvases"],
+            "where": {
+              "id": "${resources.canvas_id}"
+            }
+          },
+          "field": ["windowLevel"],
+          "equals": "floating"
+        }
+      ]
+    },
+    {
+      "id": "update-canvas",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-update"
+      },
+      "argv": [
+        "update",
+        "--id",
+        "${resources.canvas_id}",
+        "--html",
+        "<!doctype html><html><body style=\"margin:0;background:#0f766e;color:white;font:12px system-ui\">updated</body></html>"
+      ],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    },
+    {
+      "id": "remove-canvas",
+      "command": {
+        "path": ["show"],
+        "form_id": "show-remove"
+      },
+      "argv": [
+        "remove",
+        "--id",
+        "${resources.canvas_id}"
+      ],
+      "timeout_ms": 10000,
+      "mutates": true,
+      "finally": true,
+      "cleanup_resources": ["canvas"],
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    }
+  ]
+}

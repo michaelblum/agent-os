@@ -101,9 +101,9 @@ Expected affordances:
 exact-ID discovery, explanation, dry-run, and execution contracts before adding
 fuzzy lookup or symptom routing.
 
-Mutating examples such as `canvas/window-level-smoke` are still useful design
-targets, but they should appear as post-contract validation cases rather than
-the first executable recipe.
+Mutating examples such as `canvas/window-level-smoke` should follow the
+read-only slice and act as post-contract validation cases for ownership,
+cleanup, timeout, and failure behavior.
 
 The `explain` path should show the primitive commands, why they are ordered
 that way, what mutates state, what resources are owned by the run, what cleanup
@@ -162,9 +162,10 @@ only when needed. Shell strings are not sufficient for truthful dry-run or
 explain because they hide argument interpolation, mutation classification,
 timeouts, output schemas, cleanup, and resource ownership.
 
-The example below is a post-contract mutating smoke, not the first v1 recipe.
-The first executable recipe should remain the read-only
-`runtime/status-snapshot`.
+The first executable recipe was the read-only `runtime/status-snapshot`. The
+first mutating recipe should remain narrow: a canvas smoke that proves owned
+resources, TTLs, timeout handling, and cleanup before broader mutating recipes
+are allowed.
 
 Prefer structured steps keyed to fully qualified command-registry form
 references. Do not rely on bare form IDs being globally unique; the registry
@@ -182,6 +183,14 @@ models command paths and invocation forms separately.
   "resources": {
     "canvas_id": "ops-${run_id}-window-level"
   },
+  "owned_resources": [
+    {
+      "name": "canvas",
+      "type": "canvas",
+      "id": "${resources.canvas_id}",
+      "ttl_seconds": 30
+    }
+  ],
   "steps": [
     {
       "id": "create-screen-saver-canvas",
@@ -190,6 +199,7 @@ models command paths and invocation forms separately.
         "form_id": "show-create"
       },
       "argv": [
+        "create",
         "--id", "${resources.canvas_id}",
         "--at", "20,20,40,40",
         "--window-level", "screen_saver",
@@ -205,6 +215,7 @@ models command paths and invocation forms separately.
         "path": ["show"],
         "form_id": "show-list"
       },
+      "argv": ["list"],
       "assertions": [
         {
           "select": {
@@ -226,6 +237,7 @@ models command paths and invocation forms separately.
         "form_id": "show-update"
       },
       "argv": [
+        "update",
         "--id", "${resources.canvas_id}",
         "--window-level", "status_bar"
       ],
@@ -238,9 +250,10 @@ models command paths and invocation forms separately.
         "path": ["show"],
         "form_id": "show-remove"
       },
-      "argv": ["--id", "${resources.canvas_id}"],
+      "argv": ["remove", "--id", "${resources.canvas_id}"],
       "finally": true,
-      "mutates": true
+      "mutates": true,
+      "cleanup_resources": ["canvas"]
     }
   ]
 }
@@ -298,10 +311,12 @@ input and output contracts:
   "finished_at": "2026-04-26T00:00:01Z",
   "mutated_resources": [
     {
+      "name": "canvas",
       "type": "canvas",
       "id": "ops-abc-window-level",
-      "owned_by_run": true,
-      "cleanup": "removed"
+      "owned": true,
+      "run_id": "abc",
+      "cleanup_status": "success"
     }
   ],
   "steps": [

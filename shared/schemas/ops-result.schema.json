@@ -33,7 +33,6 @@
         "DRY_RUN_UNRESOLVED_INPUT",
         "ASSERTION_FAILED",
         "COMMAND_FAILED",
-        "MUTATING_RECIPE_UNSUPPORTED",
         "TIMEOUT",
         "CLEANUP_FAILED",
         "INTERNAL"
@@ -57,7 +56,17 @@
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": true
+        "required": ["name", "type", "id", "owned", "run_id"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1 },
+          "owned": { "type": "boolean" },
+          "run_id": { "type": "string", "minLength": 1 },
+          "ttl_seconds": { "type": "number", "minimum": 0 },
+          "cleanup_status": { "type": "string" }
+        }
       }
     },
     "steps": {
@@ -69,8 +78,11 @@
       "required": ["status", "steps"],
       "additionalProperties": true,
       "properties": {
-        "status": { "type": "string" },
-        "steps": { "type": "array" }
+        "status": { "enum": ["not_needed", "success", "failed"] },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StepResult" }
+        }
       }
     }
   },
@@ -113,6 +125,10 @@
         "finally": { "type": "boolean" },
         "supports_delegate_dry_run": { "type": "boolean" },
         "would_run": { "type": "boolean" },
+        "cleanup_resources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
         "assertions": { "type": "integer", "minimum": 0 },
         "status": { "type": "string" },
         "duration_ms": { "type": "integer", "minimum": 0 },
