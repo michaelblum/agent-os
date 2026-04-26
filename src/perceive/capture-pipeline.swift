@@ -564,6 +564,7 @@ func captureSurfaceSegmentJSON(
     let localBounds = captureLocalRect(globalRect: segment.globalBounds, within: captureBounds, scaleFactor: scaleFactor)
     return CaptureSurfaceSegmentJSON(
         display: segment.display.ordinal,
+        display_id: Int(segment.display.cgID),
         scale_factor: segment.display.scaleFactor,
         bounds_global: stBounds(segment.globalBounds),
         bounds_local: BoundsJSON(
@@ -599,9 +600,7 @@ func captureSurfaceJSON(
 }
 
 func decodeCanvasResponse(_ response: [String: Any]) -> CanvasResponse? {
-    guard JSONSerialization.isValidJSONObject(response),
-          let data = try? JSONSerialization.data(withJSONObject: response, options: []) else { return nil }
-    return CanvasResponse.from(data)
+    CanvasResponse.fromDict(response)
 }
 
 func readCanvasInfo(id: String) -> CanvasInfo? {

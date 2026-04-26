@@ -59,9 +59,79 @@ const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
 const TREE_INDENT_PX = 12
 const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
 
+function escapeHTML(value) {
+  if (value === null || value === undefined) return ''
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
 function rectToAt(rect) {
   if (!rect) return null
   return [rect.x, rect.y, rect.w, rect.h]
+}
+
+function rowIndentStyle(depth) {
+  return `padding-left:${8 + depth * TREE_INDENT_PX}px`
+}
+
+function formatAt(at) {
+  const [x, y, w, h] = Array.isArray(at) ? at : [0, 0, 0, 0]
+  return `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
+}
+
+function formatBounds(bounds) {
+  if (!Array.isArray(bounds) || bounds.length < 4) return 'n/a'
+  return bounds.map((value) => Math.round(Number(value) || 0)).join(',')
+}
+
+function renderSurfaceSegmentRow(segment, depth) {
+  return `<div class="tree-row surface-segment" data-display-id="${escapeHTML(segment.display_id)}" style="${rowIndentStyle(depth)}">`
+    + `<span class="seg-index">[${escapeHTML(segment.index)}]</span>`
+    + `<span class="seg-display">display ${escapeHTML(segment.display_id)}</span>`
+    + `<span class="seg-bounds">dw(${escapeHTML(formatBounds(segment.dw_bounds))})</span>`
+    + `</div>`
+}
+
+function renderSurfaceRow(c, depth, options = {}) {
+  const tintedIds = options.tintedIds || new Set()
+  const segmentCount = Array.isArray(c.segments) ? c.segments.length : 0
+  const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
+  let html = `<div class="tree-row surface" data-id="${escapeHTML(c.id)}" style="${rowIndentStyle(depth)}">`
+  html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
+  html += `<span class="canvas-kind">desktop-world</span>`
+  html += `<span class="canvas-dims">${formatAt(c.atResolved || c.at)}</span>`
+  html += `<span class="canvas-flags">`
+  html += `<span class="flag surface-kind">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
+  html += `<button class="${tintClass}" data-id="${escapeHTML(c.id)}">tint</button>`
+  html += `<button class="btn remove-btn" data-id="${escapeHTML(c.id)}">\u2715</button>`
+  html += `</span></div>`
+  html += (c.segments || []).map((segment) => renderSurfaceSegmentRow(segment, depth + 1)).join('')
+  return html
+}
+
+export function renderCanvasRow(c, depth = 0, options = {}) {
+  if (Array.isArray(c?.segments)) return renderSurfaceRow(c, depth, options)
+
+  const dims = formatAt(c?.atResolved || c?.at)
+  const selfId = options.selfId ?? SELF_ID
+  const tintedIds = options.tintedIds || new Set()
+  const cls = c?.id === selfId ? 'tree-row canvas self' : 'tree-row canvas'
+  let html = `<div class="${cls}" data-id="${escapeHTML(c?.id)}" style="${rowIndentStyle(depth)}">`
+  html += `<span class="canvas-id">${escapeHTML(c?.id)}</span>`
+  html += `<span class="canvas-dims">${dims}</span>`
+  html += `<span class="canvas-flags">`
+  if (c?.interactive) html += `<span class="flag interactive">int</span>`
+  if (c?.scope === 'connection') html += `<span class="flag scoped">conn</span>`
+  if (c?.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
+  const tintClass = tintedIds.has(c?.id) ? 'btn tint-btn active' : 'btn tint-btn'
+  html += `<button class="${tintClass}" data-id="${escapeHTML(c?.id)}">tint</button>`
+  html += `<button class="btn remove-btn" data-id="${escapeHTML(c?.id)}">\u2715</button>`
+  html += `</span></div>`
+  return html
 }
 
 function buildTintEvalScript(color) {
@@ -330,7 +400,7 @@ export default function CanvasInspector() {
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'canvas') {
-      return renderCanvasRow(node.canvas, depth)
+      return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds })
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'mark') {
@@ -340,7 +410,7 @@ export default function CanvasInspector() {
   }
 
   function indentStyle(depth) {
-    return `padding-left:${8 + depth * TREE_INDENT_PX}px`
+    return rowIndentStyle(depth)
   }
 
   function renderLocationRow(label, depth) {
@@ -371,24 +441,6 @@ export default function CanvasInspector() {
       + `<button class="${toggleClass}" data-enabled="${mouseEventsEnabled ? '1' : '0'}">${toggleLabel}</button>`
       + `</span>`
       + `</div>`
-  }
-
-  function renderCanvasRow(c, depth) {
-    const [x, y, w, h] = c.atResolved || c.at || [0, 0, 0, 0]
-    const dims = `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
-    const cls = c.id === SELF_ID ? 'tree-row canvas self' : 'tree-row canvas'
-    let html = `<div class="${cls}" data-id="${esc(c.id)}" style="${indentStyle(depth)}">`
-    html += `<span class="canvas-id">${esc(c.id)}</span>`
-    html += `<span class="canvas-dims">${dims}</span>`
-    html += `<span class="canvas-flags">`
-    if (c.interactive) html += `<span class="flag interactive">int</span>`
-    if (c.scope === 'connection') html += `<span class="flag scoped">conn</span>`
-    if (c.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
-    const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
-    html += `<button class="${tintClass}" data-id="${esc(c.id)}">tint</button>`
-    html += `<button class="btn remove-btn" data-id="${esc(c.id)}">\u2715</button>`
-    html += `</span></div>`
-    return html
   }
 
   function renderMarkTreeRow(mark, depth) {

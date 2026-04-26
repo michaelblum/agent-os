@@ -201,6 +201,10 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      type: .enumeration([
                         EnumValue(value: "union", summary: "Track display union bounds")
                      ])),
+                flag("surface", "--surface", "Logical drawing surface",
+                     type: .enumeration([
+                        EnumValue(value: "desktop-world", summary: "Draw across DesktopWorld")
+                     ])),
                 flag("anchor-window", "--anchor-window", "Anchor to window ID"),
                 flag("anchor-channel", "--anchor-channel", "Anchor to focus channel ID"),
                 flag("anchor-browser", "--anchor-browser", "Anchor to browser target (browser:<s>[/<ref>])"),
@@ -210,7 +214,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             constraints: ConstraintSet(
                 requires: nil,
                 conflicts: [
-                    ["at", "track"],
+                    ["at", "track", "surface", "anchor-window", "anchor-channel", "anchor-browser"],
                     ["html", "file", "url"],
                     ["anchor-window", "anchor-channel", "anchor-browser"]
                 ],
@@ -222,6 +226,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: [
                 "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
                 "aos show create --id avatar --url aos://sigil/renderer/index.html --track union",
+                "aos show create --id overlay --url aos://sigil/renderer/index.html --surface desktop-world",
                 "aos show create --id annot --anchor-browser browser:todo/e21 --html \"<div class='badge'>42</div>\""
             ]),
         InvocationForm(id: "show-update", usage: "aos show update --id <name> [options]",

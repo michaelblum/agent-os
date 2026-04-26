@@ -390,15 +390,36 @@ class Canvas {
             track: trackTarget?.rawValue,
             parent: parent,
             cascade: cascadeFromParent,
-            suspended: suspended
+            suspended: suspended,
+            segments: nil
         )
+    }
+}
+
+extension Canvas: CanvasLike {
+    var windowNumbers: [Int] { [window.windowNumber] }
+
+    func evaluateJavaScript(_ script: String, completion: ((Any?, Error?) -> Void)?) {
+        webView.evaluateJavaScript(script, completionHandler: completion)
+    }
+
+    func setAlpha(_ alpha: CGFloat) {
+        window.alphaValue = alpha
+    }
+
+    func orderFront() {
+        window.orderFront(nil)
+    }
+
+    func orderOut() {
+        window.orderOut(nil)
     }
 }
 
 // MARK: - Canvas Manager
 
 class CanvasManager {
-    private var canvases: [String: Canvas] = [:]
+    private var canvases: [String: CanvasLike] = [:]
     private var anchorTimer: DispatchSourceTimer?
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
@@ -406,6 +427,8 @@ class CanvasManager {
     var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
+    /// (eventName, payload) — relayed to subscribers as desktop-world surface topology events.
+    var onCanvasSurfaceEvent: ((String, [String: Any]) -> Void)?
     let startTime = Date()
     private var lastChannelReRead: Date = .distantPast
     private var lastAutoProjectUpdate: Date = .distantPast
@@ -416,7 +439,7 @@ class CanvasManager {
 
     func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
         guard let canvas = canvases[id] else { return }
-        canvas.window.alphaValue = alpha
+        canvas.setAlpha(alpha)
     }
 
     var hasAnchoredCanvases: Bool { canvases.values.contains { $0.anchorWindowID != nil } }
@@ -430,12 +453,12 @@ class CanvasManager {
         abs(lhs.size.height - rhs.size.height) > tolerance
     }
 
-    private func emitLifecycle(_ canvas: Canvas, action: String) {
+    private func emitLifecycle(_ canvas: CanvasLike, action: String) {
         onCanvasLifecycle?(canvas.toInfo(), action)
     }
 
     @discardableResult
-    private func moveCanvas(_ canvas: Canvas, to cgRect: CGRect) -> Bool {
+    private func moveCanvas(_ canvas: CanvasLike, to cgRect: CGRect) -> Bool {
         let current = canvas.cgFrame
         guard framesDiffer(current, cgRect) else { return false }
         canvas.updatePosition(cgRect: cgRect)
@@ -443,8 +466,66 @@ class CanvasManager {
         return true
     }
 
+    private func emitSegmentDeltas(_ surface: DesktopWorldSurfaceCanvas) {
+        guard let delta = surface.lastDelta else { return }
+        for segment in delta.added {
+            onCanvasSurfaceEvent?(
+                "canvas_segment_added",
+                segmentEventPayload(canvasID: surface.id, segment: segment, action: "added")
+            )
+        }
+        for segment in delta.removed {
+            onCanvasSurfaceEvent?(
+                "canvas_segment_removed",
+                [
+                    "canvas_id": surface.id,
+                    "display_id": Int(segment.displayID),
+                ]
+            )
+        }
+        for segment in delta.changed {
+            onCanvasSurfaceEvent?(
+                "canvas_segment_changed",
+                segmentEventPayload(canvasID: surface.id, segment: segment, action: "changed")
+            )
+        }
+        onCanvasSurfaceEvent?(
+            "canvas_topology_settled",
+            topologySettledPayload(canvasID: surface.id, segments: delta.settled)
+        )
+    }
+
+    private func segmentEventPayload(canvasID: String, segment: DesktopWorldSurfaceSegment, action: String) -> [String: Any] {
+        [
+            "canvas_id": canvasID,
+            "action": action,
+            "display_id": Int(segment.displayID),
+            "index": segment.index,
+            "dw_bounds": segment.dwBounds,
+            "native_bounds": segment.nativeBounds,
+        ]
+    }
+
+    func topologySettledPayload(canvasID: String, segments: [DesktopWorldSurfaceSegment]) -> [String: Any] {
+        [
+            "canvas_id": canvasID,
+            "segments": segments.map { segment in
+                [
+                    "display_id": Int(segment.displayID),
+                    "index": segment.index,
+                    "dw_bounds": segment.dwBounds,
+                    "native_bounds": segment.nativeBounds,
+                ] as [String: Any]
+            },
+        ]
+    }
+
     /// Expose a canvas for external callers (daemon layer) that need to set parent.
-    func canvas(forID id: String) -> Canvas? { canvases[id] }
+    func canvas(forID id: String) -> CanvasLike? { canvases[id] }
+
+    func windowNumbers(forID id: String) -> [Int] {
+        canvases[id]?.windowNumbers ?? []
+    }
 
     /// Collect a canvas and all its cascade-eligible descendants (recursive).
     func collectTree(_ rootID: String) -> [String] {
@@ -541,7 +622,13 @@ class CanvasManager {
             guard let target = canvas.trackTarget else { continue }
             switch target {
             case .union:
-                if moveCanvas(canvas, to: unionBounds) {
+                if let surface = canvas as? DesktopWorldSurfaceCanvas {
+                    if surface.rebuildSegments() {
+                        emitSegmentDeltas(surface)
+                        emitLifecycle(surface, action: "updated")
+                        updated.insert(surface.id)
+                    }
+                } else if moveCanvas(canvas, to: unionBounds) {
                     updated.insert(canvas.id)
                 }
             case .none:
@@ -656,52 +743,70 @@ class CanvasManager {
             }
         }
 
-        let cgFrame: CGRect
-        if trackTarget == .union {
-            // Resolve union bounds from the current display topology.
-            // Uses allDisplaysBounds() which calls CGDisplayBounds directly,
-            // matching `snapshotDisplayGeometry`'s native-compat `global_bounds`
-            // and `aos runtime display-union --native`. The default
-            // `aos runtime display-union` output is the canonical DesktopWorld
-            // shape and is not equivalent to this rect on multi-display setups.
-            let bounds = allDisplaysBounds()
-            guard bounds.width > 0, bounds.height > 0 else {
-                return .fail("--track union requires at least one connected display", code: "NO_DISPLAYS")
+        let interactive = req.interactive ?? false
+        let surfaceTarget = req.surface
+        if let surfaceTarget, surfaceTarget != "desktop-world" {
+            return .fail("Unknown surface target: \(surfaceTarget)", code: "INVALID_SURFACE")
+        }
+        if surfaceTarget != nil {
+            let hasConflictingPlacement =
+                req.at != nil ||
+                req.track != nil ||
+                req.anchorWindow != nil ||
+                req.anchorChannel != nil ||
+                req.offset != nil ||
+                req.autoProject != nil
+            if hasConflictingPlacement {
+                return .fail("--surface desktop-world cannot be combined with --at, --track, anchors, offsets, or --auto-project", code: "INVALID_ARG")
             }
-            cgFrame = bounds
-        } else if autoMode == "cursor_trail" {
-            // cursor_trail spans all displays
-            cgFrame = allDisplaysBounds()
-        } else if let at = req.at, at.count == 4 {
-            cgFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-        } else if let anchorWin = resolvedAnchorWindow, let off = req.offset, off.count == 4 {
-            let winBounds: CGRect
-            if let chanBounds = channelWindowBounds {
-                winBounds = chanBounds
-            } else {
-                guard let wb = getWindowBounds(CGWindowID(anchorWin)) else {
-                    return .fail("Window \(anchorWin) not found", code: "WINDOW_NOT_FOUND")
-                }
-                winBounds = wb
-            }
-            cgFrame = CGRect(
-                x: winBounds.origin.x + off[0],
-                y: winBounds.origin.y + off[1],
-                width: off[2], height: off[3]
-            )
-        } else if resolvedAnchorWindow != nil, channelWindowBounds != nil {
-            // Channel-anchored without explicit offset: cover the whole window
-            cgFrame = channelWindowBounds!
-        } else if autoMode != nil && channelWindowBounds != nil {
-            // Auto-project with channel: cover the whole window
-            cgFrame = channelWindowBounds!
-        } else {
-            return .fail("create requires --at x,y,w,h, --anchor-window + --offset, --anchor-channel, or --track <target>", code: "MISSING_POSITION")
         }
 
-        let interactive = req.interactive ?? false
-        let canvas = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
-        canvas.trackTarget = trackTarget
+        let isDesktopWorldSurface = surfaceTarget == "desktop-world" || trackTarget == .union
+        let canvas: CanvasLike
+        if isDesktopWorldSurface {
+            let bounds = allDisplaysBounds()
+            guard bounds.width > 0, bounds.height > 0 else {
+                return .fail("desktop-world surface requires at least one connected display", code: "NO_DISPLAYS")
+            }
+            let surface = DesktopWorldSurfaceCanvas(id: id, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
+            surface.trackTarget = .union
+            canvas = surface
+        } else {
+            let cgFrame: CGRect
+            if autoMode == "cursor_trail" {
+                // cursor_trail spans all displays
+                cgFrame = allDisplaysBounds()
+            } else if let at = req.at, at.count == 4 {
+                cgFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
+            } else if let anchorWin = resolvedAnchorWindow, let off = req.offset, off.count == 4 {
+                let winBounds: CGRect
+                if let chanBounds = channelWindowBounds {
+                    winBounds = chanBounds
+                } else {
+                    guard let wb = getWindowBounds(CGWindowID(anchorWin)) else {
+                        return .fail("Window \(anchorWin) not found", code: "WINDOW_NOT_FOUND")
+                    }
+                    winBounds = wb
+                }
+                cgFrame = CGRect(
+                    x: winBounds.origin.x + off[0],
+                    y: winBounds.origin.y + off[1],
+                    width: off[2], height: off[3]
+                )
+            } else if resolvedAnchorWindow != nil, channelWindowBounds != nil {
+                // Channel-anchored without explicit offset: cover the whole window
+                cgFrame = channelWindowBounds!
+            } else if autoMode != nil && channelWindowBounds != nil {
+                // Auto-project with channel: cover the whole window
+                cgFrame = channelWindowBounds!
+            } else {
+                return .fail("create requires --at x,y,w,h, --anchor-window + --offset, --anchor-channel, --track union, or --surface desktop-world", code: "MISSING_POSITION")
+            }
+
+            let single = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
+            single.trackTarget = trackTarget
+            canvas = single
+        }
         canvas.cascadeFromParent = req.cascade ?? true
         // Explicit parent from request (implicit parent set by daemon layer)
         if let explicitParent = req.parent {
@@ -792,14 +897,14 @@ class CanvasManager {
 
                 if type == "drag_start" {
                     DispatchQueue.main.async {
-                        (canvas.window as? CanvasWindow)?.isActivelyDraggingCanvas = true
+                        ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = true
                     }
                     return
                 }
 
                 if type == "drag_end" {
                     DispatchQueue.main.async {
-                        (canvas.window as? CanvasWindow)?.isActivelyDraggingCanvas = false
+                        ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = false
                         canvas.finalizeDragPosition()
                     }
                     return
@@ -812,10 +917,7 @@ class CanvasManager {
                 if type == "ready" && canvas.focusOnReady {
                     canvas.focusOnReady = false
                     DispatchQueue.main.async {
-                        canvas.webView.evaluateJavaScript(
-                            "typeof focusInput === 'function' && focusInput()",
-                            completionHandler: nil
-                        )
+                        canvas.evaluateJavaScript("typeof focusInput === 'function' && focusInput()", completion: nil)
                     }
                     // fall through to relay
                 }
@@ -828,7 +930,7 @@ class CanvasManager {
                         encoder.outputFormatting = [.sortedKeys]
                         if let data = try? encoder.encode(config),
                            let jsonStr = String(data: data, encoding: .utf8) {
-                            canvas.webView.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completionHandler: nil)
+                            canvas.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completion: nil)
                         }
                     }
                     return
@@ -849,8 +951,7 @@ class CanvasManager {
                         case "feedback.sound":
                             config.feedback.sound = (value == "true" || value == "1")
                         default:
-                            canvas.webView.evaluateJavaScript(
-                                "window.__aosConfigError?.('Unknown config key: \(key)')", completionHandler: nil)
+                            canvas.evaluateJavaScript("window.__aosConfigError?.('Unknown config key: \(key)')", completion: nil)
                             return
                         }
                         saveConfig(config)
@@ -858,7 +959,7 @@ class CanvasManager {
                         encoder.outputFormatting = [.sortedKeys]
                         if let data = try? encoder.encode(config),
                            let jsonStr = String(data: data, encoding: .utf8) {
-                            canvas.webView.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completionHandler: nil)
+                            canvas.evaluateJavaScript("window.__aosConfigLoaded?.(\(jsonStr))", completion: nil)
                         }
                     }
                     return
@@ -943,6 +1044,9 @@ class CanvasManager {
 
         onCanvasCountChanged?()
         emitLifecycle(canvas, action: "created")
+        if let surface = canvas as? DesktopWorldSurfaceCanvas {
+            emitSegmentDeltas(surface)
+        }
 
         return .ok()
     }
@@ -955,6 +1059,28 @@ class CanvasManager {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
         var lifecycleDirty = false
+        let isDesktopWorldSurface = canvas is DesktopWorldSurfaceCanvas
+
+        if req.surface != nil {
+            return .fail("--surface is create-only; remove and recreate the canvas as a desktop-world surface", code: "INVALID_ARG")
+        }
+        if !isDesktopWorldSurface && req.track == TrackTarget.union.rawValue {
+            return .fail("cannot convert an existing canvas to a desktop-world surface with update; remove and recreate it", code: "INVALID_ARG")
+        }
+        if isDesktopWorldSurface {
+            let hasPlacementMutation =
+                req.at != nil ||
+                req.anchorWindow != nil ||
+                req.anchorChannel != nil ||
+                req.offset != nil ||
+                req.autoProject != nil
+            if hasPlacementMutation {
+                return .fail("desktop-world surface placement is topology-owned; update content or interactivity only", code: "INVALID_ARG")
+            }
+            if let track = req.track, track != TrackTarget.union.rawValue {
+                return .fail("desktop-world surfaces cannot change tracking target", code: "INVALID_ARG")
+            }
+        }
 
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
@@ -1042,20 +1168,22 @@ class CanvasManager {
 
         if let interactive = req.interactive {
             canvas.isInteractive = interactive
-            canvas.window.ignoresMouseEvents = !interactive
             lifecycleDirty = true
-            // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
-            // and whether sendEvent should activate on first click. Without
-            // updating it, flipped-to-interactive canvases can receive mouse
-            // events but never become key window, so keyboard input bounces
-            // back to the previously-active app (system bonk on every keystroke).
-            (canvas.window as? CanvasWindow)?.isInteractiveCanvas = interactive
-            // NOTE: the WKWebView subclass (CanvasWebView vs plain WKWebView)
-            // is chosen at construction time and cannot be swapped at runtime.
-            // The only behavioral difference is acceptsFirstMouse, which only
-            // affects the first-click-starts-drag ergonomic. A flipped canvas
-            // may require one extra click to activate; recreate the canvas with
-            // --interactive at creation time for full first-mouse behavior.
+            if let single = canvas as? Canvas {
+                single.window.ignoresMouseEvents = !interactive
+                // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
+                // and whether sendEvent should activate on first click. Without
+                // updating it, flipped-to-interactive canvases can receive mouse
+                // events but never become key window, so keyboard input bounces
+                // back to the previously-active app (system bonk on every keystroke).
+                (single.window as? CanvasWindow)?.isInteractiveCanvas = interactive
+                // NOTE: the WKWebView subclass (CanvasWebView vs plain WKWebView)
+                // is chosen at construction time and cannot be swapped at runtime.
+                // The only behavioral difference is acceptsFirstMouse, which only
+                // affects the first-click-starts-drag ergonomic. A flipped canvas
+                // may require one extra click to activate; recreate the canvas with
+                // --interactive at creation time for full first-mouse behavior.
+            }
         }
 
         if let ttl = req.ttl {
@@ -1071,10 +1199,7 @@ class CanvasManager {
         if req.focus == true && canvas.isInteractive {
             canvas.grabFocus()
             DispatchQueue.main.async {
-                canvas.webView.evaluateJavaScript(
-                    "typeof focusInput === 'function' && focusInput()",
-                    completionHandler: nil
-                )
+                canvas.evaluateJavaScript("typeof focusInput === 'function' && focusInput()", completion: nil)
             }
         }
 
@@ -1145,7 +1270,7 @@ class CanvasManager {
         var evalResult: String? = nil
         var evalDone = false
 
-        canvas.webView.evaluateJavaScript(js) { result, error in
+        canvas.evaluateJavaScript(js) { result, error in
             if let error = error {
                 evalResult = "error: \(error.localizedDescription)"
             } else if let result = result {
@@ -1182,7 +1307,7 @@ class CanvasManager {
         DispatchQueue.main.async { [weak self] in
             guard let self = self,
                   let canvas = self.canvases[canvasID] else { return }
-            canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+            canvas.evaluateJavaScript(js, completion: nil)
         }
     }
 
@@ -1230,7 +1355,7 @@ class CanvasManager {
         guard let canvas = canvases[id] else {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
-        canvas.window.orderFront(nil)
+        canvas.orderFront()
         return .ok()
     }
 
@@ -1249,7 +1374,7 @@ class CanvasManager {
         let tree = collectTree(id)
         for cid in tree {
             guard let c = canvases[cid] else { continue }
-            c.window.orderOut(nil)
+            c.orderOut()
             c.suspended = true
             emitLifecycle(c, action: "updated")
         }
@@ -1373,7 +1498,7 @@ class CanvasManager {
                     let cgX = point.x
                     let cgY = point.y
                     let js = "if(typeof addPoint==='function')addPoint(\(cgX),\(cgY),\(now.timeIntervalSince1970*1000))"
-                    canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+                    canvas.evaluateJavaScript(js, completion: nil)
                 }
                 continue
             }
@@ -1399,7 +1524,7 @@ class CanvasManager {
                 if let channel = readChannelFile(id: chanID) {
                     let js = generateAutoProjectUpdate(mode: mode, channelData: channel)
                     if !js.isEmpty {
-                        canvas.webView.evaluateJavaScript(js, completionHandler: nil)
+                        canvas.evaluateJavaScript(js, completion: nil)
                     }
                 }
             }

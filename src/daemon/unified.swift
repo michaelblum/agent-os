@@ -276,6 +276,10 @@ class UnifiedDaemon {
 
         }
 
+        canvasManager.onCanvasSurfaceEvent = { [weak self] event, data in
+            self?.publishCanvasSurfaceEvent(event: event, data: data)
+        }
+
         canvasManager.onCanvasCountChanged = { [weak self] in
             self?.checkIdle()
         }
@@ -418,6 +422,16 @@ class UnifiedDaemon {
         if let ttl = canvasInfo.ttl { payload["ttl"] = ttl }
         if let cascade = canvasInfo.cascade { payload["cascade"] = cascade }
         if let suspended = canvasInfo.suspended { payload["suspended"] = suspended }
+        if let segments = canvasInfo.segments {
+            payload["segments"] = segments.map { segment in
+                [
+                    "display_id": Int(segment.displayID),
+                    "index": segment.index,
+                    "dw_bounds": segment.dwBounds,
+                    "native_bounds": segment.nativeBounds,
+                ] as [String: Any]
+            }
+        }
         return payload
     }
 
@@ -426,6 +440,11 @@ class UnifiedDaemon {
         guard let data = canvasLifecyclePayload(action: action, canvasInfo: canvasInfo) else { return }
         broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
         fanOutCanvasLifecycle(data)
+    }
+
+    private func publishCanvasSurfaceEvent(event: String, data: [String: Any]) {
+        broadcastEvent(service: "display", event: event, data: data)
+        fanOutCanvasLifecycleSubEvent(event: event, data: data)
     }
 
     private func subscriptionEvents(from payload: [String: Any]?) -> [String] {
@@ -542,6 +561,26 @@ class UnifiedDaemon {
         }
     }
 
+    func fanOutCanvasLifecycleSubEvent(event: String, data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("canvas_lifecycle") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        var msg: [String: Any] = [
+            "type": "canvas_lifecycle",
+            "event": event,
+        ]
+        for (k, v) in data { msg[k] = v }
+
+        for canvasID in targets {
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
+        }
+    }
+
     /// Fan out `canvas_object.marks` to every canvas subscribed to that
     /// event name. Mirror of fanOutCanvasLifecycle. Wraps `data`
     /// in a `{type: "canvas_object.marks", ...}` envelope since live-js
@@ -566,6 +605,12 @@ class UnifiedDaemon {
     private func broadcastCanvasLifecycleSnapshot(to specificCanvas: String) {
         let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
         for info in infos {
+            if let segments = info.segments {
+                var topology = canvasManager.topologySettledPayload(canvasID: info.id, segments: segments)
+                topology["type"] = "canvas_lifecycle"
+                topology["event"] = "canvas_topology_settled"
+                canvasManager.postMessageAsync(canvasID: specificCanvas, payload: topology)
+            }
             guard var payload = canvasLifecyclePayload(action: "created", canvasInfo: info) else { continue }
             payload["type"] = "canvas_lifecycle"
             canvasManager.postMessageAsync(canvasID: specificCanvas, payload: payload)
@@ -1009,11 +1054,11 @@ class UnifiedDaemon {
         let excludeWindowIDs: [Int] = {
             guard !excludeCanvasIDs.isEmpty else { return [] }
             if Thread.isMainThread {
-                return excludeCanvasIDs.compactMap { self.canvasManager.canvas(forID: $0)?.window.windowNumber }
+                return excludeCanvasIDs.flatMap { self.canvasManager.windowNumbers(forID: $0) }
             }
             var ids: [Int] = []
             DispatchQueue.main.sync {
-                ids = excludeCanvasIDs.compactMap { self.canvasManager.canvas(forID: $0)?.window.windowNumber }
+                ids = excludeCanvasIDs.flatMap { self.canvasManager.windowNumbers(forID: $0) }
             }
             return ids
         }()

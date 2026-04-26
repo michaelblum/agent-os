@@ -258,6 +258,7 @@ struct CaptureWindowJSON: Encodable {
 
 struct CaptureSurfaceSegmentJSON: Encodable {
     let display: Int
+    let display_id: Int
     let scale_factor: Double
     let bounds_global: STBounds
     let bounds_local: BoundsJSON

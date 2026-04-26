@@ -81,3 +81,17 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
     suspended: false,
   })
 })
+
+test('mergeCanvasLifecycleCanvas preserves DesktopWorld surface segments', () => {
+  const segments = [
+    { display_id: 1, index: 0, dw_bounds: [0, 0, 100, 100], native_bounds: [0, 0, 100, 100] },
+  ]
+
+  const merged = mergeCanvasLifecycleCanvas(null, {
+    event: 'canvas_topology_settled',
+    canvas_id: 'avatar-main',
+    segments,
+  })
+
+  assert.deepEqual(merged.segments, segments)
+})

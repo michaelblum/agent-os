@@ -22,6 +22,25 @@ It is split into three layers:
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
+### DesktopWorld Surface Runtime
+
+`packages/toolkit/runtime/desktop-world-surface.js` provides
+`DesktopWorldSurfaceAdapter`, the base adapter for canvases whose contract is
+"draw across DesktopWorld." One adapter instance runs in each display segment
+web view. The adapter consumes `canvas_topology_settled`, elects primary from
+`segment.index === 0`, and exposes `runOnPrimary(fn)` so apps can gate
+once-per-surface side effects.
+
+`packages/toolkit/runtime/desktop-world-surface-2d.js` provides
+`DesktopWorldSurface2D`, a DOM/Canvas2D helper that identifies its segment from
+`window.__aosSegmentDisplayId` and applies the DesktopWorld origin translation
+to a local root node.
+
+`packages/toolkit/runtime/desktop-world-surface-three.js` provides
+`DesktopWorldSurfaceThree` / `DesktopWorldSurface3D`, segment-carved
+orthographic camera helpers, and a BroadcastChannel-backed state replication
+hook for Three.js consumers.
+
 ## Import / Hosting Model
 
 Toolkit files are normally served through the AOS content server:

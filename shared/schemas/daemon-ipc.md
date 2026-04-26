@@ -32,7 +32,7 @@ Error response:
 |-------------------|---------|----------------------|
 | `see.observe` | Open a perception attention channel and subscribe connection to events. | (none) |
 | `see.snapshot` | Spatial snapshot from the daemon. | (none) |
-| `show.create` | Create a canvas. | `id` + one geometry source (`at`, `track`, `anchor_window+offset`, `anchor_channel+offset`) + one content source (`html`, `url`). |
+| `show.create` | Create a canvas. | `id` + one geometry source (`at`, `track`, `surface`, `anchor_window+offset`, `anchor_channel+offset`) + one content source (`html`, `url`). |
 | `show.update` | Mutate canvas fields. | `id`. |
 | `show.eval` | Evaluate JS inside a canvas. | `id`, `js`. |
 | `show.post` | Post a message to a canvas. | `id`. |
@@ -83,6 +83,34 @@ Error response:
 | `INTERNAL` | Unexpected daemon error. |
 
 ## Voice Payload Shapes
+
+## Show Canvas Payload Notes
+
+`show.create` accepts `surface:"desktop-world"` as the canonical logical
+DesktopWorld surface request. It is mutually exclusive with `at`, `track`,
+`anchor_window`, and `anchor_channel`. For compatibility, `track:"union"`
+creates the same logical surface.
+
+DesktopWorld surfaces keep one logical canvas id while the daemon backs that id
+with one physical segment per active display. `show.list`, `show.get`, and
+`canvas_lifecycle` metadata include `segments` for these surfaces:
+
+```json
+{
+  "id": "avatar-main",
+  "track": "union",
+  "segments": [
+    {
+      "display_id": 1,
+      "index": 0,
+      "dw_bounds": [0, 0, 1512, 982],
+      "native_bounds": [0, 0, 1512, 982]
+    }
+  ]
+}
+```
+
+The ordered `segments` array is absent for normal canvases.
 
 `daemon-response.schema.json` now includes `$defs.VoiceRecord` for the registry-backed voice payload returned by `voice.list`, `voice.refresh`, `voice.bind`, and the nested `voice` objects inside `voice.assignments`.
 

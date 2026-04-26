@@ -16,7 +16,12 @@ const TOOLKIT_SPATIAL_SPECIFIER = (
     && /^https?:$/.test(location.protocol)
 )
     ? '/toolkit/runtime/spatial.js'
-    : '../../../../packages/toolkit/runtime/spatial.js';
+    : (
+        typeof location !== 'undefined'
+        && location.protocol === 'aos:'
+    )
+        ? 'aos://toolkit/runtime/spatial.js'
+        : '../../../../packages/toolkit/runtime/spatial.js';
 
 const {
     computeDesktopWorldBounds: toolkitComputeDesktopWorldBounds,

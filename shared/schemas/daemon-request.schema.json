@@ -109,15 +109,29 @@
         "scope": { "enum": ["connection", "global"] },
         "auto_project": { "type": "string" },
         "track": { "type": "string" },
+        "surface": { "type": "string", "enum": ["desktop-world"] },
         "parent": { "type": "string" },
         "cascade": { "type": "boolean" },
         "suspended": { "type": "boolean" }
       },
       "oneOf": [
-        { "required": ["at"] },
-        { "required": ["track"] },
-        { "required": ["anchor_window", "offset"] },
-        { "required": ["anchor_channel", "offset"] }
+        { "required": ["at"], "not": { "required": ["surface"] } },
+        { "required": ["track"], "not": { "required": ["surface"] } },
+        { "required": ["anchor_window", "offset"], "not": { "required": ["surface"] } },
+        { "required": ["anchor_channel", "offset"], "not": { "required": ["surface"] } },
+        {
+          "required": ["surface"],
+          "not": {
+            "anyOf": [
+              { "required": ["at"] },
+              { "required": ["track"] },
+              { "required": ["anchor_window"] },
+              { "required": ["anchor_channel"] },
+              { "required": ["offset"] },
+              { "required": ["auto_project"] }
+            ]
+          }
+        }
       ],
       "additionalProperties": true
     },

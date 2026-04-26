@@ -67,6 +67,12 @@ export function createHostRuntime() {
         const payload = { events: list };
         if (options.snapshot !== undefined) payload.snapshot = !!options.snapshot;
         post('subscribe', payload);
+        return () => unsubscribe(list);
+    }
+
+    function unsubscribe(events) {
+        const list = Array.isArray(events) ? events : [events];
+        post('unsubscribe', { events: list });
     }
 
     function request(type, payload = {}, { timeoutMs = 5000, mapResult = (msg) => msg } = {}) {
@@ -93,6 +99,7 @@ export function createHostRuntime() {
         onMessage,
         post,
         subscribe,
+        unsubscribe,
         request,
         canvasCreate(opts) {
             return request('canvas.create', opts, {

@@ -76,6 +76,14 @@ struct CanvasRequest: Codable {
     var suspended: Bool?        // create hidden/suspended without showing a window first
     var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
+
+    enum CodingKeys: String, CodingKey {
+        case action, id, at, offset, html, url, interactive, focus, ttl, js, scope
+        case anchorWindow = "anchor_window"
+        case anchorChannel = "anchor_channel"
+        case autoProject = "auto_project"
+        case track, surface, parent, cascade, suspended, channel, data
+    }
 }
 
 // MARK: - Response (Daemon → CLI)
@@ -103,6 +111,7 @@ struct CanvasInfo: Codable {
     var parent: String?         // parent canvas ID (nil if root)
     var cascade: Bool?          // lifecycle cascade flag
     var suspended: Bool?        // true if canvas is suspended (hidden + paused)
+    var segments: [DesktopWorldSurfaceSegment]?  // present for DesktopWorldSurface canvases
 }
 
 // MARK: - Encode/Decode Helpers

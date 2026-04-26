@@ -243,6 +243,14 @@ Primary public verbs:
 - `--track union`
 - `--surface desktop-world` — canonical alias for `--track union`
 
+`--surface desktop-world` and legacy `--track union` create one logical
+DesktopWorld surface backed by one physical segment per active display. The
+canvas keeps a single `id`; `show list` exposes a `segments` array with ordered
+`{display_id,index,dw_bounds,native_bounds}` entries. Normal panels and `--at`
+canvases are unchanged and do not carry `segments`. Existing normal canvases
+cannot be converted into DesktopWorld surfaces with `show update`; remove and
+recreate the canvas so it boots with the segmented backing.
+
 ## `aos do`
 
 Primary public verbs:

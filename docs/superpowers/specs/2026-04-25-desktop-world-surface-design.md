@@ -445,7 +445,7 @@ deliverable. See "Validation Spikes" below.
 |---------|-------|-------|
 | `--track union` flag | one oversized NSWindow | reinterpreted as `DesktopWorldSurface`; same id, same callers, segmented internals |
 | `--surface desktop-world` flag | n/a | new canonical alias; equivalent to `--track union` |
-| `avatar-main` (Sigil) | Three.js in one webview spanning displays; manual stale-bounds clamp at `apps/sigil/renderer/index.html:2917-2940` | Sigil renderer composes the toolkit Three.js adapter; clamp removed once the spike lands and validates the chosen rendering strategy |
+| `avatar-main` (Sigil) | Three.js in one webview spanning displays; manual stale-bounds clamp in the `display_geometry` handler | Sigil renderer composes the toolkit Three.js adapter; clamp removed once the spike lands and validates the chosen rendering strategy |
 | Canvas inspector (the canvas) | normal canvas, DOM, not union | unchanged |
 | Inspector list view | flat list of canvases | one row per logical surface, expandable to segments |
 | `tests/capture-union-canvas-surface.sh` | captures one window | captures the logical surface; verification updated to compose per-segment images |
@@ -532,5 +532,5 @@ primitive can still ship in advance of that decision; it is renderer-agnostic.
   `packages/toolkit/components/canvas-inspector/mouse-effects.js`.
 - `apps/sigil/renderer/live-modules/main.js:485-507` (current Sigil
   DesktopWorld input path).
-- `apps/sigil/renderer/index.html:2917-2940` (legacy stale-bounds clamp,
-  removable post-migration).
+- `apps/sigil/renderer/live-modules/main.js` (legacy stale-bounds clamp lived
+  in the `display_geometry` handler before the Sigil migration).

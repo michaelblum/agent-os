@@ -34,7 +34,7 @@ aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not
 if ! python3 - <<'PY'
 import json, subprocess
 graph = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
-displays = graph.get("displays", [])
+displays = graph.get("displays") or graph.get("data", {}).get("displays", [])
 raise SystemExit(0 if len(displays) >= 2 else 1)
 PY
 then
@@ -62,6 +62,8 @@ payload = json.loads(json_path.read_text())
 show = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
 canvas = next(c for c in show["canvases"] if c["id"] == "union-probe")
 cx, cy, cw, ch = canvas["at"]
+show_segments = canvas.get("segments")
+assert show_segments is not None, canvas
 
 assert len(payload.get("files") or []) == 1, payload
 assert pathlib.Path(payload["files"][0]).resolve() == png_path, payload
@@ -77,6 +79,7 @@ assert len(surface["displays"]) >= 2, surface
 assert surface.get("display") is None, surface
 assert surface.get("scale_factor") is None, surface
 assert surface["capture_scale_factor"] == max(seg["scale_factor"] for seg in surface["segments"]), surface
+assert sorted(seg["display_id"] for seg in surface["segments"]) == sorted(seg["display_id"] for seg in show_segments), (surface, canvas)
 
 perceptions = payload.get("perceptions") or []
 assert len(perceptions) == 1, payload

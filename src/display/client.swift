@@ -190,6 +190,7 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
             }
             options.track = track
         case "--surface":
+            guard kind == .create else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
             let surface = nextCanvasArg(args, index: &i,
                                         missingMessage: "--surface requires a target (e.g. 'desktop-world')")
             guard surface == "desktop-world" else {
@@ -245,8 +246,16 @@ private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to req
         request.ttl = parseDuration(ttlStr)
     }
 
-    if options.track != nil && options.at != nil {
-        exitError("cannot combine --at with --track (pick one)", code: "INVALID_ARG")
+    let exclusiveFlags: [(String, Bool)] = [
+        ("--at", options.at != nil),
+        ("--track", options.track != nil),
+        ("--surface", options.surface != nil),
+        ("--anchor-window", options.anchorWindow != nil),
+        ("--anchor-channel", options.anchorChannel != nil),
+    ]
+    let activeExclusiveFlags = exclusiveFlags.filter { $0.1 }.map { $0.0 }
+    if activeExclusiveFlags.count > 1 {
+        exitError("cannot combine \(activeExclusiveFlags.joined(separator: ", ")) (pick one)", code: "INVALID_ARG")
     }
 
     if let atStr = options.at {

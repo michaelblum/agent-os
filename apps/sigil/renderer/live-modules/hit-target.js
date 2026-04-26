@@ -14,9 +14,9 @@ function appendQuery(url, params) {
     return `${url}${separator}${query}`;
 }
 
-export function createHitTargetController({ runtime, url, size = 80, idPrefix = 'sigil-hit' }) {
+export function createHitTargetController({ runtime, url, size = 80, id = null, idPrefix = 'sigil-hit' }) {
     const hit = {
-        id: `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`,
+        id: id || `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`,
         ready: false,
         creating: false,
         interactive: true,
@@ -35,6 +35,12 @@ export function createHitTargetController({ runtime, url, size = 80, idPrefix = 
             });
             hit.ready = true;
             return hit.id;
+        } catch (error) {
+            if (String(error?.message || error).includes('DUPLICATE')) {
+                hit.ready = true;
+                return hit.id;
+            }
+            throw error;
         } finally {
             hit.creating = false;
         }

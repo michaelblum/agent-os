@@ -61,8 +61,9 @@ cross-surface world model:
   the display arrangement is otherwise unchanged.
 - Non-visible holes inside the full union bounding box remain valid world
   coordinates.
-- `--track union` canvases resolve in DesktopWorld, so a full union canvas
-  should be `[0,0,w,h]` in that space.
+- `--track union` and `--surface desktop-world` canvases resolve in
+  DesktopWorld. They expose one logical surface whose ordered physical segments
+  cover the active displays.
 
 **Native desktop compatibility is boundary-only.** Current daemon/native
 sources still surface main-display-anchored coordinates in many places. Those
@@ -246,17 +247,18 @@ No DOM involved. Browser automation (if needed) is the orchestrator's concern an
 
 ## 5. Union Canvas Foundation
 
-A **union canvas** is an AOS canvas whose bounds span the full DesktopWorld
-bounding box of the current display arrangement. It exists so agent-presence
-surfaces — Sigil's avatar, ghost trails, inter-display effects — can render
-across display boundaries with a single transparent overlay.
+A **DesktopWorld surface** is an AOS canvas primitive whose contract is to draw
+across the active DesktopWorld. It keeps one logical canvas id and is backed by
+one native window/web view segment per active display. The legacy `--track
+union` flag creates this primitive for compatibility; `--surface desktop-world`
+is the canonical name.
 
 ### Invariants
 
-1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). Union canvases, toolkit minimaps, Sigil stage projection, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
-2. **Transparent + passthrough by default.** A union canvas is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
-3. **One canvas, one owner.** A given union canvas has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant union canvases are out of scope; composition happens by stacking multiple independently-owned canvases.
-4. **Opt-in topology tracking.** A union canvas created with `--track union` resolves its bounds from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
+1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). DesktopWorld surfaces, toolkit minimaps, Sigil stage projection, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
+2. **Transparent + passthrough by default.** A DesktopWorld surface is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
+3. **One canvas, one owner.** A given DesktopWorld surface has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant DesktopWorld surfaces are out of scope; composition happens by stacking multiple independently-owned canvases.
+4. **Opt-in topology tracking.** A DesktopWorld surface created with `--surface desktop-world` or `--track union` resolves its segments from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
 5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") lives in the owning app's state, not in the canvas subsystem. The canvas only knows about its bounds.
 
 ### Coordinate system contract
@@ -264,7 +266,7 @@ across display boundaries with a single transparent overlay.
 - `display_geometry` carries enough information to derive two unions:
   - full DesktopWorld from display `bounds`
   - VisibleDesktopWorld from `visible_bounds`
-- Union canvases and union-canvas bounds mean **full DesktopWorld**.
+- DesktopWorld surface bounds and segment `dw_bounds` mean **full DesktopWorld**.
 - Cursor/avatar clamping and other usable-area logic should use
   **VisibleDesktopWorld** where appropriate.
 - Re-anchoring from native boundary coordinates into DesktopWorld happens at
@@ -274,9 +276,9 @@ across display boundaries with a single transparent overlay.
 
 ### Lifecycle
 
-- **Creation.** `aos show create --id <name> --track union --url ...` — the canvas's tracking target is stored by the daemon. Bounds resolve from the current full DesktopWorld topology snapshot. Callers who want a snapshot-only canvas should prefer `--track union` over a shell-substituted `--at`: `aos runtime display-union` now prints the canonical DesktopWorld shape (origin (0,0)), while `aos show create --at` remains a native-compat rect. Use `aos runtime display-union --native` if you deliberately need the legacy native-compat shape.
-- **Topology change.** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, re-resolves bounds for every canvas whose `track == union`, then rebroadcasts `display_geometry`. Renderers see their canvas already sitting in the new bounds by the time they receive the event.
-- **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for union canvases specifically.
+- **Creation.** `aos show create --id <name> --surface desktop-world --url ...` creates the canonical logical surface. `--track union` remains a compatibility alias. The daemon creates an ordered segment per active display and exposes the segment snapshot through `CanvasInfo.segments` and `canvas_topology_settled`.
+- **Topology change.** Daemon observes `NSApplication.didChangeScreenParametersNotification`, coalesces 100ms, re-resolves the segment set for every DesktopWorld surface, emits segment deltas, then emits a full `canvas_topology_settled` snapshot and rebroadcasts `display_geometry`.
+- **Destruction.** `aos show remove --id <name>` cascades to child canvases registered under the parent. No change for DesktopWorld surfaces specifically.
 
 ### Known gaps
 

@@ -14,7 +14,7 @@ export function mergeCanvasLifecycleCanvas(existing, data) {
   if (!id) return null
 
   const canvas = (data?.canvas && typeof data.canvas === 'object') ? data.canvas : {}
-  return {
+  const next = {
     ...(existing || {}),
     ...canvas,
     id,
@@ -27,4 +27,7 @@ export function mergeCanvasLifecycleCanvas(existing, data) {
     cascade: data?.cascade ?? canvas.cascade ?? existing?.cascade ?? null,
     suspended: data?.suspended ?? canvas.suspended ?? existing?.suspended ?? null,
   }
+  const segments = data?.segments ?? canvas.segments ?? existing?.segments
+  if (segments !== undefined) next.segments = segments
+  return next
 }

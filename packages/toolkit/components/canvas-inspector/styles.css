@@ -145,6 +145,15 @@
 }
 .tree-row:hover { background: var(--bg-hover); }
 .tree-row.canvas.self { opacity: 0.5; }
+.tree-row.surface {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  margin-top: 1px;
+}
+.tree-row.surface-segment {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
 .tree-row.location .location-label {
   color: var(--text-header);
   font-size: 9px;
@@ -176,10 +185,24 @@
   font-size: 10px;
 }
 .canvas-id { color: var(--accent-blue); font-weight: 600; flex-shrink: 0; }
+.canvas-kind {
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  flex-shrink: 0;
+}
 .canvas-dims {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 9px;
+}
+.seg-index { color: var(--text-muted); flex-shrink: 0; }
+.seg-display { color: var(--text-secondary); flex-shrink: 0; }
+.seg-bounds {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .canvas-flags { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
 .flag {
