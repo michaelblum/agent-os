@@ -161,5 +161,63 @@ landed = wait_until(
 if hit_id not in canvas_ids():
     raise SystemExit(f"FAIL: hit target disappeared after drag release: {sorted(canvas_ids())}")
 
-print("PASS", json.dumps({"landed": landed, "hit_id": hit_id}))
+wormhole_target = {
+    "x": int(round(visible["x"] + (visible["w"] * 0.35))),
+    "y": int(round(visible["y"] + (visible["h"] * 0.62))),
+}
+wormhole_start = {
+    "x": int(round(landed["avatarPos"]["x"])),
+    "y": int(round(landed["avatarPos"]["y"])),
+}
+wormhole_start_native = world_to_native(wormhole_start)
+wormhole_target_native = world_to_native(wormhole_target)
+
+wormhole_started = show_eval_json(
+    f"""(() => {{
+      window.state.transitionFastTravelEffect = 'wormhole'
+      window.liveJs.fastTravelEvents = []
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {wormhole_start_native["x"]}, screenY: {wormhole_start_native["y"]} }}
+      }})
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {wormhole_target_native["x"]}, screenY: {wormhole_target_native["y"]} }}
+      }})
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: {wormhole_target_native["x"]}, screenY: {wormhole_target_native["y"]} }}
+      }})
+      return JSON.stringify({{
+        state: window.liveJs.currentState,
+        travel: window.liveJs.travel,
+        events: window.liveJs.fastTravelEvents
+      }})
+    }})()"""
+)
+
+event_stages = {event["stage"] for event in wormhole_started["events"]}
+for required in ["wormhole.entry.created", "wormhole.exit.created", "wormhole.release"]:
+    if required not in event_stages:
+        raise SystemExit(f"FAIL: missing wormhole startup event {required}: {wormhole_started}")
+if not wormhole_started["travel"] or wormhole_started["travel"].get("effect") != "wormhole":
+    raise SystemExit(f"FAIL: expected active wormhole travel: {wormhole_started}")
+
+wormhole_landed = wait_until(
+    lambda: (
+        lambda snap: snap
+        if snap["state"] == "IDLE"
+        and snap["travel"] is None
+        and math.isclose(snap["avatarPos"]["x"], wormhole_target["x"], abs_tol=1.0)
+        and math.isclose(snap["avatarPos"]["y"], wormhole_target["y"], abs_tol=1.0)
+        and "wormhole.complete" in {event["stage"] for event in snap["events"]}
+        else None
+    )(show_eval_json("JSON.stringify({ state: window.liveJs.currentState, travel: window.liveJs.travel, avatarPos: window.liveJs.avatarPos, events: window.liveJs.fastTravelEvents })")),
+    timeout=5.0,
+)
+
+print("PASS", json.dumps({"landed": landed, "wormhole_landed": wormhole_landed, "hit_id": hit_id}))
 PY

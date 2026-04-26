@@ -17,7 +17,12 @@ import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
 import { applySkin } from './skins.js';
-import { DEFAULT_TRANSITION_EFFECT, normalizeTransitionEffect } from './transition-registry.js';
+import {
+    DEFAULT_FAST_TRAVEL_EFFECT,
+    DEFAULT_TRANSITION_EFFECT,
+    normalizeFastTravelEffect,
+    normalizeTransitionEffect,
+} from './transition-registry.js';
 
 const REF_BASE = 300;
 const REF_SCALE = 1.1;
@@ -96,6 +101,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     transitions: {
         enter: DEFAULT_TRANSITION_EFFECT,
         exit: DEFAULT_TRANSITION_EFFECT,
+        fastTravel: DEFAULT_FAST_TRAVEL_EFFECT,
         scaleDuration: 0.18,
         wormhole: {
             captureRadius: 96,
@@ -310,6 +316,7 @@ export function applyAppearance(blob) {
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
     state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
     state.transitionExitEffect = normalizeTransitionEffect(transitions.exit, D.transitions.exit);
+    state.transitionFastTravelEffect = normalizeFastTravelEffect(transitions.fastTravel, D.transitions.fastTravel);
     state.transitionScaleDuration = transitions.scaleDuration ?? D.transitions.scaleDuration;
     state.wormholeCaptureRadius = wormhole.captureRadius ?? D.transitions.wormhole.captureRadius;
     state.wormholeImplosionDuration = wormhole.implosionDuration ?? D.transitions.wormhole.implosionDuration;
@@ -547,6 +554,7 @@ export function snapshotAppearance() {
         transitions: {
             enter: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_APPEARANCE.transitions.enter),
             exit: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_APPEARANCE.transitions.exit),
+            fastTravel: normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_APPEARANCE.transitions.fastTravel),
             scaleDuration: state.transitionScaleDuration ?? DEFAULT_APPEARANCE.transitions.scaleDuration,
             wormhole: {
                 captureRadius: state.wormholeCaptureRadius ?? DEFAULT_APPEARANCE.transitions.wormhole.captureRadius,

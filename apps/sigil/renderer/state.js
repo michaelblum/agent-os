@@ -147,6 +147,7 @@ const defaults = {
     // Visibility transitions
     transitionEnterEffect: 'scale',
     transitionExitEffect: 'scale',
+    transitionFastTravelEffect: 'line',
     transitionScaleDuration: 0.18,
     wormholeCaptureRadius: 96,
     wormholeImplosionDuration: 0.22,

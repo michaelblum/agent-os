@@ -34,6 +34,7 @@ of the main display at boot.
     "transitions": {
       "enter": "scale",
       "exit": "scale",
+      "fastTravel": "line",
       "scaleDuration": 0.18,
       "wormhole": {
         "captureRadius": 96,

@@ -24,7 +24,7 @@ import {
     nativeToDesktopWorldPoint,
     normalizeDisplays,
 } from './display-utils.js';
-import { startFastTravel, tickFastTravel } from './fast-travel.js';
+import { createFastTravelController } from './fast-travel.js';
 
 const host = createHostRuntime();
 const overlay = createInteractionOverlay();
@@ -52,6 +52,7 @@ const liveJs = {
     gotoRingRadius: state.gotoRingRadius,
     menuRingRadius: state.menuRingRadius,
     travel: null,
+    fastTravelEvents: [],
     mousedownPos: null,
     mousedownAvatarPos: null,
     avatarVisible: false,
@@ -229,8 +230,18 @@ const visibilityTransition = createVisibilityTransitionController({
     },
 });
 
+const fastTravel = createFastTravelController({
+    host,
+    state,
+    liveJs,
+    projectStagePoint: stagePoint,
+    getExcludedCanvasIds() {
+        return ['avatar-main', hitTarget.hit.id].filter(Boolean);
+    },
+});
+
 function queueFastTravel(x, y) {
-    startFastTravel(liveJs, liveJs.displays, x, y);
+    fastTravel.start(x, y, { pointer: { x, y, valid: true } });
 }
 
 function emitStatusItemState() {
@@ -320,6 +331,7 @@ function setAvatarPosition(x, y) {
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
     clearGestureState();
+    fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
 }
 
@@ -329,6 +341,7 @@ function handleLeftMouseDown(x, y) {
             if (!isOnAvatar(x, y)) return;
             liveJs.mousedownPos = { x, y };
             liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
+            fastTravel.beginGesture({ ...liveJs.avatarPos });
             setInteractionState('PRESS', 'mousedown-on-avatar');
             return;
         case 'GOTO':
@@ -348,6 +361,7 @@ function handleLeftMouseUp(x, y) {
     switch (liveJs.currentState) {
         case 'PRESS':
             clearGestureState();
+            fastTravel.clearGesture('press-click');
             setInteractionState('GOTO', 'press-click');
             return;
         case 'DRAG': {
@@ -355,6 +369,7 @@ function handleLeftMouseUp(x, y) {
             const distFromOrigin = origin ? distance(x, y, origin.x, origin.y) : Infinity;
             clearGestureState();
             if (distFromOrigin <= liveJs.dragCancelRadius) {
+                fastTravel.clearGesture('drag-cancel');
                 setInteractionState('IDLE', 'drag-cancel');
                 return;
             }
@@ -375,6 +390,9 @@ function handleLeftMouseUp(x, y) {
 }
 
 function handleMouseMove(x, y) {
+    if ((liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG') && liveJs.mousedownPos) {
+        fastTravel.updateGesture({ x, y, valid: true });
+    }
     if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
     if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
     setInteractionState('DRAG', 'press-threshold');
@@ -571,6 +589,7 @@ function setupHostSurface() {
     host.onMessage(handleHostMessage);
     overlay.mount();
     visibilityTransition.mount();
+    fastTravel.mount();
     host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
     startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
@@ -599,13 +618,19 @@ function animate() {
     const dt = 0.016;
     state.globalTime += dt;
 
-    if (liveJs.travel) {
-        tickFastTravel(liveJs, () => {
+    const fastTravelState = liveJs.travel
+        ? fastTravel.tick(dt, () => {
             postLastPositionToDaemon();
-        });
-    }
+        })
+        : null;
 
     let renderAvatarPos = liveJs.avatarPos;
+    if (fastTravelState?.appScale != null) {
+        state.appScale = fastTravelState.appScale;
+    }
+    if (fastTravelState?.avatarPos?.valid) {
+        renderAvatarPos = fastTravelState.avatarPos;
+    }
     const transitionState = visibilityTransition.active
         ? visibilityTransition.tick(dt, { avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null })
         : null;
@@ -660,6 +685,7 @@ function animate() {
     if (liveJs.avatarPos.valid) {
         hitTarget.setSize(state.avatarHitRadius * 2)
         const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
+        nativeAvatarPos.valid = true;
         hitTarget.sync(nativeAvatarPos, liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG');
     }
     const avatarStagePos = stagePoint(renderAvatarPos);
@@ -673,6 +699,7 @@ function animate() {
         dragCancelRadius: liveJs.dragCancelRadius,
     });
     visibilityTransition.draw({ avatarStagePos });
+    fastTravel.draw();
 
     if (window.__sigilBootFirstFrameAt === null) {
         window.__sigilBootFirstFrameAt = Date.now();
@@ -699,6 +726,8 @@ window.__sigilDebug = {
             state: liveJs.currentState,
             avatarPos: liveJs.avatarPos,
             travel: liveJs.travel,
+            fastTravelEffect: state.transitionFastTravelEffect,
+            fastTravelEvents: liveJs.fastTravelEvents,
             avatarVisible: liveJs.avatarVisible,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
