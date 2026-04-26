@@ -424,14 +424,27 @@ export function createSigilContextMenu({
         return document.elementFromPoint(local.x, local.y);
     }
 
-    function updateRange(input, point, commit = false) {
+    function rangeDragState(input) {
         const rect = input.getBoundingClientRect();
-        const local = localClientPoint(point);
-        if (!local || rect.width <= 0) return true;
+        const anchorRect = anchor.getBoundingClientRect();
+        const b = menuState.bounds;
+        if (!b || rect.width <= 0) return null;
+        return {
+            input,
+            desktopLeft: b.x + (rect.left - anchorRect.left),
+            desktopWidth: rect.width,
+        };
+    }
+
+    function updateRange(active, point, commit = false) {
+        const input = active?.input || active;
+        const desktopLeft = Number(active?.desktopLeft);
+        const desktopWidth = Number(active?.desktopWidth);
+        if (!input || !Number.isFinite(desktopLeft) || !Number.isFinite(desktopWidth) || desktopWidth <= 0) return true;
         const min = Number(input.min || 0);
         const max = Number(input.max || 100);
         const step = Number(input.step || 1);
-        const ratio = clamp((local.x - rect.left) / rect.width, 0, 1);
+        const ratio = clamp((point.x - desktopLeft) / desktopWidth, 0, 1);
         const raw = min + (max - min) * ratio;
         const next = Math.round(raw / step) * step;
         input.value = String(clamp(next, min, max));
@@ -458,10 +471,9 @@ export function createSigilContextMenu({
             return updateRange(active, point);
         }
         if (active && kind === 'left_mouse_up') {
-            const input = active;
             menuState.activeRange = null;
             menuState.pointerDownInside = false;
-            return updateRange(input, point, true);
+            return updateRange(active, point, true);
         }
 
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
@@ -472,8 +484,8 @@ export function createSigilContextMenu({
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
-            menuState.activeRange = input;
-            return updateRange(input, point);
+            menuState.activeRange = rangeDragState(input);
+            return updateRange(menuState.activeRange, point);
         }
 
         if (kind === 'left_mouse_up') {

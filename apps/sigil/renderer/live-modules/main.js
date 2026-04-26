@@ -725,6 +725,12 @@ function handleInputEvent(msg) {
 }
 
 function pointFromHitPayload(payload = {}) {
+    const screenX = Number(payload.x ?? payload.screenX);
+    const screenY = Number(payload.y ?? payload.screenY);
+    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
+        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
+    }
+
     const localX = Number(payload.offsetX);
     const localY = Number(payload.offsetY);
     const frame = hitTarget.hit.frame;
@@ -734,12 +740,6 @@ function pointFromHitPayload(payload = {}) {
             y: Number(frame[1]) + localY,
         };
         return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
-    }
-
-    const screenX = Number(payload.x ?? payload.screenX);
-    const screenY = Number(payload.y ?? payload.screenY);
-    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
-        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
     }
     return null;
 }
