@@ -1071,10 +1071,11 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── ready ─────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["ready"], summary: "Start/check AOS, reconcile common daemon drift, and report the readiness gate", forms: [
-        InvocationForm(id: "ready", usage: "aos ready [--json] [--repair]",
+        InvocationForm(id: "ready", usage: "aos ready [--json] [--repair] [--post-permission]",
             args: [
                 flag("json", "--json", "Emit machine-readable readiness response", type: .bool),
-                flag("repair", "--repair", "Run the longer restart/recheck repair path before reporting blockers and human instructions", type: .bool)
+                flag("repair", "--repair", "Run the longer restart/recheck repair path before reporting blockers and human instructions", type: .bool),
+                flag("post-permission", "--post-permission", "Bounded handoff check after the human re-adds macOS permissions", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execMutating(daemon: true),

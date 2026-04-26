@@ -54,6 +54,7 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 ```bash
 ./aos permissions setup --once   # One-time Accessibility, Screen Recording, and Input Monitoring flow
 ./aos ready                      # Primary readiness gate
+./aos ready --post-permission    # Bounded check after human re-adds Accessibility/Input Monitoring
 ./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
 ./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed
@@ -69,6 +70,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 
 ```bash
 ./aos ready                       # Start/check AOS and report readiness blockers
+./aos ready --post-permission     # Post-permission handoff check; no repeated ad-hoc repair loops
 ./aos ready --repair              # Restart/wait/recheck, then human instructions if needed
 ./aos status                      # Read-only runtime/session snapshot
 ./aos introspect review           # Self-review / recovery after failed attempts

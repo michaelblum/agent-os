@@ -356,13 +356,14 @@ func readyCommand(args: [String]) {
         printCommandHelp(["ready"], json: args.contains("--json"))
         exit(0)
     }
-    guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" }) else {
-        let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" }) ?? ""
-        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair]", code: "UNKNOWN_FLAG")
+    guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" || $0 == "--post-permission" }) else {
+        let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" && $0 != "--post-permission" }) ?? ""
+        exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair] [--post-permission]", code: "UNKNOWN_FLAG")
     }
 
     let asJSON = args.contains("--json")
     let repair = args.contains("--repair")
+    let postPermission = args.contains("--post-permission")
     let mode = aosCurrentRuntimeMode()
     let prefix = aosInvocationDisplayName()
     // Test-only escape hatch: readiness regression tests run against isolated
@@ -409,14 +410,15 @@ func readyCommand(args: [String]) {
         actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
     }
 
-    if !repair && !skipServiceStart && shouldAutoRepairRuntimeDrift(response) {
+    if !repair && !skipServiceStart,
+       let autoRepairReason = readyAutoRepairReason(response, postPermission: postPermission) {
         response = runReadyRuntimeRepair(
             startup: startup,
             actionTrace: actionTrace,
             mode: mode,
             prefix: prefix,
-            budgetMs: 10_000,
-            reason: "automatic after daemon ownership mismatch"
+            budgetMs: postPermission ? 20_000 : 10_000,
+            reason: autoRepairReason
         )
         actionTrace = response.action_trace
     }
@@ -1284,8 +1286,20 @@ private func waitForReadyResponse(
     return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
 }
 
-private func shouldAutoRepairRuntimeDrift(_ response: ReadyResponse) -> Bool {
-    response.blockers.contains(where: { $0.id == "daemon_ownership_mismatch" })
+private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bool) -> String? {
+    guard !response.ready else { return nil }
+    let blockerIDs = Set(response.blockers.map(\.id))
+    let hasRepairableRuntimeBlocker = response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
+    if postPermission && hasRepairableRuntimeBlocker {
+        return "post-permission bounded daemon restart/recheck"
+    }
+    if blockerIDs.contains("daemon_ownership_mismatch") {
+        return "automatic after daemon ownership mismatch"
+    }
+    if blockerIDs.contains("input_tap_not_active") {
+        return "automatic after input tap inactive"
+    }
+    return nil
 }
 
 private func runReadyRuntimeRepair(
@@ -1551,6 +1565,14 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
             type: "command",
             label: "run automated repair: restart/recheck, then print human instructions if needed",
             command: "\(prefix) ready --repair"
+        ))
+    }
+
+    if blockers.contains(where: { $0.kind == "permission" }) {
+        append(ReadyNextAction(
+            type: "command",
+            label: "bounded handoff check after fixing macOS permissions",
+            command: "\(prefix) ready --post-permission"
         ))
     }
 
