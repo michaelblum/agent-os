@@ -7,6 +7,17 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
     let dwBounds: [CGFloat]        // [x, y, w, h] in DesktopWorld coords
     let nativeBounds: [CGFloat]    // [x, y, w, h] in native CG coords
 
+    init(displayID: UInt32, index: Int, dwBounds: [CGFloat], nativeBounds: [CGFloat]) {
+        precondition(dwBounds.count == 4,
+                     "dwBounds must have exactly 4 elements [x, y, w, h]")
+        precondition(nativeBounds.count == 4,
+                     "nativeBounds must have exactly 4 elements [x, y, w, h]")
+        self.displayID = displayID
+        self.index = index
+        self.dwBounds = dwBounds
+        self.nativeBounds = nativeBounds
+    }
+
     enum CodingKeys: String, CodingKey {
         case displayID = "display_id"
         case index
