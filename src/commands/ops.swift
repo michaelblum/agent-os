@@ -70,22 +70,26 @@ func opsCommand(args: [String]) {
             let id = try opsSingleRecipeID(positional, usage: "ops dry-run <id> [--json]")
             let recipe = try opsFindRecipe(id)
             let plan = try opsPlan(recipe: recipe)
-            let result = opsResult(
-                status: "dry_run",
-                code: "OK",
-                error: nil,
-                recipe: recipe,
-                dryRun: true,
-                steps: plan.map { opsStepResult($0, status: "planned", durationMs: nil, observed: nil) },
-                mutatedResources: [],
-                cleanup: ["status": "not_needed", "steps": []]
-            )
-            opsEmitJSON(result, toStderr: false)
+            if asJSON {
+                let result = opsResult(
+                    status: "dry_run",
+                    code: "OK",
+                    error: nil,
+                    recipe: recipe,
+                    dryRun: true,
+                    steps: plan.map { opsStepResult($0, status: "planned", durationMs: nil, observed: nil) },
+                    mutatedResources: [],
+                    cleanup: ["status": "not_needed", "steps": []]
+                )
+                opsEmitJSON(result, toStderr: false)
+            } else {
+                opsEmitDryRunText(recipe: recipe, plan: plan)
+            }
         case "run":
             let id = try opsSingleRecipeID(positional, usage: "ops run <id> [--json]")
             let recipe = try opsFindRecipe(id)
             let plan = try opsPlan(recipe: recipe)
-            try opsRun(recipe: recipe, plan: plan)
+            try opsRun(recipe: recipe, plan: plan, asJSON: asJSON)
         default:
             throw OpsFailure(message: "Unknown ops subcommand: \(subcommand)", code: "UNKNOWN_SUBCOMMAND")
         }
@@ -303,7 +307,7 @@ private func opsValidateAssertions(_ assertions: [[String: Any]], stepID: String
     }
 }
 
-private func opsRun(recipe: OpsRecipe, plan: [OpsStepPlan]) throws {
+private func opsRun(recipe: OpsRecipe, plan: [OpsStepPlan], asJSON: Bool) throws {
     if (recipe.manifest["mutates"] as? Bool) == true || plan.contains(where: { $0.mutates }) {
         let result = opsResult(
             status: "failure",
@@ -407,7 +411,7 @@ private func opsRun(recipe: OpsRecipe, plan: [OpsStepPlan]) throws {
         stepResults.append(opsStepResult(step, status: "success", durationMs: durationMs, observed: observed))
     }
 
-    opsEmitJSON(opsResult(
+    let result = opsResult(
         status: "success",
         code: "OK",
         error: nil,
@@ -416,7 +420,12 @@ private func opsRun(recipe: OpsRecipe, plan: [OpsStepPlan]) throws {
         steps: stepResults,
         mutatedResources: [],
         cleanup: ["status": "not_needed", "steps": []]
-    ), toStderr: false)
+    )
+    if asJSON {
+        opsEmitJSON(result, toStderr: false)
+    } else {
+        opsEmitRunText(recipe: recipe, result: result)
+    }
 }
 
 private func opsResolvedResources(recipe: OpsRecipe, runID: String) -> [String: String] {
@@ -565,6 +574,30 @@ private func opsRunProcess(_ executable: String, arguments: [String], timeoutMs:
     let process = Process()
     let stdout = Pipe()
     let stderr = Pipe()
+    let stdoutLock = NSLock()
+    let stderrLock = NSLock()
+    var stdoutData = Data()
+    var stderrData = Data()
+
+    stdout.fileHandleForReading.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty else { return }
+        stdoutLock.lock()
+        stdoutData.append(data)
+        stdoutLock.unlock()
+    }
+    stderr.fileHandleForReading.readabilityHandler = { handle in
+        let data = handle.availableData
+        guard !data.isEmpty else { return }
+        stderrLock.lock()
+        stderrData.append(data)
+        stderrLock.unlock()
+    }
+    defer {
+        stdout.fileHandleForReading.readabilityHandler = nil
+        stderr.fileHandleForReading.readabilityHandler = nil
+    }
+
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
     process.standardOutput = stdout
@@ -586,13 +619,24 @@ private func opsRunProcess(_ executable: String, arguments: [String], timeoutMs:
     }
     process.waitUntilExit()
 
-    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
+    stdout.fileHandleForReading.readabilityHandler = nil
+    stderr.fileHandleForReading.readabilityHandler = nil
+    let remainingStdout = stdout.fileHandleForReading.readDataToEndOfFile()
+    let remainingStderr = stderr.fileHandleForReading.readDataToEndOfFile()
+    stdoutLock.lock()
+    stdoutData.append(remainingStdout)
+    let finalStdout = stdoutData
+    stdoutLock.unlock()
+    stderrLock.lock()
+    stderrData.append(remainingStderr)
+    let finalStderr = stderrData
+    stderrLock.unlock()
+
     return (
         ProcessOutput(
             exitCode: timedOut ? 124 : process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            stdout: String(data: finalStdout, encoding: .utf8) ?? "",
+            stderr: String(data: finalStderr, encoding: .utf8) ?? ""
         ),
         timedOut
     )
@@ -627,6 +671,27 @@ private func opsEmitExplain(recipe: OpsRecipe, plan: [OpsStepPlan], asJSON: Bool
     for step in plan {
         let mutation = step.mutates ? "mutates" : "read-only"
         print("- \(step.id): \(step.commandPath.joined(separator: " ")) \(step.argv.joined(separator: " ")) [\(mutation)]")
+    }
+}
+
+private func opsEmitDryRunText(recipe: OpsRecipe, plan: [OpsStepPlan]) {
+    let mutatingCount = plan.filter(\.mutates).count
+    print("dry-run \(recipe.id) v\(recipe.version): \(plan.count) step(s), \(mutatingCount) mutating")
+    for step in plan {
+        let mutation = step.mutates ? "mutates" : "read-only"
+        let command = ([aosInvocationDisplayName()] + step.commandPath + step.argv).joined(separator: " ")
+        print("- \(step.id): \(command) [\(mutation), planned]")
+    }
+}
+
+private func opsEmitRunText(recipe: OpsRecipe, result: [String: Any]) {
+    let steps = result["steps"] as? [[String: Any]] ?? []
+    print("success \(recipe.id) v\(recipe.version): \(steps.count) step(s)")
+    for step in steps {
+        let id = step["id"] as? String ?? "step"
+        let status = step["status"] as? String ?? "unknown"
+        let duration = (step["duration_ms"] as? Int).map { " \($0)ms" } ?? ""
+        print("- \(id): \(status)\(duration)")
     }
 }
 

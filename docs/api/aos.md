@@ -277,11 +277,12 @@ aos ops run runtime/status-snapshot --json
 `ops dry-run` is static in v1: it does not start daemons, create canvases,
 mutate resources, or run read-only observation probes. It validates the recipe,
 resolves declared resources, verifies command-registry references, and returns
-the planned steps.
+the planned steps. Without `--json`, it emits a concise text plan.
 
 `ops run` initially supports the read-only `runtime/status-snapshot` recipe.
 Mutating canvas smokes are intentionally deferred until ownership, cleanup,
-TTL, timeout, and dry-run behavior are covered by tests.
+TTL, timeout, and dry-run behavior are covered by tests. Without `--json`, it
+emits a concise text summary on success.
 
 `--json` follows the global process contract: success and dry-run success emit
 JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on

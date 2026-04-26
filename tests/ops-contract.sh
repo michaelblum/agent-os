@@ -31,7 +31,16 @@ with (root / "shared/schemas/ops-recipe.schema.json").open() as f:
     recipe_schema = json.load(f)
 validator = jsonschema.Draft202012Validator(recipe_schema)
 with (root / "recipes/runtime/status-snapshot.json").open() as f:
-    validator.validate(json.load(f))
+    valid = json.load(f)
+validator.validate(valid)
+invalid_allow_many = json.loads(json.dumps(valid))
+invalid_allow_many["steps"][0]["assertions"][0]["allow_many"] = True
+try:
+    validator.validate(invalid_allow_many)
+except jsonschema.ValidationError:
+    pass
+else:
+    raise SystemExit("allow_many unexpectedly validated")
 with (root / "tests/fixtures/ops/invalid/missing-command.json").open() as f:
     invalid = json.load(f)
 try:
@@ -114,7 +123,23 @@ else
     fail "ops dry-run contract failed"
 fi
 
-# --- 6. duplicate recipe IDs are rejected. ---
+# --- 6. dry-run default output is text, matching the registry. ---
+OUT="$(./aos ops dry-run runtime/status-snapshot 2>/dev/null)"
+if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'dry-run runtime/status-snapshot'; then
+    pass "ops dry-run default output is text"
+else
+    fail "ops dry-run default output mismatch: $OUT"
+fi
+
+# --- 7. run default output is text, matching the registry. ---
+OUT="$(./aos ops run runtime/status-snapshot 2>/dev/null)"
+if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'success runtime/status-snapshot'; then
+    pass "ops run default output is text"
+else
+    fail "ops run default output mismatch: $OUT"
+fi
+
+# --- 8. duplicate recipe IDs are rejected. ---
 mkdir -p "$TMP/dup-a" "$TMP/dup-b"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-a/status-a.json"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-b/status-b.json"
@@ -126,7 +151,7 @@ else
     fail "duplicate recipe ID error code mismatch: $ERR"
 fi
 
-# --- 7. invalid recipe explain fails before execution. ---
+# --- 9. invalid recipe explain fails before execution. ---
 if ERR="$(AOS_OPS_RECIPE_ROOTS="tests/fixtures/ops/invalid" ./aos ops explain fixture/missing-command --json 2>&1 >/dev/null)"; then
     fail "invalid recipe should fail explain"
 elif echo "$ERR" | grep -q '"code" : "INVALID_RECIPE"'; then
@@ -135,7 +160,7 @@ else
     fail "invalid recipe error code mismatch: $ERR"
 fi
 
-# --- 8. installed-mode index discovery does not need source roots. ---
+# --- 10. installed-mode index discovery does not need source roots. ---
 scripts/generate-ops-recipe-index "$PWD" "$TMP/recipes-index.json"
 OUT="$(AOS_RUNTIME_MODE=installed AOS_OPS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos ops list --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
@@ -151,7 +176,7 @@ else
     fail "installed-mode recipe index discovery failed"
 fi
 
-# --- 9. missing recipes follow stderr/exit-code failure contract. ---
+# --- 11. missing recipes follow stderr/exit-code failure contract. ---
 if ERR="$(./aos ops dry-run runtime/not-here --json 2>&1 >/dev/null)"; then
     fail "missing recipe dry-run should fail"
 elif echo "$ERR" | grep -q '"code" : "RECIPE_NOT_FOUND"'; then
@@ -160,7 +185,7 @@ else
     fail "missing recipe error code mismatch: $ERR"
 fi
 
-# --- 10. ops run executes the first read-only recipe and matches result schema. ---
+# --- 12. ops run executes the first read-only recipe and matches result schema. ---
 OUT="$(./aos ops run runtime/status-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -182,6 +207,51 @@ then
     pass "ops run executes read-only status recipe"
 else
     fail "ops run read-only recipe failed"
+fi
+
+# --- 13. ops run drains large stdout without deadlocking on full pipes. ---
+mkdir -p "$TMP/large"
+cat >"$TMP/large/help-snapshot.json" <<'JSON'
+{
+  "id": "fixture/help-snapshot",
+  "version": 1,
+  "summary": "Read the full help registry as a large-output fixture.",
+  "scope": "source",
+  "mutates": false,
+  "steps": [
+    {
+      "id": "help-json",
+      "command": {
+        "path": ["help"],
+        "form_id": "help-full"
+      },
+      "argv": ["--json"],
+      "timeout_ms": 10000,
+      "mutates": false,
+      "assertions": [
+        {
+          "path": ["commands"],
+          "exists": true
+        }
+      ]
+    }
+  ]
+}
+JSON
+OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/large" ./aos ops run fixture/help-snapshot --json 2>/dev/null)"
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["steps"][0]["status"] == "success", data
+observed = data["steps"][0]["observed"]
+assert "stdout_json" in observed, observed
+PY
+then
+    pass "ops run drains large child stdout"
+else
+    fail "ops run large-output fixture failed"
 fi
 
 echo

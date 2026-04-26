@@ -260,7 +260,7 @@ The v1 matcher should support only:
   `id`
 - `exists`, `not_exists`, `equals`, and possibly `contains` for scalar arrays
 - clear cardinality behavior: a selector that matches zero or multiple objects
-  fails unless the assertion explicitly allows it
+  fails; v1 does not expose `allow_many`
 
 It should not support arbitrary filter expressions, arithmetic, function calls,
 regular expressions, shell interpolation, or embedded code. If a recipe needs

@@ -93,8 +93,7 @@
         "exists": { "type": "boolean" },
         "not_exists": { "type": "boolean" },
         "equals": { "$ref": "#/$defs/JSONValue" },
-        "contains": { "$ref": "#/$defs/JSONValue" },
-        "allow_many": { "type": "boolean", "default": false }
+        "contains": { "$ref": "#/$defs/JSONValue" }
       },
       "allOf": [
         {
