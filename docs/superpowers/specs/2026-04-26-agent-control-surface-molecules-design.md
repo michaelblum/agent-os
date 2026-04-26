@@ -92,14 +92,18 @@ Expected affordances:
 
 ```bash
 ./aos ops list
-./aos ops explain canvas/window-level-smoke
-./aos ops dry-run canvas/window-level-smoke --json
-./aos ops run canvas/window-level-smoke --json
+./aos ops explain runtime/status-snapshot
+./aos ops dry-run runtime/status-snapshot --json
+./aos ops run runtime/status-snapshot --json
 ```
 
 `ops search` is useful, but it should be post-v1. The first slice should prove
 exact-ID discovery, explanation, dry-run, and execution contracts before adding
 fuzzy lookup or symptom routing.
+
+Mutating examples such as `canvas/window-level-smoke` are still useful design
+targets, but they should appear as post-contract validation cases rather than
+the first executable recipe.
 
 The `explain` path should show the primitive commands, why they are ordered
 that way, what mutates state, what resources are owned by the run, what cleanup
@@ -119,8 +123,8 @@ Static dry-run should:
 - verify that each command reference exists in the command registry
 - classify each step as read-only or mutating from registry metadata plus recipe
   declarations
-- validate timeouts, cleanup ownership, JSON-path assertions, and output schema
-  references
+- validate timeouts, cleanup ownership, structured assertions, and output
+  schema references
 - return the exact planned step list with `would_run`, `mutates`, and
   `supports_delegate_dry_run` fields
 
@@ -157,6 +161,10 @@ Source-backed recipes should be declarative where possible and script-backed
 only when needed. Shell strings are not sufficient for truthful dry-run or
 explain because they hide argument interpolation, mutation classification,
 timeouts, output schemas, cleanup, and resource ownership.
+
+The example below is a post-contract mutating smoke, not the first v1 recipe.
+The first executable recipe should remain the read-only
+`runtime/status-snapshot`.
 
 Prefer structured steps keyed to fully qualified command-registry form
 references. Do not rely on bare form IDs being globally unique; the registry
@@ -199,7 +207,13 @@ models command paths and invocation forms separately.
       },
       "assertions": [
         {
-          "json_path": "$.canvases[?(@.id == '${resources.canvas_id}')].windowLevel",
+          "select": {
+            "path": ["canvases"],
+            "where": {
+              "id": "${resources.canvas_id}"
+            }
+          },
+          "field": ["windowLevel"],
           "equals": "screen_saver"
         }
       ],
@@ -232,13 +246,35 @@ models command paths and invocation forms separately.
 }
 ```
 
+## Assertion Language
+
+V1 should not accidentally grow a JSONPath engine, and it should not make `jq`
+a runtime dependency of packaged AOS. Repo shell tests can keep using `jq`, but
+ops recipes should use a tiny in-tree structured matcher over decoded JSON
+values.
+
+The v1 matcher should support only:
+
+- object key paths, such as `["status", "daemon"]`
+- array item selection by exact field equality, such as selecting a canvas by
+  `id`
+- `exists`, `not_exists`, `equals`, and possibly `contains` for scalar arrays
+- clear cardinality behavior: a selector that matches zero or multiple objects
+  fails unless the assertion explicitly allows it
+
+It should not support arbitrary filter expressions, arithmetic, function calls,
+regular expressions, shell interpolation, or embedded code. If a recipe needs
+richer validation, it should call a named helper with explicit input/output
+schemas, or a later design should explicitly adopt a `jq`-style dependency with
+packaging and sandbox rules.
+
 Script-backed helpers should be allowed only as named helpers with explicit
 input and output contracts:
 
 ```json
 {
-  "helper": "json-path-assert",
-  "input_schema": "shared/schemas/ops-json-path-assert-input.schema.json",
+  "helper": "image-region-compare",
+  "input_schema": "shared/schemas/ops-image-region-compare-input.schema.json",
   "output_schema": "shared/schemas/ops-step-result.schema.json"
 }
 ```
@@ -531,8 +567,8 @@ Future, gated:
   document ownership: source-backed for repo/operator contracts, wiki-backed for
   user-owned and exploratory instruction bundles.
 - A premature DSL could slow progress. Mitigation: start with fully qualified
-  command-registry refs, argv arrays, JSON assertions, and named helpers only
-  where needed.
+  command-registry refs, argv arrays, structured assertions, and named helpers
+  only where needed.
 - State-gathering diagnosis could mutate accidentally. Mitigation: keep
   diagnosis read-only and separate from `help`.
 
