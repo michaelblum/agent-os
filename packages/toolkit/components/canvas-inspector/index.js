@@ -177,6 +177,9 @@ export default function CanvasInspector() {
   let dynamicAnimationFrame = 0
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
   let listCollapsed = true
+  let expandedCanvasHeight = null
+  let pendingResizeFrame = 0
+  let lastResizeRequest = null
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -336,6 +339,7 @@ export default function CanvasInspector() {
     if (nextListRegion && !listCollapsed) nextListRegion.scrollTop = priorListScrollTop
     syncMinimapDynamicLayer()
     syncDebugState()
+    schedulePanelResize()
   }
 
   function getMinimapWidth() {
@@ -365,6 +369,40 @@ export default function CanvasInspector() {
     return `<button class="canvas-list-toggle" type="button" aria-expanded="${listCollapsed ? 'false' : 'true'}" title="${listCollapsed ? 'Show canvas list' : 'Hide canvas list'}">`
       + `<span class="canvas-list-caret ${listCollapsed ? '' : 'open'}" aria-hidden="true"></span>`
       + `</button>`
+  }
+
+  function desiredCanvasHeight() {
+    if (!contentEl) return null
+    if (!listCollapsed) {
+      return Number.isFinite(expandedCanvasHeight) ? expandedCanvasHeight : window.innerHeight
+    }
+    const panel = contentEl.closest('.aos-panel')
+    const status = contentEl.querySelector('.status-bar')
+    if (!panel || !status) return null
+    const panelTop = panel.getBoundingClientRect().top
+    const statusBottom = status.getBoundingClientRect().bottom
+    return Math.ceil(statusBottom - panelTop)
+  }
+
+  function requestPanelResize() {
+    pendingResizeFrame = 0
+    const width = Math.round(window.innerWidth)
+    const height = desiredCanvasHeight()
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return
+    if (Math.abs(height - window.innerHeight) <= 2) return
+    const next = `${width}x${height}`
+    if (lastResizeRequest === next) return
+    lastResizeRequest = next
+    window.webkit?.messageHandlers?.headsup?.postMessage({
+      type: 'request_resize',
+      width,
+      height,
+    })
+  }
+
+  function schedulePanelResize() {
+    if (pendingResizeFrame) return
+    pendingResizeFrame = window.requestAnimationFrame(requestPanelResize)
   }
 
   function renderMinimap(list) {
@@ -535,7 +573,14 @@ export default function CanvasInspector() {
       const btn = event.target?.closest?.('button')
       if (!btn || !contentEl.contains(btn)) return
       if (btn.classList.contains('canvas-list-toggle')) {
+        if (!listCollapsed) {
+          expandedCanvasHeight = window.innerHeight
+        }
         listCollapsed = !listCollapsed
+        if (!listCollapsed && !Number.isFinite(expandedCanvasHeight)) {
+          expandedCanvasHeight = Math.max(window.innerHeight, 480)
+        }
+        lastResizeRequest = null
         rerender()
         return
       }
