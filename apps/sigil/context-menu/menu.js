@@ -457,7 +457,7 @@ export function createSigilContextMenu({
         if (!menuState.open) return false;
         const inside = !!options.assumeInside || containsDesktopPoint(point);
         if (kind === 'left_mouse_down') {
-            menuState.pointerDownInside = inside;
+            menuState.pointerDownInside = menuState.pointerDownInside || inside;
             if (!inside) return true;
         }
 

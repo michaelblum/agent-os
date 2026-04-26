@@ -78,6 +78,7 @@ const liveJs = {
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
+    hitPointerFrame: null,
     surfaceRenderSnapshot: null,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
@@ -724,22 +725,22 @@ function handleInputEvent(msg) {
     }
 }
 
-function pointFromHitPayload(payload = {}) {
-    const screenX = Number(payload.x ?? payload.screenX);
-    const screenY = Number(payload.y ?? payload.screenY);
-    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
-        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
-    }
-
+function pointFromHitPayload(payload = {}, frameOverride = null) {
     const localX = Number(payload.offsetX);
     const localY = Number(payload.offsetY);
-    const frame = hitTarget.hit.frame;
+    const frame = frameOverride || hitTarget.hit.frame;
     if (Number.isFinite(localX) && Number.isFinite(localY) && Array.isArray(frame) && frame.length >= 4) {
         const nativePoint = {
             x: Number(frame[0]) + localX,
             y: Number(frame[1]) + localY,
         };
         return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
+    }
+
+    const screenX = Number(payload.x ?? payload.screenX);
+    const screenY = Number(payload.y ?? payload.screenY);
+    if (Number.isFinite(screenX) && Number.isFinite(screenY)) {
+        return nativeToDesktopWorldPoint({ x: screenX, y: screenY }, liveJs.displays) ?? { x: screenX, y: screenY };
     }
     return null;
 }
@@ -753,7 +754,15 @@ function nativeFrameFromDesktopRect(rect) {
 
 function handleHitCanvasEvent(payload = {}) {
     if (payload.source !== 'sigil-hit') return;
-    const point = pointFromHitPayload(payload);
+    if (payload.kind === 'left_mouse_down') {
+        liveJs.hitPointerFrame = Array.isArray(hitTarget.hit.frame)
+            ? [...hitTarget.hit.frame]
+            : null;
+    }
+    const point = pointFromHitPayload(payload, liveJs.hitPointerFrame);
+    if (payload.kind === 'left_mouse_up') {
+        liveJs.hitPointerFrame = null;
+    }
     if (!point) return;
     handleInputEvent({ type: payload.kind, x: point.x, y: point.y, fromHitTarget: true });
 }
