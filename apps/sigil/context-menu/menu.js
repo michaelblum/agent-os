@@ -203,6 +203,7 @@ export function createSigilContextMenu({
         open: false,
         bounds: null,
         activeRange: null,
+        pointerDownInside: false,
         snapshot: null,
     };
     let stack = null;
@@ -354,6 +355,7 @@ export function createSigilContextMenu({
         menuState.open = false;
         menuState.bounds = null;
         menuState.activeRange = null;
+        menuState.pointerDownInside = false;
         if (state) state.isMenuOpen = false;
         stack.close(reason);
         syncSnapshot();
@@ -365,6 +367,7 @@ export function createSigilContextMenu({
         menuState.open = open;
         menuState.bounds = open && next.bounds ? { ...next.bounds } : null;
         menuState.activeRange = null;
+        menuState.pointerDownInside = false;
         if (state) state.isMenuOpen = open;
         if (!open) {
             stack.close('snapshot');
@@ -377,9 +380,32 @@ export function createSigilContextMenu({
         syncSnapshot();
     }
 
+    function visibleCardBounds() {
+        if (!menuState.bounds) return null;
+        const anchorRect = anchor.getBoundingClientRect();
+        const cards = Array.from(anchor.querySelectorAll('.ctx-menu-card.active, .ctx-menu-card.pushed'))
+            .map((card) => card.getBoundingClientRect())
+            .filter((rect) => rect.width > 0 && rect.height > 0);
+        if (cards.length === 0) return { ...menuState.bounds };
+
+        const left = Math.min(...cards.map((rect) => rect.left));
+        const top = Math.min(...cards.map((rect) => rect.top));
+        const right = Math.max(...cards.map((rect) => rect.right));
+        const bottom = Math.max(...cards.map((rect) => rect.bottom));
+        return {
+            x: menuState.bounds.x + (left - anchorRect.left),
+            y: menuState.bounds.y + (top - anchorRect.top),
+            w: right - left,
+            h: bottom - top,
+        };
+    }
+
     function containsDesktopPoint(point) {
-        const b = menuState.bounds;
-        return !!(b && point
+        if (!point) return false;
+        const target = elementAt(point);
+        if (target && anchor.contains(target)) return true;
+        const b = visibleCardBounds() || menuState.bounds;
+        return !!(b
             && point.x >= b.x
             && point.y >= b.y
             && point.x < b.x + b.w
@@ -415,7 +441,12 @@ export function createSigilContextMenu({
 
     function handlePointerEvent(kind, point) {
         if (!menuState.open) return false;
-        if (!containsDesktopPoint(point)) {
+        const inside = containsDesktopPoint(point);
+        if (kind === 'left_mouse_down') {
+            menuState.pointerDownInside = inside;
+        }
+
+        if (!inside && !menuState.pointerDownInside) {
             if (kind === 'left_mouse_down') close('outside-click');
             return false;
         }
@@ -427,6 +458,7 @@ export function createSigilContextMenu({
         if (active && kind === 'left_mouse_up') {
             const input = active;
             menuState.activeRange = null;
+            menuState.pointerDownInside = false;
             return updateRange(input, point, true);
         }
 
@@ -451,9 +483,11 @@ export function createSigilContextMenu({
             if (input.matches('button, .ctx-menu-card.pushed')) {
                 input.click();
                 syncSnapshot();
+                menuState.pointerDownInside = false;
                 return true;
             }
         }
+        if (kind === 'left_mouse_up') menuState.pointerDownInside = false;
         return true;
     }
 
@@ -613,6 +647,9 @@ export function createSigilContextMenu({
         },
         bounds() {
             return menuState.bounds ? { ...menuState.bounds } : null;
+        },
+        interactiveBounds() {
+            return visibleCardBounds() || (menuState.bounds ? { ...menuState.bounds } : null);
         },
         updateSegmentPosition: syncPosition,
         containsDesktopPoint,

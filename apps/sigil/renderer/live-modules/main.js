@@ -688,7 +688,10 @@ function handleInputEvent(msg) {
             cancelInteraction('right-click');
             return;
         case 'key_down':
-            if (msg.key_code === 53) cancelInteraction('escape');
+            if (msg.key_code === 53) {
+                contextMenu.close('escape');
+                cancelInteraction('escape');
+            }
             return;
         default:
             return;
@@ -1050,7 +1053,7 @@ function animate() {
     contextMenu.updateSegmentPosition();
 
     if (primarySegment && contextMenu.isOpen()) {
-        const frame = nativeFrameFromDesktopRect(contextMenu.bounds());
+        const frame = nativeFrameFromDesktopRect(contextMenu.interactiveBounds());
         if (frame) hitTarget.syncFrame(frame, true);
     } else if (primarySegment && liveJs.avatarPos.valid) {
         hitTarget.setSize(state.avatarHitRadius * 2)
