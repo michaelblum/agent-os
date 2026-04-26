@@ -22,7 +22,7 @@ cd "$REPO_ROOT"
 "$AOS" ready >/dev/null
 aos_visual_prepare_live_roots
 aos_visual_seed_sigil "$MODE"
-aos_visual_launch_sigil_with_inspector "$AVATAR_ID" "$INSPECTOR_ID" "$FAST_TRAVEL_EFFECT"
+aos_visual_launch_sigil_with_inspector "$AVATAR_ID" "$INSPECTOR_ID" "$FAST_TRAVEL_EFFECT" manual-visible
 
 cat <<EOF
 Sigil wormhole harness launched.

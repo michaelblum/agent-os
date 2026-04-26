@@ -94,10 +94,126 @@ aos_visual_show_sigil_avatar() {
     --timeout 5s >/dev/null
 }
 
+aos_visual_avoid_sigil_avatar_overlap() {
+  local avatar_id="${1:-avatar-main}"
+  local inspector_id="${2:-canvas-inspector}"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  python3 - "$aos_bin" "$avatar_id" "$inspector_id" <<'PY'
+import json
+import subprocess
+import sys
+
+aos, avatar_id, inspector_id = sys.argv[1:4]
+
+
+def run_json(*args):
+    return json.loads(subprocess.check_output([aos, *args], text=True))
+
+
+def rect_contains(rect, point, margin=48):
+    x, y, w, h = rect
+    return x - margin <= point["x"] <= x + w + margin and y - margin <= point["y"] <= y + h + margin
+
+
+def rect_overlaps_point(rect, point, margin=48):
+    return rect_contains(rect, point, margin)
+
+
+inspector = run_json("show", "get", "--id", inspector_id).get("canvas")
+if not inspector:
+    raise SystemExit(0)
+
+payload = run_json(
+    "show",
+    "eval",
+    "--id",
+    avatar_id,
+    "--js",
+    "JSON.stringify({ avatarPos: window.liveJs?.avatarPos, displays: window.liveJs?.displays || [] })",
+)
+state = json.loads(payload.get("result") or "{}")
+avatar = state.get("avatarPos") or {}
+displays = state.get("displays") or []
+if not avatar.get("valid") or not displays:
+    raise SystemExit(0)
+
+avatar_native = None
+avatar_display = None
+for display in displays:
+    world = display.get("desktopWorldBounds") or display.get("desktop_world_bounds") or display.get("bounds") or {}
+    native = display.get("nativeBounds") or display.get("native_bounds") or display.get("bounds") or {}
+    if (
+        world.get("x", 0) <= avatar["x"] <= world.get("x", 0) + world.get("w", 0)
+        and world.get("y", 0) <= avatar["y"] <= world.get("y", 0) + world.get("h", 0)
+    ):
+        avatar_native = {
+            "x": avatar["x"] - world.get("x", 0) + native.get("x", 0),
+            "y": avatar["y"] - world.get("y", 0) + native.get("y", 0),
+        }
+        avatar_display = display
+        break
+
+if avatar_native is None:
+    raise SystemExit(0)
+
+current = inspector.get("at") or []
+if len(current) != 4 or not rect_overlaps_point(current, avatar_native):
+    raise SystemExit(0)
+
+panel_w = int(current[2])
+panel_h = int(current[3])
+visible = (
+    avatar_display.get("nativeVisibleBounds")
+    or avatar_display.get("native_visible_bounds")
+    or avatar_display.get("nativeBounds")
+    or avatar_display.get("native_bounds")
+    or avatar_display.get("bounds")
+    or {}
+)
+vx = int(visible.get("x", 0))
+vy = int(visible.get("y", 0))
+vw = int(visible.get("w", 1920))
+vh = int(visible.get("h", 1080))
+pad = 16
+candidates = [
+    [vx + pad, vy + pad, panel_w, panel_h],
+    [vx + vw - panel_w - pad, vy + pad, panel_w, panel_h],
+    [vx + pad, vy + vh - panel_h - pad, panel_w, panel_h],
+    [vx + vw - panel_w - pad, vy + vh - panel_h - pad, panel_w, panel_h],
+]
+
+target = next((rect for rect in candidates if not rect_contains(rect, avatar_native, 96)), candidates[0])
+subprocess.check_call([aos, "show", "update", "--id", inspector_id, "--at", ",".join(str(int(v)) for v in target)], stdout=subprocess.DEVNULL)
+PY
+}
+
+aos_visual_place_sigil_avatar_for_manual_test() {
+  local avatar_id="${1:-avatar-main}"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  "$aos_bin" show eval --id "$avatar_id" --js '
+    (() => {
+      const displays = window.liveJs?.displays || [];
+      const display = displays.find((candidate) => !candidate.is_main) || displays[0];
+      if (!display) return "no-display";
+      const bounds = display.visible_bounds || display.visibleBounds || display.bounds;
+      const x = bounds.x + bounds.w * 0.55;
+      const y = bounds.y + bounds.h * 0.45;
+      window.__sigilDebug.dispatch({ type: "sigil.set_position", x, y });
+      window.__sigilDebug.dispatch({ type: "status_item.show" });
+      return JSON.stringify({ x, y, display: display.id || display.display_id || null });
+    })()
+  ' >/dev/null
+}
+
 aos_visual_launch_sigil_with_inspector() {
   local avatar_id="${1:-avatar-main}"
   local inspector_id="${2:-canvas-inspector}"
   local fast_travel_effect="${3:-}"
+  local placement="${4:-default}"
 
   aos_visual_remove_canvas "$avatar_id"
   aos_visual_remove_canvas "$inspector_id"
@@ -105,4 +221,8 @@ aos_visual_launch_sigil_with_inspector() {
   aos_visual_launch_sigil_avatar "$avatar_id"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
   aos_visual_show_sigil_avatar "$avatar_id" "$fast_travel_effect"
+  if [[ "$placement" == "manual-visible" ]]; then
+    aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
+  fi
+  aos_visual_avoid_sigil_avatar_overlap "$avatar_id" "$inspector_id"
 }

@@ -87,6 +87,11 @@ Visual Sigil scenarios should default to launching `canvas-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,
 window count, or placement without auxiliary canvases.
 
+Manual Sigil harnesses can pass `manual-visible` to
+`aos_visual_launch_sigil_with_inspector` to place the avatar on a visible
+non-main display when available. This avoids repeated false debugging of Sigil
+state while tracked union canvases are still unreliable on some display slices.
+
 Examples:
 
 - `bash tests/capture-region-perception.sh`
