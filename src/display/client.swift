@@ -190,13 +190,13 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
             }
             options.track = track
         case "--surface":
-            let value = nextCanvasArg(args, index: &i,
-                                      missingMessage: "--surface requires a target")
-            guard value == "desktop-world" else {
-                exitError("Unknown --surface target: \(value). Supported: desktop-world",
+            let surface = nextCanvasArg(args, index: &i,
+                                        missingMessage: "--surface requires a target (e.g. 'desktop-world')")
+            guard surface == "desktop-world" else {
+                exitError("Unknown --surface target: \(surface). Supported: desktop-world",
                           code: "INVALID_ARG")
             }
-            options.surface = value
+            options.surface = surface
         default:
             exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
         }

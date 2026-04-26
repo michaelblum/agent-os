@@ -241,6 +241,7 @@ Primary public verbs:
 - `--ttl <duration>`
 - `--scope connection|global`
 - `--track union`
+- `--surface desktop-world` — canonical alias for `--track union`
 
 ## `aos do`
 
