@@ -205,6 +205,7 @@ export function createSigilContextMenu({
         bounds: null,
         activeRange: null,
         pointerDownInside: false,
+        suppressNextOutsideMouseUp: false,
         snapshot: null,
     };
     let stack = null;
@@ -357,6 +358,7 @@ export function createSigilContextMenu({
         menuState.bounds = null;
         menuState.activeRange = null;
         menuState.pointerDownInside = false;
+        menuState.suppressNextOutsideMouseUp = false;
         if (state) state.isMenuOpen = false;
         stack.close(reason);
         syncSnapshot();
@@ -369,6 +371,7 @@ export function createSigilContextMenu({
         menuState.bounds = open && next.bounds ? { ...next.bounds } : null;
         menuState.activeRange = null;
         menuState.pointerDownInside = false;
+        menuState.suppressNextOutsideMouseUp = false;
         if (state) state.isMenuOpen = open;
         if (!open) {
             stack.close('snapshot');
@@ -424,7 +427,11 @@ export function createSigilContextMenu({
         return document.elementFromPoint(local.x, local.y);
     }
 
-    function rangeDragState(input) {
+    function eventSource(options = {}) {
+        return options.assumeInside ? 'hit' : 'global';
+    }
+
+    function rangeDragState(input, source) {
         const rect = input.getBoundingClientRect();
         const anchorRect = anchor.getBoundingClientRect();
         const b = menuState.bounds;
@@ -433,6 +440,7 @@ export function createSigilContextMenu({
             input,
             desktopLeft: b.x + (rect.left - anchorRect.left),
             desktopWidth: rect.width,
+            source,
         };
     }
 
@@ -455,6 +463,7 @@ export function createSigilContextMenu({
 
     function handlePointerEvent(kind, point, options = {}) {
         if (!menuState.open) return false;
+        const source = eventSource(options);
         const inside = !!options.assumeInside || containsDesktopPoint(point);
         if (kind === 'left_mouse_down') {
             menuState.pointerDownInside = menuState.pointerDownInside || inside;
@@ -462,17 +471,25 @@ export function createSigilContextMenu({
         }
 
         if (!inside && !menuState.pointerDownInside) {
+            if (kind === 'left_mouse_up' && menuState.suppressNextOutsideMouseUp) {
+                menuState.suppressNextOutsideMouseUp = false;
+                return true;
+            }
             if (kind === 'left_mouse_up') close('outside-click');
             return true;
         }
 
         const active = menuState.activeRange;
+        if (active && active.source && active.source !== source) {
+            return true;
+        }
         if (active && (kind === 'left_mouse_dragged' || kind === 'mouse_moved')) {
             return updateRange(active, point);
         }
         if (active && kind === 'left_mouse_up') {
             menuState.activeRange = null;
             menuState.pointerDownInside = false;
+            menuState.suppressNextOutsideMouseUp = true;
             return updateRange(active, point, true);
         }
 
@@ -484,7 +501,7 @@ export function createSigilContextMenu({
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
-            menuState.activeRange = rangeDragState(input);
+            menuState.activeRange = rangeDragState(input, source);
             return updateRange(menuState.activeRange, point);
         }
 
@@ -492,16 +509,21 @@ export function createSigilContextMenu({
             if (input.matches('input[type="checkbox"]')) {
                 input.checked = !input.checked;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
+                menuState.suppressNextOutsideMouseUp = true;
                 return true;
             }
             if (input.matches('button, .ctx-menu-card.pushed')) {
                 input.click();
                 syncSnapshot();
                 menuState.pointerDownInside = false;
+                menuState.suppressNextOutsideMouseUp = true;
                 return true;
             }
         }
-        if (kind === 'left_mouse_up') menuState.pointerDownInside = false;
+        if (kind === 'left_mouse_up') {
+            menuState.pointerDownInside = false;
+            menuState.suppressNextOutsideMouseUp = true;
+        }
         return true;
     }
 
