@@ -143,6 +143,7 @@ const defaults = {
     dragCancelRadius: 40,
     gotoRingRadius: 60,
     menuRingRadius: 120,
+    avatarWindowLevel: 'status_bar',
 
     // Visibility transitions
     transitionEnterEffect: 'scale',

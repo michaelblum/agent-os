@@ -64,6 +64,7 @@ struct CanvasRequest: Codable {
     var html: String?           // HTML content (resolved by client)
     var url: String?            // URL for WKWebView to load directly
     var interactive: Bool?      // override click-through (default: false)
+    var windowLevel: String?    // native window layer: automatic, floating, status_bar, screen_saver
     var focus: Bool?            // activate app + make window key; on create, also eval focusInput() after page ready
     var ttl: Double?            // seconds until auto-remove (nil = no expiry)
     var js: String?             // JavaScript to evaluate (for "eval" action)
@@ -79,6 +80,7 @@ struct CanvasRequest: Codable {
 
     enum CodingKeys: String, CodingKey {
         case action, id, at, offset, html, url, interactive, focus, ttl, js, scope
+        case windowLevel = "window_level"
         case anchorWindow = "anchor_window"
         case anchorChannel = "anchor_channel"
         case autoProject = "auto_project"
@@ -104,6 +106,7 @@ struct CanvasInfo: Codable {
     var anchorChannel: String?
     var offset: [CGFloat]?
     var interactive: Bool
+    var windowLevel: String?
     var ttl: Double?            // remaining seconds until expiry (nil = no expiry)
     var scope: String?          // "connection" or "global"
     var autoProject: String?

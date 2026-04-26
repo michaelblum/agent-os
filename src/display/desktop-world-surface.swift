@@ -12,6 +12,7 @@ protocol CanvasLike: AnyObject {
     var connectionID: UUID? { get set }
     var autoProjectMode: String? { get set }
     var trackTarget: TrackTarget? { get set }
+    var windowLevel: String? { get set }
     var focusOnReady: Bool { get set }
     var suspended: Bool { get set }
     var cascadeFromParent: Bool { get set }
@@ -33,6 +34,7 @@ protocol CanvasLike: AnyObject {
     func toInfo() -> CanvasInfo
     func evaluateJavaScript(_ script: String, completion: ((Any?, Error?) -> Void)?)
     func setAlpha(_ alpha: CGFloat)
+    func refreshWindowLevel()
     func orderFront()
     func orderOut()
 }
@@ -137,6 +139,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
                 segment.window.ignoresMouseEvents = !isInteractive
                 segment.window.isInteractiveCanvas = isInteractive
             }
+            applyWindowLevel()
         }
     }
     var anchorWindowID: CGWindowID? = nil
@@ -146,6 +149,9 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var connectionID: UUID? = nil
     var autoProjectMode: String? = nil
     var trackTarget: TrackTarget? = .union
+    var windowLevel: String? {
+        didSet { applyWindowLevel() }
+    }
     var focusOnReady: Bool = false
     var suspended: Bool = false
     var cascadeFromParent: Bool = true
@@ -167,9 +173,10 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
 
-    init(id: String, interactive: Bool, aosSchemeHandler: WKURLSchemeHandler? = nil) {
+    init(id: String, interactive: Bool, windowLevel: String? = nil, aosSchemeHandler: WKURLSchemeHandler? = nil) {
         self.id = id
         self.isInteractive = interactive
+        self.windowLevel = normalizeCanvasWindowLevel(windowLevel)
         self.aosSchemeHandler = aosSchemeHandler
         _ = rebuildSegments()
     }
@@ -186,6 +193,16 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
 
     var windowNumbers: [Int] {
         segments.map { $0.window.windowNumber }
+    }
+
+    private func applyWindowLevel() {
+        for segment in segments {
+            segment.window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
+        }
+    }
+
+    func refreshWindowLevel() {
+        applyWindowLevel()
     }
 
     func setTTL(_ seconds: Double?) {
@@ -267,6 +284,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             anchorChannel: nil,
             offset: nil,
             interactive: isInteractive,
+            windowLevel: windowLevel,
             ttl: remainingTTL,
             scope: scope,
             autoProject: autoProjectMode,
@@ -409,7 +427,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
-        window.level = isInteractive ? .floating : .statusBar
+        window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
         window.ignoresMouseEvents = !isInteractive
         window.isInteractiveCanvas = isInteractive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]

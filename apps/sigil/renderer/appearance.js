@@ -98,6 +98,10 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         menuRingRadius: 120,
     },
 
+    windowing: {
+        avatarLevel: 'status_bar',
+    },
+
     transitions: {
         enter: DEFAULT_TRANSITION_EFFECT,
         exit: DEFAULT_TRANSITION_EFFECT,
@@ -311,6 +315,11 @@ export function applyAppearance(blob) {
     state.dragCancelRadius = interaction.dragCancelRadius ?? D.interaction.dragCancelRadius;
     state.gotoRingRadius = interaction.gotoRingRadius ?? D.interaction.gotoRingRadius;
     state.menuRingRadius = interaction.menuRingRadius ?? D.interaction.menuRingRadius;
+
+    const windowing = blob.windowing ?? D.windowing;
+    state.avatarWindowLevel = windowing.avatarLevel === 'screen_saver'
+        ? 'screen_saver'
+        : D.windowing.avatarLevel;
 
     const transitions = blob.transitions ?? D.transitions;
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
@@ -549,6 +558,10 @@ export function snapshotAppearance() {
             dragCancelRadius: state.dragCancelRadius,
             gotoRingRadius: state.gotoRingRadius,
             menuRingRadius: state.menuRingRadius,
+        },
+
+        windowing: {
+            avatarLevel: state.avatarWindowLevel === 'screen_saver' ? 'screen_saver' : 'status_bar',
         },
 
         transitions: {

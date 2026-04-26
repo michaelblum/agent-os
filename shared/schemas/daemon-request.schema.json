@@ -104,6 +104,7 @@
         "html": { "type": "string" },
         "url": { "type": "string" },
         "interactive": { "type": "boolean" },
+        "window_level": { "type": "string", "enum": ["automatic", "floating", "status_bar", "screen_saver"] },
         "focus": { "type": "boolean" },
         "ttl": { "type": "number" },
         "scope": { "enum": ["connection", "global"] },
@@ -144,6 +145,7 @@
         "html": { "type": "string" },
         "url": { "type": "string" },
         "interactive": { "type": "boolean" },
+        "window_level": { "type": "string", "enum": ["automatic", "floating", "status_bar", "screen_saver"] },
         "ttl": { "type": ["number", "null"] },
         "track": { "type": "string" }
       },

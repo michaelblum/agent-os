@@ -164,6 +164,39 @@ enum TrackTarget: String {
     case none
 }
 
+// MARK: - Canvas Window Level
+
+private let canvasWindowLevelValues: Set<String> = [
+    "automatic",
+    "floating",
+    "status_bar",
+    "screen_saver",
+]
+
+func normalizeCanvasWindowLevel(_ value: String?) -> String? {
+    guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+    let normalized = raw.lowercased().replacingOccurrences(of: "-", with: "_")
+    if normalized == "auto" { return "automatic" }
+    return canvasWindowLevelValues.contains(normalized) ? normalized : nil
+}
+
+func validCanvasWindowLevelsDescription() -> String {
+    return canvasWindowLevelValues.sorted().joined(separator: ", ")
+}
+
+func resolveCanvasWindowLevel(_ level: String?, interactive: Bool) -> NSWindow.Level {
+    switch normalizeCanvasWindowLevel(level) {
+    case "floating":
+        return .floating
+    case "status_bar":
+        return .statusBar
+    case "screen_saver":
+        return .screenSaver
+    default:
+        return interactive ? .floating : .statusBar
+    }
+}
+
 // MARK: - Canvas
 
 class Canvas {
@@ -191,6 +224,9 @@ class Canvas {
     }
     var autoProjectMode: String?
     var trackTarget: TrackTarget?
+    var windowLevel: String? {
+        didSet { applyWindowLevel() }
+    }
     var suspended: Bool = false
     var cascadeFromParent: Bool = true
     var parent: String?
@@ -256,9 +292,18 @@ class Canvas {
         return max(0, deadline.timeIntervalSinceNow)
     }
 
-    init(id: String, cgFrame: CGRect, interactive: Bool, aosSchemeHandler: WKURLSchemeHandler? = nil) {
+    private func applyWindowLevel() {
+        window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
+    }
+
+    func refreshWindowLevel() {
+        applyWindowLevel()
+    }
+
+    init(id: String, cgFrame: CGRect, interactive: Bool, windowLevel: String? = nil, aosSchemeHandler: WKURLSchemeHandler? = nil) {
         self.id = id
         self.isInteractive = interactive
+        self.windowLevel = normalizeCanvasWindowLevel(windowLevel)
         self.desiredCGFrame = cgFrame
 
         let screenFrame = canvasScreenFrame(cgFrame)
@@ -272,10 +317,7 @@ class Canvas {
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = false
-        // Interactive canvases (studio, menus) use .floating so other apps
-        // can be brought in front. Non-interactive canvases (avatar overlay)
-        // use .statusBar to stay above everything while passing clicks through.
-        window.level = interactive ? .floating : .statusBar
+        window.level = resolveCanvasWindowLevel(windowLevel, interactive: interactive)
         window.ignoresMouseEvents = !interactive
         window.isInteractiveCanvas = interactive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
@@ -384,6 +426,7 @@ class Canvas {
             anchorChannel: anchorChannelID,
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
             interactive: isInteractive,
+            windowLevel: windowLevel,
             ttl: remainingTTL,
             scope: scope,
             autoProject: autoProjectMode,
@@ -744,6 +787,11 @@ class CanvasManager {
         }
 
         let interactive = req.interactive ?? false
+        if let requestedWindowLevel = req.windowLevel,
+           normalizeCanvasWindowLevel(requestedWindowLevel) == nil {
+            return .fail("Unknown window_level '\(requestedWindowLevel)'. Valid: \(validCanvasWindowLevelsDescription())", code: "INVALID_WINDOW_LEVEL")
+        }
+        let windowLevel = normalizeCanvasWindowLevel(req.windowLevel)
         let surfaceTarget = req.surface
         if let surfaceTarget, surfaceTarget != "desktop-world" {
             return .fail("Unknown surface target: \(surfaceTarget)", code: "INVALID_SURFACE")
@@ -768,7 +816,7 @@ class CanvasManager {
             guard bounds.width > 0, bounds.height > 0 else {
                 return .fail("desktop-world surface requires at least one connected display", code: "NO_DISPLAYS")
             }
-            let surface = DesktopWorldSurfaceCanvas(id: id, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
+            let surface = DesktopWorldSurfaceCanvas(id: id, interactive: interactive, windowLevel: windowLevel, aosSchemeHandler: aosSchemeHandler)
             surface.trackTarget = .union
             canvas = surface
         } else {
@@ -803,7 +851,7 @@ class CanvasManager {
                 return .fail("create requires --at x,y,w,h, --anchor-window + --offset, --anchor-channel, --track union, or --surface desktop-world", code: "MISSING_POSITION")
             }
 
-            let single = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, aosSchemeHandler: aosSchemeHandler)
+            let single = Canvas(id: id, cgFrame: cgFrame, interactive: interactive, windowLevel: windowLevel, aosSchemeHandler: aosSchemeHandler)
             single.trackTarget = trackTarget
             canvas = single
         }
@@ -1172,6 +1220,7 @@ class CanvasManager {
         if let interactive = req.interactive {
             canvas.isInteractive = interactive
             lifecycleDirty = true
+            canvas.refreshWindowLevel()
             if let single = canvas as? Canvas {
                 single.window.ignoresMouseEvents = !interactive
                 // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
@@ -1187,6 +1236,14 @@ class CanvasManager {
                 // may require one extra click to activate; recreate the canvas with
                 // --interactive at creation time for full first-mouse behavior.
             }
+        }
+
+        if let requestedWindowLevel = req.windowLevel {
+            guard let normalizedWindowLevel = normalizeCanvasWindowLevel(requestedWindowLevel) else {
+                return CanvasResponse.fail("Unknown window_level '\(requestedWindowLevel)'. Valid: \(validCanvasWindowLevelsDescription())", code: "INVALID_WINDOW_LEVEL")
+            }
+            canvas.windowLevel = normalizedWindowLevel
+            lifecycleDirty = true
         }
 
         if let ttl = req.ttl {

@@ -30,6 +30,7 @@ class DaemonClient {
         if let html = request.html { dataDict["html"] = html }
         if let url = request.url { dataDict["url"] = url }
         if let inter = request.interactive { dataDict["interactive"] = inter }
+        if let level = request.windowLevel { dataDict["window_level"] = level }
         if let focus = request.focus { dataDict["focus"] = focus }
         if let ttl = request.ttl { dataDict["ttl"] = ttl }
         if let js = request.js { dataDict["js"] = js }
@@ -99,6 +100,7 @@ private struct CanvasMutationOptions {
     var fileValue: String? = nil
     var urlValue: String? = nil
     var interactive: Bool? = nil
+    var windowLevel: String? = nil
     var focus: Bool? = nil
     var ttlValue: String? = nil
     var scope: String? = nil
@@ -162,6 +164,8 @@ private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKi
         case "--no-interactive":
             guard kind == .update else { exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG") }
             options.interactive = false
+        case "--window-level":
+            options.windowLevel = nextCanvasArg(args, index: &i, missingMessage: "--window-level requires a value")
         case "--focus":
             options.focus = true
         case "--no-focus":
@@ -279,6 +283,7 @@ private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to req
     if let autoProject = options.autoProject { request.autoProject = autoProject }
     if let track = options.track { request.track = track }
     if let surface = options.surface { request.surface = surface }
+    if let windowLevel = options.windowLevel { request.windowLevel = windowLevel }
 
     if let url = options.urlValue {
         request.url = url

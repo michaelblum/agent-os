@@ -141,6 +141,7 @@ function menuMarkup() {
                     <option value="3d">3D Volumetric</option>
                 </select>
                 ${controlRow('Menu Ring', 'sigil-menu-ring', 40, 260, 1, 120)}
+                <label class="checkbox-label"><input type="checkbox" id="sigil-menu-avatar-above-menu"> Avatar Above Menu Bar</label>
                 <div class="ctx-divider"></div>
                 <button class="ctx-trigger" data-sigil-action="toggle-inspector">Canvas Inspector</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
@@ -211,6 +212,7 @@ export function createSigilContextMenu({
     onAppearanceChange,
     onUtilityAction,
     onAvatarAction,
+    onAvatarWindowLevelChange,
     onBoundsChange,
 } = {}) {
     const layer = document.createElement('div');
@@ -286,6 +288,7 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-aura-intensity', state.auraIntensity ?? 1);
         setControlValue('sigil-menu-spin', state.idleSpinSpeed ?? 0.01);
         setControlValue('sigil-menu-ring', state.menuRingRadius ?? 120);
+        setControlValue('sigil-menu-avatar-above-menu', null, state.avatarWindowLevel === 'screen_saver');
         setControlValue('sigil-menu-pulsar', null, state.isPulsarEnabled);
         setControlValue('sigil-menu-accretion', null, state.isAccretionEnabled);
         setControlValue('sigil-menu-gamma', null, state.isGammaEnabled);
@@ -627,6 +630,11 @@ export function createSigilContextMenu({
         onRange('sigil-menu-ring', (value) => {
             state.menuRingRadius = value;
             if (liveJs) liveJs.menuRingRadius = value;
+        });
+        onCheckbox('sigil-menu-avatar-above-menu', (value) => {
+            const level = value ? 'screen_saver' : 'status_bar';
+            state.avatarWindowLevel = level;
+            onAvatarWindowLevelChange?.(level);
         });
         onCheckbox('sigil-menu-omega-enabled', (value) => { state.isOmegaEnabled = value; });
         onSelect('sigil-menu-omega-shape', (value) => {

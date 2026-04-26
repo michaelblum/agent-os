@@ -33,6 +33,7 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
                 url: appendQuery(url, { parent: 'avatar-main', id: hit.id }),
                 frame: hit.frame,
                 interactive: true,
+                window_level: 'screen_saver',
             });
             hit.ready = true;
             return hit.id;

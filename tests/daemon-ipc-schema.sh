@@ -20,6 +20,7 @@ good_requests = [
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
     {"v":1,"service":"see","action":"snapshot","data":{}},
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"html":"<div/>"}},
+    {"v":1,"service":"show","action":"create","data":{"id":"hit","at":[0,0,10,10],"window_level":"screen_saver","html":"<div/>"}},
     {"v":1,"service":"show","action":"create","data":{"id":"world","surface":"desktop-world","url":"aos://sigil/renderer/index.html"}},
     {"v":1,"service":"show","action":"post","data":{"id":"x","message":"hello"}},
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"],"text":"hi"}},
@@ -39,6 +40,7 @@ bad_requests = [
     {"v":1,"service":"session","action":"register","data":{"name":"only-a-name"}},  # missing session_id
     {"v":1,"service":"show","action":"create","data":{"id":"x"}},  # no geometry source
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"union","html":"<div/>"}},  # bad surface
+    {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"window_level":"menu_bar","html":"<div/>"}},  # bad window level
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","track":"union","html":"<div/>"}},  # surface + track
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","at":[0,0,10,10],"html":"<div/>"}},  # surface + at
     {"v":1,"service":"show","action":"create","data":{"id":"x","surface":"desktop-world","anchor_window":1,"offset":[0,0,10,10],"html":"<div/>"}},  # surface + anchor

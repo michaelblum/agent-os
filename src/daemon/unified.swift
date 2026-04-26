@@ -416,6 +416,7 @@ class UnifiedDaemon {
             "interactive": canvasInfo.interactive,
             "canvas": canvas,
         ]
+        if let windowLevel = canvasInfo.windowLevel { payload["window_level"] = windowLevel }
         if let parent = canvasInfo.parent { payload["parent"] = parent }
         if let track = canvasInfo.track { payload["track"] = track }
         if let scope = canvasInfo.scope { payload["scope"] = scope }
@@ -727,6 +728,7 @@ class UnifiedDaemon {
             return
         }
         let interactive = payload["interactive"] as? Bool
+        let windowLevel = payload["window_level"] as? String
 
         let resolvedURL = resolveContentURL(url)
 
@@ -739,6 +741,7 @@ class UnifiedDaemon {
             anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: resolvedURL,
             interactive: interactive,
+            windowLevel: windowLevel,
             focus: payload["focus"] as? Bool, ttl: nil, js: nil, scope: nil,
             autoProject: nil,
             track: payload["track"] as? String,
@@ -780,15 +783,16 @@ class UnifiedDaemon {
             return
         }
 
-        // Build the CanvasRequest. Only `frame` and `interactive` are accepted for update.
+        // Build the CanvasRequest. Only `frame`, `interactive`, and `window_level` are accepted for update.
         var at: [CGFloat]? = nil
         if let arr = payload["frame"] as? [Any], arr.count == 4 {
             let parsed: [CGFloat] = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
             if parsed.count == 4 { at = parsed }
         }
         let interactive = payload["interactive"] as? Bool
+        let windowLevel = payload["window_level"] as? String
 
-        guard at != nil || interactive != nil else {
+        guard at != nil || interactive != nil || windowLevel != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
             return
         }
@@ -800,6 +804,7 @@ class UnifiedDaemon {
             anchorWindow: nil, anchorChannel: nil, offset: nil,
             html: nil, url: nil,
             interactive: interactive,
+            windowLevel: windowLevel,
             focus: nil, ttl: nil, js: nil, scope: nil,
             autoProject: nil, channel: nil, data: nil
         )
@@ -837,7 +842,7 @@ class UnifiedDaemon {
             let targetExisted = self.canvasManager.handle(
                 CanvasRequest(action: "list", id: nil, at: nil,
                               anchorWindow: nil, anchorChannel: nil, offset: nil,
-                              html: nil, url: nil, interactive: nil, focus: nil,
+                              html: nil, url: nil, interactive: nil, windowLevel: nil, focus: nil,
                               ttl: nil, js: nil, scope: nil, autoProject: nil,
                               channel: nil, data: nil)
             ).canvases?.contains(where: { $0.id == targetID }) ?? false
@@ -878,6 +883,7 @@ class UnifiedDaemon {
                 anchorWindow: nil, anchorChannel: nil, offset: nil,
                 html: nil, url: nil,
                 interactive: nil,
+                windowLevel: nil,
                 focus: nil, ttl: nil, js: js, scope: nil,
                 autoProject: nil, channel: nil, data: nil
             )
@@ -952,7 +958,7 @@ class UnifiedDaemon {
         let req = CanvasRequest(
             action: "remove", id: targetID, at: nil,
             anchorWindow: nil, anchorChannel: nil, offset: nil,
-            html: nil, url: nil, interactive: nil,
+            html: nil, url: nil, interactive: nil, windowLevel: nil,
             focus: nil, ttl: nil, js: nil, scope: nil,
             autoProject: nil, channel: nil, data: nil
         )

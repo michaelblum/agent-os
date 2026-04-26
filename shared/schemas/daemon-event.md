@@ -49,7 +49,7 @@ Optional initial replay for snapshot-capable streams:
 Today `snapshot:true` replays current state for `display_geometry` and
 `canvas_lifecycle` immediately after the success response. For
 `canvas_lifecycle`, the replay uses the same payload shape as live events,
-including canvas metadata such as `parent`, `track`, `interactive`, `scope`,
+including canvas metadata such as `parent`, `track`, `interactive`, `window_level`, `scope`,
 the nested `canvas` object, and `segments` for DesktopWorld surfaces. For a
 DesktopWorld surface, snapshot replay sends `canvas_topology_settled` before
 the synthetic `created` lifecycle event so segment-aware renderers can identify
@@ -76,7 +76,7 @@ their topology before normal boot side effects run.
 | Event | Data | Trigger |
 |-------|------|---------|
 | `canvas_message` | `{id, payload}` | Canvas JS called postMessage |
-| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, scope?, ttl?, cascade?, suspended?, canvas}` | Canvas created/removed/updated |
+| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, window_level?, scope?, ttl?, cascade?, suspended?, canvas}` | Canvas created/removed/updated |
 | `canvas_segment_added` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface gained a display-backed segment |
 | `canvas_segment_removed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface lost a display-backed segment |
 | `canvas_segment_changed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface segment ordering or bounds changed |

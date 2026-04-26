@@ -342,6 +342,21 @@ function importAvatarDefinitionText(text) {
     return true;
 }
 
+let appliedAvatarWindowLevel = null;
+
+function normalizeAvatarWindowLevel(level) {
+    return level === 'screen_saver' ? 'screen_saver' : 'status_bar';
+}
+
+function applyAvatarWindowLevel(level = state.avatarWindowLevel) {
+    const normalized = normalizeAvatarWindowLevel(level);
+    state.avatarWindowLevel = normalized;
+    if (!isPrimarySurfaceSegment()) return;
+    if (appliedAvatarWindowLevel === normalized) return;
+    appliedAvatarWindowLevel = normalized;
+    host.canvasUpdate({ id: 'avatar-main', window_level: normalized });
+}
+
 async function handleAvatarMenuAction(action) {
     const json = avatarDefinitionJson();
     if (action === 'copy') {
@@ -381,11 +396,16 @@ const contextMenu = createSigilContextMenu({
     onAppearanceChange: markAppearanceChanged,
     onUtilityAction: toggleUtilityCanvas,
     onAvatarAction: handleAvatarMenuAction,
+    onAvatarWindowLevelChange: applyAvatarWindowLevel,
 });
 
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
 }
+
+state._onAppearanceChanged = () => {
+    applyAvatarWindowLevel();
+};
 
 function mainDisplayVisibleBounds() {
     const displays = liveJs.displays || [];

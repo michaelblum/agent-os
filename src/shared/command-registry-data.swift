@@ -184,6 +184,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("file", "--file", "HTML file path"),
                 flag("url", "--url", "URL to load (supports aos:// scheme)"),
                 flag("interactive", "--interactive", "Allow mouse interaction", type: .bool),
+                flag("window-level", "--window-level", "Native window layer",
+                     type: .enumeration([
+                        EnumValue(value: "automatic", summary: "Default for interactive/noninteractive canvases"),
+                        EnumValue(value: "floating", summary: "Floating utility level"),
+                        EnumValue(value: "status_bar", summary: "Status-bar overlay level"),
+                        EnumValue(value: "screen_saver", summary: "Above menu bar and system UI")
+                     ])),
                 flag("focus", "--focus", "Focus the canvas", type: .bool),
                 flag("ttl", "--ttl", "Time to live (e.g. 5s, 10m, none)"),
                 flag("scope", "--scope", "Canvas scope",
@@ -236,6 +243,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("html", "--html", "New HTML content"),
                 flag("file", "--file", "New HTML file path"),
                 flag("url", "--url", "New URL"),
+                flag("window-level", "--window-level", "New native window layer"),
                 flag("focus", "--focus", "Focus the canvas", type: .bool),
                 flag("ttl", "--ttl", "New TTL"),
                 flag("auto-project", "--auto-project", "New projection mode"),

@@ -91,6 +91,11 @@ DesktopWorld surface request. It is mutually exclusive with `at`, `track`,
 `anchor_window`, and `anchor_channel`. For compatibility, `track:"union"`
 creates the same logical surface.
 
+`show.create` and `show.update` accept optional `window_level` for native
+canvas layering. Valid values are `automatic`, `floating`, `status_bar`, and
+`screen_saver`; `automatic` preserves the daemon default for the canvas'
+interactive mode.
+
 DesktopWorld surfaces keep one logical canvas id while the daemon backs that id
 with one physical segment per active display. `show.list`, `show.get`, and
 `canvas_lifecycle` metadata include `segments` for these surfaces:
