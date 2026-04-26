@@ -24,6 +24,16 @@ struct DesktopWorldSurfaceSegment: Codable, Equatable {
         case dwBounds = "dw_bounds"
         case nativeBounds = "native_bounds"
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let displayID    = try c.decode(UInt32.self,    forKey: .displayID)
+        let index        = try c.decode(Int.self,       forKey: .index)
+        let dwBounds     = try c.decode([CGFloat].self, forKey: .dwBounds)
+        let nativeBounds = try c.decode([CGFloat].self, forKey: .nativeBounds)
+        self.init(displayID: displayID, index: index,
+                  dwBounds: dwBounds, nativeBounds: nativeBounds)
+    }
 }
 
 /// Orders segments by (dwBounds.y asc, dwBounds.x asc, displayID asc).
