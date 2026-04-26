@@ -40,21 +40,46 @@ test('left drag release collapses the line tail toward the mouse-up point', () =
   const layout = minimapLayout()
 
   assert.equal(applyMouseEffectsInput(state, { type: 'left_mouse_down' }, { x: 1200, y: 260 }, 1000), true)
-  assert.equal(applyMouseEffectsInput(state, { type: 'left_mouse_dragged' }, { x: 1380, y: 360 }, 1120), true)
+  assert.equal(applyMouseEffectsInput(state, { type: 'left_mouse_dragged' }, { x: 1450, y: 410 }, 1120), true)
   assert.equal(mouseEffectsNeedAnimationFrame(state, 1050), true)
 
   const activeHtml = renderMouseEffectsOverlay(state, layout, 1160)
   assert.match(activeHtml, /mouse-events active/)
   assert.match(activeHtml, /minimap-pointer-line/)
+  assert.match(activeHtml, /minimap-pointer-arrow/)
   assert.match(activeHtml, /--line-origin:0%/)
 
-  assert.equal(applyMouseEffectsInput(state, { type: 'left_mouse_up' }, { x: 1420, y: 380 }, 1200), true)
+  assert.equal(applyMouseEffectsInput(state, { type: 'left_mouse_up' }, { x: 1480, y: 430 }, 1200), true)
   const releaseHtml = renderMouseEffectsOverlay(state, layout, 1240)
   assert.match(releaseHtml, /mouse-events release/)
   assert.match(releaseHtml, /--line-origin:100%/)
   assert.equal(mouseEffectsNeedAnimationFrame(state, 1240), true)
   assert.equal(sweepMouseEffectsState(state, 1400), true)
   assert.equal(renderMouseEffectsOverlay(state, layout, 1400), '')
+})
+
+test('active drag omits the direction arrow when the line is too short', () => {
+  const state = createMouseEffectsState()
+  const layout = minimapLayout()
+
+  applyMouseEffectsInput(state, { type: 'left_mouse_down' }, { x: 1200, y: 260 }, 1000)
+  applyMouseEffectsInput(state, { type: 'left_mouse_dragged' }, { x: 1210, y: 265 }, 1040)
+
+  const html = renderMouseEffectsOverlay(state, layout, 1080)
+  assert.match(html, /minimap-pointer-line/)
+  assert.doesNotMatch(html, /minimap-pointer-arrow/)
+})
+
+test('active drag spanning displays renders one direction arrow per display segment', () => {
+  const state = createMouseEffectsState()
+  const layout = minimapLayout()
+
+  applyMouseEffectsInput(state, { type: 'left_mouse_down' }, { x: 1200, y: 260 }, 1000)
+  applyMouseEffectsInput(state, { type: 'left_mouse_dragged' }, { x: 1200, y: 1600 }, 1040)
+
+  const html = renderMouseEffectsOverlay(state, layout, 1080)
+  const arrows = html.match(/class="minimap-pointer-arrow /g) || []
+  assert.equal(arrows.length, 2)
 })
 
 test('left click adds a separate expanding click pulse on top of the release effect', () => {

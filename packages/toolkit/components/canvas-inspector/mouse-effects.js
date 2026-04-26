@@ -10,12 +10,14 @@ import { projectPointToMinimap } from '../../runtime/spatial.js'
 export const MINIMAP_POINTER_CENTER_SIZE_PX = 7
 export const MINIMAP_POINTER_OUTER_RADIUS_PX = 6
 export const MINIMAP_POINTER_CLICK_PULSE_SCALE = 3
+export const MINIMAP_POINTER_ARROW_ARM_PX = 7
 
 const PRESS_EXPAND_MS = 120
 const RELEASE_MS = 180
 const CANCEL_MS = 90
 const CLICK_PULSE_MS = 180
 const CLICK_DELTA_THRESHOLD_PX = 1.5
+const MIN_ARROW_SEGMENT_PX = (MINIMAP_POINTER_OUTER_RADIUS_PX + MINIMAP_POINTER_ARROW_ARM_PX + 3) * 2
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
@@ -47,6 +49,55 @@ function formatNumber(value) {
 
 function lineAngleDegrees(from, to) {
   return Math.atan2(to.y - from.y, to.x - from.x) * (180 / Math.PI)
+}
+
+function displayRect(displayEntry) {
+  if (!displayEntry) return null
+  return {
+    x: displayEntry.x,
+    y: displayEntry.y,
+    w: displayEntry.w,
+    h: displayEntry.h,
+  }
+}
+
+function clipLineToRect(from, to, rect) {
+  if (!from || !to || !rect) return null
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  let t0 = 0
+  let t1 = 1
+  const checks = [
+    [-dx, from.x - rect.x],
+    [dx, rect.x + rect.w - from.x],
+    [-dy, from.y - rect.y],
+    [dy, rect.y + rect.h - from.y],
+  ]
+  for (const [p, q] of checks) {
+    if (p === 0) {
+      if (q < 0) return null
+      continue
+    }
+    const r = q / p
+    if (p < 0) {
+      if (r > t1) return null
+      if (r > t0) t0 = r
+    } else {
+      if (r < t0) return null
+      if (r < t1) t1 = r
+    }
+  }
+  return {
+    from: { x: from.x + dx * t0, y: from.y + dy * t0 },
+    to: { x: from.x + dx * t1, y: from.y + dy * t1 },
+  }
+}
+
+function lineDisplaySegments(from, to, layout) {
+  const segments = (layout?.displays || [])
+    .map((display) => clipLineToRect(from, to, displayRect(display)))
+    .filter((segment) => segment && distance(segment.from, segment.to) >= MIN_ARROW_SEGMENT_PX)
+  return segments.length > 1 ? segments : [{ from, to }].filter((segment) => distance(segment.from, segment.to) >= MIN_ARROW_SEGMENT_PX)
 }
 
 function activeRingScale(active, now) {
@@ -240,6 +291,27 @@ function renderPointerLine(from, to, metrics, className = '') {
     + `</div>`
 }
 
+function renderDirectionArrow(from, to, className = '') {
+  if (!from || !to) return ''
+  const length = distance(from, to)
+  if (length < MIN_ARROW_SEGMENT_PX) return ''
+  const midpoint = {
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2,
+  }
+  return `<div class="minimap-pointer-arrow ${escAttr(className)}" style="left:${formatNumber(midpoint.x)}px;top:${formatNumber(midpoint.y)}px;transform:rotate(${formatNumber(lineAngleDegrees(from, to))}deg)">`
+    + `<span class="minimap-pointer-arrow-arm up"></span>`
+    + `<span class="minimap-pointer-arrow-arm down"></span>`
+    + `</div>`
+}
+
+function renderDirectionArrows(from, to, layout, className = '') {
+  if (!from || !to || distance(from, to) < MIN_ARROW_SEGMENT_PX) return ''
+  return lineDisplaySegments(from, to, layout)
+    .map((segment) => renderDirectionArrow(segment.from, segment.to, className))
+    .join('')
+}
+
 function renderActiveOverlay(active, layout, now) {
   if (!active) return ''
   const origin = projectPointToMinimap(layout, active.origin)
@@ -250,7 +322,10 @@ function renderActiveOverlay(active, layout, now) {
   const line = origin && current
     ? renderPointerLine(origin, current, lineMetrics(active, now), 'mouse-events active')
     : ''
-  return line + ring + dot
+  const arrows = origin && current
+    ? renderDirectionArrows(origin, current, layout, 'mouse-events active')
+    : ''
+  return line + arrows + ring + dot
 }
 
 function renderTransientOverlay(transient, layout, now) {

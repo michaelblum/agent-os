@@ -69,7 +69,8 @@
 }
 .minimap-canvas.tinted { opacity: 0.85; }
 .minimap-pointer-anchor,
-.minimap-pointer-line-shell {
+.minimap-pointer-line-shell,
+.minimap-pointer-arrow {
   position: absolute;
   left: 0;
   top: 0;
@@ -117,8 +118,23 @@
   transform-origin: var(--line-origin, 0%) 50%;
   opacity: var(--line-opacity, 1);
 }
+.minimap-pointer-arrow {
+  transform-origin: center;
+}
+.minimap-pointer-arrow-arm {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 7px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.96);
+  transform-origin: 100% 50%;
+}
+.minimap-pointer-arrow-arm.up { transform: translateY(-0.5px) rotate(45deg); }
+.minimap-pointer-arrow-arm.down { transform: translateY(-0.5px) rotate(-45deg); }
 .minimap-pointer-anchor.mouse-events .minimap-pointer-ring,
-.minimap-pointer-line-shell.mouse-events .minimap-pointer-line {
+.minimap-pointer-line-shell.mouse-events .minimap-pointer-line,
+.minimap-pointer-arrow.mouse-events .minimap-pointer-arrow-arm {
   border-color: #fff;
   background: #fff;
 }
