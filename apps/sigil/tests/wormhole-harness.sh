@@ -9,6 +9,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$REPO_ROOT/tests/lib/visual-harness.sh"
+
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"
 AVATAR_ID="${AVATAR_ID:-avatar-main}"
@@ -18,34 +20,9 @@ FAST_TRAVEL_EFFECT="${FAST_TRAVEL_EFFECT:-wormhole}"
 cd "$REPO_ROOT"
 
 "$AOS" ready >/dev/null
-"$AOS" set content.roots.toolkit packages/toolkit >/dev/null
-"$AOS" set content.roots.sigil apps/sigil >/dev/null
-"$AOS" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
-"$REPO_ROOT/apps/sigil/sigilctl-seed.sh" --mode "$MODE" >/dev/null
-
-"$AOS" show remove --id "$AVATAR_ID" >/dev/null 2>&1 || true
-"$AOS" show remove --id "$INSPECTOR_ID" >/dev/null 2>&1 || true
-
-AOS="$AOS" bash "$REPO_ROOT/packages/toolkit/components/canvas-inspector/launch.sh" >/dev/null
-
-"$AOS" show create \
-  --id "$AVATAR_ID" \
-  --url 'aos://sigil/renderer/index.html' \
-  --track union >/dev/null
-
-"$AOS" show wait \
-  --id "$AVATAR_ID" \
-  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().hitTargetReady === true && window.liveJs?.avatarPos?.valid === true && window.__sigilBootError == null' \
-  --timeout 10s >/dev/null
-
-"$AOS" show eval \
-  --id "$AVATAR_ID" \
-  --js "window.__sigilDebug.dispatch({ type: 'status_item.show' }); window.state.transitionFastTravelEffect = '$FAST_TRAVEL_EFFECT'; JSON.stringify(window.__sigilDebug.snapshot())" >/dev/null
-
-"$AOS" show wait \
-  --id "$AVATAR_ID" \
-  --js 'window.__sigilDebug?.snapshot().avatarVisible === true' \
-  --timeout 5s >/dev/null
+aos_visual_prepare_live_roots
+aos_visual_seed_sigil "$MODE"
+aos_visual_launch_sigil_with_inspector "$AVATAR_ID" "$INSPECTOR_ID" "$FAST_TRAVEL_EFFECT"
 
 cat <<EOF
 Sigil wormhole harness launched.

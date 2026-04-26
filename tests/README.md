@@ -73,6 +73,20 @@ commands over ad hoc polling:
 - `aos content wait --root <name> ...`
 - `aos show wait --id <canvas> [--manifest <name>] [--js <condition>]`
 
+For tests or manual harnesses that need visual context, use the shared fixture
+in `tests/lib/visual-harness.sh` instead of reimplementing canvas setup. It
+wraps the isolated daemon helpers and provides named launch steps for common
+surfaces:
+
+- `aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil`
+- `aos_visual_launch_canvas_inspector canvas-inspector`
+- `aos_visual_launch_sigil_avatar avatar-main`
+- `aos_visual_launch_sigil_with_inspector avatar-main canvas-inspector`
+
+Visual Sigil scenarios should default to launching `canvas-inspector` beside the
+surface under test unless the test is specifically measuring canvas lifecycle,
+window count, or placement without auxiliary canvases.
+
 Examples:
 
 - `bash tests/capture-region-perception.sh`

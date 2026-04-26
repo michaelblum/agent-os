@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/lib/isolated-daemon.sh"
+source "$(dirname "$0")/lib/visual-harness.sh"
 
 PREFIX="aos-sigil-hit-target-drag-fast-travel"
 aos_test_cleanup_prefix "$PREFIX"
@@ -15,29 +15,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-AOS_BIN="$(pwd)/aos" AOS_RUNTIME_MODE=repo apps/sigil/sigilctl-seed.sh >/dev/null
+aos_visual_seed_sigil repo
 
-aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
+aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-./aos show create \
-  --id avatar-main \
-  --url 'aos://sigil/renderer/index.html' \
-  --track union >/dev/null
-
-./aos show wait \
-  --id avatar-main \
-  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().hitTargetReady === true && window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos?.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && window.__sigilBootError == null' \
-  --timeout 10s >/dev/null
-
-./aos show eval \
-  --id avatar-main \
-  --js 'window.__sigilDebug.dispatch({ type: "status_item.show" }); "ok"' >/dev/null
-
-./aos show wait \
-  --id avatar-main \
-  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true' \
-  --timeout 5s >/dev/null
+aos_visual_launch_sigil_with_inspector avatar-main canvas-inspector
 
 python3 - <<'PY'
 import json
