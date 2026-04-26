@@ -10,14 +10,14 @@ import { projectPointToMinimap } from '../../runtime/spatial.js'
 export const MINIMAP_POINTER_CENTER_SIZE_PX = 7
 export const MINIMAP_POINTER_OUTER_RADIUS_PX = 6
 export const MINIMAP_POINTER_CLICK_PULSE_SCALE = 3
-export const MINIMAP_POINTER_ARROW_ARM_PX = 7
+export const MINIMAP_POINTER_ARROW_ARM_PX = 10
 
 const PRESS_EXPAND_MS = 120
 const RELEASE_MS = 180
 const CANCEL_MS = 90
 const CLICK_PULSE_MS = 180
 const CLICK_DELTA_THRESHOLD_PX = 1.5
-const MIN_ARROW_SEGMENT_PX = (MINIMAP_POINTER_OUTER_RADIUS_PX + MINIMAP_POINTER_ARROW_ARM_PX + 3) * 2
+const MIN_ARROW_SEGMENT_PX = (MINIMAP_POINTER_OUTER_RADIUS_PX * 2) + (MINIMAP_POINTER_ARROW_ARM_PX * 2)
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))

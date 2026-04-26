@@ -78,6 +78,15 @@
   height: 0;
   pointer-events: none;
 }
+.minimap-pointer-line-shell {
+  z-index: 1;
+}
+.minimap-pointer-arrow {
+  z-index: 2;
+}
+.minimap-pointer-anchor {
+  z-index: 3;
+}
 .minimap-pointer-center {
   position: absolute;
   left: 0;
@@ -120,18 +129,20 @@
 }
 .minimap-pointer-arrow {
   transform-origin: center;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
 }
 .minimap-pointer-arrow-arm {
   position: absolute;
   right: 0;
   top: 0;
-  width: 7px;
-  height: 1px;
+  width: 10px;
+  height: 2px;
   background: rgba(255, 255, 255, 0.96);
+  border-radius: 999px;
   transform-origin: 100% 50%;
 }
-.minimap-pointer-arrow-arm.up { transform: translateY(-0.5px) rotate(45deg); }
-.minimap-pointer-arrow-arm.down { transform: translateY(-0.5px) rotate(-45deg); }
+.minimap-pointer-arrow-arm.up { transform: translateY(-1px) rotate(45deg); }
+.minimap-pointer-arrow-arm.down { transform: translateY(-1px) rotate(-45deg); }
 .minimap-pointer-anchor.mouse-events .minimap-pointer-ring,
 .minimap-pointer-line-shell.mouse-events .minimap-pointer-line,
 .minimap-pointer-arrow.mouse-events .minimap-pointer-arrow-arm {
