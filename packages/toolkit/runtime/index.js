@@ -18,6 +18,10 @@ export {
 } from './desktop-world-surface-three.js'
 export { isCanvasInputEventType, normalizeCanvasInputMessage } from './input-events.js'
 export {
+  createDesktopWorldInteractionRouter,
+  pointerPhase,
+} from './interaction-region.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,
