@@ -283,6 +283,88 @@ function stagePoint(point) {
     return desktopWorldToSegmentLocalPoint(point);
 }
 
+function avatarDefinition() {
+    return {
+        kind: 'sigil.avatar.appearance',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        appearance: snapshotAppearance(),
+    };
+}
+
+function avatarDefinitionJson() {
+    return JSON.stringify(avatarDefinition(), null, 2);
+}
+
+async function writeClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        return document.execCommand('copy');
+    } finally {
+        textarea.remove();
+    }
+}
+
+function saveTextFile(filename, text) {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function appearanceFromAvatarDefinitionText(text) {
+    const parsed = JSON.parse(text);
+    if (parsed?.kind === 'sigil.avatar.appearance' && parsed.appearance) return parsed.appearance;
+    if (parsed?.appearance) return parsed.appearance;
+    return parsed;
+}
+
+function importAvatarDefinitionText(text) {
+    const appearance = appearanceFromAvatarDefinitionText(text);
+    applyAppearance(appearance);
+    markAppearanceChanged();
+    return true;
+}
+
+async function handleAvatarMenuAction(action) {
+    const json = avatarDefinitionJson();
+    if (action === 'copy') {
+        try {
+            await writeClipboard(json);
+        } catch (error) {
+            console.warn('[sigil] clipboard write failed; showing avatar JSON fallback:', error);
+            window.prompt('Copy Sigil avatar JSON', json);
+        }
+        return false;
+    }
+    if (action === 'save') {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        saveTextFile(`sigil-avatar-${stamp}.json`, json);
+        return false;
+    }
+    if (action === 'import') {
+        const text = window.prompt('Paste Sigil avatar JSON');
+        if (!text) return false;
+        return importAvatarDefinitionText(text);
+    }
+    return false;
+}
+
 const contextMenu = createSigilContextMenu({
     state,
     liveJs,
@@ -297,6 +379,7 @@ const contextMenu = createSigilContextMenu({
     updateMagneticTentacleCount,
     onAppearanceChange: markAppearanceChanged,
     onUtilityAction: toggleUtilityCanvas,
+    onAvatarAction: handleAvatarMenuAction,
 });
 
 function markAppearanceChanged() {
@@ -1152,6 +1235,8 @@ window.__sigilDebug = {
             } : null,
         };
     },
+    avatarDefinition,
+    importAvatarDefinitionText,
 };
 
 export async function boot() {

@@ -123,6 +123,14 @@
     gap: 6px;
 }
 
+.ctx-heading-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #bc13fe;
+}
+
 .ctx-menu-card h3 {
     margin: 0 0 4px;
     padding-bottom: 4px;
@@ -131,6 +139,53 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     border-bottom: 1px solid #bc13fe;
+}
+
+.ctx-heading-row h3 {
+    flex: 1;
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.ctx-segmented {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 124px;
+    padding: 2px;
+    background: rgba(30, 15, 50, 0.85);
+    border: 1px solid rgba(209, 135, 255, 0.35);
+    border-radius: 6px;
+}
+
+.ctx-segmented button {
+    height: 22px;
+    padding: 0 8px;
+    color: #d187ff;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    font-size: 0.65rem;
+}
+
+.ctx-segmented button:hover {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.2);
+}
+
+.ctx-segmented button.active {
+    color: #fff;
+    background: #bc13fe;
+}
+
+.ctx-shape-scope {
+    display: none;
+}
+
+.ctx-shape-scope.active {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .ctx-menu-card label {
@@ -258,6 +313,13 @@
     background: rgba(30, 15, 50, 0.6);
     border: 1px solid rgba(209, 135, 255, 0.4);
     border-radius: 4px;
+}
+
+.ctx-actions button.ctx-action-text {
+    flex: 1;
+    width: auto;
+    padding: 0 8px;
+    font-size: 0.68rem;
 }
 
 .ctx-actions button:hover {

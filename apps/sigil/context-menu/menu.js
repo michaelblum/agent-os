@@ -8,9 +8,28 @@ import {
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
 const MENU_OFFSET = 18;
+const GEOMETRY_OPTIONS = [
+    [4, 'Tetrahedron'],
+    [6, 'Hexahedron'],
+    [8, 'Octahedron'],
+    [12, 'Dodecahedron'],
+    [20, 'Icosahedron'],
+    [90, 'Tetartoid'],
+    [91, 'Torus Knot'],
+    [92, 'Torus'],
+    [93, 'Prism'],
+    [94, 'Tesseract'],
+    [100, 'Sphere'],
+];
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+}
+
+function geometryOptions() {
+    return GEOMETRY_OPTIONS
+        .map(([value, label]) => `<option value="${value}">${label}</option>`)
+        .join('');
 }
 
 function controlRow(label, id, min, max, step, value) {
@@ -42,27 +61,40 @@ function menuMarkup() {
             </div>
 
             <div id="sigil-menu-shape" class="ctx-panel active">
-                <h3>Shape</h3>
-                <label>Geometry</label>
-                <select id="sigil-menu-shape-select">
-                    <option value="4">Tetrahedron</option>
-                    <option value="6">Hexahedron</option>
-                    <option value="8">Octahedron</option>
-                    <option value="12">Dodecahedron</option>
-                    <option value="20">Icosahedron</option>
-                    <option value="90">Tetartoid</option>
-                    <option value="91">Torus Knot</option>
-                    <option value="100">Sphere</option>
-                </select>
-                ${controlRow('Stellation', 'sigil-menu-stellation', -1, 2, 0.05, 0)}
-                ${controlRow('Face Opacity', 'sigil-menu-opacity', 0, 1, 0.01, 0.8)}
-                ${controlRow('Edge Opacity', 'sigil-menu-edge-opacity', 0, 1, 0.01, 0.6)}
-                <div class="ctx-row">
-                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-xray"> X-Ray</label>
-                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-specular"> Specular</label>
+                <div class="ctx-heading-row">
+                    <h3>Shape</h3>
+                    <div class="ctx-segmented" role="tablist" aria-label="Shape target">
+                        <button type="button" class="active" data-sigil-shape-scope="alpha">Alpha</button>
+                        <button type="button" data-sigil-shape-scope="omega">Omega</button>
+                    </div>
                 </div>
-                <div class="ctx-divider"></div>
-                <button class="ctx-trigger" data-ctx-open="sigil-menu-omega">Omega Shape</button>
+                <div class="ctx-shape-scope active" data-sigil-shape-panel="alpha">
+                    <label>Geometry</label>
+                    <select id="sigil-menu-shape-select">
+                        ${geometryOptions()}
+                    </select>
+                    ${controlRow('Stellation', 'sigil-menu-stellation', -1, 2, 0.05, 0)}
+                    ${controlRow('Face Opacity', 'sigil-menu-opacity', 0, 1, 0.01, 0.8)}
+                    ${controlRow('Edge Opacity', 'sigil-menu-edge-opacity', 0, 1, 0.01, 0.6)}
+                    <div class="ctx-row">
+                        <label class="checkbox-label"><input type="checkbox" id="sigil-menu-xray"> X-Ray</label>
+                        <label class="checkbox-label"><input type="checkbox" id="sigil-menu-specular"> Specular</label>
+                    </div>
+                </div>
+                <div class="ctx-shape-scope" data-sigil-shape-panel="omega">
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-enabled"> Enable Omega</label>
+                    <label>Geometry</label>
+                    <select id="sigil-menu-omega-shape">
+                        ${geometryOptions()}
+                    </select>
+                    ${controlRow('Scale', 'sigil-menu-omega-scale', 0.1, 5, 0.05, 1)}
+                    ${controlRow('Stellation', 'sigil-menu-omega-stellation', -1, 2, 0.05, 0)}
+                    <div class="ctx-row">
+                        <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-counterspin"> Counter Spin</label>
+                        <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-lock"> Lock Pos</label>
+                    </div>
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-interdim"> Inter-dimensional</label>
+                </div>
             </div>
 
             <div id="sigil-menu-look" class="ctx-panel">
@@ -114,30 +146,11 @@ function menuMarkup() {
                 <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
                 <div class="ctx-divider"></div>
                 <div class="ctx-actions">
-                    <button id="sigil-menu-randomize" title="Randomize">R</button>
-                    <button id="sigil-menu-snapshot" title="Snapshot">S</button>
+                    <button class="ctx-action-text" data-sigil-avatar-action="copy" title="Copy avatar JSON">Copy</button>
+                    <button class="ctx-action-text" data-sigil-avatar-action="save" title="Save avatar JSON">Save</button>
+                    <button class="ctx-action-text" data-sigil-avatar-action="import" title="Import avatar JSON">Import</button>
                 </div>
             </div>
-        </div>
-
-        <div id="sigil-menu-omega" class="ctx-menu-card ctx-sub">
-            <h3>Omega Shape</h3>
-            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-enabled"> Enable Omega</label>
-            <label>Shape</label>
-            <select id="sigil-menu-omega-shape">
-                <option value="4">Tetrahedron</option>
-                <option value="6">Hexahedron</option>
-                <option value="8">Octahedron</option>
-                <option value="12">Dodecahedron</option>
-                <option value="20">Icosahedron</option>
-            </select>
-            ${controlRow('Scale', 'sigil-menu-omega-scale', 0.1, 5, 0.05, 1)}
-            ${controlRow('Stellation', 'sigil-menu-omega-stellation', -1, 2, 0.05, 0)}
-            <div class="ctx-row">
-                <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-counterspin"> Counter Spin</label>
-                <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-lock"> Lock Pos</label>
-            </div>
-            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-interdim"> Inter-dimensional</label>
         </div>
 
         <div id="sigil-menu-core-colors" class="ctx-menu-card ctx-sub">
@@ -197,6 +210,7 @@ export function createSigilContextMenu({
     updateMagneticTentacleCount,
     onAppearanceChange,
     onUtilityAction,
+    onAvatarAction,
     onBoundsChange,
 } = {}) {
     const layer = document.createElement('div');
@@ -650,6 +664,37 @@ export function createSigilContextMenu({
         onColor('sigil-menu-grid2', 'grid', 1);
         onAction('toggle-inspector', () => onUtilityAction?.('canvas-inspector'));
         onAction('toggle-log', () => onUtilityAction?.('log-console'));
+
+        layer.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const scope = button.dataset.sigilShapeScope || 'alpha';
+                layer.querySelectorAll('[data-sigil-shape-scope]').forEach((entry) => {
+                    entry.classList.toggle('active', entry === button);
+                });
+                layer.querySelectorAll('[data-sigil-shape-panel]').forEach((panel) => {
+                    panel.classList.toggle('active', panel.dataset.sigilShapePanel === scope);
+                });
+                syncSnapshot();
+            });
+        });
+
+        layer.querySelectorAll('[data-sigil-avatar-action]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const action = button.dataset.sigilAvatarAction;
+                Promise.resolve(onAvatarAction?.(action)).then((changed) => {
+                    if (changed) {
+                        syncFromState();
+                        syncSnapshot();
+                    }
+                }).catch((error) => {
+                    console.warn('[sigil] avatar menu action failed:', error);
+                });
+            });
+        });
     }
 
     bindControls();
