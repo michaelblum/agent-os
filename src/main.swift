@@ -22,6 +22,8 @@ struct AOS {
             handleSee(args: Array(args.dropFirst()))
         case "show":
             handleShow(args: Array(args.dropFirst()))
+        case "ops":
+            opsCommand(args: Array(args.dropFirst()))
         case "do":
             handleDo(args: Array(args.dropFirst()))
         case "say":

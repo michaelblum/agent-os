@@ -197,7 +197,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      type: .enumeration([
                         EnumValue(value: "connection", summary: "Removed when client disconnects"),
                         EnumValue(value: "global", summary: "Persists after disconnect")
-                     ]), default: .string("connection")),
+                     ]), default: .string("global")),
                 flag("auto-project", "--auto-project", "Auto-projection mode",
                      type: .enumeration([
                         EnumValue(value: "none", summary: "No projection"),
@@ -356,6 +356,43 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(daemon: true),
             output: outJSON,
             examples: ["aos show post --id avatar --event '{\"type\":\"update\"}'"])
+    ]))
+
+    // ── ops ────────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["ops"], summary: "Operator recipes — discover, explain, dry-run, and run source-backed ops recipes", forms: [
+        InvocationForm(id: "ops-list", usage: "aos ops list [--json]",
+            args: [flag("json", "--json", "Emit machine-readable recipe list", type: .bool)],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos ops list", "aos ops list --json"]),
+        InvocationForm(id: "ops-explain", usage: "aos ops explain <id> [--json]",
+            args: [
+                pos("id", "Recipe id"),
+                flag("json", "--json", "Emit machine-readable recipe explanation", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos ops explain runtime/status-snapshot --json"]),
+        InvocationForm(id: "ops-dry-run", usage: "aos ops dry-run <id> [--json]",
+            args: [
+                pos("id", "Recipe id"),
+                flag("json", "--json", "Emit machine-readable dry-run result", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos ops dry-run runtime/status-snapshot --json"]),
+        InvocationForm(id: "ops-run", usage: "aos ops run <id> [--json]",
+            args: [
+                pos("id", "Recipe id"),
+                flag("json", "--json", "Emit machine-readable run result", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos ops run runtime/status-snapshot --json"])
     ]))
 
     // ── do ────────────────────────────────────────────────

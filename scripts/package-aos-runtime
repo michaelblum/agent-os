@@ -35,6 +35,7 @@ mkdir -p \
   "$SIGIL_RESOURCE_ROOT/apps/sigil" \
   "$SIGIL_RESOURCE_ROOT/packages/toolkit/components"
 cp "$REPO_ROOT/apps/sigil/radial-menu-config.json" "$SIGIL_RESOURCE_ROOT/apps/sigil/radial-menu-config.json"
+"$REPO_ROOT/scripts/generate-ops-recipe-index" "$REPO_ROOT" "$SIGIL_RESOURCE_ROOT/recipes-index.json"
 
 # ── aos-gateway (MCP + broker) ─────────────────────────────────
 # Plan: docs/superpowers/plans/2026-04-22-gateway-hardening.md (Task 14)

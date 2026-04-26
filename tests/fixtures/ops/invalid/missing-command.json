@@ -1,0 +1,13 @@
+{
+  "id": "fixture/missing-command",
+  "version": 1,
+  "summary": "Invalid fixture with no command reference.",
+  "scope": "source",
+  "mutates": false,
+  "steps": [
+    {
+      "id": "broken",
+      "argv": ["--json"]
+    }
+  ]
+}

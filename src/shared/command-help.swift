@@ -161,6 +161,7 @@ func printFullRegistryText() {
 
     let preferredVerbOrder = [
         "status",
+        "ops",
         "see",
         "do",
         "show",

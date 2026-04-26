@@ -1,0 +1,35 @@
+{
+  "id": "runtime/status-snapshot",
+  "version": 1,
+  "summary": "Capture the current AOS runtime status as a read-only operator snapshot.",
+  "scope": "source",
+  "mutates": false,
+  "requires": ["status"],
+  "docs": "docs/api/aos.md#repo-development-entry-points",
+  "steps": [
+    {
+      "id": "status-json",
+      "command": {
+        "path": ["status"],
+        "form_id": "status"
+      },
+      "argv": ["--json"],
+      "timeout_ms": 10000,
+      "mutates": false,
+      "assertions": [
+        {
+          "path": ["status"],
+          "exists": true
+        },
+        {
+          "path": ["identity", "mode"],
+          "exists": true
+        },
+        {
+          "path": ["runtime", "socket_path"],
+          "exists": true
+        }
+      ]
+    }
+  ]
+}

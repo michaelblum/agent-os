@@ -73,6 +73,7 @@ The current top-level commands are:
 | --- | --- |
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
+| `aos ops` | source-backed operator recipes: list, explain, dry-run, run |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -239,7 +240,7 @@ Primary public verbs:
 - `--interactive`
 - `--focus`
 - `--ttl <duration>`
-- `--scope connection|global`
+- `--scope connection|global` (default: `global`)
 - `--track union`
 - `--surface desktop-world` — canonical alias for `--track union`
 
@@ -250,6 +251,41 @@ canvas keeps a single `id`; `show list` exposes a `segments` array with ordered
 canvases are unchanged and do not carry `segments`. Existing normal canvases
 cannot be converted into DesktopWorld surfaces with `show update`; remove and
 recreate the canvas so it boots with the segmented backing.
+
+## `aos ops`
+
+`ops` is the source-backed operator recipe surface. It sits above primitive
+verbs such as `status`, `show`, and `see`, but it keeps those primitive command
+references visible so agents can inspect what will run.
+
+| Subcommand | Purpose |
+| --- | --- |
+| `list` | list discoverable source-backed recipes |
+| `explain <id>` | show the structured recipe plan |
+| `dry-run <id>` | statically expand and validate a recipe without side effects |
+| `run <id>` | execute a recipe |
+
+V1 examples:
+
+```bash
+aos ops list --json
+aos ops explain runtime/status-snapshot --json
+aos ops dry-run runtime/status-snapshot --json
+aos ops run runtime/status-snapshot --json
+```
+
+`ops dry-run` is static in v1: it does not start daemons, create canvases,
+mutate resources, or run read-only observation probes. It validates the recipe,
+resolves declared resources, verifies command-registry references, and returns
+the planned steps.
+
+`ops run` initially supports the read-only `runtime/status-snapshot` recipe.
+Mutating canvas smokes are intentionally deferred until ownership, cleanup,
+TTL, timeout, and dry-run behavior are covered by tests.
+
+`--json` follows the global process contract: success and dry-run success emit
+JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on
+stderr with non-zero exit.
 
 ## `aos do`
 

@@ -180,6 +180,7 @@ agent-os/
   src/                   ← Unified aos binary
     perceive/            ← `aos see` — screenshots, AX tree, focus channels, graph nav
     display/             ← `aos show` — WKWebView canvases, overlays, render mode
+    commands/ops.swift   ← `aos ops` — source-backed operator recipes
     act/                 ← `aos do` — AX + CGEvent + AppleScript actuator
     voice/               ← `aos say` — TTS, daemon announcements (STT planned)
     content/             ← HTTP file server for WKWebView canvases
@@ -207,6 +208,7 @@ agent-os/
 |-----------|-------|----------|----------|--------|-----------------|
 | `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS |
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
+| `aos` ops | Operator layer | Swift + JSON manifests | `src/commands/ops.swift`, `recipes/`, `shared/schemas/ops-*.schema.json` | v1 scaffold | Source-backed recipes that agents can list, explain, statically dry-run, and run; first executable recipe is read-only `runtime/status-snapshot` |
 | `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT + persona planned |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
@@ -225,6 +227,7 @@ The orchestrator (whatever it is — Codex, Claude Code, a custom daemon) invoke
 ```
 Orchestrator
   |-- aos see capture --xray --base64  --> JSON { status, base64, elements }
+  |-- aos ops dry-run runtime/status-snapshot --json --> JSON { status: "dry_run", steps: [...] }
   |-- aos do click 450,320              --> JSON { status: "success" }
   |-- aos show create --id orb --at ... --> JSON { id: "orb" }
   |-- aos say "Hello"                   --> JSON { status: "success" }

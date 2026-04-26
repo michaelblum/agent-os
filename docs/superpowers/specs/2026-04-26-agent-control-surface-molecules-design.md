@@ -511,9 +511,10 @@ Static help can still point to related recipes:
 ## Registry Drift
 
 The command registry is useful, but it must not be blindly trusted for mutation
-safety until drift tests exist. There is already known drift: the registry says
-`show create --scope` defaults to `connection`, while the daemon default is
-currently `global`.
+safety until drift tests exist. A concrete drift found during this design was
+`show create --scope`: the registry said `connection`, while the daemon default
+was `global`. The first ops implementation corrected that and added a
+regression test for it.
 
 Before an ops engine relies on registry metadata for safety or dry-run, add
 registry-vs-implementation tests for the forms used by v1 recipes.

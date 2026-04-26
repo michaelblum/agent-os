@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/ops-result.schema.json",
+  "title": "AOS Ops Result",
+  "description": "Machine-readable result for aos ops dry-run and run.",
+  "type": "object",
+  "required": [
+    "status",
+    "code",
+    "error",
+    "recipe",
+    "mode",
+    "dry_run",
+    "started_at",
+    "finished_at",
+    "mutated_resources",
+    "steps",
+    "cleanup"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "enum": ["success", "failure", "partial", "dry_run"] },
+    "code": {
+      "enum": [
+        "OK",
+        "INVALID_RECIPE",
+        "INVALID_RECIPE_INDEX",
+        "RECIPE_DISCOVERY_FAILED",
+        "RECIPE_READ_FAILED",
+        "RECIPE_NOT_FOUND",
+        "DUPLICATE_RECIPE_ID",
+        "UNKNOWN_COMMAND_FORM",
+        "DRY_RUN_UNRESOLVED_INPUT",
+        "ASSERTION_FAILED",
+        "COMMAND_FAILED",
+        "MUTATING_RECIPE_UNSUPPORTED",
+        "TIMEOUT",
+        "CLEANUP_FAILED",
+        "INTERNAL"
+      ]
+    },
+    "error": { "type": ["string", "null"] },
+    "recipe": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "mode": { "enum": ["repo", "installed"] },
+    "dry_run": { "type": "boolean" },
+    "started_at": { "type": "string" },
+    "finished_at": { "type": "string" },
+    "mutated_resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/StepResult" }
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["status", "steps"],
+      "additionalProperties": true,
+      "properties": {
+        "status": { "type": "string" },
+        "steps": { "type": "array" }
+      }
+    }
+  },
+  "$defs": {
+    "StepResult": {
+      "type": "object",
+      "required": [
+        "id",
+        "command",
+        "argv",
+        "timeout_ms",
+        "mutates",
+        "finally",
+        "supports_delegate_dry_run",
+        "would_run",
+        "assertions",
+        "status"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "object",
+          "required": ["path", "form_id"],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "form_id": { "type": "string" }
+          }
+        },
+        "argv": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "timeout_ms": { "type": "integer", "minimum": 1 },
+        "mutates": { "type": "boolean" },
+        "finally": { "type": "boolean" },
+        "supports_delegate_dry_run": { "type": "boolean" },
+        "would_run": { "type": "boolean" },
+        "assertions": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "observed": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}
