@@ -768,6 +768,32 @@ async function init() {
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
+function clearHiddenFrame(renderAvatarPos) {
+    state.appScale = 0;
+    state.polyGroup.scale.setScalar(0);
+    if (state.omegaGroup) state.omegaGroup.visible = false;
+    if (isPrimarySurfaceSegment()) {
+        hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+    }
+    overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
+    visibilityTransition.draw({ avatarStagePos: null });
+    fastTravel.draw();
+    state.renderer.clear(true, true, true);
+
+    if (window.__sigilBootFirstFrameAt === null) {
+        window.__sigilBootFirstFrameAt = Date.now();
+        recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
+    }
+    if (desktopWorldSurface?.isPrimary) {
+        desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
+    }
+    if (isPrimarySurfaceSegment() && liveJs._pendingLifecycleComplete) {
+        host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
+        liveJs._pendingLifecycleComplete = null;
+    }
+    scheduleRenderFrame();
+}
+
 function animate() {
     if (rendererSuspended) return;
 
@@ -813,6 +839,15 @@ function animate() {
                 host.post('lifecycle.complete', { action: transitionState.lifecycleAction });
             }
         }
+    }
+
+    const visualActive = liveJs.avatarVisible
+        || !!visibilityTransition.active
+        || !!liveJs.travel
+        || state.appScale > 0.001;
+    if (!visualActive) {
+        clearHiddenFrame(renderAvatarPos);
+        return;
     }
 
     if (renderAvatarPos.valid) {

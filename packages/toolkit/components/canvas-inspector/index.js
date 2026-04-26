@@ -176,6 +176,7 @@ export default function CanvasInspector() {
   let lastTintError = null
   let dynamicAnimationFrame = 0
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
+  let listCollapsed = true
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -325,15 +326,45 @@ export default function CanvasInspector() {
 
   function rerender() {
     if (!contentEl) return
-    contentEl.innerHTML = renderMinimap(canvases)
-      + `<div class="canvas-list-region">${renderTree()}</div>`
+    const priorListRegion = contentEl.querySelector('.canvas-list-region')
+    const priorListScrollTop = priorListRegion?.scrollTop ?? 0
+    contentEl.innerHTML = renderMinimap(minimapCanvases())
+      + renderListToggle()
+      + `<div class="canvas-list-region" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
       + renderStatusBar()
+    const nextListRegion = contentEl.querySelector('.canvas-list-region')
+    if (nextListRegion && !listCollapsed) nextListRegion.scrollTop = priorListScrollTop
     syncMinimapDynamicLayer()
     syncDebugState()
   }
 
   function getMinimapWidth() {
     return Math.max(120, (contentEl?.clientWidth || 296) - 16)
+  }
+
+  function minimapCanvases() {
+    const displayRects = normalizeDisplays(displays)
+      .map((display) => display.nativeBounds || display.bounds)
+      .filter(Boolean)
+    const visibleCanvases = canvases.filter((canvas) => canvas?.suspended !== true)
+    return resolveCanvasFrames(visibleCanvases).filter((canvas) => {
+      const rect = rectFromAt(canvas.atResolved ?? canvas.at)
+      if (!rect) return false
+      return displayRects.some((display) => rectsIntersect(rect, display))
+    })
+  }
+
+  function rectsIntersect(a, b) {
+    return a.x < b.x + b.w
+      && a.x + a.w > b.x
+      && a.y < b.y + b.h
+      && a.y + a.h > b.y
+  }
+
+  function renderListToggle() {
+    return `<button class="canvas-list-toggle" type="button" aria-expanded="${listCollapsed ? 'false' : 'true'}" title="${listCollapsed ? 'Show canvas list' : 'Hide canvas list'}">`
+      + `<span class="canvas-list-caret ${listCollapsed ? '' : 'open'}" aria-hidden="true"></span>`
+      + `</button>`
   }
 
   function renderMinimap(list) {
@@ -503,6 +534,11 @@ export default function CanvasInspector() {
     contentEl.addEventListener('click', (event) => {
       const btn = event.target?.closest?.('button')
       if (!btn || !contentEl.contains(btn)) return
+      if (btn.classList.contains('canvas-list-toggle')) {
+        listCollapsed = !listCollapsed
+        rerender()
+        return
+      }
       if (btn.classList.contains('cursor-toggle-btn')) {
         setCursorTrackingEnabled(!cursorTrackingEnabled)
         return

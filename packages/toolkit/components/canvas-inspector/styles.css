@@ -130,6 +130,40 @@
   min-height: 0;
   overflow: auto;
 }
+.canvas-list-region[hidden] {
+  display: none;
+}
+
+.canvas-list-toggle {
+  flex-shrink: 0;
+  width: 100%;
+  height: 18px;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(30, 34, 48, 0.42);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.canvas-list-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.canvas-list-caret {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+}
+.canvas-list-caret.open {
+  border-top: 0;
+  border-bottom: 5px solid currentColor;
+}
 
 .canvas-list { padding: 0 0 8px; }
 .tree-row {

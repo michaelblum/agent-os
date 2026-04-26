@@ -49,9 +49,10 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
     function sync(center, interactive) {
         if (!hit.ready || !center?.valid) return;
         const nextInteractive = !!interactive;
+        const targetCenter = nextInteractive ? center : { x: -10000, y: -10000 };
         const update = {
             id: hit.id,
-            frame: frameFor(center, hit.size),
+            frame: frameFor(targetCenter, hit.size),
         };
         if (nextInteractive !== hit.interactive) {
             update.interactive = nextInteractive;
