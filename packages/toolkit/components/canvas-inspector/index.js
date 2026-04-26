@@ -58,6 +58,7 @@ const TINT_COLORS = [
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
 const TREE_INDENT_PX = 12
 const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
+const MIN_EXPANDED_LIST_HEIGHT = 220
 
 function escapeHTML(value) {
   if (value === null || value === undefined) return ''
@@ -178,6 +179,7 @@ export default function CanvasInspector() {
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
   let listCollapsed = true
   let expandedCanvasHeight = null
+  let collapsedCanvasHeight = null
   let pendingResizeFrame = 0
   let lastResizeRequest = null
   let bundleCapture = {
@@ -374,8 +376,15 @@ export default function CanvasInspector() {
   function desiredCanvasHeight() {
     if (!contentEl) return null
     if (!listCollapsed) {
-      return Number.isFinite(expandedCanvasHeight) ? expandedCanvasHeight : window.innerHeight
+      return Number.isFinite(expandedCanvasHeight)
+        ? expandedCanvasHeight
+        : Math.max(window.innerHeight, (collapsedCanvasHeight || collapsedLayoutHeight()) + MIN_EXPANDED_LIST_HEIGHT)
     }
+    collapsedCanvasHeight = collapsedLayoutHeight()
+    return collapsedCanvasHeight
+  }
+
+  function collapsedLayoutHeight() {
     const panel = contentEl.closest('.aos-panel')
     const status = contentEl.querySelector('.status-bar')
     if (!panel || !status) return null
@@ -574,11 +583,12 @@ export default function CanvasInspector() {
       if (!btn || !contentEl.contains(btn)) return
       if (btn.classList.contains('canvas-list-toggle')) {
         if (!listCollapsed) {
-          expandedCanvasHeight = window.innerHeight
+          expandedCanvasHeight = Math.max(window.innerHeight, (collapsedCanvasHeight || collapsedLayoutHeight()) + MIN_EXPANDED_LIST_HEIGHT)
         }
         listCollapsed = !listCollapsed
         if (!listCollapsed && !Number.isFinite(expandedCanvasHeight)) {
-          expandedCanvasHeight = Math.max(window.innerHeight, 480)
+          const collapsedBase = collapsedCanvasHeight || window.innerHeight
+          expandedCanvasHeight = Math.max(window.innerHeight, collapsedBase + MIN_EXPANDED_LIST_HEIGHT)
         }
         lastResizeRequest = null
         rerender()
