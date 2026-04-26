@@ -334,7 +334,6 @@ export default function CanvasInspector() {
     const priorListRegion = contentEl.querySelector('.canvas-list-region')
     const priorListScrollTop = priorListRegion?.scrollTop ?? 0
     contentEl.innerHTML = renderMinimap(minimapCanvases())
-      + renderListToggle()
       + `<div class="canvas-list-region" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
       + renderStatusBar()
     const nextListRegion = contentEl.querySelector('.canvas-list-region')
@@ -365,12 +364,6 @@ export default function CanvasInspector() {
       && a.x + a.w > b.x
       && a.y < b.y + b.h
       && a.y + a.h > b.y
-  }
-
-  function renderListToggle() {
-    return `<button class="canvas-list-toggle" type="button" aria-expanded="${listCollapsed ? 'false' : 'true'}" title="${listCollapsed ? 'Show canvas list' : 'Hide canvas list'}">`
-      + `<span class="canvas-list-caret ${listCollapsed ? '' : 'open'}" aria-hidden="true"></span>`
-      + `</button>`
   }
 
   function desiredCanvasHeight() {
@@ -542,7 +535,13 @@ export default function CanvasInspector() {
     } else if (bundleCapture?.status === 'error') {
       detail = bundleCapture.message || 'bundle failed'
     }
-    return `<div class="status-bar"><span class="event-count">${eventCount} events</span><span>${detail}</span></div>`
+    return `<div class="status-bar">`
+      + `<span class="event-count">${eventCount} events</span>`
+      + `<button class="canvas-list-toggle" type="button" aria-expanded="${listCollapsed ? 'false' : 'true'}" title="${listCollapsed ? 'Show canvas list' : 'Hide canvas list'}">`
+      + `<span class="canvas-list-caret ${listCollapsed ? '' : 'open'}" aria-hidden="true"></span>`
+      + `</button>`
+      + `<span>${detail}</span>`
+      + `</div>`
   }
 
   async function toggleTint(id) {
