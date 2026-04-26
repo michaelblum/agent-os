@@ -74,6 +74,7 @@ const liveJs = {
     mousedownAvatarPos: null,
     avatarVisible: false,
     contextMenu: { open: false, bounds: null, stack: null },
+    utilityCanvases: new Map(),
     surfaceRenderSnapshot: null,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
@@ -276,7 +277,97 @@ const contextMenu = createSigilContextMenu({
     updateAccretion,
     updateNeutrinos,
     updateMagneticTentacleCount,
+    onUtilityAction: toggleUtilityCanvas,
 });
+
+function mainDisplayVisibleBounds() {
+    const displays = liveJs.displays || [];
+    const display = displays.find((entry) => entry.index === 0 || entry.is_main || entry.isMain)
+        || displays[0];
+    return display?.visibleBounds || display?.visible_bounds || display?.bounds || liveJs.visibleBounds;
+}
+
+function utilityFrame(kind) {
+    const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
+    if (kind === 'log-console') {
+        const width = Math.min(520, Math.max(420, visible.w * 0.32));
+        const height = Math.min(320, Math.max(260, visible.h * 0.32));
+        return [
+            Math.round(visible.x + 20),
+            Math.round(visible.y + visible.h - height - 20),
+            Math.round(width),
+            Math.round(height),
+        ];
+    }
+
+    const width = Math.min(360, Math.max(320, visible.w * 0.26));
+    const height = Math.min(520, Math.max(420, visible.h * 0.55));
+    return [
+        Math.round(visible.x + visible.w - width - 20),
+        Math.round(visible.y + 20),
+        Math.round(width),
+        Math.round(height),
+    ];
+}
+
+function utilityConfig(kind) {
+    if (kind === 'log-console') {
+        return {
+            id: '__log__',
+            url: 'aos://toolkit/components/log-console/index.html',
+            frame: utilityFrame(kind),
+        };
+    }
+    return {
+        id: 'canvas-inspector',
+        url: 'aos://toolkit/components/canvas-inspector/index.html',
+        frame: utilityFrame(kind),
+    };
+}
+
+async function toggleUtilityCanvas(kind) {
+    const config = utilityConfig(kind);
+    const current = liveJs.utilityCanvases.get(config.id);
+    try {
+        if (current && current.suspended !== true) {
+            await host.canvasSuspend(config.id);
+            liveJs.utilityCanvases.set(config.id, { ...current, suspended: true });
+            return;
+        }
+        if (current) {
+            await host.canvasResume(config.id);
+            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false });
+            return;
+        }
+        await host.canvasCreate({
+            id: config.id,
+            url: config.url,
+            frame: config.frame,
+            interactive: true,
+            focus: true,
+        });
+        liveJs.utilityCanvases.set(config.id, {
+            id: config.id,
+            suspended: false,
+            at: config.frame,
+        });
+    } catch (error) {
+        if (!current) {
+            try {
+                await host.canvasResume(config.id);
+                liveJs.utilityCanvases.set(config.id, {
+                    id: config.id,
+                    suspended: false,
+                    at: config.frame,
+                });
+                return;
+            } catch (_) {
+                // Fall through to the original warning below.
+            }
+        }
+        console.warn('[sigil] utility toggle failed:', kind, error);
+    }
+}
 
 function projectAvatarToScene(screenX, screenY, yOffset = 0) {
     const local = desktopWorldToSegmentLocalPoint({ x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
@@ -656,6 +747,23 @@ function handleHostMessage(rawMsg) {
     const msg = normalizeMessage(rawMsg);
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
+    if (msg.type === 'canvas_lifecycle') {
+        const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (canvasId === '__log__' || canvasId === 'canvas-inspector') {
+            if (msg.action === 'removed') {
+                liveJs.utilityCanvases.delete(canvasId);
+            } else {
+                liveJs.utilityCanvases.set(canvasId, {
+                    ...(msg.canvas || {}),
+                    id: canvasId,
+                    suspended: msg.suspended ?? msg.canvas?.suspended ?? false,
+                    at: msg.at ?? msg.canvas?.at ?? null,
+                });
+            }
+        }
+        return;
+    }
+
     if (msg.type === 'live_appearance') {
         if (msg.appearance) applyAppearance(msg.appearance);
         return;
@@ -765,7 +873,7 @@ let primarySurfaceServicesStarted = false;
 function startPrimarySurfaceServices() {
     if (primarySurfaceServicesStarted) return;
     primarySurfaceServicesStarted = true;
-    host.subscribe(['display_geometry', 'input_event', 'canvas_message'], { snapshot: true });
+    host.subscribe(['display_geometry', 'input_event', 'canvas_message', 'canvas_lifecycle'], { snapshot: true });
     startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);

@@ -105,6 +105,9 @@ function menuMarkup() {
                 </select>
                 ${controlRow('Menu Ring', 'sigil-menu-ring', 40, 260, 1, 120)}
                 <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-sigil-action="toggle-inspector">Canvas Inspector</button>
+                <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
+                <div class="ctx-divider"></div>
                 <div class="ctx-actions">
                     <button id="sigil-menu-randomize" title="Randomize">R</button>
                     <button id="sigil-menu-snapshot" title="Snapshot">S</button>
@@ -187,6 +190,7 @@ export function createSigilContextMenu({
     updateAccretion,
     updateNeutrinos,
     updateMagneticTentacleCount,
+    onUtilityAction,
     onBoundsChange,
 } = {}) {
     const layer = document.createElement('div');
@@ -487,6 +491,15 @@ export function createSigilContextMenu({
                 updateAllColors?.();
             });
         };
+        const onAction = (action, handler) => {
+            const el = layer.querySelector(`[data-sigil-action="${action}"]`);
+            if (!el) return;
+            el.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handler?.();
+            });
+        };
 
         onRange('sigil-menu-stellation', (value) => {
             state.stellationFactor = value;
@@ -584,6 +597,8 @@ export function createSigilContextMenu({
         onColor('sigil-menu-magnetic2', 'magnetic', 1);
         onColor('sigil-menu-grid1', 'grid', 0);
         onColor('sigil-menu-grid2', 'grid', 1);
+        onAction('toggle-inspector', () => onUtilityAction?.('canvas-inspector'));
+        onAction('toggle-log', () => onUtilityAction?.('log-console'));
     }
 
     bindControls();

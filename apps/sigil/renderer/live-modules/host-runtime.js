@@ -118,6 +118,20 @@ export function createHostRuntime() {
                 },
             });
         },
+        canvasSuspend(id) {
+            return request('canvas.suspend', { id }, {
+                mapResult() {
+                    return undefined;
+                },
+            });
+        },
+        canvasResume(id) {
+            return request('canvas.resume', { id }, {
+                mapResult() {
+                    return undefined;
+                },
+            });
+        },
         positionGet(key, opts = {}) {
             return request('position.get', { key }, {
                 timeoutMs: opts.timeoutMs ?? 5000,
