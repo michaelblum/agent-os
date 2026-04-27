@@ -40,6 +40,24 @@ export function createInteractionOverlay() {
             return;
         }
 
+        if (snapshot.avatarHoverProgress > 0.01 && snapshot.avatarPos?.valid) {
+            const progress = Math.max(0, Math.min(1, snapshot.avatarHoverProgress));
+            const radius = (snapshot.avatarHitRadius || 40) + (7 * progress);
+            ctx.save();
+            ctx.globalAlpha = 0.82 * progress;
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(125, 248, 215, 0.9)';
+            ctx.lineWidth = 1.5 + progress;
+            ctx.arc(snapshot.avatarPos.x, snapshot.avatarPos.y, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.24)';
+            ctx.lineWidth = 1;
+            ctx.arc(snapshot.avatarPos.x, snapshot.avatarPos.y, radius + 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         if (snapshot.radialGesture?.phase === 'radial' && snapshot.radialGesture.origin) {
             const radial = snapshot.radialGesture;
             const origin = radial.origin;

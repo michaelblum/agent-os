@@ -82,6 +82,25 @@ assert snapshot["hitTargetReady"] is True, snapshot
 assert hit_target_id in canvas_ids(), f"missing hit target canvas {hit_target_id}"
 assert snapshot["avatarVisible"] is True, snapshot
 
+hover_state = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'mouse_moved', x: p.x, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert hover_state["avatarHover"] is True, hover_state
+
+hover_cleared = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      const radius = window.liveJs.avatarHitRadius || 40
+      window.__sigilDebug.dispatchDesktop({ type: 'mouse_moved', x: p.x + radius * 2.5, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert hover_cleared["avatarHover"] is False, hover_cleared
+
 goto_state = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos

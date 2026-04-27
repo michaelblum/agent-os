@@ -59,6 +59,8 @@ const liveJs = {
     avatarPos: { x: 0, y: 0, valid: false },
     avatarSize: 1.0,
     pointerPos: { x: 0, y: 0 },
+    avatarHover: false,
+    avatarHoverProgress: 0,
     currentCursor: { x: 0, y: 0, valid: false },
     cursorTarget: { x: 0, y: 0, valid: false },
     globalBounds: { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 },
@@ -234,6 +236,8 @@ function applySurfaceRenderSnapshot(snapshot) {
     if (snapshot.avatarPos?.valid) liveJs.avatarPos = { ...snapshot.avatarPos };
     if (snapshot.renderAvatarPos?.valid) liveJs.surfaceRenderSnapshot = snapshot;
     if (snapshot.pointerPos) liveJs.pointerPos = { ...snapshot.pointerPos };
+    if (typeof snapshot.avatarHover === 'boolean') liveJs.avatarHover = snapshot.avatarHover;
+    if (Number.isFinite(snapshot.avatarHoverProgress)) liveJs.avatarHoverProgress = snapshot.avatarHoverProgress;
     if ('mousedownPos' in snapshot) {
         liveJs.mousedownPos = snapshot.mousedownPos ? { ...snapshot.mousedownPos } : null;
     }
@@ -267,6 +271,8 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         avatarPos: liveJs.avatarPos,
         renderAvatarPos,
         pointerPos: liveJs.pointerPos,
+        avatarHover: liveJs.avatarHover,
+        avatarHoverProgress: liveJs.avatarHoverProgress,
         mousedownPos: liveJs.mousedownPos,
         mousedownAvatarPos: liveJs.mousedownAvatarPos,
         radialGestureMenu: liveJs.radialGestureMenu,
@@ -711,6 +717,25 @@ function isOnAvatar(x, y) {
     return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
 }
 
+function setAvatarHover(over) {
+    const next = !!over;
+    if (liveJs.avatarHover === next) return;
+    liveJs.avatarHover = next;
+    scheduleRenderFrame();
+}
+
+function updateAvatarHoverFromPoint(x, y) {
+    if (!liveJs.avatarVisible || contextMenu.isOpen()) {
+        setAvatarHover(false);
+        return;
+    }
+    if (!['IDLE', 'GOTO', 'PRESS'].includes(liveJs.currentState)) {
+        setAvatarHover(false);
+        return;
+    }
+    setAvatarHover(isOnAvatar(x, y));
+}
+
 function distance(ax, ay, bx, by) {
     return Math.hypot(ax - bx, ay - by);
 }
@@ -719,6 +744,7 @@ function clearGestureState() {
     liveJs.mousedownPos = null;
     liveJs.mousedownAvatarPos = null;
     liveJs.radialGestureMenu = null;
+    setAvatarHover(false);
 }
 
 const visibilityTransition = createVisibilityTransitionController({
@@ -1027,6 +1053,7 @@ function handleInputEvent(msg) {
         if (!liveJs.currentCursor.valid) {
             liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
         }
+        if (msg.type === 'mouse_moved') updateAvatarHoverFromPoint(msg.x, msg.y);
     }
 
     if (
@@ -1452,6 +1479,9 @@ function animate() {
         state.polyGroup.rotation.x += 0.002;
     }
 
+    const hoverTarget = liveJs.avatarHover && liveJs.avatarVisible && liveJs.currentState === 'IDLE' ? 1 : 0;
+    liveJs.avatarHoverProgress += (hoverTarget - liveJs.avatarHoverProgress) * Math.min(1, dt * 14);
+
     animateParticles(dt);
     animatePhenomena(dt);
     animateAura(dt);
@@ -1477,8 +1507,11 @@ function animate() {
         state: liveJs.currentState,
         avatarPos: avatarStagePos,
         dragOrigin: dragOriginStage,
+        avatarHover: liveJs.avatarHover,
+        avatarHoverProgress: liveJs.avatarHoverProgress,
         radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
         gotoRingRadius: liveJs.gotoRingRadius,
+        avatarHitRadius: liveJs.avatarHitRadius,
         menuRingRadius: liveJs.menuRingRadius,
         dragCancelRadius: liveJs.dragCancelRadius,
     });
@@ -1490,7 +1523,7 @@ function animate() {
         window.__sigilBootFirstFrameAt = Date.now();
         recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
     }
-    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale);
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * (1 + liveJs.avatarHoverProgress * 0.055));
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
@@ -1521,6 +1554,8 @@ window.__sigilDebug = {
             fastTravel: fastTravel.exportSnapshot(),
             radialGestureMenu: liveJs.radialGestureMenu,
             radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
+            avatarHover: liveJs.avatarHover,
+            avatarHoverProgress: liveJs.avatarHoverProgress,
             contextMenu: contextMenu?.snapshot?.(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
