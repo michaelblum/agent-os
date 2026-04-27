@@ -1510,6 +1510,8 @@ function animate() {
         avatarHover: liveJs.avatarHover,
         avatarHoverProgress: liveJs.avatarHoverProgress,
         radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
+        fastTravelEffect: state.transitionFastTravelEffect,
+        time: state.globalTime,
         gotoRingRadius: liveJs.gotoRingRadius,
         avatarHitRadius: liveJs.avatarHitRadius,
         menuRingRadius: liveJs.menuRingRadius,

@@ -182,13 +182,17 @@ drag_state = show_eval_json(
       }})
       return JSON.stringify({{
         state: window.liveJs.currentState,
-        pointerPos: window.liveJs.pointerPos
+        pointerPos: window.liveJs.pointerPos,
+        fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
+        radialPhase: window.__sigilDebug.snapshot().radialGestureMenu?.phase || null
       }})
     }})()"""
 )
 
 if drag_state["state"] != "FAST_TRAVEL":
     raise SystemExit(f"FAIL: expected FAST_TRAVEL after radial handoff, got {drag_state}")
+if drag_state["fastTravelEffect"] != "line" or drag_state["radialPhase"] != "fastTravel":
+    raise SystemExit(f"FAIL: expected line fast-travel preview state, got {drag_state}")
 if abs(drag_state["pointerPos"]["x"] - target["x"]) > 1 or abs(drag_state["pointerPos"]["y"] - target["y"]) > 1:
     raise SystemExit(f"FAIL: pointer position did not use drag destination: {drag_state}")
 

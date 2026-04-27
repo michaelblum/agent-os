@@ -84,6 +84,82 @@ export function createInteractionOverlay() {
             return;
         }
 
+        if (
+            snapshot.state === 'FAST_TRAVEL'
+            && snapshot.fastTravelEffect === 'line'
+            && snapshot.radialGesture?.phase === 'fastTravel'
+            && snapshot.radialGesture.origin
+            && snapshot.radialGesture.pointer
+        ) {
+            const radial = snapshot.radialGesture;
+            const origin = radial.origin;
+            const pointer = radial.pointer;
+            const dx = pointer.x - origin.x;
+            const dy = pointer.y - origin.y;
+            const length = Math.hypot(dx, dy);
+            if (length > 1) {
+                const nx = dx / length;
+                const ny = dy / length;
+                const pulse = 0.5 + (0.5 * Math.sin((snapshot.time || 0) * 8));
+                const handoffRadius = radial.radii?.handoff ?? snapshot.menuRingRadius;
+                const startX = origin.x + (nx * Math.min(handoffRadius, length - 1));
+                const startY = origin.y + (ny * Math.min(handoffRadius, length - 1));
+                const arrowLength = Math.min(24, Math.max(12, length * 0.11));
+                const wing = Math.PI * 0.78;
+
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                ctx.globalAlpha = 0.32 + (0.16 * pulse);
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(83, 245, 215, 0.95)';
+                ctx.lineWidth = 7;
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(pointer.x, pointer.y);
+                ctx.stroke();
+
+                ctx.globalAlpha = 0.9;
+                ctx.setLineDash([10, 7]);
+                ctx.lineDashOffset = -((snapshot.time || 0) * 42);
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+                ctx.lineWidth = 2;
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(pointer.x, pointer.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(83, 245, 215, 0.95)';
+                ctx.lineWidth = 2.2;
+                ctx.arc(pointer.x, pointer.y, 13 + (pulse * 3), 0, Math.PI * 2);
+                ctx.stroke();
+
+                const angle = Math.atan2(dy, dx);
+                ctx.beginPath();
+                ctx.moveTo(pointer.x, pointer.y);
+                ctx.lineTo(
+                    pointer.x + Math.cos(angle + wing) * arrowLength,
+                    pointer.y + Math.sin(angle + wing) * arrowLength
+                );
+                ctx.moveTo(pointer.x, pointer.y);
+                ctx.lineTo(
+                    pointer.x + Math.cos(angle - wing) * arrowLength,
+                    pointer.y + Math.sin(angle - wing) * arrowLength
+                );
+                ctx.stroke();
+
+                ctx.globalAlpha = 0.38;
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.lineWidth = 1;
+                ctx.arc(origin.x, origin.y, Math.max(10, snapshot.avatarHitRadius * 0.42), 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
     }
 
     function destroy() {
