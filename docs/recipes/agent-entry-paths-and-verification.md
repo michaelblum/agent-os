@@ -71,10 +71,19 @@ over-scoping it:
 - Reusable SOPs and practices belong in `docs/recipes/`.
 - Cross-tool or consumer-facing contracts belong in `shared/schemas/`,
   `docs/api/`, or `ARCHITECTURE.md`.
+- Runtime knowledge, Sigil agent documents, operator concepts, user/project
+  memory, and graphable product knowledge may belong in the AOS wiki.
+
+These sources are not mutually exclusive. Agents developing AOS may need to read
+and write the wiki as part of their job, especially when the work changes what a
+harness knows or how an operator-facing concept is represented at runtime. The
+repo remains the source of truth for engineering contracts and reproducible
+verification; the wiki is a first-class runtime knowledge substrate, not a
+scratchpad and not a dumping ground for repo-only procedures.
 
 Do not add angry-session reminders, one-off repro notes, or provider-specific
-workflow fragments to app contracts. Convert lessons into neutral rules,
-checklists, schemas, or tests.
+workflow fragments to app contracts or wiki pages. Convert lessons into neutral
+rules, checklists, schemas, tests, or runtime knowledge records.
 
 ## Checklist
 
@@ -85,5 +94,7 @@ checklists, schemas, or tests.
 4. For visual/display work, launch the relevant diagnostics instead of relying
    on memory or screenshots alone.
 5. For real-input bugs, capture or run at least one real-input verification.
-6. If a lesson should survive the session, place it using the placement rules
+6. If the task touches runtime knowledge, check whether the AOS wiki needs to be
+   read or updated in addition to repo docs or code.
+7. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.
