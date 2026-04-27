@@ -142,6 +142,27 @@ aos_test_wait_for_socket() {
   return 1
 }
 
+aos_test_record_permissions_setup_if_granted() {
+  if ! python3 - <<'PY'
+import json
+import subprocess
+
+try:
+    payload = json.loads(subprocess.check_output(["./aos", "permissions", "check", "--json"], text=True))
+except Exception:
+    raise SystemExit(1)
+
+permissions = payload.get("permissions") or {}
+required = ("accessibility", "screen_recording", "listen_access", "post_access")
+raise SystemExit(0 if all(permissions.get(key) is True for key in required) else 1)
+PY
+  then
+    return 0
+  fi
+
+  ./aos permissions setup --once >/dev/null
+}
+
 aos_test_start_daemon() {
   local root="$1"
   shift
@@ -154,6 +175,8 @@ aos_test_start_daemon() {
     ./aos set "content.roots.${name}" "$path" >/dev/null
     content_wait_args+=(--root "$name")
   done
+
+  aos_test_record_permissions_setup_if_granted
 
   ./aos serve --idle-timeout none >"$root/daemon.stdout" 2>"$root/daemon.stderr" &
   aos_test_wait_for_socket "$root" || return 1

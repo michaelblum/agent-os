@@ -206,5 +206,15 @@ wormhole_landed = wait_until(
     timeout=5.0,
 )
 
+setup = json.loads(run("permissions", "check", "--json")).get("setup") or {}
+if setup.get("setup_completed"):
+    setup_errors = [
+        event.get("error", "")
+        for event in wormhole_landed["events"]
+        if isinstance(event.get("error"), str)
+    ]
+    if any("PERMISSIONS_SETUP_REQUIRED" in error for error in setup_errors):
+        raise SystemExit(f"FAIL: isolated runtime has permissions setup but wormhole capture hit onboarding gate: {setup_errors}")
+
 print("PASS", json.dumps({"landed": landed, "wormhole_landed": wormhole_landed, "hit_id": hit_id}))
 PY
