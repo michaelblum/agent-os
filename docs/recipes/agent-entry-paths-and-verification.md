@@ -96,6 +96,28 @@ Do not add angry-session reminders, one-off repro notes, or provider-specific
 workflow fragments to app contracts or wiki pages. Convert lessons into neutral
 rules, checklists, schemas, tests, or runtime knowledge records.
 
+## Instruction Hygiene
+
+Assume capable agents in the harness unless a surface is explicitly meant for
+novices or constrained automation. Markdown should orient agents, define
+contracts, and point to source-of-truth surfaces; it should not map every
+possible step or replace ordinary software engineering judgment.
+
+Use a mix of sources deliberately:
+
+- root and subtree `AGENTS.md` files for compact operating contracts
+- `ARCHITECTURE.md`, `docs/api/`, and schemas for platform contracts
+- the AOS wiki for runtime knowledge and product memory
+- AOS control surfaces and `help` output for discoverable operation
+- general engineering principles that current agents already know
+
+Before adding durable instructions, ask whether the text constrains future
+agents unnecessarily. Prefer principles, decision rules, and canonical command
+examples over exact rituals. Use `must`, `never`, and `always` only for genuine
+contracts, safety boundaries, or known destructive operations. If the guidance
+is merely one useful workflow, put it in a recipe and phrase it as a default or
+starting point.
+
 ## Checklist
 
 1. Name the current entry path: agent harness, AOS developer, testing, visual
