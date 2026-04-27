@@ -45,7 +45,7 @@
     position: relative;
     display: flex;
     z-index: 20;
-    animation: sigilCardSlideIn 0.25s ease-out;
+    animation: sigilCardForward 0.18s ease-out;
 }
 
 .ctx-menu-card.ctx-sub {
@@ -60,14 +60,29 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
-@keyframes sigilCardSlideIn {
+.ctx-menu-card.departing {
+    display: flex;
+    pointer-events: none;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.ctx-menu-card.departing-active {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+    filter: blur(1px) brightness(0.84);
+}
+
+@keyframes sigilCardForward {
     from {
-        opacity: 0;
-        transform: translateY(16px) scale(0.97);
+        opacity: 0.7;
+        transform: translateY(-10px) scale(0.94);
+        filter: brightness(0.72);
     }
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+        filter: brightness(1);
     }
 }
 
@@ -146,6 +161,49 @@
     margin: 0;
     padding-bottom: 0;
     border-bottom: 0;
+}
+
+.ctx-sub-header {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #bc13fe;
+}
+
+.ctx-sub-header h3 {
+    margin: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.ctx-back {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 24px;
+    padding: 0;
+    color: #d187ff;
+    background: rgba(30, 15, 50, 0.74);
+    border: 1px solid rgba(209, 135, 255, 0.38);
+    border-radius: 4px;
+}
+
+.ctx-back::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-top: 2px solid currentColor;
+    border-left: 2px solid currentColor;
+    transform: translateY(2px) rotate(45deg);
+}
+
+.ctx-back:hover {
+    color: #fff;
+    background: rgba(188, 19, 254, 0.24);
+    border-color: #bc13fe;
 }
 
 .ctx-segmented {
@@ -263,6 +321,24 @@
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
+}
+
+.ctx-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: rgba(12, 8, 24, 0.42);
+    border: 1px solid rgba(209, 135, 255, 0.24);
+    border-radius: 6px;
+}
+
+.ctx-section-title {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .ctx-trigger {

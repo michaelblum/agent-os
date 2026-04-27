@@ -1,9 +1,22 @@
-import { createStackMenu } from '/toolkit/runtime/stack-menu.js';
-import { createDesktopWorldInteractionRouter } from '/toolkit/runtime/interaction-region.js';
-import {
+const TOOLKIT_RUNTIME_BASE = (
+    typeof window !== 'undefined'
+    && typeof location !== 'undefined'
+    && /^https?:$/.test(location.protocol)
+)
+    ? '/toolkit/runtime'
+    : (
+        typeof location !== 'undefined'
+        && location.protocol === 'aos:'
+    )
+        ? 'aos://toolkit/runtime'
+        : '../../../packages/toolkit/runtime';
+
+const { createStackMenu } = await import(`${TOOLKIT_RUNTIME_BASE}/stack-menu.js`);
+const { createDesktopWorldInteractionRouter } = await import(`${TOOLKIT_RUNTIME_BASE}/interaction-region.js`);
+const {
     createDesktopWorldRangeDrag,
     updateDesktopWorldRangeDrag,
-} from '/toolkit/runtime/range-drag.js';
+} = await import(`${TOOLKIT_RUNTIME_BASE}/range-drag.js`);
 import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     FAST_TRAVEL_EFFECTS,
@@ -26,6 +39,13 @@ const GEOMETRY_OPTIONS = [
     [94, 'Tesseract'],
     [100, 'Sphere'],
 ];
+const LINE_TRAIL_MODES = [
+    ['fade', 'Fade'],
+    ['shrink', 'Shrink'],
+    ['edgeScatter', 'Edge Scatter'],
+    ['vertexDissolve', 'Vertex Dissolve'],
+    ['scaleWarp', 'Scale Warp'],
+];
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
@@ -41,6 +61,48 @@ function fastTravelEffectButtons() {
     return FAST_TRAVEL_EFFECTS
         .map((effect) => `<button type="button" data-sigil-fast-travel-effect="${effect.id}">${effect.label}</button>`)
         .join('');
+}
+
+function optionButtons(options) {
+    return options
+        .map(([value, label]) => `<option value="${value}">${label}</option>`)
+        .join('');
+}
+
+function rectContainsPoint(rect, point) {
+    return rect
+        && Number.isFinite(rect.left)
+        && Number.isFinite(rect.top)
+        && Number.isFinite(rect.right)
+        && Number.isFinite(rect.bottom)
+        && point.x >= rect.left
+        && point.y >= rect.top
+        && point.x < rect.right
+        && point.y < rect.bottom;
+}
+
+export function findContextMenuElementAt(anchor, point, doc = document) {
+    if (!anchor || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    const viewportHit = doc?.elementFromPoint?.(point.x, point.y);
+    if (viewportHit && anchor.contains(viewportHit)) return viewportHit;
+
+    const candidates = Array.from(anchor.querySelectorAll(
+        'input, select, button, .ctx-menu-card.active, .ctx-menu-card.pushed'
+    ));
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+        const element = candidates[i];
+        const rect = element.getBoundingClientRect?.();
+        if (rectContainsPoint(rect, point)) return element;
+    }
+    return null;
+}
+
+function subHeader(title) {
+    return `
+        <div class="ctx-sub-header">
+            <button type="button" class="ctx-back" data-ctx-back aria-label="Back to parent"></button>
+            <h3>${title}</h3>
+        </div>`;
 }
 
 function controlRow(label, id, min, max, step, value) {
@@ -104,7 +166,6 @@ function menuMarkup() {
                         <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-counterspin"> Counter Spin</label>
                         <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-lock"> Lock Pos</label>
                     </div>
-                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-interdim"> Inter-dimensional</label>
                 </div>
             </div>
 
@@ -137,11 +198,17 @@ function menuMarkup() {
                 ${controlRow('Aura Reach', 'sigil-menu-aura-reach', 0, 3, 0.01, 1)}
                 ${controlRow('Aura Intensity', 'sigil-menu-aura-intensity', 0, 3, 0.01, 1)}
                 ${controlRow('Spin Speed', 'sigil-menu-spin', 0, 0.1, 0.001, 0.01)}
-                <label>Fast Travel</label>
-                <div class="ctx-segmented ctx-segmented-wide" role="tablist" aria-label="Fast travel effect">
-                    ${fastTravelEffectButtons()}
+                <div class="ctx-section">
+                    <div class="ctx-section-title">Travel</div>
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-line-interdim"> Line Inter-dimensional Trail</label>
+                    <label>Mode</label>
+                    <div class="ctx-segmented ctx-segmented-wide" role="tablist" aria-label="Fast travel effect">
+                        ${fastTravelEffectButtons()}
+                    </div>
                 </div>
                 <div class="ctx-divider"></div>
+                <button class="ctx-trigger" data-ctx-open="sigil-menu-line-card">Line Trail Settings</button>
+                <button class="ctx-trigger" data-ctx-open="sigil-menu-wormhole-card">Wormhole Settings</button>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-lightning-card">Lightning Settings</button>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-magnetic-card">Magnetic Settings</button>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-path-card">Path & Trail</button>
@@ -170,7 +237,7 @@ function menuMarkup() {
         </div>
 
         <div id="sigil-menu-core-colors" class="ctx-menu-card ctx-sub">
-            <h3>Core Colors</h3>
+            ${subHeader('Core Colors')}
             <label>Faces</label>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-face1"><input type="color" id="sigil-menu-face2"></div>
             <label>Edges</label>
@@ -180,7 +247,7 @@ function menuMarkup() {
         </div>
 
         <div id="sigil-menu-effect-colors" class="ctx-menu-card ctx-sub">
-            <h3>Effect Colors</h3>
+            ${subHeader('Effect Colors')}
             <label>Lightning</label>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-lightning1"><input type="color" id="sigil-menu-lightning2"></div>
             <label>Magnetic</label>
@@ -190,23 +257,73 @@ function menuMarkup() {
         </div>
 
         <div id="sigil-menu-lightning-card" class="ctx-menu-card ctx-sub">
-            <h3>Lightning</h3>
+            ${subHeader('Lightning')}
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-lightning-origin-center"> Origin at Center</label>
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-lightning-solid-block"> Solid Block</label>
             ${controlRow('Length', 'sigil-menu-lightning-length', 10, 240, 1, 100)}
             ${controlRow('Frequency', 'sigil-menu-lightning-frequency', 0, 8, 0.1, 2)}
+            ${controlRow('Duration', 'sigil-menu-lightning-duration', 0.1, 5, 0.1, 0.8)}
             ${controlRow('Branching', 'sigil-menu-lightning-branching', 0, 0.5, 0.01, 0.08)}
+            ${controlRow('Brightness', 'sigil-menu-lightning-brightness', 0.1, 5, 0.1, 1)}
         </div>
 
         <div id="sigil-menu-magnetic-card" class="ctx-menu-card ctx-sub">
-            <h3>Magnetic</h3>
+            ${subHeader('Magnetic')}
             ${controlRow('Tentacles', 'sigil-menu-magnetic-count', 0, 40, 1, 10)}
             ${controlRow('Speed', 'sigil-menu-magnetic-speed', 0, 4, 0.05, 1)}
             ${controlRow('Wander', 'sigil-menu-magnetic-wander', 0, 8, 0.1, 3)}
         </div>
 
+        <div id="sigil-menu-line-card" class="ctx-menu-card ctx-sub">
+            ${subHeader('Line Trail')}
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-line-trail-enabled"> Inter-dimensional Trail</label>
+            ${controlRow('Travel Duration', 'sigil-menu-line-duration', 0.05, 1.2, 0.01, 0.22)}
+            ${controlRow('Start Delay', 'sigil-menu-line-delay', 0, 0.8, 0.01, 0)}
+            ${controlRow('Repeated Objects', 'sigil-menu-line-repeat-count', 0, 80, 1, 10)}
+            ${controlRow('Object Lifetime', 'sigil-menu-line-repeat-duration', 0.1, 5, 0.05, 2)}
+            ${controlRow('Object Delay', 'sigil-menu-line-lag', 0, 0.4, 0.005, 0.05)}
+            ${controlRow('Object Scale', 'sigil-menu-line-scale', 0.1, 4, 0.05, 1.5)}
+            <label>Trail Effect</label>
+            <select id="sigil-menu-line-trail-mode">
+                ${optionButtons(LINE_TRAIL_MODES)}
+            </select>
+        </div>
+
+        <div id="sigil-menu-wormhole-card" class="ctx-menu-card ctx-sub">
+            ${subHeader('Wormhole')}
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-wormhole-shading"> Shader Shading</label>
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-wormhole-object"> Travel Object</label>
+            <label class="checkbox-label"><input type="checkbox" id="sigil-menu-wormhole-particles"> Wispy Particles</label>
+            ${controlRow('Capture Radius', 'sigil-menu-wormhole-radius', 56, 220, 2, 96)}
+            ${controlRow('Opening', 'sigil-menu-wormhole-implosion', 0.08, 3, 0.01, 1.5)}
+            ${controlRow('Object Travel', 'sigil-menu-wormhole-transit', 0.1, 1.2, 0.01, 0.5)}
+            ${controlRow('Closing', 'sigil-menu-wormhole-rebound', 0.12, 3, 0.01, 1.2)}
+            ${controlRow('Pinch Strength', 'sigil-menu-wormhole-distortion', -3, 3, 0.01, 1.2)}
+            ${controlRow('Twist', 'sigil-menu-wormhole-twist', -15, 15, 0.01, 3.14)}
+            ${controlRow('Tunnel Zoom', 'sigil-menu-wormhole-zoom', 0.1, 10, 0.01, 3.5)}
+            ${controlRow('Object Height', 'sigil-menu-wormhole-object-height', 0.05, 2, 0.01, 0.8)}
+            ${controlRow('Object Spin', 'sigil-menu-wormhole-object-spin', 0, 12, 0.05, 4.5)}
+            ${controlRow('Particle Density', 'sigil-menu-wormhole-particle-density', 0, 1, 0.01, 0.05)}
+            ${controlRow('Tunnel Shadow', 'sigil-menu-wormhole-shadow', 0, 1, 0.01, 0.8)}
+            ${controlRow('Surface Highlight', 'sigil-menu-wormhole-specular', 0, 2, 0.01, 0.4)}
+            ${controlRow('Light Angle', 'sigil-menu-wormhole-light-angle', 0, 6.283, 0.001, 2.35)}
+            ${controlRow('Flash', 'sigil-menu-wormhole-flash', 0, 5, 0.01, 1.5)}
+            ${controlRow('White Point', 'sigil-menu-wormhole-white', 0.1, 2, 0.01, 1)}
+            ${controlRow('Starburst', 'sigil-menu-wormhole-starburst', 0, 2, 0.01, 0.95)}
+            ${controlRow('Lens Flare', 'sigil-menu-wormhole-lens', 0, 2, 0.01, 0.8)}
+        </div>
+
         <div id="sigil-menu-path-card" class="ctx-menu-card ctx-sub">
-            <h3>Path & Trail</h3>
+            ${subHeader('Path & Trail')}
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-trail-enabled"> Trail</label>
             ${controlRow('Trail Length', 'sigil-menu-trail-length', 0, 120, 1, 20)}
+            ${controlRow('Trail Opacity', 'sigil-menu-trail-opacity', 0, 1, 0.01, 0.5)}
+            ${controlRow('Trail Fade', 'sigil-menu-trail-fade', 100, 2000, 50, 400)}
+            <label>Trail Style</label>
+            <select id="sigil-menu-trail-style">
+                <option value="omega">Omega</option>
+                <option value="soft">Soft</option>
+            </select>
             ${controlRow('Drag Cancel Radius', 'sigil-menu-cancel-radius', 10, 120, 1, 40)}
         </div>
     </div>`;
@@ -229,6 +346,7 @@ export function createSigilContextMenu({
     onAvatarAction,
     onAvatarWindowLevelChange,
     onBoundsChange,
+    onClose,
 } = {}) {
     const layer = document.createElement('div');
     layer.className = 'sigil-context-menu-layer';
@@ -316,16 +434,49 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-neutrino', null, state.isNeutrinosEnabled);
         setControlValue('sigil-menu-lightning', null, state.isLightningEnabled);
         setControlValue('sigil-menu-magnetic', null, state.isMagneticEnabled);
+        setControlValue('sigil-menu-line-interdim', null, state.fastTravelLineInterDimensional ?? true);
+        setControlValue('sigil-menu-line-trail-enabled', null, state.fastTravelLineInterDimensional ?? true);
+        setControlValue('sigil-menu-line-duration', state.fastTravelLineDuration ?? 0.22);
+        setControlValue('sigil-menu-line-delay', state.fastTravelLineDelay ?? 0);
+        setControlValue('sigil-menu-line-repeat-count', state.fastTravelLineRepeatCount ?? 10);
+        setControlValue('sigil-menu-line-repeat-duration', state.fastTravelLineRepeatDuration ?? 2);
+        setControlValue('sigil-menu-line-lag', state.fastTravelLineLag ?? 0.05);
+        setControlValue('sigil-menu-line-scale', state.fastTravelLineScale ?? 1.5);
+        setControlValue('sigil-menu-line-trail-mode', state.fastTravelLineTrailMode ?? 'fade');
         setSegmentedChoice(
             '[data-sigil-fast-travel-effect]',
             normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT)
         );
+        setControlValue('sigil-menu-lightning-origin-center', null, state.lightningOriginCenter);
+        setControlValue('sigil-menu-lightning-solid-block', null, state.lightningSolidBlock);
         setControlValue('sigil-menu-lightning-length', state.lightningBoltLength ?? 100);
         setControlValue('sigil-menu-lightning-frequency', state.lightningFrequency ?? 2);
+        setControlValue('sigil-menu-lightning-duration', state.lightningDuration ?? 0.8);
         setControlValue('sigil-menu-lightning-branching', state.lightningBranching ?? 0.08);
+        setControlValue('sigil-menu-lightning-brightness', state.lightningBrightness ?? 1);
         setControlValue('sigil-menu-magnetic-count', state.magneticTentacleCount ?? 10);
         setControlValue('sigil-menu-magnetic-speed', state.magneticTentacleSpeed ?? 1);
         setControlValue('sigil-menu-magnetic-wander', state.magneticWander ?? 3);
+        setControlValue('sigil-menu-wormhole-shading', null, state.wormholeShadingEnabled ?? true);
+        setControlValue('sigil-menu-wormhole-object', null, state.wormholeObjectEnabled ?? true);
+        setControlValue('sigil-menu-wormhole-particles', null, state.wormholeParticlesEnabled ?? true);
+        setControlValue('sigil-menu-wormhole-radius', state.wormholeCaptureRadius ?? 96);
+        setControlValue('sigil-menu-wormhole-implosion', state.wormholeImplosionDuration ?? 1.5);
+        setControlValue('sigil-menu-wormhole-transit', state.wormholeTravelDuration ?? 0.5);
+        setControlValue('sigil-menu-wormhole-rebound', state.wormholeReboundDuration ?? 1.2);
+        setControlValue('sigil-menu-wormhole-distortion', state.wormholeDistortionStrength ?? 1.2);
+        setControlValue('sigil-menu-wormhole-twist', state.wormholeTwist ?? 3.14);
+        setControlValue('sigil-menu-wormhole-zoom', state.wormholeZoom ?? 3.5);
+        setControlValue('sigil-menu-wormhole-object-height', state.wormholeObjectHeight ?? 0.8);
+        setControlValue('sigil-menu-wormhole-object-spin', state.wormholeObjectSpin ?? 4.5);
+        setControlValue('sigil-menu-wormhole-particle-density', state.wormholeParticleDensity ?? 0.05);
+        setControlValue('sigil-menu-wormhole-shadow', state.wormholeTunnelShadow ?? 0.8);
+        setControlValue('sigil-menu-wormhole-specular', state.wormholeSpecularIntensity ?? 0.4);
+        setControlValue('sigil-menu-wormhole-light-angle', state.wormholeLightAngle ?? 2.35);
+        setControlValue('sigil-menu-wormhole-flash', state.wormholeFlashIntensity ?? 1.5);
+        setControlValue('sigil-menu-wormhole-white', state.wormholeWhitePointIntensity ?? 1);
+        setControlValue('sigil-menu-wormhole-starburst', state.wormholeStarburstIntensity ?? 0.95);
+        setControlValue('sigil-menu-wormhole-lens', state.wormholeLensFlareIntensity ?? 0.8);
         setControlValue('sigil-menu-grid-mode', state.gridMode ?? 'off');
         setControlValue('sigil-menu-omega-enabled', null, state.isOmegaEnabled);
         setControlValue('sigil-menu-omega-shape', state.omegaGeometryType ?? state.omegaType ?? 4);
@@ -333,9 +484,11 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-omega-stellation', state.omegaStellationFactor ?? 0);
         setControlValue('sigil-menu-omega-counterspin', null, state.omegaCounterSpin);
         setControlValue('sigil-menu-omega-lock', null, state.omegaLockPosition);
-        setControlValue('sigil-menu-omega-interdim', null, state.omegaInterDimensional);
         setControlValue('sigil-menu-trail-enabled', null, state.isTrailEnabled);
         setControlValue('sigil-menu-trail-length', state.trailLength ?? 20);
+        setControlValue('sigil-menu-trail-opacity', state.trailOpacity ?? 0.5);
+        setControlValue('sigil-menu-trail-fade', state.trailFadeMs ?? 400);
+        setControlValue('sigil-menu-trail-style', state.trailStyle ?? 'omega');
         setControlValue('sigil-menu-cancel-radius', liveJs?.dragCancelRadius ?? state.dragCancelRadius ?? 40);
         setColorValue('sigil-menu-primary-color', state.colors?.face?.[0]);
         setColorValue('sigil-menu-edge-color', state.colors?.edge?.[0]);
@@ -412,7 +565,9 @@ export function createSigilContextMenu({
         if (state) state.isMenuOpen = false;
         stack.close(reason);
         syncSnapshot();
-        onBoundsChange?.(snapshot());
+        const nextSnapshot = snapshot();
+        onBoundsChange?.(nextSnapshot);
+        onClose?.({ reason, snapshot: nextSnapshot });
     }
 
     function applySnapshot(next = {}) {
@@ -473,12 +628,33 @@ export function createSigilContextMenu({
     function elementAt(point) {
         const local = localClientPoint(point);
         if (!local) return null;
-        return document.elementFromPoint(local.x, local.y);
+        return findContextMenuElementAt(anchor, local, document);
+    }
+
+    function activeScrollableCard(target) {
+        const targetCard = target?.closest?.('.ctx-menu-card.active, .ctx-menu-card.pushed');
+        if (targetCard) return targetCard;
+        return anchor.querySelector('.ctx-menu-card.active');
+    }
+
+    function scrollCardAt(point, event = {}) {
+        const target = elementAt(point);
+        if (!target || !anchor.contains(target)) return false;
+        const card = activeScrollableCard(target);
+        if (!card) return false;
+        const rawY = Number(event.dy ?? event.deltaY ?? event.scrollY ?? 0);
+        const rawX = Number(event.dx ?? event.deltaX ?? event.scrollX ?? 0);
+        if (!Number.isFinite(rawY) && !Number.isFinite(rawX)) return false;
+        card.scrollTop += Number.isFinite(rawY) ? rawY : 0;
+        card.scrollLeft += Number.isFinite(rawX) ? rawX : 0;
+        syncSnapshot();
+        return true;
     }
 
     function handleMenuPointer(event) {
         const kind = event.type;
         const point = event.point;
+        if (kind === 'scroll_wheel') return scrollCardAt(point, event);
         const active = menuState.activeRange;
         if (active && (kind === 'left_mouse_dragged' || kind === 'mouse_moved')) {
             return updateDesktopWorldRangeDrag(active, point);
@@ -528,7 +704,7 @@ export function createSigilContextMenu({
     function handlePointerEvent(kind, point, options = {}) {
         if (!menuState.open) return false;
         return interactionRouter.route(
-            { type: kind, x: point.x, y: point.y },
+            { type: kind, x: point.x, y: point.y, ...(options.raw || {}) },
             {
                 source: options.assumeInside ? 'hit' : 'global',
                 assumeInside: options.assumeInside,
@@ -643,6 +819,21 @@ export function createSigilContextMenu({
         });
         onCheckbox('sigil-menu-lightning', (value) => { state.isLightningEnabled = value; });
         onCheckbox('sigil-menu-magnetic', (value) => { state.isMagneticEnabled = value; });
+        onCheckbox('sigil-menu-line-interdim', (value) => {
+            state.fastTravelLineInterDimensional = value;
+            setControlValue('sigil-menu-line-trail-enabled', null, value);
+        });
+        onCheckbox('sigil-menu-line-trail-enabled', (value) => {
+            state.fastTravelLineInterDimensional = value;
+            setControlValue('sigil-menu-line-interdim', null, value);
+        });
+        onRange('sigil-menu-line-duration', (value) => { state.fastTravelLineDuration = value; });
+        onRange('sigil-menu-line-delay', (value) => { state.fastTravelLineDelay = value; });
+        onRange('sigil-menu-line-repeat-count', (value) => { state.fastTravelLineRepeatCount = value; });
+        onRange('sigil-menu-line-repeat-duration', (value) => { state.fastTravelLineRepeatDuration = value; });
+        onRange('sigil-menu-line-lag', (value) => { state.fastTravelLineLag = value; });
+        onRange('sigil-menu-line-scale', (value) => { state.fastTravelLineScale = value; });
+        onChoice('sigil-menu-line-trail-mode', (value) => { state.fastTravelLineTrailMode = value; });
         layer.querySelectorAll('[data-sigil-fast-travel-effect]').forEach((button) => {
             button.addEventListener('click', (event) => {
                 event.preventDefault();
@@ -655,14 +846,38 @@ export function createSigilContextMenu({
                 close('fast-travel-effect');
             });
         });
+        onCheckbox('sigil-menu-lightning-origin-center', (value) => { state.lightningOriginCenter = value; });
+        onCheckbox('sigil-menu-lightning-solid-block', (value) => { state.lightningSolidBlock = value; });
         onRange('sigil-menu-lightning-length', (value) => { state.lightningBoltLength = value; });
         onRange('sigil-menu-lightning-frequency', (value) => { state.lightningFrequency = value; });
+        onRange('sigil-menu-lightning-duration', (value) => { state.lightningDuration = value; });
         onRange('sigil-menu-lightning-branching', (value) => { state.lightningBranching = value; });
+        onRange('sigil-menu-lightning-brightness', (value) => { state.lightningBrightness = value; });
         onRange('sigil-menu-magnetic-count', (value) => {
             updateMagneticTentacleCount?.(value);
         });
         onRange('sigil-menu-magnetic-speed', (value) => { state.magneticTentacleSpeed = value; });
         onRange('sigil-menu-magnetic-wander', (value) => { state.magneticWander = value; });
+        onCheckbox('sigil-menu-wormhole-shading', (value) => { state.wormholeShadingEnabled = value; });
+        onCheckbox('sigil-menu-wormhole-object', (value) => { state.wormholeObjectEnabled = value; });
+        onCheckbox('sigil-menu-wormhole-particles', (value) => { state.wormholeParticlesEnabled = value; });
+        onRange('sigil-menu-wormhole-radius', (value) => { state.wormholeCaptureRadius = value; });
+        onRange('sigil-menu-wormhole-implosion', (value) => { state.wormholeImplosionDuration = value; });
+        onRange('sigil-menu-wormhole-transit', (value) => { state.wormholeTravelDuration = value; });
+        onRange('sigil-menu-wormhole-rebound', (value) => { state.wormholeReboundDuration = value; });
+        onRange('sigil-menu-wormhole-distortion', (value) => { state.wormholeDistortionStrength = value; });
+        onRange('sigil-menu-wormhole-twist', (value) => { state.wormholeTwist = value; });
+        onRange('sigil-menu-wormhole-zoom', (value) => { state.wormholeZoom = value; });
+        onRange('sigil-menu-wormhole-object-height', (value) => { state.wormholeObjectHeight = value; });
+        onRange('sigil-menu-wormhole-object-spin', (value) => { state.wormholeObjectSpin = value; });
+        onRange('sigil-menu-wormhole-particle-density', (value) => { state.wormholeParticleDensity = value; });
+        onRange('sigil-menu-wormhole-shadow', (value) => { state.wormholeTunnelShadow = value; });
+        onRange('sigil-menu-wormhole-specular', (value) => { state.wormholeSpecularIntensity = value; });
+        onRange('sigil-menu-wormhole-light-angle', (value) => { state.wormholeLightAngle = value; });
+        onRange('sigil-menu-wormhole-flash', (value) => { state.wormholeFlashIntensity = value; });
+        onRange('sigil-menu-wormhole-white', (value) => { state.wormholeWhitePointIntensity = value; });
+        onRange('sigil-menu-wormhole-starburst', (value) => { state.wormholeStarburstIntensity = value; });
+        onRange('sigil-menu-wormhole-lens', (value) => { state.wormholeLensFlareIntensity = value; });
         onChoice('sigil-menu-grid-mode', (value) => { state.gridMode = value; });
         onRange('sigil-menu-ring', (value) => {
             state.menuRingRadius = value;
@@ -686,9 +901,11 @@ export function createSigilContextMenu({
         onRange('sigil-menu-omega-scale', (value) => { state.omegaScale = value; });
         onCheckbox('sigil-menu-omega-counterspin', (value) => { state.omegaCounterSpin = value; });
         onCheckbox('sigil-menu-omega-lock', (value) => { state.omegaLockPosition = value; });
-        onCheckbox('sigil-menu-omega-interdim', (value) => { state.omegaInterDimensional = value; });
         onCheckbox('sigil-menu-trail-enabled', (value) => { state.isTrailEnabled = value; });
         onRange('sigil-menu-trail-length', (value) => { state.trailLength = value; });
+        onRange('sigil-menu-trail-opacity', (value) => { state.trailOpacity = value; });
+        onRange('sigil-menu-trail-fade', (value) => { state.trailFadeMs = value; });
+        onChoice('sigil-menu-trail-style', (value) => { state.trailStyle = value; });
         onRange('sigil-menu-cancel-radius', (value) => {
             state.dragCancelRadius = value;
             if (liveJs) liveJs.dragCancelRadius = value;
@@ -740,6 +957,18 @@ export function createSigilContextMenu({
                 });
             });
         });
+
+        anchor.addEventListener('wheel', (event) => {
+            if (!menuState.open) return;
+            if (!anchor.contains(event.target)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const card = activeScrollableCard(event.target);
+            if (!card) return;
+            card.scrollTop += event.deltaY;
+            card.scrollLeft += event.deltaX;
+            syncSnapshot();
+        }, { passive: false });
     }
 
     bindControls();

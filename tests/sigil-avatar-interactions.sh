@@ -85,8 +85,8 @@ assert snapshot["avatarVisible"] is True, snapshot
 goto_state = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'left_mouse_up', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
@@ -95,7 +95,7 @@ assert goto_state["state"] == "GOTO", goto_state
 goto_canceled = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
@@ -104,8 +104,8 @@ assert goto_canceled["state"] == "IDLE", goto_canceled
 goto_state = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'left_mouse_up', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
@@ -123,8 +123,8 @@ target = show_eval_json(
 
 show_eval(
     f"""(() => {{
-      window.__sigilDebug.dispatch({{ type: 'left_mouse_down', x: {target['x']}, y: {target['y']} }})
-      window.__sigilDebug.dispatch({{ type: 'left_mouse_up', x: {target['x']}, y: {target['y']} }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_down', x: {target['x']}, y: {target['y']} }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {target['x']}, y: {target['y']} }})
       return 'ok'
     }})()"""
 )
@@ -144,12 +144,23 @@ wait_until(
 drag_state = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
-assert drag_state["state"] == "DRAG", drag_state
+assert drag_state["state"] == "RADIAL", drag_state
+assert drag_state["radialGestureMenu"]["phase"] == "radial", drag_state
+wait_until(
+    lambda: (
+        lambda snap: snap
+        if snap.get("radialGestureVisuals", {}).get("visible") is True
+        and set(snap.get("radialGestureVisuals", {}).get("itemIds", [])) == {"context-menu", "wiki-graph"}
+        and snap.get("radialGestureVisuals", {}).get("scales", {}).get("context-menu", 0) > 0
+        else None
+    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
+    timeout=3.0,
+)
 
 canceled = show_eval_json(
     """(() => {
@@ -159,12 +170,28 @@ canceled = show_eval_json(
 )
 assert canceled["state"] == "IDLE", canceled
 
+radial_context = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
+      const radial = window.__sigilDebug.snapshot().radialGestureMenu
+      const item = radial.items.find((candidate) => candidate.id === 'context-menu')
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: item.center.x, y: item.center.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: item.center.x, y: item.center.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert radial_context["state"] == "IDLE", radial_context
+assert radial_context["contextMenu"]["open"] is True, radial_context
+show_eval("window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 }); 'ok'")
+
 goto_canceled_again = show_eval_json(
     """(() => {
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'left_mouse_up', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )

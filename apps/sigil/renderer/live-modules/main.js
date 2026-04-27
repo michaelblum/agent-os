@@ -23,6 +23,7 @@ import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
 import { createVisibilityTransitionController } from './visibility-transition.js';
 import { DesktopWorldSurface3D } from './desktop-world-surface-runtime.js';
+import { normalizeMessage } from './input-message.js';
 import {
     clampPointToDisplays,
     computeDesktopWorldBounds,
@@ -33,7 +34,10 @@ import {
     normalizeDisplays,
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
+import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
+import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
+import { loadAgent } from '../agent-loader.js';
 
 const host = createHostRuntime();
 const desktopWorldSurface = (
@@ -63,11 +67,13 @@ const liveJs = {
     currentState: 'IDLE',
     state: 'IDLE',
     currentAgentId: 'default',
+    currentAgentDefinition: null,
     avatarHitRadius: state.avatarHitRadius,
     dragThreshold: state.dragThreshold,
     dragCancelRadius: state.dragCancelRadius,
     gotoRingRadius: state.gotoRingRadius,
     menuRingRadius: state.menuRingRadius,
+    radialGestureMenu: null,
     travel: null,
     fastTravelEvents: [],
     mousedownPos: null,
@@ -75,10 +81,10 @@ const liveJs = {
     avatarVisible: false,
     contextMenu: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
+    defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
-    hitPointerFrame: null,
     surfaceRenderSnapshot: null,
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
@@ -93,6 +99,22 @@ window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+let radialGestureVisuals = null;
+const DEFAULT_AGENT_WIKI_PATH = 'sigil/agents/default';
+const DEFAULT_AGENT_WIKI_URL = `/wiki/${DEFAULT_AGENT_WIKI_PATH}.md`;
+const INPUT_POINTER_EVENT_TYPES = new Set([
+    'left_mouse_down',
+    'left_mouse_up',
+    'left_mouse_dragged',
+    'right_mouse_down',
+    'right_mouse_up',
+    'right_mouse_dragged',
+    'other_mouse_down',
+    'other_mouse_up',
+    'other_mouse_dragged',
+    'mouse_moved',
+    'scroll_wheel',
+]);
 
 function boundsWithMinMax(rect) {
     if (!rect || typeof rect.x !== 'number' || typeof rect.y !== 'number'
@@ -161,7 +183,7 @@ function isPrimarySurfaceSegment() {
 function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (isPrimarySurfaceSegment()) return true;
     if (msg.type === 'display_geometry') return false;
-    if (msg.type === 'input_event') return false;
+    if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) return false;
     return true;
 }
@@ -218,6 +240,10 @@ function applySurfaceRenderSnapshot(snapshot) {
     if ('mousedownAvatarPos' in snapshot) {
         liveJs.mousedownAvatarPos = snapshot.mousedownAvatarPos ? { ...snapshot.mousedownAvatarPos } : null;
     }
+    if ('radialGestureMenu' in snapshot) {
+        liveJs.radialGestureMenu = snapshot.radialGestureMenu || null;
+        radialGestureMenu.applySnapshot(liveJs.radialGestureMenu);
+    }
     if (typeof snapshot.avatarVisible === 'boolean') liveJs.avatarVisible = snapshot.avatarVisible;
     if (snapshot.currentState) {
         liveJs.currentState = snapshot.currentState;
@@ -243,6 +269,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         pointerPos: liveJs.pointerPos,
         mousedownPos: liveJs.mousedownPos,
         mousedownAvatarPos: liveJs.mousedownAvatarPos,
+        radialGestureMenu: liveJs.radialGestureMenu,
         avatarVisible: liveJs.avatarVisible,
         currentState: liveJs.currentState,
         appScale: state.appScale,
@@ -284,6 +311,21 @@ function stagePoint(point) {
     return desktopWorldToSegmentLocalPoint(point);
 }
 
+function projectRadialGestureSnapshot(radial) {
+    if (!radial || typeof radial !== 'object') return null;
+    return {
+        ...radial,
+        origin: stagePoint(radial.origin),
+        pointer: stagePoint(radial.pointer),
+        items: Array.isArray(radial.items)
+            ? radial.items.map((item) => ({
+                ...item,
+                center: stagePoint(item.center),
+            }))
+            : [],
+    };
+}
+
 function avatarDefinition() {
     return {
         kind: 'sigil.avatar.appearance',
@@ -295,6 +337,93 @@ function avatarDefinition() {
 
 function avatarDefinitionJson() {
     return JSON.stringify(avatarDefinition(), null, 2);
+}
+
+async function loadDefaultAvatarDefinition({ apply = true } = {}) {
+    const agent = await loadAgent(DEFAULT_AGENT_WIKI_PATH);
+    liveJs.currentAgentDefinition = agent;
+    liveJs.currentAgentId = agent.id || 'default';
+    if (apply && agent.appearance) applyAppearance(agent.appearance);
+    recordBoot('boot:defaultAvatarLoaded', { agent_id: liveJs.currentAgentId });
+    return agent;
+}
+
+function applyDefaultAvatarDefinition(agent = liveJs.currentAgentDefinition) {
+    if (agent?.appearance) applyAppearance(agent.appearance);
+}
+
+function replaceDefaultAvatarAppearance(markdown, appearance) {
+    const match = markdown.match(/```json\s*\n([\s\S]*?)\n```/);
+    const body = match ? JSON.parse(match[1]) : { version: 1, minds: {}, instance: {} };
+    body.version = body.version ?? 1;
+    body.appearance = appearance;
+    const json = JSON.stringify(body, null, 2);
+    if (!match) return `${markdown.trimEnd()}\n\n\`\`\`json\n${json}\n\`\`\`\n`;
+    return `${markdown.slice(0, match.index)}\`\`\`json\n${json}\n\`\`\`${markdown.slice(match.index + match[0].length)}`;
+}
+
+let defaultAvatarDirty = false;
+let defaultAvatarSaveInFlight = false;
+
+function updateDefaultAvatarSaveState(next = {}) {
+    liveJs.defaultAvatarSave = {
+        ...liveJs.defaultAvatarSave,
+        dirty: defaultAvatarDirty,
+        saving: defaultAvatarSaveInFlight,
+        ...next,
+    };
+}
+
+async function saveDefaultAvatarDefinition(reason = 'menu-close') {
+    if (defaultAvatarSaveInFlight) return false;
+    defaultAvatarSaveInFlight = true;
+    updateDefaultAvatarSaveState({ lastError: null });
+    try {
+        const response = await fetch(DEFAULT_AGENT_WIKI_URL);
+        if (!response.ok) throw new Error(`GET ${DEFAULT_AGENT_WIKI_URL} failed: HTTP ${response.status}`);
+        const markdown = await response.text();
+        const appearance = snapshotAppearance();
+        const next = replaceDefaultAvatarAppearance(markdown, appearance);
+        const put = await fetch(DEFAULT_AGENT_WIKI_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+            body: next,
+        });
+        if (!put.ok) throw new Error(`PUT ${DEFAULT_AGENT_WIKI_URL} failed: HTTP ${put.status}`);
+        if (liveJs.currentAgentDefinition) {
+            liveJs.currentAgentDefinition = { ...liveJs.currentAgentDefinition, appearance };
+        }
+        updateDefaultAvatarSaveState({
+            lastSavedAt: new Date().toISOString(),
+            lastSavedReason: reason,
+            lastSavedFastTravel: appearance.transitions?.fastTravel ?? null,
+        });
+        recordBoot('save:defaultAvatar', { reason });
+        return true;
+    } finally {
+        defaultAvatarSaveInFlight = false;
+        updateDefaultAvatarSaveState();
+    }
+}
+
+async function handleContextMenuClose({ reason = 'close' } = {}) {
+    if (!defaultAvatarDirty) return;
+    const shouldSave = window.confirm('Save changes?');
+    if (!shouldSave) {
+        defaultAvatarDirty = false;
+        updateDefaultAvatarSaveState({ lastSkippedReason: reason });
+        recordBoot('save:defaultAvatarSkipped', { reason });
+        return;
+    }
+    try {
+        await saveDefaultAvatarDefinition(reason);
+        defaultAvatarDirty = false;
+        updateDefaultAvatarSaveState();
+    } catch (error) {
+        updateDefaultAvatarSaveState({ lastError: error.message || String(error) });
+        console.warn('[sigil] default avatar save failed:', error);
+        window.alert?.(`Failed to save changes: ${error.message || String(error)}`);
+    }
 }
 
 async function writeClipboard(text) {
@@ -397,10 +526,13 @@ const contextMenu = createSigilContextMenu({
     onUtilityAction: toggleUtilityCanvas,
     onAvatarAction: handleAvatarMenuAction,
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
+    onClose: handleContextMenuClose,
 });
 
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
+    defaultAvatarDirty = true;
+    updateDefaultAvatarSaveState({ lastError: null });
 }
 
 state._onAppearanceChanged = () => {
@@ -586,6 +718,7 @@ function distance(ax, ay, bx, by) {
 function clearGestureState() {
     liveJs.mousedownPos = null;
     liveJs.mousedownAvatarPos = null;
+    liveJs.radialGestureMenu = null;
 }
 
 const visibilityTransition = createVisibilityTransitionController({
@@ -605,6 +738,26 @@ const fastTravel = createFastTravelController({
     projectStagePoint: stagePoint,
     getExcludedCanvasIds() {
         return ['avatar-main', hitTarget.hit.id].filter(Boolean);
+    },
+    canCaptureDisplayImages: isPrimarySurfaceSegment,
+});
+const radialGestureMenu = createSigilRadialGestureMenu({
+    state,
+    onCommitItem(item) {
+        if (item?.action === 'contextMenu') {
+            openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
+            return;
+        }
+        if (item?.action === 'wikiGraph') {
+            host.post('sigil.radial_menu.action', {
+                action: 'wikiGraph',
+                status: 'stub',
+            });
+            return;
+        }
+        host.post('sigil.radial_menu.action', {
+            action: item?.action || item?.id || 'unknown',
+        });
     },
 });
 let omegaTrailTravelKey = null;
@@ -703,6 +856,7 @@ function setAvatarVisibility(visible) {
     liveJs.avatarVisible = next;
     if (!next) {
         contextMenu.close('avatar-hidden');
+        radialGestureMenu.cancel('avatar-hidden');
         clearGestureState();
         liveJs.currentState = 'IDLE';
         liveJs.state = 'IDLE';
@@ -737,8 +891,17 @@ function setAvatarPosition(x, y) {
     emitAvatarMark();
 }
 
+function syncHitTargetToAvatar() {
+    if (!isPrimarySurfaceSegment() || !liveJs.avatarPos.valid) return;
+    hitTarget.setSize(state.avatarHitRadius * 2);
+    const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
+    nativeAvatarPos.valid = true;
+    hitTarget.sync(nativeAvatarPos, liveJs.avatarVisible && ['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL'].includes(liveJs.currentState));
+}
+
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
+    radialGestureMenu.cancel(reason);
     clearGestureState();
     fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
@@ -753,13 +916,33 @@ function isDuplicateContextMenuOpenClick(x, y) {
     return distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y) <= 2;
 }
 
-function openContextMenuAt(x, y) {
-    if (!liveJs.avatarVisible || liveJs.currentState !== 'IDLE' || !isOnAvatar(x, y)) return false;
+function openContextMenuAt(x, y, options = {}) {
+    if (!liveJs.avatarVisible) return false;
+    if (!options.force && (liveJs.currentState !== 'IDLE' || !isOnAvatar(x, y))) return false;
     cancelInteraction('context-menu');
     contextMenu.openAt({ x, y, valid: true });
     lastContextMenuOpenAt = performance.now();
     lastContextMenuOpenPoint = { x, y };
     return true;
+}
+
+function applyRadialGestureMove(update, x, y) {
+    liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
+    if (update?.enteredFastTravel) {
+        fastTravel.beginGesture({ ...liveJs.avatarPos });
+        fastTravel.updateGesture({ x, y, valid: true });
+        setInteractionState('FAST_TRAVEL', 'radial-handoff-fast-travel');
+        return true;
+    }
+    if (update?.reenteredRadial) {
+        fastTravel.clearGesture('radial-reentry');
+        setInteractionState('RADIAL', 'radial-reentry');
+        return true;
+    }
+    if (liveJs.currentState === 'FAST_TRAVEL') {
+        fastTravel.updateGesture({ x, y, valid: true });
+    }
+    return false;
 }
 
 function handleLeftMouseDown(x, y) {
@@ -768,7 +951,6 @@ function handleLeftMouseDown(x, y) {
             if (!isOnAvatar(x, y)) return;
             liveJs.mousedownPos = { x, y };
             liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
-            fastTravel.beginGesture({ ...liveJs.avatarPos });
             setInteractionState('PRESS', 'mousedown-on-avatar');
             return;
         case 'GOTO':
@@ -791,17 +973,23 @@ function handleLeftMouseUp(x, y) {
             fastTravel.clearGesture('press-click');
             setInteractionState('GOTO', 'press-click');
             return;
-        case 'DRAG': {
-            const origin = liveJs.mousedownAvatarPos;
-            const distFromOrigin = origin ? distance(x, y, origin.x, origin.y) : Infinity;
+        case 'RADIAL': {
+            const result = radialGestureMenu.release({ x, y, valid: true });
             clearGestureState();
-            if (distFromOrigin <= liveJs.dragCancelRadius) {
-                fastTravel.clearGesture('drag-cancel');
-                setInteractionState('IDLE', 'drag-cancel');
+            fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-item' : 'radial-release');
+            setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-release-item' : 'radial-release-cancel');
+            return;
+        }
+        case 'FAST_TRAVEL': {
+            const result = radialGestureMenu.release({ x, y, valid: true });
+            clearGestureState();
+            if (result?.committed?.type === 'fastTravel') {
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'radial-release-fast-travel');
                 return;
             }
-            queueFastTravel(x, y);
-            setInteractionState('IDLE', 'drag-release-fast-travel');
+            fastTravel.clearGesture('radial-fast-travel-cancel');
+            setInteractionState('IDLE', 'radial-fast-travel-cancel');
             return;
         }
         case 'GOTO':
@@ -817,12 +1005,19 @@ function handleLeftMouseUp(x, y) {
 }
 
 function handleMouseMove(x, y) {
-    if ((liveJs.currentState === 'PRESS' || liveJs.currentState === 'DRAG') && liveJs.mousedownPos) {
-        fastTravel.updateGesture({ x, y, valid: true });
+    if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+        const update = radialGestureMenu.move({ x, y, valid: true });
+        applyRadialGestureMove(update, x, y);
+        return;
     }
     if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
     if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
-    setInteractionState('DRAG', 'press-threshold');
+    liveJs.radialGestureMenu = radialGestureMenu.start(
+        { ...liveJs.avatarPos, valid: true },
+        { x, y, valid: true }
+    );
+    if (applyRadialGestureMove(radialGestureMenu.move({ x, y, valid: true }), x, y)) return;
+    setInteractionState('RADIAL', 'press-threshold-radial');
 }
 
 function handleInputEvent(msg) {
@@ -836,13 +1031,13 @@ function handleInputEvent(msg) {
 
     if (
         contextMenu.isOpen()
-        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved'].includes(msg.type)
+        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
         && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
         const inMenu = contextMenu.containsDesktopPoint(point);
-        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point)) {
+        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, { raw: msg })) {
             return;
         }
         if (msg.type === 'left_mouse_down') {
@@ -889,10 +1084,10 @@ function handleInputEvent(msg) {
     }
 }
 
-function pointFromHitPayload(payload = {}, frameOverride = null) {
+function pointFromHitPayload(payload = {}) {
     const localX = Number(payload.offsetX);
     const localY = Number(payload.offsetY);
-    const frame = frameOverride || hitTarget.hit.frame;
+    const frame = hitTarget.hit.frame;
     if (Number.isFinite(localX) && Number.isFinite(localY) && Array.isArray(frame) && frame.length >= 4) {
         const nativePoint = {
             x: Number(frame[0]) + localX,
@@ -918,24 +1113,23 @@ function nativeFrameFromDesktopRect(rect) {
 
 function handleHitCanvasEvent(payload = {}) {
     if (payload.source !== 'sigil-hit') return;
-    if (payload.kind === 'left_mouse_down') {
-        liveJs.hitPointerFrame = Array.isArray(hitTarget.hit.frame)
-            ? [...hitTarget.hit.frame]
-            : null;
+    const isLeftHitEvent = payload.kind === 'left_mouse_down'
+        || payload.kind === 'left_mouse_dragged'
+        || payload.kind === 'left_mouse_up';
+    if (payload.kind === 'left_mouse_down' || payload.kind === 'left_mouse_dragged' || payload.kind === 'left_mouse_up') {
+        if (!contextMenu.isOpen()) return;
     }
-    const point = pointFromHitPayload(payload, liveJs.hitPointerFrame);
-    if (payload.kind === 'left_mouse_up') {
-        liveJs.hitPointerFrame = null;
-    }
+    const point = pointFromHitPayload(payload);
     if (!point) return;
-    handleInputEvent({ type: payload.kind, x: point.x, y: point.y, fromHitTarget: true });
-}
-
-function normalizeMessage(msg) {
-    const payload = (msg?.payload && typeof msg.payload === 'object' && msg.payload !== null) ? msg.payload : null;
-    const merged = payload ? { ...payload, ...msg } : { ...msg };
-    merged.type = msg?.type ?? payload?.type ?? merged.type;
-    return merged;
+    if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) return;
+    handleInputEvent({
+        type: payload.kind,
+        x: point.x,
+        y: point.y,
+        dx: payload.dx,
+        dy: payload.dy,
+        fromHitTarget: true,
+    });
 }
 
 function originFromMessage(msg = {}) {
@@ -1046,7 +1240,7 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
-    if (msg.type === 'input_event' && typeof msg.x === 'number' && typeof msg.y === 'number') {
+    if (INPUT_POINTER_EVENT_TYPES.has(msg.type) && typeof msg.x === 'number' && typeof msg.y === 'number') {
         const worldPoint = nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
         handleInputEvent({ ...msg, x: worldPoint.x, y: worldPoint.y });
         return;
@@ -1122,6 +1316,18 @@ async function setupHostSurface() {
 
 async function init() {
     runBootStep('initScene', () => initScene());
+    runBootStep('createRadialGestureVisuals', () => {
+        radialGestureVisuals = createSigilRadialGestureVisuals({
+            scene: state.scene,
+            projectPoint: (point) => point?.valid === false ? null : projectAvatarToScene(point.x, point.y),
+            projectRadius(point, radius) {
+                if (!point || point.valid === false) return null;
+                const center = projectAvatarToScene(point.x, point.y);
+                const edge = projectAvatarToScene(point.x + radius, point.y);
+                return center.distanceTo(edge);
+            },
+        });
+    });
     runBootStep('createAuraObjects', () => createAuraObjects());
     runBootStep('createParticleObjects', () => createParticleObjects());
     runBootStep('createPhenomena', () => createPhenomena());
@@ -1143,6 +1349,7 @@ function clearHiddenFrame(renderAvatarPos) {
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
     }
     overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
+    radialGestureVisuals?.reset?.();
     visibilityTransition.draw({ avatarStagePos: null });
     fastTravel.draw();
     state.renderer.clear(true, true, true);
@@ -1180,8 +1387,9 @@ function animate() {
         ? (
             primarySegment
                 ? fastTravel.tick(dt, () => {
-                postLastPositionToDaemon();
-            })
+                    postLastPositionToDaemon();
+                    syncHitTargetToAvatar();
+                })
                 : fastTravel.preview()
         )
         : null;
@@ -1261,10 +1469,7 @@ function animate() {
         const frame = nativeFrameFromDesktopRect(contextMenu.interactiveBounds());
         if (frame) hitTarget.syncFrame(frame, true);
     } else if (primarySegment && liveJs.avatarPos.valid) {
-        hitTarget.setSize(state.avatarHitRadius * 2)
-        const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
-        nativeAvatarPos.valid = true;
-        hitTarget.sync(nativeAvatarPos, liveJs.avatarVisible && ['IDLE', 'PRESS', 'DRAG'].includes(liveJs.currentState));
+        syncHitTargetToAvatar();
     }
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
@@ -1272,10 +1477,12 @@ function animate() {
         state: liveJs.currentState,
         avatarPos: avatarStagePos,
         dragOrigin: dragOriginStage,
+        radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
         gotoRingRadius: liveJs.gotoRingRadius,
         menuRingRadius: liveJs.menuRingRadius,
         dragCancelRadius: liveJs.dragCancelRadius,
     });
+    radialGestureVisuals?.update(liveJs.radialGestureMenu, { time: state.globalTime });
     visibilityTransition.draw({ avatarStagePos });
     fastTravel.draw();
 
@@ -1302,17 +1509,26 @@ window.__sigilDebug = {
         handleHostMessage(msg);
         return liveJs.currentState;
     },
+    dispatchDesktop(msg) {
+        handleInputEvent(msg);
+        return liveJs.currentState;
+    },
     snapshot() {
         return {
             state: liveJs.currentState,
             avatarPos: liveJs.avatarPos,
             travel: liveJs.travel,
             fastTravel: fastTravel.exportSnapshot(),
+            radialGestureMenu: liveJs.radialGestureMenu,
+            radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
+            contextMenu: contextMenu?.snapshot?.(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
             avatarVisible: liveJs.avatarVisible,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
+            hitTargetFrame: hitTarget.hit.frame,
+            hitTargetInteractive: hitTarget.hit.interactive,
             transition: visibilityTransition.active?.effect ?? null,
             surface: desktopWorldSurface ? {
                 segment: desktopWorldSurface.segment,
@@ -1332,6 +1548,7 @@ export async function boot() {
     recordBoot('boot:start');
 
     runBootStep('applyDefaultAppearance', () => applyAppearance(DEFAULT_APPEARANCE));
+    const defaultAvatarPromise = runBootStep('loadDefaultAvatarDefinition', () => loadDefaultAvatarDefinition({ apply: false }));
     await runBootStep('init', () => init());
 
     const displaysStartedAt = performance.now();
@@ -1339,7 +1556,8 @@ export async function boot() {
         recordBootDuration('boot:awaitFirstDisplayGeometry', displaysStartedAt, { displays: displays.length });
         return displays;
     });
-    const displays = await displaysPromise;
+    const [displays, defaultAvatar] = await Promise.all([displaysPromise, defaultAvatarPromise]);
+    runBootStep('applyDefaultAvatarDefinition', () => applyDefaultAvatarDefinition(defaultAvatar));
 
     recordBoot('boot:displayReady', { displays: displays.length });
 
@@ -1348,7 +1566,7 @@ export async function boot() {
         position = nativeToDesktopWorldPoint(position, displays) ?? position;
     }
     if (!position) {
-        position = resolveBirthplace({
+        position = resolveBirthplace(liveJs.currentAgentDefinition?.instance?.birthplace ?? {
             anchor: 'nonant',
             nonant: 'bottom-right',
             display: 'main',

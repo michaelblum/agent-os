@@ -26,6 +26,10 @@ function emit(kind, event) {
         offsetX: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
         offsetY: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
     };
+    if (kind === 'scroll_wheel') {
+        payload.dx = Number.isFinite(event.deltaX) ? event.deltaX : 0;
+        payload.dy = Number.isFinite(event.deltaY) ? event.deltaY : 0;
+    }
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.headsup) {
         window.webkit.messageHandlers.headsup.postMessage({
             type: 'canvas.send',
@@ -80,6 +84,11 @@ document.addEventListener('contextmenu', (event) => {
     if (performance.now() - lastRightPointerDownAt < 750) return;
     emit('right_mouse_down', event);
 });
+
+document.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    emit('scroll_wheel', event);
+}, { passive: false });
 
 window.headsup.receive = function(b64) {
     try {

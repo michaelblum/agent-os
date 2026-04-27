@@ -26,6 +26,12 @@ export function createOmega() {
 }
 
 export function resetOmegaInterdimensionalTrail(position = null) {
+    if (typeof THREE === 'undefined') {
+        if (Array.isArray(state.omegaGhosts)) state.omegaGhosts.length = 0;
+        state.omegaGhostTimer = 0;
+        _lastPosInitialized = false;
+        return;
+    }
     _ensureScratch();
     _cleanupAllGhosts();
     state.omegaGhostTimer = 0;

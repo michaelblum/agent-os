@@ -40,19 +40,32 @@ export function createInteractionOverlay() {
             return;
         }
 
-        if (snapshot.state === 'DRAG' && snapshot.dragOrigin) {
+        if (snapshot.radialGesture?.phase === 'radial' && snapshot.radialGesture.origin) {
+            const radial = snapshot.radialGesture;
+            const origin = radial.origin;
+            const menuRadius = radial.radii?.menu ?? snapshot.menuRingRadius;
+            const handoffRadius = radial.radii?.handoff ?? menuRadius;
+
+            ctx.save();
+            ctx.globalAlpha = 0.9;
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(255, 180, 220, 0.9)';
-            ctx.lineWidth = 2;
-            ctx.arc(snapshot.dragOrigin.x, snapshot.dragOrigin.y, snapshot.menuRingRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(130, 220, 255, 0.55)';
+            ctx.lineWidth = 1.5;
+            ctx.arc(origin.x, origin.y, menuRadius * radial.menuProgress, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(255, 180, 220, 0.35)';
+            ctx.setLineDash([5, 8]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1;
-            ctx.arc(snapshot.dragOrigin.x, snapshot.dragOrigin.y, snapshot.dragCancelRadius, 0, Math.PI * 2);
+            ctx.arc(origin.x, origin.y, handoffRadius, 0, Math.PI * 2);
             ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.restore();
+            return;
         }
+
     }
 
     function destroy() {

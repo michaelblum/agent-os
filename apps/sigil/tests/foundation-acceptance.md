@@ -7,6 +7,13 @@
 **Git commit at run:** `114917e` (per `aos doctor --json .identity.git_commit`)
 **Environment:** macOS, two displays attached (main 1512x875 @ y=33 + external 1920x1050 @ y=1012).
 
+**Historical note:** This is a point-in-time acceptance report from
+2026-04-12. Some commands and internal state names below describe the Sigil-1
+runtime of that date. Current interaction verification lives in executable tests
+such as `tests/sigil-avatar-interactions.sh` and
+`tests/sigil-hit-target-drag-fast-travel.sh`, where the old direct `DRAG` path
+has converged into the `PRESS` -> `RADIAL` -> `FAST_TRAVEL` gesture flow.
+
 This document captures the 12 acceptance criteria from the spec. Each criterion
 was either:
 

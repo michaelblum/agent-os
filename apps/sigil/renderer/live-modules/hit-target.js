@@ -1,3 +1,18 @@
+const TOOLKIT_SURFACE_SPECIFIER = (
+    typeof window !== 'undefined'
+    && typeof location !== 'undefined'
+    && /^https?:$/.test(location.protocol)
+)
+    ? '/toolkit/runtime/interaction-surface.js'
+    : (
+        typeof location !== 'undefined'
+        && location.protocol === 'aos:'
+    )
+        ? 'aos://toolkit/runtime/interaction-surface.js'
+        : '../../../../packages/toolkit/runtime/interaction-surface.js';
+
+const { createInteractionSurface } = await import(TOOLKIT_SURFACE_SPECIFIER);
+
 function frameFor(center, size) {
     const half = size / 2;
     return [
@@ -14,27 +29,46 @@ function appendQuery(url, params) {
     return `${url}${separator}${query}`;
 }
 
+function sameFrame(a, b) {
+    return Array.isArray(a)
+        && Array.isArray(b)
+        && a.length >= 4
+        && b.length >= 4
+        && a[0] === b[0]
+        && a[1] === b[1]
+        && a[2] === b[2]
+        && a[3] === b[3];
+}
+
 export function createHitTargetController({ runtime, url, size = 80, id = null, idPrefix = 'sigil-hit' }) {
+    const hitId = id || `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`;
+    const ownerCanvasId = (
+        typeof window !== 'undefined'
+        && (window.__aosCanvasId || window.__aosSurfaceCanvasId)
+    ) || 'avatar-main';
     const hit = {
-        id: id || `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`,
+        id: hitId,
         ready: false,
         creating: false,
         interactive: true,
         size,
         frame: [-1000, -1000, size, size],
     };
+    const surface = createInteractionSurface({
+        runtime,
+        id: hit.id,
+        url: appendQuery(url, { parent: ownerCanvasId, id: hit.id }),
+        parent: ownerCanvasId,
+        frame: hit.frame,
+        interactive: true,
+        windowLevel: 'screen_saver',
+    });
 
     async function ensureCreated() {
         if (hit.ready || hit.creating) return hit.id;
         hit.creating = true;
         try {
-            await runtime.canvasCreate({
-                id: hit.id,
-                url: appendQuery(url, { parent: 'avatar-main', id: hit.id }),
-                frame: hit.frame,
-                interactive: true,
-                window_level: 'screen_saver',
-            });
+            await surface.ensureCreated();
             hit.ready = true;
             return hit.id;
         } catch (error) {
@@ -52,16 +86,11 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         if (!hit.ready || !Array.isArray(frame) || frame.length < 4) return;
         const nextFrame = frame.map((value) => Math.round(Number(value) || 0));
         const nextInteractive = !!interactive;
-        const update = {
-            id: hit.id,
-            frame: nextInteractive ? nextFrame : [-10000, -10000, hit.size, hit.size],
-        };
-        hit.frame = update.frame;
-        if (nextInteractive !== hit.interactive) {
-            update.interactive = nextInteractive;
-            hit.interactive = nextInteractive;
-        }
-        runtime.canvasUpdate(update);
+        const targetFrame = nextInteractive ? nextFrame : [-10000, -10000, hit.size, hit.size];
+        if (sameFrame(hit.frame, targetFrame) && hit.interactive === nextInteractive) return;
+        surface.setPlacement(targetFrame, nextInteractive);
+        hit.frame = targetFrame;
+        hit.interactive = nextInteractive;
     }
 
     function sync(center, interactive) {
@@ -80,7 +109,7 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
     async function remove() {
         if (!hit.ready && !hit.creating) return;
         try {
-            await runtime.canvasRemove({ id: hit.id });
+            await surface.remove();
         } catch (error) {
             console.warn('[sigil] failed to remove hit target:', error);
         } finally {

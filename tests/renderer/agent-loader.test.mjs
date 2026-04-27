@@ -71,16 +71,13 @@ test('loadAgent: birthplace-only → no PUT', async () => {
   assert.equal(calls.put.length, 0, 'no PUT expected');
 });
 
-test('loadAgent: home-only → PUT with home rewritten to birthplace', async () => {
+test('loadAgent: home-only → in-memory birthplace migration, no PUT', async () => {
   const md = docWith({ home: { anchor: 'nonant', nonant: 'top-left', display: 'main' }, size: 200 });
-  let putBody = null;
   const calls = stubFetch(new Map([
-    ['/wiki/sigil/agents/test.md', { status: 200, text: md, onPut: (b) => { putBody = b; } }],
+    ['/wiki/sigil/agents/test.md', { status: 200, text: md }],
   ]));
   const out = await loadAgent('sigil/agents/test');
-  assert.equal(calls.put.length, 1, 'expected one PUT');
-  assert.ok(putBody.includes('"birthplace"'), 'PUT body contains birthplace');
-  assert.ok(!putBody.includes('"home"'), 'PUT body has no home key');
+  assert.equal(calls.put.length, 0, 'loadAgent must not write during read');
   assert.equal(out.instance.birthplace.nonant, 'top-left', 'returned agent uses birthplace');
   assert.equal(out.instance.home, undefined);
 });

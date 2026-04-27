@@ -96,6 +96,22 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         dragCancelRadius: 40,
         gotoRingRadius: 60,
         menuRingRadius: 120,
+        radialGestureMenu: {
+            deadZoneRadius: 0.6,
+            itemRadius: 1.55,
+            itemHitRadius: 0.42,
+            itemVisualRadius: 0.28,
+            menuRadius: 1.8,
+            handoffRadius: 2.25,
+            reentryRadius: 1.85,
+            spreadDegrees: 88,
+            startAngle: -90,
+            orientation: 'fixed',
+            items: [
+                { id: 'context-menu', label: 'Context Menu', action: 'contextMenu' },
+                { id: 'wiki-graph', label: 'Wiki Graph', action: 'wikiGraph' },
+            ],
+        },
     },
 
     windowing: {
@@ -106,12 +122,35 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         enter: DEFAULT_TRANSITION_EFFECT,
         exit: DEFAULT_TRANSITION_EFFECT,
         fastTravel: DEFAULT_FAST_TRAVEL_EFFECT,
+        lineInterDimensional: true,
+        line: {
+            duration: 0.22,
+            delay: 0,
+            repeatCount: 10,
+            repeatDuration: 2.0,
+            trailMode: 'fade',
+            lagFactor: 0.05,
+            scale: 1.5,
+        },
         scaleDuration: 0.18,
         wormhole: {
             captureRadius: 96,
-            implosionDuration: 0.22,
-            reboundDuration: 0.34,
-            distortionStrength: 0.82,
+            implosionDuration: 1.5,
+            travelDuration: 0.5,
+            reboundDuration: 1.2,
+            distortionStrength: 1.2,
+            twist: 3.14,
+            zoom: 3.5,
+            shadingEnabled: true,
+            tunnelShadow: 0.8,
+            specularIntensity: 0.4,
+            lightAngle: 2.35,
+            objectEnabled: true,
+            objectHeight: 0.8,
+            objectSpin: 4.5,
+            particlesEnabled: true,
+            particleDensity: 0.05,
+            flashIntensity: 1.5,
             whitePointIntensity: 1.0,
             starburstIntensity: 0.95,
             lensFlareIntensity: 0.8,
@@ -315,6 +354,7 @@ export function applyAppearance(blob) {
     state.dragCancelRadius = interaction.dragCancelRadius ?? D.interaction.dragCancelRadius;
     state.gotoRingRadius = interaction.gotoRingRadius ?? D.interaction.gotoRingRadius;
     state.menuRingRadius = interaction.menuRingRadius ?? D.interaction.menuRingRadius;
+    state.radialGestureMenu = interaction.radialGestureMenu ?? D.interaction.radialGestureMenu;
 
     const windowing = blob.windowing ?? D.windowing;
     state.avatarWindowLevel = windowing.avatarLevel === 'screen_saver'
@@ -322,15 +362,37 @@ export function applyAppearance(blob) {
         : D.windowing.avatarLevel;
 
     const transitions = blob.transitions ?? D.transitions;
+    const line = transitions.line ?? D.transitions.line;
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
     state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
     state.transitionExitEffect = normalizeTransitionEffect(transitions.exit, D.transitions.exit);
     state.transitionFastTravelEffect = normalizeFastTravelEffect(transitions.fastTravel, D.transitions.fastTravel);
+    state.fastTravelLineInterDimensional = transitions.lineInterDimensional ?? D.transitions.lineInterDimensional;
+    state.fastTravelLineDuration = line.duration ?? D.transitions.line.duration;
+    state.fastTravelLineDelay = line.delay ?? D.transitions.line.delay;
+    state.fastTravelLineRepeatCount = line.repeatCount ?? D.transitions.line.repeatCount;
+    state.fastTravelLineRepeatDuration = line.repeatDuration ?? D.transitions.line.repeatDuration;
+    state.fastTravelLineTrailMode = line.trailMode ?? D.transitions.line.trailMode;
+    state.fastTravelLineLag = line.lagFactor ?? D.transitions.line.lagFactor;
+    state.fastTravelLineScale = line.scale ?? D.transitions.line.scale;
     state.transitionScaleDuration = transitions.scaleDuration ?? D.transitions.scaleDuration;
     state.wormholeCaptureRadius = wormhole.captureRadius ?? D.transitions.wormhole.captureRadius;
     state.wormholeImplosionDuration = wormhole.implosionDuration ?? D.transitions.wormhole.implosionDuration;
+    state.wormholeTravelDuration = wormhole.travelDuration ?? D.transitions.wormhole.travelDuration;
     state.wormholeReboundDuration = wormhole.reboundDuration ?? D.transitions.wormhole.reboundDuration;
     state.wormholeDistortionStrength = wormhole.distortionStrength ?? D.transitions.wormhole.distortionStrength;
+    state.wormholeTwist = wormhole.twist ?? D.transitions.wormhole.twist;
+    state.wormholeZoom = wormhole.zoom ?? D.transitions.wormhole.zoom;
+    state.wormholeShadingEnabled = wormhole.shadingEnabled ?? D.transitions.wormhole.shadingEnabled;
+    state.wormholeTunnelShadow = wormhole.tunnelShadow ?? D.transitions.wormhole.tunnelShadow;
+    state.wormholeSpecularIntensity = wormhole.specularIntensity ?? D.transitions.wormhole.specularIntensity;
+    state.wormholeLightAngle = wormhole.lightAngle ?? D.transitions.wormhole.lightAngle;
+    state.wormholeObjectEnabled = wormhole.objectEnabled ?? D.transitions.wormhole.objectEnabled;
+    state.wormholeObjectHeight = wormhole.objectHeight ?? D.transitions.wormhole.objectHeight;
+    state.wormholeObjectSpin = wormhole.objectSpin ?? D.transitions.wormhole.objectSpin;
+    state.wormholeParticlesEnabled = wormhole.particlesEnabled ?? D.transitions.wormhole.particlesEnabled;
+    state.wormholeParticleDensity = wormhole.particleDensity ?? D.transitions.wormhole.particleDensity;
+    state.wormholeFlashIntensity = wormhole.flashIntensity ?? D.transitions.wormhole.flashIntensity;
     state.wormholeWhitePointIntensity = wormhole.whitePointIntensity ?? D.transitions.wormhole.whitePointIntensity;
     state.wormholeStarburstIntensity = wormhole.starburstIntensity ?? D.transitions.wormhole.starburstIntensity;
     state.wormholeLensFlareIntensity = wormhole.lensFlareIntensity ?? D.transitions.wormhole.lensFlareIntensity;
@@ -558,6 +620,7 @@ export function snapshotAppearance() {
             dragCancelRadius: state.dragCancelRadius,
             gotoRingRadius: state.gotoRingRadius,
             menuRingRadius: state.menuRingRadius,
+            radialGestureMenu: state.radialGestureMenu,
         },
 
         windowing: {
@@ -568,12 +631,35 @@ export function snapshotAppearance() {
             enter: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_APPEARANCE.transitions.enter),
             exit: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_APPEARANCE.transitions.exit),
             fastTravel: normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_APPEARANCE.transitions.fastTravel),
+            lineInterDimensional: state.fastTravelLineInterDimensional ?? DEFAULT_APPEARANCE.transitions.lineInterDimensional,
+            line: {
+                duration: state.fastTravelLineDuration ?? DEFAULT_APPEARANCE.transitions.line.duration,
+                delay: state.fastTravelLineDelay ?? DEFAULT_APPEARANCE.transitions.line.delay,
+                repeatCount: state.fastTravelLineRepeatCount ?? DEFAULT_APPEARANCE.transitions.line.repeatCount,
+                repeatDuration: state.fastTravelLineRepeatDuration ?? DEFAULT_APPEARANCE.transitions.line.repeatDuration,
+                trailMode: state.fastTravelLineTrailMode ?? DEFAULT_APPEARANCE.transitions.line.trailMode,
+                lagFactor: state.fastTravelLineLag ?? DEFAULT_APPEARANCE.transitions.line.lagFactor,
+                scale: state.fastTravelLineScale ?? DEFAULT_APPEARANCE.transitions.line.scale,
+            },
             scaleDuration: state.transitionScaleDuration ?? DEFAULT_APPEARANCE.transitions.scaleDuration,
             wormhole: {
                 captureRadius: state.wormholeCaptureRadius ?? DEFAULT_APPEARANCE.transitions.wormhole.captureRadius,
                 implosionDuration: state.wormholeImplosionDuration ?? DEFAULT_APPEARANCE.transitions.wormhole.implosionDuration,
+                travelDuration: state.wormholeTravelDuration ?? DEFAULT_APPEARANCE.transitions.wormhole.travelDuration,
                 reboundDuration: state.wormholeReboundDuration ?? DEFAULT_APPEARANCE.transitions.wormhole.reboundDuration,
                 distortionStrength: state.wormholeDistortionStrength ?? DEFAULT_APPEARANCE.transitions.wormhole.distortionStrength,
+                twist: state.wormholeTwist ?? DEFAULT_APPEARANCE.transitions.wormhole.twist,
+                zoom: state.wormholeZoom ?? DEFAULT_APPEARANCE.transitions.wormhole.zoom,
+                shadingEnabled: state.wormholeShadingEnabled ?? DEFAULT_APPEARANCE.transitions.wormhole.shadingEnabled,
+                tunnelShadow: state.wormholeTunnelShadow ?? DEFAULT_APPEARANCE.transitions.wormhole.tunnelShadow,
+                specularIntensity: state.wormholeSpecularIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.specularIntensity,
+                lightAngle: state.wormholeLightAngle ?? DEFAULT_APPEARANCE.transitions.wormhole.lightAngle,
+                objectEnabled: state.wormholeObjectEnabled ?? DEFAULT_APPEARANCE.transitions.wormhole.objectEnabled,
+                objectHeight: state.wormholeObjectHeight ?? DEFAULT_APPEARANCE.transitions.wormhole.objectHeight,
+                objectSpin: state.wormholeObjectSpin ?? DEFAULT_APPEARANCE.transitions.wormhole.objectSpin,
+                particlesEnabled: state.wormholeParticlesEnabled ?? DEFAULT_APPEARANCE.transitions.wormhole.particlesEnabled,
+                particleDensity: state.wormholeParticleDensity ?? DEFAULT_APPEARANCE.transitions.wormhole.particleDensity,
+                flashIntensity: state.wormholeFlashIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.flashIntensity,
                 whitePointIntensity: state.wormholeWhitePointIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.whitePointIntensity,
                 starburstIntensity: state.wormholeStarburstIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.starburstIntensity,
                 lensFlareIntensity: state.wormholeLensFlareIntensity ?? DEFAULT_APPEARANCE.transitions.wormhole.lensFlareIntensity,
