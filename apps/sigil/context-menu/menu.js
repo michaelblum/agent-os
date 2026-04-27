@@ -668,7 +668,7 @@ export function createSigilContextMenu({
 
         const target = elementAt(point);
         if (!target || !anchor.contains(target)) return true;
-        const input = target.closest?.('input, select, button, .ctx-menu-card.pushed');
+        const input = target.closest?.('input, select, button, label.checkbox-label, .ctx-menu-card.pushed');
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
@@ -683,6 +683,14 @@ export function createSigilContextMenu({
             if (input.matches('input[type="checkbox"]')) {
                 input.checked = !input.checked;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+            if (input.matches('label.checkbox-label')) {
+                const checkbox = input.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
                 return true;
             }
             if (input.matches('button, .ctx-menu-card.pushed')) {
@@ -843,7 +851,6 @@ export function createSigilContextMenu({
                 setSegmentedChoice('[data-sigil-fast-travel-effect]', value);
                 onAppearanceChange?.({ controlId: 'sigil-menu-fast-travel-effect', value });
                 syncSnapshot();
-                close('fast-travel-effect');
             });
         });
         onCheckbox('sigil-menu-lightning-origin-center', (value) => { state.lightningOriginCenter = value; });

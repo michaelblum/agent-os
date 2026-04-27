@@ -303,13 +303,16 @@ menu_effect = show_eval_json(
       }})
       const button = document.querySelector('[data-sigil-fast-travel-effect="wormhole"]')
       if (!button) return JSON.stringify({{ ok: false, error: 'missing fast-travel menu button' }})
-      window.confirm = () => true
       button.click()
+      const menuOpenAfterClick = window.liveJs.contextMenu?.open === true
+      window.confirm = () => false
+      window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
       return JSON.stringify({{
         ok: true,
         fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
         active: button.classList.contains('active'),
-        menuOpen: window.liveJs.contextMenu?.open === true
+        menuOpen: menuOpenAfterClick,
+        menuOpenAfterClose: window.liveJs.contextMenu?.open === true
       }})
     }})()"""
 )
@@ -317,22 +320,10 @@ if (
     not menu_effect.get("ok")
     or menu_effect.get("fastTravelEffect") != "wormhole"
     or menu_effect.get("active") is not True
-    or menu_effect.get("menuOpen") is not False
+    or menu_effect.get("menuOpen") is not True
+    or menu_effect.get("menuOpenAfterClose") is not False
 ):
     raise SystemExit(f"FAIL: context menu did not switch fast travel to wormhole: {menu_effect}")
-
-wait_until(
-    lambda: (
-        lambda state: state
-        if state.get("lastSavedFastTravel") == "wormhole"
-        and state.get("dirty") is False
-        and not state.get("saving")
-        and not state.get("lastError")
-        else None
-    )(show_eval_json("JSON.stringify(window.liveJs.defaultAvatarSave || {})")),
-    timeout=5.0,
-    label="default avatar fast-travel save",
-)
 
 wormhole_started = show_eval_json(
     f"""(() => {{

@@ -216,6 +216,45 @@ goto_canceled_again = show_eval_json(
 )
 assert goto_canceled_again["state"] == "IDLE", goto_canceled_again
 
+right_click_duplicate = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x + 20, y: p.y + 4 })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert right_click_duplicate["contextMenu"]["open"] is True, right_click_duplicate
+
+label_toggle = show_eval_json(
+    """(() => {
+      document.querySelector('[data-ctx-tab="sigil-menu-effects"]').click()
+      const checkbox = document.querySelector('#sigil-menu-line-interdim')
+      const label = checkbox.closest('label')
+      const labelRect = label.getBoundingClientRect()
+      const inputRect = checkbox.getBoundingClientRect()
+      const segment = window.__sigilDebug.snapshot().surface?.segment?.dw_bounds
+      const originX = Array.isArray(segment) ? segment[0] : (window.liveJs.globalBounds?.x ?? 0)
+      const originY = Array.isArray(segment) ? segment[1] : (window.liveJs.globalBounds?.y ?? 0)
+      const point = {
+        x: originX + Math.min(labelRect.right - 8, inputRect.right + 70),
+        y: originY + labelRect.top + labelRect.height / 2
+      }
+      const before = checkbox.checked
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: point.x, y: point.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: point.x, y: point.y })
+      return JSON.stringify({
+        before,
+        checked: checkbox.checked,
+        stateValue: window.state.fastTravelLineInterDimensional,
+        menuOpen: window.__sigilDebug.snapshot().contextMenu.open
+      })
+    })()"""
+)
+assert label_toggle["checked"] == (not label_toggle["before"]), label_toggle
+assert label_toggle["stateValue"] == label_toggle["checked"], label_toggle
+assert label_toggle["menuOpen"] is True, label_toggle
+
 assert hit_target_id in canvas_ids(), f"missing hit target canvas after interactions: {hit_target_id}"
 print("PASS")
 PY

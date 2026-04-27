@@ -938,8 +938,10 @@ let lastContextMenuOpenPoint = null;
 
 function isDuplicateContextMenuOpenClick(x, y) {
     if (!lastContextMenuOpenPoint) return false;
-    if (performance.now() - lastContextMenuOpenAt > 500) return false;
-    return distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y) <= 2;
+    const elapsed = performance.now() - lastContextMenuOpenAt;
+    if (elapsed > 900) return false;
+    const tolerance = Math.max(16, Math.min(80, Number(state.avatarHitRadius) || 0));
+    return distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y) <= tolerance;
 }
 
 function openContextMenuAt(x, y, options = {}) {
