@@ -200,9 +200,9 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      ]), default: .string("global")),
                 flag("auto-project", "--auto-project", "Auto-projection mode",
                      type: .enumeration([
-                        EnumValue(value: "none", summary: "No projection"),
-                        EnumValue(value: "cursor", summary: "Follow cursor"),
-                        EnumValue(value: "window", summary: "Follow window")
+                        EnumValue(value: "cursor_trail", summary: "Fading cursor trail across displays"),
+                        EnumValue(value: "highlight_focused", summary: "Highlight the focused subtree for an anchor channel"),
+                        EnumValue(value: "label_elements", summary: "Label elements for an anchor channel")
                      ])),
                 flag("track", "--track", "Track target",
                      type: .enumeration([
@@ -243,12 +243,21 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("html", "--html", "New HTML content"),
                 flag("file", "--file", "New HTML file path"),
                 flag("url", "--url", "New URL"),
-                flag("window-level", "--window-level", "New native window layer"),
+                flag("window-level", "--window-level", "New native window layer",
+                     type: .enumeration([
+                        EnumValue(value: "automatic", summary: "Default for interactive/noninteractive canvases"),
+                        EnumValue(value: "floating", summary: "Floating utility level"),
+                        EnumValue(value: "status_bar", summary: "Status-bar overlay level"),
+                        EnumValue(value: "screen_saver", summary: "Above menu bar and system UI")
+                     ])),
                 flag("focus", "--focus", "Focus the canvas", type: .bool),
                 flag("ttl", "--ttl", "New TTL"),
-                flag("auto-project", "--auto-project", "New projection mode"),
-                flag("track", "--track", "New track target"),
+                flag("track", "--track", "New track target",
+                     type: .enumeration([
+                        EnumValue(value: "union", summary: "Track display union bounds")
+                     ])),
                 flag("anchor-window", "--anchor-window", "New anchor window"),
+                flag("anchor-channel", "--anchor-channel", "New anchor channel"),
                 flag("anchor-browser", "--anchor-browser", "New anchor browser target (browser:<s>[/<ref>])"),
                 flag("offset", "--offset", "New offset")
             ],

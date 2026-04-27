@@ -152,6 +152,34 @@ else
     fail "ready help is missing or malformed: $OUT"
 fi
 
+# --- 15. show create/update registry stays aligned with canvas parser enums ---
+if CREATE="$(./aos help show create --json 2>/dev/null)" UPDATE="$(./aos help show update --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+
+def form_arg(payload, form_id, arg_id):
+    data = json.loads(payload)
+    form = next(item for item in data["forms"] if item["id"] == form_id)
+    return next((arg for arg in form["args"] if arg["id"] == arg_id), None)
+
+
+def enum_values(arg):
+    return [item["value"] for item in arg["value_type"]["enum"]]
+
+
+create_auto = form_arg(os.environ["CREATE"], "show-create", "auto-project")
+assert enum_values(create_auto) == ["cursor_trail", "highlight_focused", "label_elements"], create_auto
+assert form_arg(os.environ["UPDATE"], "show-update", "auto-project") is None
+assert form_arg(os.environ["UPDATE"], "show-update", "anchor-channel") is not None
+assert enum_values(form_arg(os.environ["UPDATE"], "show-update", "track")) == ["union"]
+PY
+then
+    pass "show create/update registry matches canvas parser enums"
+else
+    fail "show create/update registry drifted from canvas parser"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"
