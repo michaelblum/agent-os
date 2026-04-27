@@ -683,6 +683,50 @@ permissioned future raw-input subscriber with `delivery_role: "observed"` and
 privacy controls. That observation path must not make printable keys
 behavior-driving input for default app surfaces.
 
+## Agent Activity Visual Annotation
+
+AOS should preserve a clear distinction between agent embodiment and visual
+annotation. When an agent acts through `aos do` or an equivalent action
+primitive, the real macOS cursor/keyboard path should be used at the lowest
+software level macOS allows. Renderer-only test injection is useful for state
+machine tests, but it is not proof that the agent inhabited the user's mouse or
+keyboard.
+
+Apps such as Sigil may want to decorate agent-driven activity without replacing
+the OS cursor, text caret, app border, display edge, or focused target. The
+target shape is:
+
+```text
+daemon action/input state
+  -> toolkit activity/annotation helpers
+  -> app-specific renderer style
+```
+
+The daemon should own factual activity state, such as:
+
+- actor/source: user, agent, script, or mixed
+- action phase: planned, moving, dragging, clicking, typing, complete, cancelled
+- pointer position in native and DesktopWorld coordinates when available
+- target display/window/app/element facts when available
+- caret rectangle/focus facts when available and privacy-safe
+- correlation with the originating action request or input event sequence
+
+Toolkit may later provide reusable annotation helpers for coordinate mapping,
+target-frame normalization, smoothing, TTL/fade, and multi-display projection.
+Those helpers should not prescribe a product visual language.
+
+Apps own presentation. Sigil can render aura, cursor-adjacent chrome, caret
+flair, border glows, display-edge treatments, trails, or other visual language
+from the same primitive facts. Another app may render a quieter or entirely
+different annotation convention.
+
+This proposal does not define the final `agent_activity` or `action_activity`
+schema. That schema should be added under `shared/schemas/` when implementation
+starts. The design constraint recorded here is that activity annotation must not
+replace OS input primitives, must not depend on app JavaScript for emergency
+recovery, and must respect privacy boundaries around text input, secure fields,
+and caret/focus inspection.
+
 ## InteractionSurface Lifecycle
 
 `InteractionSurface` should start as a minimal lifecycle primitive, not a
@@ -886,6 +930,8 @@ can satisfy these criteria:
 - Raw printable-key observation for future agent harnesses is explicitly outside
   the default toolkit app-surface router and requires a separate opt-in
   capability design before use.
+- Agent-driven visual annotation is treated as decoration of real daemon/action
+  facts, not as a replacement for OS cursor/keyboard primitives.
 - Toolkit tests cover region priority, capture, outside-click, scroll, duplicate
   stream suppression, and keyboard shortcut arbitration.
 - Sigil tests cover avatar drag, fast travel release, menu controls, scroll, and
@@ -948,6 +994,9 @@ can satisfy these criteria:
   opt-in rules are enforced.
 - Capture state split between daemon and toolkit can cause either missed drags
   or over-consumption if the handshake is incomplete or stale.
+- Agent activity annotation can leak sensitive context if caret/focus metadata,
+  typed text, secure fields, or target application details are published without
+  explicit privacy rules.
 
 ## Staged Implementation
 
