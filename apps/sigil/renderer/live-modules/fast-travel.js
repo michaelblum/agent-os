@@ -1,6 +1,6 @@
 import state from '../state.js';
 import { normalizeFastTravelEffect } from '../transition-registry.js';
-import { clampPointToDisplays, desktopWorldToNativePoint } from './display-utils.js';
+import { clampPointToDisplays, desktopWorldToNativePoint, findDisplayForPoint } from './display-utils.js';
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
@@ -207,12 +207,83 @@ function wormholeExitThreshold(rendererState) {
     return wormholeRadius(rendererState);
 }
 
-function drawCurvedPatch(ctx, image, center, radius, depth, curve, twistDirection = 1) {
-    if (!image) return;
+function displayId(display) {
+    return display?.display_id ?? display?.id ?? display?.uuid ?? display?.display_uuid ?? null;
+}
+
+function rectFromDisplay(display) {
+    return display?.bounds ?? display?.visibleBounds ?? display?.visible_bounds ?? null;
+}
+
+function nativeRectFromDisplay(display) {
+    return display?.nativeBounds ?? display?.native_bounds ?? display?.bounds ?? display?.visibleBounds ?? display?.visible_bounds ?? null;
+}
+
+function pointDisplay(displays, point) {
+    return findDisplayForPoint(displays, point?.x ?? 0, point?.y ?? 0) ?? displays?.[0] ?? null;
+}
+
+function displayStageRect(display, projectStagePoint) {
+    const rect = rectFromDisplay(display);
+    if (!rect) return null;
+    const a = projectStagePoint({ x: rect.x, y: rect.y, valid: true });
+    const b = projectStagePoint({ x: rect.x + rect.w, y: rect.y + rect.h, valid: true });
+    if (!a?.valid || !b?.valid) return null;
+    return {
+        x: Math.min(a.x, b.x),
+        y: Math.min(a.y, b.y),
+        w: Math.abs(b.x - a.x),
+        h: Math.abs(b.y - a.y),
+    };
+}
+
+function captureLocalPoint(capture, point) {
+    if (!capture?.image || !capture?.region || !point) return null;
+    const native = desktopWorldToNativePoint(point, capture.displays ?? []) ?? point;
+    const scaleX = capture.image.width / Math.max(1, Number(capture.region.width) || Number(capture.region.w) || 1);
+    const scaleY = capture.image.height / Math.max(1, Number(capture.region.height) || Number(capture.region.h) || 1);
+    return {
+        x: (native.x - capture.region.x) * scaleX,
+        y: (native.y - capture.region.y) * scaleY,
+        scaleX,
+        scaleY,
+    };
+}
+
+function discardCaptures(container) {
+    if (!container) return;
+    container.captures = {};
+    container.captureErrors = {};
+    container.captureRequests = {};
+}
+
+function drawCaptureImagePatch(ctx, capture, sourcePoint, dx, dy, dw, dh, alpha = 1) {
+    const local = captureLocalPoint(capture, sourcePoint);
+    if (!capture?.image || !local) return false;
+    const sw = Math.max(1, dw * local.scaleX);
+    const sh = Math.max(1, dh * local.scaleY);
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.drawImage(
+        capture.image,
+        local.x - (sw / 2),
+        local.y - (sh / 2),
+        sw,
+        sh,
+        dx,
+        dy,
+        dw,
+        dh
+    );
+    ctx.restore();
+    return true;
+}
+
+function drawCurvedPatch(ctx, capture, center, sourcePoint, radius, depth, curve, twistDirection = 1) {
     const rings = 11;
     ctx.save();
     ctx.globalAlpha = 0.25 + (0.18 * depth);
-    ctx.drawImage(image, center.x - radius, center.y - radius, radius * 2, radius * 2);
+    drawCaptureImagePatch(ctx, capture, sourcePoint, center.x - radius, center.y - radius, radius * 2, radius * 2, 1);
     ctx.restore();
 
     for (let index = rings; index >= 1; index -= 1) {
@@ -230,7 +301,14 @@ function drawCurvedPatch(ctx, image, center, radius, depth, curve, twistDirectio
         ctx.rotate(twistDirection * depth * (1 - t) * 0.9);
         ctx.scale(compression, Math.max(0.14, compression * 0.82));
         ctx.globalAlpha = 0.04 + (t * 0.1);
-        ctx.drawImage(image, -radius, -radius, radius * 2, radius * 2);
+        if (!drawCaptureImagePatch(ctx, capture, sourcePoint, -radius, -radius, radius * 2, radius * 2, 1)) {
+            const fallback = ctx.createRadialGradient(0, 0, radius * 0.1, 0, 0, radius);
+            fallback.addColorStop(0, 'rgba(255,255,255,0.16)');
+            fallback.addColorStop(0.35, 'rgba(40,170,255,0.08)');
+            fallback.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = fallback;
+            ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+        }
         ctx.restore();
     }
 }
@@ -318,9 +396,10 @@ function drawTunnel(ctx, tunnel, other, radius, open, options) {
     const twistDirection = options?.twistDirection ?? 1;
     const time = options?.time ?? 0;
     const capture = options?.capture;
+    const sourcePoint = options?.sourcePoint;
     const particleFlow = options?.particleFlow ?? 'entry';
 
-    drawCurvedPatch(ctx, capture?.image, tunnel, radius, depth, curve, twistDirection);
+    drawCurvedPatch(ctx, capture, tunnel, sourcePoint, radius, depth, curve, twistDirection);
 
     const well = ctx.createRadialGradient(tunnel.x, tunnel.y, radius * 0.04, tunnel.x, tunnel.y, radius * 1.35);
     well.addColorStop(0, `rgba(255,255,255,${0.16 * depth})`);
@@ -415,29 +494,67 @@ export function createFastTravelController({
         return normalizeFastTravelEffect(rendererState.transitionFastTravelEffect);
     }
 
-    async function requestCapture(travel, point, slot) {
-        const nativeCenter = desktopWorldToNativePoint(point, liveJs.displays) ?? point;
-        const radius = travel.captureRadius;
+    function captureForPoint(container, point, slot) {
+        const display = pointDisplay(liveJs.displays, point);
+        const id = displayId(display);
+        const existing = container.captures?.[slot];
+        if (existing && existing.displayId === id) return existing;
+        return null;
+    }
+
+    async function requestDisplayCapture(container, point, slot) {
+        if (!container || !point) return;
+        container.captures = container.captures ?? {};
+        container.captureErrors = container.captureErrors ?? {};
+        const display = pointDisplay(liveJs.displays, point);
+        const id = displayId(display) ?? slot;
+        if (container.captureRequests?.[slot] === id || container.captures[slot]?.displayId === id) return;
+        container.captureRequests = container.captureRequests ?? {};
+        container.captureRequests[slot] = id;
+        const nativeBounds = nativeRectFromDisplay(display);
+        const region = nativeBounds
+            ? {
+                x: nativeBounds.x,
+                y: nativeBounds.y,
+                width: nativeBounds.width ?? nativeBounds.w,
+                height: nativeBounds.height ?? nativeBounds.h,
+            }
+            : {
+                x: (desktopWorldToNativePoint(point, liveJs.displays) ?? point).x - container.captureRadius,
+                y: (desktopWorldToNativePoint(point, liveJs.displays) ?? point).y - container.captureRadius,
+                width: container.captureRadius * 2,
+                height: container.captureRadius * 2,
+            };
         try {
-            const result = await host.captureRegion({
-                x: nativeCenter.x - radius,
-                y: nativeCenter.y - radius,
-                width: radius * 2,
-                height: radius * 2,
-            }, {
+            const result = await host.captureRegion(region, {
                 format: 'jpg',
                 quality: 'med',
                 timeoutMs: 1750,
                 excludeCanvasIds: getExcludedCanvasIds(),
             });
             const image = await loadImage(result);
-            if (liveJs.travel !== travel) return;
-            travel.captures[slot] = { image, region: result.region };
-            record(`wormhole.capture.${slot}`, { ok: true });
+            if (container !== liveJs.travel && container !== gesture) return;
+            container.captures[slot] = {
+                image,
+                region: result.region ?? region,
+                displayId: id,
+                displayBounds: rectFromDisplay(display),
+                displayStageRect: displayStageRect(display, projectStagePoint),
+                displays: liveJs.displays,
+            };
+            record(`wormhole.capture.${slot}`, {
+                ok: true,
+                display: id,
+                scope: 'display',
+                width: Math.round(region.width),
+                height: Math.round(region.height),
+            });
         } catch (error) {
-            if (liveJs.travel !== travel) return;
-            travel.captureErrors[slot] = String(error);
-            record(`wormhole.capture.${slot}`, { ok: false, error: String(error) });
+            if (container !== liveJs.travel && container !== gesture) return;
+            container.captureErrors[slot] = String(error);
+            record(`wormhole.capture.${slot}`, { ok: false, display: id, scope: 'display', error: String(error) });
+        } finally {
+            if (container.captureRequests) delete container.captureRequests[slot];
         }
     }
 
@@ -448,11 +565,16 @@ export function createFastTravelController({
             origin: { x: origin.x, y: origin.y, valid: true },
             pointer: { x: origin.x, y: origin.y, valid: true },
             openedAt: performance.now(),
+            captureRadius: wormholeRadius(rendererState),
+            captures: {},
+            captureErrors: {},
+            captureRequests: {},
         };
         record('wormhole.entry.created', {
             x: Math.round(origin.x),
             y: Math.round(origin.y),
         });
+        void requestDisplayCapture(gesture, gesture.origin, 'entry');
     }
 
     function updateGesture(point) {
@@ -466,10 +588,14 @@ export function createFastTravelController({
                 y: Math.round(point.y),
             });
         }
+        if (gesture.exitCreated) {
+            void requestDisplayCapture(gesture, gesture.pointer, 'exit');
+        }
     }
 
     function clearGesture(reason = 'clear') {
         if (gesture) record('wormhole.gesture.clear', { reason });
+        discardCaptures(gesture);
         gesture = null;
         if (!liveJs.travel) overlay.clear();
     }
@@ -492,6 +618,16 @@ export function createFastTravelController({
                 exitThreshold: wormholeExitThreshold(rendererState),
                 entryCurve: cloneCurve(curveFor(gesture.origin, gesture.pointer, radius)),
                 exitCurve: cloneCurve(curveFor(gesture.pointer, gesture.origin, radius)),
+                captures: {
+                    entry: gesture.captures?.entry ? {
+                        displayId: gesture.captures.entry.displayId,
+                        scope: 'display',
+                    } : null,
+                    exit: gesture.captures?.exit ? {
+                        displayId: gesture.captures.exit.displayId,
+                        scope: 'display',
+                    } : null,
+                },
             } : null,
             travel: travel ? {
                 effect: travel.effect,
@@ -587,14 +723,18 @@ export function createFastTravelController({
             pointer: options.pointer ?? to,
             startMs: performance.now(),
             durationMs: Math.max(520, durationForDistance(from, to) + 420),
-            entryMs: Math.max(160, (Number(rendererState.wormholeImplosionDuration) || 0.22) * 1000),
-            transitMs: Math.max(80, Math.min(180, durationForDistance(from, to) * 0.5)),
-            exitMs: Math.max(220, (Number(rendererState.wormholeReboundDuration) || 0.34) * 1000),
+            entryMs: Math.max(420, (Number(rendererState.wormholeImplosionDuration) || 0.22) * 1000),
+            transitMs: Math.max(180, Math.min(520, durationForDistance(from, to) + 120)),
+            exitMs: Math.max(460, (Number(rendererState.wormholeReboundDuration) || 0.34) * 1000),
             captureRadius: radius,
             entryCurve: curveFor(from, to, radius),
             exitCurve: curveFor(to, from, radius),
-            captures: {},
+            captures: {
+                entry: gesture?.captures?.entry,
+                exit: gesture?.captures?.exit,
+            },
             captureErrors: {},
+            captureRequests: {},
         };
         travel.durationMs = travel.entryMs + travel.transitMs + travel.exitMs;
         liveJs.travel = travel;
@@ -604,8 +744,8 @@ export function createFastTravelController({
             from: { x: Math.round(from.x), y: Math.round(from.y) },
             to: { x: Math.round(to.x), y: Math.round(to.y) },
         });
-        void requestCapture(travel, from, 'entry');
-        void requestCapture(travel, to, 'exit');
+        void requestDisplayCapture(travel, from, 'entry');
+        void requestDisplayCapture(travel, to, 'exit');
         gesture = null;
         return travel;
     }
@@ -630,6 +770,7 @@ export function createFastTravelController({
         liveJs.avatarPos = landed;
         liveJs.currentCursor = landed;
         liveJs.cursorTarget = landed;
+        discardCaptures(travel);
         liveJs.travel = null;
         state.isOmegaEnabled = travel.previousOmegaEnabled ?? false;
         state.omegaInterDimensional = false;
@@ -711,6 +852,8 @@ export function createFastTravelController({
                 twistDirection: 1,
                 particleFlow: 'entry',
                 time: now,
+                capture: captureForPoint(gesture, gesture.origin, 'entry') ?? gesture.captures?.entry,
+                sourcePoint: gesture.origin,
                 burst: 0.45,
             });
             if (pointer && dist > exitThreshold) {
@@ -718,6 +861,8 @@ export function createFastTravelController({
                     twistDirection: -1,
                     particleFlow: 'exit',
                     time: now + 0.31,
+                    capture: captureForPoint(gesture, gesture.pointer, 'exit') ?? gesture.captures?.exit,
+                    sourcePoint: gesture.pointer,
                     burst: 0.35,
                 });
             }
@@ -744,6 +889,7 @@ export function createFastTravelController({
                 particleFlow: 'entry',
                 time: now,
                 capture: travel.captures.entry,
+                sourcePoint: travel.from,
                 burst: travel.phase === 'entry' ? 0.9 : 0.55,
             });
         }
@@ -753,6 +899,7 @@ export function createFastTravelController({
                 particleFlow: 'exit',
                 time: now + 0.37,
                 capture: travel.captures.exit,
+                sourcePoint: travel.to,
                 burst: travel.phase === 'exit' ? 1.0 : 0.45,
             });
         }
