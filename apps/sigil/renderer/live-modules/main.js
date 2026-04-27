@@ -975,6 +975,32 @@ function cancelInteraction(reason) {
 
 let lastContextMenuOpenAt = 0;
 let lastContextMenuOpenPoint = null;
+const recentDaemonPointerEvents = new Map();
+const HIT_ECHO_SUPPRESS_MS = 450;
+const HIT_ECHO_SUPPRESS_DISTANCE = 6;
+
+function rememberDaemonPointerEvent(msg = {}) {
+    if (msg.fromHitTarget === true) return;
+    if (
+        msg.type !== 'left_mouse_down'
+        && msg.type !== 'left_mouse_dragged'
+        && msg.type !== 'left_mouse_up'
+    ) return;
+    if (!Number.isFinite(msg.x) || !Number.isFinite(msg.y)) return;
+    recentDaemonPointerEvents.set(msg.type, {
+        x: msg.x,
+        y: msg.y,
+        at: performance.now(),
+    });
+}
+
+function isRecentDaemonPointerEcho(kind, point) {
+    const prior = recentDaemonPointerEvents.get(kind);
+    if (!prior || !point) return false;
+    const elapsed = performance.now() - prior.at;
+    if (elapsed < 0 || elapsed > HIT_ECHO_SUPPRESS_MS) return false;
+    return distance(point.x, point.y, prior.x, prior.y) <= HIT_ECHO_SUPPRESS_DISTANCE;
+}
 
 function isDuplicateContextMenuOpenClick(x, y) {
     if (!lastContextMenuOpenPoint) {
@@ -1134,6 +1160,7 @@ function handleInputEvent(msg) {
             liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
         }
         if (msg.type === 'mouse_moved') updateAvatarHoverFromPoint(msg.x, msg.y);
+        rememberDaemonPointerEvent(msg);
     }
 
     if (
@@ -1255,6 +1282,10 @@ function handleHitCanvasEvent(payload = {}) {
     }
     if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) {
         interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-menu', point });
+        return;
+    }
+    if (isLeftHitEvent && isRecentDaemonPointerEcho(payload.kind, point)) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'daemon-echo', point });
         return;
     }
     handleInputEvent({
