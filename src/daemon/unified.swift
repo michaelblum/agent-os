@@ -1084,7 +1084,11 @@ class UnifiedDaemon {
                 arguments.append(contentsOf: ["--exclude-window", String(windowID)])
             }
 
-            let process = runProcess(aosExecutablePath(), arguments: arguments)
+            let process = runProcess(
+                aosExecutablePath(),
+                arguments: arguments,
+                environment: ["AOS_BYPASS_PERMISSIONS_SETUP": "1"]
+            )
             guard process.exitCode == 0 else {
                 self.dispatchCanvasResponse(
                     to: callerID,
@@ -2133,11 +2137,40 @@ class UnifiedDaemon {
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {
         let inspectorConsumed = maybeHandleCanvasInspectorSeeBundleHotkey(event: event, data: data)
+        let genericConsumed = shouldConsumeGenericAOSInputEvent(event: event, data: data)
         let shouldConsume = shouldConsumeSigilInputEvent(event: event, data: data)
         if !inspectorConsumed {
             broadcastInputEvent(service: "input", event: "input_event", data: data)
         }
-        return inspectorConsumed || shouldConsume
+        return inspectorConsumed || genericConsumed || shouldConsume
+    }
+
+    private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {
+        guard ProcessInfo.processInfo.environment["AOS_GENERIC_INPUT_CONSUME"] == "1" else { return false }
+        guard event == "left_mouse_down" || event == "right_mouse_down" || event == "middle_mouse_down" || event == "other_mouse_down" else {
+            return false
+        }
+        guard let point = inputPoint(from: data) else { return false }
+        let decision = canvasManager.frontmostHittableInputSurface(
+            at: point,
+            frontToBackWindowNumbers: currentFrontToBackWindowNumbers()
+        )
+        if ProcessInfo.processInfo.environment["AOS_INPUT_SURFACE_DIAGNOSTICS"] == "1" {
+            fputs("[input-surface] event=\(event) point=\(Int(point.x)),\(Int(point.y)) decision=\(decision)\n", stderr)
+        }
+        return decision.shouldConsume
+    }
+
+    private func currentFrontToBackWindowNumbers() -> [Int] {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        return list.compactMap { entry in
+            if let number = entry[kCGWindowNumber as String] as? Int { return number }
+            if let number = entry[kCGWindowNumber as String] as? NSNumber { return number.intValue }
+            return nil
+        }
     }
 
     private func broadcastInputEvent(service: String, event: String, data: [String: Any]) {
@@ -2211,6 +2244,10 @@ class UnifiedDaemon {
     }
 
     private func sigilPoint(from data: [String: Any]) -> CGPoint? {
+        inputPoint(from: data)
+    }
+
+    private func inputPoint(from data: [String: Any]) -> CGPoint? {
         guard let x = data["x"] as? Double, let y = data["y"] as? Double else { return nil }
         return CGPoint(x: x, y: y)
     }

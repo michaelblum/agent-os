@@ -263,12 +263,19 @@ struct ProcessOutput {
 }
 
 @discardableResult
-func runProcess(_ executable: String, arguments: [String]) -> ProcessOutput {
+func runProcess(_ executable: String, arguments: [String], environment: [String: String]? = nil) -> ProcessOutput {
     let process = Process()
     let stdout = Pipe()
     let stderr = Pipe()
     process.executableURL = URL(fileURLWithPath: executable)
     process.arguments = arguments
+    if let environment {
+        var merged = ProcessInfo.processInfo.environment
+        for (key, value) in environment {
+            merged[key] = value
+        }
+        process.environment = merged
+    }
     process.standardOutput = stdout
     process.standardError = stderr
 

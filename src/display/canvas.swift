@@ -327,6 +327,11 @@ class Canvas {
             config.setURLSchemeHandler(handler, forURLScheme: "aos")
         }
         let controller = WKUserContentController()
+        controller.addUserScript(WKUserScript(
+            source: "window.__aosCanvasId = \(jsStringLiteral(id));",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
         controller.add(messageHandler, name: "headsup")
         config.userContentController = controller
         // Interactive canvases use CanvasWebView so the first mousedown
@@ -568,6 +573,57 @@ class CanvasManager {
 
     func windowNumbers(forID id: String) -> [Int] {
         canvases[id]?.windowNumbers ?? []
+    }
+
+    func inputSurfaceRecords() -> [AOSInputSurfaceRecord] {
+        canvases.values.flatMap { canvas -> [AOSInputSurfaceRecord] in
+            let info = canvas.toInfo()
+            let windowNumbers = canvas.windowNumbers
+            let suspended = info.suspended == true
+            if let segments = info.segments, !segments.isEmpty {
+                let ordered = segments.sorted { $0.index < $1.index }
+                return ordered.enumerated().map { offset, segment in
+                    AOSInputSurfaceRecord(
+                        id: "\(info.id)#display:\(segment.displayID)",
+                        nativeFrame: CGRect(
+                            x: segment.nativeBounds[0],
+                            y: segment.nativeBounds[1],
+                            width: segment.nativeBounds[2],
+                            height: segment.nativeBounds[3]
+                        ),
+                        interactive: info.interactive,
+                        suspended: suspended,
+                        clickThrough: !info.interactive,
+                        windowLevel: info.windowLevel,
+                        windowNumber: offset < windowNumbers.count ? windowNumbers[offset] : nil
+                    )
+                }
+            }
+
+            guard info.at.count >= 4 else { return [] }
+            return [
+                AOSInputSurfaceRecord(
+                    id: info.id,
+                    nativeFrame: CGRect(x: info.at[0], y: info.at[1], width: info.at[2], height: info.at[3]),
+                    interactive: info.interactive,
+                    suspended: suspended,
+                    clickThrough: !info.interactive,
+                    windowLevel: info.windowLevel,
+                    windowNumber: windowNumbers.first
+                ),
+            ]
+        }
+    }
+
+    func frontmostHittableInputSurface(
+        at point: CGPoint,
+        frontToBackWindowNumbers: [Int] = []
+    ) -> AOSInputSurfaceHitDecision {
+        frontmostHittableAOSSurface(
+            at: point,
+            surfaces: inputSurfaceRecords(),
+            frontToBackWindowNumbers: frontToBackWindowNumbers
+        )
     }
 
     /// Collect a canvas and all its cascade-eligible descendants (recursive).

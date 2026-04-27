@@ -134,9 +134,13 @@ class StatusItemManager {
             isAnimating = true
             updateIcon()
             summonCanvas()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                self?.isAnimating = false
-                self?.showPersistentCanvas()
+            waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
+                guard let self = self else { return }
+                if !ready {
+                    fputs("[status-item] recreated persistent canvas did not become ready before timeout\n", stderr)
+                }
+                self.isAnimating = false
+                self.showPersistentCanvas()
             }
             return
         }
@@ -407,6 +411,36 @@ class StatusItemManager {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + poll) {
                 pollOnce()
+            }
+        }
+
+        pollOnce()
+    }
+
+    private func waitUntilPersistentCanvasReady(
+        timeout: TimeInterval,
+        poll: TimeInterval = 0.05,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        func pollOnce() {
+            guard let canvas = canvasManager.canvas(forID: toggleId) else {
+                completion(false)
+                return
+            }
+            canvas.evaluateJavaScript("Boolean(window.__sigilDebug && window.liveJs?.avatarPos?.valid && window.__sigilBootError == null)") { result, _ in
+                if (result as? Bool) == true {
+                    completion(true)
+                    return
+                }
+                guard Date() < deadline else {
+                    completion(false)
+                    return
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + poll) {
+                    pollOnce()
+                }
             }
         }
 
