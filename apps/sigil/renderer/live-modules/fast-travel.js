@@ -6,12 +6,21 @@ function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
 
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
 function lerp(a, b, t) {
     return a + ((b - a) * t);
 }
 
 function smoothstep(t) {
     const x = clamp01(t);
+    return x * x * (3 - (2 * x));
+}
+
+function smoothstepRange(edge0, edge1, value) {
+    const x = clamp01((value - edge0) / (edge1 - edge0));
     return x * x * (3 - (2 * x));
 }
 
@@ -279,7 +288,111 @@ function drawCaptureImagePatch(ctx, capture, sourcePoint, dx, dy, dw, dh, alpha 
     return true;
 }
 
+function ensureCapturePixels(capture) {
+    if (!capture?.image) return null;
+    if (capture.pixelData) return capture.pixelData;
+    const canvas = document.createElement('canvas');
+    canvas.width = capture.image.naturalWidth || capture.image.width;
+    canvas.height = capture.image.naturalHeight || capture.image.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(capture.image, 0, 0, canvas.width, canvas.height);
+    try {
+        capture.pixelData = {
+            width: canvas.width,
+            height: canvas.height,
+            data: ctx.getImageData(0, 0, canvas.width, canvas.height).data,
+        };
+        return capture.pixelData;
+    } catch (error) {
+        return null;
+    }
+}
+
+function sampleCapturePixel(source, x, y) {
+    const sx = clamp(x, 0, source.width - 1);
+    const sy = clamp(y, 0, source.height - 1);
+    const x0 = Math.floor(sx);
+    const y0 = Math.floor(sy);
+    const x1 = Math.min(source.width - 1, x0 + 1);
+    const y1 = Math.min(source.height - 1, y0 + 1);
+    const tx = sx - x0;
+    const ty = sy - y0;
+    const i00 = ((y0 * source.width) + x0) * 4;
+    const i10 = ((y0 * source.width) + x1) * 4;
+    const i01 = ((y1 * source.width) + x0) * 4;
+    const i11 = ((y1 * source.width) + x1) * 4;
+    const out = [0, 0, 0, 0];
+    for (let channel = 0; channel < 4; channel += 1) {
+        const top = lerp(source.data[i00 + channel], source.data[i10 + channel], tx);
+        const bottom = lerp(source.data[i01 + channel], source.data[i11 + channel], tx);
+        out[channel] = lerp(top, bottom, ty);
+    }
+    return out;
+}
+
+function drawPinchDistortionPatch(ctx, capture, center, sourcePoint, radius, depth, curve, twistDirection = 1) {
+    const local = captureLocalPoint(capture, sourcePoint);
+    const source = ensureCapturePixels(capture);
+    if (!local || !source) return false;
+
+    const patchRadius = Math.ceil(radius * 1.22);
+    const size = Math.max(32, patchRadius * 2);
+    const patch = capture._wormholePatch ?? document.createElement('canvas');
+    capture._wormholePatch = patch;
+    if (patch.width !== size || patch.height !== size) {
+        patch.width = size;
+        patch.height = size;
+    }
+    const patchCtx = patch.getContext('2d', { willReadFrequently: true });
+    if (!patchCtx) return false;
+
+    const image = patchCtx.createImageData(size, size);
+    const out = image.data;
+    const strength = 1.2 * depth;
+    const distortionPower = Math.exp(strength);
+    const twist = Math.PI * depth * twistDirection;
+    const zoom = 1 + ((3.5 - 1) * depth);
+    const curveScale = 0.9 * depth;
+
+    for (let py = 0; py < size; py += 1) {
+        const dy = py - patchRadius;
+        for (let px = 0; px < size; px += 1) {
+            const dx = px - patchRadius;
+            const dist = Math.hypot(dx, dy);
+            const percent = dist / radius;
+            const alphaEdge = smoothstepRange(1.12, 0.84, percent);
+            if (alphaEdge <= 0.001) continue;
+
+            const falloff = smoothstepRange(1.0, 0.7, percent);
+            const pinchedDistance = Math.pow(Math.min(percent, 1.4), distortionPower) * radius;
+            const currentZoom = lerp(1, zoom, falloff * Math.max(0, 1 - percent));
+            const sourceDistance = pinchedDistance / currentZoom;
+            const angle = Math.atan2(dy, dx) + (twist * Math.pow(Math.max(0, 1 - percent), 1.5) * falloff);
+            const curveOffset = Math.pow(Math.max(0, 1 - percent), 2) * falloff * curveScale;
+            const sx = local.x + ((Math.cos(angle) * sourceDistance) + (curve.x * curveOffset)) * local.scaleX;
+            const sy = local.y + ((Math.sin(angle) * sourceDistance) + (curve.y * curveOffset)) * local.scaleY;
+            const sample = sampleCapturePixel(source, sx, sy);
+
+            const shadow = 0.74 * depth * Math.pow(Math.max(0, 1 - percent), 2) * falloff;
+            const highlight = 0.24 * depth * Math.sin(percent * Math.PI) * falloff;
+            const alpha = Math.round(255 * alphaEdge * (0.28 + (0.72 * depth)));
+            const idx = ((py * size) + px) * 4;
+            out[idx] = Math.max(0, Math.min(255, (sample[0] * (1 - shadow)) + (255 * highlight)));
+            out[idx + 1] = Math.max(0, Math.min(255, (sample[1] * (1 - shadow)) + (255 * highlight)));
+            out[idx + 2] = Math.max(0, Math.min(255, (sample[2] * (1 - shadow)) + (255 * highlight)));
+            out[idx + 3] = alpha;
+        }
+    }
+
+    patchCtx.putImageData(image, 0, 0);
+    ctx.drawImage(patch, center.x - patchRadius, center.y - patchRadius, size, size);
+    return true;
+}
+
 function drawCurvedPatch(ctx, capture, center, sourcePoint, radius, depth, curve, twistDirection = 1) {
+    if (drawPinchDistortionPatch(ctx, capture, center, sourcePoint, radius, depth, curve, twistDirection)) return;
+
     const rings = 11;
     ctx.save();
     ctx.globalAlpha = 0.25 + (0.18 * depth);
