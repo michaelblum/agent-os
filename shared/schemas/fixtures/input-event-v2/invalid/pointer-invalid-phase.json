@@ -1,0 +1,27 @@
+{
+  "input_schema_version": 2,
+  "type": "left_mouse_down",
+  "event_kind": "pointer",
+  "phase": "scroll",
+  "device": "mouse",
+  "timestamp_monotonic_ms": 123456789.25,
+  "sequence": { "source": "daemon", "value": 42 },
+  "native": { "x": 529, "y": 373 },
+  "display_id": 1,
+  "topology_version": 17,
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "modifiers": {
+    "shift": false,
+    "ctrl": false,
+    "cmd": false,
+    "opt": false,
+    "fn": false,
+    "caps_lock": false
+  }
+}

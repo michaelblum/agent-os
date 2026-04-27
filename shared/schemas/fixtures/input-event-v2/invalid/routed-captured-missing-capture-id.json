@@ -1,0 +1,19 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "pointer",
+  "type": "left_mouse_dragged",
+  "delivery_role": "captured",
+  "sequence": { "source": "daemon", "value": 43 },
+  "gesture_id": "g-42",
+  "desktop_world": { "x": 900, "y": 390 },
+  "coordinate_authority": "toolkit",
+  "region_id": "sigil-avatar",
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "source_event": "daemon:43"
+}

@@ -1,0 +1,414 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/input-event-v2.schema.json",
+  "title": "AOS Input Event v2",
+  "description": "Versioned raw daemon input_event payloads and toolkit aos_routed_input envelopes for AOS-owned surfaces.",
+  "oneOf": [
+    { "$ref": "#/$defs/RawInputEvent" },
+    { "$ref": "#/$defs/RoutedInputEvent" }
+  ],
+  "$defs": {
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "Sequence": {
+      "type": "object",
+      "required": ["source", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["daemon", "toolkit"]
+        },
+        "value": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "synthetic": { "type": "boolean" }
+      }
+    },
+    "Modifiers": {
+      "type": "object",
+      "required": ["shift", "ctrl", "cmd", "opt", "fn", "caps_lock"],
+      "additionalProperties": false,
+      "properties": {
+        "shift": { "type": "boolean" },
+        "ctrl": { "type": "boolean" },
+        "cmd": { "type": "boolean" },
+        "opt": { "type": "boolean" },
+        "fn": { "type": "boolean" },
+        "caps_lock": { "type": "boolean" }
+      }
+    },
+    "Button": {
+      "oneOf": [
+        { "type": "string", "enum": ["none", "left", "right", "middle"] },
+        { "type": "string", "pattern": "^other:[A-Za-z0-9_-]+$" }
+      ]
+    },
+    "OtherButtonId": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "string", "minLength": 1 }
+      ]
+    },
+    "Buttons": {
+      "type": "object",
+      "required": ["left", "right", "middle", "other_pressed"],
+      "additionalProperties": false,
+      "properties": {
+        "left": { "type": "boolean" },
+        "right": { "type": "boolean" },
+        "middle": { "type": "boolean" },
+        "other_pressed": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OtherButtonId" }
+        }
+      }
+    },
+    "Scroll": {
+      "type": "object",
+      "required": ["dx", "dy", "unit"],
+      "additionalProperties": false,
+      "properties": {
+        "dx": { "type": "number" },
+        "dy": { "type": "number" },
+        "unit": { "const": "point" }
+      }
+    },
+    "Key": {
+      "type": "object",
+      "required": ["physical_key_code", "logical", "repeat", "is_printable"],
+      "additionalProperties": false,
+      "properties": {
+        "physical_key_code": { "type": "integer", "minimum": 0 },
+        "logical": { "type": "string" },
+        "repeat": { "type": "boolean" },
+        "is_printable": { "type": "boolean" }
+      }
+    },
+    "CoordinateAuthority": {
+      "type": "string",
+      "enum": ["daemon", "toolkit"]
+    },
+    "RawInputBase": {
+      "type": "object",
+      "required": ["input_schema_version", "event_kind", "type", "timestamp_monotonic_ms", "sequence"],
+      "properties": {
+        "input_schema_version": { "const": 2 },
+        "event_kind": {
+          "type": "string",
+          "enum": ["pointer", "scroll", "key", "cancel"]
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "timestamp_monotonic_ms": { "type": "number" },
+        "sequence": { "$ref": "#/$defs/Sequence" }
+      }
+    },
+    "RawInputEvent": {
+      "oneOf": [
+        { "$ref": "#/$defs/RawPointerEvent" },
+        { "$ref": "#/$defs/RawScrollEvent" },
+        { "$ref": "#/$defs/RawKeyEvent" },
+        { "$ref": "#/$defs/RawCancelEvent" }
+      ]
+    },
+    "RawPointerEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/RawInputBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_schema_version",
+            "event_kind",
+            "type",
+            "phase",
+            "device",
+            "timestamp_monotonic_ms",
+            "sequence",
+            "native",
+            "display_id",
+            "topology_version",
+            "button",
+            "buttons",
+            "modifiers"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_version": { "const": 2 },
+            "event_kind": { "const": "pointer" },
+            "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "phase": { "type": "string", "enum": ["down", "move", "drag", "up"] },
+            "device": { "const": "mouse" },
+            "timestamp_monotonic_ms": { "type": "number" },
+            "sequence": { "$ref": "#/$defs/Sequence" },
+            "gesture_id": { "type": "string", "minLength": 1 },
+            "native": { "$ref": "#/$defs/Point" },
+            "desktop_world": { "$ref": "#/$defs/Point" },
+            "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
+            "display_id": { "type": "integer", "minimum": 1 },
+            "topology_version": { "type": "integer", "minimum": 0 },
+            "button": { "$ref": "#/$defs/Button" },
+            "buttons": { "$ref": "#/$defs/Buttons" },
+            "click_count": { "type": "integer", "minimum": 1 },
+            "modifiers": { "$ref": "#/$defs/Modifiers" }
+          },
+          "dependentRequired": {
+            "desktop_world": ["coordinate_authority"],
+            "coordinate_authority": ["desktop_world"]
+          }
+        }
+      ]
+    },
+    "RawScrollEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/RawInputBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_schema_version",
+            "event_kind",
+            "type",
+            "phase",
+            "device",
+            "timestamp_monotonic_ms",
+            "sequence",
+            "native",
+            "display_id",
+            "topology_version",
+            "scroll",
+            "modifiers"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_version": { "const": 2 },
+            "event_kind": { "const": "scroll" },
+            "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "phase": { "const": "scroll" },
+            "device": { "const": "mouse" },
+            "timestamp_monotonic_ms": { "type": "number" },
+            "sequence": { "$ref": "#/$defs/Sequence" },
+            "gesture_id": { "type": "string", "minLength": 1 },
+            "native": { "$ref": "#/$defs/Point" },
+            "desktop_world": { "$ref": "#/$defs/Point" },
+            "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
+            "display_id": { "type": "integer", "minimum": 1 },
+            "topology_version": { "type": "integer", "minimum": 0 },
+            "scroll": { "$ref": "#/$defs/Scroll" },
+            "modifiers": { "$ref": "#/$defs/Modifiers" }
+          },
+          "dependentRequired": {
+            "desktop_world": ["coordinate_authority"],
+            "coordinate_authority": ["desktop_world"]
+          }
+        }
+      ]
+    },
+    "RawKeyEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/RawInputBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_schema_version",
+            "event_kind",
+            "type",
+            "timestamp_monotonic_ms",
+            "sequence",
+            "key",
+            "modifiers"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_version": { "const": 2 },
+            "event_kind": { "const": "key" },
+            "type": { "type": "string", "enum": ["key_down", "key_up"] },
+            "timestamp_monotonic_ms": { "type": "number" },
+            "sequence": { "$ref": "#/$defs/Sequence" },
+            "key": { "$ref": "#/$defs/Key" },
+            "modifiers": { "$ref": "#/$defs/Modifiers" },
+            "native": { "$ref": "#/$defs/Point" },
+            "display_id": { "type": "integer", "minimum": 1 },
+            "topology_version": { "type": "integer", "minimum": 0 },
+            "desktop_world": { "$ref": "#/$defs/Point" },
+            "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" }
+          },
+          "dependentRequired": {
+            "desktop_world": ["coordinate_authority"],
+            "coordinate_authority": ["desktop_world"]
+          }
+        }
+      ]
+    },
+    "RawCancelEvent": {
+      "allOf": [
+        { "$ref": "#/$defs/RawInputBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_schema_version",
+            "event_kind",
+            "type",
+            "phase",
+            "timestamp_monotonic_ms",
+            "sequence",
+            "cancel_reason"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "input_schema_version": { "const": 2 },
+            "event_kind": { "const": "cancel" },
+            "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "phase": { "const": "cancel" },
+            "timestamp_monotonic_ms": { "type": "number" },
+            "sequence": { "$ref": "#/$defs/Sequence" },
+            "caused_by_sequence": { "$ref": "#/$defs/Sequence" },
+            "gesture_id": { "type": "string", "minLength": 1 },
+            "cancel_reason": {
+              "type": "string",
+              "enum": [
+                "os_cancelled",
+                "surface_removed",
+                "surface_suspended",
+                "surface_disabled",
+                "owner_disconnected",
+                "topology_stale",
+                "capture_timeout",
+                "emergency_command"
+              ]
+            },
+            "native": { "$ref": "#/$defs/Point" },
+            "display_id": { "type": "integer", "minimum": 1 },
+            "topology_version": { "type": "integer", "minimum": 0 },
+            "desktop_world": { "$ref": "#/$defs/Point" },
+            "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
+            "button": { "$ref": "#/$defs/Button" },
+            "buttons": { "$ref": "#/$defs/Buttons" },
+            "modifiers": { "$ref": "#/$defs/Modifiers" }
+          },
+          "dependentRequired": {
+            "desktop_world": ["coordinate_authority"],
+            "coordinate_authority": ["desktop_world"]
+          }
+        }
+      ]
+    },
+    "RoutedInputEvent": {
+      "type": "object",
+      "required": [
+        "routed_schema_version",
+        "event_kind",
+        "type",
+        "delivery_role",
+        "sequence",
+        "gesture_id",
+        "desktop_world",
+        "coordinate_authority",
+        "source_event"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "routed_schema_version": { "const": 1 },
+        "event_kind": {
+          "type": "string",
+          "enum": ["pointer", "scroll", "key", "cancel"]
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "delivery_role": {
+          "type": "string",
+          "enum": ["observed", "owned", "captured"]
+        },
+        "sequence": { "$ref": "#/$defs/Sequence" },
+        "gesture_id": { "type": "string", "minLength": 1 },
+        "desktop_world": { "$ref": "#/$defs/Point" },
+        "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
+        "source_event": {
+          "oneOf": [
+            { "$ref": "#/$defs/RawInputEvent" },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["down", "move", "drag", "up", "enter", "hover", "leave", "hover_cancel", "scroll", "cancel"]
+        },
+        "region_id": { "type": "string", "minLength": 1 },
+        "capture_id": { "type": "string", "minLength": 1 },
+        "cancel_reason": { "type": "string", "minLength": 1 },
+        "button": { "$ref": "#/$defs/Button" },
+        "buttons": { "$ref": "#/$defs/Buttons" },
+        "scroll": { "$ref": "#/$defs/Scroll" },
+        "key": { "$ref": "#/$defs/Key" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "delivery_role": { "enum": ["owned", "captured"] } },
+            "required": ["delivery_role"]
+          },
+          "then": { "required": ["region_id"] }
+        },
+        {
+          "if": {
+            "properties": { "delivery_role": { "const": "captured" } },
+            "required": ["delivery_role"]
+          },
+          "then": { "required": ["capture_id"] }
+        },
+        {
+          "if": {
+            "properties": { "event_kind": { "const": "pointer" } },
+            "required": ["event_kind"]
+          },
+          "then": {
+            "required": ["phase", "button", "buttons"],
+            "properties": {
+              "phase": { "enum": ["down", "move", "drag", "up", "enter", "hover", "leave", "hover_cancel"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_kind": { "const": "scroll" } },
+            "required": ["event_kind"]
+          },
+          "then": {
+            "required": ["phase", "scroll"],
+            "properties": { "phase": { "const": "scroll" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "event_kind": { "const": "key" } },
+            "required": ["event_kind"]
+          },
+          "then": { "required": ["key"] }
+        },
+        {
+          "if": {
+            "properties": { "event_kind": { "const": "cancel" } },
+            "required": ["event_kind"]
+          },
+          "then": {
+            "required": ["phase", "cancel_reason"],
+            "properties": { "phase": { "const": "cancel" } }
+          }
+        }
+      ]
+    }
+  }
+}

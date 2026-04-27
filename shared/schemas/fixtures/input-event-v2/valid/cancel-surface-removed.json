@@ -1,0 +1,11 @@
+{
+  "input_schema_version": 2,
+  "type": "pointer_cancel",
+  "event_kind": "cancel",
+  "phase": "cancel",
+  "timestamp_monotonic_ms": 123456792,
+  "sequence": { "source": "toolkit", "value": 46, "synthetic": true },
+  "caused_by_sequence": { "source": "daemon", "value": 45 },
+  "gesture_id": "g-42",
+  "cancel_reason": "surface_removed"
+}

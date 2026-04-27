@@ -1,0 +1,101 @@
+{
+  "description": "Daemon down/drag, toolkit synthetic cancel caused by the drag, then a later daemon up for the same gesture. Toolkit must route the cancel immediately after daemon:101 and before daemon:102.",
+  "events": [
+    {
+      "input_schema_version": 2,
+      "type": "left_mouse_down",
+      "event_kind": "pointer",
+      "phase": "down",
+      "device": "mouse",
+      "timestamp_monotonic_ms": 123456800,
+      "sequence": { "source": "daemon", "value": 100 },
+      "gesture_id": "g-100",
+      "native": { "x": 400, "y": 300 },
+      "display_id": 1,
+      "topology_version": 20,
+      "button": "left",
+      "buttons": {
+        "left": true,
+        "right": false,
+        "middle": false,
+        "other_pressed": []
+      },
+      "modifiers": {
+        "shift": false,
+        "ctrl": false,
+        "cmd": false,
+        "opt": false,
+        "fn": false,
+        "caps_lock": false
+      }
+    },
+    {
+      "input_schema_version": 2,
+      "type": "left_mouse_dragged",
+      "event_kind": "pointer",
+      "phase": "drag",
+      "device": "mouse",
+      "timestamp_monotonic_ms": 123456801,
+      "sequence": { "source": "daemon", "value": 101 },
+      "gesture_id": "g-100",
+      "native": { "x": 410, "y": 302 },
+      "display_id": 1,
+      "topology_version": 20,
+      "button": "left",
+      "buttons": {
+        "left": true,
+        "right": false,
+        "middle": false,
+        "other_pressed": []
+      },
+      "modifiers": {
+        "shift": false,
+        "ctrl": false,
+        "cmd": false,
+        "opt": false,
+        "fn": false,
+        "caps_lock": false
+      }
+    },
+    {
+      "input_schema_version": 2,
+      "type": "pointer_cancel",
+      "event_kind": "cancel",
+      "phase": "cancel",
+      "timestamp_monotonic_ms": 123456801.1,
+      "sequence": { "source": "toolkit", "value": "cancel-101", "synthetic": true },
+      "caused_by_sequence": { "source": "daemon", "value": 101 },
+      "gesture_id": "g-100",
+      "cancel_reason": "topology_stale"
+    },
+    {
+      "input_schema_version": 2,
+      "type": "left_mouse_up",
+      "event_kind": "pointer",
+      "phase": "up",
+      "device": "mouse",
+      "timestamp_monotonic_ms": 123456802,
+      "sequence": { "source": "daemon", "value": 102 },
+      "gesture_id": "g-100",
+      "native": { "x": 412, "y": 304 },
+      "display_id": 1,
+      "topology_version": 21,
+      "button": "left",
+      "buttons": {
+        "left": false,
+        "right": false,
+        "middle": false,
+        "other_pressed": []
+      },
+      "modifiers": {
+        "shift": false,
+        "ctrl": false,
+        "cmd": false,
+        "opt": false,
+        "fn": false,
+        "caps_lock": false
+      }
+    }
+  ],
+  "expected_order": ["daemon:100", "daemon:101", "toolkit:cancel-101", "daemon:102"]
+}

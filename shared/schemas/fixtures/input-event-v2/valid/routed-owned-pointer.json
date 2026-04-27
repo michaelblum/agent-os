@@ -1,0 +1,50 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "pointer",
+  "type": "left_mouse_down",
+  "phase": "down",
+  "delivery_role": "owned",
+  "sequence": { "source": "daemon", "value": 42 },
+  "gesture_id": "g-42",
+  "desktop_world": { "x": 714, "y": 373 },
+  "coordinate_authority": "daemon",
+  "region_id": "sigil-avatar",
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "source_event": {
+    "input_schema_version": 2,
+    "type": "left_mouse_down",
+    "event_kind": "pointer",
+    "phase": "down",
+    "device": "mouse",
+    "timestamp_monotonic_ms": 123456789.25,
+    "sequence": { "source": "daemon", "value": 42 },
+    "gesture_id": "g-42",
+    "native": { "x": 529, "y": 373 },
+    "desktop_world": { "x": 714, "y": 373 },
+    "coordinate_authority": "daemon",
+    "display_id": 1,
+    "topology_version": 17,
+    "button": "left",
+    "buttons": {
+      "left": true,
+      "right": false,
+      "middle": false,
+      "other_pressed": []
+    },
+    "click_count": 1,
+    "modifiers": {
+      "shift": false,
+      "ctrl": false,
+      "cmd": false,
+      "opt": false,
+      "fn": false,
+      "caps_lock": false
+    }
+  }
+}

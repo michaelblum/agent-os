@@ -1,0 +1,13 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "scroll",
+  "type": "scroll_wheel",
+  "phase": "scroll",
+  "delivery_role": "observed",
+  "sequence": { "source": "daemon", "value": 44 },
+  "gesture_id": "g-scroll-44",
+  "desktop_world": { "x": 717, "y": 388 },
+  "coordinate_authority": "daemon",
+  "scroll": { "dx": 0, "dy": -11.5, "unit": "point" },
+  "source_event": "daemon:44"
+}

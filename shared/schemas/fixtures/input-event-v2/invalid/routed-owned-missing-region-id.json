@@ -1,0 +1,18 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "pointer",
+  "type": "left_mouse_down",
+  "delivery_role": "owned",
+  "sequence": { "source": "daemon", "value": 42 },
+  "gesture_id": "g-42",
+  "desktop_world": { "x": 714, "y": 373 },
+  "coordinate_authority": "daemon",
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "source_event": "daemon:42"
+}

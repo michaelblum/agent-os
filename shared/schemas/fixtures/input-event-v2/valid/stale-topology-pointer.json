@@ -1,0 +1,28 @@
+{
+  "input_schema_version": 2,
+  "type": "left_mouse_dragged",
+  "event_kind": "pointer",
+  "phase": "drag",
+  "device": "mouse",
+  "timestamp_monotonic_ms": 123456794,
+  "sequence": { "source": "daemon", "value": 47 },
+  "gesture_id": "g-42",
+  "native": { "x": 3001, "y": 415 },
+  "display_id": 2,
+  "topology_version": 16,
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "modifiers": {
+    "shift": false,
+    "ctrl": false,
+    "cmd": false,
+    "opt": false,
+    "fn": false,
+    "caps_lock": false
+  }
+}

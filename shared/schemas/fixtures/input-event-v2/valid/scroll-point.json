@@ -1,0 +1,23 @@
+{
+  "input_schema_version": 2,
+  "type": "scroll_wheel",
+  "event_kind": "scroll",
+  "phase": "scroll",
+  "device": "mouse",
+  "timestamp_monotonic_ms": 123456790.1,
+  "sequence": { "source": "daemon", "value": 44 },
+  "native": { "x": 532, "y": 388 },
+  "desktop_world": { "x": 717, "y": 388 },
+  "coordinate_authority": "daemon",
+  "display_id": 1,
+  "topology_version": 17,
+  "scroll": { "dx": 0, "dy": -11.5, "unit": "point" },
+  "modifiers": {
+    "shift": false,
+    "ctrl": false,
+    "cmd": false,
+    "opt": false,
+    "fn": false,
+    "caps_lock": false
+  }
+}

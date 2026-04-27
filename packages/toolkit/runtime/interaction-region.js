@@ -3,6 +3,16 @@ const POINTER_PHASES = {
   left_mouse_dragged: 'drag',
   mouse_moved: 'move',
   left_mouse_up: 'up',
+  right_mouse_down: 'down',
+  right_mouse_dragged: 'drag',
+  right_mouse_up: 'up',
+  middle_mouse_down: 'down',
+  middle_mouse_dragged: 'drag',
+  middle_mouse_up: 'up',
+  other_mouse_down: 'down',
+  other_mouse_dragged: 'drag',
+  other_mouse_up: 'up',
+  scroll_wheel: 'scroll',
   pointer_cancel: 'cancel',
   mouse_cancel: 'cancel',
 }
@@ -28,6 +38,16 @@ function sortRegions(a, b) {
   return String(a.id).localeCompare(String(b.id))
 }
 
+function defaultCaptureId(rawEvent = {}, region = {}) {
+  const sequence = rawEvent.sequence
+  if (sequence && typeof sequence === 'object' && sequence.source !== undefined && sequence.value !== undefined) {
+    return `${sequence.source}:${sequence.value}:${region.id}`
+  }
+  if (rawEvent.gesture_id) return `${rawEvent.gesture_id}:${region.id}`
+  if (rawEvent.gestureId) return `${rawEvent.gestureId}:${region.id}`
+  return `capture:${region.id}`
+}
+
 export function pointerPhase(type) {
   return POINTER_PHASES[type] || null
 }
@@ -35,6 +55,7 @@ export function pointerPhase(type) {
 export function createDesktopWorldInteractionRouter(options = {}) {
   const regions = new Map()
   let capture = null
+  const hoverBySource = new Map()
   let outsidePointerDown = false
   let suppressNextOutsideUp = false
 
@@ -45,9 +66,40 @@ export function createDesktopWorldInteractionRouter(options = {}) {
     return () => regions.delete(region.id)
   }
 
+  function cancelCapture(reason = 'cancelled', rawEvent = {}) {
+    if (!capture) return false
+    const current = capture
+    dispatch(current.region, 'cancel', {
+      type: 'pointer_cancel',
+      cancel_reason: reason,
+      cancelReason: reason,
+      ...rawEvent,
+    }, { source: current.source })
+    capture = null
+    suppressNextOutsideUp = true
+    return true
+  }
+
+  function releaseCapture(captureId = null, reason = 'released') {
+    if (!capture) return false
+    if (captureId && capture.captureId !== captureId) return false
+    return cancelCapture(reason)
+  }
+
   function unregisterRegion(id) {
+    if (capture?.region?.id === id) cancelCapture('region_unregistered')
+    for (const [source, hovered] of hoverBySource.entries()) {
+      if (hovered?.region?.id !== id) continue
+      dispatch(hovered.region, 'hover_cancel', {
+        type: 'pointer_cancel',
+        cancel_reason: 'region_unregistered',
+        cancelReason: 'region_unregistered',
+        x: hovered.point?.x,
+        y: hovered.point?.y,
+      }, { source })
+      hoverBySource.delete(source)
+    }
     regions.delete(id)
-    if (capture?.region?.id === id) capture = null
   }
 
   function pickRegion(point, routeOptions = {}) {
@@ -74,6 +126,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
       source: sourceName(routeOptions),
       regionId: region.id,
       captured: capture?.region?.id === region.id,
+      captureId: capture?.region?.id === region.id ? capture.captureId : null,
     }) !== false
   }
 
@@ -87,6 +140,29 @@ export function createDesktopWorldInteractionRouter(options = {}) {
       point,
       source: sourceName(routeOptions),
     }) !== false
+  }
+
+  function updateHover(rawEvent, routeOptions = {}) {
+    const source = sourceName(routeOptions)
+    const point = pointFromEvent(rawEvent)
+    const previous = hoverBySource.get(source) || null
+    const nextRegion = pickRegion(point, routeOptions)
+    let handled = false
+
+    if (previous?.region && previous.region.id !== nextRegion?.id) {
+      handled = dispatch(previous.region, 'leave', rawEvent, routeOptions) || handled
+    }
+    if (nextRegion && previous?.region?.id !== nextRegion.id) {
+      handled = dispatch(nextRegion, 'enter', rawEvent, routeOptions) || handled
+    }
+    if (nextRegion) {
+      hoverBySource.set(source, { region: nextRegion, point })
+      handled = dispatch(nextRegion, 'hover', rawEvent, routeOptions) || handled
+      return handled
+    }
+
+    hoverBySource.delete(source)
+    return handled
   }
 
   function route(rawEvent = {}, routeOptions = {}) {
@@ -105,10 +181,18 @@ export function createDesktopWorldInteractionRouter(options = {}) {
       return handled
     }
 
+    if (phase === 'move') {
+      return updateHover(rawEvent, routeOptions)
+    }
+
     if (phase === 'down') {
       const region = pickRegion(point, routeOptions)
       if (region) {
-        capture = { region, source }
+        capture = {
+          region,
+          source,
+          captureId: routeOptions.captureId || rawEvent.capture_id || rawEvent.captureId || defaultCaptureId(rawEvent, region),
+        }
         outsidePointerDown = false
         return dispatch(region, phase, rawEvent, routeOptions)
       }
@@ -138,6 +222,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
 
   function reset() {
     capture = null
+    hoverBySource.clear()
     outsidePointerDown = false
     suppressNextOutsideUp = false
   }
@@ -146,6 +231,11 @@ export function createDesktopWorldInteractionRouter(options = {}) {
     return {
       capturedRegionId: capture?.region?.id || null,
       capturedSource: capture?.source || null,
+      hoveredRegions: [...hoverBySource.entries()].map(([source, hovered]) => ({
+        source,
+        regionId: hovered?.region?.id || null,
+        point: hovered?.point || null,
+      })),
       outsidePointerDown,
       suppressNextOutsideUp,
       regionCount: regions.size,
@@ -156,6 +246,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
     registerRegion,
     unregisterRegion,
     route,
+    releaseCapture,
     reset,
     snapshot,
   }

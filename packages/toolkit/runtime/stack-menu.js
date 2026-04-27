@@ -124,11 +124,41 @@ export function createStackMenu(anchor, options = {}) {
   const legacyTabAttr = options.legacyTabAttr || 'ctxTab'
   const tabPanelSelector = options.tabPanelSelector || '.stack-menu-panel, .ctx-panel'
   const tabActiveClass = options.tabActiveClass || 'active'
+  const backSelector = options.backSelector || '[data-stack-menu-back], [data-ctx-back]'
+  const departingClass = options.departingClass || 'departing'
+  const departingActiveClass = options.departingActiveClass || 'departing-active'
+  const departingMs = Number(options.departingMs ?? 180)
   const listeners = []
+  const departureTimers = new Map()
 
-  function apply() {
-    applyStackMenuState(anchor, model.snapshot(), options)
-    options.onChange?.(model.snapshot())
+  function markDeparting(cardId) {
+    const card = byId(anchor, cardId)
+    if (!card) return
+    const prior = departureTimers.get(cardId)
+    if (prior) clearTimeout(prior)
+    card.classList.add(departingClass)
+    card.classList.remove(departingActiveClass)
+    card.style.zIndex = '30'
+    requestAnimationFrame(() => {
+      card.classList.add(departingActiveClass)
+    })
+    departureTimers.set(cardId, setTimeout(() => {
+      card.classList.remove(departingClass, departingActiveClass)
+      departureTimers.delete(cardId)
+    }, departingMs))
+  }
+
+  function apply(priorState = null) {
+    const nextState = model.snapshot()
+    applyStackMenuState(anchor, nextState, options)
+    if (
+      priorState?.activeId
+      && priorState.activeId !== nextState.activeId
+      && !nextState.stack.includes(priorState.activeId)
+    ) {
+      markDeparting(priorState.activeId)
+    }
+    options.onChange?.(nextState)
   }
 
   function on(element, event, handler, opts) {
@@ -137,13 +167,15 @@ export function createStackMenu(anchor, options = {}) {
   }
 
   function reset() {
+    const prior = model.snapshot()
     model.reset(rootId)
-    apply()
+    apply(prior)
   }
 
   function applySnapshot(state = {}) {
+    const prior = model.snapshot()
     model.set(state)
-    apply()
+    apply(prior)
   }
 
   function open(position = {}) {
@@ -161,13 +193,21 @@ export function createStackMenu(anchor, options = {}) {
   }
 
   function openCard(cardId) {
+    const prior = model.snapshot()
     model.push(cardId)
-    apply()
+    apply(prior)
   }
 
   function popTo(cardId) {
+    const prior = model.snapshot()
     model.popTo(cardId)
-    apply()
+    apply(prior)
+  }
+
+  function pop() {
+    const prior = model.snapshot()
+    model.pop()
+    apply(prior)
   }
 
   asArray(anchor.querySelectorAll(triggerSelector)).forEach((trigger) => {
@@ -194,6 +234,14 @@ export function createStackMenu(anchor, options = {}) {
     })
   })
 
+  asArray(anchor.querySelectorAll(backSelector)).forEach((button) => {
+    on(button, 'click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      pop()
+    })
+  })
+
   asArray(anchor.querySelectorAll(options.cardSelector || '.stack-menu-card, .ctx-menu-card')).forEach((card) => {
     on(card, 'click', (event) => {
       if (!card.classList.contains(options.pushedClass || 'pushed')) return
@@ -212,6 +260,7 @@ export function createStackMenu(anchor, options = {}) {
     applySnapshot,
     openCard,
     popTo,
+    pop,
     snapshot: model.snapshot,
     contains(target) {
       return anchor.contains(target)
@@ -220,6 +269,8 @@ export function createStackMenu(anchor, options = {}) {
       return anchor.classList.contains(visibleClass)
     },
     destroy() {
+      for (const timer of departureTimers.values()) clearTimeout(timer)
+      departureTimers.clear()
       while (listeners.length) listeners.pop()()
     },
   }

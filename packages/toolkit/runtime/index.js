@@ -21,11 +21,22 @@ export {
   createDesktopWorldInteractionRouter,
   pointerPhase,
 } from './interaction-region.js'
+export { createInteractionSurface } from './interaction-surface.js'
 export {
   createDesktopWorldRangeDrag,
   desktopWorldRangeValue,
   updateDesktopWorldRangeDrag,
 } from './range-drag.js'
+export {
+  angleDegrees,
+  createRadialGestureModel,
+  distanceBetween,
+  normalizeDegrees,
+  pointAtAngle,
+  resolveRadialGestureConfig,
+  resolveRadialGestureItems,
+  shortestAngleDelta,
+} from './radial-gesture.js'
 export {
   createStackMenu,
   createStackMenuModel,

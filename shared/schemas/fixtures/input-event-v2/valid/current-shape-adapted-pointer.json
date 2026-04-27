@@ -1,0 +1,30 @@
+{
+  "input_schema_version": 2,
+  "type": "left_mouse_dragged",
+  "event_kind": "pointer",
+  "phase": "drag",
+  "device": "mouse",
+  "timestamp_monotonic_ms": 123456793,
+  "sequence": { "source": "toolkit", "value": "adapted-1", "synthetic": true },
+  "gesture_id": "toolkit-g-adapted-1",
+  "native": { "x": 1220, "y": 778 },
+  "desktop_world": { "x": 2780, "y": 778 },
+  "coordinate_authority": "toolkit",
+  "display_id": 2,
+  "topology_version": 17,
+  "button": "left",
+  "buttons": {
+    "left": true,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "modifiers": {
+    "shift": false,
+    "ctrl": false,
+    "cmd": false,
+    "opt": false,
+    "fn": false,
+    "caps_lock": false
+  }
+}

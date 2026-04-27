@@ -1,0 +1,20 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "pointer",
+  "type": "mouse_moved",
+  "phase": "hover",
+  "delivery_role": "owned",
+  "sequence": { "source": "daemon", "value": 45 },
+  "gesture_id": "g-hover-45",
+  "desktop_world": { "x": 721, "y": 392 },
+  "coordinate_authority": "toolkit",
+  "region_id": "sigil-avatar",
+  "button": "none",
+  "buttons": {
+    "left": false,
+    "right": false,
+    "middle": false,
+    "other_pressed": []
+  },
+  "source_event": "daemon:45"
+}

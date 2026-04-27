@@ -1,0 +1,20 @@
+{
+  "input_schema_version": 2,
+  "type": "key_down",
+  "event_kind": "key",
+  "timestamp_monotonic_ms": 123456791,
+  "sequence": { "source": "daemon", "value": 45 },
+  "key": {
+    "logical": "Escape",
+    "repeat": false,
+    "is_printable": false
+  },
+  "modifiers": {
+    "shift": false,
+    "ctrl": false,
+    "cmd": false,
+    "opt": false,
+    "fn": false,
+    "caps_lock": false
+  }
+}
