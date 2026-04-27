@@ -158,6 +158,10 @@
     border-radius: 6px;
 }
 
+.ctx-segmented-wide {
+    width: 100%;
+}
+
 .ctx-segmented button {
     height: 22px;
     padding: 0 8px;

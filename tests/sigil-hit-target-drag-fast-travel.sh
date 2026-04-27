@@ -157,9 +157,29 @@ wormhole_start = {
 wormhole_start_native = world_to_native(wormhole_start)
 wormhole_target_native = world_to_native(wormhole_target)
 
+menu_effect = show_eval_json(
+    f"""(() => {{
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'right_mouse_down', screenX: {wormhole_start_native["x"]}, screenY: {wormhole_start_native["y"]} }}
+      }})
+      const button = document.querySelector('[data-sigil-fast-travel-effect="wormhole"]')
+      if (!button) return JSON.stringify({{ ok: false, error: 'missing fast-travel menu button' }})
+      button.click()
+      window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
+      return JSON.stringify({{
+        ok: true,
+        fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
+        active: button.classList.contains('active')
+      }})
+    }})()"""
+)
+if not menu_effect.get("ok") or menu_effect.get("fastTravelEffect") != "wormhole" or menu_effect.get("active") is not True:
+    raise SystemExit(f"FAIL: context menu did not switch fast travel to wormhole: {menu_effect}")
+
 wormhole_started = show_eval_json(
     f"""(() => {{
-      window.state.transitionFastTravelEffect = 'wormhole'
       window.liveJs.fastTravelEvents = []
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',

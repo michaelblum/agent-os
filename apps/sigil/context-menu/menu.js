@@ -4,6 +4,11 @@ import {
     createDesktopWorldRangeDrag,
     updateDesktopWorldRangeDrag,
 } from '/toolkit/runtime/range-drag.js';
+import {
+    DEFAULT_FAST_TRAVEL_EFFECT,
+    FAST_TRAVEL_EFFECTS,
+    normalizeFastTravelEffect,
+} from '../renderer/transition-registry.js';
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -29,6 +34,12 @@ function clamp(value, min, max) {
 function geometryOptions() {
     return GEOMETRY_OPTIONS
         .map(([value, label]) => `<option value="${value}">${label}</option>`)
+        .join('');
+}
+
+function fastTravelEffectButtons() {
+    return FAST_TRAVEL_EFFECTS
+        .map((effect) => `<button type="button" data-sigil-fast-travel-effect="${effect.id}">${effect.label}</button>`)
         .join('');
 }
 
@@ -126,6 +137,10 @@ function menuMarkup() {
                 ${controlRow('Aura Reach', 'sigil-menu-aura-reach', 0, 3, 0.01, 1)}
                 ${controlRow('Aura Intensity', 'sigil-menu-aura-intensity', 0, 3, 0.01, 1)}
                 ${controlRow('Spin Speed', 'sigil-menu-spin', 0, 0.1, 0.001, 0.01)}
+                <label>Fast Travel</label>
+                <div class="ctx-segmented ctx-segmented-wide" role="tablist" aria-label="Fast travel effect">
+                    ${fastTravelEffectButtons()}
+                </div>
                 <div class="ctx-divider"></div>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-lightning-card">Lightning Settings</button>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-magnetic-card">Magnetic Settings</button>
@@ -276,6 +291,12 @@ export function createSigilContextMenu({
         el.value = value;
     }
 
+    function setSegmentedChoice(selector, activeValue) {
+        layer.querySelectorAll(selector).forEach((button) => {
+            button.classList.toggle('active', button.dataset.sigilFastTravelEffect === activeValue);
+        });
+    }
+
     function syncFromState() {
         if (!state) return;
         setControlValue('sigil-menu-shape-select', state.currentGeometryType ?? state.currentType);
@@ -295,6 +316,10 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-neutrino', null, state.isNeutrinosEnabled);
         setControlValue('sigil-menu-lightning', null, state.isLightningEnabled);
         setControlValue('sigil-menu-magnetic', null, state.isMagneticEnabled);
+        setSegmentedChoice(
+            '[data-sigil-fast-travel-effect]',
+            normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT)
+        );
         setControlValue('sigil-menu-lightning-length', state.lightningBoltLength ?? 100);
         setControlValue('sigil-menu-lightning-frequency', state.lightningFrequency ?? 2);
         setControlValue('sigil-menu-lightning-branching', state.lightningBranching ?? 0.08);
@@ -618,6 +643,17 @@ export function createSigilContextMenu({
         });
         onCheckbox('sigil-menu-lightning', (value) => { state.isLightningEnabled = value; });
         onCheckbox('sigil-menu-magnetic', (value) => { state.isMagneticEnabled = value; });
+        layer.querySelectorAll('[data-sigil-fast-travel-effect]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const value = normalizeFastTravelEffect(button.dataset.sigilFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT);
+                state.transitionFastTravelEffect = value;
+                setSegmentedChoice('[data-sigil-fast-travel-effect]', value);
+                onAppearanceChange?.({ controlId: 'sigil-menu-fast-travel-effect', value });
+                syncSnapshot();
+            });
+        });
         onRange('sigil-menu-lightning-length', (value) => { state.lightningBoltLength = value; });
         onRange('sigil-menu-lightning-frequency', (value) => { state.lightningFrequency = value; });
         onRange('sigil-menu-lightning-branching', (value) => { state.lightningBranching = value; });
