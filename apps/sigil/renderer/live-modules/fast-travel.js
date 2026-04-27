@@ -288,6 +288,19 @@ function drawCaptureImagePatch(ctx, capture, sourcePoint, dx, dy, dw, dh, alpha 
     return true;
 }
 
+function drawCaptureDisplay(ctx, capture, drawnDisplays) {
+    if (!capture?.image || !capture?.displayStageRect) return false;
+    const key = capture.displayId ?? `${capture.displayStageRect.x},${capture.displayStageRect.y}`;
+    if (drawnDisplays?.has(key)) return true;
+    drawnDisplays?.add(key);
+    const rect = capture.displayStageRect;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(capture.image, rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+    return true;
+}
+
 function ensureCapturePixels(capture) {
     if (!capture?.image) return null;
     if (capture.pixelData) return capture.pixelData;
@@ -954,6 +967,7 @@ export function createFastTravelController({
         const now = performance.now() / 1000;
         const radius = wormholeRadius(rendererState);
         const exitThreshold = wormholeExitThreshold(rendererState);
+        const drawnDisplays = new Set();
 
         if (gesture) {
             const origin = projectStagePoint(gesture.origin);
@@ -961,11 +975,15 @@ export function createFastTravelController({
             if (!origin?.valid) return;
             const dist = pointer ? Math.hypot(pointer.x - origin.x, pointer.y - origin.y) : 0;
             const open = smoothstep(Math.min(1, (performance.now() - gesture.openedAt) / 180));
+            const entryCapture = captureForPoint(gesture, gesture.origin, 'entry') ?? gesture.captures?.entry;
+            const exitCapture = captureForPoint(gesture, gesture.pointer, 'exit') ?? gesture.captures?.exit;
+            drawCaptureDisplay(ctx, entryCapture, drawnDisplays);
+            if (pointer && dist > exitThreshold) drawCaptureDisplay(ctx, exitCapture, drawnDisplays);
             drawTunnel(ctx, origin, pointer, radius, open, {
                 twistDirection: 1,
                 particleFlow: 'entry',
                 time: now,
-                capture: captureForPoint(gesture, gesture.origin, 'entry') ?? gesture.captures?.entry,
+                capture: entryCapture,
                 sourcePoint: gesture.origin,
                 burst: 0.45,
             });
@@ -974,7 +992,7 @@ export function createFastTravelController({
                     twistDirection: -1,
                     particleFlow: 'exit',
                     time: now + 0.31,
-                    capture: captureForPoint(gesture, gesture.pointer, 'exit') ?? gesture.captures?.exit,
+                    capture: exitCapture,
                     sourcePoint: gesture.pointer,
                     burst: 0.35,
                 });
@@ -996,6 +1014,8 @@ export function createFastTravelController({
                 : Math.max(0, 1 - smoothstep((elapsed - travel.entryMs - travel.transitMs) / travel.exitMs)));
         const from = projectStagePoint(travel.from);
         const to = projectStagePoint(travel.to);
+        drawCaptureDisplay(ctx, travel.captures.entry, drawnDisplays);
+        drawCaptureDisplay(ctx, travel.captures.exit, drawnDisplays);
         if (from?.valid) {
             drawTunnel(ctx, from, to, travel.captureRadius, entryOpen, {
                 twistDirection: 1,
