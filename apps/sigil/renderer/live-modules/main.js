@@ -95,6 +95,13 @@ const liveJs = {
 window.liveJs = liveJs;
 window.state = state;
 window.applyAppearance = applyAppearance;
+const SIGIL_RENDERER_RUNTIME = {
+    entrypoint: 'renderer/live-modules/main.js',
+    loadedAt: new Date().toISOString(),
+    loadedAtMs: Date.now(),
+    moduleUrl: import.meta.url,
+};
+window.__sigilRendererRuntime = SIGIL_RENDERER_RUNTIME;
 window.__sigilBootTrace = [];
 window.__sigilBootError = null;
 window.__sigilBootFirstFrameAt = null;
@@ -1552,6 +1559,11 @@ window.__sigilDebug = {
     },
     snapshot() {
         return {
+            runtime: {
+                ...SIGIL_RENDERER_RUNTIME,
+                bootFirstFrameAt: window.__sigilBootFirstFrameAt,
+                bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
+            },
             state: liveJs.currentState,
             avatarPos: liveJs.avatarPos,
             travel: liveJs.travel,

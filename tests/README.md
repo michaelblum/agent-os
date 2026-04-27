@@ -87,6 +87,12 @@ Visual Sigil scenarios should default to launching `canvas-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,
 window count, or placement without auxiliary canvases.
 
+For live or manual Sigil checks after source edits, do not trust an already-open
+`avatar-main` unless its debug runtime snapshot proves it was reloaded after the
+change. Relaunch the surface or use `tests/lib/visual-harness.sh`; stale
+WKWebView canvases can retain old JS modules and create false failures during
+real-input verification.
+
 Manual Sigil harnesses can pass `manual-visible` to
 `aos_visual_launch_sigil_with_inspector` to place the avatar on a visible
 non-main display when available. This avoids repeated false debugging of Sigil
