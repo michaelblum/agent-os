@@ -87,7 +87,7 @@ export function findContextMenuElementAt(anchor, point, doc = document) {
     if (viewportHit && anchor.contains(viewportHit)) return viewportHit;
 
     const candidates = Array.from(anchor.querySelectorAll(
-        'input, select, button, .ctx-menu-card.active, .ctx-menu-card.pushed'
+        'input, select, button, label.checkbox-label, .ctx-menu-card.active, .ctx-menu-card.pushed'
     ));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
@@ -226,6 +226,7 @@ function menuMarkup() {
                 <label class="checkbox-label"><input type="checkbox" id="sigil-menu-avatar-above-menu"> Avatar Above Menu Bar</label>
                 <div class="ctx-divider"></div>
                 <button class="ctx-trigger" data-sigil-action="toggle-inspector">Canvas Inspector</button>
+                <button class="ctx-trigger" data-sigil-action="toggle-trace">Interaction Trace</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
                 <div class="ctx-divider"></div>
                 <div class="ctx-actions">
@@ -347,6 +348,7 @@ export function createSigilContextMenu({
     onAvatarWindowLevelChange,
     onBoundsChange,
     onClose,
+    trace,
 } = {}) {
     const layer = document.createElement('div');
     layer.className = 'sigil-context-menu-layer';
@@ -371,6 +373,21 @@ export function createSigilContextMenu({
         rootId: 'sigil-menu-root',
         onChange: () => syncSnapshot(),
     });
+
+    function recordTrace(stage, data = {}) {
+        trace?.record?.(`context-menu:${stage}`, data);
+    }
+
+    function describeElement(element) {
+        if (!element) return null;
+        return {
+            tag: element.tagName || null,
+            id: element.id || null,
+            className: element.className || null,
+            type: element.type || null,
+            dataset: element.dataset ? { ...element.dataset } : null,
+        };
+    }
 
     function syncSnapshot() {
         if (!stack) return;
@@ -549,6 +566,7 @@ export function createSigilContextMenu({
         menuState.open = true;
         menuState.bounds = { x: origin.x, y: origin.y, w: MENU_WIDTH, h: MENU_HEIGHT };
         if (state) state.isMenuOpen = true;
+        recordTrace('open', { point, origin, bounds: menuState.bounds });
         syncPosition();
         stack.open({ x: parseFloat(anchor.style.left) || 0, y: parseFloat(anchor.style.top) || 0 });
         syncSnapshot();
@@ -566,6 +584,7 @@ export function createSigilContextMenu({
         stack.close(reason);
         syncSnapshot();
         const nextSnapshot = snapshot();
+        recordTrace('close', { reason, snapshot: nextSnapshot });
         onBoundsChange?.(nextSnapshot);
         onClose?.({ reason, snapshot: nextSnapshot });
     }
@@ -647,6 +666,15 @@ export function createSigilContextMenu({
         if (!Number.isFinite(rawY) && !Number.isFinite(rawX)) return false;
         card.scrollTop += Number.isFinite(rawY) ? rawY : 0;
         card.scrollLeft += Number.isFinite(rawX) ? rawX : 0;
+        recordTrace('scroll', {
+            point,
+            target: describeElement(target),
+            card: describeElement(card),
+            dx: rawX,
+            dy: rawY,
+            scrollTop: card.scrollTop,
+            scrollLeft: card.scrollLeft,
+        });
         syncSnapshot();
         return true;
     }
@@ -667,8 +695,17 @@ export function createSigilContextMenu({
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
 
         const target = elementAt(point);
-        if (!target || !anchor.contains(target)) return true;
+        if (!target || !anchor.contains(target)) {
+            recordTrace('pointer:no-target', { kind, point, target: describeElement(target) });
+            return true;
+        }
         const input = target.closest?.('input, select, button, label.checkbox-label, .ctx-menu-card.pushed');
+        recordTrace('pointer:target', {
+            kind,
+            point,
+            target: describeElement(target),
+            input: describeElement(input),
+        });
         if (!input) return true;
 
         if (kind === 'left_mouse_down' && input.matches('input[type="range"]')) {
@@ -683,6 +720,7 @@ export function createSigilContextMenu({
             if (input.matches('input[type="checkbox"]')) {
                 input.checked = !input.checked;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
+                recordTrace('checkbox-toggle', { id: input.id, checked: input.checked, via: 'input' });
                 return true;
             }
             if (input.matches('label.checkbox-label')) {
@@ -690,10 +728,12 @@ export function createSigilContextMenu({
                 if (checkbox) {
                     checkbox.checked = !checkbox.checked;
                     checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    recordTrace('checkbox-toggle', { id: checkbox.id, checked: checkbox.checked, via: 'label' });
                 }
                 return true;
             }
             if (input.matches('button, .ctx-menu-card.pushed')) {
+                recordTrace('click', { input: describeElement(input) });
                 input.click();
                 syncSnapshot();
                 return true;
@@ -932,6 +972,7 @@ export function createSigilContextMenu({
         onColor('sigil-menu-grid1', 'grid', 0);
         onColor('sigil-menu-grid2', 'grid', 1);
         onAction('toggle-inspector', () => onUtilityAction?.('canvas-inspector'));
+        onAction('toggle-trace', () => onUtilityAction?.('sigil-interaction-trace'));
         onAction('toggle-log', () => onUtilityAction?.('log-console'));
 
         layer.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {

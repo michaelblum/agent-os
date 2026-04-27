@@ -21,6 +21,7 @@ import { createRenderLoopScheduler } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
+import { createInteractionTrace } from './interaction-trace.js';
 import { createVisibilityTransitionController } from './visibility-transition.js';
 import { DesktopWorldSurface3D } from './desktop-world-surface-runtime.js';
 import { normalizeMessage } from './input-message.js';
@@ -40,6 +41,9 @@ import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 
 const host = createHostRuntime();
+const interactionTrace = createInteractionTrace({
+    storageKey: 'sigil.interactionTrace.captures',
+});
 const desktopWorldSurface = (
     typeof window !== 'undefined'
     && window.__aosSurfaceCanvasId
@@ -155,6 +159,16 @@ function recordBootDuration(stage, startedAt, extra = {}) {
         ...extra,
         duration_ms: Math.round(performance.now() - startedAt),
         boot_elapsed_ms: bootElapsedMs(),
+    });
+}
+
+function recordInteraction(stage, data = {}) {
+    interactionTrace.record(stage, {
+        ...data,
+        state: liveJs.currentState,
+        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        avatarVisible: liveJs.avatarVisible,
+        avatarPos: liveJs.avatarPos,
     });
 }
 
@@ -540,6 +554,7 @@ const contextMenu = createSigilContextMenu({
     onAvatarAction: handleAvatarMenuAction,
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
     onClose: handleContextMenuClose,
+    trace: interactionTrace,
 });
 
 function markAppearanceChanged() {
@@ -571,6 +586,16 @@ function utilityFrame(kind) {
             Math.round(height),
         ];
     }
+    if (kind === 'sigil-interaction-trace') {
+        const width = Math.min(760, Math.max(620, visible.w * 0.42));
+        const height = Math.min(620, Math.max(480, visible.h * 0.58));
+        return [
+            Math.round(visible.x + 20),
+            Math.round(visible.y + 20),
+            Math.round(width),
+            Math.round(height),
+        ];
+    }
 
     const width = Math.min(360, Math.max(320, visible.w * 0.26));
     const height = Math.min(520, Math.max(420, visible.h * 0.55));
@@ -587,6 +612,13 @@ function utilityConfig(kind) {
         return {
             id: '__log__',
             url: 'aos://toolkit/components/log-console/index.html',
+            frame: utilityFrame(kind),
+        };
+    }
+    if (kind === 'sigil-interaction-trace') {
+        return {
+            id: 'sigil-interaction-trace',
+            url: 'aos://sigil/diagnostics/interaction-trace/index.html',
             frame: utilityFrame(kind),
         };
     }
@@ -934,6 +966,7 @@ function syncHitTargetToAvatar() {
 
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
+    recordInteraction('interaction:cancel', { reason });
     radialGestureMenu.cancel(reason);
     clearGestureState();
     fastTravel.clearGesture(reason);
@@ -944,20 +977,40 @@ let lastContextMenuOpenAt = 0;
 let lastContextMenuOpenPoint = null;
 
 function isDuplicateContextMenuOpenClick(x, y) {
-    if (!lastContextMenuOpenPoint) return false;
+    if (!lastContextMenuOpenPoint) {
+        recordInteraction('context-menu:duplicate-check', { x, y, duplicate: false, reason: 'no-prior-open' });
+        return false;
+    }
     const elapsed = performance.now() - lastContextMenuOpenAt;
-    if (elapsed > 900) return false;
+    if (elapsed > 900) {
+        recordInteraction('context-menu:duplicate-check', { x, y, elapsed, duplicate: false, reason: 'elapsed' });
+        return false;
+    }
     const tolerance = Math.max(16, Math.min(80, Number(state.avatarHitRadius) || 0));
-    return distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y) <= tolerance;
+    const delta = distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y);
+    const duplicate = delta <= tolerance;
+    recordInteraction('context-menu:duplicate-check', { x, y, elapsed, tolerance, delta, duplicate });
+    return duplicate;
 }
 
 function openContextMenuAt(x, y, options = {}) {
-    if (!liveJs.avatarVisible) return false;
-    if (!options.force && (liveJs.currentState !== 'IDLE' || !isOnAvatar(x, y))) return false;
+    if (!liveJs.avatarVisible) {
+        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'avatar-hidden' });
+        return false;
+    }
+    if (!options.force && liveJs.currentState !== 'IDLE') {
+        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'state-not-idle' });
+        return false;
+    }
+    if (!options.force && !isOnAvatar(x, y)) {
+        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'not-on-avatar' });
+        return false;
+    }
     cancelInteraction('context-menu');
     contextMenu.openAt({ x, y, valid: true });
     lastContextMenuOpenAt = performance.now();
     lastContextMenuOpenPoint = { x, y };
+    recordInteraction('context-menu:open-request', { x, y, options });
     return true;
 }
 
@@ -1056,6 +1109,24 @@ function handleMouseMove(x, y) {
 }
 
 function handleInputEvent(msg) {
+    if (
+        msg?.type === 'right_mouse_down'
+        || msg?.type === 'right_mouse_up'
+        || msg?.type === 'left_mouse_down'
+        || msg?.type === 'left_mouse_up'
+        || msg?.type === 'scroll_wheel'
+        || (contextMenu.isOpen() && msg?.type !== 'mouse_moved')
+    ) {
+        recordInteraction('input', {
+            type: msg.type,
+            x: msg.x,
+            y: msg.y,
+            dx: msg.dx,
+            dy: msg.dy,
+            fromHitTarget: msg.fromHitTarget === true,
+            envelopeType: msg.envelope_type ?? null,
+        });
+    }
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
         liveJs.pointerPos = { x: msg.x, y: msg.y };
         liveJs.cursorTarget = { x: msg.x, y: msg.y, valid: true };
@@ -1073,10 +1144,13 @@ function handleInputEvent(msg) {
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
         const inMenu = contextMenu.containsDesktopPoint(point);
+        if (msg.type !== 'mouse_moved') recordInteraction('context-menu:route-attempt', { type: msg.type, point, inMenu });
         if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, { raw: msg })) {
+            if (msg.type !== 'mouse_moved') recordInteraction('context-menu:routed', { type: msg.type, point, inMenu });
             return;
         }
         if (msg.type === 'left_mouse_down') {
+            recordInteraction('context-menu:outside-left-down', { point });
             contextMenu.close('outside-click');
         }
     }
@@ -1093,14 +1167,17 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
+            recordInteraction('context-menu:right-down', { x: msg.x, y: msg.y, open: contextMenu.isOpen() });
             if (contextMenu.isOpen()) {
                 if (
                     typeof msg.x === 'number'
                     && typeof msg.y === 'number'
                     && isDuplicateContextMenuOpenClick(msg.x, msg.y)
                 ) {
+                    recordInteraction('context-menu:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
                     return;
                 }
+                recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
                 contextMenu.close('right-click-toggle');
                 cancelInteraction('right-click-toggle');
                 return;
@@ -1149,15 +1226,37 @@ function nativeFrameFromDesktopRect(rect) {
 
 function handleHitCanvasEvent(payload = {}) {
     if (payload.source !== 'sigil-hit') return;
+    interactionTrace.record('hit-canvas', {
+        kind: payload.kind,
+        offsetX: payload.offsetX,
+        offsetY: payload.offsetY,
+        dx: payload.dx,
+        dy: payload.dy,
+        contextMenuOpen: contextMenu.isOpen(),
+        hitFrame: hitTarget.hit.frame,
+    });
+    if (payload.kind === 'right_mouse_down' || payload.kind === 'right_mouse_up' || payload.kind === 'right_mouse_dragged') {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'right-button-daemon-authority' });
+        return;
+    }
     const isLeftHitEvent = payload.kind === 'left_mouse_down'
         || payload.kind === 'left_mouse_dragged'
         || payload.kind === 'left_mouse_up';
     if (payload.kind === 'left_mouse_down' || payload.kind === 'left_mouse_dragged' || payload.kind === 'left_mouse_up') {
-        if (!contextMenu.isOpen()) return;
+        if (!contextMenu.isOpen()) {
+            interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'menu-closed' });
+            return;
+        }
     }
     const point = pointFromHitPayload(payload);
-    if (!point) return;
-    if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) return;
+    if (!point) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'no-point' });
+        return;
+    }
+    if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-menu', point });
+        return;
+    }
     handleInputEvent({
         type: payload.kind,
         x: point.x,
@@ -1177,11 +1276,35 @@ function originFromMessage(msg = {}) {
 
 function handleHostMessage(rawMsg) {
     const msg = normalizeMessage(rawMsg);
+    if (
+        msg?.type === 'input_event'
+        || msg?.envelope_type === 'input_event'
+        || msg?.type === 'right_mouse_down'
+        || msg?.type === 'right_mouse_up'
+        || msg?.type === 'left_mouse_down'
+        || msg?.type === 'left_mouse_up'
+        || msg?.type === 'scroll_wheel'
+        || msg?.type === 'canvas_message'
+    ) {
+        interactionTrace.record('host-message', {
+            rawType: rawMsg?.type,
+            type: msg?.type,
+            envelopeType: msg?.envelope_type ?? null,
+            canvasId: msg?.id ?? rawMsg?.id ?? null,
+            kind: msg?.kind ?? rawMsg?.kind ?? rawMsg?.payload?.kind ?? null,
+            x: msg?.x,
+            y: msg?.y,
+            dx: msg?.dx,
+            dy: msg?.dy,
+            source: msg?.source ?? rawMsg?.source ?? rawMsg?.payload?.source ?? null,
+            primarySegment: isPrimarySurfaceSegment(),
+        });
+    }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
     if (msg.type === 'canvas_lifecycle') {
         const canvasId = msg.canvas_id || msg.canvas?.id;
-        if (canvasId === '__log__' || canvasId === 'canvas-inspector') {
+        if (canvasId === '__log__' || canvasId === 'canvas-inspector' || canvasId === 'sigil-interaction-trace') {
             if (msg.action === 'removed') {
                 liveJs.utilityCanvases.delete(canvasId);
             } else {
@@ -1575,6 +1698,10 @@ window.__sigilDebug = {
             contextMenu: contextMenu?.snapshot?.(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
+            interactionTrace: {
+                count: interactionTrace.snapshot().count,
+                enabled: interactionTrace.snapshot().enabled,
+            },
             avatarVisible: liveJs.avatarVisible,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
@@ -1592,6 +1719,32 @@ window.__sigilDebug = {
     importAvatarDefinitionText,
     fastTravelPreview() {
         return fastTravel.preview();
+    },
+    interactionTrace() {
+        return interactionTrace.snapshot({
+            runtime: {
+                ...SIGIL_RENDERER_RUNTIME,
+                bootFirstFrameAt: window.__sigilBootFirstFrameAt,
+                bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
+            },
+            snapshot: this.snapshot(),
+        });
+    },
+    clearInteractionTrace() {
+        interactionTrace.clear();
+        return interactionTrace.snapshot();
+    },
+    armInteractionTrace(label = 'manual') {
+        return interactionTrace.arm(label);
+    },
+    stopInteractionTrace(reason = 'manual') {
+        return interactionTrace.stop(reason);
+    },
+    latestInteractionTraceCapture() {
+        return interactionTrace.latestCapture();
+    },
+    setInteractionTraceEnabled(value) {
+        return interactionTrace.setEnabled(value);
     },
 };
 
