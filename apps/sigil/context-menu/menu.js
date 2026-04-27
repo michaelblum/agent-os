@@ -652,6 +652,7 @@ export function createSigilContextMenu({
                 setSegmentedChoice('[data-sigil-fast-travel-effect]', value);
                 onAppearanceChange?.({ controlId: 'sigil-menu-fast-travel-effect', value });
                 syncSnapshot();
+                close('fast-travel-effect');
             });
         });
         onRange('sigil-menu-lightning-length', (value) => { state.lightningBoltLength = value; });

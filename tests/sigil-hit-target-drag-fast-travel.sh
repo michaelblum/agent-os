@@ -167,15 +167,20 @@ menu_effect = show_eval_json(
       const button = document.querySelector('[data-sigil-fast-travel-effect="wormhole"]')
       if (!button) return JSON.stringify({{ ok: false, error: 'missing fast-travel menu button' }})
       button.click()
-      window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
       return JSON.stringify({{
         ok: true,
         fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
-        active: button.classList.contains('active')
+        active: button.classList.contains('active'),
+        menuOpen: window.liveJs.contextMenu?.open === true
       }})
     }})()"""
 )
-if not menu_effect.get("ok") or menu_effect.get("fastTravelEffect") != "wormhole" or menu_effect.get("active") is not True:
+if (
+    not menu_effect.get("ok")
+    or menu_effect.get("fastTravelEffect") != "wormhole"
+    or menu_effect.get("active") is not True
+    or menu_effect.get("menuOpen") is not False
+):
     raise SystemExit(f"FAIL: context menu did not switch fast travel to wormhole: {menu_effect}")
 
 wormhole_started = show_eval_json(

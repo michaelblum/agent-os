@@ -849,6 +849,11 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
+            if (contextMenu.isOpen()) {
+                contextMenu.close('right-click-toggle');
+                cancelInteraction('right-click-toggle');
+                return;
+            }
             if (typeof msg.x === 'number' && typeof msg.y === 'number' && openContextMenuAt(msg.x, msg.y)) return;
             contextMenu.close('right-click-away');
             cancelInteraction('right-click');
