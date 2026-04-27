@@ -4,7 +4,7 @@
 
 Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system that uses the AOS daemon's canvas system for display. It does not belong in `packages/` — it's an application, not a toolkit component.
 
-Sigil is pure web — the renderer, operator-control, and chat surfaces are HTML/JS loaded into WKWebView canvases created by the AOS daemon. There is no Swift host process; all state, animation, and event handling live in JS inside the canvas. The legacy `avatar-sub` Swift binary was retired 2026-04-13 (see #46).
+Sigil is pure web — the renderer, configuration, diagnostics, and chat surfaces are HTML/JS loaded into WKWebView canvases created by the AOS daemon. There is no Swift host process; all state, animation, and event handling live in JS inside the canvas. The legacy `avatar-sub` Swift binary was retired 2026-04-13 (see #46).
 
 ## Run
 
@@ -17,12 +17,6 @@ Start the AOS daemon, then launch the avatar canvas:
 ./aos show create --id avatar-main \
     --url 'aos://sigil/renderer/index.html' \
     --track union
-```
-
-For the full operator-facing control surface, use the one-shot workbench launcher:
-
-```bash
-apps/sigil/workbench/launch.sh
 ```
 
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
@@ -55,14 +49,14 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
-| `studio/` | Historical URL/path for the operator-control surface that designs the avatar's appearance and manages the agent roster. The live desktop avatar is the preview. |
+| `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
-| `workbench/` | Multi-tab operator workstation that embeds operator control + Chat and warms debug tabs (canvas inspector + log) in one canvas. |
+| `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
 | `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. |
 | `renderer/appearance.js` / `renderer/state.js` | Runtime appearance and interaction config, including Sigil's radial gesture menu defaults. |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
-| `tests/` | Manual verification pages plus shell smokes for renderer boot, status-item lifecycle, workbench launch/restage, and avatar interactions. Manual pages launch via `./aos show create --url aos://sigil/tests/...`; shell tests live under repo `tests/`. |
+| `tests/` | Manual verification pages plus shell smokes for renderer boot, status-item lifecycle, and avatar interactions. Manual pages launch via `./aos show create --url aos://sigil/tests/...`; shell tests live under repo `tests/`. |
 
 `renderer/live-modules/main.js` is the only active renderer entrypoint on `main`.
 The old `persistent-stage.js` path was retired; do not use it for new work,
@@ -73,7 +67,7 @@ tests, or debug hooks.
 The renderer runs on a transparent passthrough canvas (typically launched with `--track union`). The avatar moves in Three.js scene space — the window never moves. This enables ghost trails, explosions, and effects that span the full display union with zero impact on user interaction until Sigil intentionally enables its child hit-target.
 
 - **Renderer**: `aos://sigil/renderer/index.html` — owns the interaction state machine, subscribes to `input_event`, `display_geometry`, `wiki_page_changed`, and `canvas_lifecycle`, and spawns the `avatar-hit` child canvas when needed.
-- **Operator control**: `aos://sigil/studio/index.html` — historical URL path for the control surface. Agent docs live at `sigil/agents/*.md` in the wiki; the control surface lists them via `GET /wiki/sigil/agents/`.
+- **Configuration surface**: `aos://sigil/studio/index.html` — historical URL path for avatar configuration. Agent docs live at `sigil/agents/*.md` in the wiki; the surface lists them via `GET /wiki/sigil/agents/`.
 - **Config per agent**: the renderer loads `sigil/agents/<id>.md` via the content server's `/wiki` REST surface. Live-edits to that doc trigger a `wiki_page_changed` broadcast, which the renderer flushes on the next IDLE frame.
 
 Multi-display: the renderer clamps the avatar position to the union of `visible_bounds` reported by the daemon. Moving the avatar across displays is handled by the state machine's fast-travel animation, not by Swift-side window handoff.
@@ -98,7 +92,7 @@ The AOS daemon serves Sigil's HTML surfaces over localhost. Configure in `~/.con
 { "content": { "roots": { "sigil": "apps/sigil" } } }
 ```
 
-Canvases load via `aos://sigil/studio/index.html` or `aos://sigil/renderer/index.html`. No bundling required — ES modules work over HTTP.
+Canvases load via `aos://sigil/renderer/index.html` and other Sigil content-root URLs. No bundling required — ES modules work over HTTP.
 
 Sigil now depends on toolkit runtime modules at load time for shared spatial
 helpers, so repo-mode workflows must ensure both content roots are configured:
