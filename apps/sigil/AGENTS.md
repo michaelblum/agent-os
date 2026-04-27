@@ -27,31 +27,6 @@ apps/sigil/workbench/launch.sh
 
 Logs for the daemon live under `~/.config/aos/{mode}/daemon.log`. The renderer's `console.log` output is visible via Safari's Develop → Agent-OS menu (WKWebView remote inspector) when the daemon is running in a dev build.
 
-### Stale Canvas Guard
-
-After editing `apps/sigil/renderer/**`, `apps/sigil/context-menu/**`, or toolkit
-runtime modules loaded by Sigil, relaunch the live avatar canvas before manual or
-real-input verification. Existing WKWebView canvases keep their loaded ES
-modules, so an old `avatar-main` can reproduce bugs that are already fixed on
-disk.
-
-Use the debug snapshot to confirm the running module identity:
-
-```bash
-./aos show eval --id avatar-main \
-  --js 'JSON.stringify(window.__sigilDebug.snapshot().runtime)'
-```
-
-For a clean live check:
-
-```bash
-./aos show remove --id avatar-main
-./aos show remove --id sigil-hit-avatar-main 2>/dev/null || true
-./aos show create --id avatar-main \
-    --url 'aos://sigil/renderer/index.html' \
-    --track union
-```
-
 ## First-Time Setup — Seed
 
 Sigil's renderer loads its configuration from per-agent wiki documents under the

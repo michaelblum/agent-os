@@ -93,6 +93,23 @@ change. Relaunch the surface or use `tests/lib/visual-harness.sh`; stale
 WKWebView canvases can retain old JS modules and create false failures during
 real-input verification.
 
+To inspect the running Sigil module identity:
+
+```bash
+./aos show eval --id avatar-main \
+  --js 'JSON.stringify(window.__sigilDebug.snapshot().runtime)'
+```
+
+For a clean live Sigil check:
+
+```bash
+./aos show remove --id avatar-main
+./aos show remove --id sigil-hit-avatar-main 2>/dev/null || true
+./aos show create --id avatar-main \
+    --url 'aos://sigil/renderer/index.html' \
+    --track union
+```
+
 Manual Sigil harnesses can pass `manual-visible` to
 `aos_visual_launch_sigil_with_inspector` to place the avatar on a visible
 non-main display when available. This avoids repeated false debugging of Sigil
