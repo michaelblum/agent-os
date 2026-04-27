@@ -199,7 +199,15 @@ function curveFor(from, to, radius) {
     };
 }
 
-function drawCurvedPatch(ctx, image, center, radius, depth, curve, sign) {
+function wormholeRadius(rendererState) {
+    return Math.max(56, Number(rendererState.wormholeCaptureRadius) || 96);
+}
+
+function wormholeExitThreshold(rendererState) {
+    return wormholeRadius(rendererState);
+}
+
+function drawCurvedPatch(ctx, image, center, radius, depth, curve, twistDirection = 1) {
     if (!image) return;
     const rings = 11;
     ctx.save();
@@ -211,20 +219,92 @@ function drawCurvedPatch(ctx, image, center, radius, depth, curve, sign) {
         const t = index / rings;
         const ringRadius = radius * t;
         const sink = (1 - t) * depth;
-        const cx = center.x + (curve.x * sign * sink);
-        const cy = center.y + (curve.y * sign * sink);
+        const cx = center.x + (curve.x * sink);
+        const cy = center.y + (curve.y * sink);
         const compression = Math.max(0.16, 1 - (depth * (0.72 - (0.25 * t))));
         ctx.save();
         ctx.beginPath();
         ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
         ctx.clip();
         ctx.translate(cx, cy);
-        ctx.rotate(sign * depth * (1 - t) * 0.9);
+        ctx.rotate(twistDirection * depth * (1 - t) * 0.9);
         ctx.scale(compression, Math.max(0.14, compression * 0.82));
         ctx.globalAlpha = 0.04 + (t * 0.1);
         ctx.drawImage(image, -radius, -radius, radius * 2, radius * 2);
         ctx.restore();
     }
+}
+
+function drawTunnelParticles(ctx, {
+    tunnel,
+    radius,
+    depth,
+    curve,
+    mode,
+    time,
+    accentA,
+    accentB,
+}) {
+    const particleCount = mode === 'exit' ? 26 : 30;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    for (let index = 0; index < particleCount; index += 1) {
+        const seedA = ((index * 0.61803398875) % 1);
+        const seedB = ((index * 0.75487766625) % 1);
+        const speed = mode === 'exit' ? 0.46 + (seedB * 0.24) : 0.34 + (seedB * 0.22);
+        const cycle = ((time * speed) + seedA) % 1;
+        const eased = easeOutQuart(cycle);
+        const angle = (Math.PI * 2 * seedA) + (time * (mode === 'exit' ? 0.35 : 0.7) * (seedB > 0.5 ? 1 : -1));
+        const radial = mode === 'exit'
+            ? 0.14 + (eased * 1.22)
+            : 1.08 - (eased * 0.96);
+        const curveT = mode === 'exit'
+            ? Math.max(0, 1 - (cycle * 0.9))
+            : cycle * cycle;
+        const px = tunnel.x
+            + (Math.cos(angle) * radius * radial * depth)
+            + (curve.x * depth * curveT * 0.55);
+        const py = tunnel.y
+            + (Math.sin(angle) * radius * radial * depth)
+            + (curve.y * depth * curveT * 0.55);
+        const particleRadius = (mode === 'exit' ? 1.0 : 1.15) + ((index % 4) * 0.5);
+        const alpha = mode === 'exit'
+            ? depth * smoothstep(cycle / 0.16) * (1 - smoothstep((cycle - 0.52) / 0.48))
+            : depth * smoothstep(cycle / 0.22) * (1 - smoothstep((cycle - 0.72) / 0.28));
+
+        if (alpha <= 0.002) continue;
+
+        if (mode === 'exit') {
+            const previousRadial = Math.max(0.08, radial - 0.14);
+            const sx = tunnel.x
+                + (Math.cos(angle) * radius * previousRadial * depth)
+                + (curve.x * depth * Math.min(1, curveT + 0.08) * 0.55);
+            const sy = tunnel.y
+                + (Math.sin(angle) * radius * previousRadial * depth)
+                + (curve.y * depth * Math.min(1, curveT + 0.08) * 0.55);
+            const streak = ctx.createLinearGradient(sx, sy, px, py);
+            streak.addColorStop(0, rgba('#ffffff', 0));
+            streak.addColorStop(0.45, rgba(accentB, alpha * 0.18));
+            streak.addColorStop(1, rgba('#ffffff', alpha * 0.32));
+            ctx.strokeStyle = streak;
+            ctx.lineWidth = Math.max(0.8, particleRadius * 0.8);
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(px, py);
+            ctx.stroke();
+        }
+
+        const particle = ctx.createRadialGradient(px, py, 0, px, py, particleRadius * 3.5);
+        particle.addColorStop(0, rgba('#ffffff', 0.72 * alpha));
+        particle.addColorStop(0.45, rgba(mode === 'exit' ? accentB : accentA, 0.28 * alpha));
+        particle.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = particle;
+        ctx.beginPath();
+        ctx.arc(px, py, particleRadius * 3.5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
 }
 
 function drawTunnel(ctx, tunnel, other, radius, open, options) {
@@ -235,11 +315,12 @@ function drawTunnel(ctx, tunnel, other, radius, open, options) {
     const vector = other ? vectorBetween(tunnel, other) : { ux: 1, uy: 0, length: 0 };
     const curve = other ? curveFor(tunnel, other, radius) : { x: 0, y: 0 };
     const depth = smoothstep(open);
-    const sign = options?.sign ?? 1;
+    const twistDirection = options?.twistDirection ?? 1;
     const time = options?.time ?? 0;
     const capture = options?.capture;
+    const particleFlow = options?.particleFlow ?? 'entry';
 
-    drawCurvedPatch(ctx, capture?.image, tunnel, radius, depth, curve, sign);
+    drawCurvedPatch(ctx, capture?.image, tunnel, radius, depth, curve, twistDirection);
 
     const well = ctx.createRadialGradient(tunnel.x, tunnel.y, radius * 0.04, tunnel.x, tunnel.y, radius * 1.35);
     well.addColorStop(0, `rgba(255,255,255,${0.16 * depth})`);
@@ -256,7 +337,7 @@ function drawTunnel(ctx, tunnel, other, radius, open, options) {
     ctx.rotate(Math.atan2(vector.uy, vector.ux));
     for (let index = 0; index < 8; index += 1) {
         const t = index / 8;
-        const ringX = curve.amount * sign * depth * t * 0.92;
+        const ringX = curve.amount * depth * t * 0.92;
         const ringRadius = radius * (1 - (t * 0.72)) * (0.52 + (0.48 * depth));
         ctx.strokeStyle = rgba(index % 2 ? accentA : accentB, (0.18 + (0.28 * (1 - t))) * depth);
         ctx.lineWidth = Math.max(0.8, 2.2 * (1 - t));
@@ -266,26 +347,7 @@ function drawTunnel(ctx, tunnel, other, radius, open, options) {
     }
     ctx.restore();
 
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    for (let index = 0; index < 18; index += 1) {
-        const n = index + 1;
-        const angle = (n * 2.399963) + (time * (0.7 + ((index % 5) * 0.13)));
-        const spiral = ((time * 0.45) + ((index * 0.061) % 1)) % 1;
-        const pr = radius * (0.12 + (spiral * 0.92)) * depth;
-        const px = tunnel.x + (Math.cos(angle) * pr) + (curve.x * sign * depth * (1 - spiral) * 0.55);
-        const py = tunnel.y + (Math.sin(angle) * pr) + (curve.y * sign * depth * (1 - spiral) * 0.55);
-        const particleRadius = 1.2 + ((index % 4) * 0.55);
-        const particle = ctx.createRadialGradient(px, py, 0, px, py, particleRadius * 3.5);
-        particle.addColorStop(0, rgba('#ffffff', 0.68 * depth * (1 - (spiral * 0.4))));
-        particle.addColorStop(0.5, rgba(accentA, 0.26 * depth));
-        particle.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = particle;
-        ctx.beginPath();
-        ctx.arc(px, py, particleRadius * 3.5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    ctx.restore();
+    drawTunnelParticles(ctx, { tunnel, radius, depth, curve, mode: particleFlow, time, accentA, accentB });
 
     const burst = depth * (options?.burst ?? 0.65);
     ctx.save();
@@ -397,7 +459,7 @@ export function createFastTravelController({
         if (!gesture || !point) return;
         gesture.pointer = { x: point.x, y: point.y, valid: true };
         const dist = Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y);
-        if (!gesture.exitCreated && dist > Math.max(42, rendererState.avatarHitRadius * 1.15)) {
+        if (!gesture.exitCreated && dist > wormholeExitThreshold(rendererState)) {
             gesture.exitCreated = true;
             record('wormhole.exit.created', {
                 x: Math.round(point.x),
@@ -415,6 +477,10 @@ export function createFastTravelController({
     function exportSnapshot() {
         const now = performance.now();
         const travel = liveJs.travel;
+        const radius = wormholeRadius(rendererState);
+        const gestureDistance = gesture?.origin && gesture?.pointer
+            ? Math.hypot(gesture.pointer.x - gesture.origin.x, gesture.pointer.y - gesture.origin.y)
+            : 0;
         return {
             gesture: gesture ? {
                 effect: gesture.effect,
@@ -422,6 +488,10 @@ export function createFastTravelController({
                 pointer: clonePoint(gesture.pointer),
                 openedElapsedMs: Math.max(0, now - gesture.openedAt),
                 exitCreated: !!gesture.exitCreated,
+                distance: gestureDistance,
+                exitThreshold: wormholeExitThreshold(rendererState),
+                entryCurve: cloneCurve(curveFor(gesture.origin, gesture.pointer, radius)),
+                exitCurve: cloneCurve(curveFor(gesture.pointer, gesture.origin, radius)),
             } : null,
             travel: travel ? {
                 effect: travel.effect,
@@ -439,7 +509,8 @@ export function createFastTravelController({
                 transitMs: travel.transitMs,
                 exitMs: travel.exitMs,
                 captureRadius: travel.captureRadius,
-                curve: cloneCurve(travel.curve),
+                entryCurve: cloneCurve(travel.entryCurve),
+                exitCurve: cloneCurve(travel.exitCurve),
             } : null,
         };
     }
@@ -478,8 +549,9 @@ export function createFastTravelController({
                 entryMs: Number(travel.entryMs) || 160,
                 transitMs: Number(travel.transitMs) || 80,
                 exitMs: Number(travel.exitMs) || 220,
-                captureRadius: Number(travel.captureRadius) || Math.max(56, Number(rendererState.wormholeCaptureRadius) || 96),
-                curve: cloneCurve(travel.curve) ?? curveFor(from, to, Number(travel.captureRadius) || 96),
+                captureRadius: Number(travel.captureRadius) || wormholeRadius(rendererState),
+                entryCurve: cloneCurve(travel.entryCurve) ?? curveFor(from, to, Number(travel.captureRadius) || wormholeRadius(rendererState)),
+                exitCurve: cloneCurve(travel.exitCurve) ?? curveFor(to, from, Number(travel.captureRadius) || wormholeRadius(rendererState)),
                 captures: {},
                 captureErrors: {},
             };
@@ -501,7 +573,7 @@ export function createFastTravelController({
             ? { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y, valid: true }
             : { x: clamped.x, y: clamped.y, valid: true };
         const to = { x: clamped.x, y: clamped.y, valid: true };
-        const radius = Math.max(56, Number(rendererState.wormholeCaptureRadius) || 96);
+        const radius = wormholeRadius(rendererState);
         const travel = {
             effect: 'wormhole',
             phase: 'entry',
@@ -519,7 +591,8 @@ export function createFastTravelController({
             transitMs: Math.max(80, Math.min(180, durationForDistance(from, to) * 0.5)),
             exitMs: Math.max(220, (Number(rendererState.wormholeReboundDuration) || 0.34) * 1000),
             captureRadius: radius,
-            curve: curveFor(from, to, radius),
+            entryCurve: curveFor(from, to, radius),
+            exitCurve: curveFor(to, from, radius),
             captures: {},
             captureErrors: {},
         };
@@ -625,7 +698,8 @@ export function createFastTravelController({
         if (!ctx) return;
         ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
         const now = performance.now() / 1000;
-        const radius = Math.max(56, Number(rendererState.wormholeCaptureRadius) || 96);
+        const radius = wormholeRadius(rendererState);
+        const exitThreshold = wormholeExitThreshold(rendererState);
 
         if (gesture) {
             const origin = projectStagePoint(gesture.origin);
@@ -633,9 +707,19 @@ export function createFastTravelController({
             if (!origin?.valid) return;
             const dist = pointer ? Math.hypot(pointer.x - origin.x, pointer.y - origin.y) : 0;
             const open = smoothstep(Math.min(1, (performance.now() - gesture.openedAt) / 180));
-            drawTunnel(ctx, origin, pointer, radius, open, { sign: 1, time: now, burst: 0.45 });
-            if (pointer && dist > Math.max(42, rendererState.avatarHitRadius * 1.15)) {
-                drawTunnel(ctx, pointer, origin, radius * 0.82, open * smoothstep((dist - 42) / 140), { sign: -1, time: now + 0.31, burst: 0.35 });
+            drawTunnel(ctx, origin, pointer, radius, open, {
+                twistDirection: 1,
+                particleFlow: 'entry',
+                time: now,
+                burst: 0.45,
+            });
+            if (pointer && dist > exitThreshold) {
+                drawTunnel(ctx, pointer, origin, radius * 0.92, open * smoothstep((dist - exitThreshold) / Math.max(1, radius * 0.75)), {
+                    twistDirection: -1,
+                    particleFlow: 'exit',
+                    time: now + 0.31,
+                    burst: 0.35,
+                });
             }
             return;
         }
@@ -656,7 +740,8 @@ export function createFastTravelController({
         const to = projectStagePoint(travel.to);
         if (from?.valid) {
             drawTunnel(ctx, from, to, travel.captureRadius, entryOpen, {
-                sign: 1,
+                twistDirection: 1,
+                particleFlow: 'entry',
                 time: now,
                 capture: travel.captures.entry,
                 burst: travel.phase === 'entry' ? 0.9 : 0.55,
@@ -664,7 +749,8 @@ export function createFastTravelController({
         }
         if (to?.valid) {
             drawTunnel(ctx, to, from, travel.captureRadius * 0.92, exitOpen, {
-                sign: -1,
+                twistDirection: -1,
+                particleFlow: 'exit',
                 time: now + 0.37,
                 capture: travel.captures.exit,
                 burst: travel.phase === 'exit' ? 1.0 : 0.45,

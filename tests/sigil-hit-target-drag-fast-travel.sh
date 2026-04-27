@@ -249,6 +249,7 @@ wormhole_started = show_eval_json(
         id: {json.dumps(hit_id)},
         payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {wormhole_target_native["x"]}, screenY: {wormhole_target_native["y"]} }}
       }})
+      const gesture = window.__sigilDebug.snapshot().fastTravel?.gesture
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',
         id: {json.dumps(hit_id)},
@@ -257,6 +258,7 @@ wormhole_started = show_eval_json(
       return JSON.stringify({{
         state: window.liveJs.currentState,
         travel: window.liveJs.travel,
+        gesture,
         events: window.liveJs.fastTravelEvents
       }})
     }})()"""
@@ -268,6 +270,20 @@ for required in ["wormhole.entry.created", "wormhole.exit.created", "wormhole.re
         raise SystemExit(f"FAIL: missing wormhole startup event {required}: {wormhole_started}")
 if not wormhole_started["travel"] or wormhole_started["travel"].get("effect") != "wormhole":
     raise SystemExit(f"FAIL: expected active wormhole travel: {wormhole_started}")
+
+gesture = wormhole_started.get("gesture")
+if not gesture or gesture.get("exitCreated") is not True:
+    raise SystemExit(f"FAIL: expected wormhole exit to appear during drag: {wormhole_started}")
+if gesture.get("distance", 0) <= gesture.get("exitThreshold", 0):
+    raise SystemExit(f"FAIL: wormhole exit appeared before leaving entry footprint: {wormhole_started}")
+dx = wormhole_target["x"] - wormhole_start["x"]
+dy = wormhole_target["y"] - wormhole_start["y"]
+entry_curve = gesture.get("entryCurve") or {}
+exit_curve = gesture.get("exitCurve") or {}
+entry_dot = (entry_curve.get("x", 0) * dx) + (entry_curve.get("y", 0) * dy)
+exit_dot = (exit_curve.get("x", 0) * dx) + (exit_curve.get("y", 0) * dy)
+if entry_dot <= 0 or exit_dot >= 0:
+    raise SystemExit(f"FAIL: wormhole curves do not oppose correctly: {wormhole_started}")
 
 wormhole_landed = wait_until(
     lambda: (

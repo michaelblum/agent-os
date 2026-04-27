@@ -1307,6 +1307,7 @@ window.__sigilDebug = {
             state: liveJs.currentState,
             avatarPos: liveJs.avatarPos,
             travel: liveJs.travel,
+            fastTravel: fastTravel.exportSnapshot(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
             avatarVisible: liveJs.avatarVisible,
