@@ -744,10 +744,21 @@ function cancelInteraction(reason) {
     setInteractionState('IDLE', reason);
 }
 
+let lastContextMenuOpenAt = 0;
+let lastContextMenuOpenPoint = null;
+
+function isDuplicateContextMenuOpenClick(x, y) {
+    if (!lastContextMenuOpenPoint) return false;
+    if (performance.now() - lastContextMenuOpenAt > 500) return false;
+    return distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y) <= 2;
+}
+
 function openContextMenuAt(x, y) {
     if (!liveJs.avatarVisible || liveJs.currentState !== 'IDLE' || !isOnAvatar(x, y)) return false;
     cancelInteraction('context-menu');
     contextMenu.openAt({ x, y, valid: true });
+    lastContextMenuOpenAt = performance.now();
+    lastContextMenuOpenPoint = { x, y };
     return true;
 }
 
@@ -852,6 +863,13 @@ function handleInputEvent(msg) {
             return;
         case 'right_mouse_down':
             if (contextMenu.isOpen()) {
+                if (
+                    typeof msg.x === 'number'
+                    && typeof msg.y === 'number'
+                    && isDuplicateContextMenuOpenClick(msg.x, msg.y)
+                ) {
+                    return;
+                }
                 contextMenu.close('right-click-toggle');
                 cancelInteraction('right-click-toggle');
                 return;

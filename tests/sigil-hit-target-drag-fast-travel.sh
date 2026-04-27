@@ -105,6 +105,12 @@ menu_drag_probe = show_eval_json(
       window.__sigilDebug.dispatch({{
         type: 'canvas_message',
         id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'right_mouse_down', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
+      }})
+      const stillOpenAfterDuplicate = window.liveJs.contextMenu?.open === true
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
         payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
       }})
       window.__sigilDebug.dispatch({{
@@ -115,6 +121,7 @@ menu_drag_probe = show_eval_json(
       const snap = window.__sigilDebug.snapshot()
       return JSON.stringify({{
         opened,
+        stillOpenAfterDuplicate,
         menuOpen: window.liveJs.contextMenu?.open === true,
         state: snap.state,
         pointerPos: window.liveJs.pointerPos
@@ -123,6 +130,7 @@ menu_drag_probe = show_eval_json(
 )
 if (
     menu_drag_probe.get("opened") is not True
+    or menu_drag_probe.get("stillOpenAfterDuplicate") is not True
     or menu_drag_probe.get("menuOpen") is not False
     or menu_drag_probe.get("state") != "DRAG"
 ):
