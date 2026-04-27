@@ -303,7 +303,42 @@ menu_effect = show_eval_json(
       }})
       const button = document.querySelector('[data-sigil-fast-travel-effect="wormhole"]')
       if (!button) return JSON.stringify({{ ok: false, error: 'missing fast-travel menu button' }})
-      button.click()
+      const snap = window.__sigilDebug.snapshot()
+      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+      const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+      const toNative = (point) => ({{
+        x: nativeBounds[0] + point.x - dwBounds[0],
+        y: nativeBounds[1] + point.y - dwBounds[1],
+      }})
+      const pointFor = (selector) => {{
+        const el = document.querySelector(selector)
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return {{
+          x: dwBounds[0] + rect.left + rect.width / 2,
+          y: dwBounds[1] + rect.top + rect.height / 2,
+        }}
+      }}
+      const clickWorld = (point) => {{
+        const nativePoint = toNative(point)
+        window.__sigilDebug.dispatch({{
+          type: 'canvas_message',
+          id: {json.dumps(hit_id)},
+          payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }}
+        }})
+        window.__sigilDebug.dispatch({{
+          type: 'canvas_message',
+          id: {json.dumps(hit_id)},
+          payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
+        }})
+        return nativePoint
+      }}
+      const effectsPoint = pointFor('[data-ctx-tab="sigil-menu-effects"]')
+      if (!effectsPoint) return JSON.stringify({{ ok: false, error: 'missing effects tab' }})
+      clickWorld(effectsPoint)
+      const point = pointFor('[data-sigil-fast-travel-effect="wormhole"]')
+      if (!point) return JSON.stringify({{ ok: false, error: 'missing wormhole button point' }})
+      const nativePoint = clickWorld(point)
       const menuOpenAfterClick = window.liveJs.contextMenu?.open === true
       window.confirm = () => false
       window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
@@ -312,7 +347,10 @@ menu_effect = show_eval_json(
         fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
         active: button.classList.contains('active'),
         menuOpen: menuOpenAfterClick,
-        menuOpenAfterClose: window.liveJs.contextMenu?.open === true
+        menuOpenAfterClose: window.liveJs.contextMenu?.open === true,
+        point,
+        nativePoint,
+        traceTail: window.__sigilDebug.interactionTrace().entries.slice(-16)
       }})
     }})()"""
 )
@@ -482,27 +520,34 @@ if extended_display:
 
     ext_menu_control = show_eval_json(
         f"""(() => {{
+          const snap = window.__sigilDebug.snapshot()
+          const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+          const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+          const toNative = (point) => ({{
+            x: nativeBounds[0] + point.x - dwBounds[0],
+            y: nativeBounds[1] + point.y - dwBounds[1],
+          }})
           const pointFor = (selector, ratio = 0.5) => {{
             const el = document.querySelector(selector)
             if (!el) return null
             const rect = el.getBoundingClientRect()
-            const dw = window.__sigilDebug.snapshot().surface?.segment?.dw_bounds || [0, 0, 0, 0]
             return {{
-              x: dw[0] + rect.left + rect.width * ratio,
-              y: dw[1] + rect.top + rect.height / 2,
+              x: dwBounds[0] + rect.left + rect.width * ratio,
+              y: dwBounds[1] + rect.top + rect.height / 2,
               rect: {{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
             }}
           }}
           const clickWorld = (point) => {{
+            const nativePoint = toNative(point)
             window.__sigilDebug.dispatch({{
               type: 'canvas_message',
               id: {json.dumps(hit_id)},
-              payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: point.x + {native_origin["x"]}, screenY: point.y + {native_origin["y"]} }}
+              payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }}
             }})
             window.__sigilDebug.dispatch({{
               type: 'canvas_message',
               id: {json.dumps(hit_id)},
-              payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: point.x + {native_origin["x"]}, screenY: point.y + {native_origin["y"]} }}
+              payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
             }})
           }}
           const effectsTab = pointFor('[data-ctx-tab="sigil-menu-effects"]')
@@ -516,20 +561,22 @@ if extended_display:
           const rangeStart = pointFor('#sigil-menu-line-duration', 0.15)
           const rangeEnd = pointFor('#sigil-menu-line-duration', 0.85)
           if (!rangeStart || !rangeEnd) return JSON.stringify({{ ok: false, error: 'missing line duration range', activeId }})
+          const rangeStartNative = toNative(rangeStart)
+          const rangeEndNative = toNative(rangeEnd)
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: rangeStart.x + {native_origin["x"]}, screenY: rangeStart.y + {native_origin["y"]} }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: rangeStartNative.x, screenY: rangeStartNative.y }}
           }})
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: rangeEnd.x + {native_origin["x"]}, screenY: rangeEnd.y + {native_origin["y"]} }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: rangeEndNative.x, screenY: rangeEndNative.y }}
           }})
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: rangeEnd.x + {native_origin["x"]}, screenY: rangeEnd.y + {native_origin["y"]} }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: rangeEndNative.x, screenY: rangeEndNative.y }}
           }})
           const lineCardWasActive = document.querySelector('#sigil-menu-line-card')?.classList.contains('active')
           const back = pointFor('#sigil-menu-line-card [data-ctx-back]')
@@ -542,10 +589,11 @@ if extended_display:
           const scrollPoint = pointFor('#sigil-menu-wormhole-card')
           const beforeScrollTop = wormholeCard?.scrollTop ?? null
           if (!scrollPoint || !wormholeCard) return JSON.stringify({{ ok: false, error: 'missing wormhole card scroll target' }})
+          const scrollNative = toNative(scrollPoint)
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'scroll_wheel', screenX: scrollPoint.x + {native_origin["x"]}, screenY: scrollPoint.y + {native_origin["y"]}, dy: 120 }}
+            payload: {{ source: 'sigil-hit', kind: 'scroll_wheel', screenX: scrollNative.x, screenY: scrollNative.y, dy: 120 }}
           }})
           return JSON.stringify({{
             ok: true,
