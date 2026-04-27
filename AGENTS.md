@@ -47,7 +47,9 @@ The common entry paths are:
 
 Start from Agent harness unless the user request clearly implies development,
 testing, diagnostics, or docs/wiki work. Skip deeper sections that do not match
-the active path, but revisit them when the session changes mode.
+the active path, but revisit them when the session changes mode. Be transparent:
+briefly state the active entry path when it affects the work, and call out any
+path change before using the new layer.
 
 Durable lessons should be recorded at the right boundary instead of scattered as
 session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`

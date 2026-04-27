@@ -12,6 +12,11 @@ asks for a different mode, or evidence shows the current path cannot answer the
 question. Do not make non-dev agents read developer/testing procedures unless
 their task crosses into that layer.
 
+Be transparent about the active path. When the choice affects what the agent
+will read, skip, test, or modify, say the current path briefly. If the session
+pivots and the agent adds a layer, call out the change before acting through the
+new capability.
+
 ### Agent Harness
 
 Start from the base harness model. The agent should prefer AOS primitives:
@@ -95,14 +100,16 @@ rules, checklists, schemas, tests, or runtime knowledge records.
 
 1. Name the current entry path: agent harness, AOS developer, testing, visual
    diagnostics, user-input diagnostics, or an app-specific layer.
-2. Skip sections outside the active path, but backtrack when the session pivots
+2. State the active path when it affects what will be read, skipped, tested, or
+   modified.
+3. Skip sections outside the active path, but backtrack when the session pivots
    or the evidence requires another layer.
-3. Use AOS primitives first unless the task explicitly needs repo-level powers.
-4. Pick the smallest test loop that matches the changed behavior.
-5. For visual/display work, launch the relevant diagnostics instead of relying
+4. Use AOS primitives first unless the task explicitly needs repo-level powers.
+5. Pick the smallest test loop that matches the changed behavior.
+6. For visual/display work, launch the relevant diagnostics instead of relying
    on memory or screenshots alone.
-6. For real-input bugs, capture or run at least one real-input verification.
-7. If the task touches runtime knowledge, check whether the AOS wiki needs to be
+7. For real-input bugs, capture or run at least one real-input verification.
+8. If the task touches runtime knowledge, check whether the AOS wiki needs to be
    read or updated in addition to repo docs or code.
-8. If a lesson should survive the session, place it using the placement rules
+9. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.
