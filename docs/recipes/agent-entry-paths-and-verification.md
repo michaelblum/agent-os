@@ -6,6 +6,12 @@ with elevated developer powers.
 
 ## Entry Paths
 
+Entry paths are progressive-disclosure branches. Choose the narrowest path that
+matches the task, then backtrack and add layers when the task pivots, the user
+asks for a different mode, or evidence shows the current path cannot answer the
+question. Do not make non-dev agents read developer/testing procedures unless
+their task crosses into that layer.
+
 ### Agent Harness
 
 Start from the base harness model. The agent should prefer AOS primitives:
@@ -89,12 +95,14 @@ rules, checklists, schemas, tests, or runtime knowledge records.
 
 1. Name the current entry path: agent harness, AOS developer, testing, visual
    diagnostics, user-input diagnostics, or an app-specific layer.
-2. Use AOS primitives first unless the task explicitly needs repo-level powers.
-3. Pick the smallest test loop that matches the changed behavior.
-4. For visual/display work, launch the relevant diagnostics instead of relying
+2. Skip sections outside the active path, but backtrack when the session pivots
+   or the evidence requires another layer.
+3. Use AOS primitives first unless the task explicitly needs repo-level powers.
+4. Pick the smallest test loop that matches the changed behavior.
+5. For visual/display work, launch the relevant diagnostics instead of relying
    on memory or screenshots alone.
-5. For real-input bugs, capture or run at least one real-input verification.
-6. If the task touches runtime knowledge, check whether the AOS wiki needs to be
+6. For real-input bugs, capture or run at least one real-input verification.
+7. If the task touches runtime knowledge, check whether the AOS wiki needs to be
    read or updated in addition to repo docs or code.
-7. If a lesson should survive the session, place it using the placement rules
+8. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.

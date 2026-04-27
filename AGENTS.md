@@ -25,9 +25,13 @@ creating separate workflows.
 
 ## Agent Entry Paths
 
-Treat repo sessions as agentic dogfooding: develop as a consumer of AOS
-primitives first, then add explicit capability layers only when the task needs
-them. The common entry paths are:
+Treat repo sessions as agentic dogfooding. Choose the narrowest entry path that
+fits the current task so non-dev agents do not spend context on irrelevant
+developer machinery. Entry paths are capability layers, not permanent lanes:
+backtrack and add layers when the user pivots, evidence shows the initial path
+is insufficient, or the work crosses a boundary.
+
+The common entry paths are:
 
 - **Agent harness**: use the same `see`, `do`, `show`, `tell`, and `listen`
   primitives a future AOS app or Sigil-style harness would use.
@@ -40,6 +44,10 @@ them. The common entry paths are:
   or app-specific trace panels as diagnostic overlays, not as hidden assumptions.
 - **User-input diagnostics**: when ownership of mouse/keyboard streams is the
   issue, collect event-stream and routing evidence before guessing at fixes.
+
+Start from Agent harness unless the user request clearly implies development,
+testing, diagnostics, or docs/wiki work. Skip deeper sections that do not match
+the active path, but revisit them when the session changes mode.
 
 Durable lessons should be recorded at the right boundary instead of scattered as
 session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
