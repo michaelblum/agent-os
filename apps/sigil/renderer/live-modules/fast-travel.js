@@ -185,6 +185,15 @@ function lineTravelStateForElapsed(travel, elapsedMs) {
     };
 }
 
+function pointAlongTravel(travel, t) {
+    const eased = smoothstep(t);
+    return {
+        x: lerp(travel.from.x, travel.to.x, eased),
+        y: lerp(travel.from.y, travel.to.y, eased),
+        valid: true,
+    };
+}
+
 function vectorBetween(a, b) {
     const dx = b.x - a.x;
     const dy = b.y - a.y;
@@ -920,26 +929,19 @@ export function createFastTravelController({
 
         if (elapsed <= entryEnd) {
             const t = smoothstep(elapsed / travel.entryMs);
-            appScale = Math.max(0.02, 1 - (0.96 * t));
-            renderAvatarPos = travel.from;
+            appScale = Math.max(0.34, 1 - (0.66 * t));
+            renderAvatarPos = pointAlongTravel(travel, 0.28 * t);
         } else if (elapsed <= transitEnd) {
             phase = 'transit';
-            appScale = 0.02;
             const t = smoothstep((elapsed - entryEnd) / travel.transitMs);
-            renderAvatarPos = {
-                x: lerp(travel.from.x, travel.to.x, t),
-                y: lerp(travel.from.y, travel.to.y, t),
-                valid: true,
-            };
+            appScale = Math.max(0.24, 0.34 - (0.1 * Math.sin(t * Math.PI)));
+            renderAvatarPos = pointAlongTravel(travel, 0.28 + (0.44 * t));
         } else {
             phase = 'exit';
-            if (liveJs.avatarPos.x !== travel.to.x || liveJs.avatarPos.y !== travel.to.y) {
-                liveJs.avatarPos = { ...travel.to };
-            }
             const t = clamp01((elapsed - transitEnd) / travel.exitMs);
             const rebound = easeOutBack(t);
-            appScale = Math.max(0, 0.08 + (0.92 * rebound));
-            renderAvatarPos = travel.to;
+            appScale = Math.max(0.24, 0.24 + (0.76 * rebound));
+            renderAvatarPos = pointAlongTravel(travel, 0.72 + (0.28 * smoothstep(t)));
         }
 
         if (progress < 1) {
