@@ -13,7 +13,7 @@ input.
 
 2. Click `Arm Capture`.
 3. Reproduce the interaction manually.
-4. Tell the agent: "I just did the thing; take a look."
+4. Tell the agent to inspect the latest Sigil interaction trace capture.
 
 The agent can export the latest capture with:
 
