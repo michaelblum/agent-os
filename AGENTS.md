@@ -23,6 +23,32 @@ creating separate workflows.
 - Runtime mode is path-selected: `./aos` is repo mode, the packaged app is
   installed mode, and state is isolated under `~/.config/aos/{mode}/`.
 
+## Agent Entry Paths
+
+Treat repo sessions as agentic dogfooding: develop as a consumer of AOS
+primitives first, then add explicit capability layers only when the task needs
+them. The common entry paths are:
+
+- **Agent harness**: use the same `see`, `do`, `show`, `tell`, and `listen`
+  primitives a future AOS app or Sigil-style harness would use.
+- **AOS developer**: add repo privileges such as editing files, running tests,
+  restarting canvases, inspecting logs, and committing checkpoints.
+- **Testing**: use the smallest appropriate harness; synthetic events are fine
+  for deterministic logic, but bugs observed through real user interaction need
+  at least one real-input verification or a captured trace explaining why not.
+- **Visual diagnostics**: add canvas inspector, spatial telemetry, screenshots,
+  or app-specific trace panels as diagnostic overlays, not as hidden assumptions.
+- **User-input diagnostics**: when ownership of mouse/keyboard streams is the
+  issue, collect event-stream and routing evidence before guessing at fixes.
+
+Durable lessons should be recorded at the right boundary instead of scattered as
+session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
+files for local contracts, `tests/README.md` for verification mechanics,
+`docs/recipes/` for reusable SOPs, and `shared/schemas/`, `docs/api/`, or
+`ARCHITECTURE.md` for cross-tool contracts. Prefer measured, provider-neutral
+guidance over reactive warnings. See
+`docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
+
 ## Design Principle: Primitives First
 
 Every fix and feature should be evaluated as: "what does this look like if it's

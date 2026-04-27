@@ -3,6 +3,9 @@
 Use the smallest loop that matches the change. Do not rebuild `./aos` by
 default before every verification step.
 
+For the repo-wide entry-path model behind these choices, see
+`docs/recipes/agent-entry-paths-and-verification.md`.
+
 ## Rebuild `./aos` First
 
 Rebuild with `bash build.sh` when both of these are true:
