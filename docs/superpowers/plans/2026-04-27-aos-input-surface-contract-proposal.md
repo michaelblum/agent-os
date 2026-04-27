@@ -795,10 +795,10 @@ fast-travel convergence.
 
 | Event / behavior | Current source | Target source | Convergence rule |
 | --- | --- | --- | --- |
-| Left down | Daemon plus hit-canvas DOM emission; Sigil now ignores hit left events | Daemon `input_event` routed by toolkit | Use a temporary convergence adapter for current pre-v2 payloads only until v2 schema is live |
-| Left drag | Daemon plus hit-canvas DOM emission; hit events ignored for fast travel | Daemon `input_event` routed to captured region | Remove DOM left drag after extended-display tests pass |
-| Left up | Daemon plus hit-canvas DOM emission; hit events ignored for fast travel | Daemon `input_event` routed to captured region | Cancel capture if owner surface disappears before up |
-| Right click | Daemon and hit-canvas DOM convergence paths | Daemon `input_event` routed by toolkit | Remove hit convergence path when context-menu route is proven |
+| Left down | Daemon plus temporary hit-canvas DOM emission for menu controls; Sigil suppresses matching hit echoes after daemon delivery | Daemon `input_event` routed by toolkit | Use a temporary convergence adapter for current pre-v2 payloads only until v2 schema is live |
+| Left drag | Daemon plus temporary hit-canvas DOM emission for menu controls; fast travel uses daemon coordinates | Daemon `input_event` routed to captured region | Remove DOM left drag after extended-display tests pass |
+| Left up | Daemon plus temporary hit-canvas DOM emission for menu controls; Sigil suppresses matching hit echoes after daemon delivery | Daemon `input_event` routed to captured region | Cancel capture if owner surface disappears before up |
+| Right click | Daemon-owned in Sigil; hit-canvas right-button messages are ignored | Daemon `input_event` routed by toolkit | Keep right-button authority in daemon while context-menu routing converges |
 | Wheel | Daemon when available plus hit-canvas DOM convergence path | Daemon `input_event` with scroll delta routed by toolkit | Remove DOM wheel path when scroll delta schema/tests exist |
 | Middle/other buttons | Not designed as a first-class app route | Daemon `input_event` with `button`/`buttons`, routed by toolkit | No semantic app behavior until explicit region handlers opt in |
 | Pointer cancel | Not a complete platform contract today | Daemon/toolkit cancel event | Required for canvas remove/suspend/crash mid-drag |
