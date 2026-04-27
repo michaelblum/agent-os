@@ -828,13 +828,15 @@ function handleInputEvent(msg) {
         && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved'].includes(msg.type)
         && typeof msg.x === 'number'
         && typeof msg.y === 'number'
-        && contextMenu.handlePointerEvent(
-            msg.type,
-            { x: msg.x, y: msg.y, valid: true },
-            { assumeInside: msg.fromHitTarget === true }
-        )
     ) {
-        return;
+        const point = { x: msg.x, y: msg.y, valid: true };
+        const inMenu = contextMenu.containsDesktopPoint(point);
+        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point)) {
+            return;
+        }
+        if (msg.type === 'left_mouse_down') {
+            contextMenu.close('outside-click');
+        }
     }
 
     switch (msg.type) {

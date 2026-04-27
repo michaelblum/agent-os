@@ -94,6 +94,51 @@ start = {
 start_native = world_to_native(start)
 target_native = world_to_native(target)
 
+menu_drag_probe = show_eval_json(
+    f"""(() => {{
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'right_mouse_down', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
+      }})
+      const opened = window.liveJs.contextMenu?.open === true
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
+      }})
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: {target_native["x"]}, screenY: {target_native["y"]} }}
+      }})
+      const snap = window.__sigilDebug.snapshot()
+      return JSON.stringify({{
+        opened,
+        menuOpen: window.liveJs.contextMenu?.open === true,
+        state: snap.state,
+        pointerPos: window.liveJs.pointerPos
+      }})
+    }})()"""
+)
+if (
+    menu_drag_probe.get("opened") is not True
+    or menu_drag_probe.get("menuOpen") is not False
+    or menu_drag_probe.get("state") != "DRAG"
+):
+    raise SystemExit(f"FAIL: open context menu swallowed avatar drag: {menu_drag_probe}")
+
+show_eval(
+    f"""(() => {{
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_id)},
+        payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: {start_native["x"]}, screenY: {start_native["y"]} }}
+      }})
+      return 'ok'
+    }})()"""
+)
+
 drag_state = show_eval_json(
     f"""(() => {{
       window.__sigilDebug.dispatch({{
