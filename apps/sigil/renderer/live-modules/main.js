@@ -896,6 +896,9 @@ function initScene() {
     state.renderer.setSize(width, height);
     state.renderer.setPixelRatio(window.devicePixelRatio);
     state.renderer.setClearColor(0x000000, 0);
+    state.renderer.domElement.style.position = 'absolute';
+    state.renderer.domElement.style.inset = '0';
+    state.renderer.domElement.style.zIndex = '1';
     document.body.appendChild(state.renderer.domElement);
 
     state.pointLight = new THREE.PointLight(0xffffff, 2, 50);

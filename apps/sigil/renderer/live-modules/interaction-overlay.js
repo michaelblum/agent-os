@@ -7,6 +7,7 @@ export function createInteractionOverlay() {
         canvas = document.createElement('canvas');
         canvas.style.position = 'absolute';
         canvas.style.inset = '0';
+        canvas.style.zIndex = '0';
         canvas.style.pointerEvents = 'none';
         document.body.appendChild(canvas);
 
@@ -106,6 +107,15 @@ export function createInteractionOverlay() {
                 const startY = origin.y + (ny * Math.min(handoffRadius, length - 1));
                 const arrowLength = Math.min(24, Math.max(12, length * 0.11));
                 const wing = Math.PI * 0.78;
+                const tailFade = Math.min(1, Math.max(0.18, (length - handoffRadius) / Math.max(1, handoffRadius * 0.72)));
+                const glowGradient = ctx.createLinearGradient(startX, startY, pointer.x, pointer.y);
+                glowGradient.addColorStop(0, 'rgba(83, 245, 215, 0)');
+                glowGradient.addColorStop(Math.min(0.42, 0.18 + (0.18 * tailFade)), 'rgba(83, 245, 215, 0.42)');
+                glowGradient.addColorStop(1, 'rgba(83, 245, 215, 0.95)');
+                const dashGradient = ctx.createLinearGradient(startX, startY, pointer.x, pointer.y);
+                dashGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                dashGradient.addColorStop(Math.min(0.48, 0.22 + (0.18 * tailFade)), 'rgba(255, 255, 255, 0.42)');
+                dashGradient.addColorStop(1, 'rgba(255, 255, 255, 0.86)');
 
                 ctx.save();
                 ctx.lineCap = 'round';
@@ -113,7 +123,7 @@ export function createInteractionOverlay() {
 
                 ctx.globalAlpha = 0.32 + (0.16 * pulse);
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(83, 245, 215, 0.95)';
+                ctx.strokeStyle = glowGradient;
                 ctx.lineWidth = 7;
                 ctx.moveTo(startX, startY);
                 ctx.lineTo(pointer.x, pointer.y);
@@ -123,7 +133,7 @@ export function createInteractionOverlay() {
                 ctx.setLineDash([10, 7]);
                 ctx.lineDashOffset = -((snapshot.time || 0) * 42);
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.82)';
+                ctx.strokeStyle = dashGradient;
                 ctx.lineWidth = 2;
                 ctx.moveTo(startX, startY);
                 ctx.lineTo(pointer.x, pointer.y);
