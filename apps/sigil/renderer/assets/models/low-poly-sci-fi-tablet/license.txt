@@ -1,0 +1,11 @@
+Model Information:
+* title:	Low Poly Sci-Fi Tablet
+* source:	https://sketchfab.com/3d-models/low-poly-sci-fi-tablet-ee1fde7ec1514fd5a61790809ebd46a6
+* author:	Snooze (https://sketchfab.com/Snooze)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Low Poly Sci-Fi Tablet" (https://sketchfab.com/3d-models/low-poly-sci-fi-tablet-ee1fde7ec1514fd5a61790809ebd46a6) by Snooze (https://sketchfab.com/Snooze) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

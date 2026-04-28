@@ -747,6 +747,7 @@ class UnifiedDaemon {
             track: payload["track"] as? String,
             parent: resolvedParent,
             cascade: payload["cascade"] as? Bool,
+            suspended: payload["suspended"] as? Bool,
             channel: nil, data: nil
         )
 

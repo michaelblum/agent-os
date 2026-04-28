@@ -1,0 +1,295 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Codex Terminal</title>
+  <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      color: #eff2f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .shell {
+      position: relative;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 42px 1fr;
+      background: rgba(8, 11, 13, 0.99);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 10px;
+      box-shadow: 0 18px 56px rgba(0,0,0,0.42);
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      background: rgba(34, 38, 42, 0.92);
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .header:active { cursor: grabbing; }
+    .avatar {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      border: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .avatar::before {
+      content: "";
+      display: none;
+    }
+    .avatar::after {
+      content: "";
+      display: none;
+    }
+    .title {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      flex: 1;
+    }
+    .title strong {
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.1;
+    }
+    .title span {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #9aa6ad;
+      font-size: 11px;
+      line-height: 1.1;
+    }
+    .status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #747f87;
+      flex: 0 0 auto;
+    }
+    .status.ready { background: #32d583; }
+    .status.error { background: #ff5f57; }
+    .terminal-wrap {
+      min-height: 0;
+      padding: 8px;
+      background: #050708;
+      position: relative;
+    }
+    #terminal {
+      width: 100%;
+      height: 100%;
+    }
+    .xterm {
+      height: 100%;
+      padding: 4px;
+    }
+    .xterm .xterm-viewport {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.18) transparent;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="header" id="dragHandle">
+      <button class="avatar" id="avatarButton" title="Return to avatar"></button>
+      <div class="title">
+        <strong>Sigil</strong>
+        <span id="subtitle">Codex terminal</span>
+      </div>
+      <span class="status" id="status"></span>
+    </header>
+    <section class="terminal-wrap">
+      <div id="terminal"></div>
+    </section>
+  </main>
+
+  <script src="./node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="./node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const port = params.get('port') || '17761';
+    const session = params.get('session') || 'sigil-codex-cli-agent-os';
+    const subtitle = document.getElementById('subtitle');
+    const statusDot = document.getElementById('status');
+    let dragging = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    let terminal = null;
+    let fitAddon = null;
+    let socket = null;
+    let resizeRaf = 0;
+    let lastFit = { cols: 0, rows: 0 };
+
+    function emit(body) {
+      window.webkit?.messageHandlers?.headsup?.postMessage(body);
+    }
+
+    function setStatus(kind, text) {
+      statusDot.className = `status ${kind || ''}`;
+      subtitle.textContent = text;
+    }
+
+    function resizeTerminal() {
+      if (!fitAddon || !terminal) return;
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        try {
+          fitAddon.fit();
+          const cols = terminal.cols;
+          const rows = terminal.rows;
+          if (cols !== lastFit.cols || rows !== lastFit.rows) {
+            lastFit = { cols, rows };
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send('\u0000' + JSON.stringify({ type: 'resize', cols, rows }));
+            }
+          }
+        } catch (_) {}
+      });
+    }
+
+    function scheduleRefit() {
+      resizeTerminal();
+      setTimeout(resizeTerminal, 40);
+      setTimeout(resizeTerminal, 160);
+    }
+
+    function bootTerminal() {
+      if (!window.Terminal) {
+        setStatus('error', 'xterm.js failed to load');
+        document.getElementById('terminal').textContent = 'xterm.js failed to load. Run npm install in apps/sigil/codex-terminal.';
+        return;
+      }
+      terminal = new Terminal({
+        cursorBlink: true,
+        convertEol: false,
+        fontFamily: 'SF Mono, Menlo, Consolas, monospace',
+        fontSize: 12,
+        lineHeight: 1.15,
+        scrollback: 5000,
+        theme: {
+          background: '#050708',
+          foreground: '#d8e6df',
+          cursor: '#86ddff',
+          selectionBackground: '#264d62',
+        },
+      });
+      fitAddon = new window.FitAddon.FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.open(document.getElementById('terminal'));
+      scheduleRefit();
+      terminal.focus();
+      terminal.writeln('Connecting to Codex tmux session...');
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/terminal?session=${encodeURIComponent(session)}`);
+      socket = ws;
+      ws.addEventListener('open', () => {
+        setStatus('ready', `${session} - attached`);
+        window.__sigilCodexTerminal.state.attached = true;
+        terminal.clear();
+        scheduleRefit();
+        terminal.focus();
+      });
+      ws.addEventListener('message', async (event) => {
+        if (event.data instanceof Blob) {
+          terminal.write(await event.data.text());
+        } else {
+          terminal.write(String(event.data));
+        }
+      });
+      ws.addEventListener('close', () => {
+        window.__sigilCodexTerminal.state.attached = false;
+        setStatus('error', `${session} - detached`);
+      });
+      ws.addEventListener('error', () => {
+        setStatus('error', 'terminal bridge error');
+      });
+      terminal.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      });
+    }
+
+    document.getElementById('avatarButton').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      emit({ type: 'codex_terminal.avatar_toggle' });
+    });
+
+    document.getElementById('dragHandle').addEventListener('mousedown', (event) => {
+      if (event.target.closest('button')) return;
+      dragging = true;
+      dragOffsetX = event.clientX;
+      dragOffsetY = event.clientY;
+      emit({ type: 'drag_start', offsetX: dragOffsetX, offsetY: dragOffsetY });
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!dragging) return;
+      emit({
+        type: 'move_abs',
+        screenX: event.screenX,
+        screenY: event.screenY,
+        offsetX: dragOffsetX,
+        offsetY: dragOffsetY,
+      });
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      emit({ type: 'drag_end' });
+    });
+
+    window.addEventListener('resize', resizeTerminal);
+    new ResizeObserver(scheduleRefit).observe(document.getElementById('terminal'));
+    window.headsup = window.headsup || {};
+    window.headsup.receive = function receive(b64) {
+      let msg = null;
+      try { msg = JSON.parse(atob(b64)); } catch (_) {}
+      if (msg?.type === 'lifecycle' && msg.action === 'resume') {
+        scheduleRefit();
+        emit({ type: 'lifecycle.complete', payload: { action: 'resume' } });
+      }
+      if (msg?.type === 'codex_terminal.refit') scheduleRefit();
+    };
+    window.focusInput = function focusInput() {
+      scheduleRefit();
+      terminal?.focus();
+    };
+    window.__sigilCodexTerminal = {
+      state: { attached: false },
+      refit: scheduleRefit,
+    };
+
+    emit({
+      type: 'ready',
+      payload: {
+        name: 'codex-terminal',
+        accepts: ['keyboard'],
+        emits: ['ready', 'close', 'drag_start', 'move_abs', 'drag_end'],
+      },
+    });
+
+    bootTerminal();
+  </script>
+</body>
+</html>

@@ -65,6 +65,7 @@ const liveJs = {
     pointerPos: { x: 0, y: 0 },
     avatarHover: false,
     avatarHoverProgress: 0,
+    avatarParking: null,
     currentCursor: { x: 0, y: 0, valid: false },
     cursorTarget: { x: 0, y: 0, valid: false },
     globalBounds: { x: 0, y: 0, w: 0, h: 0, minX: 0, minY: 0, maxX: 0, maxY: 0 },
@@ -95,6 +96,10 @@ const liveJs = {
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
+const CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
+const CODEX_TERMINAL_URL = 'aos://sigil/codex-terminal/index.html?port=17761&session=sigil-codex-cli-agent-os';
+const CODEX_TERMINAL_PARK_SCALE = 0.24;
+const STATUS_PARK_SCALE = 0.2;
 
 window.liveJs = liveJs;
 window.state = state;
@@ -556,6 +561,12 @@ const contextMenu = createSigilContextMenu({
     onClose: handleContextMenuClose,
     trace: interactionTrace,
 });
+const UTILITY_CANVAS_IDS = new Set([
+    '__log__',
+    'canvas-inspector',
+    'sigil-interaction-trace',
+    CODEX_TERMINAL_CANVAS_ID,
+]);
 
 function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
@@ -622,11 +633,183 @@ function utilityConfig(kind) {
             frame: utilityFrame(kind),
         };
     }
+    if (kind === 'codex-terminal') {
+        const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
+        const previousWidth = Math.min(920, Math.max(720, visible.w * 0.58));
+        const width = Math.round(previousWidth * 2 / 3);
+        const height = Math.min(620, Math.max(480, visible.h * 0.58));
+        const defaultFrame = [
+            Math.round(visible.x + visible.w - width - 28),
+            Math.round(visible.y + visible.h - height - 28),
+            Math.round(width),
+            Math.round(height),
+        ];
+        return {
+            id: CODEX_TERMINAL_CANVAS_ID,
+            url: CODEX_TERMINAL_URL,
+            frame: defaultFrame,
+        };
+    }
     return {
         id: 'canvas-inspector',
         url: 'aos://toolkit/components/canvas-inspector/index.html',
         frame: utilityFrame(kind),
     };
+}
+
+function codexTerminalFrame() {
+    return utilityConfig('codex-terminal').frame;
+}
+
+function codexTerminalState() {
+    return liveJs.utilityCanvases.get(CODEX_TERMINAL_CANVAS_ID) || null;
+}
+
+function isCodexTerminalVisible() {
+    const current = codexTerminalState();
+    return liveJs.avatarParking?.mode === 'terminal' || (!!current && current.suspended !== true);
+}
+
+function isCodexTerminalParkedAtStatus() {
+    return liveJs.avatarParking?.mode === 'status';
+}
+
+function nativePointFromMessageOrigin(msg) {
+    const x = Number(msg?.origin_x ?? msg?.payload?.origin_x);
+    const y = Number(msg?.origin_y ?? msg?.payload?.origin_y);
+    if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
+    return null;
+}
+
+function nativePointToDesktop(nativePoint) {
+    if (!nativePoint) return null;
+    return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
+}
+
+function parkAvatarAtNativePoint(nativePoint, mode, scale = CODEX_TERMINAL_PARK_SCALE) {
+    const desktopPoint = nativePointToDesktop(nativePoint);
+    if (!desktopPoint) return;
+    if (!liveJs.avatarParking && liveJs.avatarPos.valid) {
+        liveJs._avatarParkingRestore = {
+            pos: { ...liveJs.avatarPos },
+            scale: state.appScale,
+            visible: liveJs.avatarVisible,
+        };
+    }
+    liveJs.avatarParking = { mode, nativePoint: { ...nativePoint }, scale };
+    liveJs.avatarPos = { x: desktopPoint.x, y: desktopPoint.y, valid: true };
+    state.appScale = scale;
+    setAvatarVisibility(true);
+    setAvatarHover(false);
+    emitAvatarMark();
+}
+
+function parkAvatarInTerminal(frameLike) {
+    const frame = Array.isArray(frameLike) ? frameLike : codexTerminalState()?.at;
+    if (!Array.isArray(frame) || frame.length < 4) return;
+    parkAvatarAtNativePoint({
+        x: Number(frame[0]) + 23,
+        y: Number(frame[1]) + 21,
+    }, 'terminal', CODEX_TERMINAL_PARK_SCALE);
+}
+
+function parkAvatarAtStatus(msg) {
+    const origin = nativePointFromMessageOrigin(msg);
+    if (!origin) return;
+    parkAvatarAtNativePoint(origin, 'status', STATUS_PARK_SCALE);
+}
+
+function clearAvatarParking({ restoreVisible = true } = {}) {
+    const restore = liveJs._avatarParkingRestore;
+    const restorePos = restore?.pos;
+    liveJs.avatarParking = null;
+    liveJs._avatarParkingRestore = null;
+    if (restorePos?.valid) {
+        liveJs.avatarPos = { ...restorePos };
+    }
+    if (restoreVisible) {
+        state.appScale = restore?.scale > 0.05 ? restore.scale : 1;
+        animateVisibility(true);
+    } else {
+        animateVisibility(false);
+    }
+}
+
+function animateUtilityCanvasFrame(id, from, to, durationMs = 180) {
+    if (!Array.isArray(from) || !Array.isArray(to) || from.length < 4 || to.length < 4) return Promise.resolve();
+    return new Promise((resolve) => {
+        const startedAt = performance.now();
+        function step(now) {
+            const t = Math.min(1, (now - startedAt) / durationMs);
+            const eased = 1 - Math.pow(1 - t, 3);
+            const frame = from.map((value, index) => value + (to[index] - value) * eased);
+            host.canvasUpdate({ id, frame });
+            if (t >= 1) {
+                resolve();
+                return;
+            }
+            requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    });
+}
+
+async function collapseCodexTerminalToStatus(msg) {
+    const current = codexTerminalState();
+    const origin = nativePointFromMessageOrigin(msg);
+    if (!current || !origin) return false;
+    liveJs.pendingCodexTerminalCollapse = 'status';
+    liveJs.pendingCodexTerminalStatusPoint = { ...origin };
+    parkAvatarAtStatus(msg);
+    const from = Array.isArray(current.at) ? current.at.map(Number) : codexTerminalFrame();
+    const to = [origin.x - 14, origin.y - 14, 28, 28];
+    await animateUtilityCanvasFrame(CODEX_TERMINAL_CANVAS_ID, from, to, 180);
+    await host.canvasSuspend(CODEX_TERMINAL_CANVAS_ID);
+    host.canvasUpdate({ id: CODEX_TERMINAL_CANVAS_ID, frame: from });
+    liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, { ...current, suspended: true, at: from });
+    return true;
+}
+
+async function restoreCodexTerminalFromStatus() {
+    const current = codexTerminalState();
+    if (!current) return false;
+    liveJs.pendingCodexTerminalCollapse = null;
+    liveJs.pendingCodexTerminalStatusPoint = null;
+    const frame = Array.isArray(current.at) ? current.at : codexTerminalFrame();
+    host.canvasUpdate({ id: CODEX_TERMINAL_CANVAS_ID, frame });
+    await host.canvasResume(CODEX_TERMINAL_CANVAS_ID);
+    liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, { ...current, suspended: false, at: frame });
+    parkAvatarInTerminal(frame);
+    return true;
+}
+
+async function prewarmCodexTerminalCanvas() {
+    if (liveJs._codexTerminalPrewarmStarted) return;
+    liveJs._codexTerminalPrewarmStarted = true;
+    liveJs.prewarmingCodexTerminal = true;
+    const frame = codexTerminalFrame();
+    try {
+        await host.canvasCreate({
+            id: CODEX_TERMINAL_CANVAS_ID,
+            url: CODEX_TERMINAL_URL,
+            frame,
+            interactive: true,
+            focus: false,
+            suspended: true,
+        });
+        liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, {
+            id: CODEX_TERMINAL_CANVAS_ID,
+            suspended: true,
+            at: frame,
+        });
+    } catch (error) {
+        // Existing sessions are common after launcher/reload; use lifecycle snapshots.
+        if (!/ID_COLLISION|DUPLICATE/i.test(String(error?.message || error))) {
+            console.warn('[sigil] codex terminal prewarm failed:', error);
+        }
+    } finally {
+        liveJs.prewarmingCodexTerminal = false;
+    }
 }
 
 async function toggleUtilityCanvas(kind) {
@@ -636,11 +819,19 @@ async function toggleUtilityCanvas(kind) {
         if (current && current.suspended !== true) {
             await host.canvasSuspend(config.id);
             liveJs.utilityCanvases.set(config.id, { ...current, suspended: true });
+            if (config.id === CODEX_TERMINAL_CANVAS_ID && liveJs.avatarParking?.mode === 'terminal') {
+                clearAvatarParking({ restoreVisible: true });
+            }
             return;
         }
         if (current) {
+            const frame = Array.isArray(current.at) ? current.at : config.frame;
+            host.canvasUpdate({ id: config.id, frame });
             await host.canvasResume(config.id);
-            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false });
+            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
+            if (config.id === CODEX_TERMINAL_CANVAS_ID) {
+                parkAvatarInTerminal(frame);
+            }
             return;
         }
         await host.canvasCreate({
@@ -655,6 +846,9 @@ async function toggleUtilityCanvas(kind) {
             suspended: false,
             at: config.frame,
         });
+        if (config.id === CODEX_TERMINAL_CANVAS_ID) {
+            parkAvatarInTerminal(config.frame);
+        }
     } catch (error) {
         if (!current) {
             try {
@@ -811,6 +1005,10 @@ const radialGestureMenu = createSigilRadialGestureMenu({
     onCommitItem(item) {
         if (item?.action === 'contextMenu') {
             openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
+            return;
+        }
+        if (item?.action === 'codexTerminal') {
+            toggleUtilityCanvas('codex-terminal');
             return;
         }
         if (item?.action === 'wikiGraph') {
@@ -1335,7 +1533,7 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'canvas_lifecycle') {
         const canvasId = msg.canvas_id || msg.canvas?.id;
-        if (canvasId === '__log__' || canvasId === 'canvas-inspector' || canvasId === 'sigil-interaction-trace') {
+        if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {
                 liveJs.utilityCanvases.delete(canvasId);
             } else {
@@ -1345,6 +1543,41 @@ function handleHostMessage(rawMsg) {
                     suspended: msg.suspended ?? msg.canvas?.suspended ?? false,
                     at: msg.at ?? msg.canvas?.at ?? null,
                 });
+            }
+            if (canvasId === CODEX_TERMINAL_CANVAS_ID) {
+                const suspended = msg.suspended ?? msg.canvas?.suspended;
+                if (msg.action === 'removed') {
+                    clearAvatarParking({ restoreVisible: true });
+                    liveJs.pendingCodexTerminalCollapse = null;
+                    liveJs.pendingCodexTerminalStatusPoint = null;
+                    liveJs.prewarmingCodexTerminal = false;
+                } else if (liveJs.prewarmingCodexTerminal) {
+                    if (suspended === true) {
+                        liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, {
+                            ...(codexTerminalState() || {}),
+                            id: CODEX_TERMINAL_CANVAS_ID,
+                            suspended: true,
+                            at: codexTerminalFrame(),
+                        });
+                    }
+                } else if (suspended === true) {
+                    if (liveJs.pendingCodexTerminalCollapse === 'status' || isCodexTerminalParkedAtStatus()) {
+                        const statusPoint = liveJs.pendingCodexTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
+                        parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
+                    } else if (liveJs.avatarParking?.mode === 'terminal') {
+                        clearAvatarParking({ restoreVisible: true });
+                    }
+                } else {
+                    if (liveJs.pendingCodexTerminalCollapse === 'status') {
+                        const statusPoint = liveJs.pendingCodexTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
+                        parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
+                    } else {
+                        liveJs.pendingCodexTerminalCollapse = null;
+                        liveJs.pendingCodexTerminalStatusPoint = null;
+                        const frame = msg.at ?? msg.canvas?.at;
+                        parkAvatarInTerminal(frame);
+                    }
+                }
             }
         }
         return;
@@ -1357,6 +1590,18 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.toggle') {
+        if (isCodexTerminalVisible()) {
+            void collapseCodexTerminalToStatus(msg).catch((error) => {
+                console.warn('[sigil] codex terminal collapse failed:', error);
+            });
+            return;
+        }
+        if (isCodexTerminalParkedAtStatus() && codexTerminalState()?.suspended === true) {
+            void restoreCodexTerminalFromStatus().catch((error) => {
+                console.warn('[sigil] codex terminal restore failed:', error);
+            });
+            return;
+        }
         const origin = originFromMessage(msg);
         if (msg.target_state === 'visible') animateVisibility(true, 'enter', origin);
         else if (msg.target_state === 'hidden') animateVisibility(false, 'exit', origin);
@@ -1421,6 +1666,13 @@ function handleHostMessage(rawMsg) {
             liveJs._resolveFirstDisplayGeometry = null;
             recordBoot('boot:firstDisplayGeometry', { displays: liveJs.displays.length, boot_elapsed_ms: bootElapsedMs() });
             resolve(liveJs.displays);
+        }
+        return;
+    }
+
+    if (msg.type === 'canvas_message' && msg.id === CODEX_TERMINAL_CANVAS_ID) {
+        if (msg.payload?.type === 'codex_terminal.avatar_toggle') {
+            void toggleUtilityCanvas('codex-terminal');
         }
         return;
     }
@@ -1661,6 +1913,8 @@ function animate() {
     if (primarySegment && contextMenu.isOpen()) {
         const frame = nativeFrameFromDesktopRect(contextMenu.interactiveBounds());
         if (frame) hitTarget.syncFrame(frame, true);
+    } else if (primarySegment && liveJs.avatarParking) {
+        hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
     } else if (primarySegment && liveJs.avatarPos.valid) {
         syncHitTargetToAvatar();
     }
@@ -1795,6 +2049,7 @@ export async function boot() {
     runBootStep('applyDefaultAvatarDefinition', () => applyDefaultAvatarDefinition(defaultAvatar));
 
     recordBoot('boot:displayReady', { displays: displays.length });
+    if (isPrimarySurfaceSegment()) void prewarmCodexTerminalCanvas();
 
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
     if (position) {
