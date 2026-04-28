@@ -1,17 +1,7 @@
 import { createRadialGestureModel } from './radial-gesture-runtime.js';
+import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../radial-menu-defaults.js';
 
-export const DEFAULT_SIGIL_RADIAL_ITEMS = [
-    {
-        id: 'context-menu',
-        label: 'Context Menu',
-        action: 'contextMenu',
-    },
-    {
-        id: 'wiki-graph',
-        label: 'Wiki Graph',
-        action: 'wikiGraph',
-    },
-];
+export { DEFAULT_SIGIL_RADIAL_ITEMS };
 
 const DEFAULT_CONFIG = {
     radiusBasis: 40,

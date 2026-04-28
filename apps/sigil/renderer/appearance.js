@@ -17,6 +17,7 @@ import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
 import { applySkin } from './skins.js';
+import { DEFAULT_SIGIL_RADIAL_ITEMS } from './radial-menu-defaults.js';
 import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     DEFAULT_TRANSITION_EFFECT,
@@ -107,10 +108,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
             spreadDegrees: 92,
             startAngle: -90,
             orientation: 'fixed',
-            items: [
-                { id: 'context-menu', label: 'Context Menu', action: 'contextMenu' },
-                { id: 'wiki-graph', label: 'Wiki Graph', action: 'wikiGraph' },
-            ],
+            items: DEFAULT_SIGIL_RADIAL_ITEMS,
         },
     },
 

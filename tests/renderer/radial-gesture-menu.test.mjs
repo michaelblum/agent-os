@@ -48,6 +48,27 @@ test('Sigil radial menu commits configured context item on release', () => {
   assert.equal(menu.snapshot(), null)
 })
 
+test('Sigil radial menu config carries native wiki model geometry', () => {
+  const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
+
+  assert.equal(contextItem.action, 'contextMenu')
+  assert.equal(contextItem.geometry.type, 'gltf')
+  assert.equal(contextItem.geometry.modelUid, '158a1e27214841589dce6d7361f1a422')
+  assert.match(contextItem.geometry.src, /cog\/scene\.gltf$/)
+  assert.deepEqual(contextItem.geometry.rotationDegrees, { x: 90, y: 0, z: 0 })
+  assert.equal(contextItem.geometry.attribution.author, 'Jiri Kuba')
+
+  assert.equal(wikiItem.action, 'wikiGraph')
+  assert.equal(wikiItem.geometry.type, 'gltf')
+  assert.equal(wikiItem.geometry.modelUid, '09d686a1a1f745cba6b2385d0c831214')
+  assert.match(wikiItem.geometry.src, /brain-hologram\/scene\.gltf$/)
+  assert.equal(wikiItem.geometry.material, 'source-emissive')
+  assert.equal(wikiItem.geometry.radiusScale, 1.42)
+  assert.equal(wikiItem.geometry.bloomShell, undefined)
+  assert.equal(wikiItem.geometry.attribution.author, 'oxterium')
+})
+
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {
   const { menu } = createMenu()
   menu.start({ x: 0, y: 0, valid: true })

@@ -1,3 +1,5 @@
+import { DEFAULT_SIGIL_RADIAL_ITEMS } from './radial-menu-defaults.js';
+
 const defaults = {
     // Three.js object references (set during init)
     scene: null,
@@ -154,10 +156,7 @@ const defaults = {
         spreadDegrees: 92,
         startAngle: -90,
         orientation: 'fixed',
-        items: [
-            { id: 'context-menu', label: 'Context Menu', action: 'contextMenu' },
-            { id: 'wiki-graph', label: 'Wiki Graph', action: 'wikiGraph' },
-        ],
+        items: DEFAULT_SIGIL_RADIAL_ITEMS,
     },
     avatarWindowLevel: 'status_bar',
 
