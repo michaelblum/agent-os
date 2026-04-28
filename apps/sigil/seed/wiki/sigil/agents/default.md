@@ -12,8 +12,9 @@ of the main display at boot.
 {
   "version": 1,
   "appearance": {
-    "shape": 94,
+    "shape": 6,
     "stellation": 0,
+    "tesseron": { "enabled": true, "proportion": 0.5, "matchMother": true },
     "opacity": 0.25,
     "edgeOpacity": 1.0,
     "maskEnabled": true,

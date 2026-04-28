@@ -48,7 +48,7 @@
 
       <!-- Shape panel -->
       <div id="panel-geom" class="panel">
-                <h2>Shape</h2>
+                <h2>Shape <span id="shapeRoleDecorator" class="shape-role-decorator">Mother</span></h2>
 
                 <!-- Tab Bar -->
                 <div class="shape-tabs">
@@ -69,13 +69,28 @@
                             <option value="8">Octahedron</option>
                             <option value="12">Dodecahedron</option>
                             <option value="20">Icosahedron</option>
-                            <option value="94">Tesseract</option>
                             <option value="90">Tetartoid</option>
                             <option value="91">Torus Knot</option>
                             <option value="92">Torus</option>
                             <option value="93">Prism</option>
                             <option value="100">Sphere</option>
                         </select>
+                    </div>
+
+                    <div class="control-group" id="tesseronControls">
+                        <label class="checkbox-label"><input type="checkbox" id="tesseronToggle" checked> Tesseron</label>
+                        <div id="tesseronSubControls" style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+                            <div class="control-row">
+                                <label>Child Proportion</label>
+                                <div class="val-display"><span id="tesseronProportionVal">0.50</span></div>
+                            </div>
+                            <input type="range" id="tesseronProportionSlider" min="0.12" max="0.9" step="0.01" value="0.5">
+                            <label class="checkbox-label"><input type="checkbox" id="tesseronMatchMother" checked> Match Mother</label>
+                            <div id="tesseronEditTarget" class="shape-tabs" style="display:none; margin-top:2px;">
+                                <button type="button" class="shape-tab active" data-tesseron-target="mother">Mother</button>
+                                <button type="button" class="shape-tab" data-tesseron-target="child">Child</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="control-group">
@@ -210,13 +225,24 @@
                             <option value="8">Octahedron</option>
                             <option value="12">Dodecahedron</option>
                             <option value="20">Icosahedron</option>
-                            <option value="94">Tesseract</option>
                             <option value="90">Tetartoid</option>
                             <option value="91">Torus Knot</option>
                             <option value="92">Torus</option>
                             <option value="93">Prism</option>
                             <option value="100">Sphere</option>
                         </select>
+                    </div>
+
+                    <div class="control-group" id="omegaTesseronControls">
+                        <label class="checkbox-label"><input type="checkbox" id="omegaTesseronToggle" checked> Tesseron</label>
+                        <div id="omegaTesseronSubControls" style="display:flex; flex-direction:column; gap:6px; margin-top:4px;">
+                            <div class="control-row">
+                                <label>Child Proportion</label>
+                                <div class="val-display"><span id="omegaTesseronProportionVal">0.50</span></div>
+                            </div>
+                            <input type="range" id="omegaTesseronProportionSlider" min="0.12" max="0.9" step="0.01" value="0.5">
+                            <label class="checkbox-label"><input type="checkbox" id="omegaTesseronMatchMother" checked> Match Mother</label>
+                        </div>
                     </div>
 
                     <div class="control-group">

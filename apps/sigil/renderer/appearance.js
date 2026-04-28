@@ -24,6 +24,7 @@ import {
     normalizeFastTravelEffect,
     normalizeTransitionEffect,
 } from './transition-registry.js';
+import { normalizePolyhedronType, normalizeTesseronConfig } from './tesseron.js';
 
 const REF_BASE = 300;
 const REF_SCALE = 1.1;
@@ -46,8 +47,21 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     size: { base: 153, min: 40, max: 400 },
 
     // Primary geometry
-    shape: 94,
+    shape: 6,
     stellation: 0.0,
+    tesseron: {
+        enabled: false,
+        proportion: 0.5,
+        matchMother: true,
+        editTarget: 'mother',
+        child: {
+            opacity: 0.25,
+            edgeOpacity: 1.0,
+            maskEnabled: true,
+            interiorEdges: true,
+            specular: true,
+        },
+    },
     opacity: 0.25,
     edgeOpacity: 1.0,
     maskEnabled: true,
@@ -99,7 +113,7 @@ export const DEFAULT_APPEARANCE = Object.freeze({
         menuRingRadius: 120,
         radialGestureMenu: {
             deadZoneRadius: 0.6,
-            itemRadius: 3.25,
+            itemRadius: 4.15,
             itemHitRadius: 0.9,
             itemVisualRadius: 1.4,
             menuRadius: 2.65,
@@ -211,8 +225,21 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     // Omega (secondary shape)
     omega: {
         enabled: false,
-        shape: 94,
+        shape: 6,
         stellation: 0.0,
+        tesseron: {
+            enabled: false,
+            proportion: 0.5,
+            matchMother: true,
+            editTarget: 'mother',
+            child: {
+                opacity: 0.15,
+                edgeOpacity: 0.8,
+                maskEnabled: true,
+                interiorEdges: true,
+                specular: false,
+            },
+        },
         scale: 1.5,
         opacity: 0.15,
         edgeOpacity: 0.8,
@@ -291,8 +318,12 @@ export function applyAppearance(blob) {
     state.avatarMax = size.max ?? D.size.max;
 
     // Primary geometry
-    state.currentGeometryType = blob.shape ?? D.shape;
+    const primaryShape = blob.shape ?? D.shape;
+    state.currentGeometryType = normalizePolyhedronType(primaryShape);
     state.stellationFactor = blob.stellation ?? D.stellation;
+    const primaryLegacyTesseract = Number(primaryShape) === 94 && blob.tesseron == null;
+    const primaryTesseronFallback = blob.shape == null ? D.tesseron : { ...D.tesseron, enabled: primaryLegacyTesseract };
+    state.tesseron = normalizeTesseronConfig(blob.tesseron, primaryTesseronFallback);
     state.currentOpacity = blob.opacity ?? D.opacity;
     state.currentEdgeOpacity = blob.edgeOpacity ?? D.edgeOpacity;
     state.isMaskEnabled = blob.maskEnabled ?? D.maskEnabled;
@@ -459,8 +490,12 @@ export function applyAppearance(blob) {
     // Omega
     const om = blob.omega ?? D.omega;
     state.isOmegaEnabled = om.enabled ?? D.omega.enabled;
-    state.omegaGeometryType = om.shape ?? D.omega.shape;
+    const omegaShape = om.shape ?? D.omega.shape;
+    state.omegaGeometryType = normalizePolyhedronType(omegaShape);
     state.omegaStellationFactor = om.stellation ?? D.omega.stellation;
+    const omegaLegacyTesseract = Number(omegaShape) === 94 && om.tesseron == null;
+    const omegaTesseronFallback = om.shape == null ? D.omega.tesseron : { ...D.omega.tesseron, enabled: omegaLegacyTesseract };
+    state.omegaTesseron = normalizeTesseronConfig(om.tesseron, omegaTesseronFallback);
     state.omegaScale = om.scale ?? D.omega.scale;
     state.omegaOpacity = om.opacity ?? D.omega.opacity;
     state.omegaEdgeOpacity = om.edgeOpacity ?? D.omega.edgeOpacity;
@@ -566,6 +601,7 @@ export function snapshotAppearance() {
         },
         shape: state.currentGeometryType,
         stellation: state.stellationFactor,
+        tesseron: normalizeTesseronConfig(state.tesseron, DEFAULT_APPEARANCE.tesseron),
         opacity: state.currentOpacity,
         edgeOpacity: state.currentEdgeOpacity,
         maskEnabled: state.isMaskEnabled,
@@ -709,6 +745,7 @@ export function snapshotAppearance() {
             enabled: state.isOmegaEnabled,
             shape: state.omegaGeometryType,
             stellation: state.omegaStellationFactor,
+            tesseron: normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron),
             scale: state.omegaScale,
             opacity: state.omegaOpacity,
             edgeOpacity: state.omegaEdgeOpacity,

@@ -31,8 +31,12 @@ function setUI(id, val, strVal) {
 }
 
 function randomizeShape(rng) {
-  const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 94, 100];
+  const shapes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 100];
   setUI('shapeSelect', shapes[Math.floor(rng() * shapes.length)]);
+  setUI('tesseronToggle', rng() > 0.55);
+  const tesseronProportion = (rng() * 0.55 + 0.2).toFixed(2);
+  setUI('tesseronProportionSlider', tesseronProportion, tesseronProportion);
+  setUI('tesseronMatchMother', rng() > 0.3);
   const stellation = (rng() * 3 - 1).toFixed(2); setUI('stellationSlider', stellation, stellation);
   const opacity = rng().toFixed(2); setUI('opacitySlider', opacity, opacity);
   const edgeOpacity = (rng() * 0.8 + 0.2).toFixed(2); setUI('edgeOpacitySlider', edgeOpacity, edgeOpacity);
@@ -73,8 +77,12 @@ function randomizeEffects(rng, deps) {
   setUI('lightningToggle', rng() > 0.7);
   setUI('magneticToggle', rng() > 0.7);
   if (state.isOmegaEnabled) {
-    const omegaShapes = [4, 6, 8, 12, 20, 90, 94, 100];
+    const omegaShapes = [4, 6, 8, 12, 20, 90, 100];
     setUI('omegaShapeSelect', omegaShapes[Math.floor(rng() * omegaShapes.length)]);
+    setUI('omegaTesseronToggle', rng() > 0.55);
+    const omegaTesseronProportion = (rng() * 0.55 + 0.2).toFixed(2);
+    setUI('omegaTesseronProportionSlider', omegaTesseronProportion, omegaTesseronProportion);
+    setUI('omegaTesseronMatchMother', rng() > 0.3);
     setUI('omegaStellationSlider', (rng() * 3 - 1), (rng() * 3 - 1).toFixed(2));
     setUI('omegaOpacitySlider', rng(), rng().toFixed(2));
     setUI('omegaEdgeOpacitySlider', rng(), rng().toFixed(2));

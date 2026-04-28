@@ -22,10 +22,14 @@ import {
     FAST_TRAVEL_EFFECTS,
     normalizeFastTravelEffect,
 } from '../renderer/transition-registry.js';
+import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/tesseron.js';
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
 const MENU_OFFSET = 18;
+const REF_BASE = 300;
+const REF_SCALE = 1.1;
+const REF_HEIGHT = 1080;
 const GEOMETRY_OPTIONS = [
     [4, 'Tetrahedron'],
     [6, 'Hexahedron'],
@@ -36,7 +40,6 @@ const GEOMETRY_OPTIONS = [
     [91, 'Torus Knot'],
     [92, 'Torus'],
     [93, 'Prism'],
-    [94, 'Tesseract'],
     [100, 'Sphere'],
 ];
 const LINE_TRAIL_MODES = [
@@ -49,6 +52,13 @@ const LINE_TRAIL_MODES = [
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+}
+
+function computeBaseScale(base) {
+    const viewportHeight = typeof window !== 'undefined' && Number.isFinite(window.innerHeight)
+        ? Math.max(1, window.innerHeight)
+        : REF_HEIGHT;
+    return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / viewportHeight);
 }
 
 function geometryOptions() {
@@ -87,13 +97,110 @@ function rectContainsPoint(rect, point) {
         && point.y < rect.bottom;
 }
 
+function displayVisibleBoundsForPoint(displays = [], point) {
+    return displays.find((entry) => {
+        const rect = entry.visibleBounds || entry.visible_bounds || entry.bounds;
+        return rect
+            && point.x >= rect.x
+            && point.y >= rect.y
+            && point.x < rect.x + rect.w
+            && point.y < rect.y + rect.h;
+    })?.visibleBounds
+        || displays.find((entry) => {
+            const rect = entry.visible_bounds || entry.bounds;
+            return rect
+                && point.x >= rect.x
+                && point.y >= rect.y
+                && point.x < rect.x + rect.w
+                && point.y < rect.y + rect.h;
+        })?.visible_bounds
+        || displays.find((entry) => {
+            const rect = entry.bounds;
+            return rect
+                && point.x >= rect.x
+                && point.y >= rect.y
+                && point.x < rect.x + rect.w
+                && point.y < rect.y + rect.h;
+        })?.bounds
+        || null;
+}
+
+function rectsOverlap(a, b) {
+    return !!(a && b
+        && a.x < b.x + b.w
+        && a.x + a.w > b.x
+        && a.y < b.y + b.h
+        && a.y + a.h > b.y);
+}
+
+function overlapArea(a, b) {
+    if (!rectsOverlap(a, b)) return 0;
+    const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+    const y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    return x * y;
+}
+
+export function resolveContextMenuOrigin(point, options = {}) {
+    const width = options.width ?? MENU_WIDTH;
+    const height = options.height ?? MENU_HEIGHT;
+    const offset = options.offset ?? MENU_OFFSET;
+    const displays = options.displays || [];
+    const visible = options.visible
+        || displayVisibleBoundsForPoint(displays, point)
+        || options.visibleBounds
+        || null;
+    const fallback = { x: point.x + offset, y: point.y + offset };
+    const avatar = options.avatar;
+    if (!visible || !Number.isFinite(visible.w) || !Number.isFinite(visible.h)) return fallback;
+
+    const clampRect = (origin) => ({
+        x: clamp(origin.x, visible.x, Math.max(visible.x, visible.x + visible.w - width)),
+        y: clamp(origin.y, visible.y, Math.max(visible.y, visible.y + visible.h - height)),
+        w: width,
+        h: height,
+    });
+
+    const avatarPoint = avatar?.point;
+    const radius = Math.max(0, Number(avatar?.radius) || 0);
+    if (avatarPoint && Number.isFinite(avatarPoint.x) && Number.isFinite(avatarPoint.y) && radius > 0) {
+        const avoid = {
+            x: avatarPoint.x - radius,
+            y: avatarPoint.y - radius,
+            w: radius * 2,
+            h: radius * 2,
+        };
+        const candidates = [
+            { side: 'right', x: avoid.x + avoid.w + offset, y: avatarPoint.y - height / 2 },
+            { side: 'left', x: avoid.x - offset - width, y: avatarPoint.y - height / 2 },
+            { side: 'below', x: avatarPoint.x - width / 2, y: avoid.y + avoid.h + offset },
+            { side: 'above', x: avatarPoint.x - width / 2, y: avoid.y - offset - height },
+            { side: 'click', x: fallback.x, y: fallback.y },
+        ].map((candidate, index) => {
+            const rect = clampRect(candidate);
+            return {
+                ...rect,
+                side: candidate.side,
+                index,
+                overlap: overlapArea(rect, avoid),
+            };
+        });
+        const separated = candidates.filter((candidate) => candidate.overlap === 0);
+        const best = (separated.length > 0 ? separated : candidates)
+            .sort((a, b) => (a.overlap - b.overlap) || (a.index - b.index))[0];
+        return { x: best.x, y: best.y };
+    }
+
+    const rect = clampRect(fallback);
+    return { x: rect.x, y: rect.y };
+}
+
 export function findContextMenuElementAt(anchor, point, doc = document) {
     if (!anchor || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
     const viewportHit = doc?.elementFromPoint?.(point.x, point.y);
     if (viewportHit && anchor.contains(viewportHit)) return viewportHit;
 
     const candidates = Array.from(anchor.querySelectorAll(
-        'input, select, button, label.checkbox-label, .ctx-menu-card.active, .ctx-menu-card.pushed'
+        'input, select, button, label.checkbox-label, .ctx-select-popover, .ctx-menu-card.active, .ctx-menu-card.pushed'
     ));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
@@ -156,6 +263,10 @@ export function menuMarkup() {
                     <select id="sigil-menu-shape-select">
                         ${geometryOptions()}
                     </select>
+                    ${controlRow('Mother Scale', 'sigil-menu-mother-scale', 40, 400, 1, 153)}
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-tesseron"> Tesseron</label>
+                    ${controlRow('Child Proportion', 'sigil-menu-tesseron-proportion', 0.12, 0.9, 0.01, 0.5)}
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-tesseron-match"> Match Mother</label>
                     ${controlRow('Stellation', 'sigil-menu-stellation', -1, 2, 0.05, 0)}
                     ${controlRow('Face Opacity', 'sigil-menu-opacity', 0, 1, 0.01, 0.8)}
                     ${controlRow('Edge Opacity', 'sigil-menu-edge-opacity', 0, 1, 0.01, 0.6)}
@@ -170,6 +281,9 @@ export function menuMarkup() {
                     <select id="sigil-menu-omega-shape">
                         ${geometryOptions()}
                     </select>
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-tesseron"> Tesseron</label>
+                    ${controlRow('Child Proportion', 'sigil-menu-omega-tesseron-proportion', 0.12, 0.9, 0.01, 0.5)}
+                    <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-tesseron-match"> Match Mother</label>
                     ${controlRow('Scale', 'sigil-menu-omega-scale', 0.1, 5, 0.05, 1)}
                     ${controlRow('Stellation', 'sigil-menu-omega-stellation', -1, 2, 0.05, 0)}
                     <div class="ctx-row">
@@ -372,6 +486,7 @@ export function createSigilContextMenu({
         activeRange: null,
         snapshot: null,
     };
+    let selectPopover = null;
     const interactionRouter = createDesktopWorldInteractionRouter({
         onOutsidePointer(event) {
             if (event.phase === 'up') close('outside-click');
@@ -435,6 +550,9 @@ export function createSigilContextMenu({
         anchor.querySelectorAll('[data-sigil-fast-travel-effect], [data-sigil-line-trail-mode]').forEach((button) => {
             button.setAttribute('aria-checked', button.classList.contains('active') ? 'true' : 'false');
         });
+        anchor.querySelectorAll('select').forEach((select) => {
+            select.setAttribute('aria-expanded', selectPopover?.selectId === select.id ? 'true' : 'false');
+        });
     }
 
     function snapshot() {
@@ -462,6 +580,12 @@ export function createSigilContextMenu({
         setValueLabel(id, el.value);
     }
 
+    function setControlDisabled(id, disabled) {
+        const el = layer.querySelector(`#${id}`);
+        if (!el) return;
+        el.disabled = !!disabled;
+    }
+
     function setColorValue(id, value) {
         const el = layer.querySelector(`#${id}`);
         if (!el || typeof value !== 'string') return;
@@ -478,9 +602,82 @@ export function createSigilContextMenu({
         });
     }
 
+    function closeSelectPopover(reason = 'close') {
+        if (!selectPopover) return;
+        const { element, selectId } = selectPopover;
+        element.remove();
+        selectPopover = null;
+        const select = selectId ? anchor.querySelector(`#${selectId}`) : null;
+        if (select) select.setAttribute('aria-expanded', 'false');
+        recordTrace('select-close', { reason, selectId });
+        syncSnapshot();
+    }
+
+    function syncSelectPopover() {
+        if (!selectPopover) return;
+        const select = anchor.querySelector(`#${selectPopover.selectId}`);
+        if (!select) {
+            closeSelectPopover('missing-select');
+            return;
+        }
+        selectPopover.element.querySelectorAll('[data-ctx-select-option]').forEach((button) => {
+            const selected = button.dataset.ctxSelectOption === select.value;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-selected', selected ? 'true' : 'false');
+        });
+    }
+
+    function openSelectPopover(select) {
+        if (!select || select.disabled) return;
+        if (selectPopover?.selectId === select.id) {
+            closeSelectPopover('toggle');
+            return;
+        }
+        closeSelectPopover('switch-select');
+        const popover = document.createElement('div');
+        popover.className = 'ctx-select-popover';
+        popover.setAttribute('role', 'listbox');
+        popover.dataset.ctxSelectFor = select.id;
+        popover.setAttribute('aria-label', select.getAttribute('aria-label') || select.id || 'Select option');
+        Array.from(select.options).forEach((option) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.dataset.ctxSelectOption = option.value;
+            button.setAttribute('role', 'option');
+            button.textContent = option.textContent || option.value;
+            if (option.disabled) button.disabled = true;
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (button.disabled) return;
+                select.value = button.dataset.ctxSelectOption;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                recordTrace('select-option', { id: select.id, value: select.value });
+                closeSelectPopover('selected');
+                syncSnapshot();
+            });
+            popover.appendChild(button);
+        });
+        select.insertAdjacentElement('afterend', popover);
+        selectPopover = { selectId: select.id, element: popover };
+        syncSelectPopover();
+        recordTrace('select-open', { id: select.id, value: select.value, count: select.options.length });
+        syncSnapshot();
+    }
+
     function syncFromState() {
         if (!state) return;
         setControlValue('sigil-menu-shape-select', state.currentGeometryType ?? state.currentType);
+        setControlValue('sigil-menu-mother-scale', state.avatarBase ?? 153);
+        state.tesseron = normalizeTesseronConfig(state.tesseron);
+        const tesseronSupported = isTesseronSupportedShape(state.currentGeometryType ?? state.currentType);
+        setControlValue('sigil-menu-tesseron', null, state.tesseron.enabled);
+        setControlValue('sigil-menu-tesseron-proportion', state.tesseron.proportion);
+        setControlValue('sigil-menu-tesseron-match', null, state.tesseron.matchMother);
+        setControlDisabled('sigil-menu-tesseron', !tesseronSupported);
+        setControlDisabled('sigil-menu-tesseron-proportion', !tesseronSupported || !state.tesseron.enabled);
+        setControlDisabled('sigil-menu-tesseron-match', !tesseronSupported || !state.tesseron.enabled);
+        setControlDisabled('sigil-menu-stellation', tesseronSupported && state.tesseron.enabled);
         setControlValue('sigil-menu-stellation', state.stellationFactor ?? 0);
         setControlValue('sigil-menu-opacity', state.currentOpacity ?? 0.8);
         setControlValue('sigil-menu-edge-opacity', state.currentEdgeOpacity ?? 0.6);
@@ -543,6 +740,15 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-grid-mode', state.gridMode ?? 'off');
         setControlValue('sigil-menu-omega-enabled', null, state.isOmegaEnabled);
         setControlValue('sigil-menu-omega-shape', state.omegaGeometryType ?? state.omegaType ?? 4);
+        state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron);
+        const omegaTesseronSupported = isTesseronSupportedShape(state.omegaGeometryType ?? state.omegaType);
+        setControlValue('sigil-menu-omega-tesseron', null, state.omegaTesseron.enabled);
+        setControlValue('sigil-menu-omega-tesseron-proportion', state.omegaTesseron.proportion);
+        setControlValue('sigil-menu-omega-tesseron-match', null, state.omegaTesseron.matchMother);
+        setControlDisabled('sigil-menu-omega-tesseron', !omegaTesseronSupported);
+        setControlDisabled('sigil-menu-omega-tesseron-proportion', !omegaTesseronSupported || !state.omegaTesseron.enabled);
+        setControlDisabled('sigil-menu-omega-tesseron-match', !omegaTesseronSupported || !state.omegaTesseron.enabled);
+        setControlDisabled('sigil-menu-omega-stellation', omegaTesseronSupported && state.omegaTesseron.enabled);
         setControlValue('sigil-menu-omega-scale', state.omegaScale ?? 1);
         setControlValue('sigil-menu-omega-stellation', state.omegaStellationFactor ?? 0);
         setControlValue('sigil-menu-omega-counterspin', null, state.omegaCounterSpin);
@@ -567,30 +773,22 @@ export function createSigilContextMenu({
         setColorValue('sigil-menu-magnetic2', state.colors?.magnetic?.[1]);
         setColorValue('sigil-menu-grid1', state.colors?.grid?.[0]);
         setColorValue('sigil-menu-grid2', state.colors?.grid?.[1]);
+        syncSelectPopover();
     }
 
     function clampToVisible(point) {
-        const display = (liveJs?.displays || []).find((entry) => {
-            const rect = entry.visibleBounds || entry.visible_bounds || entry.bounds;
-            return rect
-                && point.x >= rect.x
-                && point.y >= rect.y
-                && point.x < rect.x + rect.w
-                && point.y < rect.y + rect.h;
+        return resolveContextMenuOrigin(point, {
+            displays: liveJs?.displays || [],
+            visibleBounds: liveJs?.visibleBounds,
+            avatar: {
+                point: liveJs?.avatarPos,
+                radius: Math.max(
+                    Number(liveJs?.avatarHitRadius) || 0,
+                    Number(state?.avatarHitRadius) || 0,
+                    40
+                ),
+            },
         });
-        const visible = display?.visibleBounds || display?.visible_bounds || display?.bounds || liveJs?.visibleBounds;
-        const fallback = { x: point.x + MENU_OFFSET, y: point.y + MENU_OFFSET };
-        if (!visible || !Number.isFinite(visible.w) || !Number.isFinite(visible.h)) return fallback;
-        if (fallback.x + MENU_WIDTH > visible.x + visible.w) {
-            fallback.x = point.x - MENU_OFFSET - MENU_WIDTH;
-        }
-        if (fallback.y + MENU_HEIGHT > visible.y + visible.h) {
-            fallback.y = point.y - MENU_OFFSET - MENU_HEIGHT;
-        }
-        return {
-            x: clamp(fallback.x, visible.x, Math.max(visible.x, visible.x + visible.w - MENU_WIDTH)),
-            y: clamp(fallback.y, visible.y, Math.max(visible.y, visible.y + visible.h - MENU_HEIGHT)),
-        };
     }
 
     function syncPosition() {
@@ -622,6 +820,7 @@ export function createSigilContextMenu({
 
     function close(reason = 'close') {
         if (!menuState.open) return;
+        closeSelectPopover(reason);
         menuState.open = false;
         menuState.bounds = null;
         menuState.activeRange = null;
@@ -637,6 +836,7 @@ export function createSigilContextMenu({
 
     function applySnapshot(next = {}) {
         const open = !!next.open;
+        closeSelectPopover('snapshot');
         menuState.open = open;
         menuState.bounds = open && next.bounds ? { ...next.bounds } : null;
         menuState.activeRange = null;
@@ -778,12 +978,14 @@ export function createSigilContextMenu({
 
         if (kind === 'left_mouse_up') {
             if (input.matches('input[type="checkbox"]')) {
+                closeSelectPopover('checkbox');
                 input.checked = !input.checked;
                 input.dispatchEvent(new Event('change', { bubbles: true }));
                 recordTrace('checkbox-toggle', { id: input.id, checked: input.checked, via: 'input' });
                 return true;
             }
             if (input.matches('label.checkbox-label')) {
+                closeSelectPopover('checkbox-label');
                 const checkbox = input.querySelector('input[type="checkbox"]');
                 if (checkbox) {
                     checkbox.checked = !checkbox.checked;
@@ -792,7 +994,12 @@ export function createSigilContextMenu({
                 }
                 return true;
             }
+            if (input.matches('select')) {
+                openSelectPopover(input);
+                return true;
+            }
             if (input.matches('button, .ctx-menu-card.pushed')) {
+                if (!input.closest?.('.ctx-select-popover')) closeSelectPopover('button');
                 recordTrace('click', { input: describeElement(input) });
                 input.click();
                 syncSnapshot();
@@ -885,7 +1092,39 @@ export function createSigilContextMenu({
         onSelect('sigil-menu-shape-select', (value) => {
             state.currentGeometryType = value;
             state.currentType = value;
+            const supported = isTesseronSupportedShape(value);
+            setControlDisabled('sigil-menu-tesseron', !supported);
+            setControlDisabled('sigil-menu-stellation', supported && !!state.tesseron?.enabled);
             updateGeometry?.(value);
+        });
+        onRange('sigil-menu-mother-scale', (value) => {
+            state.avatarBase = value;
+            state.baseScale = computeBaseScale(value);
+        });
+        onCheckbox('sigil-menu-tesseron', (value) => {
+            state.tesseron = normalizeTesseronConfig(state.tesseron);
+            state.tesseron.enabled = value;
+            setControlDisabled('sigil-menu-stellation', value);
+            setControlDisabled('sigil-menu-tesseron-proportion', !value);
+            setControlDisabled('sigil-menu-tesseron-match', !value);
+            updateGeometry?.(state.currentGeometryType ?? state.currentType);
+        });
+        onRange('sigil-menu-tesseron-proportion', (value) => {
+            state.tesseron = normalizeTesseronConfig(state.tesseron);
+            state.tesseron.proportion = value;
+            updateGeometry?.(state.currentGeometryType ?? state.currentType);
+        });
+        onCheckbox('sigil-menu-tesseron-match', (value) => {
+            state.tesseron = normalizeTesseronConfig(state.tesseron);
+            state.tesseron.matchMother = value;
+            if (!value) {
+                state.tesseron.child.opacity ??= state.currentOpacity;
+                state.tesseron.child.edgeOpacity ??= state.currentEdgeOpacity;
+                state.tesseron.child.maskEnabled ??= state.isMaskEnabled;
+                state.tesseron.child.interiorEdges ??= state.isInteriorEdgesEnabled;
+                state.tesseron.child.specular ??= state.isSpecularEnabled;
+            }
+            updateGeometry?.(state.currentGeometryType ?? state.currentType);
         });
         onRange('sigil-menu-opacity', (value) => {
             state.currentOpacity = value;
@@ -1009,7 +1248,28 @@ export function createSigilContextMenu({
         onSelect('sigil-menu-omega-shape', (value) => {
             state.omegaGeometryType = value;
             state.omegaType = value;
+            const supported = isTesseronSupportedShape(value);
+            setControlDisabled('sigil-menu-omega-tesseron', !supported);
+            setControlDisabled('sigil-menu-omega-stellation', supported && !!state.omegaTesseron?.enabled);
             updateOmegaGeometry?.(value);
+        });
+        onCheckbox('sigil-menu-omega-tesseron', (value) => {
+            state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron);
+            state.omegaTesseron.enabled = value;
+            setControlDisabled('sigil-menu-omega-stellation', value);
+            setControlDisabled('sigil-menu-omega-tesseron-proportion', !value);
+            setControlDisabled('sigil-menu-omega-tesseron-match', !value);
+            updateOmegaGeometry?.(state.omegaGeometryType ?? state.omegaType);
+        });
+        onRange('sigil-menu-omega-tesseron-proportion', (value) => {
+            state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron);
+            state.omegaTesseron.proportion = value;
+            updateOmegaGeometry?.(state.omegaGeometryType ?? state.omegaType);
+        });
+        onCheckbox('sigil-menu-omega-tesseron-match', (value) => {
+            state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron);
+            state.omegaTesseron.matchMother = value;
+            updateOmegaGeometry?.(state.omegaGeometryType ?? state.omegaType);
         });
         onRange('sigil-menu-omega-stellation', (value) => {
             state.omegaStellationFactor = value;

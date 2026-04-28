@@ -118,10 +118,14 @@ export function drawAccretionTexture(canvas, ctx, c1, c2) {
 export function updateFaceVertexColors() {
     if (state.currentSkin !== 'none' && state.skinMaterial) { updateSkinColorRamp(false); return; }
     applyGradientVertexColors(state.coreMesh, state.colors.face);
+    applyGradientVertexColors(state.tesseronChildCoreMesh, state.colors.face);
 }
 
 export function updateEdgeVertexColors() {
     applyGradientVertexColors(state.wireframeMesh, state.colors.edge);
+    applyGradientVertexColors(state.tesseronChildWireframeMesh, state.colors.edge);
+    applyGradientVertexColors(state.innerWireframeMesh, state.colors.edge);
+    applyGradientVertexColors(state.innerHighlightWireframeMesh, state.colors.edge);
 }
 
 export function updateAllColors() {

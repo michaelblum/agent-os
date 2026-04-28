@@ -281,6 +281,29 @@ function _cleanupAllGhosts() {
 }
 
 export function updateOmegaColors() {
+    const applyOmegaGradient = (mesh, colors) => {
+        if (!mesh) return;
+        const geo = mesh.geometry;
+        const count = geo.attributes.position.count;
+        if (!geo.attributes.color || geo.attributes.color.count !== count) {
+            geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+        }
+        const col = geo.attributes.color;
+        geo.computeBoundingBox();
+        const min = geo.boundingBox.min.y;
+        const range = (geo.boundingBox.max.y - min) || 1;
+        const c1 = new THREE.Color(colors[0]);
+        const c2 = new THREE.Color(colors[1]);
+        const tC = new THREE.Color();
+        for (let i = 0; i < count; i++) {
+            tC.copy(c1).lerp(c2, (geo.attributes.position.getY(i) - min) / range);
+            col.setXYZ(i, tC.r, tC.g, tC.b);
+        }
+        col.needsUpdate = true;
+        mesh.material.vertexColors = true;
+        mesh.material.color.setHex(0xffffff);
+        mesh.material.needsUpdate = true;
+    };
     // Update face vertex colors
     if (state.omegaCoreMesh) {
         const geo = state.omegaCoreMesh.geometry;
@@ -329,4 +352,8 @@ export function updateOmegaColors() {
         state.omegaWireframeMesh.material.color.setHex(0xffffff);
         state.omegaWireframeMesh.material.needsUpdate = true;
     }
+    applyOmegaGradient(state.omegaTesseronChildCoreMesh, state.colors.omegaFace);
+    applyOmegaGradient(state.omegaTesseronChildWireframeMesh, state.colors.omegaEdge);
+    applyOmegaGradient(state.omegaInnerWireframeMesh, state.colors.omegaEdge);
+    applyOmegaGradient(state.omegaInnerHighlightWireframeMesh, state.colors.omegaEdge);
 }

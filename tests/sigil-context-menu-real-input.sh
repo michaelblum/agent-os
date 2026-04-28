@@ -57,6 +57,42 @@ def do_scroll(point, dy):
     run("do", "scroll", f"{round(point['x'])},{round(point['y'])}", "--dy", str(dy))
 
 
+def do_key(key):
+    run("do", "key", key)
+
+
+def rects_overlap(a, b):
+    return (
+        a["x"] < b["x"] + b["w"]
+        and a["x"] + a["w"] > b["x"]
+        and a["y"] < b["y"] + b["h"]
+        and a["y"] + a["h"] > b["y"]
+    )
+
+
+def assert_menu_clear_avatar(label):
+    state = eval_json(
+        """(() => {
+          const snap = window.__sigilDebug.snapshot()
+          const radius = snap.avatarHitRadius || 40
+          return JSON.stringify({
+            menu: snap.contextMenu.bounds,
+            avatar: {
+              x: snap.avatarPos.x - radius,
+              y: snap.avatarPos.y - radius,
+              w: radius * 2,
+              h: radius * 2,
+            },
+          })
+        })()"""
+    )
+    if not state["menu"]:
+        raise SystemExit(f"FAIL: missing menu bounds for {label}")
+    if rects_overlap(state["menu"], state["avatar"]):
+        raise SystemExit(f"FAIL: context menu overlaps avatar for {label}: {state}")
+    return state
+
+
 def native_point_for(selector, ratio=0.5):
     return eval_json(
         f"""(() => {{
@@ -66,14 +102,34 @@ def native_point_for(selector, ratio=0.5):
           if (rect.width <= 0 || rect.height <= 0) return JSON.stringify(null)
           const snap = window.__sigilDebug.snapshot()
           const dw = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
-          const native = snap.surface?.segment?.native_bounds || dw
           const world = {{
             x: dw[0] + rect.left + rect.width * {ratio},
             y: dw[1] + rect.top + rect.height / 2,
           }}
+          const displays = window.liveJs?.displays || []
+          const display = displays.find((entry) => {{
+            const bounds = entry.desktop_world_bounds || entry.desktopWorldBounds || entry.bounds
+            return bounds
+              && world.x >= bounds.x
+              && world.y >= bounds.y
+              && world.x < bounds.x + bounds.w
+              && world.y < bounds.y + bounds.h
+          }})
+          const displayWorld = display?.desktop_world_bounds || display?.desktopWorldBounds || display?.bounds
+          const displayNative = display?.native_bounds || display?.nativeBounds
+          const fallbackNative = snap.surface?.segment?.native_bounds || dw
+          const native = displayWorld && displayNative
+            ? {{
+                x: displayNative.x + ((world.x - displayWorld.x) * displayNative.w / displayWorld.w),
+                y: displayNative.y + ((world.y - displayWorld.y) * displayNative.h / displayWorld.h),
+              }}
+            : {{
+                x: fallbackNative[0] + world.x - dw[0],
+                y: fallbackNative[1] + world.y - dw[1],
+              }}
           return JSON.stringify({{
-            x: native[0] + world.x - dw[0],
-            y: native[1] + world.y - dw[1],
+            x: native.x,
+            y: native.y,
             rect: {{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
           }})
         }})()"""
@@ -95,6 +151,33 @@ do_click(avatar_center, "--right")
 wait_until(
     lambda: eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu)") if eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.open)") is True else None,
     label="context menu open from real right click",
+)
+main_menu_clearance = assert_menu_clear_avatar("main display")
+
+shape_select = native_point_for('#sigil-menu-shape-select')
+if not shape_select:
+    raise SystemExit("FAIL: missing shape geometry select")
+do_click(shape_select)
+shape_option = wait_until(
+    lambda: native_point_for('[data-ctx-select-option="8"]'),
+    label="geometry select option list opened from real click",
+)
+do_click(shape_option)
+shape_result = wait_until(
+    lambda: (
+        lambda state: state if state["geometry"] == 8 and state["selectEvents"] >= 1 else None
+    )(eval_json(
+        """(() => {
+          const trace = window.__sigilDebug.interactionTrace()
+          return JSON.stringify({
+            geometry: window.state.currentGeometryType,
+            selectValue: document.querySelector('#sigil-menu-shape-select')?.value ?? null,
+            popoverOpen: !!document.querySelector('.ctx-select-popover'),
+            selectEvents: trace.entries.filter((entry) => entry.stage === 'context-menu:select-option').length
+          })
+        })()"""
+    )),
+    label="real click selected geometry option",
 )
 
 effects_tab = native_point_for('[data-ctx-tab="sigil-menu-effects"]')
@@ -218,12 +301,92 @@ wormhole_after = wait_until(
     label="wormhole card scrollTop changed from real wheel",
 )
 
+do_key("Escape")
+wait_until(
+    lambda: True if eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.open)") is False else None,
+    label="context menu closed before extended-display setup",
+)
+
+extended = eval_json(
+    """(() => {
+      const displays = window.liveJs?.displays || []
+      const display = displays.find((entry) => !(entry.is_main ?? entry.isMain))
+      if (!display) return JSON.stringify({ skipped: true, reason: 'no extended display', displays })
+      const visible = display.visible_bounds || display.visibleBounds || display.bounds
+      const point = { x: visible.x + Math.min(220, Math.max(80, visible.w / 4)), y: visible.y + Math.min(220, Math.max(80, visible.h / 4)) }
+      const world = display.desktop_world_bounds || display.desktopWorldBounds || display.bounds
+      const native = display.native_bounds || display.nativeBounds || world
+      const nativePoint = {
+        x: native.x + ((point.x - world.x) * native.w / world.w),
+        y: native.y + ((point.y - world.y) * native.h / world.h),
+      }
+      window.__sigilDebug.dispatch({ type: 'status_item.show' })
+      window.__sigilDebug.dispatch({ type: 'sigil.set_position', x: point.x, y: point.y })
+      window.__sigilDebug.armInteractionTrace('real-input-context-menu-extended-display')
+      return JSON.stringify({ skipped: false, display, point, nativePoint })
+    })()"""
+)
+extended_result = None
+if not extended.get("skipped"):
+    wait_until(
+        lambda: (
+            lambda snap: snap if (
+                snap["avatarVisible"]
+                and snap["state"] == "IDLE"
+                and not snap["contextMenu"]["open"]
+                and abs(snap["avatarPos"]["x"] - extended["point"]["x"]) < 1
+                and abs(snap["avatarPos"]["y"] - extended["point"]["y"]) < 1
+            ) else None
+        )(eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
+        label="avatar visible and idle on extended display",
+    )
+    do_click(extended["nativePoint"], "--right")
+    wait_until(
+        lambda: eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu)") if eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.open)") is True else None,
+        label="context menu opened on extended display from real right click",
+    )
+    extended_clearance = assert_menu_clear_avatar("extended display")
+    extended_effects_tab = native_point_for('[data-ctx-tab="sigil-menu-effects"]')
+    if not extended_effects_tab:
+        raise SystemExit("FAIL: missing effects tab on extended display")
+    do_click(extended_effects_tab)
+    extended_menu_center = native_point_for('#sigil-menu-root')
+    if not extended_menu_center:
+        raise SystemExit("FAIL: missing menu root on extended display")
+    extended_before = eval_json(
+        """(() => {
+          const root = document.querySelector('#sigil-menu-root')
+          return JSON.stringify({ scrollTop: root?.scrollTop ?? null, scrollHeight: root?.scrollHeight ?? null, clientHeight: root?.clientHeight ?? null })
+        })()"""
+    )
+    if extended_before["scrollHeight"] > extended_before["clientHeight"]:
+        do_scroll(extended_menu_center, -8)
+        extended_after = wait_until(
+            lambda: (
+                lambda state: state if state["scrollTop"] > extended_before["scrollTop"] else None
+            )(eval_json("JSON.stringify({ scrollTop: document.querySelector('#sigil-menu-root')?.scrollTop ?? null })")),
+            label="extended-display menu scrollTop changed from real wheel",
+        )
+    else:
+        extended_after = extended_before
+    extended_result = {
+        "display_id": extended["display"].get("id") or extended["display"].get("display_id"),
+        "before": extended_before,
+        "after": extended_after,
+        "clearance": extended_clearance,
+    }
+else:
+    extended_result = extended
+
 print("PASS", json.dumps({
+    "main_menu_clearance": main_menu_clearance,
+    "shape_result": shape_result,
     "before_scroll": before_scroll,
     "after_scroll": after_scroll,
     "line": line_state,
     "result": result,
     "wormhole_before": wormhole_before,
     "wormhole_after": wormhole_after,
+    "extended": extended_result,
 }))
 PY

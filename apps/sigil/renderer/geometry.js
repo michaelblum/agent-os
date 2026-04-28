@@ -1,9 +1,16 @@
 import state from './state.js';
 import { applyGradientVertexColors } from './colors.js';
 import { applySkin, updateSkinColorRamp } from './skins.js';
+import {
+    createTesseronLinkGeometry,
+    isTesseronSupportedShape,
+    normalizePolyhedronType,
+    normalizeTesseronConfig,
+    scaleGeometryPositions,
+} from './tesseron.js';
 
 export function createStellatedGeometry(baseGeometry, factor) {
-    const nonIndexed = baseGeometry.toNonIndexed();
+    const nonIndexed = baseGeometry.index ? baseGeometry.toNonIndexed() : baseGeometry.clone();
     if (Math.abs(factor) < 0.01) { nonIndexed.computeVertexNormals(); return nonIndexed; }
     const positionAttribute = nonIndexed.getAttribute('position');
     const count = positionAttribute.count;
@@ -129,216 +136,174 @@ export function createTetartoid(size, a, b, c) {
     return geo;
 }
 
-export function createTesseractGeometry(size) {
-    const s = size;
-    const si = size * 0.5;
-    const vertices = [
-        new THREE.Vector3(-s, -s, -s), new THREE.Vector3(s, -s, -s),
-        new THREE.Vector3(s, s, -s), new THREE.Vector3(-s, s, -s),
-        new THREE.Vector3(-s, -s, s), new THREE.Vector3(s, -s, s),
-        new THREE.Vector3(s, s, s), new THREE.Vector3(-s, s, s),
-        new THREE.Vector3(-si, -si, -si), new THREE.Vector3(si, -si, -si),
-        new THREE.Vector3(si, si, -si), new THREE.Vector3(-si, si, -si),
-        new THREE.Vector3(-si, -si, si), new THREE.Vector3(si, -si, si),
-        new THREE.Vector3(si, si, si), new THREE.Vector3(-si, si, si)
-    ];
-    const positions = [];
-    const indices = [];
-    const cubeFaces = [
-        [0, 3, 2, 1], [4, 5, 6, 7],
-        [0, 4, 7, 3], [1, 2, 6, 5],
-        [0, 1, 5, 4], [3, 7, 6, 2]
-    ];
-    const edgePairs = [
-        [0, 1], [1, 2], [2, 3], [3, 0],
-        [4, 5], [5, 6], [6, 7], [7, 4],
-        [0, 4], [1, 5], [2, 6], [3, 7]
-    ];
-    const ab = new THREE.Vector3();
-    const ac = new THREE.Vector3();
-    const normal = new THREE.Vector3();
-    const centroid = new THREE.Vector3();
-
-    function pushQuad(a, b, c, d, desiredSign = 1) {
-        const vA = vertices[a];
-        const vB = vertices[b];
-        const vC = vertices[c];
-        const vD = vertices[d];
-
-        ab.subVectors(vB, vA);
-        ac.subVectors(vC, vA);
-        normal.crossVectors(ab, ac);
-        centroid.copy(vA).add(vB).add(vC).add(vD).multiplyScalar(0.25);
-
-        if ((normal.dot(centroid) * desiredSign) < 0) {
-            indices.push(a, d, c, a, c, b);
-            return;
-        }
-        indices.push(a, b, c, a, c, d);
+function createBaseGeometry(type, size) {
+    switch (normalizePolyhedronType(type)) {
+        case 4: return new THREE.TetrahedronGeometry(size);
+        case 8: return new THREE.OctahedronGeometry(size);
+        case 12: return new THREE.DodecahedronGeometry(size);
+        case 20: return new THREE.IcosahedronGeometry(size);
+        case 90: return createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC);
+        case 91: return new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8);
+        case 92: return new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2);
+        case 93: return new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides);
+        case 100: return new THREE.SphereGeometry(size, 32, 32);
+        default: return new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth);
     }
-
-    for (const vertex of vertices) {
-        positions.push(vertex.x, vertex.y, vertex.z);
-    }
-
-    for (const face of cubeFaces) {
-        pushQuad(face[0], face[1], face[2], face[3], 1);
-    }
-
-    for (const face of cubeFaces) {
-        pushQuad(face[0] + 8, face[1] + 8, face[2] + 8, face[3] + 8, -1);
-    }
-
-    for (const [a, b] of edgePairs) {
-        pushQuad(a, b, b + 8, a + 8, 1);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    return geo;
-}
-
-function createTesseractInnerEdgeGeometry(size) {
-    const si = size * 0.5;
-    const vertices = [
-        new THREE.Vector3(-si, -si, -si), new THREE.Vector3(si, -si, -si),
-        new THREE.Vector3(si, si, -si), new THREE.Vector3(-si, si, -si),
-        new THREE.Vector3(-si, -si, si), new THREE.Vector3(si, -si, si),
-        new THREE.Vector3(si, si, si), new THREE.Vector3(-si, si, si),
-    ];
-    const edgePairs = [
-        [0, 1], [1, 2], [2, 3], [3, 0],
-        [4, 5], [5, 6], [6, 7], [7, 4],
-        [0, 4], [1, 5], [2, 6], [3, 7]
-    ];
-    const positions = [];
-    for (const [a, b] of edgePairs) {
-        const vA = vertices[a];
-        const vB = vertices[b];
-        positions.push(vA.x, vA.y, vA.z, vB.x, vB.y, vB.z);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    return geo;
 }
 
 /**
  * DRY: Shared builder for poly geometries (depth + core + wireframe).
- * Config: { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, opacity, edgeOpacity,
- *           stellation, isInterior, isSpecular, isMask, colors, skin, isOmega }
+ * Config: { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, childDepthKey, childCoreKey,
+ *           childWireKey, opacity, edgeOpacity, stellation, isInterior, isSpecular, isMask, colors, skin,
+ *           tesseron, isOmega }
  */
 function buildShapeHierarchy(type, config) {
-    const { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, isOmega } = config;
+    const {
+        group,
+        depthKey,
+        coreKey,
+        wireKey,
+        innerWireKey,
+        innerHighlightWireKey,
+        childDepthKey,
+        childCoreKey,
+        childWireKey,
+        isOmega,
+    } = config;
 
-    // Dispose old
-    if (state[coreKey]) {
-        group.remove(state[coreKey]);
-        state[coreKey].geometry.dispose();
-        state[coreKey].material.dispose();
-    }
-    if (state[wireKey]) {
-        group.remove(state[wireKey]);
-        state[wireKey].geometry.dispose();
-        state[wireKey].material.dispose();
-    }
-    if (state[innerWireKey]) {
-        group.remove(state[innerWireKey]);
-        state[innerWireKey].geometry.dispose();
-        state[innerWireKey].material.dispose();
-    }
-    if (state[innerHighlightWireKey]) {
-        group.remove(state[innerHighlightWireKey]);
-        state[innerHighlightWireKey].geometry.dispose();
-        state[innerHighlightWireKey].material.dispose();
-    }
-    if (state[depthKey]) {
-        group.remove(state[depthKey]);
-        state[depthKey].geometry.dispose();
-        state[depthKey].material.dispose();
+    function disposeStateMesh(key) {
+        if (!key || !state[key]) return;
+        group.remove(state[key]);
+        state[key].geometry?.dispose?.();
+        const material = state[key].material;
+        if (Array.isArray(material)) material.forEach((entry) => entry.dispose?.());
+        else material?.dispose?.();
+        state[key] = null;
     }
 
-    let baseGeometry;
+    [
+        coreKey,
+        wireKey,
+        innerWireKey,
+        innerHighlightWireKey,
+        depthKey,
+        childDepthKey,
+        childCoreKey,
+        childWireKey,
+    ].forEach(disposeStateMesh);
+
     const size = 1.0;
-    switch (type) {
-        case 4: baseGeometry = new THREE.TetrahedronGeometry(size); break;
-        case 8: baseGeometry = new THREE.OctahedronGeometry(size); break;
-        case 12: baseGeometry = new THREE.DodecahedronGeometry(size); break;
-        case 20: baseGeometry = new THREE.IcosahedronGeometry(size); break;
-        case 90: baseGeometry = createTetartoid(size, state.tetartoidA, state.tetartoidB, state.tetartoidC); break;
-        case 91: baseGeometry = new THREE.TorusKnotGeometry(size * 0.6, size * 0.25, 64, 8); break;
-        case 92: baseGeometry = new THREE.TorusGeometry(size * state.torusRadius, size * state.torusTube, 32, 48, state.torusArc * Math.PI * 2); break;
-        case 93: baseGeometry = new THREE.CylinderGeometry(size * state.cylinderTopRadius, size * state.cylinderBottomRadius, size * state.cylinderHeight, state.cylinderSides); break;
-        case 94: baseGeometry = createTesseractGeometry(size); break;
-        case 100: baseGeometry = new THREE.SphereGeometry(size, 32, 32); break;
-        default: baseGeometry = new THREE.BoxGeometry(size * state.boxWidth, size * state.boxHeight, size * state.boxDepth); break;
+    const shapeType = normalizePolyhedronType(type);
+    const baseGeometry = createBaseGeometry(shapeType, size);
+    const tesseron = normalizeTesseronConfig(config.tesseron);
+    const tesseronActive = tesseron.enabled && isTesseronSupportedShape(shapeType);
+    const finalGeometry = createStellatedGeometry(baseGeometry, tesseronActive ? 0 : config.stellation);
+    const childConfig = tesseron.matchMother ? config : {
+        ...config,
+        opacity: tesseron.child.opacity ?? config.opacity,
+        edgeOpacity: tesseron.child.edgeOpacity ?? config.edgeOpacity,
+        isMask: tesseron.child.maskEnabled ?? config.isMask,
+        isInterior: tesseron.child.interiorEdges ?? config.isInterior,
+        isSpecular: tesseron.child.specular ?? config.isSpecular,
+    };
+
+    function createDepthMesh(geometry) {
+        return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+            colorWrite: false,
+            side: THREE.FrontSide,
+            depthWrite: true,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        }));
     }
 
-    const finalGeometry = createStellatedGeometry(baseGeometry, config.stellation);
+    function createCoreMesh(geometry, sourceConfig) {
+        const isSolid = sourceConfig.opacity >= 0.99;
+        return new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+            transparent: !isSolid,
+            opacity: sourceConfig.opacity,
+            shininess: sourceConfig.isSpecular ? 80 : 0,
+            specular: sourceConfig.isSpecular ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
+            side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
+            depthWrite: isSolid,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        }));
+    }
 
-    // 1. Depth pre-pass
-    const depthMat = new THREE.MeshBasicMaterial({
-        colorWrite: false, side: THREE.FrontSide, depthWrite: true,
-        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
-    });
-    state[depthKey] = new THREE.Mesh(finalGeometry, depthMat);
-    state[depthKey].renderOrder = 2;
-    state[depthKey].visible = !config.isInterior;
-    group.add(state[depthKey]);
-
-    // 2. Core face mesh
-    const isSolid = config.opacity >= 0.99;
-    const coreMat = new THREE.MeshPhongMaterial({
-        transparent: !isSolid, opacity: config.opacity,
-        shininess: config.isSpecular ? 80 : 0,
-        specular: config.isSpecular ? new THREE.Color(0x333333) : new THREE.Color(0x000000),
-        side: isSolid ? THREE.FrontSide : THREE.DoubleSide,
-        depthWrite: isSolid,
-        polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1
-    });
-    state[coreKey] = new THREE.Mesh(finalGeometry, coreMat);
-    state[coreKey].renderOrder = 3;
-    state[coreKey].visible = !config.isMask;
-    group.add(state[coreKey]);
-
-    // 3. Wireframe edge mesh
-    const edgeGeo = new THREE.EdgesGeometry(finalGeometry);
-    const edgeMat = new THREE.LineBasicMaterial({
-        linewidth: 2, depthTest: true, transparent: true, opacity: config.edgeOpacity
-    });
-    state[wireKey] = new THREE.LineSegments(edgeGeo, edgeMat);
-    state[wireKey].renderOrder = 4;
-    group.add(state[wireKey]);
-
-    if (type === 94) {
-        const innerEdgeMat = new THREE.LineBasicMaterial({
+    function createWireMesh(geometry, sourceConfig, { color, opacityScale = 1, renderOrder = 4 } = {}) {
+        const materialOptions = {
             linewidth: 2,
             depthTest: true,
-            depthWrite: false,
             transparent: true,
-            opacity: Math.min(1, config.edgeOpacity * 0.35),
+            opacity: Math.min(1, sourceConfig.edgeOpacity * opacityScale),
+        };
+        if (color) materialOptions.color = color;
+        const mesh = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), new THREE.LineBasicMaterial(materialOptions));
+        mesh.renderOrder = renderOrder;
+        return mesh;
+    }
+
+    function addDepth(key, geometry, sourceConfig, order) {
+        state[key] = createDepthMesh(geometry);
+        state[key].renderOrder = order;
+        state[key].visible = !sourceConfig.isInterior;
+        group.add(state[key]);
+    }
+
+    function addCore(key, geometry, sourceConfig, order) {
+        state[key] = createCoreMesh(geometry, sourceConfig);
+        state[key].renderOrder = order;
+        state[key].visible = !sourceConfig.isMask;
+        group.add(state[key]);
+    }
+
+    function addWire(key, geometry, sourceConfig, order) {
+        state[key] = createWireMesh(geometry, sourceConfig, { renderOrder: order });
+        group.add(state[key]);
+    }
+
+    // 1. Depth pre-pass
+    addDepth(depthKey, finalGeometry, config, 2);
+
+    // 2. Core face mesh
+    addCore(coreKey, finalGeometry, config, 3);
+
+    // 3. Wireframe edge mesh
+    addWire(wireKey, finalGeometry, config, 4);
+
+    if (tesseronActive) {
+        const childGeometry = scaleGeometryPositions(finalGeometry, tesseron.proportion);
+        addDepth(childDepthKey, childGeometry, childConfig, 3);
+        addCore(childCoreKey, childGeometry, childConfig, 4);
+        addWire(childWireKey, childGeometry, childConfig, 5);
+
+        const linkGeometry = createTesseronLinkGeometry(finalGeometry, tesseron.proportion);
+        const innerEdgeMat = new THREE.LineBasicMaterial({
+            linewidth: 2,
+            depthTest: false,
+            transparent: true,
+            opacity: config.edgeOpacity,
             color: new THREE.Color(config.edgeColors[0]).lerp(new THREE.Color(config.edgeColors[1]), 0.4)
         });
-        state[innerWireKey] = new THREE.LineSegments(createTesseractInnerEdgeGeometry(size), innerEdgeMat);
+        state[innerWireKey] = new THREE.LineSegments(linkGeometry, innerEdgeMat);
         state[innerWireKey].renderOrder = 5;
-        state[innerWireKey].scale.setScalar(state.innerEdgeInsetScale);
-        state[innerWireKey].visible = config.isInterior && config.edgeOpacity > 0;
+        state[innerWireKey].visible = config.edgeOpacity > 0;
         group.add(state[innerWireKey]);
 
         const highlightMat = new THREE.LineBasicMaterial({
             linewidth: 2,
-            depthTest: true,
+            depthTest: false,
             depthWrite: false,
             transparent: true,
             blending: THREE.AdditiveBlending,
             opacity: 0,
             color: 0xffffff
         });
-        state[innerHighlightWireKey] = new THREE.LineSegments(createTesseractInnerEdgeGeometry(size), highlightMat);
-        state[innerHighlightWireKey].renderOrder = 6;
-        state[innerHighlightWireKey].scale.setScalar(state.innerEdgeHighlightInsetScale);
+        state[innerHighlightWireKey] = new THREE.LineSegments(createTesseronLinkGeometry(finalGeometry, tesseron.proportion), highlightMat);
+        state[innerHighlightWireKey].renderOrder = 7;
         state[innerHighlightWireKey].visible = false;
         group.add(state[innerHighlightWireKey]);
     } else {
@@ -349,14 +314,18 @@ function buildShapeHierarchy(type, config) {
     // Apply vertex colors and skins
     applyGradientVertexColors(state[coreKey], config.faceColors);
     applyGradientVertexColors(state[wireKey], config.edgeColors);
+    applyGradientVertexColors(state[childCoreKey], config.faceColors);
+    applyGradientVertexColors(state[childWireKey], config.edgeColors);
+    applyGradientVertexColors(state[innerWireKey], config.edgeColors);
+    applyGradientVertexColors(state[innerHighlightWireKey], config.edgeColors);
     if (config.skin !== 'none') applySkin(config.skin, isOmega);
+    baseGeometry.dispose?.();
 }
 
 export function updateInnerEdgePulse(isOmega = false) {
     const wireKey = isOmega ? 'omegaInnerWireframeMesh' : 'innerWireframeMesh';
     const highlightKey = isOmega ? 'omegaInnerHighlightWireframeMesh' : 'innerHighlightWireframeMesh';
     const opacityKey = isOmega ? 'omegaEdgeOpacity' : 'currentEdgeOpacity';
-    const enabledKey = isOmega ? 'omegaIsInteriorEdgesEnabled' : 'isInteriorEdgesEnabled';
     const colors = isOmega ? state.colors.omegaEdge : state.colors.edge;
     const mesh = state[wireKey];
     const highlightMesh = state[highlightKey];
@@ -381,15 +350,15 @@ export function updateInnerEdgePulse(isOmega = false) {
     const flickerBoost = peakPulse > 0
         ? ((1 - state.innerEdgeFlickerAmount) + (flickerNoise * state.innerEdgeFlickerAmount))
         : 0;
-    const geometryActive = isOmega ? state.omegaGeometryType === 94 : state.currentGeometryType === 94;
-    const visible = state[enabledKey] && state[opacityKey] > 0.001 && geometryActive;
+    const tesseron = isOmega ? state.omegaTesseron : state.tesseron;
+    const geometryType = isOmega ? state.omegaGeometryType : state.currentGeometryType;
+    const geometryActive = !!tesseron?.enabled && isTesseronSupportedShape(geometryType);
+    const visible = state[opacityKey] > 0.001 && geometryActive;
     const baseColor = new THREE.Color(colors[0]).lerp(new THREE.Color(colors[1]), 0.35);
-    mesh.material.color.copy(baseColor);
-    mesh.material.opacity = visible
-        ? Math.min(1, state[opacityKey] * (0.26 + (gammaPulse * 0.1) + (gammaTurbulence * 0.08)))
-        : 0;
+    mesh.material.color.setHex(0xffffff);
+    mesh.material.opacity = visible ? Math.min(1, state[opacityKey]) : 0;
     mesh.visible = visible;
-    mesh.scale.setScalar(state.innerEdgeInsetScale);
+    mesh.scale.setScalar(1);
 
     if (!highlightMesh?.material) return;
     const highlightColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.5);
@@ -409,6 +378,9 @@ export function updateGeometry(type) {
         wireKey: 'wireframeMesh',
         innerWireKey: 'innerWireframeMesh',
         innerHighlightWireKey: 'innerHighlightWireframeMesh',
+        childDepthKey: 'tesseronChildDepthMesh',
+        childCoreKey: 'tesseronChildCoreMesh',
+        childWireKey: 'tesseronChildWireframeMesh',
         opacity: state.currentOpacity,
         edgeOpacity: state.currentEdgeOpacity,
         stellation: state.stellationFactor,
@@ -418,6 +390,7 @@ export function updateGeometry(type) {
         faceColors: state.colors.face,
         edgeColors: state.colors.edge,
         skin: state.currentSkin,
+        tesseron: state.tesseron,
         isOmega: false
     });
 }
@@ -430,6 +403,9 @@ export function updateOmegaGeometry(type) {
         wireKey: 'omegaWireframeMesh',
         innerWireKey: 'omegaInnerWireframeMesh',
         innerHighlightWireKey: 'omegaInnerHighlightWireframeMesh',
+        childDepthKey: 'omegaTesseronChildDepthMesh',
+        childCoreKey: 'omegaTesseronChildCoreMesh',
+        childWireKey: 'omegaTesseronChildWireframeMesh',
         opacity: state.omegaOpacity,
         edgeOpacity: state.omegaEdgeOpacity,
         stellation: state.omegaStellationFactor,
@@ -439,6 +415,7 @@ export function updateOmegaGeometry(type) {
         faceColors: state.colors.omegaFace,
         edgeColors: state.colors.omegaEdge,
         skin: state.omegaSkin,
+        tesseron: state.omegaTesseron,
         isOmega: true
     });
 }

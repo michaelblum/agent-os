@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   findContextMenuElementAt,
   menuMarkup,
+  resolveContextMenuOrigin,
 } from '../../apps/sigil/context-menu/menu.js'
 
 function fakeElement(id, rect, selector = '*') {
@@ -41,6 +42,43 @@ function fakeAnchor(elements, viewportHit = null) {
   }
 }
 
+function overlaps(a, b) {
+  return a.x < b.x + b.w
+    && a.x + a.w > b.x
+    && a.y < b.y + b.h
+    && a.y + a.h > b.y
+}
+
+test('context menu origin avoids the avatar hit bounds', () => {
+  const origin = resolveContextMenuOrigin(
+    { x: 500, y: 500 },
+    {
+      visible: { x: 0, y: 0, w: 1200, h: 900 },
+      avatar: { point: { x: 500, y: 500 }, radius: 40 },
+    },
+  )
+  const menu = { x: origin.x, y: origin.y, w: 292, h: 448 }
+  const avatar = { x: 460, y: 460, w: 80, h: 80 }
+
+  assert.equal(overlaps(menu, avatar), false)
+  assert.equal(origin.x, 558)
+})
+
+test('context menu origin chooses another side when right side would overlap after clamping', () => {
+  const origin = resolveContextMenuOrigin(
+    { x: 1160, y: 500 },
+    {
+      visible: { x: 0, y: 0, w: 1200, h: 900 },
+      avatar: { point: { x: 1160, y: 500 }, radius: 40 },
+    },
+  )
+  const menu = { x: origin.x, y: origin.y, w: 292, h: 448 }
+  const avatar = { x: 1120, y: 460, w: 80, h: 80 }
+
+  assert.equal(overlaps(menu, avatar), false)
+  assert.equal(origin.x, 810)
+})
+
 test('context menu hit test falls back to off-viewport geometry', () => {
   const range = fakeElement('sigil-menu-line-duration', { x: 600, y: 1450, w: 180, h: 24 }, 'input')
   const card = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
@@ -78,6 +116,22 @@ test('context menu hit test includes checkbox labels in projected fallback', () 
   }
 
   assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), label)
+})
+
+test('context menu hit test includes select popover options in projected fallback', () => {
+  const popover = fakeElement('shape-popover', { x: 600, y: 1450, w: 180, h: 88 }, '.ctx-select-popover')
+  const option = fakeElement('octahedron-option', { x: 604, y: 1478, w: 172, h: 24 }, 'button')
+  const card = fakeElement('sigil-menu-root', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
+  option.parentCard = card
+  popover.parentCard = card
+  const anchor = fakeAnchor([card, popover, option])
+  const doc = {
+    elementFromPoint() {
+      return null
+    },
+  }
+
+  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1484 }, doc), option)
 })
 
 test('context menu hit test skips controls inside departing cards', () => {

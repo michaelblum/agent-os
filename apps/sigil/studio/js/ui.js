@@ -15,6 +15,11 @@ import {
     normalizeFastTravelEffect,
     normalizeTransitionEffect,
 } from '../../renderer/transition-registry.js';
+import {
+    TESSERON_MIN_PROPORTION,
+    isTesseronSupportedShape,
+    normalizeTesseronConfig,
+} from '../../renderer/tesseron.js';
 import { randomizeAll } from './randomize.js';
 import { loadAgentIntoStudio, markDraftChanged, setupStudioSession, updateDraftIdentity } from './studio-session.js';
 
@@ -55,6 +60,113 @@ function updateTransitionSettingsVisibility() {
     const fastTravel = document.getElementById('transitionFastTravelEffectSelect')?.value;
     if (!container) return;
     container.style.display = (enter === 'wormhole' || exit === 'wormhole' || fastTravel === 'wormhole') ? 'block' : 'none';
+}
+
+function primaryTesseronConfig() {
+    state.tesseron = normalizeTesseronConfig(state.tesseron, DEFAULT_APPEARANCE.tesseron);
+    return state.tesseron;
+}
+
+function primaryTesseronEditTarget() {
+    const tesseron = primaryTesseronConfig();
+    return tesseron.enabled && !tesseron.matchMother && tesseron.editTarget === 'child'
+        ? 'child'
+        : 'mother';
+}
+
+function primaryChildValue(key, fallback) {
+    const tesseron = primaryTesseronConfig();
+    return tesseron.child[key] ?? fallback;
+}
+
+function seedPrimaryTesseronChildFromMother() {
+    const child = primaryTesseronConfig().child;
+    child.opacity ??= state.currentOpacity;
+    child.edgeOpacity ??= state.currentEdgeOpacity;
+    child.maskEnabled ??= state.isMaskEnabled;
+    child.interiorEdges ??= state.isInteriorEdgesEnabled;
+    child.specular ??= state.isSpecularEnabled;
+}
+
+function setElementValue(id, value, text = null) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!value;
+    else el.value = value;
+    if (text !== null) {
+        const valEl = document.getElementById(id.replace('Slider', 'Val'));
+        if (valEl) valEl.innerText = text;
+    }
+}
+
+function syncTesseronControls({ mirrorMaterial = true } = {}) {
+    const tesseron = primaryTesseronConfig();
+    const supported = isTesseronSupportedShape(state.currentGeometryType);
+    const active = !!tesseron.enabled && supported;
+    const childTarget = primaryTesseronEditTarget() === 'child';
+    const subControls = document.getElementById('tesseronSubControls');
+    const editTarget = document.getElementById('tesseronEditTarget');
+    const decorator = document.getElementById('shapeRoleDecorator');
+    const stellationSlider = document.getElementById('stellationSlider');
+    const shapeSelect = document.getElementById('shapeSelect');
+    const skinSelect = document.getElementById('skinSelect');
+
+    setElementValue('tesseronToggle', !!tesseron.enabled);
+    setElementValue('tesseronProportionSlider', tesseron.proportion, tesseron.proportion.toFixed(2));
+    setElementValue('tesseronMatchMother', tesseron.matchMother);
+    if (subControls) subControls.style.display = active ? 'flex' : 'none';
+    if (editTarget) editTarget.style.display = active && !tesseron.matchMother ? 'flex' : 'none';
+    if (decorator) decorator.textContent = childTarget ? 'Child' : 'Mother';
+    if (stellationSlider) stellationSlider.disabled = active;
+    if (shapeSelect) shapeSelect.disabled = childTarget;
+    if (skinSelect) skinSelect.disabled = childTarget;
+    const toggle = document.getElementById('tesseronToggle');
+    if (toggle) toggle.disabled = !supported;
+
+    document.querySelectorAll('[data-tesseron-target]').forEach((button) => {
+        const isActive = button.dataset.tesseronTarget === (childTarget ? 'child' : 'mother');
+        button.classList.toggle('active', isActive);
+    });
+
+    if (!mirrorMaterial) return;
+    if (childTarget) {
+        const opacity = primaryChildValue('opacity', state.currentOpacity);
+        const edgeOpacity = primaryChildValue('edgeOpacity', state.currentEdgeOpacity);
+        const maskEnabled = primaryChildValue('maskEnabled', state.isMaskEnabled);
+        setElementValue('opacitySlider', opacity, Number(opacity).toFixed(2));
+        setElementValue('edgeOpacitySlider', edgeOpacity, Number(edgeOpacity).toFixed(2));
+        setElementValue('maskToggle', !maskEnabled);
+        setElementValue('interiorEdgesToggle', primaryChildValue('interiorEdges', state.isInteriorEdgesEnabled));
+        setElementValue('specularToggle', primaryChildValue('specular', state.isSpecularEnabled));
+    } else {
+        setElementValue('opacitySlider', state.currentOpacity, state.currentOpacity.toFixed(2));
+        setElementValue('edgeOpacitySlider', state.currentEdgeOpacity, state.currentEdgeOpacity.toFixed(2));
+        setElementValue('maskToggle', !state.isMaskEnabled);
+        setElementValue('interiorEdgesToggle', state.isInteriorEdgesEnabled);
+        setElementValue('specularToggle', state.isSpecularEnabled);
+    }
+
+    const faceControls = document.getElementById('faceSubControls');
+    const showFaces = childTarget ? !primaryChildValue('maskEnabled', state.isMaskEnabled) : !state.isMaskEnabled;
+    if (faceControls) faceControls.style.display = showFaces ? 'flex' : 'none';
+    const edgeControls = document.getElementById('edgeSubControls');
+    const edgeOpacity = childTarget ? primaryChildValue('edgeOpacity', state.currentEdgeOpacity) : state.currentEdgeOpacity;
+    if (edgeControls) edgeControls.style.display = edgeOpacity > 0 ? '' : 'none';
+}
+
+function syncOmegaTesseronControls() {
+    state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron);
+    const supported = isTesseronSupportedShape(state.omegaGeometryType);
+    const active = !!state.omegaTesseron.enabled && supported;
+    setElementValue('omegaTesseronToggle', !!state.omegaTesseron.enabled);
+    setElementValue('omegaTesseronProportionSlider', state.omegaTesseron.proportion, state.omegaTesseron.proportion.toFixed(2));
+    setElementValue('omegaTesseronMatchMother', state.omegaTesseron.matchMother);
+    const subControls = document.getElementById('omegaTesseronSubControls');
+    if (subControls) subControls.style.display = active ? 'flex' : 'none';
+    const stellationSlider = document.getElementById('omegaStellationSlider');
+    if (stellationSlider) stellationSlider.disabled = active;
+    const toggle = document.getElementById('omegaTesseronToggle');
+    if (toggle) toggle.disabled = !supported;
 }
 
 function makeEditable(id, getMin, getMax, isFloat, onChange) {
@@ -159,6 +271,7 @@ function getConfig() {
         shape: state.currentGeometryType,
         colors: state.colors,
         stellation: state.stellationFactor,
+        tesseron: normalizeTesseronConfig(state.tesseron, DEFAULT_APPEARANCE.tesseron),
         opacity: state.currentOpacity,
         edgeOpacity: state.currentEdgeOpacity,
         mask: state.isMaskEnabled,
@@ -214,6 +327,7 @@ function getConfig() {
         omega: state.isOmegaEnabled,
         omegaGeometryType: state.omegaGeometryType,
         omegaStellationFactor: state.omegaStellationFactor,
+        omegaTesseron: normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron),
         omegaScale: state.omegaScale,
         omegaOpacity: state.omegaOpacity,
         omegaEdgeOpacity: state.omegaEdgeOpacity,
@@ -321,8 +435,15 @@ function applyConfig(c) {
         if (maxValEl) { maxValEl.innerText = Math.round(c.max); }
     }
 
-    if (c.shape !== undefined) setUI('shapeSelect', c.shape);
+    const legacyTesseract = Number(c.shape) === 94;
+    if (c.shape !== undefined) setUI('shapeSelect', legacyTesseract ? 6 : c.shape);
     if (c.stellation !== undefined) setUI('stellationSlider', c.stellation, c.stellation.toFixed(2));
+    if (c.tesseron !== undefined || legacyTesseract) {
+        state.tesseron = normalizeTesseronConfig(c.tesseron, { ...DEFAULT_APPEARANCE.tesseron, enabled: legacyTesseract || DEFAULT_APPEARANCE.tesseron.enabled });
+        setUI('tesseronToggle', state.tesseron.enabled);
+        setUI('tesseronProportionSlider', state.tesseron.proportion, state.tesseron.proportion.toFixed(2));
+        setUI('tesseronMatchMother', state.tesseron.matchMother);
+    }
     if (c.opacity !== undefined) setUI('opacitySlider', c.opacity, c.opacity.toFixed(2));
     if (c.edgeOpacity !== undefined) setUI('edgeOpacitySlider', c.edgeOpacity, c.edgeOpacity.toFixed(2));
     if (c.mask !== undefined) setUI('maskToggle', !c.mask); // inverted: mask=true → Show Faces unchecked
@@ -403,8 +524,15 @@ function applyConfig(c) {
 
     // Omega
     if (c.omega !== undefined) setUI('omegaToggle', c.omega);
-    if (c.omegaGeometryType !== undefined) setUI('omegaShapeSelect', c.omegaGeometryType);
+    const legacyOmegaTesseract = Number(c.omegaGeometryType) === 94;
+    if (c.omegaGeometryType !== undefined) setUI('omegaShapeSelect', legacyOmegaTesseract ? 6 : c.omegaGeometryType);
     if (c.omegaStellationFactor !== undefined) setUI('omegaStellationSlider', c.omegaStellationFactor, c.omegaStellationFactor.toFixed(2));
+    if (c.omegaTesseron !== undefined || legacyOmegaTesseract) {
+        state.omegaTesseron = normalizeTesseronConfig(c.omegaTesseron, { ...DEFAULT_APPEARANCE.omega.tesseron, enabled: legacyOmegaTesseract || DEFAULT_APPEARANCE.omega.tesseron.enabled });
+        setUI('omegaTesseronToggle', state.omegaTesseron.enabled);
+        setUI('omegaTesseronProportionSlider', state.omegaTesseron.proportion, state.omegaTesseron.proportion.toFixed(2));
+        setUI('omegaTesseronMatchMother', state.omegaTesseron.matchMother);
+    }
     if (c.omegaScale !== undefined) setUI('omegaScaleSlider', c.omegaScale, c.omegaScale.toFixed(2));
     if (c.omegaOpacity !== undefined) setUI('omegaOpacitySlider', c.omegaOpacity, c.omegaOpacity.toFixed(2));
     if (c.omegaEdgeOpacity !== undefined) setUI('omegaEdgeOpacitySlider', c.omegaEdgeOpacity, c.omegaEdgeOpacity.toFixed(2));
@@ -515,6 +643,10 @@ export function syncUIFromState() {
     // Primary geometry
     setVal('shapeSelect', state.currentGeometryType);
     setVal('stellationSlider', state.stellationFactor, state.stellationFactor.toFixed(2));
+    state.tesseron = normalizeTesseronConfig(state.tesseron, DEFAULT_APPEARANCE.tesseron);
+    setVal('tesseronToggle', state.tesseron.enabled);
+    setVal('tesseronProportionSlider', state.tesseron.proportion, state.tesseron.proportion.toFixed(2));
+    setVal('tesseronMatchMother', state.tesseron.matchMother);
     setVal('opacitySlider', state.currentOpacity, state.currentOpacity.toFixed(2));
     setVal('edgeOpacitySlider', state.currentEdgeOpacity, state.currentEdgeOpacity.toFixed(2));
     setInverted('maskToggle', state.isMaskEnabled);
@@ -599,6 +731,10 @@ export function syncUIFromState() {
     setVal('omegaToggle', state.isOmegaEnabled);
     setVal('omegaShapeSelect', state.omegaGeometryType);
     setVal('omegaStellationSlider', state.omegaStellationFactor, state.omegaStellationFactor.toFixed(2));
+    state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron);
+    setVal('omegaTesseronToggle', state.omegaTesseron.enabled);
+    setVal('omegaTesseronProportionSlider', state.omegaTesseron.proportion, state.omegaTesseron.proportion.toFixed(2));
+    setVal('omegaTesseronMatchMother', state.omegaTesseron.matchMother);
     setVal('omegaScaleSlider', state.omegaScale, state.omegaScale.toFixed(2));
     setVal('omegaOpacitySlider', state.omegaOpacity, state.omegaOpacity.toFixed(2));
     setVal('omegaEdgeOpacitySlider', state.omegaEdgeOpacity, state.omegaEdgeOpacity.toFixed(2));
@@ -656,6 +792,8 @@ export function syncUIFromState() {
     setVal('wormholeWhitePointIntensitySlider', state.wormholeWhitePointIntensity, state.wormholeWhitePointIntensity.toFixed(2));
     setVal('wormholeStarburstIntensitySlider', state.wormholeStarburstIntensity, state.wormholeStarburstIntensity.toFixed(2));
     setVal('wormholeLensFlareIntensitySlider', state.wormholeLensFlareIntensity, state.wormholeLensFlareIntensity.toFixed(2));
+    syncTesseronControls();
+    syncOmegaTesseronControls();
     updateTransitionSettingsVisibility();
 }
 
@@ -1213,7 +1351,7 @@ export function setupUI() {
     // Avatar roster — persisted via content server state endpoint, localStorage fallback
     const ROSTER_KEY = 'sigil-avatar-roster';
     const ROSTER_URL = '/_state/avatar-roster.json';
-    const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 94: 'Tesseract', 100: 'Sphere' };
+    const shapeNames = { 4: 'Tetrahedron', 6: 'Box', 8: 'Octahedron', 12: 'Dodecahedron', 20: 'Icosahedron', 90: 'Tetartoid', 91: 'Torus Knot', 92: 'Torus', 93: 'Prism', 100: 'Sphere' };
 
     // In-memory cache — loaded async at startup, sync reads thereafter
     let _rosterCache = [];
@@ -1401,6 +1539,7 @@ export function setupUI() {
         state.currentGeometryType = parseInt(e.target.value);
         updateGeometry(state.currentGeometryType);
         showShapeSettings(state.currentGeometryType);
+        syncTesseronControls({ mirrorMaterial: false });
     });
     document.getElementById('shapeSelect').addEventListener('change', updateAvatarCard);
     // Show shape-specific params for initial shape
@@ -1412,6 +1551,34 @@ export function setupUI() {
         state.stellationFactor = parseFloat(e.target.value);
         document.getElementById('stellationVal').innerText = state.stellationFactor.toFixed(2);
         updateGeometry(state.currentGeometryType);
+    });
+    document.getElementById('tesseronToggle')?.addEventListener('change', (e) => {
+        const tesseron = primaryTesseronConfig();
+        tesseron.enabled = e.target.checked;
+        if (!tesseron.enabled) tesseron.editTarget = 'mother';
+        syncTesseronControls();
+        updateGeometry(state.currentGeometryType);
+    });
+    document.getElementById('tesseronProportionSlider')?.addEventListener('input', (e) => {
+        const tesseron = primaryTesseronConfig();
+        tesseron.proportion = Math.max(TESSERON_MIN_PROPORTION, parseFloat(e.target.value));
+        document.getElementById('tesseronProportionVal').innerText = tesseron.proportion.toFixed(2);
+        updateGeometry(state.currentGeometryType);
+    });
+    document.getElementById('tesseronMatchMother')?.addEventListener('change', (e) => {
+        const tesseron = primaryTesseronConfig();
+        tesseron.matchMother = e.target.checked;
+        if (tesseron.matchMother) tesseron.editTarget = 'mother';
+        else seedPrimaryTesseronChildFromMother();
+        syncTesseronControls();
+        updateGeometry(state.currentGeometryType);
+    });
+    document.querySelectorAll('[data-tesseron-target]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const tesseron = primaryTesseronConfig();
+            tesseron.editTarget = button.dataset.tesseronTarget === 'child' ? 'child' : 'mother';
+            syncTesseronControls();
+        });
     });
 
     // Tetartoid parameter sliders
@@ -1477,29 +1644,70 @@ export function setupUI() {
     document.getElementById('opacitySlider').addEventListener('input', (e) => {
         const val = parseFloat(e.target.value);
         document.getElementById('opacityVal').innerText = val.toFixed(2);
+        if (primaryTesseronEditTarget() === 'child') {
+            primaryTesseronConfig().child.opacity = val;
+            updateGeometry(state.currentGeometryType);
+            return;
+        }
+        if (primaryTesseronConfig().enabled) {
+            state.currentOpacity = val;
+            updateGeometry(state.currentGeometryType);
+            return;
+        }
         updateOpacity(val);
     });
     document.getElementById('edgeOpacitySlider').addEventListener('input', (e) => {
         const val = parseFloat(e.target.value);
         document.getElementById('edgeOpacityVal').innerText = val.toFixed(2);
-        updateEdgeOpacity(val);
+        if (primaryTesseronEditTarget() === 'child') {
+            primaryTesseronConfig().child.edgeOpacity = val;
+            updateGeometry(state.currentGeometryType);
+        } else if (primaryTesseronConfig().enabled) {
+            state.currentEdgeOpacity = val;
+            updateGeometry(state.currentGeometryType);
+        } else {
+            updateEdgeOpacity(val);
+        }
         // Show/hide interior edges checkbox based on edge visibility
         const edgeControls = document.getElementById('edgeSubControls');
         if (edgeControls) edgeControls.style.display = val > 0 ? '' : 'none';
     });
     document.getElementById('maskToggle').addEventListener('change', (e) => {
+        if (primaryTesseronEditTarget() === 'child') {
+            primaryTesseronConfig().child.maskEnabled = !e.target.checked;
+            updateGeometry(state.currentGeometryType);
+            const faceControls = document.getElementById('faceSubControls');
+            if (faceControls) faceControls.style.display = e.target.checked ? 'flex' : 'none';
+            return;
+        }
         state.isMaskEnabled = !e.target.checked; // inverted: "Show Faces" checked = mask disabled
-        updateOpacity(state.currentOpacity);
+        if (primaryTesseronConfig().enabled) updateGeometry(state.currentGeometryType);
+        else updateOpacity(state.currentOpacity);
         // Show/hide face-dependent controls
         const faceControls = document.getElementById('faceSubControls');
         if (faceControls) faceControls.style.display = e.target.checked ? 'flex' : 'none';
     });
     document.getElementById('interiorEdgesToggle').addEventListener('change', (e) => {
+        if (primaryTesseronEditTarget() === 'child') {
+            primaryTesseronConfig().child.interiorEdges = e.target.checked;
+            updateGeometry(state.currentGeometryType);
+            return;
+        }
         state.isInteriorEdgesEnabled = e.target.checked;
         if (state.depthMesh) state.depthMesh.visible = !state.isInteriorEdgesEnabled;
-        updateOpacity(state.currentOpacity);
+        if (primaryTesseronConfig().enabled) updateGeometry(state.currentGeometryType);
+        else updateOpacity(state.currentOpacity);
     });
-    document.getElementById('specularToggle').addEventListener('change', (e) => { state.isSpecularEnabled = e.target.checked; updateOpacity(state.currentOpacity); });
+    document.getElementById('specularToggle').addEventListener('change', (e) => {
+        if (primaryTesseronEditTarget() === 'child') {
+            primaryTesseronConfig().child.specular = e.target.checked;
+            updateGeometry(state.currentGeometryType);
+            return;
+        }
+        state.isSpecularEnabled = e.target.checked;
+        if (primaryTesseronConfig().enabled) updateGeometry(state.currentGeometryType);
+        else updateOpacity(state.currentOpacity);
+    });
 
     // Phenomena toggles with inline settings
     const phenomenonConfig = [
@@ -1607,6 +1815,23 @@ export function setupUI() {
     });
     document.getElementById('omegaShapeSelect').addEventListener('change', (e) => {
         state.omegaGeometryType = parseInt(e.target.value);
+        updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaTesseronToggle')?.addEventListener('change', (e) => {
+        state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron);
+        state.omegaTesseron.enabled = e.target.checked;
+        syncOmegaTesseronControls();
+        updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaTesseronProportionSlider')?.addEventListener('input', (e) => {
+        state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron);
+        state.omegaTesseron.proportion = Math.max(TESSERON_MIN_PROPORTION, parseFloat(e.target.value));
+        document.getElementById('omegaTesseronProportionVal').innerText = state.omegaTesseron.proportion.toFixed(2);
+        updateOmegaGeometry(state.omegaGeometryType);
+    });
+    document.getElementById('omegaTesseronMatchMother')?.addEventListener('change', (e) => {
+        state.omegaTesseron = normalizeTesseronConfig(state.omegaTesseron, DEFAULT_APPEARANCE.omega.tesseron);
+        state.omegaTesseron.matchMother = e.target.checked;
         updateOmegaGeometry(state.omegaGeometryType);
     });
     document.getElementById('omegaSkinSelect').addEventListener('change', (e) => {
