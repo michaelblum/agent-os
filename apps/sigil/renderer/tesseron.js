@@ -98,3 +98,62 @@ export function createTesseronLinkGeometry(motherGeometry, proportion) {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     return geometry;
 }
+
+export function createTesseronBridgeGeometry(motherGeometry, proportion) {
+    const childScale = clampTesseronProportion(proportion);
+    const edgeGeometry = new THREE.EdgesGeometry(motherGeometry);
+    const edgePosition = edgeGeometry.getAttribute('position');
+    const positions = [];
+
+    for (let i = 0; i < edgePosition.count; i += 2) {
+        const ax = edgePosition.getX(i);
+        const ay = edgePosition.getY(i);
+        const az = edgePosition.getZ(i);
+        const bx = edgePosition.getX(i + 1);
+        const by = edgePosition.getY(i + 1);
+        const bz = edgePosition.getZ(i + 1);
+        const acx = ax * childScale;
+        const acy = ay * childScale;
+        const acz = az * childScale;
+        const bcx = bx * childScale;
+        const bcy = by * childScale;
+        const bcz = bz * childScale;
+
+        positions.push(
+            ax, ay, az,
+            bx, by, bz,
+            bcx, bcy, bcz,
+            ax, ay, az,
+            bcx, bcy, bcz,
+            acx, acy, acz
+        );
+    }
+
+    edgeGeometry.dispose?.();
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.computeVertexNormals?.();
+    return geometry;
+}
+
+export function createTesseronDepthGeometry(motherGeometry, proportion) {
+    const childGeometry = scaleGeometryPositions(motherGeometry, proportion);
+    const bridgeGeometry = createTesseronBridgeGeometry(motherGeometry, proportion);
+    const childPosition = childGeometry.getAttribute('position');
+    const bridgePosition = bridgeGeometry.getAttribute('position');
+    const positions = new Float32Array((childPosition.count + bridgePosition.count) * 3);
+
+    positions.set(childPosition.array, 0);
+    positions.set(bridgePosition.array, childPosition.array.length);
+
+    childGeometry.dispose?.();
+    bridgeGeometry.dispose?.();
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.computeVertexNormals?.();
+    geometry.computeBoundingBox?.();
+    geometry.computeBoundingSphere?.();
+    return geometry;
+}

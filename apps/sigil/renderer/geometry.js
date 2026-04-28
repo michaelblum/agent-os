@@ -2,6 +2,7 @@ import state from './state.js';
 import { applyGradientVertexColors } from './colors.js';
 import { applySkin, updateSkinColorRamp } from './skins.js';
 import {
+    createTesseronDepthGeometry,
     createTesseronLinkGeometry,
     isTesseronSupportedShape,
     normalizePolyhedronType,
@@ -276,14 +277,16 @@ function buildShapeHierarchy(type, config) {
 
     if (tesseronActive) {
         const childGeometry = scaleGeometryPositions(finalGeometry, tesseron.proportion);
-        addDepth(childDepthKey, childGeometry, childConfig, 3);
+        const childDepthGeometry = createTesseronDepthGeometry(finalGeometry, tesseron.proportion);
+        addDepth(childDepthKey, childDepthGeometry, childConfig, 3);
         addCore(childCoreKey, childGeometry, childConfig, 4);
         addWire(childWireKey, childGeometry, childConfig, 5);
 
         const linkGeometry = createTesseronLinkGeometry(finalGeometry, tesseron.proportion);
         const innerEdgeMat = new THREE.LineBasicMaterial({
             linewidth: 2,
-            depthTest: false,
+            depthTest: true,
+            depthWrite: false,
             transparent: true,
             opacity: config.edgeOpacity,
             color: new THREE.Color(config.edgeColors[0]).lerp(new THREE.Color(config.edgeColors[1]), 0.4)
@@ -295,7 +298,7 @@ function buildShapeHierarchy(type, config) {
 
         const highlightMat = new THREE.LineBasicMaterial({
             linewidth: 2,
-            depthTest: false,
+            depthTest: true,
             depthWrite: false,
             transparent: true,
             blending: THREE.AdditiveBlending,

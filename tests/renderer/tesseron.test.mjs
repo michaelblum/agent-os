@@ -5,6 +5,8 @@ import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import {
   TESSERON_MIN_PROPORTION,
   clampTesseronProportion,
+  createTesseronBridgeGeometry,
+  createTesseronDepthGeometry,
   createTesseronLinkGeometry,
   normalizePolyhedronType,
   normalizeTesseronConfig,
@@ -30,6 +32,15 @@ test('Tesseron link geometry connects corresponding unique vertices', () => {
 
   assert.equal(vertices.length, 8);
   assert.equal(links.getAttribute('position').count, 16);
+});
+
+test('Tesseron depth geometry includes bridge faces for depth-tested links', () => {
+  const cube = new THREE.BoxGeometry(1, 1, 1);
+  const bridge = createTesseronBridgeGeometry(cube, 0.5);
+  const depth = createTesseronDepthGeometry(cube, 0.5);
+
+  assert.equal(bridge.getAttribute('position').count, 72);
+  assert.ok(depth.getAttribute('position').count > cube.getAttribute('position').count);
 });
 
 test('Tesseron config keeps child form values while matching mother by default', () => {
@@ -73,7 +84,8 @@ test('Tesseron build suppresses stellation without erasing the stored value', as
   assert.ok(state.innerWireframeMesh);
   assert.equal(state.innerWireframeMesh.visible, true);
   assert.equal(state.innerWireframeMesh.material.linewidth, state.wireframeMesh.material.linewidth);
-  assert.equal(state.innerWireframeMesh.material.depthTest, false);
+  assert.equal(state.innerWireframeMesh.material.depthTest, true);
+  assert.equal(state.innerWireframeMesh.material.depthWrite, false);
   assert.equal(state.innerWireframeMesh.material.opacity, state.wireframeMesh.material.opacity);
 
   updateInnerEdgePulse(false);
