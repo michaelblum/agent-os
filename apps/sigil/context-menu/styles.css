@@ -220,6 +220,10 @@
     width: 100%;
 }
 
+.ctx-segmented-wrap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .ctx-segmented button {
     height: 22px;
     padding: 0 8px;
@@ -228,6 +232,14 @@
     border: 0;
     border-radius: 4px;
     font-size: 0.65rem;
+}
+
+.ctx-segmented-wrap button {
+    height: auto;
+    min-height: 22px;
+    padding: 4px 6px;
+    white-space: normal;
+    line-height: 1.1;
 }
 
 .ctx-segmented button:hover {

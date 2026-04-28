@@ -63,6 +63,12 @@ function fastTravelEffectButtons() {
         .join('');
 }
 
+function lineTrailModeButtons() {
+    return LINE_TRAIL_MODES
+        .map(([value, label]) => `<button type="button" data-sigil-line-trail-mode="${value}">${label}</button>`)
+        .join('');
+}
+
 function optionButtons(options) {
     return options
         .map(([value, label]) => `<option value="${value}">${label}</option>`)
@@ -285,9 +291,9 @@ function menuMarkup() {
             ${controlRow('Object Delay', 'sigil-menu-line-lag', 0, 0.4, 0.005, 0.05)}
             ${controlRow('Object Scale', 'sigil-menu-line-scale', 0.1, 4, 0.05, 1.5)}
             <label>Trail Effect</label>
-            <select id="sigil-menu-line-trail-mode">
-                ${optionButtons(LINE_TRAIL_MODES)}
-            </select>
+            <div class="ctx-segmented ctx-segmented-wide ctx-segmented-wrap" role="tablist" aria-label="Line trail effect">
+                ${lineTrailModeButtons()}
+            </div>
         </div>
 
         <div id="sigil-menu-wormhole-card" class="ctx-menu-card ctx-sub">
@@ -428,7 +434,10 @@ export function createSigilContextMenu({
 
     function setSegmentedChoice(selector, activeValue) {
         layer.querySelectorAll(selector).forEach((button) => {
-            button.classList.toggle('active', button.dataset.sigilFastTravelEffect === activeValue);
+            const value = button.dataset.sigilFastTravelEffect
+                ?? button.dataset.sigilLineTrailMode
+                ?? button.dataset.value;
+            button.classList.toggle('active', value === activeValue);
         });
     }
 
@@ -459,7 +468,7 @@ export function createSigilContextMenu({
         setControlValue('sigil-menu-line-repeat-duration', state.fastTravelLineRepeatDuration ?? 2);
         setControlValue('sigil-menu-line-lag', state.fastTravelLineLag ?? 0.05);
         setControlValue('sigil-menu-line-scale', state.fastTravelLineScale ?? 1.5);
-        setControlValue('sigil-menu-line-trail-mode', state.fastTravelLineTrailMode ?? 'fade');
+        setSegmentedChoice('[data-sigil-line-trail-mode]', state.fastTravelLineTrailMode ?? 'fade');
         setSegmentedChoice(
             '[data-sigil-fast-travel-effect]',
             normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT)
@@ -658,8 +667,22 @@ export function createSigilContextMenu({
 
     function scrollCardAt(point, event = {}) {
         const target = elementAt(point);
-        if (!target || !anchor.contains(target)) return false;
-        const card = activeScrollableCard(target);
+        let card = null;
+        if (target && anchor.contains(target)) {
+            card = activeScrollableCard(target);
+        } else {
+            const b = visibleCardBounds() || menuState.bounds;
+            if (
+                !b
+                || point.x < b.x
+                || point.y < b.y
+                || point.x >= b.x + b.w
+                || point.y >= b.y + b.h
+            ) {
+                return false;
+            }
+            card = activeScrollableCard(null);
+        }
         if (!card) return false;
         const rawY = Number(event.dy ?? event.deltaY ?? event.scrollY ?? 0);
         const rawX = Number(event.dx ?? event.deltaX ?? event.scrollX ?? 0);
@@ -881,7 +904,17 @@ export function createSigilContextMenu({
         onRange('sigil-menu-line-repeat-duration', (value) => { state.fastTravelLineRepeatDuration = value; });
         onRange('sigil-menu-line-lag', (value) => { state.fastTravelLineLag = value; });
         onRange('sigil-menu-line-scale', (value) => { state.fastTravelLineScale = value; });
-        onChoice('sigil-menu-line-trail-mode', (value) => { state.fastTravelLineTrailMode = value; });
+        layer.querySelectorAll('[data-sigil-line-trail-mode]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const value = button.dataset.sigilLineTrailMode || 'fade';
+                state.fastTravelLineTrailMode = value;
+                setSegmentedChoice('[data-sigil-line-trail-mode]', value);
+                onAppearanceChange?.({ controlId: 'sigil-menu-line-trail-mode', value });
+                syncSnapshot();
+            });
+        });
         layer.querySelectorAll('[data-sigil-fast-travel-effect]').forEach((button) => {
             button.addEventListener('click', (event) => {
                 event.preventDefault();

@@ -558,6 +558,7 @@ if extended_display:
           clickWorld(lineButton)
           const activeId = window.__sigilDebug.snapshot().contextMenu?.stack?.activeId
           const before = window.state.fastTravelLineDuration
+          const trailModeBefore = window.state.fastTravelLineTrailMode
           const rangeStart = pointFor('#sigil-menu-line-duration', 0.15)
           const rangeEnd = pointFor('#sigil-menu-line-duration', 0.85)
           if (!rangeStart || !rangeEnd) return JSON.stringify({{ ok: false, error: 'missing line duration range', activeId }})
@@ -579,6 +580,10 @@ if extended_display:
             payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: rangeEndNative.x, screenY: rangeEndNative.y }}
           }})
           const lineCardWasActive = document.querySelector('#sigil-menu-line-card')?.classList.contains('active')
+          const shrinkMode = pointFor('[data-sigil-line-trail-mode="shrink"]')
+          if (!shrinkMode) return JSON.stringify({{ ok: false, error: 'missing line trail mode button' }})
+          clickWorld(shrinkMode)
+          const trailModeButtonActive = document.querySelector('[data-sigil-line-trail-mode="shrink"]')?.classList.contains('active')
           const back = pointFor('#sigil-menu-line-card [data-ctx-back]')
           if (!back) return JSON.stringify({{ ok: false, error: 'missing line card back button' }})
           clickWorld(back)
@@ -602,6 +607,9 @@ if extended_display:
             before,
             after: window.state.fastTravelLineDuration,
             rangeValue: document.querySelector('#sigil-menu-line-duration')?.value,
+            trailModeBefore,
+            trailModeAfter: window.state.fastTravelLineTrailMode,
+            trailModeButtonActive,
             wormholeCardActive: wormholeCard.classList.contains('active'),
             beforeScrollTop,
             afterScrollTop: wormholeCard.scrollTop,
@@ -612,6 +620,8 @@ if extended_display:
     if (
         ext_menu_control.get("ok") is not True
         or ext_menu_control.get("lineCardWasActive") is not True
+        or ext_menu_control.get("trailModeAfter") != "shrink"
+        or ext_menu_control.get("trailModeButtonActive") is not True
         or ext_menu_control.get("wormholeCardActive") is not True
         or ext_menu_control.get("menuOpen") is not True
         or math.isclose(float(ext_menu_control.get("before")), float(ext_menu_control.get("after")), abs_tol=0.001)
