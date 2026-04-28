@@ -59,13 +59,13 @@ function geometryOptions() {
 
 function fastTravelEffectButtons() {
     return FAST_TRAVEL_EFFECTS
-        .map((effect) => `<button type="button" data-sigil-fast-travel-effect="${effect.id}">${effect.label}</button>`)
+        .map((effect) => `<button type="button" role="radio" aria-checked="false" data-sigil-fast-travel-effect="${effect.id}">${effect.label}</button>`)
         .join('');
 }
 
 function lineTrailModeButtons() {
     return LINE_TRAIL_MODES
-        .map(([value, label]) => `<button type="button" data-sigil-line-trail-mode="${value}">${label}</button>`)
+        .map(([value, label]) => `<button type="button" role="radio" aria-checked="false" data-sigil-line-trail-mode="${value}">${label}</button>`)
         .join('');
 }
 
@@ -97,6 +97,10 @@ export function findContextMenuElementAt(anchor, point, doc = document) {
     ));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
+        const card = element.closest?.('.ctx-menu-card');
+        if (card && !card.classList.contains('active') && !card.classList.contains('pushed')) {
+            continue;
+        }
         const rect = element.getBoundingClientRect?.();
         if (rectContainsPoint(rect, point)) return element;
     }
@@ -113,42 +117,42 @@ function subHeader(title) {
 
 function controlRow(label, id, min, max, step, value) {
     return `
-        <label>${label}</label>
+        <label for="${id}">${label}</label>
         <div class="ctx-range-row">
-            <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}">
-            <span class="ctx-value" data-value-for="${id}">${value}</span>
+            <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" aria-describedby="${id}-value">
+            <span class="ctx-value" id="${id}-value" data-value-for="${id}">${value}</span>
         </div>`;
 }
 
-function menuMarkup() {
+export function menuMarkup() {
     return `
-    <div id="sigil-context-menu" class="ctx-anchor sigil-context-menu">
-        <div id="sigil-menu-root" class="ctx-menu-card active">
-            <div class="ctx-tabs">
-                <button class="ctx-tab active" data-ctx-tab="sigil-menu-shape" title="Shape">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12"></rect><rect x="9" y="9" width="12" height="12"></rect><line x1="3" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="21" y2="9"></line><line x1="3" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="21" y2="21"></line></svg>
+    <div id="sigil-context-menu" class="ctx-anchor sigil-context-menu" role="dialog" aria-modal="false" aria-label="Sigil avatar context menu" aria-hidden="true">
+        <div id="sigil-menu-root" class="ctx-menu-card active" role="region" aria-label="Sigil context menu root">
+            <div class="ctx-tabs" role="tablist" aria-label="Sigil context menu sections">
+                <button id="sigil-menu-tab-shape" class="ctx-tab active" role="tab" aria-label="Shape" aria-selected="true" aria-controls="sigil-menu-shape" data-ctx-tab="sigil-menu-shape" title="Shape">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="12" height="12"></rect><rect x="9" y="9" width="12" height="12"></rect><line x1="3" y1="3" x2="9" y2="9"></line><line x1="15" y1="3" x2="21" y2="9"></line><line x1="3" y1="15" x2="9" y2="21"></line><line x1="15" y1="15" x2="21" y2="21"></line></svg>
                 </button>
-                <button class="ctx-tab" data-ctx-tab="sigil-menu-look" title="Look">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M12 2v10l8.5-5.5"></path><path d="M12 12l-8.5 5.5"></path><path d="M12 12l-8.5-5.5"></path><path d="M12 12v10"></path><path d="M12 12l8.5 5.5"></path></svg>
+                <button id="sigil-menu-tab-look" class="ctx-tab" role="tab" aria-label="Look" aria-selected="false" aria-controls="sigil-menu-look" data-ctx-tab="sigil-menu-look" title="Look">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2v10l8.5-5.5"></path><path d="M12 12l-8.5 5.5"></path><path d="M12 12l-8.5-5.5"></path><path d="M12 12v10"></path><path d="M12 12l8.5 5.5"></path></svg>
                 </button>
-                <button class="ctx-tab" data-ctx-tab="sigil-menu-effects" title="FX">
-                    <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <button id="sigil-menu-tab-effects" class="ctx-tab" role="tab" aria-label="Effects" aria-selected="false" aria-controls="sigil-menu-effects" data-ctx-tab="sigil-menu-effects" title="Effects">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                 </button>
-                <button class="ctx-tab" data-ctx-tab="sigil-menu-world" title="World">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+                <button id="sigil-menu-tab-world" class="ctx-tab" role="tab" aria-label="World" aria-selected="false" aria-controls="sigil-menu-world" data-ctx-tab="sigil-menu-world" title="World">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>
                 </button>
             </div>
 
-            <div id="sigil-menu-shape" class="ctx-panel active">
+            <div id="sigil-menu-shape" class="ctx-panel active" role="tabpanel" aria-labelledby="sigil-menu-tab-shape">
                 <div class="ctx-heading-row">
                     <h3>Shape</h3>
-                    <div class="ctx-segmented" role="tablist" aria-label="Shape target">
-                        <button type="button" class="active" data-sigil-shape-scope="alpha">Alpha</button>
-                        <button type="button" data-sigil-shape-scope="omega">Omega</button>
+                    <div class="ctx-segmented" role="radiogroup" aria-label="Shape target">
+                        <button type="button" role="radio" aria-checked="true" class="active" data-sigil-shape-scope="alpha">Alpha</button>
+                        <button type="button" role="radio" aria-checked="false" data-sigil-shape-scope="omega">Omega</button>
                     </div>
                 </div>
-                <div class="ctx-shape-scope active" data-sigil-shape-panel="alpha">
-                    <label>Geometry</label>
+                <div class="ctx-shape-scope active" role="group" aria-label="Alpha shape controls" data-sigil-shape-panel="alpha">
+                    <label for="sigil-menu-shape-select">Geometry</label>
                     <select id="sigil-menu-shape-select">
                         ${geometryOptions()}
                     </select>
@@ -160,9 +164,9 @@ function menuMarkup() {
                         <label class="checkbox-label"><input type="checkbox" id="sigil-menu-specular"> Specular</label>
                     </div>
                 </div>
-                <div class="ctx-shape-scope" data-sigil-shape-panel="omega">
+                <div class="ctx-shape-scope" role="group" aria-label="Omega shape controls" data-sigil-shape-panel="omega" aria-hidden="true">
                     <label class="checkbox-label"><input type="checkbox" id="sigil-menu-omega-enabled"> Enable Omega</label>
-                    <label>Geometry</label>
+                    <label for="sigil-menu-omega-shape">Geometry</label>
                     <select id="sigil-menu-omega-shape">
                         ${geometryOptions()}
                     </select>
@@ -175,18 +179,18 @@ function menuMarkup() {
                 </div>
             </div>
 
-            <div id="sigil-menu-look" class="ctx-panel">
+            <div id="sigil-menu-look" class="ctx-panel" role="tabpanel" aria-labelledby="sigil-menu-tab-look" aria-hidden="true">
                 <h3>Appearance</h3>
-                <label>Primary Color</label>
+                <label for="sigil-menu-primary-color">Primary Color</label>
                 <input type="color" id="sigil-menu-primary-color" value="#4488ff">
-                <label>Edge Color</label>
+                <label for="sigil-menu-edge-color">Edge Color</label>
                 <input type="color" id="sigil-menu-edge-color" value="#ffffff">
                 <div class="ctx-divider"></div>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-core-colors">Core Colors</button>
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-effect-colors">Effect Colors</button>
             </div>
 
-            <div id="sigil-menu-effects" class="ctx-panel">
+            <div id="sigil-menu-effects" class="ctx-panel" role="tabpanel" aria-labelledby="sigil-menu-tab-effects" aria-hidden="true">
                 <h3>Effects</h3>
                 <div class="ctx-row">
                     <label class="checkbox-label"><input type="checkbox" id="sigil-menu-pulsar"> Pulsar</label>
@@ -207,8 +211,8 @@ function menuMarkup() {
                 <div class="ctx-section">
                     <div class="ctx-section-title">Travel</div>
                     <label class="checkbox-label"><input type="checkbox" id="sigil-menu-line-interdim"> Line Inter-dimensional Trail</label>
-                    <label>Mode</label>
-                    <div class="ctx-segmented ctx-segmented-wide" role="tablist" aria-label="Fast travel effect">
+                    <div id="sigil-menu-fast-travel-effect-label" class="ctx-field-label">Mode</div>
+                    <div class="ctx-segmented ctx-segmented-wide" role="radiogroup" aria-labelledby="sigil-menu-fast-travel-effect-label">
                         ${fastTravelEffectButtons()}
                     </div>
                 </div>
@@ -220,9 +224,9 @@ function menuMarkup() {
                 <button class="ctx-trigger" data-ctx-open="sigil-menu-path-card">Path & Trail</button>
             </div>
 
-            <div id="sigil-menu-world" class="ctx-panel">
+            <div id="sigil-menu-world" class="ctx-panel" role="tabpanel" aria-labelledby="sigil-menu-tab-world" aria-hidden="true">
                 <h3>World</h3>
-                <label>Grid Mode</label>
+                <label for="sigil-menu-grid-mode">Grid Mode</label>
                 <select id="sigil-menu-grid-mode">
                     <option value="off">Off</option>
                     <option value="flat">2D Flat</option>
@@ -243,27 +247,27 @@ function menuMarkup() {
             </div>
         </div>
 
-        <div id="sigil-menu-core-colors" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-core-colors" class="ctx-menu-card ctx-sub" role="region" aria-label="Core colors" aria-hidden="true">
             ${subHeader('Core Colors')}
-            <label>Faces</label>
+            <div class="ctx-field-label">Faces</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-face1"><input type="color" id="sigil-menu-face2"></div>
-            <label>Edges</label>
+            <div class="ctx-field-label">Edges</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-edge1"><input type="color" id="sigil-menu-edge2"></div>
-            <label>Aura</label>
+            <div class="ctx-field-label">Aura</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-aura1"><input type="color" id="sigil-menu-aura2"></div>
         </div>
 
-        <div id="sigil-menu-effect-colors" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-effect-colors" class="ctx-menu-card ctx-sub" role="region" aria-label="Effect colors" aria-hidden="true">
             ${subHeader('Effect Colors')}
-            <label>Lightning</label>
+            <div class="ctx-field-label">Lightning</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-lightning1"><input type="color" id="sigil-menu-lightning2"></div>
-            <label>Magnetic</label>
+            <div class="ctx-field-label">Magnetic</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-magnetic1"><input type="color" id="sigil-menu-magnetic2"></div>
-            <label>Grid</label>
+            <div class="ctx-field-label">Grid</div>
             <div class="ctx-color-row"><input type="color" id="sigil-menu-grid1"><input type="color" id="sigil-menu-grid2"></div>
         </div>
 
-        <div id="sigil-menu-lightning-card" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-lightning-card" class="ctx-menu-card ctx-sub" role="region" aria-label="Lightning settings" aria-hidden="true">
             ${subHeader('Lightning')}
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-lightning-origin-center"> Origin at Center</label>
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-lightning-solid-block"> Solid Block</label>
@@ -274,14 +278,14 @@ function menuMarkup() {
             ${controlRow('Brightness', 'sigil-menu-lightning-brightness', 0.1, 5, 0.1, 1)}
         </div>
 
-        <div id="sigil-menu-magnetic-card" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-magnetic-card" class="ctx-menu-card ctx-sub" role="region" aria-label="Magnetic settings" aria-hidden="true">
             ${subHeader('Magnetic')}
             ${controlRow('Tentacles', 'sigil-menu-magnetic-count', 0, 40, 1, 10)}
             ${controlRow('Speed', 'sigil-menu-magnetic-speed', 0, 4, 0.05, 1)}
             ${controlRow('Wander', 'sigil-menu-magnetic-wander', 0, 8, 0.1, 3)}
         </div>
 
-        <div id="sigil-menu-line-card" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-line-card" class="ctx-menu-card ctx-sub" role="region" aria-label="Line trail settings" aria-hidden="true">
             ${subHeader('Line Trail')}
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-line-trail-enabled"> Inter-dimensional Trail</label>
             ${controlRow('Travel Duration', 'sigil-menu-line-duration', 0.05, 1.2, 0.01, 0.22)}
@@ -290,13 +294,13 @@ function menuMarkup() {
             ${controlRow('Object Lifetime', 'sigil-menu-line-repeat-duration', 0.1, 5, 0.05, 2)}
             ${controlRow('Object Delay', 'sigil-menu-line-lag', 0, 0.4, 0.005, 0.05)}
             ${controlRow('Object Scale', 'sigil-menu-line-scale', 0.1, 4, 0.05, 1.5)}
-            <label>Trail Effect</label>
-            <div class="ctx-segmented ctx-segmented-wide ctx-segmented-wrap" role="tablist" aria-label="Line trail effect">
+            <div id="sigil-menu-line-trail-effect-label" class="ctx-field-label">Trail Effect</div>
+            <div class="ctx-segmented ctx-segmented-wide ctx-segmented-wrap" role="radiogroup" aria-labelledby="sigil-menu-line-trail-effect-label">
                 ${lineTrailModeButtons()}
             </div>
         </div>
 
-        <div id="sigil-menu-wormhole-card" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-wormhole-card" class="ctx-menu-card ctx-sub" role="region" aria-label="Wormhole settings" aria-hidden="true">
             ${subHeader('Wormhole')}
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-wormhole-shading"> Shader Shading</label>
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-wormhole-object"> Travel Object</label>
@@ -320,13 +324,13 @@ function menuMarkup() {
             ${controlRow('Lens Flare', 'sigil-menu-wormhole-lens', 0, 2, 0.01, 0.8)}
         </div>
 
-        <div id="sigil-menu-path-card" class="ctx-menu-card ctx-sub">
+        <div id="sigil-menu-path-card" class="ctx-menu-card ctx-sub" role="region" aria-label="Path and trail settings" aria-hidden="true">
             ${subHeader('Path & Trail')}
             <label class="checkbox-label"><input type="checkbox" id="sigil-menu-trail-enabled"> Trail</label>
             ${controlRow('Trail Length', 'sigil-menu-trail-length', 0, 120, 1, 20)}
             ${controlRow('Trail Opacity', 'sigil-menu-trail-opacity', 0, 1, 0.01, 0.5)}
             ${controlRow('Trail Fade', 'sigil-menu-trail-fade', 100, 2000, 50, 400)}
-            <label>Trail Style</label>
+            <label for="sigil-menu-trail-style">Trail Style</label>
             <select id="sigil-menu-trail-style">
                 <option value="omega">Omega</option>
                 <option value="soft">Soft</option>
@@ -396,9 +400,41 @@ export function createSigilContextMenu({
     }
 
     function syncSnapshot() {
+        syncAccessibilityState();
         if (!stack) return;
         menuState.snapshot = stack.snapshot();
         if (liveJs) liveJs.contextMenu = snapshot();
+    }
+
+    function syncAccessibilityState() {
+        anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
+        anchor.querySelectorAll('.ctx-menu-card').forEach((card) => {
+            const visible = card.classList.contains('active') || card.classList.contains('pushed');
+            card.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        });
+        anchor.querySelectorAll('.ctx-panel').forEach((panel) => {
+            panel.setAttribute('aria-hidden', panel.classList.contains('active') ? 'false' : 'true');
+        });
+        anchor.querySelectorAll('[data-ctx-tab]').forEach((tab) => {
+            const active = tab.classList.contains('active');
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            tab.setAttribute('tabindex', active ? '0' : '-1');
+        });
+        anchor.querySelectorAll('.ctx-trigger[data-ctx-open]').forEach((trigger) => {
+            const target = anchor.querySelector(`#${trigger.dataset.ctxOpen}`);
+            const expanded = !!target && target.classList.contains('active');
+            trigger.setAttribute('aria-haspopup', 'true');
+            trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+        anchor.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {
+            button.setAttribute('aria-checked', button.classList.contains('active') ? 'true' : 'false');
+        });
+        anchor.querySelectorAll('[data-sigil-shape-panel]').forEach((panel) => {
+            panel.setAttribute('aria-hidden', panel.classList.contains('active') ? 'false' : 'true');
+        });
+        anchor.querySelectorAll('[data-sigil-fast-travel-effect], [data-sigil-line-trail-mode]').forEach((button) => {
+            button.setAttribute('aria-checked', button.classList.contains('active') ? 'true' : 'false');
+        });
     }
 
     function snapshot() {
@@ -438,6 +474,7 @@ export function createSigilContextMenu({
                 ?? button.dataset.sigilLineTrailMode
                 ?? button.dataset.value;
             button.classList.toggle('active', value === activeValue);
+            button.setAttribute('aria-checked', value === activeValue ? 'true' : 'false');
         });
     }
 
@@ -1015,9 +1052,11 @@ export function createSigilContextMenu({
                 const scope = button.dataset.sigilShapeScope || 'alpha';
                 layer.querySelectorAll('[data-sigil-shape-scope]').forEach((entry) => {
                     entry.classList.toggle('active', entry === button);
+                    entry.setAttribute('aria-checked', entry === button ? 'true' : 'false');
                 });
                 layer.querySelectorAll('[data-sigil-shape-panel]').forEach((panel) => {
                     panel.classList.toggle('active', panel.dataset.sigilShapePanel === scope);
+                    panel.setAttribute('aria-hidden', panel.dataset.sigilShapePanel === scope ? 'false' : 'true');
                 });
                 syncSnapshot();
             });

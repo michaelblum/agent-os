@@ -48,6 +48,10 @@
     animation: sigilCardForward 0.18s ease-out;
 }
 
+.ctx-menu-card.active.returning {
+    animation: none;
+}
+
 .ctx-menu-card.ctx-sub {
     gap: 6px;
 }
@@ -262,7 +266,8 @@
     gap: 6px;
 }
 
-.ctx-menu-card label {
+.ctx-menu-card label,
+.ctx-field-label {
     margin-bottom: -4px;
     color: #d187ff;
     font-size: 0.65rem;

@@ -4,6 +4,7 @@ VISUAL_HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VISUAL_HARNESS_ROOT="$(cd "$VISUAL_HARNESS_DIR/../.." && pwd)"
 
 source "$VISUAL_HARNESS_DIR/isolated-daemon.sh"
+source "$VISUAL_HARNESS_DIR/status-item.sh"
 
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
@@ -34,6 +35,19 @@ aos_visual_prepare_live_roots() {
   "$aos_bin" set content.roots.toolkit packages/toolkit >/dev/null
   "$aos_bin" set content.roots.sigil apps/sigil >/dev/null
   "$aos_bin" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
+}
+
+aos_visual_configure_sigil_status_item() {
+  local avatar_id="${1:-avatar-main}"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  "$aos_bin" set content.roots.toolkit packages/toolkit >/dev/null
+  "$aos_bin" set content.roots.sigil apps/sigil >/dev/null
+  "$aos_bin" set status_item.enabled true >/dev/null
+  "$aos_bin" set status_item.toggle_id "$avatar_id" >/dev/null
+  "$aos_bin" set status_item.toggle_url 'aos://sigil/renderer/index.html' >/dev/null
+  "$aos_bin" set status_item.toggle_track union >/dev/null
 }
 
 aos_visual_remove_canvas() {
@@ -91,6 +105,25 @@ aos_visual_show_sigil_avatar() {
   "$aos_bin" show wait \
     --id "$avatar_id" \
     --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true' \
+    --timeout 5s >/dev/null
+}
+
+aos_visual_show_sigil_avatar_via_real_status_click() {
+  local state_root="$1"
+  local avatar_id="${2:-avatar-main}"
+  local aos_bin pid
+  aos_bin="$(aos_visual_aos)"
+  pid="$(aos_test_wait_for_lock_pid "$state_root")"
+  [[ -n "$pid" ]] || {
+    echo "FAIL: daemon pid missing for real status-item click" >&2
+    return 1
+  }
+
+  click_aos_status_item_real "$pid" "$aos_bin"
+  aos_visual_wait_sigil_avatar_ready "$avatar_id"
+  "$aos_bin" show wait \
+    --id "$avatar_id" \
+    --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
     --timeout 5s >/dev/null
 }
 
@@ -221,6 +254,23 @@ aos_visual_launch_sigil_with_inspector() {
   aos_visual_launch_sigil_avatar "$avatar_id"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
   aos_visual_show_sigil_avatar "$avatar_id" "$fast_travel_effect"
+  if [[ "$placement" == "manual-visible" ]]; then
+    aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
+  fi
+  aos_visual_avoid_sigil_avatar_overlap "$avatar_id" "$inspector_id"
+}
+
+aos_visual_launch_sigil_with_inspector_via_status_item() {
+  local state_root="$1"
+  local avatar_id="${2:-avatar-main}"
+  local inspector_id="${3:-canvas-inspector}"
+  local placement="${4:-default}"
+
+  aos_visual_configure_sigil_status_item "$avatar_id"
+  aos_visual_remove_canvas "$avatar_id"
+  aos_visual_remove_canvas "$inspector_id"
+  aos_visual_launch_canvas_inspector "$inspector_id"
+  aos_visual_show_sigil_avatar_via_real_status_click "$state_root" "$avatar_id"
   if [[ "$placement" == "manual-visible" ]]; then
     aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
   fi

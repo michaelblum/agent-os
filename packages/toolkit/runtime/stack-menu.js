@@ -127,9 +127,11 @@ export function createStackMenu(anchor, options = {}) {
   const backSelector = options.backSelector || '[data-stack-menu-back], [data-ctx-back]'
   const departingClass = options.departingClass || 'departing'
   const departingActiveClass = options.departingActiveClass || 'departing-active'
+  const returningClass = options.returningClass || 'returning'
   const departingMs = Number(options.departingMs ?? 180)
   const listeners = []
   const departureTimers = new Map()
+  const returningTimers = new Map()
 
   function markDeparting(cardId) {
     const card = byId(anchor, cardId)
@@ -150,7 +152,30 @@ export function createStackMenu(anchor, options = {}) {
 
   function apply(priorState = null) {
     const nextState = model.snapshot()
+    const returningDepth = priorState?.stack?.includes(nextState.activeId)
+      ? priorState.stack.length - priorState.stack.lastIndexOf(nextState.activeId)
+      : 0
+    const returningCard = returningDepth > 0 ? byId(anchor, nextState.activeId) : null
+    const returningStyle = returningCard ? stackMenuPushedStyle(returningDepth) : null
+
     applyStackMenuState(anchor, nextState, options)
+    if (returningCard && returningStyle) {
+      const prior = returningTimers.get(nextState.activeId)
+      if (prior) clearTimeout(prior)
+      returningCard.classList.add(returningClass)
+      returningCard.style.opacity = returningStyle.opacity
+      returningCard.style.filter = returningStyle.filter
+      returningCard.style.zIndex = String(10 + (nextState.stack || []).length)
+      requestAnimationFrame(() => {
+        returningCard.style.opacity = ''
+        returningCard.style.filter = ''
+        returningCard.style.zIndex = String(10 + (nextState.stack || []).length)
+      })
+      returningTimers.set(nextState.activeId, setTimeout(() => {
+        returningCard.classList.remove(returningClass)
+        returningTimers.delete(nextState.activeId)
+      }, departingMs))
+    }
     if (
       priorState?.activeId
       && priorState.activeId !== nextState.activeId
@@ -271,6 +296,8 @@ export function createStackMenu(anchor, options = {}) {
     destroy() {
       for (const timer of departureTimers.values()) clearTimeout(timer)
       departureTimers.clear()
+      for (const timer of returningTimers.values()) clearTimeout(timer)
+      returningTimers.clear()
       while (listeners.length) listeners.pop()()
     },
   }
