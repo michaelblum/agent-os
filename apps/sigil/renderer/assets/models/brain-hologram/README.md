@@ -14,7 +14,17 @@ Source model:
 - URL: https://sketchfab.com/3d-models/brain-hologram-09d686a1a1f745cba6b2385d0c831214
 - License: Sketchfab Free Standard
 
-Sketchfab marks this model downloadable, but its download API requires an
-authenticated Sketchfab OAuth token. Run `fetch.sh` with `SKETCHFAB_TOKEN` set
-to install the downloaded glTF archive contents into this directory so
-`scene.gltf` and its buffers/textures are served by the Sigil content root.
+This checked-in copy is optimized for the radial menu's small on-screen render:
+geometry has been simplified, unused texture coordinates have been removed, and
+positions/normals are quantized with `KHR_mesh_quantization`, which is supported
+by the vendored Three.js `GLTFLoader`.
+
+Runtime files:
+
+```text
+scene.gltf
+scene.bin
+```
+
+The asset has no texture files. The hologram look comes from the source
+emissive material colors and the radial menu's source-emissive material pass.
