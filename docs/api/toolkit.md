@@ -70,7 +70,87 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/integration-hub/index.html` - provider-neutral chat integration dashboard backed by the local integration broker snapshot API
 - `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
+- `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+
+### Inline Canvas Stats
+
+Every AOS WKWebView canvas receives a per-canvas `window.aosStats` controller at
+document start. The controller is inert by default: it does not create DOM, run a
+frame loop, or load `stats.js` until a consumer or agent enables it. When enabled,
+it lazy-loads the vendored `stats.js` module from
+`aos://toolkit/runtime/canvas-stats.js` and appends the stats overlay inside that
+canvas only.
+
+Agents can toggle a live canvas with eval:
+
+```sh
+./aos show eval --id my-canvas --js 'window.aosStats.toggle({ panel: 0 })'
+```
+
+Consumer code can use automatic sampling:
+
+```js
+window.aosStats.enable({ panel: 0, position: 'top-right' })
+```
+
+Or exact inline measurement around a render section:
+
+```js
+window.aosStats.enable({ panel: 1, mode: 'manual' })
+
+function animate() {
+  window.aosStats.begin()
+  renderer.render(scene, camera)
+  window.aosStats.end()
+  requestAnimationFrame(animate)
+}
+```
+
+Useful controller methods include `enable(options)`, `disable()`,
+`toggle(options)`, `configure(options)`, `begin()`, `end()`, `update()`,
+`showPanel(index)`, `load()`, and `status()`. `status()` includes the latest
+readback sample as `{ frameMs, fps, ts, mode }` once sampling has started, which
+lets agents compare inline stats against toolkit performance panels without
+screen-scraping the stats canvas.
+
+### Render Performance
+
+`render-performance` is a reusable real-time performance panel for canvases and
+renderer-heavy surfaces. Standalone, it samples its own `requestAnimationFrame`
+loop and reports live FPS, frame time, P95 frame time, max frame time, over-budget
+percentage, long frames, estimated dropped frames, device pixel ratio, viewport,
+visibility, and JavaScript heap telemetry when the browser exposes it.
+
+Renderer consumers can feed app-side samples through the component channel:
+
+```json
+{
+  "type": "render-performance/sample",
+  "payload": {
+    "source": "sigil-avatar",
+    "frameMs": 16.7,
+    "renderMs": 5.4,
+    "updateMs": 2.1,
+    "gpuMs": 6.8,
+    "drawCalls": 28,
+    "triangles": 1840,
+    "geometries": 12,
+    "textures": 4
+  }
+}
+```
+
+Accepted message types:
+
+- `render-performance/sample`, `render-performance/frame`, and
+  `render-performance/metrics` append a renderer sample. Common aliases such as
+  `fps`, `deltaMs`, `dt`, `duration`, and `calls` are normalized.
+- `render-performance/mark` appends an operator-visible render event, for
+  example `{ "type": "shader", "text": "fallback path active" }`.
+- `render-performance/target_fps` changes the frame budget used for
+  classification.
+- `render-performance/reset` clears samples and marks.
 
 ### Integration Hub
 

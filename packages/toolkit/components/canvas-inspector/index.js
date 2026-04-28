@@ -76,7 +76,7 @@ function rectToAt(rect) {
 }
 
 function rowIndentStyle(depth) {
-  return `padding-left:${8 + depth * TREE_INDENT_PX}px`
+  return `--tree-indent:${8 + depth * TREE_INDENT_PX}px`
 }
 
 function formatAt(at) {
@@ -89,6 +89,21 @@ function formatBounds(bounds) {
   return bounds.map((value) => Math.round(Number(value) || 0)).join(',')
 }
 
+function renderCanvasStatusPrefix(c = {}) {
+  const interactive = !!c.interactive
+  const connectionScoped = c.scope === 'connection'
+  const ttl = Number.isFinite(Number(c.ttl)) ? Math.round(Number(c.ttl)) : null
+  const interactionTitle = interactive ? 'interactive canvas' : 'passive canvas'
+  const scopeTitle = connectionScoped ? 'connection-scoped canvas' : 'global canvas'
+  const ttlTitle = ttl == null ? 'no time-to-live' : `time-to-live: ${ttl}s`
+  const title = `${interactionTitle}; ${scopeTitle}; ${ttlTitle}`
+  return `<span class="canvas-status-prefix" title="${escapeHTML(title)}" aria-label="${escapeHTML(title)}">`
+    + `<span class="status-dot interaction ${interactive ? 'active' : 'inactive'}" title="${escapeHTML(interactionTitle)}"></span>`
+    + `<span class="status-dot scope ${connectionScoped ? 'active' : 'inactive'}" title="${escapeHTML(scopeTitle)}"></span>`
+    + `<span class="status-dot ttl ${ttl == null ? 'inactive' : 'active'}" title="${escapeHTML(ttlTitle)}"></span>`
+    + `</span>`
+}
+
 function renderSurfaceSegmentRow(segment, depth) {
   return `<div class="tree-row surface-segment" data-display-id="${escapeHTML(segment.display_id)}" style="${rowIndentStyle(depth)}">`
     + `<span class="seg-index">[${escapeHTML(segment.index)}]</span>`
@@ -99,14 +114,18 @@ function renderSurfaceSegmentRow(segment, depth) {
 
 function renderSurfaceRow(c, depth, options = {}) {
   const tintedIds = options.tintedIds || new Set()
+  const statsIds = options.statsIds || new Set()
   const segmentCount = Array.isArray(c.segments) ? c.segments.length : 0
   const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
+  const statsClass = statsIds.has(c.id) ? 'btn stats-btn active' : 'btn stats-btn'
   let html = `<div class="tree-row surface" data-id="${escapeHTML(c.id)}" style="${rowIndentStyle(depth)}">`
+  html += renderCanvasStatusPrefix(c)
   html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
   html += `<span class="canvas-kind">desktop-world</span>`
+  html += `<span class="canvas-kind-detail">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
   html += `<span class="canvas-dims">${formatAt(c.atResolved || c.at)}</span>`
   html += `<span class="canvas-flags">`
-  html += `<span class="flag surface-kind">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
+  html += `<button class="${statsClass}" data-id="${escapeHTML(c.id)}" title="Toggle inline stats.js for this canvas">stats</button>`
   html += `<button class="${tintClass}" data-id="${escapeHTML(c.id)}">tint</button>`
   html += `<button class="btn remove-btn" data-id="${escapeHTML(c.id)}">\u2715</button>`
   html += `</span></div>`
@@ -120,15 +139,16 @@ export function renderCanvasRow(c, depth = 0, options = {}) {
   const dims = formatAt(c?.atResolved || c?.at)
   const selfId = options.selfId ?? SELF_ID
   const tintedIds = options.tintedIds || new Set()
+  const statsIds = options.statsIds || new Set()
   const cls = c?.id === selfId ? 'tree-row canvas self' : 'tree-row canvas'
   let html = `<div class="${cls}" data-id="${escapeHTML(c?.id)}" style="${rowIndentStyle(depth)}">`
+  html += renderCanvasStatusPrefix(c)
   html += `<span class="canvas-id">${escapeHTML(c?.id)}</span>`
   html += `<span class="canvas-dims">${dims}</span>`
   html += `<span class="canvas-flags">`
-  if (c?.interactive) html += `<span class="flag interactive">int</span>`
-  if (c?.scope === 'connection') html += `<span class="flag scoped">conn</span>`
-  if (c?.ttl != null) html += `<span class="flag">ttl:${Math.round(c.ttl)}s</span>`
   const tintClass = tintedIds.has(c?.id) ? 'btn tint-btn active' : 'btn tint-btn'
+  const statsClass = statsIds.has(c?.id) ? 'btn stats-btn active' : 'btn stats-btn'
+  html += `<button class="${statsClass}" data-id="${escapeHTML(c?.id)}" title="Toggle inline stats.js for this canvas">stats</button>`
   html += `<button class="${tintClass}" data-id="${escapeHTML(c?.id)}">tint</button>`
   html += `<button class="btn remove-btn" data-id="${escapeHTML(c?.id)}">\u2715</button>`
   html += `</span></div>`
@@ -159,6 +179,25 @@ function buildTintEvalScript(color) {
   })()`
 }
 
+function buildStatsToggleEvalScript(options = {}) {
+  return `(() => {
+    if (!window.aosStats || typeof window.aosStats.toggle !== 'function') return false
+    window.aosStats.toggle(${JSON.stringify(options)})
+    return true
+  })()`
+}
+
+function buildStatsStatusEvalScript() {
+  return `(() => {
+    if (!window.aosStats || typeof window.aosStats.status !== 'function') return JSON.stringify({ available: false })
+    return JSON.stringify(window.aosStats.status())
+  })()`
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export default function CanvasInspector() {
   let contentEl = null
   let displays = []
@@ -169,6 +208,7 @@ export default function CanvasInspector() {
   let inputSubscriptionActive = false
   let tintedIds = new Set()
   let tintMap = new Map()
+  let statsIds = new Set()
   let tintIndex = 0
   let eventCount = 0
   let resizeObserver = null
@@ -205,6 +245,7 @@ export default function CanvasInspector() {
       eventCount,
       tintedIds: [...tintedIds],
       tintMap: Object.fromEntries(tintMap),
+      statsIds: [...statsIds],
       cursor,
       cursorTrackingEnabled,
       mouseEventsEnabled,
@@ -327,6 +368,16 @@ export default function CanvasInspector() {
 
   async function applyTint(id, color) {
     await evalCanvas(id, buildTintEvalScript(color))
+  }
+
+  function parseEvalJsonResult(result) {
+    if (result && typeof result === 'object') return result
+    if (typeof result !== 'string') return null
+    try {
+      return JSON.parse(result)
+    } catch {
+      return null
+    }
   }
 
   function rerender() {
@@ -471,7 +522,7 @@ export default function CanvasInspector() {
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'canvas') {
-      return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds })
+      return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds })
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'mark') {
@@ -525,7 +576,7 @@ export default function CanvasInspector() {
       ? 'bundle hotkey disabled'
       : `bundle ${bundleHotkeyLabel}`
     if (lastTintError) {
-      detail = `tint error: ${esc(lastTintError.id)}`
+      detail = `${lastTintError.action === 'stats' ? 'stats' : 'tint'} error: ${esc(lastTintError.id)}`
     } else if (bundleCapture?.status === 'pending') {
       detail = bundleCapture.message || 'capturing see bundle...'
     } else if (bundleCapture?.status === 'success') {
@@ -576,6 +627,33 @@ export default function CanvasInspector() {
     }
   }
 
+  async function toggleStats(id) {
+    if (!id) return
+    const wasEnabled = statsIds.has(id)
+    if (wasEnabled) statsIds.delete(id)
+    else statsIds.add(id)
+    lastTintError = null
+    rerender()
+    try {
+      const result = await evalCanvas(id, buildStatsToggleEvalScript({
+        panel: 0,
+        position: 'top-right',
+      }))
+      if (result === false || result === 'false') throw new Error('window.aosStats.toggle missing')
+      await delay(250)
+      const status = parseEvalJsonResult(await evalCanvas(id, buildStatsStatusEvalScript()))
+      if (status?.enabled) statsIds.add(id)
+      else statsIds.delete(id)
+      rerender()
+    } catch (error) {
+      if (wasEnabled) statsIds.add(id)
+      else statsIds.delete(id)
+      lastTintError = { id, error: String(error), at: Date.now(), action: 'stats' }
+      rerender()
+      console.error('[canvas-inspector] stats toggle failed', id, error)
+    }
+  }
+
   function bindListEvents() {
     contentEl.addEventListener('click', (event) => {
       const btn = event.target?.closest?.('button')
@@ -605,6 +683,10 @@ export default function CanvasInspector() {
         toggleTint(btn.dataset.id)
         return
       }
+      if (btn.classList.contains('stats-btn')) {
+        toggleStats(btn.dataset.id)
+        return
+      }
       if (btn.classList.contains('remove-btn')) {
         emit('canvas.remove', { id: btn.dataset.id })
       }
@@ -632,6 +714,7 @@ export default function CanvasInspector() {
       canvases = canvases.filter(c => c.id !== id)
       tintedIds.delete(id)
       tintMap.delete(id)
+      statsIds.delete(id)
       evictCanvas(marksState, id)
       return
     }
@@ -671,6 +754,7 @@ export default function CanvasInspector() {
         setCursorTrackingEnabled,
         setMouseEventsEnabled,
         requestSeeBundle,
+        toggleStats,
       }
       bindListEvents()
       emit('canvas_inspector.request_bundle_config')

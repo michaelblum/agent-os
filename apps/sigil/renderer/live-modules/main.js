@@ -93,12 +93,14 @@ const liveJs = {
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
     surfaceRenderSnapshot: null,
+    renderPerformanceTelemetry: { attempted: 0, sent: 0, skipped: null, lastError: null },
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
 const CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
 const CODEX_TERMINAL_URL = 'aos://sigil/codex-terminal/index.html?port=17761&session=sigil-codex-cli-agent-os';
 const CODEX_TERMINAL_PARK_SCALE = 0.24;
+const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
 window.liveJs = liveJs;
@@ -118,6 +120,8 @@ window.__sigilBootFirstFrameAt = null;
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 let radialGestureVisuals = null;
+let lastRenderPerformanceFrameAt = null;
+let lastRenderPerformanceSampleAt = 0;
 const DEFAULT_AGENT_WIKI_PATH = 'sigil/agents/default';
 const DEFAULT_AGENT_WIKI_URL = `/wiki/${DEFAULT_AGENT_WIKI_PATH}.md`;
 const INPUT_POINTER_EVENT_TYPES = new Set([
@@ -565,6 +569,7 @@ const UTILITY_CANVAS_IDS = new Set([
     '__log__',
     'canvas-inspector',
     'sigil-interaction-trace',
+    RENDER_PERFORMANCE_CANVAS_ID,
     CODEX_TERMINAL_CANVAS_ID,
 ]);
 
@@ -607,6 +612,16 @@ function utilityFrame(kind) {
             Math.round(height),
         ];
     }
+    if (kind === 'render-performance') {
+        const width = Math.min(560, Math.max(460, visible.w * 0.36));
+        const height = Math.min(560, Math.max(460, visible.h * 0.52));
+        return [
+            Math.round(visible.x + visible.w - width - 20),
+            Math.round(visible.y + visible.h - height - 20),
+            Math.round(width),
+            Math.round(height),
+        ];
+    }
 
     const width = Math.min(360, Math.max(320, visible.w * 0.26));
     const height = Math.min(520, Math.max(420, visible.h * 0.55));
@@ -630,6 +645,13 @@ function utilityConfig(kind) {
         return {
             id: 'sigil-interaction-trace',
             url: 'aos://sigil/diagnostics/interaction-trace/index.html',
+            frame: utilityFrame(kind),
+        };
+    }
+    if (kind === 'render-performance') {
+        return {
+            id: RENDER_PERFORMANCE_CANVAS_ID,
+            url: 'aos://toolkit/components/render-performance/index.html',
             frame: utilityFrame(kind),
         };
     }
@@ -668,6 +690,68 @@ function codexTerminalState() {
 function isCodexTerminalVisible() {
     const current = codexTerminalState();
     return liveJs.avatarParking?.mode === 'terminal' || (!!current && current.suspended !== true);
+}
+
+function isUtilityCanvasVisible(id) {
+    const current = liveJs.utilityCanvases.get(id);
+    return !!current && current.suspended !== true;
+}
+
+function finiteOrNull(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function postRenderPerformanceSample({ frameStartedAt, renderStartedAt, renderEndedAt }) {
+    liveJs.renderPerformanceTelemetry.attempted += 1;
+    if (!isPrimarySurfaceSegment()) {
+        liveJs.renderPerformanceTelemetry.skipped = 'secondary-segment';
+        return;
+    }
+    if (!isUtilityCanvasVisible(RENDER_PERFORMANCE_CANVAS_ID)) {
+        liveJs.renderPerformanceTelemetry.skipped = 'panel-hidden';
+        lastRenderPerformanceFrameAt = null;
+        return;
+    }
+    const now = renderEndedAt;
+    const frameMs = lastRenderPerformanceFrameAt == null ? null : now - lastRenderPerformanceFrameAt;
+    lastRenderPerformanceFrameAt = now;
+    if (now - lastRenderPerformanceSampleAt < 500) {
+        liveJs.renderPerformanceTelemetry.skipped = 'throttled';
+        return;
+    }
+    if (!Number.isFinite(frameMs) || frameMs <= 0) {
+        liveJs.renderPerformanceTelemetry.skipped = 'invalid-frame';
+        return;
+    }
+    lastRenderPerformanceSampleAt = now;
+    const info = state.renderer?.info;
+    try {
+        host.post('canvas.send', {
+            target: RENDER_PERFORMANCE_CANVAS_ID,
+            message: {
+                type: 'render-performance/sample',
+                payload: {
+                    source: 'sigil-avatar',
+                    frameMs,
+                    updateMs: renderStartedAt - frameStartedAt,
+                    renderMs: renderEndedAt - renderStartedAt,
+                    drawCalls: finiteOrNull(info?.render?.calls),
+                    triangles: finiteOrNull(info?.render?.triangles),
+                    points: finiteOrNull(info?.render?.points),
+                    lines: finiteOrNull(info?.render?.lines),
+                    geometries: finiteOrNull(info?.memory?.geometries),
+                    textures: finiteOrNull(info?.memory?.textures),
+                },
+            },
+        });
+        liveJs.renderPerformanceTelemetry.sent += 1;
+        liveJs.renderPerformanceTelemetry.skipped = null;
+        liveJs.renderPerformanceTelemetry.lastError = null;
+    } catch (error) {
+        liveJs.renderPerformanceTelemetry.lastError = String(error?.message || error);
+        console.warn('[sigil] render-performance sample failed:', error);
+    }
 }
 
 function isCodexTerminalParkedAtStatus() {
@@ -1786,7 +1870,7 @@ async function init() {
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
-function clearHiddenFrame(renderAvatarPos) {
+function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     state.appScale = 0;
     state.polyGroup.scale.setScalar(0);
     if (state.omegaGroup) state.omegaGroup.visible = false;
@@ -1797,7 +1881,13 @@ function clearHiddenFrame(renderAvatarPos) {
     radialGestureVisuals?.reset?.();
     visibilityTransition.draw({ avatarStagePos: null });
     fastTravel.draw();
+    const renderStartedAt = performance.now();
     state.renderer.clear(true, true, true);
+    postRenderPerformanceSample({
+        frameStartedAt,
+        renderStartedAt,
+        renderEndedAt: performance.now(),
+    });
 
     if (window.__sigilBootFirstFrameAt === null) {
         window.__sigilBootFirstFrameAt = Date.now();
@@ -1816,6 +1906,7 @@ function clearHiddenFrame(renderAvatarPos) {
 function animate() {
     if (rendererSuspended) return;
 
+    const frameStartedAt = performance.now();
     const dt = 0.016;
     const primarySegment = isPrimarySurfaceSegment();
     if (primarySegment || !Number.isFinite(liveJs.surfaceRenderSnapshot?.globalTime)) {
@@ -1870,7 +1961,7 @@ function animate() {
         || !!liveJs.travel
         || state.appScale > 0.001;
     if (!visualActive) {
-        clearHiddenFrame(renderAvatarPos);
+        clearHiddenFrame(renderAvatarPos, frameStartedAt);
         return;
     }
 
@@ -1949,7 +2040,13 @@ function animate() {
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
+    const renderStartedAt = performance.now();
     state.renderer.render(state.scene, state.camera);
+    postRenderPerformanceSample({
+        frameStartedAt,
+        renderStartedAt,
+        renderEndedAt: performance.now(),
+    });
 
     if (primarySegment && liveJs._pendingLifecycleComplete) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });

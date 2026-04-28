@@ -94,6 +94,80 @@ class CanvasMessageHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+func aosCanvasBootstrapScript(_ prelude: String) -> String {
+    return """
+\(prelude)
+(function () {
+  if (window.__aosStatsBootstrapInstalled) return;
+  window.__aosStatsBootstrapInstalled = true;
+  const controller = window.aosStats && typeof window.aosStats === 'object' ? window.aosStats : {};
+  const queue = Array.isArray(controller.__aosStatsQueue) ? controller.__aosStatsQueue : [];
+  let loading = null;
+
+  function status() {
+    return {
+      available: !!controller.available,
+      enabled: false,
+      mode: controller.__aosStatsOptions?.mode || 'auto',
+      panel: controller.__aosStatsOptions?.panel || 0,
+      canvasId: controller.canvasId || null,
+      segmentDisplayId: controller.segmentDisplayId ?? null,
+      connected: false,
+      error: controller.error || null
+    };
+  }
+
+  function load() {
+    if (loading) return loading;
+    loading = import('aos://toolkit/runtime/canvas-stats.js').then(function (module) {
+      if (module && typeof module.attachCanvasStats === 'function') {
+        module.attachCanvasStats(controller);
+      }
+      controller.__aosStatsStub = false;
+      return controller;
+    }).catch(function (error) {
+      controller.available = false;
+      controller.error = String(error && error.message ? error.message : error);
+      return controller;
+    });
+    return loading;
+  }
+
+  function queued(method, shouldLoad) {
+    return function () {
+      if (controller.available && !controller.__aosStatsStub && typeof controller[method] === 'function') {
+        return controller[method].apply(controller, arguments);
+      }
+      queue.push([method, Array.prototype.slice.call(arguments)]);
+      if (shouldLoad) load();
+      return status();
+    };
+  }
+
+  Object.assign(controller, {
+    __aosStatsStub: true,
+    __aosStatsQueue: queue,
+    available: false,
+    error: null,
+    canvasId: window.__aosCanvasId || window.__aosSurfaceCanvasId || null,
+    segmentDisplayId: typeof window.__aosSegmentDisplayId === 'undefined' ? null : window.__aosSegmentDisplayId,
+    load,
+    status,
+    configure: queued('configure', true),
+    enable: queued('enable', true),
+    disable: queued('disable', true),
+    toggle: queued('toggle', true),
+    begin: queued('begin', false),
+    end: queued('end', false),
+    update: queued('update', false),
+    showPanel: queued('showPanel', true)
+  });
+  window.aosStats = controller;
+  window.__aosStats = controller;
+})();
+"""
+}
+
 // MARK: - Coordinate Conversion
 
 func canvasScreenFrame(_ cgRect: CGRect) -> NSRect {
@@ -328,7 +402,7 @@ class Canvas {
         }
         let controller = WKUserContentController()
         controller.addUserScript(WKUserScript(
-            source: "window.__aosCanvasId = \(jsStringLiteral(id));",
+            source: aosCanvasBootstrapScript("window.__aosCanvasId = \(jsStringLiteral(id));"),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))

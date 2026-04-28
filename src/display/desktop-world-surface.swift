@@ -441,7 +441,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         messageHandler.onMessage = onMessage
         controller.add(messageHandler, name: "headsup")
         controller.addUserScript(WKUserScript(
-            source: "window.__aosSegmentDisplayId = \(meta.displayID); window.__aosSurfaceCanvasId = \(jsStringLiteral(id));",
+            source: aosCanvasBootstrapScript("window.__aosSegmentDisplayId = \(meta.displayID); window.__aosSurfaceCanvasId = \(jsStringLiteral(id));"),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))

@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../_base/theme.css">
+<link rel="stylesheet" href="../../panel/defaults.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<script type="module">
+import { mountPanel, Single } from '../../panel/index.js'
+import RenderPerformance from './index.js'
+
+mountPanel({ title: 'Render Performance', layout: Single(RenderPerformance) })
+</script>
+</body>
+</html>

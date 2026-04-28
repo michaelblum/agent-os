@@ -23,11 +23,13 @@ Every WKWebView surface (panel or presence) imports from `runtime/`. Surfaces th
 ```
 runtime/                Layer 1a — universal canvas runtime
   bridge.js               wireBridge, emit, esc
+  canvas-stats.js         lazy stats.js controller backing per-canvas window.aosStats
   subscribe.js            subscribe, unsubscribe to daemon streams
   canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas
   manifest.js             declareManifest, emitReady, emitLifecycleComplete, onReady
   index.js                re-exports
   _smoke/                 smoke harness
+  vendor/                 vendored third-party runtime modules and licenses
 
 panel/                  Layer 1b — panel primitives
   chrome.js               mountChrome — pure DOM scaffold + drag_start/drag_end lifecycle + absolute drag updates
@@ -45,6 +47,8 @@ components/             Layer 2 — reusable Content units
   canvas-inspector/       live canvas list + lifecycle subscription
     styles.css              canonical component styles (link, don't copy)
   spatial-telemetry/      live coordinate grid + event log for display/canvas/mark debugging
+    styles.css              canonical component styles (link, don't copy)
+  render-performance/     live framerate + coarse renderer telemetry panel
     styles.css              canonical component styles (link, don't copy)
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
     styles.css              canonical component styles (link, don't copy)

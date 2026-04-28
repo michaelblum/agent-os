@@ -351,6 +351,7 @@ export function menuMarkup() {
                 <div class="ctx-divider"></div>
                 <button class="ctx-trigger" data-sigil-action="toggle-inspector">Canvas Inspector</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-trace">Interaction Trace</button>
+                <button class="ctx-trigger" data-sigil-action="toggle-render-performance">Render Performance</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
                 <div class="ctx-divider"></div>
                 <div class="ctx-actions">
@@ -1303,6 +1304,7 @@ export function createSigilContextMenu({
         onColor('sigil-menu-grid2', 'grid', 1);
         onAction('toggle-inspector', () => onUtilityAction?.('canvas-inspector'));
         onAction('toggle-trace', () => onUtilityAction?.('sigil-interaction-trace'));
+        onAction('toggle-render-performance', () => onUtilityAction?.('render-performance'));
         onAction('toggle-log', () => onUtilityAction?.('log-console'));
 
         layer.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {

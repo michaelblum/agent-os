@@ -178,4 +178,5 @@ test('context menu markup exposes standard accessibility structure', () => {
   assert.match(html, /id="sigil-menu-line-card"[^>]*role="region"[^>]*aria-label="Line trail settings"/)
   assert.match(html, /role="radiogroup"[^>]*aria-labelledby="sigil-menu-line-trail-effect-label"/)
   assert.match(html, /role="radio"[^>]*aria-checked="false"[^>]*data-sigil-line-trail-mode="shrink"/)
+  assert.match(html, /data-sigil-action="toggle-render-performance">Render Performance<\/button>/)
 })
