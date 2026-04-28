@@ -19,7 +19,7 @@ export const CONTEXT_COG_MODEL = {
 
 export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     type: 'gltf',
-    src: '../assets/models/brain-hologram/scene.gltf',
+    src: '../assets/models/wiki-brain/scene.gltf',
     modelUid: '09d686a1a1f745cba6b2385d0c831214',
     title: 'Brain hologram',
     radiusScale: 1.42,

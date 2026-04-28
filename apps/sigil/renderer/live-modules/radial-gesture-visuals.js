@@ -109,6 +109,40 @@ function createFallbackForItem(item = {}) {
     return createFallbackGlyph();
 }
 
+function createAuraTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.22, 'rgba(125, 248, 215, 0.58)');
+    grad.addColorStop(0.52, 'rgba(98, 242, 255, 0.22)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+}
+
+const radialItemAuraTexture = typeof document !== 'undefined' ? createAuraTexture() : null;
+
+function createAuraSprite() {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: radialItemAuraTexture,
+        color: new THREE.Color('#bffff4'),
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+    }));
+    sprite.renderOrder = 19;
+    sprite.visible = false;
+    return sprite;
+}
+
 function geometryKind(item = {}) {
     return typeof item.geometry?.type === 'string' ? item.geometry.type.toLowerCase() : null;
 }
@@ -346,11 +380,11 @@ function forEachMaterial(material, visit) {
 
 const highlightColor = new THREE.Color('#ffffff');
 
-function updateMaterialHighlight(material, { active, progress }) {
+function updateMaterialHighlight(material, { active, progress, falloff }) {
     forEachMaterial(material, (mat) => {
         const baseOpacity = Number(mat.userData?.baseOpacity ?? mat.opacity ?? 1);
         mat.userData.baseOpacity = baseOpacity;
-        mat.opacity = baseOpacity * Math.min(1, progress * (active ? 1.5 : 1.2));
+        mat.opacity = baseOpacity * Math.min(1, progress * falloff * (active ? 1.5 : 1.2));
 
         if (mat.color?.isColor) {
             if (!mat.userData.baseColor) mat.userData.baseColor = mat.color.clone();
@@ -372,6 +406,8 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
     let lastState = { visible: false, count: 0, itemIds: [], scales: {} };
     let lastRadial = null;
     let displayProgress = 0;
+    let falloffProgress = 1;
+    let lastUpdateTime = null;
 
     function ensureGlyph(item) {
         const id = item.id || 'item';
@@ -380,6 +416,10 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         glyph = createGlyph(item);
         glyph.userData.itemId = id;
         glyph.userData.baseRadius = glyphSceneRadius(glyph);
+        glyph.userData.hoverProgress = 0;
+        glyph.userData.hoverSpin = 0;
+        glyph.userData.aura = createAuraSprite();
+        glyph.add(glyph.userData.aura);
         glyphs.set(id, glyph);
         group.add(glyph);
         return glyph;
@@ -396,20 +436,42 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         }
     }
 
-    function update(radial) {
+    function visualFalloff(radial) {
+        if (!radial || radial.phase !== 'fastTravel') return 1;
+        const outer = Math.max(1, finite(radial.radii?.handoff, radial.radii?.menu ?? 1));
+        const maxDistance = outer * 1.5;
+        const distance = finite(radial.distance, 0);
+        const t = Math.max(0, Math.min(1, (distance - outer) / Math.max(1, maxDistance - outer)));
+        return 1 - (0.5 * t);
+    }
+
+    function update(radial, { time = 0 } = {}) {
+        const frameTime = finite(time, 0);
+        const dt = lastUpdateTime == null ? 0.016 : Math.max(0, Math.min(0.05, frameTime - lastUpdateTime));
+        lastUpdateTime = frameTime;
+        const visualRadial = radial?.phase === 'radial' || radial?.phase === 'fastTravel' ? radial : null;
         const activeRadial = radial?.phase === 'radial' ? radial : null;
         if (activeRadial) lastRadial = activeRadial;
-        const source = activeRadial || lastRadial;
-        const targetProgress = activeRadial
-            ? Math.max(0.08, Number(activeRadial.menuProgress) || 0)
+        if (visualRadial?.phase === 'fastTravel' && lastRadial) {
+            lastRadial = {
+                ...lastRadial,
+                ...visualRadial,
+                items: lastRadial.items,
+            };
+        }
+        const source = visualRadial || lastRadial;
+        const targetProgress = visualRadial
+            ? Math.max(0.08, Number(visualRadial.menuProgress) || 0)
             : 0;
-        const smoothing = activeRadial ? 0.42 : 0.28;
+        const smoothing = visualRadial ? 0.42 : 0.28;
         displayProgress += (targetProgress - displayProgress) * smoothing;
+        falloffProgress += (visualFalloff(radial) - falloffProgress) * (visualRadial ? 0.26 : 0.18);
 
         if (!source || displayProgress <= 0.015) {
             group.visible = false;
             displayProgress = 0;
-            if (!activeRadial) lastRadial = null;
+            falloffProgress = 1;
+            if (!visualRadial) lastRadial = null;
             lastState = { visible: false, count: 0, itemIds: [], scales: {} };
             return lastState;
         }
@@ -427,16 +489,26 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             glyph.visible = !!projected;
             if (!projected) continue;
             const active = activeRadial && item.id === source.activeItemId;
+            glyph.userData.hoverProgress += ((active ? 1 : 0) - glyph.userData.hoverProgress) * 0.22;
+            const hoverProgress = glyph.userData.hoverProgress;
             glyph.position.copy(projected);
             glyph.traverse((child) => {
-                updateMaterialHighlight(child.material, { active, progress });
+                updateMaterialHighlight(child.material, { active, progress, falloff: falloffProgress });
             });
             const itemRadius = finite(item.visualRadius, 14);
             const sceneRadius = projectRadius?.(item.center, itemRadius) ?? 0.24;
             const baseRadius = finite(glyph.userData.baseRadius, 0.25);
             const radiusScale = finite(item.geometry?.radiusScale ?? item.radiusScale, 1);
-            const targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (active ? 1.08 : 1.0) * progress;
+            const targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (1 + hoverProgress * 0.08) * progress * falloffProgress;
             glyph.scale.setScalar(targetScale);
+            const aura = glyph.userData.aura;
+            if (aura) {
+                aura.visible = hoverProgress > 0.01 && targetScale > 0.001;
+                aura.material.opacity = hoverProgress * progress * falloffProgress * 0.78;
+                const auraScale = (baseRadius * 4.4) * (1 + Math.sin(time * 8) * 0.08);
+                aura.scale.set(auraScale, auraScale, 1);
+                aura.position.set(0, 0, -0.015);
+            }
             scales[item.id || 'item'] = targetScale;
             if (glyph.userData.geometryKind) {
                 geometry[item.id || 'item'] = {
@@ -449,8 +521,10 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
                 };
             }
             const nativeGeometry = !!glyph.userData.geometryKind;
+            glyph.userData.hoverSpin += hoverProgress * dt * 1.35;
+            const spin = glyph.userData.hoverSpin;
             glyph.rotation.x = nativeGeometry ? 0 : 0.08;
-            glyph.rotation.y = nativeGeometry ? 0 : finite(item.angle, 0) * 0.004;
+            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + spin;
             glyph.rotation.z = 0;
         }
 
@@ -461,6 +535,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             activeItemId: activeRadial ? (source.activeItemId || null) : null,
             scales,
             geometry,
+            falloff: falloffProgress,
         };
         return lastState;
     }
@@ -475,6 +550,8 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         group.visible = false;
         lastRadial = null;
         displayProgress = 0;
+        falloffProgress = 1;
+        lastUpdateTime = null;
         lastState = { visible: false, count: 0, itemIds: [], scales: {} };
     }
 

@@ -4,8 +4,13 @@ Sigil's wiki radial item is configured to load a native Three.js glTF asset from
 this directory:
 
 ```text
-apps/sigil/renderer/assets/models/brain-hologram/scene.gltf
+apps/sigil/renderer/assets/models/wiki-brain/scene.gltf
 ```
+
+This checked-in copy is optimized for the radial menu's small on-screen render:
+geometry has been simplified, unused texture coordinates have been removed, and
+positions/normals are quantized with `KHR_mesh_quantization`, which is supported
+by the vendored Three.js `GLTFLoader`.
 
 Source model:
 
@@ -13,11 +18,6 @@ Source model:
 - Author: oxterium
 - URL: https://sketchfab.com/3d-models/brain-hologram-09d686a1a1f745cba6b2385d0c831214
 - License: Sketchfab Free Standard
-
-This checked-in copy is optimized for the radial menu's small on-screen render:
-geometry has been simplified, unused texture coordinates have been removed, and
-positions/normals are quantized with `KHR_mesh_quantization`, which is supported
-by the vendored Three.js `GLTFLoader`.
 
 Runtime files:
 

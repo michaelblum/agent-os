@@ -62,7 +62,7 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.equal(wikiItem.action, 'wikiGraph')
   assert.equal(wikiItem.geometry.type, 'gltf')
   assert.equal(wikiItem.geometry.modelUid, '09d686a1a1f745cba6b2385d0c831214')
-  assert.match(wikiItem.geometry.src, /brain-hologram\/scene\.gltf$/)
+  assert.match(wikiItem.geometry.src, /wiki-brain\/scene\.gltf$/)
   assert.equal(wikiItem.geometry.material, 'source-emissive')
   assert.equal(wikiItem.geometry.radiusScale, 1.42)
   assert.equal(wikiItem.geometry.bloomShell, undefined)

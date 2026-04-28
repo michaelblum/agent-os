@@ -6,7 +6,7 @@ export { DEFAULT_SIGIL_RADIAL_ITEMS };
 const DEFAULT_CONFIG = {
     radiusBasis: 40,
     deadZoneRadius: 0.6,
-    itemRadius: 1.55,
+    itemRadius: 2.05,
     itemHitRadius: 0.42,
     itemVisualRadius: 0.28,
     menuRadius: 1.8,
