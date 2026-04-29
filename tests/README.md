@@ -78,9 +78,17 @@ Real-input scenarios should require an explicit idle-window signal such as
 `AOS_REAL_INPUT_OK=1`, should tell the operator that mouse/keyboard input is
 being used, and should own cleanup through the shared harness helpers.
 
-These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
-own temp-root daemon state so they do not leave duplicate `aos` windows behind
-if a run is interrupted.
+Headless, synthetic-input, and daemon-isolation tests should run in an isolated
+`AOS_STATE_ROOT` and tear down their own temp-root daemon state so they do not
+leave duplicate `aos` windows behind if a run is interrupted.
+
+Real-input scenarios that exercise human-like entry through the macOS menu bar
+should normally use the active repo daemon and its existing status item. They
+must fail fast if more than one matching AOS status item is visible; isolated
+state roots do not isolate global mouse or keyboard streams, and duplicate
+status items make the human-like path ambiguous. If a real-input scenario truly
+needs an isolated daemon, it must explicitly stop or hide the live repo
+daemon/status item first and restore it before returning control.
 
 Do not call daemon auto-starting commands such as `aos doctor`, `aos show ping`,
 or `aos graph displays` before isolated tests finish writing required config like
@@ -103,6 +111,7 @@ surfaces:
 - `aos_visual_launch_canvas_inspector canvas-inspector`
 - `aos_visual_launch_sigil_avatar avatar-main`
 - `aos_visual_launch_sigil_with_inspector avatar-main canvas-inspector`
+- `aos_visual_launch_sigil_with_inspector_via_live_status_item avatar-main canvas-inspector manual-visible`
 
 Visual Sigil scenarios should default to launching `canvas-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,

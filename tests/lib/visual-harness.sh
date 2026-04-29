@@ -127,6 +127,47 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
     --timeout 5s >/dev/null
 }
 
+aos_visual_single_status_item_pid() {
+  local matches_json
+  matches_json="$(aos_status_item_matches_json)" || return 1
+
+  python3 - "$matches_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+matches = payload.get("matches") or []
+if len(matches) != 1:
+    print(
+        f"FAIL: expected exactly one AOS status item, found {len(matches)}: "
+        f"{json.dumps(matches, sort_keys=True)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+pid = matches[0].get("pid")
+if not pid:
+    print(f"FAIL: AOS status item match is missing pid: {matches[0]}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(pid)
+PY
+}
+
+aos_visual_show_sigil_avatar_via_live_status_click() {
+  local avatar_id="${1:-avatar-main}"
+  local aos_bin pid
+  aos_bin="$(aos_visual_aos)"
+  pid="$(aos_visual_single_status_item_pid)"
+
+  click_aos_status_item_real "$pid" "$aos_bin"
+  aos_visual_wait_sigil_avatar_ready "$avatar_id"
+  "$aos_bin" show wait \
+    --id "$avatar_id" \
+    --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
+    --timeout 5s >/dev/null
+}
+
 aos_visual_avoid_sigil_avatar_overlap() {
   local avatar_id="${1:-avatar-main}"
   local inspector_id="${2:-canvas-inspector}"
@@ -271,6 +312,23 @@ aos_visual_launch_sigil_with_inspector_via_status_item() {
   aos_visual_remove_canvas "$inspector_id"
   aos_visual_launch_canvas_inspector "$inspector_id"
   aos_visual_show_sigil_avatar_via_real_status_click "$state_root" "$avatar_id"
+  if [[ "$placement" == "manual-visible" ]]; then
+    aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
+  fi
+  aos_visual_avoid_sigil_avatar_overlap "$avatar_id" "$inspector_id"
+}
+
+aos_visual_launch_sigil_with_inspector_via_live_status_item() {
+  local avatar_id="${1:-avatar-main}"
+  local inspector_id="${2:-canvas-inspector}"
+  local placement="${3:-default}"
+
+  aos_visual_configure_sigil_status_item "$avatar_id"
+  aos_visual_remove_canvas "$avatar_id"
+  aos_visual_remove_canvas "sigil-hit-$avatar_id"
+  aos_visual_remove_canvas "$inspector_id"
+  aos_visual_launch_canvas_inspector "$inspector_id"
+  aos_visual_show_sigil_avatar_via_live_status_click "$avatar_id"
   if [[ "$placement" == "manual-visible" ]]; then
     aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
   fi
