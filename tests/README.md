@@ -90,6 +90,12 @@ status items make the human-like path ambiguous. If a real-input scenario truly
 needs an isolated daemon, it must explicitly stop or hide the live repo
 daemon/status item first and restore it before returning control.
 
+Auxiliary daemons that run under an explicit `AOS_STATE_ROOT` render their
+status-item center dot in orange. That visual cue means "isolated helper
+daemon," not "regular repo daemon." The status-item context menu also includes
+a disabled identity row with daemon role, runtime mode, PID, and, for auxiliary
+daemons, the isolated state-root marker.
+
 Do not call daemon auto-starting commands such as `aos doctor`, `aos show ping`,
 or `aos graph displays` before isolated tests finish writing required config like
 `content.roots.toolkit`. Preflight checks should use non-daemon surfaces such as

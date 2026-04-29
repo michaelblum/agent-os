@@ -76,6 +76,11 @@ Duplicate AOS status items are a red flag. Isolated status-item tests can create
 a second AOS status item while the live repo daemon has its own item. The real
 status-item smoke records the visible matching status items before it clicks so
 an agent can tell whether the run had global status-item ambiguity.
+When an auxiliary daemon is intentionally running from an explicit
+`AOS_STATE_ROOT`, its status item uses an orange center dot to distinguish it
+from the regular repo daemon. Right-clicking the status item also shows a
+disabled identity row with daemon role, runtime mode, PID, and, for auxiliary
+daemons, the isolated state-root marker.
 
 `tests/sigil-context-menu-real-input.sh` starts from an already-visible avatar
 and exercises deeper menu behavior: Effects, real wheel scrolling, Line Trail

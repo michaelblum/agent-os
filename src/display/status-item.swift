@@ -24,6 +24,7 @@ class StatusItemManager {
     private(set) var toggleAt: [Double]
     private(set) var toggleTrack: String?
     private(set) var iconStyle: String  // stored for future multi-icon support; updateIcon does not branch on it yet
+    private let isAuxiliaryDaemon: Bool
     var urlResolver: ((String) -> String)?
     var lastPositionResolver: ((String) -> (x: Double, y: Double)?)?
 
@@ -42,6 +43,7 @@ class StatusItemManager {
         self.toggleAt = config.toggle_at
         self.toggleTrack = config.toggle_track
         self.iconStyle = config.icon
+        self.isAuxiliaryDaemon = aosHasExplicitStateRootOverride()
         self.positionFile = (kAosConfigPath as NSString)
             .deletingLastPathComponent
             .appending("/status-item-position.json")
@@ -56,7 +58,7 @@ class StatusItemManager {
         statusItem?.button?.target = self
         statusItem?.button?.action = #selector(handleClick(_:))
         statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        statusItem?.button?.toolTip = Self.accessibilityLabel
+        statusItem?.button?.toolTip = statusItemTooltip
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
         restoreUtilityPanels()
         warmPersistentCanvasIfNeeded()
@@ -128,6 +130,25 @@ class StatusItemManager {
         toggleTrack != nil
     }
 
+    private var statusItemTooltip: String {
+        if isAuxiliaryDaemon {
+            return "\(Self.accessibilityLabel) - auxiliary isolated daemon"
+        }
+        return Self.accessibilityLabel
+    }
+
+    private var daemonIdentityMenuTitle: String {
+        let role = isAuxiliaryDaemon ? "Auxiliary" : "Regular"
+        let mode = aosCurrentRuntimeMode().rawValue
+        return "\(role) \(mode) daemon - pid \(getpid())"
+    }
+
+    private var daemonStateRootMenuTitle: String {
+        let root = aosStateRoot()
+        let marker = URL(fileURLWithPath: root).lastPathComponent
+        return "State root: \(marker.isEmpty ? root : marker)"
+    }
+
     private func togglePersistentCanvas() {
         if !canvasManager.hasCanvas(toggleId) {
             fputs("[status-item] toggle target '\(toggleId)' is missing; recreating warm canvas\n", stderr)
@@ -161,6 +182,16 @@ class StatusItemManager {
 
     private func showContextMenu() {
         let menu = NSMenu()
+
+        let identityItem = NSMenuItem(title: daemonIdentityMenuTitle, action: nil, keyEquivalent: "")
+        identityItem.isEnabled = false
+        menu.addItem(identityItem)
+        if isAuxiliaryDaemon {
+            let stateItem = NSMenuItem(title: daemonStateRootMenuTitle, action: nil, keyEquivalent: "")
+            stateItem.isEnabled = false
+            menu.addItem(stateItem)
+        }
+        menu.addItem(NSMenuItem.separator())
 
         // App-provided items first
         for (index, item) in customMenuItems.enumerated() {
@@ -860,16 +891,22 @@ class StatusItemManager {
 
     func updateIcon() {
         if usesPersistentCanvas {
-            statusItem?.button?.image = drawHexagonIcon(filled: persistentVisible || isAnimating)
+            statusItem?.button?.image = drawHexagonIcon(
+                filled: persistentVisible || isAnimating,
+                auxiliary: isAuxiliaryDaemon
+            )
             return
         }
         let exists = canvasManager.hasCanvas(toggleId)
         let suspended = isCanvasSuspended()
         // Filled = active or animating. Unfilled = suspended, absent, or idle.
-        statusItem?.button?.image = drawHexagonIcon(filled: (exists && !suspended) || isAnimating)
+        statusItem?.button?.image = drawHexagonIcon(
+            filled: (exists && !suspended) || isAnimating,
+            auxiliary: isAuxiliaryDaemon
+        )
     }
 
-    private func drawHexagonIcon(filled: Bool) -> NSImage {
+    private func drawHexagonIcon(filled: Bool, auxiliary: Bool = false) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let img = NSImage(size: size, flipped: false) { rect in
             let cx = rect.midX, cy = rect.midY
@@ -885,20 +922,27 @@ class StatusItemManager {
             }
             path.close()
 
-            NSColor.black.setStroke()
+            let primary = auxiliary ? NSColor.labelColor : NSColor.black
+            primary.setStroke()
             path.lineWidth = 1.2
-            if filled { NSColor.black.setFill(); path.fill() }
+            if filled { primary.setFill(); path.fill() }
             path.stroke()
 
             let dotR: CGFloat = filled ? 2.0 : 1.5
             let dotRect = NSRect(x: cx - dotR, y: cy - dotR, width: dotR * 2, height: dotR * 2)
             let dot = NSBezierPath(ovalIn: dotRect)
-            if filled { NSColor.white.setFill() } else { NSColor.black.setFill() }
+            if auxiliary {
+                NSColor(calibratedRed: 1.0, green: 0.47, blue: 0.0, alpha: 1.0).setFill()
+            } else if filled {
+                NSColor.controlBackgroundColor.setFill()
+            } else {
+                primary.setFill()
+            }
             dot.fill()
 
             return true
         }
-        img.isTemplate = true
+        img.isTemplate = !auxiliary
         return img
     }
 }
