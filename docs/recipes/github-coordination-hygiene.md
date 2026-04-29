@@ -29,6 +29,22 @@ The minimum useful loop is:
 issue, when needed -> plan or recipe, when durable -> PR -> close or restate issue
 ```
 
+## Status And Next-Work Bootstrap
+
+When the user asks "status", "what's next", or another broad orientation
+question, start by reconstructing the current work state rather than jumping to
+the roadmap.
+
+Check the branch/worktree, upstream divergence, dirty files, active plan docs,
+open issues or PRs when relevant, and whether the checkout is `main` or a topic
+worktree. Dirty work already in the checkout is usually the next work item:
+verify it, checkpoint it, move it to an appropriate topic branch/worktree, or
+deliberately shelve/drop it before starting a new feature.
+
+If substantive dirty work is on `main`, call out that `main` is the integration
+branch. Do not quietly normalize direct-on-main feature work just because the
+files are already dirty.
+
 ## Agent-Team Git and Worktrees
 
 Use `docs/recipes/agent-team-git-worktrees.md` when work involves agent teams,

@@ -155,6 +155,14 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   editing or the change is a tiny repo-local hygiene fix already in progress on
   `main`. Keep branch names descriptive and short, such as
   `codex/supervised-run-harness` or `owner/sigil-visuals`.
+- When the user asks a broad status or "what's next?" question, do a lightweight
+  bootstrap triage before proposing new work: identify the current branch,
+  worktree, upstream divergence, dirty files, active plans/issues, and whether
+  the checkout is `main` or a topic worktree. If substantive dirty work is
+  already present, the next step is to verify and checkpoint, move, or shelve
+  that work before starting a new feature. If that work is on `main`, call out
+  the integration-branch policy and use a topic branch/worktree unless the human
+  explicitly chooses direct-on-main.
 - For agent-team work, use an orchestrator-led model: the orchestrator owns
   GitHub state, branch/worktree creation, integration, and cleanup; worker
   agents get bounded file scopes in dedicated worktrees and return changes plus
