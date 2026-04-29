@@ -33,7 +33,8 @@ issue, when needed -> plan or recipe, when durable -> PR -> close or restate iss
 
 Use `docs/recipes/agent-team-git-worktrees.md` when work involves agent teams,
 subagents, parallel implementation, branch handoff, pull requests, or local
-worktree cleanup.
+worktree cleanup. Runtime agents can discover the same operating concept through
+`wiki-seed/concepts/agent-team-git-worktrees.md` after `aos wiki seed`.
 
 The short version:
 

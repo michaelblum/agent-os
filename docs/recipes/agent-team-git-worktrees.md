@@ -30,6 +30,30 @@ The orchestrator remains accountable for final integration. Agent review can
 raise the baseline, but the human owner and the orchestrator decide what is
 ready to merge.
 
+## AOS Surface Alignment
+
+This recipe extends the existing agent entry-path model. It does not replace
+the embodied AOS verbs or create a separate governance system.
+
+Use the AOS surfaces according to their existing roles:
+
+- `./aos ready` and `./aos status` remain the front door for runtime readiness.
+- `aos see`, `do`, `show`, `tell`, and `listen` remain the primitive verbs for
+  perception, action, projection, communication, and inbound messages.
+- `aos ops` remains the source-backed operator recipe surface for AOS-runtime
+  actions that can be described as command plans.
+- `aos wiki` remains the runtime retrieval surface for source-controlled
+  operational knowledge seeded from `wiki-seed/`.
+
+Git branch and worktree coordination is an AOS developer concern. Keep it under
+the AOS developer entry path unless runtime evidence requires a pivot into
+testing, visual diagnostics, or user-input diagnostics.
+
+`scripts/agent-worktree-health` is intentionally a repo hygiene helper, not a
+new top-level AOS verb. If this check becomes part of the runtime-facing command
+surface later, prefer adapting it into an existing surface such as `aos status`
+Git metadata or an `aos ops` recipe rather than inventing a new verb family.
+
 ## Roles
 
 | Role | Authority | Default workspace |
