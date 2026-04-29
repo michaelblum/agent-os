@@ -29,6 +29,39 @@ The minimum useful loop is:
 issue, when needed -> plan or recipe, when durable -> PR -> close or restate issue
 ```
 
+## Work Lanes And Labels
+
+Use labels to keep cross-cutting observations from hijacking the active
+implementation path. When an issue is created or materially reframed, assign one
+lane:
+
+| Label | Meaning |
+|---|---|
+| `lane:active` | Current implementation path or next concrete work. |
+| `lane:tech-debt` | Cross-cutting alignment or cleanup that should not interrupt active work. |
+| `lane:research` | Needs forensics, design, or decision before implementation. |
+
+Use supporting labels to make retrieval and routing cheap:
+
+| Label family | Examples | Meaning |
+|---|---|---|
+| `area:*` | `area:testing`, `area:toolkit`, `area:sigil`, `area:governance` | Owning surface or concern. |
+| `kind:*` | `kind:alignment`, `kind:contract`, `kind:forensics` | Nature of the work. |
+
+When a cross-cutting concern appears during active work:
+
+1. Capture it in an issue if it should survive the current session.
+2. Assign `lane:research` when the next step is evidence gathering or design.
+3. Assign `lane:tech-debt` when the work is real alignment/cleanup but not an
+   active blocker.
+4. Assign `lane:active` only when it is the current implementation track.
+5. Return to the active thread unless the issue blocks correctness.
+
+Do not treat every open issue as equally current. Bootstrapping agents should
+prefer `lane:active`, then unresolved blockers attached to the active issue.
+`lane:tech-debt` and `lane:research` are durable parking lanes unless the user
+asks for cleanup, alignment, or investigation work.
+
 ## Durable Homes
 
 GitHub tracks unresolved work. Repo docs and schemas define durable engineering
