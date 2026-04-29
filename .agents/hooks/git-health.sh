@@ -7,9 +7,15 @@ cd "$ROOT"
 
 WARNINGS=""
 
-AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)
+UPSTREAM="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)"
+if [ -z "$UPSTREAM" ]; then
+  DEFAULT_REMOTE_HEAD="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  UPSTREAM="${DEFAULT_REMOTE_HEAD:-origin/main}"
+fi
+
+AHEAD=$(git rev-list --count "$UPSTREAM"..HEAD 2>/dev/null || echo 0)
 if [ "$AHEAD" -gt 50 ]; then
-  WARNINGS="${WARNINGS}\n- $AHEAD commits ahead of origin/main (consider pushing)"
+  WARNINGS="${WARNINGS}\n- $AHEAD commits ahead of $UPSTREAM (consider publishing or splitting work)"
 fi
 
 PRUNABLE=$(git worktree list --porcelain 2>/dev/null | grep -c 'prunable' || true)
@@ -51,4 +57,3 @@ if [ -n "$WARNINGS" ]; then
   echo "## Git Health"
   echo -e "$WARNINGS"
 fi
-

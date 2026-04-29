@@ -131,9 +131,11 @@ function summarizeStatusPayload(payload: any): WorkflowRunResult {
   const daemon = payload?.daemon_snapshot ?? {};
   const git = payload?.git ?? {};
   const runtime = payload?.runtime ?? {};
+  const ahead = git.ahead_of_upstream ?? git.ahead_of_origin_main ?? 0;
+  const upstream = git.upstream ?? 'none';
 
   const lines = [
-    `branch ${git.branch ?? 'unknown'} | ahead ${git.ahead_of_origin_main ?? 0} | dirty ${git.dirty_files ?? 0}`,
+    `branch ${git.branch ?? 'unknown'} | upstream ${upstream} | ahead ${ahead} | dirty ${git.dirty_files ?? 0}`,
     `daemon ${runtime.daemon_running ? 'running' : 'stopped'} | pid ${runtime.daemon_pid ?? 'n/a'} | focused ${daemon.focused_app ?? 'unknown'}`,
     `displays ${daemon.displays ?? 0} | windows ${daemon.windows ?? 0} | channels ${daemon.channels ?? 0}`,
     `mode ${payload?.identity?.mode ?? 'unknown'} | stale ${payload?.stale_resources?.status ?? 'unknown'}`,

@@ -720,7 +720,9 @@ Outputs:
 
 ## Pre-Flight
 
-- Work on `main` unless the user explicitly asks for branch-based work.
+- Treat `main` as the integration branch, not the default work surface. Use a
+  named topic branch or worktree for substantive work unless the user explicitly
+  asks for direct-on-main editing.
 - Do not touch unrelated dirty Sigil files.
 - For PRs that change Swift wiki commands, run `bash build.sh` before direct
   `./aos` verification.

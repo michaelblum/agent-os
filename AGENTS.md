@@ -149,11 +149,23 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   of trying to fully re-verify it yourself.
 - If display work starts from stale daemons or orphaned canvases, run
   `./aos clean` first and report what was cleaned.
-- Default repo work to `main` unless the user explicitly asks for branch-based
-  work. Temporary worktrees or helper branches are fine when they materially
-  reduce risk or enable parallelism, but they should stay temporary: land the
-  final state back on `main`, then remove the transient worktree/branch refs
-  before handing the repo back.
+- Treat `main` as the integration branch, not the default work surface. For
+  substantive feature, bug, docs, or governance work, create or use a named
+  topic branch/worktree unless the user explicitly asks for direct-on-main
+  editing or the change is a tiny repo-local hygiene fix already in progress on
+  `main`. Keep branch names descriptive and short, such as
+  `codex/supervised-run-harness` or `owner/sigil-visuals`.
+- Before creating a branch, inspect the current worktree. If unrelated dirty
+  changes are present, either choose a separate worktree/branch that preserves
+  them or make a scoped path-only commit when the user has asked for the change.
+  Never discard or move user changes just to satisfy branch hygiene.
+- For solo-owner development, PRs are coordination artifacts, not mandatory
+  process overhead. Use issues and PRs when they improve reviewability,
+  rollback, or roadmap tracking; otherwise use small reversible commits with
+  clear messages and explicit verification notes.
+- After a topic branch lands or is no longer needed, prune agent-created branch
+  and worktree debris when it is safe to classify. Do not delete substantive
+  long-lived branches unless the user asks.
 - Before treating grep hits, old paths, or old commands as live, check for
   retirement or supersession notes in the nearest subtree docs, active plans,
   and open issues. Retired code can remain in-tree for a while after the live
@@ -164,9 +176,6 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   "how to get started" notes. Put that guidance in repo docs instead.
 - An open issue is not automatically current. If work has landed, close the
   issue or restate the exact remaining gap before leaving it open.
-- Prune merged task-specific branch or worktree debris when you can classify it
-  confidently. Do not leave agent-created Git noise behind, and do not delete
-  substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
 - Never attribute commits to Claude or any AI assistant in this repo. No
   `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"

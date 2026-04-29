@@ -229,6 +229,8 @@ private struct CanvasLookupResponse: Encodable {
 
 private struct GitStatusState: Encodable {
     let branch: String
+    let upstream: String?
+    let ahead_of_upstream: Int?
     let ahead_of_origin_main: Int?
     let dirty_files: Int
     let worktrees: Int
@@ -626,8 +628,9 @@ func statusCommand(args: [String]) {
     let daemonState = runtime.socket_reachable ? "reachable" : (runtime.daemon_running ? "running" : "down")
     var line = "status=\(response.status) mode=\(runtime.mode) daemon=\(daemonState) pid=\(runtime.daemon_pid.map { String($0) } ?? "?") tap=\(tapValue) focused_app=\(focusedApp) displays=\(displays) windows=\(windows) channels=\(channels) stale_canvases=\(staleCanvasCount)"
     if let git {
-        let ahead = git.ahead_of_origin_main.map { String($0) } ?? "?"
-        line += " branch=\(git.branch) ahead=\(ahead) dirty=\(git.dirty_files)"
+        let ahead = git.ahead_of_upstream.map { String($0) } ?? "?"
+        let upstream = git.upstream ?? "none"
+        line += " branch=\(git.branch) upstream=\(upstream) ahead=\(ahead) dirty=\(git.dirty_files)"
     }
     print(line)
     for note in response.notes {
@@ -913,7 +916,18 @@ private func currentGitStatus() -> GitStatusState? {
     let branch = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "branch", "--show-current"])
         .stdout
         .trimmingCharacters(in: .whitespacesAndNewlines)
-    let aheadRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "rev-list", "--count", "origin/main..HEAD"])
+    var upstream = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .stdout
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    if upstream.isEmpty {
+        upstream = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])
+            .stdout
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    if upstream.isEmpty {
+        upstream = "origin/main"
+    }
+    let aheadRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "rev-list", "--count", "\(upstream)..HEAD"])
         .stdout
         .trimmingCharacters(in: .whitespacesAndNewlines)
     let dirtyRaw = runProcess("/usr/bin/git", arguments: ["-C", repoRoot, "status", "--porcelain"])
@@ -923,7 +937,9 @@ private func currentGitStatus() -> GitStatusState? {
 
     return GitStatusState(
         branch: branch.isEmpty ? "?" : branch,
-        ahead_of_origin_main: Int(aheadRaw),
+        upstream: upstream,
+        ahead_of_upstream: Int(aheadRaw),
+        ahead_of_origin_main: nil,
         dirty_files: dirtyRaw.split(whereSeparator: \.isNewline).count,
         worktrees: max(worktreesRaw.split(whereSeparator: \.isNewline).count, 1)
     )

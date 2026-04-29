@@ -111,7 +111,12 @@ except Exception:
 fi
 
 BRANCH=$(git -C "$ROOT" branch --show-current 2>/dev/null || echo "?")
-AHEAD=$(git -C "$ROOT" rev-list --count origin/main..HEAD 2>/dev/null || echo "?")
+UPSTREAM="$(git -C "$ROOT" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)"
+if [ -z "$UPSTREAM" ]; then
+  DEFAULT_REMOTE_HEAD="$(git -C "$ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  UPSTREAM="${DEFAULT_REMOTE_HEAD:-origin/main}"
+fi
+AHEAD=$(git -C "$ROOT" rev-list --count "$UPSTREAM"..HEAD 2>/dev/null || echo "?")
 DIRTY=$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
 echo ""
@@ -168,7 +173,7 @@ except Exception:
   fi
 fi
 
-echo "branch=$BRANCH ahead=$AHEAD dirty=$DIRTY"
+echo "branch=$BRANCH upstream=$UPSTREAM ahead=$AHEAD dirty=$DIRTY"
 echo "stale=$STALE_STATUS"
 echo "trust=AGENTS.md"
 echo "entry=./aos status"

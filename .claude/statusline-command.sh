@@ -186,6 +186,7 @@ git = status.get("git", {})
 branch = git.get("branch") or "?"
 dirty = git.get("dirty_files", "?")
 ahead = git.get("ahead_of_origin_main", 0)
+ahead = git.get("ahead_of_upstream", ahead)
 health = status.get("status") or "aos?"
 line2 = f"{branch} | d{dirty} | {health} | +{ahead}"
 
