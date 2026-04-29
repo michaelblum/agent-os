@@ -1,0 +1,6 @@
+{
+  "observation_id": "obs_001",
+  "action_id": "act_001",
+  "url": "https://example.test/careers/benefits",
+  "summary": "Benefits page loaded; employee voice proof point visible."
+}

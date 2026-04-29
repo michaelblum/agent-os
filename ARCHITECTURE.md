@@ -131,6 +131,21 @@ The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to del
 
 As of spec `docs/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`, a browser tab is a first-class target for `see`, `do`, and `show` verbs. The adapter lives entirely in the CLI process (`src/browser/`) and shells out to Microsoft's `playwright-cli`; the daemon is unchanged. Targets use the grammar `browser:<session>[/<ref>]` where `<session>` is the `playwright-cli -s=<name>` session (registered as an aos focus channel) and `<ref>` is a ref from a prior `aos see capture browser:<session> --xray`. Overlays anchored to browser elements are static in v1 — they follow Chrome window movement (via `anchor_window`) but not page scroll; agents re-issue `aos show update --anchor-browser …` to re-anchor.
 
+### Steerable Browser Collection
+
+Steerable collection V0 builds on browser targets, toolkit run control, and
+daemon canvases without adding a new primitive. The canonical record is an
+append-only JSONL timeline plus a mode-scoped source pack under
+`~/.config/aos/{mode}/source-packs/<session_id>/`. Shared contracts live in
+`shared/schemas/` and are summarized in `docs/api/steerable-collection.md`.
+
+The V0 run puck is a sibling `aos show` canvas served from
+`aos://toolkit/run-puck/index.html`; it is not mounted inside Sigil. Browser
+human marks are canonicalized by toolkit code and carry
+`locator_strategy_version: "aos.browser-locator.v0"` with locator candidates.
+Desktop sensing, replay codegen, voice attribution, and audit workflow
+normalization are follow-up layers, not V0 behavior.
+
 ### Communication Routing
 
 ```
