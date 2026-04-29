@@ -1,4 +1,4 @@
-# Supervised Test Runs and HITL Test Console
+# Supervised Runs and HITL Test Console
 
 Tracking epic: GitHub issue #149.
 
@@ -13,11 +13,17 @@ Child issues:
 
 ## Core Shape
 
-Build a supervised test-run substrate for AOS: agents run automated checks, and
-steps that require visual or real-input judgment are routed through a sibling
-test console canvas. The console presents one step at a time, captures human
-confirmation, failure, blocked state, retry, and notes as structured events, and
-feeds those events back into a canonical test timeline.
+Build a supervised-run substrate for AOS: agents perform work in an explicit
+operating path, run control keeps the work bounded, human feedback is captured
+as structured evidence, and the whole run produces a canonical timeline plus an
+artifact pack.
+
+HITL testing is the first concrete projection of that substrate. In that
+projection, agents run automated checks, and steps that require visual or
+real-input judgment are routed through a sibling test console canvas. The
+console presents one step at a time, captures human confirmation, failure,
+blocked state, retry, skip, and notes as structured events, and feeds those
+events back into a canonical test timeline.
 
 This is steerable collection applied to verification. Human intent sensing
 captured run control, human marks, canonical timeline, and evidence/source-pack
@@ -27,6 +33,40 @@ evidence/artifact output.
 
 Do not build this as a separate philosophy. Build it as a sibling projection
 over the same primitives.
+
+## Roadmap
+
+The roadmap has one shared substrate and several domain projections:
+
+```text
+shared substrate
+  -> run control
+  -> operating paths
+  -> single-writer timeline
+  -> artifact/evidence pack
+  -> human feedback sidecar
+  -> deterministic fixtures
+
+projections
+  -> supervised testing
+  -> steerable collection
+  -> workflow playback
+  -> agent/user collaboration
+  -> intent feedback loops
+```
+
+The first implementation vertical is supervised testing because it gives the
+project an immediate operational payoff: visual/runtime checks stop living only
+in chat and become durable evidence.
+
+The second vertical is shared artifact mechanics. Once supervised testing and
+steerable collection both produce run evidence, factor the common timeline and
+artifact-pack code into `src/sessions/run-artifacts/`.
+
+The third vertical is operating-path data. Once the testing pilot proves the
+shape, define reusable path records for headless, headed, real-input,
+HITL-sidecar, visual diagnostics, and input-routing diagnostics. Keep the tree
+shallow so it remains an execution contract rather than another skills system.
 
 ## Operating Path
 
@@ -59,6 +99,29 @@ step through the test console.
   artifact mechanics only after both domains need them.
 - Real-input verification is only required where the behavior depends on real
   host routing. Deterministic logic can stay synthetic/headless.
+
+## SOP
+
+Use this operating procedure for supervised run and HITL verification work:
+
+1. Start from the narrowest operating path that fits the task.
+2. Use headless deterministic checks for schema, state-machine, pure toolkit,
+   and artifact-writer behavior.
+3. Escalate to headed checks when canvas lifecycle, display, or browser UI state
+   is part of the claim.
+4. Escalate to real-input checks when the behavior depends on macOS input taps,
+   event ownership, pointer routing, keyboard routing, or user gesture timing.
+5. Escalate to HITL-sidecar when the expected result depends on human visual
+   judgment or user-facing acceptance.
+6. State the operating-path change when it changes authority, sensors, or
+   verification obligations.
+7. Emit every step, automated assertion, human request, human response, and
+   artifact reference as an append-only event.
+8. Keep the console as human I/O only. Test logic belongs in the harness and
+   domain adapters.
+9. Write summaries and artifacts under the run directory so issue and PR updates
+   can cite durable evidence instead of chat memory.
+10. De-escalate once the elevated sensor or authority is no longer needed.
 
 ## Substrate Model
 
