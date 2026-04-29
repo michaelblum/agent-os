@@ -1,0 +1,323 @@
+{
+  "$schema": "../../shared/schemas/dev-workflow-rules.schema.json",
+  "id": "aos/dev-workflow-rules",
+  "version": 1,
+  "summary": "Classify repo changes into deterministic AOS developer workflow actions without relying on session memory.",
+  "default_entry_path": "agent/dev",
+  "rules": [
+    {
+      "id": "swift-binary-source",
+      "summary": "Swift source changes require a fresh signed repo binary before ./aos-backed verification.",
+      "match": {
+        "paths": [
+          "src/**/*.swift",
+          "shared/swift/ipc/**/*.swift"
+        ]
+      },
+      "entry_path": "agent/dev",
+      "risk_flags": [
+        "tcc_identity_sensitive",
+        "daemon_state_sensitive"
+      ],
+      "actions": [
+        {
+          "id": "build",
+          "kind": "build",
+          "command": [
+            "./aos",
+            "dev",
+            "build",
+            "--no-restart"
+          ],
+          "mutates_runtime": false,
+          "reason": "The repo binary must include the changed Swift code, and signing should stay under the AOS build surface."
+        },
+        {
+          "id": "ready",
+          "kind": "ready_check",
+          "command": [
+            "./aos",
+            "ready"
+          ],
+          "requires": [
+            "build"
+          ],
+          "mutates_runtime": true,
+          "reason": "AOS-backed verification depends on daemon ownership, Accessibility, and Input Monitoring readiness."
+        }
+      ],
+      "verification": [
+        {
+          "id": "focused",
+          "command": [
+            "node",
+            "--test"
+          ],
+          "when": "Run the smallest focused test suite that covers the changed behavior."
+        }
+      ],
+      "human_handoff": {
+        "condition": "ready reports diagnosis=daemon_tcc_grant_stale_or_missing",
+        "instruction": "Stop automated repair loops and tell the human the repo-mode aos permission grant is stale; they must remove and re-add aos in Accessibility and Input Monitoring.",
+        "resume_command": [
+          "./aos",
+          "ready",
+          "--post-permission"
+        ]
+      },
+      "control_surface": {
+        "preferred": "./aos dev build --no-restart",
+        "fallback": "bash build.sh only when ./aos cannot run or the build control surface itself is being repaired",
+        "ui_projection": "Show build, ready, and human handoff state as a small developer command tree."
+      }
+    },
+    {
+      "id": "dev-build-surface",
+      "summary": "Build-surface changes may need the raw build script once, then must return to the AOS control surface.",
+      "match": {
+        "paths": [
+          "build.sh",
+          "src/commands/dev.swift",
+          "src/shared/command-registry-data.swift"
+        ],
+        "commands": [
+          "aos dev build",
+          "aos help dev"
+        ]
+      },
+      "entry_path": "agent/dev",
+      "risk_flags": [
+        "tcc_identity_sensitive"
+      ],
+      "actions": [
+        {
+          "id": "selfhost",
+          "kind": "build",
+          "command": [
+            "./aos",
+            "dev",
+            "build",
+            "--no-restart",
+            "--json"
+          ],
+          "mutates_runtime": false,
+          "reason": "Prove the AOS developer control surface owns the build flow; use raw build.sh only if ./aos cannot run."
+        }
+      ],
+      "verification": [
+        {
+          "id": "help",
+          "command": [
+            "./aos",
+            "help",
+            "dev"
+          ],
+          "when": "Confirm the command is discoverable."
+        }
+      ],
+      "human_handoff": {
+        "condition": "ready reports diagnosis=daemon_tcc_grant_stale_or_missing",
+        "instruction": "Use the normal post-build TCC handoff; do not keep repairing in a loop.",
+        "resume_command": [
+          "./aos",
+          "ready",
+          "--post-permission"
+        ]
+      },
+      "control_surface": {
+        "preferred": "./aos dev build --no-restart --json",
+        "fallback": "bash build.sh --no-restart only while repairing or introducing ./aos dev build"
+      }
+    },
+    {
+      "id": "toolkit-canvas-surface",
+      "summary": "Toolkit canvas changes should prefer content reload and canvas checks over a Swift rebuild.",
+      "match": {
+        "paths": [
+          "packages/toolkit/**/*.js",
+          "packages/toolkit/**/*.css",
+          "packages/toolkit/**/*.html"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headed",
+      "risk_flags": [
+        "display_sensitive"
+      ],
+      "actions": [
+        {
+          "id": "classify",
+          "kind": "classify_only",
+          "mutates_runtime": false,
+          "reason": "Toolkit web assets do not require rebuilding ./aos by default."
+        },
+        {
+          "id": "reload",
+          "kind": "reload_canvas",
+          "command": [
+            "./aos",
+            "show",
+            "reload"
+          ],
+          "mutates_runtime": true,
+          "reason": "Loaded canvases need refreshed content to show web asset changes."
+        }
+      ],
+      "verification": [
+        {
+          "id": "canvas-ready",
+          "command": [
+            "./aos",
+            "show",
+            "wait"
+          ],
+          "when": "Use when a toolkit component is projected through aos:// content."
+        }
+      ],
+      "control_surface": {
+        "preferred": "content reload plus ./aos show wait/eval",
+        "ui_projection": "Offer reload and show-wait actions for the affected canvas."
+      }
+    },
+    {
+      "id": "schema-contract",
+      "summary": "Shared schema changes should run schema fixtures before runtime checks.",
+      "match": {
+        "paths": [
+          "shared/schemas/**/*.json",
+          "tests/schemas/**/*.mjs"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless",
+      "risk_flags": [
+        "schema_contract"
+      ],
+      "actions": [
+        {
+          "id": "schema-tests",
+          "kind": "test",
+          "command": [
+            "node",
+            "--test",
+            "tests/schemas/*.test.mjs"
+          ],
+          "mutates_runtime": false,
+          "reason": "Schema and fixture contracts are verified without daemon or display state."
+        }
+      ],
+      "verification": [
+        {
+          "id": "fixtures",
+          "command": [
+            "node",
+            "--test",
+            "tests/schemas/*.test.mjs"
+          ],
+          "when": "Always run after changing shared schema contracts or fixtures."
+        }
+      ],
+      "control_surface": {
+        "preferred": "node --test tests/schemas/*.test.mjs"
+      }
+    },
+    {
+      "id": "docs-recipe-only",
+      "summary": "Docs and recipes usually need review, not rebuild or daemon mutation.",
+      "match": {
+        "paths": [
+          "AGENTS.md",
+          "docs/**/*.md",
+          "docs/reference/**/*.json"
+        ]
+      },
+      "entry_path": "agent/dev",
+      "risk_flags": [
+        "docs_only"
+      ],
+      "actions": [
+        {
+          "id": "classify",
+          "kind": "classify_only",
+          "mutates_runtime": false,
+          "reason": "Documentation-only changes should not trigger a binary rebuild unless they document a command that also changed."
+        }
+      ],
+      "verification": [
+        {
+          "id": "schema-if-json",
+          "command": [
+            "node",
+            "--test",
+            "tests/schemas/dev-workflow-rules.test.mjs"
+          ],
+          "when": "Run when docs/reference/aos-dev-workflow-rules.json changes."
+        }
+      ],
+      "control_surface": {
+        "preferred": "review changed docs and run schema tests only for structured docs"
+      }
+    },
+    {
+      "id": "aos-shell-integration-test",
+      "summary": "Shell tests that invoke ./aos need the binary freshness decision before the test run.",
+      "match": {
+        "paths": [
+          "tests/**/*.sh"
+        ],
+        "commands": [
+          "./aos"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless",
+      "risk_flags": [
+        "daemon_state_sensitive"
+      ],
+      "actions": [
+        {
+          "id": "ready",
+          "kind": "ready_check",
+          "command": [
+            "./aos",
+            "ready"
+          ],
+          "mutates_runtime": true,
+          "reason": "Shell integration tests that invoke ./aos depend on daemon readiness and mode isolation."
+        },
+        {
+          "id": "test",
+          "kind": "test",
+          "command": [
+            "bash",
+            "tests/<test>.sh"
+          ],
+          "requires": [
+            "ready"
+          ],
+          "mutates_runtime": true,
+          "reason": "Run the focused shell test after readiness is established."
+        }
+      ],
+      "verification": [
+        {
+          "id": "focused-shell",
+          "command": [
+            "bash",
+            "tests/<test>.sh"
+          ],
+          "when": "Use the specific shell test touched by the change."
+        }
+      ],
+      "human_handoff": {
+        "condition": "ready reports diagnosis=daemon_tcc_grant_stale_or_missing",
+        "instruction": "Stop and use the standard post-permission handoff before running the integration test.",
+        "resume_command": [
+          "./aos",
+          "ready",
+          "--post-permission"
+        ]
+      },
+      "control_surface": {
+        "preferred": "./aos ready, then focused shell test"
+      }
+    }
+  ]
+}

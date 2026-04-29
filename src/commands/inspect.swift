@@ -111,6 +111,12 @@ func inspectCommand(args: [String]) {
             guard let envelope = decodeEnvelope(json) else { continue }
 
             switch envelope.event {
+            case "target_changed":
+                sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
+                    "type": "inspector/target",
+                    "payload": envelope.data
+                ])
+
             case "element_focused":
                 sendHeadsupMessage(session: session, canvasID: INSPECTOR_CANVAS_ID, payload: [
                     "type": "inspector/element",

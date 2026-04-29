@@ -1,0 +1,25 @@
+{
+  "type": "target.probe",
+  "schema_version": "aos.target-probe.v0",
+  "probe_id": "probe_invalid_missing_budgets",
+  "mode": "fast",
+  "origin": {
+    "kind": "cursor",
+    "point": { "x": 100, "y": 200 }
+  },
+  "surface": {
+    "kind": "native_app",
+    "app": "Finder"
+  },
+  "target": {
+    "kind": "ax_element",
+    "role": "AXButton",
+    "label": "Open"
+  },
+  "path": [],
+  "handles": {
+    "target": "probe://probe_invalid_missing_budgets/target"
+  },
+  "available_expansions": [],
+  "at": "2026-04-29T14:40:00Z"
+}

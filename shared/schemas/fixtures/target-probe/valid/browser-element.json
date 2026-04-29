@@ -1,0 +1,68 @@
+{
+  "type": "target.probe",
+  "schema_version": "aos.target-probe.v0",
+  "probe_id": "probe_browser_element_001",
+  "mode": "useful",
+  "origin": {
+    "kind": "gesture",
+    "display_id": 1,
+    "point": { "x": 896, "y": 384 },
+    "gesture": "avatar-drag-set-focus"
+  },
+  "surface": {
+    "kind": "browser",
+    "app": "Google Chrome",
+    "bundle_id": "com.google.Chrome",
+    "pid": 7331,
+    "window_id": 912,
+    "browser_session": "research",
+    "url": "https://example.test/transcript",
+    "title": "Meeting Transcript"
+  },
+  "target": {
+    "kind": "browser_element",
+    "role": "paragraph",
+    "name": "Transcript paragraph",
+    "text_preview": "We need the intake system to keep the raw transcript available while adding processed knowledge nodes.",
+    "bounds": { "x": 240, "y": 320, "width": 760, "height": 64 },
+    "ref": "e42",
+    "selector": "main article p:nth-of-type(3)"
+  },
+  "path": [
+    { "kind": "display", "label": "Display 1" },
+    { "kind": "app", "label": "Google Chrome" },
+    { "kind": "page", "label": "Meeting Transcript" },
+    { "kind": "section", "label": "Transcript" },
+    {
+      "kind": "control",
+      "label": "Transcript paragraph",
+      "role": "paragraph",
+      "handle": "browser://research/e42"
+    }
+  ],
+  "handles": {
+    "target": "probe://probe_browser_element_001/target",
+    "browser_ref": "browser://research/e42",
+    "surface": "browser://research"
+  },
+  "available_expansions": [
+    "target.text.full",
+    "browser.snapshot",
+    "browser.dom_context",
+    "browser.locator_candidates",
+    "artifact.capture"
+  ],
+  "privacy": {
+    "redaction": "default"
+  },
+  "budgets": {
+    "elapsed_ms": 146,
+    "text_preview_chars": 180,
+    "text_total_chars": 96,
+    "max_nodes": 40,
+    "nodes_returned": 5,
+    "max_depth": 8,
+    "depth_returned": 5
+  },
+  "at": "2026-04-29T14:35:00Z"
+}

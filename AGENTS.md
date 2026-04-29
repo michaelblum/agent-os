@@ -128,10 +128,19 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   the first move. `./aos ready` is the explicit daemon bring-up and readiness
   gate; startup hooks should stay lightweight and avoid hidden runtime mutation.
 
-- Do not default to `bash build.sh` before every test or verification step.
+- Use `./aos dev build` for repo `./aos` rebuilds. It is the canonical
+  developer build control surface because it wraps signing-aware `build.sh` and
+  prints the macOS permission/TCC implication. Do not call `bash build.sh`
+  directly unless you are fixing the build surface itself or `./aos` cannot run.
+- Do not default to rebuilding before every test or verification step.
   Rebuild `./aos` only when the work changes Swift sources in `src/` or
   `shared/swift/ipc/`, or when the command/test you are about to run executes
   `./aos` directly.
+- If a repo build changes the signing identity or readiness reports
+  `daemon_tcc_grant_stale_or_missing`, stop and tell the human the repo-mode
+  `aos` macOS grant is stale. The human removes/re-adds Accessibility/Input
+  Monitoring for `aos`, comes back with "ready", and the agent runs exactly
+  `./aos ready --post-permission`.
 - Pure Node/TypeScript/package workflows should stay in their local loop unless
   they explicitly depend on a fresh `./aos` binary. Examples: `packages/gateway`
   build/test, `packages/host` test, and pure `node --test` suites under

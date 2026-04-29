@@ -412,6 +412,7 @@ func readyCommand(args: [String]) {
         actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
     }
 
+    var usedAutoRepair = false
     if !repair && !skipServiceStart,
        let autoRepairReason = readyAutoRepairReason(response, postPermission: postPermission) {
         response = runReadyRuntimeRepair(
@@ -423,6 +424,7 @@ func readyCommand(args: [String]) {
             reason: autoRepairReason
         )
         actionTrace = response.action_trace
+        usedAutoRepair = true
     }
 
     if repair && !response.ready {
@@ -447,7 +449,7 @@ func readyCommand(args: [String]) {
             ))
             response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
         }
-    } else {
+    } else if !usedAutoRepair {
         response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
     }
 
@@ -1294,12 +1296,34 @@ private func waitForReadyResponse(
         response = buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
         if response.ready {
             trace.append(ReadyActionStep(step: "wait_for_recovery", result: "ready", detail: "daemon became ready during repair wait"))
-            return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+            return response.withActionTrace(trace)
         }
         usleep(500_000)
     }
     trace.append(ReadyActionStep(step: "wait_for_recovery", result: "timed_out", detail: "daemon did not become ready within \(budgetMs)ms"))
     return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
+}
+
+private extension ReadyResponse {
+    func withActionTrace(_ trace: [ReadyActionStep]) -> ReadyResponse {
+        ReadyResponse(
+            status: status,
+            ready: ready,
+            phase: phase,
+            diagnosis: diagnosis,
+            mode: mode,
+            ready_source: ready_source,
+            startup: startup,
+            runtime: runtime,
+            permissions: permissions,
+            permissions_setup: permissions_setup,
+            blocked_capabilities: blocked_capabilities,
+            blockers: blockers,
+            next_actions: next_actions,
+            action_trace: trace,
+            notes: notes
+        )
+    }
 }
 
 private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bool) -> String? {

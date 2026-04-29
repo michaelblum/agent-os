@@ -12,13 +12,18 @@ LOCK_PATH="${AOS_BUILD_LOCK_PATH:-$BUILD_DIR/aos-build.lock}"
 BUILD_MODE="dev"
 FORCE_BUILD=0
 RESTART_DAEMON=1
+BUILD_SIGN="${AOS_BUILD_SIGN:-auto}"
+BUILD_SIGN_IDENTITY="${AOS_BUILD_SIGN_IDENTITY:-auto}"
+BUILD_SIGN_STRICT="${AOS_BUILD_SIGN_STRICT:-false}"
 
 usage() {
     cat <<'EOF'
-Usage: bash build.sh [--release] [--force] [--no-restart]
+Usage: bash build.sh [--release] [--force] [--no-restart] [--no-sign]
 
 Default mode is a faster development build (`-Onone`).
 Use `--release` for optimized artifacts such as packaged app builds.
+By default, local builds codesign ./aos with an available stable identity when
+one exists. Use --no-sign or AOS_BUILD_SIGN=false to skip that step.
 EOF
 }
 
@@ -32,6 +37,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-restart)
             RESTART_DAEMON=0
+            ;;
+        --no-sign)
+            BUILD_SIGN="false"
             ;;
         --help|-h)
             usage
@@ -105,6 +113,80 @@ fi
 
 echo "Compiling aos ($BUILD_MODE)..."
 swiftc "${SWIFTC_FLAGS[@]}" "${SOURCES[@]}" "${SHARED_IPC[@]}"
+
+find_signing_identity() {
+    local requested="${1:-auto}"
+    local identities
+
+    if [[ "$requested" != "auto" ]]; then
+        printf '%s|%s\n' "$requested" "$requested"
+        return 0
+    fi
+
+    identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    python3 - <<'PY' "$identities"
+import re
+import sys
+
+lines = sys.argv[1].splitlines()
+matches = []
+for line in lines:
+    m = re.search(r'\)\s*([0-9A-F]{40})\s+"([^"]+)"', line)
+    if m:
+        matches.append((m.group(1), m.group(2)))
+
+preferred = None
+for needle in ("Apple Development", "Developer ID Application"):
+    for digest, name in matches:
+        if name.startswith(needle):
+            preferred = (digest, name)
+            break
+    if preferred:
+        break
+
+if preferred is None and matches:
+    preferred = matches[0]
+
+if preferred is None:
+    print("|")
+else:
+    print(f"{preferred[0]}|{preferred[1]}")
+PY
+}
+
+sign_aos_binary() {
+    if [[ "$BUILD_SIGN" == "false" || "$BUILD_SIGN" == "0" || "$BUILD_SIGN" == "no" ]]; then
+        echo "Signing skipped: ./aos"
+        return 0
+    fi
+
+    local identity_record identity identity_label
+    identity_record="$(find_signing_identity "$BUILD_SIGN_IDENTITY")"
+    identity="${identity_record%%|*}"
+    identity_label="${identity_record#*|}"
+
+    if [[ -z "$identity" ]]; then
+        if [[ "$BUILD_SIGN_STRICT" == "true" ]]; then
+            echo "No codesigning identity found for ./aos" >&2
+            exit 1
+        fi
+        echo "Signing skipped: no codesigning identity found for ./aos" >&2
+        return 0
+    fi
+
+    if codesign --force --sign "$identity" --timestamp=none "$OUTPUT_PATH" >/dev/null 2>&1; then
+        echo "Signed: ./aos ($identity_label)"
+        return 0
+    fi
+
+    if [[ "$BUILD_SIGN_STRICT" == "true" ]]; then
+        echo "Signing failed for ./aos with identity: $identity_label" >&2
+        exit 1
+    fi
+    echo "Warning: signing failed for ./aos with identity '$identity_label'; leaving build unsigned." >&2
+}
+
+sign_aos_binary
 printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"

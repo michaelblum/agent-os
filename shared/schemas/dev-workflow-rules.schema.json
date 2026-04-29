@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/dev-workflow-rules.schema.json",
+  "title": "AOS Dev Workflow Rules",
+  "description": "Manifest contract for classifying repo changes into deterministic developer workflow actions.",
+  "type": "object",
+  "required": ["id", "version", "summary", "default_entry_path", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)+$"
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "default_entry_path": { "$ref": "#/$defs/EntryPath" },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Rule" }
+    }
+  },
+  "$defs": {
+    "Rule": {
+      "type": "object",
+      "required": ["id", "summary", "match", "entry_path", "actions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "match": { "$ref": "#/$defs/Match" },
+        "entry_path": { "$ref": "#/$defs/EntryPath" },
+        "risk_flags": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "tcc_identity_sensitive",
+              "daemon_state_sensitive",
+              "display_sensitive",
+              "real_input_sensitive",
+              "docs_only",
+              "schema_contract"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Action" }
+        },
+        "verification": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Verification" },
+          "uniqueItems": true
+        },
+        "human_handoff": { "$ref": "#/$defs/HumanHandoff" },
+        "control_surface": { "$ref": "#/$defs/ControlSurface" }
+      }
+    },
+    "Match": {
+      "type": "object",
+      "required": ["paths"],
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "commands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "Action": {
+      "type": "object",
+      "required": ["id", "kind", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "kind": {
+          "enum": [
+            "build",
+            "ready_check",
+            "test",
+            "reload_canvas",
+            "restart_daemon",
+            "classify_only",
+            "human_handoff"
+          ]
+        },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "uniqueItems": true
+        },
+        "mutates_runtime": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Verification": {
+      "type": "object",
+      "required": ["id", "command", "when"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "when": { "type": "string", "minLength": 1 }
+      }
+    },
+    "HumanHandoff": {
+      "type": "object",
+      "required": ["condition", "instruction", "resume_command"],
+      "additionalProperties": false,
+      "properties": {
+        "condition": { "type": "string", "minLength": 1 },
+        "instruction": { "type": "string", "minLength": 1 },
+        "resume_command": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "ControlSurface": {
+      "type": "object",
+      "required": ["preferred"],
+      "additionalProperties": false,
+      "properties": {
+        "preferred": { "type": "string", "minLength": 1 },
+        "fallback": { "type": "string", "minLength": 1 },
+        "ui_projection": { "type": "string", "minLength": 1 }
+      }
+    },
+    "EntryPath": {
+      "type": "string",
+      "pattern": "^agent(/[a-z][a-z0-9-]*)+$"
+    }
+  }
+}

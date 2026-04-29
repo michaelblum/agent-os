@@ -1,0 +1,72 @@
+{
+  "type": "target.probe",
+  "schema_version": "aos.target-probe.v0",
+  "probe_id": "probe_native_permission_row_001",
+  "mode": "fast",
+  "origin": {
+    "kind": "cursor",
+    "display_id": 2,
+    "point": { "x": 1440, "y": 812 }
+  },
+  "surface": {
+    "kind": "native_app",
+    "app": "System Settings",
+    "bundle_id": "com.apple.systempreferences",
+    "pid": 4212,
+    "window_id": 187,
+    "window_title": "Privacy & Security"
+  },
+  "target": {
+    "kind": "ax_element",
+    "role": "AXStaticText",
+    "label": "aos",
+    "value_preview": "aos",
+    "enabled": true,
+    "bounds": { "x": 1220, "y": 492, "width": 38, "height": 18 }
+  },
+  "path": [
+    { "kind": "display", "label": "Display 2" },
+    { "kind": "app", "label": "System Settings" },
+    { "kind": "section", "label": "Privacy & Security" },
+    { "kind": "group", "label": "Input Monitoring" },
+    {
+      "kind": "row",
+      "label": "aos",
+      "handle": "probe://probe_native_permission_row_001/path/4",
+      "state": { "enabled": true }
+    }
+  ],
+  "nearby": [
+    {
+      "relation": "sibling-control",
+      "kind": "control",
+      "role": "AXCheckBox",
+      "label": "aos",
+      "value": true,
+      "handle": "probe://probe_native_permission_row_001/nearby/0"
+    }
+  ],
+  "handles": {
+    "target": "probe://probe_native_permission_row_001/target",
+    "row": "probe://probe_native_permission_row_001/path/4",
+    "surface": "native://pid/4212"
+  },
+  "available_expansions": [
+    "target.actions",
+    "row.children",
+    "surface.visible_controls"
+  ],
+  "privacy": {
+    "redaction": "default"
+  },
+  "budgets": {
+    "elapsed_ms": 34,
+    "text_preview_chars": 180,
+    "text_total_chars": 3,
+    "max_nodes": 12,
+    "nodes_returned": 7,
+    "max_depth": 6,
+    "depth_returned": 5
+  },
+  "at": "2026-04-29T14:30:00Z"
+}

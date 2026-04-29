@@ -14,7 +14,9 @@ This directory documents the interfaces consumers are expected to build against:
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
 - [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
 - [`steerable-collection.md`](./steerable-collection.md) — browser-only V0 steerable collection schemas and source-pack contract
+- [`target-probe.md`](./target-probe.md) — structured target-acquisition packet used by `aos see target`, inspect, and intent projections
 - [`toolkit.md`](./toolkit.md) — the toolkit runtime and panel APIs for WKWebView surfaces
+- [`../reference/aos-dev-workflow-rules.json`](../reference/aos-dev-workflow-rules.json) — schema-backed seed manifest for AOS developer workflow classification and recommendation
 
 It does **not** try to replace:
 

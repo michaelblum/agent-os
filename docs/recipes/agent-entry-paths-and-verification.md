@@ -32,6 +32,10 @@ repo files, running tests, restarting canvases, reading logs, or committing a
 checkpoint. Treat these as elevated privileges, not as capabilities that normal
 app agents automatically inherit.
 
+For Swift rebuilds, use `./aos dev build`, not raw `bash build.sh`, unless the
+build control surface itself is broken. See
+`docs/recipes/aos-developer-builds.md`.
+
 ### Testing
 
 Use the smallest stable test harness that exercises the changed behavior. Prefer

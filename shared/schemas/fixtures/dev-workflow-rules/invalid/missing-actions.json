@@ -1,0 +1,18 @@
+{
+  "id": "aos/dev-workflow-rules",
+  "version": 1,
+  "summary": "Invalid manifest missing required rule actions.",
+  "default_entry_path": "agent/dev",
+  "rules": [
+    {
+      "id": "schema-contract",
+      "summary": "Schema changes run schema tests.",
+      "match": {
+        "paths": [
+          "shared/schemas/**/*.json"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless"
+    }
+  ]
+}

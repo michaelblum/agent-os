@@ -6,6 +6,10 @@ import Foundation
 
 /// aos see cursor — query display, window, and AX element at cursor position.
 func cursorCommand() {
+    print(jsonString(buildCursorResponse()))
+}
+
+func buildCursorResponse() -> CursorResponse {
     let cursorPt = mouseInCGCoords()
 
     // -- Which display? --
@@ -73,5 +77,5 @@ func cursorCommand() {
         window: matchedWindow,
         element: matchedElement
     )
-    print(jsonString(response))
+    return response
 }

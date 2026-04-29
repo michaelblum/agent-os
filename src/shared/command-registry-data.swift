@@ -63,6 +63,14 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(permissions: true),
             output: outJSON,
             examples: ["aos see cursor"]),
+        InvocationForm(id: "see-target", usage: "aos see target [--json]",
+            args: [
+                flag("json", "--json", "Emit the target probe as JSON", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(permissions: true),
+            output: outJSON,
+            examples: ["aos see target --json"]),
         InvocationForm(id: "see-capture", usage: "aos see capture <target> [options]",
             args: [
                 pos("target", "Capture target", discovery: captureTargets),
@@ -1066,6 +1074,70 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(),
             output: outText,
             examples: ["aos runtime display-union", "aos runtime display-union --native"])
+    ]))
+
+    // ── dev ───────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["dev"], summary: "Developer workflows that must be routed through AOS itself", forms: [
+        InvocationForm(id: "dev-build", usage: "aos dev build [--release] [--force] [--no-restart] [--no-sign] [--json]",
+            args: [
+                flag("release", "--release", "Build optimized release binary", type: .bool),
+                flag("force", "--force", "Force rebuild even if inputs look up to date", type: .bool),
+                flag("no-restart", "--no-restart", "Do not restart the managed daemon after building", type: .bool),
+                flag("no-sign", "--no-sign", "Skip codesigning the repo ./aos binary", type: .bool),
+                flag("json", "--json", "Emit machine-readable build result", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos dev build --no-restart", "aos dev build --force --json"]),
+        InvocationForm(id: "dev-classify", usage: "aos dev classify [--json] [--manifest <path>] [--paths <csv>] [path...]",
+            args: [
+                flag("json", "--json", "Emit machine-readable workflow classification", type: .bool),
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/reference/aos-dev-workflow-rules.json")),
+                flag("paths", "--paths", "Comma-separated repo paths to classify"),
+                pos("path", "Repo path to classify; repeats are accepted", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev classify --json",
+                "aos dev classify --json src/main.swift packages/toolkit/components/inspector-panel/index.js",
+                "aos dev classify --paths shared/schemas/target-probe.schema.json"
+            ]),
+        InvocationForm(id: "dev-recommend", usage: "aos dev recommend [--json] [--manifest <path>] [--paths <csv>] [path...]",
+            args: [
+                flag("json", "--json", "Emit machine-readable ordered workflow recommendation", type: .bool),
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/reference/aos-dev-workflow-rules.json")),
+                flag("paths", "--paths", "Comma-separated repo paths to recommend for"),
+                pos("path", "Repo path to recommend for; repeats are accepted", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev recommend --json",
+                "aos dev recommend --json src/main.swift packages/toolkit/components/inspector-panel/index.js",
+                "aos dev recommend --paths shared/schemas/target-probe.schema.json"
+            ]),
+        InvocationForm(id: "dev-surface", usage: "aos dev surface [--json] [--id <canvas-id>] [--at <x,y,w,h>] [--ttl <dur>] [--manifest <path>] [--paths <csv>] [path...]",
+            args: [
+                flag("json", "--json", "Emit machine-readable launch/post result", type: .bool),
+                flag("id", "--id", "Command-surface canvas id", default: .string("aos-dev-command-surface")),
+                flag("at", "--at", "Canvas frame as x,y,w,h", default: .string("80,80,560,680")),
+                flag("ttl", "--ttl", "Optional self-cleaning canvas lifetime, e.g. 5m or none"),
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/reference/aos-dev-workflow-rules.json")),
+                flag("paths", "--paths", "Comma-separated repo paths to recommend for"),
+                pos("path", "Repo path to recommend for; repeats are accepted", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: true),
+            output: outJSONFlag,
+            examples: [
+                "aos dev surface --json --ttl 10m",
+                "aos dev surface --id aos-dev-command-surface src/commands/dev.swift",
+                "aos dev surface --paths packages/toolkit/components/command-surface/index.js"
+            ])
     ]))
 
     // ── status ────────────────────────────────────────────

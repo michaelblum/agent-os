@@ -62,6 +62,8 @@ struct AOS {
             serviceCommand(args: Array(args.dropFirst()))
         case "runtime":
             runtimeCommand(args: Array(args.dropFirst()))
+        case "dev":
+            devCommand(args: Array(args.dropFirst()))
         case "status":
             statusCommand(args: Array(args.dropFirst()))
         case "ready":
@@ -234,6 +236,9 @@ func handleSee(args: [String]) {
     case "cursor":
         ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()
+    case "target":
+        ensureInteractivePreflight(command: "aos see target")
+        targetProbeCommand(args: Array(args.dropFirst()))
     case "observe":
         ensureInteractivePreflight(command: "aos see observe")
         observeCommand(args: Array(args.dropFirst()))

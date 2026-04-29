@@ -1,0 +1,61 @@
+{
+  "status": "ok",
+  "manifest": {
+    "id": "aos/dev-workflow-rules",
+    "version": 1,
+    "path": "docs/reference/aos-dev-workflow-rules.json",
+    "summary": "Classify repo changes into deterministic AOS developer workflow actions without relying on session memory."
+  },
+  "default_entry_path": "agent/dev",
+  "changed_paths": [
+    "src/commands/dev.swift",
+    "packages/toolkit/components/command-surface/index.js"
+  ],
+  "unmatched_paths": [],
+  "operating_paths": [
+    "agent/dev",
+    "agent/dev/testing/headed"
+  ],
+  "matched_rules": [
+    "swift-binary-source",
+    "dev-build-surface",
+    "toolkit-canvas-surface"
+  ],
+  "steps": [
+    {
+      "step_id": "step_001",
+      "id": "selfhost",
+      "kind": "build",
+      "command": ["./aos", "dev", "build", "--no-restart", "--json"],
+      "mutates_runtime": false,
+      "reason": "Prove the AOS developer control surface owns the build flow; use raw build.sh only if ./aos cannot run.",
+      "source_rules": ["swift-binary-source", "dev-build-surface"]
+    },
+    {
+      "step_id": "step_002",
+      "id": "ready",
+      "kind": "ready_check",
+      "command": ["./aos", "ready"],
+      "mutates_runtime": true,
+      "reason": "AOS-backed verification depends on daemon ownership, Accessibility, and Input Monitoring readiness.",
+      "source_rules": ["swift-binary-source"],
+      "requires": ["build"]
+    }
+  ],
+  "verification": [
+    {
+      "id": "focused",
+      "command": ["tests/dev-workflow-classify.sh"],
+      "when": "Run the focused CLI contract."
+    }
+  ],
+  "human_handoffs": [
+    {
+      "condition": "ready reports diagnosis=daemon_tcc_grant_stale_or_missing",
+      "instruction": "Stop automated repair loops and tell the human the repo-mode aos permission grant is stale; they must remove and re-add aos in Accessibility and Input Monitoring.",
+      "resume_command": ["./aos", "ready", "--post-permission"],
+      "source_rules": ["swift-binary-source"]
+    }
+  ],
+  "next": "Run step_001, then continue in order unless a human handoff condition is hit."
+}

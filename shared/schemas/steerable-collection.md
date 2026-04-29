@@ -15,6 +15,28 @@ contracts.
 - `human-mark.schema.json`: the browser mark refinement with locator candidates.
 - `evidence-item.schema.json`: V0 evidence records.
 - `source-pack.schema.json`: `source-pack.json` metadata.
+- `target-probe.schema.json`: shared target-acquisition packet that can sit
+  below browser marks, supervised test human checks, playback anchors, and
+  research intake requests.
+
+## Shared Substrate
+
+Steerable collection should decompose into reusable substrate pieces:
+
+```text
+run control
+target probe
+intent event
+agent action
+single-writer timeline
+artifact pack
+projection
+```
+
+In browser V0, `human.mark` remains the domain event. `target.probe` is the
+lower-level perception packet that identifies the marked thing, its surface,
+context path, handles, available expansions, privacy state, and collection
+budget.
 
 ## Locator Strategy
 

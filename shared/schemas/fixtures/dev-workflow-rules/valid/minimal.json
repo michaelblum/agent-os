@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../dev-workflow-rules.schema.json",
+  "id": "aos/dev-workflow-rules",
+  "version": 1,
+  "summary": "Minimal valid workflow rule manifest.",
+  "default_entry_path": "agent/dev",
+  "rules": [
+    {
+      "id": "schema-contract",
+      "summary": "Schema changes run schema tests.",
+      "match": {
+        "paths": [
+          "shared/schemas/**/*.json"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless",
+      "risk_flags": [
+        "schema_contract"
+      ],
+      "actions": [
+        {
+          "id": "test",
+          "kind": "test",
+          "command": [
+            "node",
+            "--test",
+            "tests/schemas"
+          ],
+          "mutates_runtime": false,
+          "reason": "Schema fixtures should validate before runtime checks."
+        }
+      ]
+    }
+  ]
+}

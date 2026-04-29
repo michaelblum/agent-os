@@ -25,8 +25,12 @@ class PerceptionEngine {
     private var lastWindowID: Int = 0
     private var lastAppPID: pid_t = 0
     private var lastAppName: String = ""
+    private var lastAppBundleID: String? = nil
+    private var lastWindowTitle: String? = nil
+    private var lastWindowBounds: Bounds? = nil
     private var lastElementRole: String = ""
     private var lastElementTitle: String = ""
+    private var lastElementSignature: String = ""
     private var cursorIdleTimer: DispatchSourceTimer?
     private var lastMoveTime: Date = Date()
 
@@ -339,20 +343,26 @@ class PerceptionEngine {
 
             let windowID = info[kCGWindowNumber as String] as? Int ?? 0
             let pid = info[kCGWindowOwnerPID as String] as? pid_t ?? 0
+            let title = info[kCGWindowName as String] as? String
+            let bundleID = appLookup[pid]?.bundleID
+            let windowChanged = windowID != lastWindowID
+            let appChanged = pid != lastAppPID
 
-            if windowID != lastWindowID {
-                lastWindowID = windowID
-                let bundleID = appLookup[pid]?.bundleID
+            lastWindowID = windowID
+            lastWindowTitle = title
+            lastWindowBounds = Bounds(from: rect)
+            lastAppPID = pid
+            lastAppName = ownerName
+            lastAppBundleID = bundleID
+
+            if windowChanged {
                 let data = windowEnteredData(
                     window_id: windowID, app: ownerName, pid: Int(pid),
                     bundle_id: bundleID, bounds: Bounds(from: rect))
                 onEvent?("window_entered", data)
             }
 
-            if pid != lastAppPID {
-                lastAppPID = pid
-                lastAppName = ownerName
-                let bundleID = appLookup[pid]?.bundleID
+            if appChanged {
                 let data = appEnteredData(app: ownerName, pid: Int(pid), bundle_id: bundleID)
                 onEvent?("app_entered", data)
             }
@@ -367,17 +377,38 @@ class PerceptionEngine {
         guard AXIsProcessTrusted() else { return }
         guard lastAppPID > 0 else { return }
 
+        let started = Date()
+        let displays = getDisplays()
+        let displayOrdinal = displays.first(where: { $0.bounds.contains(point) })?.ordinal
+            ?? displays.first(where: { $0.isMain })?.ordinal ?? 1
+
         if let hit = axElementAtPoint(pid: lastAppPID, point: point) {
-            let newRole = hit.role
-            let newTitle = hit.title ?? ""
-            if newRole != lastElementRole || newTitle != lastElementTitle {
-                lastElementRole = newRole
-                lastElementTitle = newTitle
+            let signature = targetProbeSignature(window_id: lastWindowID, hit: hit)
+            if signature != lastElementSignature {
+                lastElementSignature = signature
+                lastElementRole = hit.role
+                lastElementTitle = hit.title ?? ""
                 let data = elementFocusedData(
                     role: hit.role, title: hit.title, label: hit.label, value: hit.value,
                     bounds: hit.bounds.map { Bounds(from: $0) },
                     context_path: hit.contextPath)
                 onEvent?("element_focused", data)
+
+                let elapsedMs = Date().timeIntervalSince(started) * 1000.0
+                let targetData = targetProbeEventData(
+                    probe_id: "probe_" + UUID().uuidString.lowercased(),
+                    cursor: point,
+                    display: displayOrdinal,
+                    app: lastAppName.isEmpty ? "unknown" : lastAppName,
+                    pid: Int(lastAppPID),
+                    bundle_id: lastAppBundleID,
+                    window_id: lastWindowID == 0 ? nil : lastWindowID,
+                    window_title: lastWindowTitle,
+                    window_bounds: lastWindowBounds,
+                    hit: hit,
+                    elapsed_ms: elapsedMs
+                )
+                onEvent?("target_changed", targetData)
             }
         }
     }

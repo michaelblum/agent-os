@@ -1,0 +1,25 @@
+{
+  "id": "aos/dev-workflow-rules",
+  "version": 1,
+  "summary": "Invalid manifest with a non-agent entry path.",
+  "default_entry_path": "dev/testing",
+  "rules": [
+    {
+      "id": "schema-contract",
+      "summary": "Schema changes run schema tests.",
+      "match": {
+        "paths": [
+          "shared/schemas/**/*.json"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless",
+      "actions": [
+        {
+          "id": "test",
+          "kind": "test",
+          "reason": "Schema fixtures should validate before runtime checks."
+        }
+      ]
+    }
+  ]
+}

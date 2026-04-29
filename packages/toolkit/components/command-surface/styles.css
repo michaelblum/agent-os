@@ -1,0 +1,201 @@
+/* command-surface — passive command plan renderer. */
+
+.command-surface-body {
+  height: 100%;
+  overflow: auto;
+}
+
+.command-surface {
+  padding: 12px;
+  color: var(--text-primary);
+}
+
+.cs-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-panel);
+}
+
+.cs-kicker,
+.cs-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+}
+
+.cs-header h1 {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cs-status {
+  padding: 2px 8px;
+  border: 1px solid var(--border-panel);
+  border-radius: 999px;
+  font-size: var(--font-size-small);
+  color: var(--text-muted);
+}
+
+.cs-section {
+  margin-top: 12px;
+}
+
+.cs-section h2 {
+  margin: 0 0 6px;
+  color: var(--text-header);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cs-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cs-summary > div {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.cs-summary strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.cs-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cs-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: var(--font-size-small);
+}
+
+.cs-tag.path { color: var(--accent-blue); }
+.cs-tag.warn { color: var(--accent-yellow); }
+.cs-tag.muted { color: var(--text-muted); }
+
+.cs-step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: rgba(10, 10, 18, 0.42);
+}
+
+.cs-step.mutates {
+  border-color: color-mix(in srgb, var(--accent-yellow), var(--border-panel) 70%);
+}
+
+.cs-step-index {
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.cs-step-id {
+  font-weight: 700;
+}
+
+.cs-command,
+.cs-check code,
+.cs-handoff code {
+  display: block;
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cs-reason,
+.cs-handoff p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.cs-requires {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-size-small);
+}
+
+.cs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cs-actions button {
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-small);
+  padding: 4px 7px;
+}
+
+.cs-actions button:hover {
+  background: var(--bg-hover);
+}
+
+.cs-check,
+.cs-handoff {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.cs-condition {
+  font-weight: 700;
+}
+
+.cs-path-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.cs-empty {
+  color: var(--text-muted);
+  padding: 10px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 6px;
+}
+
+.cs-empty.initial {
+  margin: 12px;
+}

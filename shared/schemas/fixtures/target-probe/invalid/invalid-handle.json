@@ -1,0 +1,31 @@
+{
+  "type": "target.probe",
+  "schema_version": "aos.target-probe.v0",
+  "probe_id": "probe_invalid_handle",
+  "mode": "fast",
+  "origin": {
+    "kind": "cursor",
+    "point": { "x": 100, "y": 200 }
+  },
+  "surface": {
+    "kind": "native_app",
+    "app": "Finder"
+  },
+  "target": {
+    "kind": "ax_element",
+    "role": "AXButton",
+    "label": "Open"
+  },
+  "path": [],
+  "handles": {
+    "target": "not-a-handle"
+  },
+  "available_expansions": [],
+  "budgets": {
+    "elapsed_ms": 12,
+    "text_preview_chars": 180,
+    "max_nodes": 12,
+    "max_depth": 6
+  },
+  "at": "2026-04-29T14:40:00Z"
+}

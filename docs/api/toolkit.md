@@ -68,6 +68,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
 - `aos://toolkit/components/integration-hub/index.html` - provider-neutral chat integration dashboard backed by the local integration broker snapshot API
+- `aos://toolkit/components/command-surface/index.html` - passive command-plan surface for schema-backed workflow recommendations such as `aos dev recommend --json`
 - `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
@@ -179,6 +180,41 @@ Consumer override:
 
 - pass `IntegrationHub({ brokerUrl: 'http://127.0.0.1:48200' })` when the
   broker is not on the default port
+
+### Command Surface
+
+`command-surface` is a generic, passive projection for command plans. It is
+designed to render payloads such as `./aos dev recommend --json` without adding
+another workflow engine or app-specific control panel.
+
+Launch the stock AOS developer projection with:
+
+```bash
+./aos dev surface --json
+```
+
+Accepted message types:
+
+- `command-surface/recommendation` renders a recommendation payload.
+- `command-surface/workflow` is an alias for the same payload shape.
+- `command-surface/clear` clears the displayed state.
+
+The component renders:
+
+- changed paths and matched rules
+- operating paths
+- ordered steps and shell commands
+- verification hints
+- human handoff conditions such as the post-permission TCC SOP
+
+It emits operator intent events only; it does not execute commands:
+
+- `command-surface/step_select`
+- `command-surface/step_done`
+- `command-surface/step_blocked`
+- `command-surface/command_copied`
+
+### Wiki KB
 
 `wiki-kb` accepts a graph snapshot on `wiki-kb/graph` (and tolerates raw
 `wiki/graph` messages for imported-prototype compatibility). Canonical payload:

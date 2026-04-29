@@ -91,6 +91,7 @@ The current top-level commands are:
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos runtime` | packaged runtime utilities |
+| `aos dev` | repo developer workflows such as signing-aware rebuilds |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
 | `aos clean` | explicit stale daemon / canvas cleanup |
@@ -100,6 +101,71 @@ The current top-level commands are:
 | `aos log` | log overlay |
 
 ## Core Usage Patterns
+
+### 0. Developer Build Control Surface
+
+Agents in the AOS developer entry path should rebuild the repo binary through
+the AOS control surface:
+
+```bash
+./aos dev build --no-restart
+./aos dev build --force --json
+```
+
+`aos dev build` wraps `build.sh`, signs `./aos` with a stable local codesigning
+identity when available, and prints the macOS Accessibility/Input Monitoring
+implication. Use raw `bash build.sh` only when fixing the build surface itself
+or when the current `./aos` binary cannot run.
+
+`aos dev classify --json` reads the routing manifest and classifies either the
+current dirty paths from `git status` or explicit paths:
+
+```bash
+./aos dev classify --json
+./aos dev classify --json src/main.swift packages/toolkit/components/inspector-panel/index.js
+```
+
+`aos dev recommend --json` uses the same classification and returns a smaller
+ordered plan for agents or command-surface UI:
+
+```bash
+./aos dev recommend --json
+./aos dev recommend --json src/main.swift
+```
+
+`aos dev surface` opens the stock toolkit command surface and posts the current
+recommendation payload into it:
+
+```bash
+./aos dev surface --json --ttl 10m
+./aos dev surface --id aos-dev-command-surface src/commands/dev.swift
+```
+
+This is a thin composition helper. It sets the toolkit content root, opens or
+updates `aos://toolkit/components/command-surface/index.html`, waits for the
+component manifest, and posts `command-surface/recommendation`. The surface is
+passive and does not execute commands.
+
+Use `--ttl` when the surface is only supporting agent-side verification. Leave a
+developer surface visible only when the agent explicitly hands it to the human
+for evaluation; otherwise remove it with
+`aos show remove --id aos-dev-command-surface` before ending the turn.
+
+The seed routing manifest for `aos dev classify --json` and
+`aos dev recommend --json` is
+[`docs/reference/aos-dev-workflow-rules.json`](../reference/aos-dev-workflow-rules.json).
+It is schema-backed by
+[`shared/schemas/dev-workflow-rules.schema.json`](../../shared/schemas/dev-workflow-rules.schema.json)
+and keeps build, reload, focused test, readiness, and human handoff decisions
+out of session memory.
+
+If a build changes the signing identity, or readiness reports
+`daemon_tcc_grant_stale_or_missing`, the deterministic SOP is:
+
+1. Stop automated repair loops.
+2. Tell the human the repo-mode `aos` macOS grant is stale.
+3. The human removes/re-adds Accessibility and Input Monitoring rows for `aos`.
+4. When the human says `ready`, run `./aos ready --post-permission`.
 
 ### 1. Perceive, Then Act
 
@@ -179,11 +245,18 @@ Primary public verbs:
 | Subcommand | Purpose |
 | --- | --- |
 | `cursor` | inspect what is under the cursor |
+| `target` | emit a compact structured target probe for what the cursor is over |
 | `capture` | capture a target display/window/region |
 | `observe` | stream perception events from the daemon |
 | `list` | enumerate capture/display targets |
 | `selection` | interactive region selection |
 | `zone` | zone helpers |
+
+`aos see target --json` emits a schema-backed `target.probe` packet. It is the
+structured target-acquisition primitive for "what is the human pointing at?"
+and includes origin, surface, target, path, handles, available expansions,
+privacy, and budget metadata. The canonical schema is
+[`shared/schemas/target-probe.schema.json`](../../shared/schemas/target-probe.schema.json).
 
 Shorthand capture is supported:
 

@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/target-probe.schema.json",
+  "title": "AOS Target Probe",
+  "description": "Compact, structured target-acquisition packet for the object under a cursor, hover, gesture, or explicit focus.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "probe_id",
+    "mode",
+    "origin",
+    "surface",
+    "target",
+    "path",
+    "handles",
+    "available_expansions",
+    "budgets",
+    "at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "target.probe" },
+    "schema_version": { "const": "aos.target-probe.v0" },
+    "probe_id": { "type": "string", "minLength": 1 },
+    "mode": { "type": "string", "enum": ["fast", "useful", "deep"] },
+    "origin": { "$ref": "#/$defs/Origin" },
+    "surface": { "$ref": "#/$defs/Surface" },
+    "target": { "$ref": "#/$defs/Target" },
+    "path": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/PathNode" }
+    },
+    "nearby": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/NearbyNode" }
+    },
+    "handles": { "$ref": "#/$defs/Handles" },
+    "available_expansions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Expansion" },
+      "uniqueItems": true
+    },
+    "privacy": { "$ref": "#/$defs/Privacy" },
+    "budgets": { "$ref": "#/$defs/Budgets" },
+    "at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "Rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "Origin": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["cursor", "hover", "gesture", "focus", "natural_language"] },
+        "point": { "$ref": "#/$defs/Point" },
+        "display_id": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "gesture": { "type": "string", "minLength": 1 },
+        "utterance": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["cursor", "hover", "gesture"] } }, "required": ["kind"] },
+          "then": { "required": ["point"] }
+        }
+      ]
+    },
+    "Surface": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["native_app", "browser", "aos_canvas", "desktop_region", "file", "unknown"] },
+        "app": { "type": "string", "minLength": 1 },
+        "bundle_id": { "type": "string", "minLength": 1 },
+        "pid": { "type": "integer" },
+        "window_id": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "window_title": { "type": "string" },
+        "browser_session": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "canvas_id": { "type": "string", "minLength": 1 },
+        "bounds": { "$ref": "#/$defs/Rect" }
+      }
+    },
+    "Target": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ax_element",
+            "browser_element",
+            "browser_region",
+            "canvas_element",
+            "window",
+            "app",
+            "region",
+            "file",
+            "link",
+            "unknown"
+          ]
+        },
+        "role": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "title": { "type": "string" },
+        "name": { "type": "string" },
+        "value_preview": { "type": "string" },
+        "text_preview": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "selected": { "type": "boolean" },
+        "checked": { "type": "boolean" },
+        "bounds": { "$ref": "#/$defs/Rect" },
+        "ref": { "type": "string", "minLength": 1 },
+        "selector": { "type": "string", "minLength": 1 },
+        "mime_type": { "type": "string", "minLength": 1 }
+      }
+    },
+    "PathNode": {
+      "type": "object",
+      "required": ["kind", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["display", "app", "window", "page", "frame", "section", "group", "row", "control", "file", "region", "unknown"]
+        },
+        "label": { "type": "string" },
+        "role": { "type": "string" },
+        "bounds": { "$ref": "#/$defs/Rect" },
+        "handle": { "$ref": "#/$defs/Handle" },
+        "state": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "NearbyNode": {
+      "type": "object",
+      "required": ["relation", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "relation": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "role": { "type": "string" },
+        "label": { "type": "string" },
+        "value": {
+          "type": ["string", "number", "boolean", "null"]
+        },
+        "bounds": { "$ref": "#/$defs/Rect" },
+        "handle": { "$ref": "#/$defs/Handle" }
+      }
+    },
+    "Handle": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9+.-]*://.+$"
+    },
+    "Handles": {
+      "type": "object",
+      "required": ["target"],
+      "additionalProperties": { "$ref": "#/$defs/Handle" },
+      "properties": {
+        "target": { "$ref": "#/$defs/Handle" },
+        "surface": { "$ref": "#/$defs/Handle" },
+        "parent": { "$ref": "#/$defs/Handle" },
+        "row": { "$ref": "#/$defs/Handle" },
+        "browser_ref": { "$ref": "#/$defs/Handle" }
+      }
+    },
+    "Expansion": {
+      "type": "string",
+      "enum": [
+        "target.text.full",
+        "target.attributes",
+        "target.actions",
+        "parent.children",
+        "row.children",
+        "surface.visible_controls",
+        "surface.text",
+        "browser.snapshot",
+        "browser.dom_context",
+        "browser.locator_candidates",
+        "artifact.capture"
+      ]
+    },
+    "Privacy": {
+      "type": "object",
+      "required": ["redaction"],
+      "additionalProperties": false,
+      "properties": {
+        "redaction": { "type": "string", "enum": ["none", "default", "secure_field", "private_surface"] },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "Budgets": {
+      "type": "object",
+      "required": ["elapsed_ms", "text_preview_chars", "max_nodes", "max_depth"],
+      "additionalProperties": false,
+      "properties": {
+        "elapsed_ms": { "type": "number", "minimum": 0 },
+        "text_preview_chars": { "type": "integer", "minimum": 0 },
+        "text_total_chars": { "type": "integer", "minimum": 0 },
+        "max_nodes": { "type": "integer", "minimum": 0 },
+        "nodes_returned": { "type": "integer", "minimum": 0 },
+        "max_depth": { "type": "integer", "minimum": 0 },
+        "depth_returned": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
