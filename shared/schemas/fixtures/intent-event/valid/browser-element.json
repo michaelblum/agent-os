@@ -1,0 +1,63 @@
+{
+  "type": "human.mark",
+  "event_id": "evt_mark_001",
+  "session_id": "steerable-demo",
+  "mark_id": "mark_001",
+  "kind": "element",
+  "target": {
+    "surface": "browser",
+    "target_id": "browser:demo/e17",
+    "app": "Chrome",
+    "window_id": 123,
+    "url": "https://example.test/careers",
+    "title": "Careers"
+  },
+  "anchors": {
+    "semantic": {
+      "role": "link",
+      "name": "Benefits",
+      "text": "Benefits",
+      "selector_hints": ["a[href*='benefits']"]
+    },
+    "spatial": {
+      "viewport_rect": { "x": 120, "y": 340, "width": 180, "height": 44 }
+    },
+    "visual": {
+      "screenshot_path": "artifacts/screenshots/mark_001.png",
+      "crop_path": "artifacts/crops/mark_001.png"
+    },
+    "replay": {
+      "locator_strategy_version": "aos.browser-locator.v0",
+      "selected_locator": "role_name",
+      "locator_candidates": [
+        {
+          "id": "role_name",
+          "kind": "role",
+          "role": "link",
+          "name": "Benefits",
+          "playwright": "page.getByRole('link', { name: 'Benefits' })",
+          "validated_at_mark_time": true
+        },
+        {
+          "id": "text",
+          "kind": "text",
+          "text": "Benefits",
+          "playwright": "page.getByText('Benefits')",
+          "validated_at_mark_time": true
+        },
+        {
+          "id": "css",
+          "kind": "css",
+          "selector": "a[href*='benefits']",
+          "playwright": "page.locator('a[href*=\"benefits\"]')",
+          "validated_at_mark_time": true
+        }
+      ],
+      "aos_target": "browser:demo/e17"
+    }
+  },
+  "utterance": "This is probably where benefits proof lives.",
+  "confidence": 0.82,
+  "resolution": "unresolved",
+  "at": "2026-04-28T12:00:04Z"
+}

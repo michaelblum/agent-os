@@ -1,0 +1,10 @@
+{
+  "type": "agent.observation",
+  "event_id": "evt_bad_obs_001",
+  "session_id": "steerable-demo",
+  "observation_id": "obs_bad_001",
+  "action_id": "act_001",
+  "artifact_refs": ["artifacts/observations/obs_bad_001.json"],
+  "payload": { "inline_tree": true },
+  "at": "2026-04-28T12:00:02Z"
+}

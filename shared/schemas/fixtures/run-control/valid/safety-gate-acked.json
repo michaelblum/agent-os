@@ -1,0 +1,9 @@
+{
+  "type": "safety_gate.acked",
+  "event_id": "evt_gate_002",
+  "session_id": "steerable-demo",
+  "gate_id": "gate_001",
+  "gate_kind": "before_login_secret",
+  "source": "puck",
+  "at": "2026-04-28T12:00:04Z"
+}

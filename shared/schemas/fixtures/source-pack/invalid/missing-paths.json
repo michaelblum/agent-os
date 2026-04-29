@@ -1,0 +1,20 @@
+{
+  "source_pack_format_version": "0.1.0",
+  "session_id": "steerable-demo",
+  "runtime_mode": "repo",
+  "created_at": "2026-04-28T12:00:00Z",
+  "final_state": "completed",
+  "artifact_directories": {
+    "screenshots": "artifacts/screenshots",
+    "page_text": "artifacts/page-text",
+    "selected_regions": "artifacts/selected-regions",
+    "crops": "artifacts/crops",
+    "observations": "artifacts/observations"
+  },
+  "counts": {
+    "timeline_events": 8,
+    "human_marks": 1,
+    "evidence_items": 1,
+    "observations": 1
+  }
+}

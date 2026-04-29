@@ -1,0 +1,11 @@
+{
+  "type": "agent.action.proposed",
+  "event_id": "evt_action_001",
+  "session_id": "steerable-demo",
+  "action_id": "act_001",
+  "op": "click",
+  "target": "browser:demo/e17",
+  "why": "Open the benefits page.",
+  "mark_ids": ["mark_001"],
+  "at": "2026-04-28T12:00:01Z"
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/run-control.schema.json",
+  "title": "AOS Run Control Events",
+  "description": "Browser-only V0 run-control commands and safety-gate events for steerable collection sessions.",
+  "oneOf": [
+    { "$ref": "#/$defs/RunControlEvent" },
+    { "$ref": "#/$defs/SafetyGateRequested" },
+    { "$ref": "#/$defs/SafetyGateAcknowledged" }
+  ],
+  "$defs": {
+    "RunState": {
+      "type": "string",
+      "enum": ["idle", "planning", "running", "paused", "stepping", "takeover", "blocked", "aborting", "completed", "failed"]
+    },
+    "RunCommand": {
+      "type": "string",
+      "enum": ["pause", "resume", "step", "skip", "replan", "take_over", "release", "abort", "open_timeline", "open_evidence", "complete", "fail", "block"]
+    },
+    "RunControlSource": {
+      "type": "string",
+      "enum": ["puck", "hotkey", "chat", "safety_gate"]
+    },
+    "SafetyGateKind": {
+      "type": "string",
+      "enum": [
+        "before_submit",
+        "before_download",
+        "before_file_upload",
+        "before_payment",
+        "before_external_domain",
+        "before_login_secret",
+        "before_destructive_action"
+      ]
+    },
+    "RunControlEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "command", "source", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "run.control" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "command": { "$ref": "#/$defs/RunCommand" },
+        "source": { "$ref": "#/$defs/RunControlSource" },
+        "at": { "type": "string", "format": "date-time" },
+        "from_state": { "$ref": "#/$defs/RunState" },
+        "to_state": { "$ref": "#/$defs/RunState" },
+        "budget": { "type": "integer", "minimum": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "gate_kind": { "$ref": "#/$defs/SafetyGateKind" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "command": { "const": "step" } }, "required": ["command"] },
+          "then": { "required": ["budget"] }
+        },
+        {
+          "if": { "properties": { "command": { "const": "block" } }, "required": ["command"] },
+          "then": { "required": ["reason"] }
+        }
+      ]
+    },
+    "SafetyGateRequested": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "gate_id", "gate_kind", "action_id", "source", "at", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "safety_gate.requested" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "gate_id": { "type": "string", "minLength": 1 },
+        "gate_kind": { "$ref": "#/$defs/SafetyGateKind" },
+        "action_id": { "type": "string", "minLength": 1 },
+        "source": { "const": "safety_gate" },
+        "at": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SafetyGateAcknowledged": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "gate_id", "gate_kind", "source", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "safety_gate.acked" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "gate_id": { "type": "string", "minLength": 1 },
+        "gate_kind": { "$ref": "#/$defs/SafetyGateKind" },
+        "source": { "$ref": "#/$defs/RunControlSource" },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

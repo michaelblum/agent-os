@@ -1,0 +1,50 @@
+{
+  "type": "human.mark",
+  "event_id": "evt_mark_002",
+  "session_id": "steerable-demo",
+  "mark_id": "mark_002",
+  "kind": "region",
+  "target": {
+    "surface": "browser",
+    "target_id": "browser:demo",
+    "app": "Chrome",
+    "window_id": 123,
+    "url": "https://example.test/careers"
+  },
+  "anchors": {
+    "semantic": {
+      "contained_elements": [
+        {
+          "descriptor_id": "e21",
+          "role": "heading",
+          "name": "Employee voice",
+          "selector": "#employee-voice",
+          "text": "Employee voice"
+        }
+      ]
+    },
+    "spatial": {
+      "viewport_rect": { "x": 80, "y": 420, "width": 420, "height": 220 }
+    },
+    "visual": {
+      "screenshot_path": "artifacts/screenshots/mark_002.png",
+      "crop_path": "artifacts/crops/mark_002.png"
+    },
+    "replay": {
+      "locator_strategy_version": "aos.browser-locator.v0",
+      "selected_locator": "rect",
+      "locator_candidates": [
+        {
+          "id": "rect",
+          "kind": "rect",
+          "rect": { "x": 80, "y": 420, "width": 420, "height": 220 },
+          "playwright": "page.mouse.click(290, 530)",
+          "validated_at_mark_time": true
+        }
+      ],
+      "aos_target": "browser:demo"
+    }
+  },
+  "resolution": "unresolved",
+  "at": "2026-04-28T12:00:05Z"
+}

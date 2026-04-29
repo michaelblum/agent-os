@@ -1,0 +1,7 @@
+{
+  "evidence_id": "ev_bad_001",
+  "session_id": "steerable-demo",
+  "action_ids": ["act_001"],
+  "source_url": "https://example.test/careers/benefits",
+  "captured_at": "2026-04-28T12:00:07Z"
+}

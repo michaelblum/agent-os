@@ -1,0 +1,10 @@
+{
+  "type": "agent.observation",
+  "event_id": "evt_obs_001",
+  "session_id": "steerable-demo",
+  "observation_id": "obs_001",
+  "action_id": "act_001",
+  "artifact_refs": ["artifacts/observations/obs_001.json"],
+  "summary": "Benefits page loaded; nav, hero, and proof points are visible.",
+  "at": "2026-04-28T12:00:02Z"
+}

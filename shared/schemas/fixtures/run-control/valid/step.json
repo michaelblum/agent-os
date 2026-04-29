@@ -1,0 +1,11 @@
+{
+  "type": "run.control",
+  "event_id": "evt_run_001",
+  "session_id": "steerable-demo",
+  "command": "step",
+  "source": "hotkey",
+  "at": "2026-04-28T12:00:00Z",
+  "from_state": "paused",
+  "to_state": "stepping",
+  "budget": 1
+}

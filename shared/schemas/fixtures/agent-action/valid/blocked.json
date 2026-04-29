@@ -1,0 +1,11 @@
+{
+  "type": "agent.action.blocked",
+  "event_id": "evt_action_004",
+  "session_id": "steerable-demo",
+  "action_id": "act_004",
+  "op": "fill",
+  "target": "browser:demo/e44",
+  "gate_kind": "before_login_secret",
+  "reason": "Password-like input requires human acknowledgement.",
+  "at": "2026-04-28T12:00:06Z"
+}

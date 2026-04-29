@@ -1,0 +1,31 @@
+{
+  "type": "human.mark",
+  "event_id": "evt_bad_mark_001",
+  "session_id": "steerable-demo",
+  "mark_id": "mark_bad_001",
+  "kind": "element",
+  "target": {
+    "surface": "desktop",
+    "target_id": "window:123",
+    "url": "https://example.test/careers"
+  },
+  "anchors": {
+    "replay": {
+      "locator_strategy_version": "aos.browser-locator.v0",
+      "selected_locator": "role_name",
+      "locator_candidates": [
+        {
+          "id": "role_name",
+          "kind": "role",
+          "role": "link",
+          "name": "Benefits",
+          "playwright": "page.getByRole('link', { name: 'Benefits' })",
+          "validated_at_mark_time": true
+        }
+      ],
+      "aos_target": "browser:demo/e17"
+    }
+  },
+  "resolution": "unresolved",
+  "at": "2026-04-28T12:00:04Z"
+}

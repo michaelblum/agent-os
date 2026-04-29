@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/agent-action.schema.json",
+  "title": "AOS Agent Action Events",
+  "description": "V0 browser agent actions, artifact-ref observations, and mark acknowledgement events for steerable collection timelines.",
+  "oneOf": [
+    { "$ref": "#/$defs/AgentActionEvent" },
+    { "$ref": "#/$defs/AgentObservationEvent" },
+    { "$ref": "#/$defs/AgentMarkAcknowledgedEvent" },
+    { "$ref": "#/$defs/AgentPlanStepEvent" }
+  ],
+  "$defs": {
+    "BrowserOp": {
+      "type": "string",
+      "enum": ["click", "hover", "type", "fill", "key", "navigate", "scroll"]
+    },
+    "SafetyGateKind": {
+      "type": "string",
+      "enum": [
+        "before_submit",
+        "before_download",
+        "before_file_upload",
+        "before_payment",
+        "before_external_domain",
+        "before_login_secret",
+        "before_destructive_action"
+      ]
+    },
+    "AgentActionEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "action_id", "op", "target", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["agent.action.proposed", "agent.action.executed", "agent.action.skipped", "agent.action.blocked"]
+        },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "action_id": { "type": "string", "minLength": 1 },
+        "op": { "$ref": "#/$defs/BrowserOp" },
+        "target": { "type": "string", "pattern": "^browser:[^/]+(/[^/]+)?$" },
+        "at": { "type": "string", "format": "date-time" },
+        "why": { "type": "string", "minLength": 1 },
+        "mark_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "gate_kind": { "$ref": "#/$defs/SafetyGateKind" },
+        "reason": { "type": "string", "minLength": 1 },
+        "result": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "agent.action.proposed" } }, "required": ["type"] },
+          "then": { "required": ["why"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "agent.action.blocked" } }, "required": ["type"] },
+          "then": { "required": ["gate_kind", "reason"] }
+        }
+      ]
+    },
+    "AgentObservationEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "observation_id", "action_id", "artifact_refs", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "agent.observation" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "observation_id": { "type": "string", "minLength": 1 },
+        "action_id": { "type": "string", "minLength": 1 },
+        "artifact_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "summary": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AgentMarkAcknowledgedEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "mark_id", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "agent.mark.acknowledged" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "mark_id": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "AgentPlanStepEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "goal", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "agent.plan.step" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "goal": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

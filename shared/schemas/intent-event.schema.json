@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/intent-event.schema.json",
+  "title": "AOS Intent Events",
+  "description": "Human intent and browser mark events for V0 steerable collection timelines.",
+  "oneOf": [
+    { "$ref": "#/$defs/HumanIntentEvent" },
+    { "$ref": "#/$defs/HumanMarkEvent" },
+    { "$ref": "#/$defs/HumanAnnotationEvent" },
+    { "$ref": "#/$defs/HumanOverrideEvent" },
+    { "$ref": "#/$defs/HumanTakeoverEvent" }
+  ],
+  "$defs": {
+    "BrowserTarget": {
+      "type": "object",
+      "required": ["surface", "target_id", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "surface": { "const": "browser" },
+        "target_id": { "type": "string", "pattern": "^browser:[^/]+(/[^/]+)?$" },
+        "app": { "type": "string" },
+        "window_id": {
+          "oneOf": [
+            { "type": "integer" },
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "url": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" }
+      }
+    },
+    "Rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "LocatorCandidate": {
+      "type": "object",
+      "required": ["id", "kind", "playwright", "validated_at_mark_time"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["role", "text", "css", "ref", "rect"] },
+        "playwright": { "type": "string", "minLength": 1 },
+        "validated_at_mark_time": { "type": "boolean" },
+        "role": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "selector": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "rect": { "$ref": "#/$defs/Rect" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "role" } }, "required": ["kind"] },
+          "then": { "required": ["role", "name"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "text" } }, "required": ["kind"] },
+          "then": { "required": ["text"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "css" } }, "required": ["kind"] },
+          "then": { "required": ["selector"] }
+        }
+      ]
+    },
+    "Anchors": {
+      "type": "object",
+      "required": ["replay"],
+      "additionalProperties": false,
+      "properties": {
+        "semantic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": { "type": "string" },
+            "name": { "type": "string" },
+            "text": { "type": "string" },
+            "selector_hints": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "contained_elements": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["descriptor_id"],
+                "additionalProperties": false,
+                "properties": {
+                  "descriptor_id": { "type": "string", "minLength": 1 },
+                  "role": { "type": "string" },
+                  "name": { "type": "string" },
+                  "selector": { "type": "string" },
+                  "text": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "spatial": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "viewport_rect": { "$ref": "#/$defs/Rect" },
+            "desktop_rect": { "$ref": "#/$defs/Rect" }
+          }
+        },
+        "visual": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "screenshot_path": { "type": "string", "minLength": 1 },
+            "crop_path": { "type": "string", "minLength": 1 }
+          }
+        },
+        "replay": {
+          "type": "object",
+          "required": ["locator_strategy_version", "selected_locator", "locator_candidates", "aos_target"],
+          "additionalProperties": false,
+          "properties": {
+            "locator_strategy_version": { "const": "aos.browser-locator.v0" },
+            "selected_locator": { "type": "string", "minLength": 1 },
+            "locator_candidates": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/LocatorCandidate" }
+            },
+            "aos_target": { "type": "string", "pattern": "^browser:[^/]+(/[^/]+)?$" }
+          }
+        }
+      }
+    },
+    "HumanIntentEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "human.intent" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "HumanMarkEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "mark_id", "kind", "target", "anchors", "resolution", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "human.mark" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "mark_id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["element", "region", "comment"] },
+        "target": { "$ref": "#/$defs/BrowserTarget" },
+        "anchors": { "$ref": "#/$defs/Anchors" },
+        "utterance": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "resolution": { "type": "string", "enum": ["unresolved", "agent_acknowledged", "bound_to_action"] },
+        "parent_mark_id": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "HumanAnnotationEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "annotation_id", "mark_id", "note", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "human.annotation" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "mark_id": { "type": "string", "minLength": 1 },
+        "note": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "HumanOverrideEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "instruction", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "human.override" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "instruction": { "type": "string", "minLength": 1 },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "HumanTakeoverEvent": {
+      "type": "object",
+      "required": ["type", "event_id", "session_id", "state", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "human.takeover" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "enum": ["started", "released"] },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

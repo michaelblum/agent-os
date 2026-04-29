@@ -1,0 +1,11 @@
+{
+  "type": "safety_gate.requested",
+  "event_id": "evt_gate_001",
+  "session_id": "steerable-demo",
+  "gate_id": "gate_001",
+  "gate_kind": "before_login_secret",
+  "action_id": "act_003",
+  "source": "safety_gate",
+  "at": "2026-04-28T12:00:03Z",
+  "reason": "Action targets a password-like input."
+}

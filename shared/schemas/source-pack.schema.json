@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/source-pack.schema.json",
+  "title": "AOS Steerable Collection Source Pack",
+  "description": "Metadata manifest for browser-only V0 steerable collection source packs.",
+  "type": "object",
+  "required": [
+    "source_pack_format_version",
+    "session_id",
+    "runtime_mode",
+    "created_at",
+    "final_state",
+    "paths",
+    "artifact_directories",
+    "counts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "source_pack_format_version": { "const": "0.1.0" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "runtime_mode": { "type": "string", "enum": ["repo", "installed", "test"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "final_state": { "type": "string", "enum": ["running", "completed", "aborted", "failed"] },
+    "goal": { "type": "string" },
+    "paths": {
+      "type": "object",
+      "required": ["timeline", "human_marks", "evidence_items", "narrative", "playwright_replay"],
+      "additionalProperties": false,
+      "properties": {
+        "timeline": { "type": "string", "minLength": 1 },
+        "human_marks": { "type": "string", "minLength": 1 },
+        "evidence_items": { "type": "string", "minLength": 1 },
+        "narrative": { "type": "string", "minLength": 1 },
+        "playwright_replay": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact_directories": {
+      "type": "object",
+      "required": ["screenshots", "page_text", "selected_regions", "crops", "observations"],
+      "additionalProperties": false,
+      "properties": {
+        "screenshots": { "type": "string", "minLength": 1 },
+        "page_text": { "type": "string", "minLength": 1 },
+        "selected_regions": { "type": "string", "minLength": 1 },
+        "crops": { "type": "string", "minLength": 1 },
+        "observations": { "type": "string", "minLength": 1 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["timeline_events", "human_marks", "evidence_items", "observations"],
+      "additionalProperties": false,
+      "properties": {
+        "timeline_events": { "type": "integer", "minimum": 0 },
+        "human_marks": { "type": "integer", "minimum": 0 },
+        "evidence_items": { "type": "integer", "minimum": 0 },
+        "observations": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

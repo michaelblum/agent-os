@@ -1,0 +1,9 @@
+{
+  "type": "human.annotation",
+  "event_id": "evt_anno_001",
+  "session_id": "steerable-demo",
+  "annotation_id": "anno_001",
+  "mark_id": "mark_001",
+  "note": "This claim needs proof before we capture it as evidence.",
+  "at": "2026-04-28T12:00:06Z"
+}
