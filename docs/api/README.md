@@ -13,6 +13,7 @@ This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
 - [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
+- [`research-intake.md`](./research-intake.md) — experimental raw-source intake pack contract for personal knowledge workflows
 - [`steerable-collection.md`](./steerable-collection.md) — browser-only V0 steerable collection schemas and source-pack contract
 - [`toolkit.md`](./toolkit.md) — the toolkit runtime and panel APIs for WKWebView surfaces
 

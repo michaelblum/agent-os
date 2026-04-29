@@ -16,6 +16,9 @@ contracts.
 - `evidence-item.schema.json`: V0 evidence records.
 - `source-pack.schema.json`: `source-pack.json` metadata.
 
+Related non-browser intake work uses `research-intake-pack.schema.json` rather
+than extending this browser-only contract.
+
 ## Locator Strategy
 
 Browser marks use `locator_strategy_version: "aos.browser-locator.v0"`.

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/research-intake-pack.schema.json",
+  "title": "AOS Research Intake Pack",
+  "description": "Metadata manifest for raw-source intake packs that back processed AOS wiki knowledge nodes.",
+  "type": "object",
+  "required": [
+    "research_intake_format_version",
+    "intake_id",
+    "runtime_mode",
+    "created_at",
+    "final_state",
+    "source",
+    "paths",
+    "artifact_directories",
+    "counts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "research_intake_format_version": { "const": "0.1.0" },
+    "intake_id": { "type": "string", "minLength": 1 },
+    "runtime_mode": { "type": "string", "enum": ["repo", "installed", "test"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "final_state": { "type": "string", "enum": ["running", "completed", "aborted", "failed"] },
+    "title": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["manual", "meeting-transcript", "slack-link", "web-link", "video-link", "file"] },
+        "title": { "type": "string" },
+        "uri": { "type": "string" },
+        "received_at": { "type": "string", "format": "date-time" },
+        "received_from": { "type": "string" }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["timeline", "source_cards", "evidence_items", "wiki_pages", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "timeline": { "type": "string", "minLength": 1 },
+        "source_cards": { "type": "string", "minLength": 1 },
+        "evidence_items": { "type": "string", "minLength": 1 },
+        "wiki_pages": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact_directories": {
+      "type": "object",
+      "required": ["raw", "extracted"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "string", "minLength": 1 },
+        "extracted": { "type": "string", "minLength": 1 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "timeline_events",
+        "source_cards",
+        "evidence_items",
+        "wiki_pages",
+        "transcript_segments",
+        "decisions",
+        "action_items",
+        "topics"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "timeline_events": { "type": "integer", "minimum": 0 },
+        "source_cards": { "type": "integer", "minimum": 0 },
+        "evidence_items": { "type": "integer", "minimum": 0 },
+        "wiki_pages": { "type": "integer", "minimum": 0 },
+        "transcript_segments": { "type": "integer", "minimum": 0 },
+        "decisions": { "type": "integer", "minimum": 0 },
+        "action_items": { "type": "integer", "minimum": 0 },
+        "topics": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "research_intake_format_version": "0.1.0",
+  "intake_id": "meeting-demo",
+  "runtime_mode": "test",
+  "created_at": "2026-04-29T16:00:00Z",
+  "final_state": "completed",
+  "completed_at": "2026-04-29T16:00:03Z",
+  "title": "Meeting Demo",
+  "source": {
+    "type": "meeting-transcript",
+    "title": "Meeting Demo",
+    "uri": "file:///tmp/meeting.vtt"
+  },
+  "paths": {
+    "timeline": "intake-timeline.jsonl",
+    "source_cards": "sources/source-cards.jsonl",
+    "evidence_items": "evidence/evidence-items.jsonl",
+    "wiki_pages": "wiki/wiki-pages.jsonl",
+    "summary": "summary.md"
+  },
+  "artifact_directories": {
+    "raw": "artifacts/raw",
+    "extracted": "artifacts/extracted"
+  },
+  "counts": {
+    "timeline_events": 2,
+    "source_cards": 1,
+    "evidence_items": 0,
+    "wiki_pages": 1,
+    "transcript_segments": 2,
+    "decisions": 0,
+    "action_items": 0,
+    "topics": 0
+  }
+}
