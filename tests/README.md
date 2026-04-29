@@ -60,6 +60,24 @@ If a change spans both Swift and JS/package surfaces:
 Some display tests depend on real hardware topology and OS permissions. Those
 tests should skip cleanly when the environment does not qualify.
 
+## Harness Layout
+
+Use folders to show composition and scope for new harness work:
+
+- `tests/lib/aos/`: generic AOS primitives such as daemon, canvas, perception,
+  input, and status-item helpers.
+- `tests/lib/sigil/`: reusable Sigil actions built on AOS primitives.
+- `tests/lib/harness/`: supervised test-run primitives as they land.
+- `tests/scenarios/...`: thin workflows that compose helpers and declare the
+  user-facing behavior under test.
+
+Older top-level shell scripts remain valid. Move them into the folder taxonomy
+only when touching them for substantive work.
+
+Real-input scenarios should require an explicit idle-window signal such as
+`AOS_REAL_INPUT_OK=1`, should tell the operator that mouse/keyboard input is
+being used, and should own cleanup through the shared harness helpers.
+
 These tests should also run in an isolated `AOS_STATE_ROOT` and tear down their
 own temp-root daemon state so they do not leave duplicate `aos` windows behind
 if a run is interrupted.
