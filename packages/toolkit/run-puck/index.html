@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run Puck</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-tone="neutral">
+  <main class="puck" aria-label="Run control">
+    <div class="status">
+      <span class="dot" aria-hidden="true"></span>
+      <span data-role="state">Idle</span>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" data-role="primary">Resume</button>
+      <button type="button" class="menu-toggle" data-role="menu-toggle" aria-label="More run controls">...</button>
+    </div>
+    <div class="menu" data-role="menu" hidden></div>
+  </main>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>
