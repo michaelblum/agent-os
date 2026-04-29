@@ -43,6 +43,22 @@ def point_arg(point):
     return f"{round(point['x'])},{round(point['y'])}"
 
 
+def distance(a, b):
+    dx = float(a["x"]) - float(b["x"])
+    dy = float(a["y"]) - float(b["y"])
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def run_json(*args):
+    return json.loads(run(*args))
+
+
+def cursor_point():
+    payload = run_json("see", "cursor")
+    cursor = payload.get("cursor") or {}
+    return {"x": cursor.get("x", 0), "y": cursor.get("y", 0)}
+
+
 def brain_probe():
     return eval_json(
         """(() => {
@@ -67,35 +83,91 @@ def brain_probe():
     )
 
 
-initial = eval_json(
-    """(() => {
-      window.__sigilDebug?.armInteractionTrace?.('radial-brain-real-input');
+def hit_target_probe():
+    return eval_json(
+        """(() => {
       const snap = window.__sigilDebug?.snapshot?.() || {};
       return JSON.stringify({
         avatarVisible: snap.avatarVisible,
         hitTargetReady: snap.hitTargetReady,
         hitTargetInteractive: snap.hitTargetInteractive,
         hitTargetFrame: snap.hitTargetFrame,
-        avatarPos: snap.avatarPos
+        avatarPos: snap.avatarPos,
+        state: snap.state || null
       });
     })()"""
-)
+    )
+
+
+eval_json("window.__sigilDebug?.armInteractionTrace?.('radial-brain-real-input'); JSON.stringify(true)")
+
+last_stable = {"probe": None, "count": 0}
+
+
+def stable_hit_target():
+    probe = hit_target_probe()
+    frame = probe.get("hitTargetFrame")
+    if not probe.get("avatarVisible") or not probe.get("hitTargetReady") or not probe.get("hitTargetInteractive") or not frame:
+        last_stable["probe"] = probe
+        last_stable["count"] = 0
+        return None
+
+    previous = (last_stable.get("probe") or {}).get("hitTargetFrame")
+    if previous and all(abs(float(frame[i]) - float(previous[i])) <= 1.0 for i in range(4)):
+        last_stable["count"] += 1
+    else:
+        last_stable["count"] = 1
+    last_stable["probe"] = probe
+    if last_stable["count"] >= 4:
+        return probe
+    return None
+
+
+initial = wait_until(stable_hit_target, timeout=6.0, interval=0.08, label="stable radial hit target")
 frame = initial.get("hitTargetFrame")
-if not initial.get("avatarVisible") or not initial.get("hitTargetReady") or not frame:
+if not frame:
     raise SystemExit(f"FAIL: avatar not ready for radial real-input check: {initial}")
 
 start = {"x": frame[0] + frame[2] / 2, "y": frame[1] + frame[3] / 2}
 target = {"x": start["x"] + 24, "y": start["y"]}
 
-# Use a slow real drag so the radial menu remains observable while the mouse is
-# physically held down by AOS. This avoids synthetic dispatch for the behavior
-# under test, while still letting the agent query structured state mid-gesture.
+hover = subprocess.run(
+    [aos, "do", "hover", point_arg(start)],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    timeout=8,
+)
+if hover.returncode != 0:
+    raise SystemExit(f"FAIL: cursor preposition failed: {hover.stdout}")
+
+pre_drag_cursor = cursor_point()
+if distance(pre_drag_cursor, start) > 8:
+    raise SystemExit(json.dumps({
+        "status": "FAIL",
+        "message": "cursor preposition did not land on radial hit target",
+        "start": start,
+        "cursor": pre_drag_cursor,
+        "initial": initial,
+        "hover": hover.stdout.strip(),
+    }, sort_keys=True))
+
+# Use a slow short real drag so the radial menu remains observable while the
+# mouse is physically held down by AOS. The cursor is prepositioned first so
+# this action is only the intentional press/drag/release, not the cross-display
+# travel from wherever the user's cursor happened to be.
 drag = subprocess.Popen(
     [aos, "do", "drag", point_arg(start), point_arg(target), "--speed", "6"],
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT,
     text=True,
 )
+
+proof = None
+proof_error = None
+stdout = ""
+drag_timeout_error = None
+drag_timeout = max(6.0, distance(start, target) / 6.0 + 2.0)
 
 try:
     proof = wait_until(
@@ -116,20 +188,40 @@ try:
         )(brain_probe()),
         label="radial wiki brain visual under real drag",
     )
+except SystemExit as error:
+    proof_error = str(error)
 finally:
     try:
-        stdout, _ = drag.communicate(timeout=3)
+        stdout, _ = drag.communicate(timeout=drag_timeout)
     except subprocess.TimeoutExpired:
         drag.kill()
         stdout, _ = drag.communicate()
-        raise SystemExit(f"FAIL: real drag did not finish cleanly: {stdout}")
+        drag_timeout_error = f"real drag did not finish within {drag_timeout:.1f}s"
 
+diagnostics = {
+    "initial": initial,
+    "start": start,
+    "target": target,
+    "preDragCursor": pre_drag_cursor,
+    "hover": hover.stdout.strip(),
+    "drag": stdout.strip(),
+    "lastProbe": brain_probe(),
+}
+
+if proof_error:
+    diagnostics["proofError"] = proof_error
+    raise SystemExit("FAIL: radial brain proof failed: " + json.dumps(diagnostics, sort_keys=True))
+if drag_timeout_error:
+    diagnostics["dragTimeoutError"] = drag_timeout_error
+    raise SystemExit("FAIL: real drag did not finish cleanly: " + json.dumps(diagnostics, sort_keys=True))
 if drag.returncode != 0:
-    raise SystemExit(f"FAIL: real drag command failed: {stdout}")
+    diagnostics["dragReturnCode"] = drag.returncode
+    raise SystemExit("FAIL: real drag command failed: " + json.dumps(diagnostics, sort_keys=True))
 
 print("PASS", json.dumps({
     "initial": initial,
     "proof": proof,
+    "preDragCursor": pre_drag_cursor,
     "drag": json.loads(stdout) if stdout.strip().startswith("{") else stdout.strip(),
 }))
 PY
