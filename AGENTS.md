@@ -155,6 +155,16 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   editing or the change is a tiny repo-local hygiene fix already in progress on
   `main`. Keep branch names descriptive and short, such as
   `codex/supervised-run-harness` or `owner/sigil-visuals`.
+- For agent-team work, use an orchestrator-led model: the orchestrator owns
+  GitHub state, branch/worktree creation, integration, and cleanup; worker
+  agents get bounded file scopes in dedicated worktrees and return changes plus
+  verification evidence. Workers should not independently push, merge, rebase
+  shared branches, or delete worktrees.
+- Place agent-created linked worktrees under `../agent-os-worktrees/` by
+  default, or under `$AOS_AGENT_WORKTREE_ROOT` when explicitly set. Start and
+  end orchestrated sessions with `scripts/agent-worktree-health`; remove
+  completed linked worktrees with `git worktree remove`, then run
+  `git worktree prune`.
 - Before creating a branch, inspect the current worktree. If unrelated dirty
   changes are present, either choose a separate worktree/branch that preserves
   them or make a scoped path-only commit when the user has asked for the change.
@@ -166,6 +176,8 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
 - After a topic branch lands or is no longer needed, prune agent-created branch
   and worktree debris when it is safe to classify. Do not delete substantive
   long-lived branches unless the user asks.
+- See `docs/recipes/agent-team-git-worktrees.md` for the full orchestrator,
+  worker, GitHub, and cleanup SOP.
 - Before treating grep hits, old paths, or old commands as live, check for
   retirement or supersession notes in the nearest subtree docs, active plans,
   and open issues. Retired code can remain in-tree for a while after the live

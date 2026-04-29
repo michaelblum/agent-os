@@ -3,9 +3,9 @@
 Use this recipe when deciding how to use GitHub, repo docs, wiki seed, and the
 runtime AOS wiki together.
 
-The goal is lightweight coordination for a one-human, one-agent team. The system
-should reduce re-explaining and make future recovery easier without creating a
-project-management tax.
+The goal is lightweight coordination for a sole human owner working with agent
+teams. The system should reduce re-explaining and make future recovery easier
+without creating a project-management tax.
 
 ## Small-Team Default
 
@@ -28,6 +28,23 @@ The minimum useful loop is:
 ```text
 issue, when needed -> plan or recipe, when durable -> PR -> close or restate issue
 ```
+
+## Agent-Team Git and Worktrees
+
+Use `docs/recipes/agent-team-git-worktrees.md` when work involves agent teams,
+subagents, parallel implementation, branch handoff, pull requests, or local
+worktree cleanup.
+
+The short version:
+
+- The orchestrator agent owns GitHub state, branch/worktree lifecycle,
+  integration, and cleanup.
+- Worker agents get bounded scopes in dedicated worktrees and return changed
+  paths plus verification evidence.
+- Agent-created worktrees live under `../agent-os-worktrees/` by default.
+- Start and end orchestrated sessions with `scripts/agent-worktree-health`.
+- Remove completed linked worktrees with `git worktree remove`, then prune stale
+  metadata with `git worktree prune`.
 
 ## Durable Homes
 

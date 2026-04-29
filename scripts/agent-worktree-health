@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Report agent-os worktree health without mutating Git state."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import subprocess
+import sys
+from typing import Any
+
+
+def run(args: list[str], cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(args, cwd=str(cwd), text=True, capture_output=True, check=False)
+
+
+def repo_root() -> pathlib.Path:
+    result = run(["git", "rev-parse", "--show-toplevel"], pathlib.Path.cwd())
+    if result.returncode != 0:
+        raise SystemExit("agent-worktree-health must run inside a Git repository")
+    return pathlib.Path(result.stdout.strip()).resolve()
+
+
+def parse_worktrees(text: str) -> list[dict[str, Any]]:
+    worktrees: list[dict[str, Any]] = []
+    current: dict[str, Any] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            if current:
+                worktrees.append(current)
+                current = {}
+            continue
+        if line.startswith("worktree "):
+            current["path"] = line.removeprefix("worktree ")
+        elif line.startswith("HEAD "):
+            current["head"] = line.removeprefix("HEAD ")
+        elif line.startswith("branch "):
+            current["branch"] = line.removeprefix("branch ")
+        elif line == "detached":
+            current["detached"] = True
+        elif line == "bare":
+            current["bare"] = True
+        elif line.startswith("prunable"):
+            current["prunable"] = line.removeprefix("prunable").strip() or True
+        elif line.startswith("locked"):
+            current["locked"] = line.removeprefix("locked").strip() or True
+    if current:
+        worktrees.append(current)
+    return worktrees
+
+
+def directory_size_kib(path: pathlib.Path) -> int | None:
+    result = run(["du", "-sk", str(path)], pathlib.Path.cwd())
+    if result.returncode != 0:
+        return None
+    first = result.stdout.split()[0] if result.stdout.split() else ""
+    try:
+        return int(first)
+    except ValueError:
+        return None
+
+
+def agent_root_dirs(root: pathlib.Path) -> list[pathlib.Path]:
+    if not root.exists():
+        return []
+    return sorted(p for p in root.iterdir() if p.is_dir())
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--root",
+        default=os.environ.get("AOS_AGENT_WORKTREE_ROOT"),
+        help="agent worktree root; defaults to ../agent-os-worktrees",
+    )
+    args = parser.parse_args()
+
+    root = repo_root()
+    listed_raw = run(["git", "worktree", "list", "--porcelain"], root)
+    if listed_raw.returncode != 0:
+        raise SystemExit(listed_raw.stderr.strip() or "git worktree list failed")
+    worktrees = parse_worktrees(listed_raw.stdout)
+    main_worktree = pathlib.Path(worktrees[0]["path"]).resolve() if worktrees and "path" in worktrees[0] else root
+    agent_root = pathlib.Path(args.root).expanduser().resolve() if args.root else (main_worktree.parent / "agent-os-worktrees")
+
+    prune_raw = run(["git", "worktree", "prune", "--dry-run", "--verbose"], root)
+    prunable_lines = [line for line in prune_raw.stderr.splitlines() + prune_raw.stdout.splitlines() if line.strip()]
+
+    known_paths = {pathlib.Path(w["path"]).resolve() for w in worktrees if "path" in w}
+    root_dirs = agent_root_dirs(agent_root)
+    unmanaged_dirs = [p for p in root_dirs if p.resolve() not in known_paths]
+    agent_worktrees = [w for w in worktrees if pathlib.Path(w.get("path", "")).resolve().is_relative_to(agent_root)]
+
+    size_kib = directory_size_kib(agent_root) if agent_root.exists() else 0
+    summary = {
+        "repo_root": str(root),
+        "agent_worktree_root": str(agent_root),
+        "worktree_count": len(worktrees),
+        "agent_worktree_count": len(agent_worktrees),
+        "agent_root_dir_count": len(root_dirs),
+        "agent_root_size_kib": size_kib,
+        "prunable_count": len(prunable_lines),
+        "unmanaged_agent_root_dirs": [str(p) for p in unmanaged_dirs],
+        "worktrees": worktrees,
+        "prunable": prunable_lines,
+    }
+
+    if args.json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+
+    print("Agent worktree health")
+    print(f"repo: {root}")
+    print(f"root: {agent_root}")
+    print(f"worktrees: {len(worktrees)} total, {len(agent_worktrees)} under agent root")
+    if size_kib is not None:
+        print(f"agent root size: {size_kib / 1024:.1f} MiB")
+    if prunable_lines:
+        print(f"prunable metadata: {len(prunable_lines)} item(s)")
+        for line in prunable_lines:
+            print(f"  {line}")
+    if unmanaged_dirs:
+        print(f"unmanaged directories under agent root: {len(unmanaged_dirs)}")
+        for path in unmanaged_dirs:
+            print(f"  {path}")
+    if not prunable_lines and not unmanaged_dirs:
+        print("status: clean")
+    print()
+    print("cleanup commands:")
+    print("  git worktree prune --dry-run")
+    print("  git worktree remove <path>")
+    print("  git worktree prune")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

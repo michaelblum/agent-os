@@ -6,6 +6,11 @@ default before every verification step.
 For the repo-wide entry-path model behind these choices, see
 `docs/recipes/agent-entry-paths-and-verification.md`.
 
+For parallel agent-team implementation or review, the orchestrator should keep
+test ownership tied to each topic worktree. Use
+`docs/recipes/agent-team-git-worktrees.md` for branch/worktree coordination and
+run `scripts/agent-worktree-health` before and after orchestrated sessions.
+
 ## Rebuild `./aos` First
 
 Rebuild with `bash build.sh` when both of these are true:

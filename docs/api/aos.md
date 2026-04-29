@@ -29,6 +29,17 @@ a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
 `clean` when you need deeper diagnostics or explicit cleanup, not as the default
 first move.
 
+For agent-team or parallel development, use the repo worktree health script
+before and after orchestration:
+
+```bash
+scripts/agent-worktree-health
+```
+
+The durable SOP is `docs/recipes/agent-team-git-worktrees.md`. It defines the
+orchestrator/worker split, the `../agent-os-worktrees/` root, GitHub handoff,
+and cleanup rules.
+
 ## Contract
 
 `aos` is a single binary with Unix-style subcommand groups.

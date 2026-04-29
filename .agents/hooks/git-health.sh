@@ -23,6 +23,14 @@ if [ "$PRUNABLE" -gt 0 ]; then
   WARNINGS="${WARNINGS}\n- $PRUNABLE prunable worktree(s) — run: git worktree prune"
 fi
 
+AGENT_WORKTREE_ROOT="${AOS_AGENT_WORKTREE_ROOT:-$(dirname "$ROOT")/agent-os-worktrees}"
+if [ -d "$AGENT_WORKTREE_ROOT" ]; then
+  AGENT_WORKTREE_DIRS=$(find "$AGENT_WORKTREE_ROOT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${AGENT_WORKTREE_DIRS:-0}" -gt 8 ]; then
+    WARNINGS="${WARNINGS}\n- $AGENT_WORKTREE_DIRS directories under $AGENT_WORKTREE_ROOT (run scripts/agent-worktree-health)"
+  fi
+fi
+
 OLD_DIRTY=$(find . -maxdepth 2 \( -name '*.swift' -o -name '*.ts' -o -name '*.js' -o -name '*.html' \) | while read -r f; do
   if git diff --quiet -- "$f" 2>/dev/null; then continue; fi
   if [ "$(uname)" = "Darwin" ]; then
