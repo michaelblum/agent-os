@@ -50,6 +50,17 @@ For a `.vtt` or text meeting transcript:
 5. Let an agent or human synthesize summary, decisions, action items, topics,
    and related links before writing durable wiki pages.
 
+Current V0 command:
+
+```bash
+node scripts/research-intake-meeting.mjs \
+  --file ~/Downloads/meeting.vtt \
+  --title "Meeting Title"
+```
+
+The command prints the created intake pack path. Use `--json` when another
+agent or script should consume the result.
+
 ## Slack Link Flow
 
 For a link posted to Slack, the future worker should:

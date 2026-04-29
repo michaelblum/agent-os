@@ -44,8 +44,15 @@ those artifacts instead of inlining the full source.
 ## V0 Meeting Transcript Intake
 
 V0 includes deterministic `.vtt` parsing into timed transcript segments. It
-does not yet summarize with an LLM, extract decisions automatically, or write to
-the runtime wiki. Those are follow-up workflow layers.
+also keeps plain text transcripts as paragraph segments when no VTT timings are
+present. Use the current script entrypoint to create a pack from a local file:
+
+```bash
+node scripts/research-intake-meeting.mjs --file <transcript.vtt|txt> --title "<title>"
+```
+
+It does not yet summarize with an LLM, extract decisions automatically, or write
+to the runtime wiki. Those are follow-up workflow layers.
 
 ## Boundary
 

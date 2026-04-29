@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import {
   ingestMeetingTranscript,
+  parseTranscriptText,
   parseWebVtt,
   researchIntakePath,
   sanitizeIntakeId,
@@ -47,6 +48,24 @@ test('VTT parser extracts timed transcript segments', () => {
   })
 })
 
+test('plain transcript parser keeps paragraph segments when no VTT timings exist', () => {
+  const segments = parseTranscriptText('Michael: First point.\n\nAgent: Second point.')
+  assert.deepEqual(segments, [
+    {
+      segment_id: 'seg_0001',
+      start: null,
+      end: null,
+      text: 'Michael: First point.',
+    },
+    {
+      segment_id: 'seg_0002',
+      start: null,
+      end: null,
+      text: 'Agent: Second point.',
+    },
+  ])
+})
+
 test('meeting transcript intake writes raw artifacts, extracted segments, and wiki candidates', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-research-intake-'))
   try {
@@ -79,6 +98,47 @@ test('meeting transcript intake writes raw artifacts, extracted segments, and wi
     assert.equal(extracted.segments.length, 2)
 
     await validateJsonFile('shared/schemas/research-intake-pack.schema.json', path.join(tmp, 'pack/research-intake.json'))
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('meeting transcript intake script writes a pack from a file', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-research-intake-script-'))
+  try {
+    const transcriptPath = path.join(tmp, 'planning.vtt')
+    await fs.writeFile(transcriptPath, sampleVtt)
+    const result = spawnSync(
+      'node',
+      [
+        'scripts/research-intake-meeting.mjs',
+        '--file',
+        transcriptPath,
+        '--title',
+        'Planning Meeting',
+        '--id',
+        'planning-meeting',
+        '--json',
+      ],
+      {
+        cwd: repoRoot,
+        env: {
+          ...process.env,
+          AOS_RUNTIME_MODE: 'test',
+          AOS_STATE_ROOT: tmp,
+        },
+        encoding: 'utf8',
+      },
+    )
+
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+    const output = JSON.parse(result.stdout)
+    assert.equal(output.ok, true)
+    assert.equal(output.intake_id, 'planning-meeting')
+    assert.equal(output.transcript_segments, 2)
+    assert.equal(output.wiki_candidates[0], 'personal/meetings/planning-meeting.md')
+    assert.equal(output.root_dir, path.join(tmp, 'test/research-intake/planning-meeting'))
+    await validateJsonFile('shared/schemas/research-intake-pack.schema.json', output.manifest)
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }

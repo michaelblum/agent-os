@@ -186,6 +186,25 @@ export function parseWebVtt(text) {
   return segments
 }
 
+export function parseTranscriptText(text) {
+  const vttSegments = parseWebVtt(text)
+  if (vttSegments.length) return vttSegments
+
+  const blocks = String(text || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split(/\n{2,}/)
+    .map((block) => block.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  return blocks.map((block, index) => ({
+    segment_id: `seg_${String(index + 1).padStart(4, '0')}`,
+    start: null,
+    end: null,
+    text: block,
+  }))
+}
+
 export function meetingWikiPage({ intakeId, title, artifactPath, segmentsPath, sourceUri, createdAt }) {
   const safeTitle = title || 'Meeting Intake'
   const description = `Processed meeting knowledge from research intake ${intakeId}.`
@@ -234,7 +253,7 @@ export async function ingestMeetingTranscript(options = {}) {
 
   const artifactName = options.artifactName ?? 'meeting.vtt'
   const rawArtifactPath = await writer.writeRawArtifact(artifactName, options.transcriptText)
-  const segments = parseWebVtt(options.transcriptText)
+  const segments = parseTranscriptText(options.transcriptText)
   writer.counts.transcript_segments = segments.length
   const segmentsPath = await writer.writeExtractedJson('transcript-segments.json', { segments })
 
