@@ -74,7 +74,31 @@ else
     fail "dev recommend ordered plan failed"
 fi
 
-# --- 4. Default text mode is concise and non-JSON. ---
+# --- 4. App subtree paths route only to local-contract delegation. ---
+if OUT="$(./aos dev classify --json apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+rules = {match["id"]: match for match in data["matches"]}
+assert data["status"] == "ok", data
+assert "app-subtree-local-contract" in rules, rules
+assert data["unmatched_paths"] == [], data["unmatched_paths"]
+rule = rules["app-subtree-local-contract"]
+assert rule["entry_path"] == "agent/dev", rule
+assert rule["actions"][0]["kind"] == "classify_only", rule["actions"]
+assert "nearest subtree AGENTS.md" in rule["control_surface"]["preferred"], rule["control_surface"]
+serialized = json.dumps(rule)
+assert "radial" not in serialized.lower(), serialized
+assert "sigil" not in serialized.lower(), serialized
+PY
+then
+    pass "dev classify routes app subtree changes to local-contract delegation"
+else
+    fail "app subtree local-contract classification failed"
+fi
+
+# --- 5. Default text mode is concise and non-JSON. ---
 OUT="$(./aos dev classify src/main.swift 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'swift-binary-source'; then
     pass "dev classify default output is text"

@@ -6,6 +6,28 @@
   "default_entry_path": "agent/dev",
   "rules": [
     {
+      "id": "app-subtree-local-contract",
+      "summary": "App subtree changes delegate app-specific workflow details to the nearest local contract.",
+      "match": {
+        "paths": [
+          "apps/**/*"
+        ]
+      },
+      "entry_path": "agent/dev",
+      "actions": [
+        {
+          "id": "read-local-contract",
+          "kind": "classify_only",
+          "mutates_runtime": false,
+          "reason": "The repo-wide manifest owns platform routing only; app-specific tests, diagnostics, and behavior belong in the nearest subtree AGENTS.md or local playbook."
+        }
+      ],
+      "control_surface": {
+        "preferred": "Read the nearest subtree AGENTS.md and local workflow docs before choosing app-specific tests or diagnostics.",
+        "ui_projection": "Show local app contract delegation, not app internals, from the platform workflow surface."
+      }
+    },
+    {
       "id": "swift-binary-source",
       "summary": "Swift source changes require a fresh signed repo binary before ./aos-backed verification.",
       "match": {
