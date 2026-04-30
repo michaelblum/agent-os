@@ -64,6 +64,9 @@ canvas = next(c for c in show["canvases"] if c["id"] == "union-probe")
 cx, cy, cw, ch = canvas["at"]
 show_segments = canvas.get("segments")
 assert show_segments is not None, canvas
+window_numbers = canvas.get("windowNumbers")
+assert isinstance(window_numbers, list) and len(window_numbers) == len(show_segments), canvas
+assert all(isinstance(wid, int) and wid > 0 for wid in window_numbers), canvas
 
 assert len(payload.get("files") or []) == 1, payload
 assert pathlib.Path(payload["files"][0]).resolve() == png_path, payload
@@ -73,6 +76,7 @@ assert len(surfaces) == 1, payload
 surface = surfaces[0]
 assert surface["kind"] == "canvas", surface
 assert surface["id"] == "union-probe", surface
+assert surface["window_id"] == window_numbers[0], (surface, canvas)
 assert surface["bounds_global"] == {"x": cx, "y": cy, "width": cw, "height": ch}, surface
 assert len(surface["segments"]) >= 2, surface
 assert len(surface["displays"]) >= 2, surface

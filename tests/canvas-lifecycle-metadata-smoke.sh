@@ -65,6 +65,12 @@ for _ in range(50):
         if parent.get("track") != "union" or child.get("parent") != "parent-canvas" or child.get("scope") != "global":
             ready = False
             break
+        if not isinstance(parent.get("windowNumbers"), list) or not parent["windowNumbers"]:
+            ready = False
+            break
+        if not isinstance(child.get("windowNumbers"), list) or not child["windowNumbers"]:
+            ready = False
+            break
     if ready:
         break
     time.sleep(0.2)

@@ -39,6 +39,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
       track: 'union',
       cascade: true,
       suspended: false,
+      windowNumbers: [1001, 1002],
     },
   })
 
@@ -52,6 +53,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
     ttl: null,
     cascade: true,
     suspended: false,
+    windowNumbers: [1001, 1002],
   })
 })
 
@@ -80,6 +82,18 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
     cascade: true,
     suspended: false,
   })
+})
+
+test('mergeCanvasLifecycleCanvas preserves top-level native window numbers', () => {
+  const merged = mergeCanvasLifecycleCanvas(null, {
+    canvas_id: 'agent-panel',
+    action: 'created',
+    at: [10, 20, 300, 200],
+    interactive: true,
+    windowNumbers: [4242],
+  })
+
+  assert.deepEqual(merged.windowNumbers, [4242])
 })
 
 test('mergeCanvasLifecycleCanvas preserves DesktopWorld surface segments', () => {

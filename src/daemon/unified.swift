@@ -423,6 +423,7 @@ class UnifiedDaemon {
         if let ttl = canvasInfo.ttl { payload["ttl"] = ttl }
         if let cascade = canvasInfo.cascade { payload["cascade"] = cascade }
         if let suspended = canvasInfo.suspended { payload["suspended"] = suspended }
+        if let windowNumbers = canvasInfo.windowNumbers { payload["windowNumbers"] = windowNumbers }
         if let segments = canvasInfo.segments {
             payload["segments"] = segments.map { segment in
                 [
