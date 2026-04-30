@@ -930,12 +930,30 @@ private func currentGitStatus() -> GitStatusState? {
 }
 
 private func currentPermissionsState() -> PermissionsState {
-    PermissionsState(
+    if testAssumePermissionsGranted() {
+        return PermissionsState(
+            accessibility: true,
+            screen_recording: true,
+            listen_access: true,
+            post_access: true
+        )
+    }
+
+    return PermissionsState(
         accessibility: AXIsProcessTrusted(),
         screen_recording: preflightScreenRecordingAccess(),
         listen_access: preflightListenEventAccess(),
         post_access: preflightPostEventAccess()
     )
+}
+
+private func testAssumePermissionsGranted() -> Bool {
+    // Test-only hook for isolated-state mock daemon tests. Requiring an
+    // explicit state root keeps real repo/installed runtime checks bound to
+    // the macOS TCC preflight APIs.
+    let env = ProcessInfo.processInfo.environment
+    return env["AOS_TEST_ASSUME_PERMISSIONS_GRANTED"] == "1" &&
+        aosHasExplicitStateRootOverride()
 }
 
 private func currentPermissionRequirements(permissions: PermissionsState) -> [PermissionRequirement] {
@@ -974,12 +992,13 @@ private func currentPermissionsSetupState(permissions: PermissionsState) -> Perm
     let bundlePath = marker?["bundle_path"] as? String
     let completedAt = marker?["completed_at"] as? String
     let bundleMatchesCurrent = bundlePath == nil ? false : bundlePath == currentBundlePath
+    let mode = aosCurrentRuntimeMode()
     let setupCompleted = permissions.accessibility &&
         permissions.screen_recording &&
         permissions.listen_access &&
         permissions.post_access &&
         marker != nil &&
-        bundleMatchesCurrent
+        (bundleMatchesCurrent || mode == .repo)
 
     return PermissionsSetupState(
         marker_exists: marker != nil,
@@ -1084,7 +1103,7 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     }
     if !setup.marker_exists {
         notes.append("Permission onboarding has not been completed for this runtime identity.")
-    } else if !setup.bundle_matches_current {
+    } else if !setup.bundle_matches_current && !setup.setup_completed {
         notes.append("Permission onboarding marker belongs to a different app bundle path.")
     }
     if let command = setup.recommended_command {
