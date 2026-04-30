@@ -7,6 +7,8 @@
 // Layers are drawn in that order so cross appears on top.
 // Stroke is centered inside a (w × h) bounding box so outer pixels fit.
 
+import { canvasInspectorAosRef, semanticAttrString } from '../semantics.js';
+
 const STROKE = 1;
 
 function escAttr(s) {
@@ -22,6 +24,16 @@ function escText(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+function markSemanticAttrs(mark, canvasId) {
+  return semanticAttrString({
+    id: `mark-${canvasId}-${mark.id}`,
+    role: 'AXImage',
+    name: mark.name || mark.id,
+    aosRef: canvasInspectorAosRef('mark', canvasId, mark.id),
+    parentCanvasId: canvasId,
+  });
 }
 
 // Build the inner layer SVG for a mark given its bounding size + color.
@@ -73,13 +85,15 @@ export function renderMarkListRow(mark, { showCoords = false } = {}) {
 
 // Render a minimap-placed mark as a positioned SVG element.
 // `projected` is the center point from projectPointToMinimap.
-export function renderMinimapMark(mark, projected) {
+export function renderMinimapMark(mark, projected, { canvasId = mark.canvasId || 'unknown' } = {}) {
   const { id, name, w, h } = mark;
   const left = Math.round(projected.x - w / 2);
   const top = Math.round(projected.y - h / 2);
   const inner = buildMarkLayers(mark);
   return (
-    `<svg class="minimap-mark" data-mark-id="${escAttr(id)}"`
+    `<svg class="minimap-mark" ${markSemanticAttrs(mark, canvasId)}`
+    + ` data-canvas-id="${escAttr(canvasId)}" data-mark-id="${escAttr(id)}"`
+    + ` data-mark-x="${escAttr(mark.x)}" data-mark-y="${escAttr(mark.y)}"`
     + ` style="left:${left}px;top:${top}px;width:${w}px;height:${h}px"`
     + ` viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"`
     + ` xmlns="http://www.w3.org/2000/svg">`

@@ -143,6 +143,9 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
   purely DOM debugging.
 - Use `./aos see` for visual verification before asking the user to inspect a
   canvas manually.
+- When building AOS apps or toolkit components, expose actionable controls with
+  macOS-style accessibility semantics instead of adding agent-only visual hints.
+  See `docs/recipes/aos-app-accessibility-surfaces.md`.
 - If the user explicitly puts themselves in the verification loop, treat the
   human as the sensor. Set up the state quickly, use at most one orienting
   `./aos see` check if needed, then ask them to confirm what they see instead
@@ -186,4 +189,6 @@ source of truth at the interface boundary:
 
 - `ARCHITECTURE.md` for system architecture
 - nearest subtree markdown file for package or app specifics
+- `docs/recipes/aos-app-accessibility-surfaces.md` for AOS app and toolkit
+  accessibility surface contracts
 - today, many of those local files are still named `CLAUDE.md`
