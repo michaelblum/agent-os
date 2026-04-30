@@ -50,6 +50,8 @@ export default function InspectorPanel() {
     render(_host) {
       contentEl = document.createElement('div')
       contentEl.className = 'inspector-panel-body'
+      contentEl.setAttribute('role', 'region')
+      contentEl.setAttribute('aria-label', BASE_TITLE)
       contentEl.innerHTML = renderEmpty()
       return contentEl
     },

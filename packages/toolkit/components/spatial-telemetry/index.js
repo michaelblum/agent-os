@@ -68,7 +68,7 @@ function renderDisplayRows(snapshot) {
       + `</tr>`
   )).join('');
   return (
-    `<table class="telemetry-table">`
+    `<table class="telemetry-table" aria-label="Display geometry">`
       + `<thead><tr><th>display</th><th>scale</th><th>native bounds</th><th>DesktopWorld</th><th>native visible</th><th>VisibleDesktopWorld</th></tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
@@ -93,7 +93,7 @@ function renderCanvasRows(snapshot) {
       + `</tr>`
   )).join('');
   return (
-    `<table class="telemetry-table">`
+    `<table class="telemetry-table" aria-label="Canvas geometry">`
       + `<thead><tr><th>canvas</th><th>parent</th><th>owner</th><th>track</th><th>int</th><th>DesktopWorld</th><th>world local</th><th>parent local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
@@ -117,7 +117,7 @@ function renderMarkRows(snapshot) {
       + `</tr>`
   )).join('');
   return (
-    `<table class="telemetry-table">`
+    `<table class="telemetry-table" aria-label="Object marks">`
       + `<thead><tr><th>canvas</th><th>mark</th><th>name</th><th>owner</th><th>DesktopWorld</th><th>world local</th><th>canvas local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody>${rows}</tbody>`
       + `</table>`
@@ -130,7 +130,7 @@ function renderCursor(snapshot) {
   }
   const row = snapshot.cursorRow;
   return (
-    `<table class="telemetry-table">`
+    `<table class="telemetry-table" aria-label="Cursor position">`
       + `<thead><tr><th>owner</th><th>DesktopWorld</th><th>world local</th>${renderDisplayHeader(snapshot.displayColumns)}</tr></thead>`
       + `<tbody><tr>`
       + `<td>${esc(row.owner)}</td>`
@@ -146,7 +146,7 @@ function renderEventLog(events) {
     return '<div class="empty-state">No events yet</div>';
   }
   return (
-    `<div class="event-log">`
+    `<div class="event-log" role="log" aria-label="Telemetry events" aria-live="polite">`
       + events.map((entry) => (
         `<div class="event-row">`
           + `<span class="event-ts">${esc(entry.ts)}</span>`
@@ -267,6 +267,8 @@ export default function SpatialTelemetry() {
       host.contentEl.style.overflow = 'hidden';
       contentEl = document.createElement('div');
       contentEl.className = 'spatial-telemetry-root';
+      contentEl.setAttribute('role', 'region');
+      contentEl.setAttribute('aria-label', BASE_TITLE);
       contentEl.innerHTML = '<div class="empty-state">Waiting for telemetry…</div>';
       window.__spatialTelemetryDebug = {
         clearLog() {

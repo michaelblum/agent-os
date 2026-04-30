@@ -7,7 +7,48 @@ import { wireBridge, emit } from '../../runtime/bridge.js'
 import { subscribe } from '../../runtime/subscribe.js'
 import { evalCanvas, spawnChild } from '../../runtime/canvas.js'
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
+import { applySemanticTargetAttributes } from '../../runtime/semantic-targets.js'
 import { createRouter } from '../router.js'
+
+const TABS_SURFACE = 'panel-tabs'
+
+function text(value, fallback = '') {
+  const s = String(value ?? '').replace(/\s+/g, ' ').trim()
+  return s || fallback
+}
+
+function refPart(value, fallback = 'target') {
+  return text(value, fallback).replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
+export function panelTabAosRef(panelName, tabID) {
+  return [TABS_SURFACE, refPart(panelName, 'tabs-panel'), refPart(tabID, 'tab')].join(':')
+}
+
+export function panelTabSemanticTarget(content = {}, index = 0, options = {}) {
+  const label = text(content.manifest?.title || content.manifest?.name, `tab ${index + 1}`)
+  const tabID = text(content.manifest?.name, `tab-${index + 1}`)
+  return {
+    id: `tab-${tabID}`,
+    role: 'AXTab',
+    name: label,
+    action: 'tabs/activate',
+    surface: TABS_SURFACE,
+    aosRef: panelTabAosRef(options.panelName, tabID),
+    selected: !!options.selected,
+  }
+}
+
+function applyPanelTabSemanticTarget(element, content, index, options = {}) {
+  return applySemanticTargetAttributes(
+    element,
+    panelTabSemanticTarget(content, index, options),
+    {
+      idPrefix: 'aos-tab',
+      visibleLabel: true,
+    },
+  )
+}
 
 export function Tabs(factories, options = {}) {
   if (!Array.isArray(factories) || factories.length === 0) {
@@ -30,6 +71,7 @@ export function Tabs(factories, options = {}) {
       const elByContent = new Map()
       // Retained for future programmatic activation API (tear-off, keyboard nav).
       let activeIdx = -1
+      const panelName = chrome.titleEl.textContent || 'tabs-panel'
 
       // Build tab strip in the header's controls slot.
       const tabStrip = document.createElement('div')
@@ -41,9 +83,8 @@ export function Tabs(factories, options = {}) {
         const label = c.manifest?.title || c.manifest?.name || `tab ${i + 1}`
         const btn = document.createElement('button')
         btn.className = 'aos-tab'
-        btn.type = 'button'
         btn.textContent = label
-        btn.setAttribute('role', 'tab')
+        applyPanelTabSemanticTarget(btn, c, i, { panelName, selected: false })
         btn.addEventListener('click', () => activate(i))
         tabStrip.appendChild(btn)
         return btn
@@ -54,6 +95,11 @@ export function Tabs(factories, options = {}) {
         const slot = document.createElement('div')
         slot.className = 'aos-tab-content'
         slot.setAttribute('role', 'tabpanel')
+        const tabButtonID = tabButtons[i].id || tabButtons[i].getAttribute?.('id') || `aos-tab-${i + 1}`
+        const slotID = `${tabButtonID}-panel`
+        slot.setAttribute('id', slotID)
+        slot.setAttribute('aria-labelledby', tabButtonID)
+        tabButtons[i].setAttribute('aria-controls', slotID)
         chrome.contentEl.appendChild(slot)
         elByContent.set(c, slot)
 
@@ -129,8 +175,8 @@ export function Tabs(factories, options = {}) {
           const slot = elByContent.get(c)
           slot.hidden = !isActive
           slot.dataset.active = String(isActive)
+          applyPanelTabSemanticTarget(tabButtons[i], c, i, { panelName, selected: isActive })
           tabButtons[i].classList.toggle('active', isActive)
-          tabButtons[i].setAttribute('aria-selected', String(isActive))
           tabButtons[i].dataset.active = String(isActive)
         })
         const content = contents[idx]

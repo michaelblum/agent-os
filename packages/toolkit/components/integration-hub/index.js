@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js'
+import { applyIntegrationHubSemantics } from './semantics.js'
 
 const DEFAULT_BROKER_URL = 'http://127.0.0.1:47231'
 
@@ -295,6 +296,8 @@ export default function IntegrationHub(options = {}) {
         </section>
       </div>
     `
+
+    applyIntegrationHubSemantics(rootEl, state)
 
     rootEl.querySelector('.integration-hub-refresh')?.addEventListener('click', () => {
       void loadSnapshot()

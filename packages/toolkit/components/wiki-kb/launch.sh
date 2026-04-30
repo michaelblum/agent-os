@@ -30,7 +30,7 @@ GEOMETRY="$(
 import json, sys
 
 payload = json.load(sys.stdin)
-displays = payload.get("displays", payload) if isinstance(payload, dict) else payload
+displays = payload.get("data", {}).get("displays", payload.get("displays", [])) if isinstance(payload, dict) else payload
 main = next((entry for entry in displays if entry.get("is_main")), displays[0] if displays else None)
 if not main:
     print("0 0 1728 1117")
