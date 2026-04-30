@@ -2068,6 +2068,24 @@ class UnifiedDaemon {
         (try? JSONSerialization.data(withJSONObject: json, options: [])) ?? Data()
     }
 
+    func validateContentRootForLaunchURL(_ urlString: String) -> [ContentRootValidationIssue] {
+        guard let root = contentRootNameForAosURL(urlString) else { return [] }
+        guard let server = contentServer else {
+            return [ContentRootValidationIssue(
+                root: root,
+                code: "server_unavailable",
+                message: "Content server is not configured for '\(root)'; configure the content root and restart the daemon.",
+                path: nil,
+                expectedPath: nil
+            )]
+        }
+        let response: [String: Any] = [
+            "port": Int(server.assignedPort),
+            "roots": server.rootSnapshot()
+        ]
+        return contentRootValidationIssues(response, requiredRoots: [root])
+    }
+
     private func relayChannelPost(channel: String, dataStr: String?) {
         var payload: Any = [String: Any]()
         if let str = dataStr, let data = str.data(using: .utf8),

@@ -26,6 +26,9 @@ Before diagnosing a canvas as a rendering bug, verify the content boundary:
 `content wait` validates that required roots exist on disk and, in repo mode,
 that canonical roots point at the current checkout unless
 `AOS_ALLOW_EXTERNAL_CANONICAL_CONTENT_ROOTS=1` is set for an explicit override.
+Status-item toolkit utilities use the same fast root validation before making a
+utility visible; on failure they show an inline AOS diagnostic instead of
+loading the stale `aos://` URL into a WebView.
 
 When `content.roots.*` changes, restart the repo daemon before expecting the
 live content server to use the new map:

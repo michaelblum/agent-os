@@ -39,6 +39,7 @@ func serveCommand(args: [String]) {
     if let siConfig = config.status_item, siConfig.enabled {
         let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
         mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+        mgr.contentRootValidator = { [weak daemon] url in daemon?.validateContentRootForLaunchURL(url) ?? [] }
         mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
         mgr.setup()
         statusItem.manager = mgr
@@ -70,6 +71,7 @@ func serveCommand(args: [String]) {
                 } else {
                     let mgr = StatusItemManager(canvasManager: daemon.canvasManager, config: siConfig)
                     mgr.urlResolver = { [weak daemon] url in daemon?.resolveContentURL(url) ?? url }
+                    mgr.contentRootValidator = { [weak daemon] url in daemon?.validateContentRootForLaunchURL(url) ?? [] }
                     mgr.lastPositionResolver = { [weak daemon] key in daemon?.getLastPosition(key: key) }
                     mgr.setup()
                     statusItem.manager = mgr

@@ -333,6 +333,16 @@ func canonicalContentRootRelativePath(_ name: String) -> String? {
     }
 }
 
+func contentRootNameForAosURL(_ urlString: String) -> String? {
+    guard urlString.hasPrefix("aos://") else { return nil }
+    let path = String(urlString.dropFirst("aos://".count))
+    guard let root = path.split(separator: "/", maxSplits: 1).first,
+          !root.isEmpty else {
+        return nil
+    }
+    return String(root)
+}
+
 private func canonicalContentRootExpectedPath(_ name: String) -> String? {
     guard aosCurrentRuntimeMode() == .repo,
           let relativePath = canonicalContentRootRelativePath(name),

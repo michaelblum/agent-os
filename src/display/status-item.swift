@@ -26,6 +26,7 @@ class StatusItemManager {
     private(set) var iconStyle: String  // stored for future multi-icon support; updateIcon does not branch on it yet
     private let isAuxiliaryDaemon: Bool
     var urlResolver: ((String) -> String)?
+    var contentRootValidator: ((String) -> [ContentRootValidationIssue])?
     var lastPositionResolver: ((String) -> (x: Double, y: Double)?)?
 
     // handleClick is always called on main; isAnimating is read/written on main only.
@@ -270,6 +271,12 @@ class StatusItemManager {
     private func toggleUtilityCanvas(id: String, url: String, frame: [CGFloat], restoring: Bool = false) {
         if canvasManager.hasCanvas(id) {
             if isUtilityCanvasSuspended(id: id) {
+                let issues = utilityContentIssues(url: url)
+                if !issues.isEmpty {
+                    showUtilityContentError(id: id, url: url, frame: frame, issues: issues, focus: !restoring)
+                    persistUtilityCanvasVisible(id: id, visible: true)
+                    return
+                }
                 var resume = CanvasRequest(action: "resume")
                 resume.id = id
                 _ = canvasManager.handle(resume)
@@ -283,6 +290,13 @@ class StatusItemManager {
                 _ = canvasManager.handle(suspend)
                 persistUtilityCanvasVisible(id: id, visible: false)
             }
+            return
+        }
+
+        let issues = utilityContentIssues(url: url)
+        if !issues.isEmpty {
+            showUtilityContentError(id: id, url: url, frame: frame, issues: issues, focus: !restoring)
+            persistUtilityCanvasVisible(id: id, visible: true)
             return
         }
 
@@ -350,6 +364,17 @@ class StatusItemManager {
     }
 
     private func createUtilityCanvas(id: String, url: String, frame: [CGFloat], suspended: Bool, focus: Bool) {
+        let issues = utilityContentIssues(url: url)
+        if !issues.isEmpty {
+            let summary = contentRootIssueSummary(issues)
+            if suspended && !focus {
+                fputs("[status-item] skipping warm utility canvas '\(id)': \(summary)\n", stderr)
+                return
+            }
+            showUtilityContentError(id: id, url: url, frame: frame, issues: issues, focus: focus)
+            return
+        }
+
         var req = CanvasRequest(action: "create")
         req.id = id
         req.url = urlResolver?(url) ?? url
@@ -358,6 +383,86 @@ class StatusItemManager {
         req.focus = focus
         req.suspended = suspended
         _ = canvasManager.handle(req)
+    }
+
+    private func utilityContentIssues(url: String) -> [ContentRootValidationIssue] {
+        contentRootValidator?(url) ?? []
+    }
+
+    private func showUtilityContentError(
+        id: String,
+        url: String,
+        frame: [CGFloat],
+        issues: [ContentRootValidationIssue],
+        focus: Bool
+    ) {
+        let html = utilityContentErrorHTML(url: url, issues: issues)
+        var req = CanvasRequest(action: canvasManager.hasCanvas(id) ? "update" : "create")
+        req.id = id
+        req.html = html
+        req.at = frame
+        req.interactive = true
+        req.focus = focus
+        req.suspended = false
+        _ = canvasManager.handle(req)
+    }
+
+    private func utilityContentErrorHTML(url: String, issues: [ContentRootValidationIssue]) -> String {
+        let messages = issues.map { "<li>\(htmlEscape($0.message))</li>" }.joined()
+        let commands = utilityContentRepairCommands(issues: issues)
+            .map { "<code>\(htmlEscape($0))</code>" }
+            .joined(separator: "")
+        return """
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            html, body { margin: 0; background: #151722; color: #f3f4f6; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+            body { padding: 18px; }
+            h1 { margin: 0 0 12px; font-size: 15px; font-weight: 700; letter-spacing: 0; }
+            p { margin: 0 0 12px; color: #c7cad7; line-height: 1.4; }
+            ul { margin: 0 0 14px; padding-left: 18px; color: #e6e8ef; line-height: 1.35; }
+            code { display: block; margin: 8px 0 0; padding: 8px 10px; border: 1px solid #3a4057; border-radius: 6px; background: #0f111a; color: #d9e7ff; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+          </style>
+        </head>
+        <body>
+          <h1>AOS Content Root Unavailable</h1>
+          <p>The requested utility surface could not be loaded from <code>\(htmlEscape(url))</code>.</p>
+          <ul>\(messages)</ul>
+          <p>Repair from the current repo, then relaunch this utility.</p>
+          \(commands)
+        </body>
+        </html>
+        """
+    }
+
+    private func utilityContentRepairCommands(issues: [ContentRootValidationIssue]) -> [String] {
+        var commands: [String] = []
+        var seen = Set<String>()
+        func append(_ command: String) {
+            if seen.insert(command).inserted {
+                commands.append(command)
+            }
+        }
+
+        for issue in issues {
+            if let relativePath = canonicalContentRootRelativePath(issue.root) {
+                append("./aos set content.roots.\(issue.root) \(relativePath)")
+            }
+        }
+        append("./aos service restart --mode \(aosCurrentRuntimeMode().rawValue)")
+        append("./aos ready")
+        return commands
+    }
+
+    private func htmlEscape(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 
     private func loadUtilityPanelState() -> [String: Bool] {

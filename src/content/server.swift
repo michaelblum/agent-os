@@ -79,6 +79,10 @@ class ContentServer {
         listener = nil
     }
 
+    func rootSnapshot() -> [String: String] {
+        roots
+    }
+
     // MARK: - Connection Handling
 
     private func handleConnection(_ connection: NWConnection) {
