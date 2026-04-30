@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Tabs } from '../../packages/toolkit/panel/layouts/tabs.js';
+import {
+  Tabs,
+  panelTabAosRef,
+  panelTabSemanticTarget,
+} from '../../packages/toolkit/panel/layouts/tabs.js';
 
 function encodeMessage(message) {
   return Buffer.from(JSON.stringify(message), 'utf8').toString('base64');
@@ -47,6 +51,7 @@ class FakeElement extends FakeNode {
     this.innerHTML = '';
     this.classList = new FakeClassList(this);
     this._className = '';
+    this.disabled = false;
   }
 
   get className() {
@@ -65,6 +70,18 @@ class FakeElement extends FakeNode {
 
   setAttribute(name, value) {
     this.attributes[name] = String(value);
+    if (name === 'id') this.id = String(value);
+    if (name === 'type') this.type = String(value);
+  }
+
+  removeAttribute(name) {
+    delete this.attributes[name];
+    if (name === 'id') delete this.id;
+    if (name === 'type') delete this.type;
+  }
+
+  getAttribute(name) {
+    return this.attributes[name] ?? null;
   }
 
   addEventListener(type, handler) {
@@ -99,6 +116,27 @@ function makeContent(title) {
     },
   });
 }
+
+test('panel tab semantic targets carry stable AOS refs', () => {
+  assert.equal(panelTabAosRef('tabs smoke', 'alpha'), 'panel-tabs:tabs-smoke:alpha');
+  assert.deepEqual(panelTabSemanticTarget({
+    manifest: {
+      name: 'alpha',
+      title: 'Alpha',
+    },
+  }, 0, {
+    panelName: 'tabs smoke',
+    selected: true,
+  }), {
+    id: 'tab-alpha',
+    role: 'AXTab',
+    name: 'Alpha',
+    action: 'tabs/activate',
+    surface: 'panel-tabs',
+    aosRef: 'panel-tabs:tabs-smoke:alpha',
+    selected: true,
+  });
+});
 
 test('Tabs onActivate fires for initial mount and active-tab changes only', async (t) => {
   const previousNode = globalThis.Node;
@@ -160,6 +198,21 @@ test('Tabs onActivate fires for initial mount and active-tab changes only', asyn
   const [alphaBtn, betaBtn, gammaBtn] = tabStrip.children;
   const [alphaPanel, betaPanel, gammaPanel] = chrome.contentEl.children;
 
+  assert.equal(tabStrip.attributes.role, 'tablist');
+  assert.equal(alphaBtn.textContent, 'Alpha');
+  assert.equal(alphaBtn.attributes.role, 'tab');
+  assert.equal(alphaBtn.attributes.type, 'button');
+  assert.equal(alphaBtn.attributes['aria-label'], 'Alpha');
+  assert.equal(alphaBtn.attributes['aria-selected'], 'true');
+  assert.equal(alphaBtn.dataset.aosRef, 'panel-tabs:tabs-smoke:alpha');
+  assert.equal(alphaBtn.dataset.aosAction, 'tabs/activate');
+  assert.equal(alphaBtn.dataset.aosSurface, 'panel-tabs');
+  assert.equal(alphaBtn.dataset.semanticTargetId, 'tab-alpha');
+  assert.equal(alphaBtn.attributes['aria-controls'], alphaPanel.attributes.id);
+  assert.equal(alphaPanel.attributes['aria-labelledby'], alphaBtn.attributes.id);
+  assert.equal(betaBtn.attributes['aria-selected'], 'false');
+  assert.equal(betaBtn.dataset.aosRef, 'panel-tabs:tabs-smoke:beta');
+
   assert.equal(alphaBtn.classList.contains('active'), true);
   assert.equal(betaBtn.classList.contains('active'), false);
   assert.equal(alphaPanel.hidden, false);
@@ -174,6 +227,9 @@ test('Tabs onActivate fires for initial mount and active-tab changes only', asyn
   ]);
   assert.equal(alphaBtn.classList.contains('active'), false);
   assert.equal(betaBtn.classList.contains('active'), true);
+  assert.equal(alphaBtn.attributes['aria-selected'], 'false');
+  assert.equal(betaBtn.attributes['aria-selected'], 'true');
+  assert.equal(betaBtn.textContent, 'Beta');
   assert.equal(alphaPanel.hidden, true);
   assert.equal(betaPanel.hidden, false);
 

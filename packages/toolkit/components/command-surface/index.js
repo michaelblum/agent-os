@@ -2,7 +2,29 @@
 // command plans. It renders data and emits operator intent; it does not execute
 // commands.
 
+import { normalizeSemanticTarget } from '../../runtime/semantic-targets.js'
+
 const BASE_TITLE = 'Command Surface'
+const SURFACE = 'command-surface'
+
+const STEP_ACTIONS = {
+  select: {
+    action: 'step_select',
+    label(stepID) { return `Select ${stepID}` },
+  },
+  copy: {
+    action: 'command_copied',
+    label(stepID) { return `Copy command for ${stepID}` },
+  },
+  done: {
+    action: 'step_done',
+    label(stepID) { return `Mark ${stepID} done` },
+  },
+  blocked: {
+    action: 'step_blocked',
+    label(stepID) { return `Mark ${stepID} blocked` },
+  },
+}
 
 function escapeHTML(value) {
   if (value === null || value === undefined) return ''
@@ -12,6 +34,49 @@ function escapeHTML(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+}
+
+function boolAttr(value) {
+  return value ? 'true' : 'false'
+}
+
+function semanticAttrString(target = {}, options = {}) {
+  const normalized = normalizeSemanticTarget({
+    ...target,
+    surface: target.surface || SURFACE,
+  })
+  const attrs = [
+    ['aria-label', normalized.name],
+    ['data-aos-ref', normalized.aosRef],
+    ['data-aos-surface', normalized.surface],
+    ['data-semantic-target-id', normalized.id],
+  ]
+  if (normalized.role && !(options.nativeButton && normalized.role === 'button')) attrs.push(['role', normalized.role])
+  if (normalized.action) attrs.push(['data-aos-action', normalized.action])
+  if (!normalized.enabled) attrs.push(['aria-disabled', 'true'])
+  if (normalized.pressed !== null) attrs.push(['aria-pressed', boolAttr(normalized.pressed)])
+  if (normalized.current !== null) attrs.push(['aria-current', normalized.current === true ? 'true' : normalized.current])
+  if (normalized.selected !== null) attrs.push(['aria-selected', boolAttr(normalized.selected)])
+  if (normalized.checked !== null) attrs.push(['aria-checked', boolAttr(normalized.checked)])
+  if (normalized.expanded !== null) attrs.push(['aria-expanded', boolAttr(normalized.expanded)])
+  return attrs
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([name, value]) => `${name}="${escapeHTML(value)}"`)
+    .join(' ')
+}
+
+export function commandSurfaceActionAttrs(step = {}, actionType = '') {
+  const stepID = step.step_id || 'step'
+  const definition = STEP_ACTIONS[actionType] || {
+    action: actionType,
+    label(id) { return `${actionType || 'Action'} ${id}` },
+  }
+  return semanticAttrString({
+    id: `step-${stepID}-${actionType || 'action'}`,
+    role: 'AXButton',
+    name: definition.label(stepID),
+    action: definition.action,
+  }, { nativeButton: true })
 }
 
 export function commandText(command) {
@@ -88,10 +153,10 @@ function renderStep(step, index) {
     + (step.reason ? `<p class="cs-reason">${escapeHTML(step.reason)}</p>` : '')
     + requires
     + `<div class="cs-actions">`
-    + `<button data-action="select" data-step-id="${escapeHTML(step.step_id)}">Select</button>`
-    + `<button data-action="copy" data-command="${escapeHTML(command)}">Copy</button>`
-    + `<button data-action="done" data-step-id="${escapeHTML(step.step_id)}">Done</button>`
-    + `<button data-action="blocked" data-step-id="${escapeHTML(step.step_id)}">Blocked</button>`
+    + `<button type="button" ${commandSurfaceActionAttrs(step, 'select')} data-action="select" data-step-id="${escapeHTML(step.step_id)}">Select</button>`
+    + `<button type="button" ${commandSurfaceActionAttrs(step, 'copy')} data-action="copy" data-command="${escapeHTML(command)}">Copy</button>`
+    + `<button type="button" ${commandSurfaceActionAttrs(step, 'done')} data-action="done" data-step-id="${escapeHTML(step.step_id)}">Done</button>`
+    + `<button type="button" ${commandSurfaceActionAttrs(step, 'blocked')} data-action="blocked" data-step-id="${escapeHTML(step.step_id)}">Blocked</button>`
     + `</div>`
     + `</div>`
     + `</section>`

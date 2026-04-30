@@ -50,7 +50,7 @@ function mergeLatestStats(samples) {
 function renderSparkline(samples, targetFps) {
   const bars = buildSparkline(samples, { targetFps, limit: 64 });
   if (bars.length === 0) return '<div class="perf-empty">Waiting for frames</div>';
-  return `<div class="perf-sparkline" aria-label="Frame-time sparkline">${
+  return `<div class="perf-sparkline" role="img" aria-label="Frame-time sparkline">${
     bars.map((bar) => (
       `<span class="perf-bar ${esc(bar.state)}" style="height:${Math.round(bar.ratio * 100)}%"></span>`
     )).join('')
@@ -102,7 +102,7 @@ function renderSourceSummary(source, samples, options) {
 function renderEventLog(events) {
   if (events.length === 0) return '<div class="perf-empty">No render marks</div>';
   return (
-    `<div class="perf-events">`
+    `<div class="perf-events" role="log" aria-label="Render marks" aria-live="polite">`
       + events.slice(-24).reverse().map((entry) => (
         `<div class="perf-event">`
           + `<span>${esc(entry.ts)}</span>`
@@ -261,6 +261,8 @@ export default function RenderPerformance(options = {}) {
       host.contentEl.style.overflow = 'hidden';
       root = document.createElement('div');
       root.className = 'render-performance-root';
+      root.setAttribute('role', 'region');
+      root.setAttribute('aria-label', BASE_TITLE);
       root.innerHTML = '<div class="perf-empty">Waiting for frames</div>';
       window.__renderPerformanceDebug = {
         sample(payload = {}) {

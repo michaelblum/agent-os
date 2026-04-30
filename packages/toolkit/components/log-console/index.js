@@ -54,6 +54,10 @@ export default function LogConsole() {
       host = host_
       entriesEl = document.createElement('div')
       entriesEl.id = 'entries'
+      entriesEl.setAttribute('role', 'log')
+      entriesEl.setAttribute('aria-label', 'Log entries')
+      entriesEl.setAttribute('aria-live', 'polite')
+      entriesEl.setAttribute('aria-relevant', 'additions text')
       return entriesEl
     },
 

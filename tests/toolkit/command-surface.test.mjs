@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  commandSurfaceActionAttrs,
   commandText,
   normalizeCommandSurfacePayload,
   renderCommandSurface,
@@ -57,4 +58,33 @@ test('renderCommandSurface escapes text and renders command workflow structure',
   assert.match(html, /Human Handoffs/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>alert/);
+});
+
+test('command surface action attrs expose stable AX and AOS metadata', () => {
+  const attrs = commandSurfaceActionAttrs({ step_id: 'step_001' }, 'done');
+
+  assert.match(attrs, /aria-label="Mark step_001 done"/);
+  assert.match(attrs, /data-aos-ref="command-surface:step-step_001-done"/);
+  assert.match(attrs, /data-aos-surface="command-surface"/);
+  assert.match(attrs, /data-aos-action="step_done"/);
+  assert.match(attrs, /data-semantic-target-id="step-step_001-done"/);
+  assert.doesNotMatch(attrs, /role="button"/);
+});
+
+test('renderCommandSurface keeps action button labels while stamping semantic metadata', () => {
+  const html = renderCommandSurface({
+    status: 'ok',
+    steps: [
+      {
+        step_id: 'step_001',
+        kind: 'action',
+        command: ['./aos', 'status'],
+      },
+    ],
+  });
+
+  assert.match(html, /aria-label="Select step_001"[^>]*data-aos-action="step_select"[^>]*>Select<\/button>/);
+  assert.match(html, /aria-label="Copy command for step_001"[^>]*data-aos-action="command_copied"[^>]*>Copy<\/button>/);
+  assert.match(html, /aria-label="Mark step_001 done"[^>]*data-aos-action="step_done"[^>]*>Done<\/button>/);
+  assert.match(html, /aria-label="Mark step_001 blocked"[^>]*data-aos-action="step_blocked"[^>]*>Blocked<\/button>/);
 });
