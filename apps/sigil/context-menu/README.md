@@ -59,9 +59,15 @@ falling back to screenshots.
 For user-input regressions, spot-check with actual AOS events:
 
 ```bash
+AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
 bash tests/sigil-real-input-status-avatar.sh
 bash tests/sigil-context-menu-real-input.sh
 ```
+
+`tests/scenarios/sigil/radial-menu/real-input.sh` is the default radial-menu
+entry path. It uses the live repo status item, opens the radial menu with real
+drag input, and verifies the radial menu child surface through AOS semantic
+targets before any screenshot or pixel fallback.
 
 `tests/sigil-real-input-status-avatar.sh` is the default entry-path smoke. It
 uses the status item as the user would: locate the AOS status item, click it

@@ -32,8 +32,8 @@ aos_visual_prepare_live_roots() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" set content.roots.toolkit packages/toolkit >/dev/null
-  "$aos_bin" set content.roots.sigil apps/sigil >/dev/null
+  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
+  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
   "$aos_bin" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
 }
 
@@ -42,8 +42,8 @@ aos_visual_configure_sigil_status_item() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" set content.roots.toolkit packages/toolkit >/dev/null
-  "$aos_bin" set content.roots.sigil apps/sigil >/dev/null
+  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
+  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
   "$aos_bin" set status_item.enabled true >/dev/null
   "$aos_bin" set status_item.toggle_id "$avatar_id" >/dev/null
   "$aos_bin" set status_item.toggle_url 'aos://sigil/renderer/index.html' >/dev/null
@@ -52,18 +52,74 @@ aos_visual_configure_sigil_status_item() {
 
 aos_visual_remove_canvas() {
   local canvas_id="$1"
-  local aos_bin
+  local aos_bin timeout
   aos_bin="$(aos_visual_aos)"
+  timeout="${2:-3}"
 
   "$aos_bin" show remove --id "$canvas_id" >/dev/null 2>&1 || true
+  python3 - "$aos_bin" "$canvas_id" "$timeout" <<'PY' >/dev/null 2>&1 || true
+import json
+import subprocess
+import sys
+import time
+
+aos, canvas_id, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
+deadline = time.time() + timeout
+
+while time.time() < deadline:
+    try:
+        payload = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True, stderr=subprocess.DEVNULL))
+    except Exception:
+        raise SystemExit(0)
+    ids = {canvas.get("id") for canvas in payload.get("canvases") or []}
+    if canvas_id not in ids:
+        raise SystemExit(0)
+    time.sleep(0.1)
+PY
 }
 
 aos_visual_launch_canvas_inspector() {
   local inspector_id="${1:-canvas-inspector}"
-  local aos_bin
+  local aos_bin panel_w panel_h display_json x y
   aos_bin="$(aos_visual_aos)"
+  panel_w="${AOS_CANVAS_INSPECTOR_W:-320}"
+  panel_h="${AOS_CANVAS_INSPECTOR_H:-480}"
 
-  CANVAS_ID="$inspector_id" AOS="$aos_bin" bash "$VISUAL_HARNESS_ROOT/packages/toolkit/components/canvas-inspector/launch.sh" >/dev/null
+  aos_visual_remove_canvas "$inspector_id" 5
+  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
+  "$aos_bin" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+
+  display_json="$("$aos_bin" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
+  read -r x y <<EOF
+$(PANEL_W="$panel_w" PANEL_H="$panel_h" python3 -c "
+import json, os, sys
+
+payload = json.load(sys.stdin)
+displays = payload.get('data', {}).get('displays', payload.get('displays', payload if isinstance(payload, list) else []))
+main = next((display for display in displays if display.get('is_main')), displays[0] if displays else None)
+rect = (main or {}).get('visible_bounds') or (main or {}).get('bounds') or {}
+x = int(rect.get('x', 0))
+y = int(rect.get('y', 0))
+w = int(rect.get('w', 1920))
+h = int(rect.get('h', 1080))
+panel_w = int(os.environ['PANEL_W'])
+panel_h = int(os.environ['PANEL_H'])
+print(max(x, x + w - panel_w), max(y, y + h - panel_h))
+" <<<"$display_json" 2>/dev/null || echo "1600 500")
+EOF
+
+  "$aos_bin" show create --id "$inspector_id" \
+    --at "$x,$y,$panel_w,$panel_h" \
+    --interactive \
+    --scope global \
+    --url 'aos://toolkit/components/canvas-inspector/index.html' >/dev/null
+
+  "$aos_bin" show wait --id "$inspector_id" --manifest canvas-inspector --timeout 5s >/dev/null
+  "$aos_bin" show wait \
+    --id "$inspector_id" \
+    --manifest canvas-inspector \
+    --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
+    --timeout 5s >/dev/null
 }
 
 aos_visual_launch_sigil_avatar() {
@@ -118,6 +174,47 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
     echo "FAIL: daemon pid missing for real status-item click" >&2
     return 1
   }
+
+  click_aos_status_item_real "$pid" "$aos_bin"
+  aos_visual_wait_sigil_avatar_ready "$avatar_id"
+  "$aos_bin" show wait \
+    --id "$avatar_id" \
+    --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
+    --timeout 5s >/dev/null
+}
+
+aos_visual_single_status_item_pid() {
+  local matches_json
+  matches_json="$(aos_status_item_matches_json)" || return 1
+
+  python3 - "$matches_json" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+matches = payload.get("matches") or []
+if len(matches) != 1:
+    print(
+        f"FAIL: expected exactly one AOS status item, found {len(matches)}: "
+        f"{json.dumps(matches, sort_keys=True)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+pid = matches[0].get("pid")
+if not pid:
+    print(f"FAIL: AOS status item match is missing pid: {matches[0]}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(pid)
+PY
+}
+
+aos_visual_show_sigil_avatar_via_live_status_click() {
+  local avatar_id="${1:-avatar-main}"
+  local aos_bin pid
+  aos_bin="$(aos_visual_aos)"
+  pid="$(aos_visual_single_status_item_pid)"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
@@ -271,6 +368,24 @@ aos_visual_launch_sigil_with_inspector_via_status_item() {
   aos_visual_remove_canvas "$inspector_id"
   aos_visual_launch_canvas_inspector "$inspector_id"
   aos_visual_show_sigil_avatar_via_real_status_click "$state_root" "$avatar_id"
+  if [[ "$placement" == "manual-visible" ]]; then
+    aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
+  fi
+  aos_visual_avoid_sigil_avatar_overlap "$avatar_id" "$inspector_id"
+}
+
+aos_visual_launch_sigil_with_inspector_via_live_status_item() {
+  local avatar_id="${1:-avatar-main}"
+  local inspector_id="${2:-canvas-inspector}"
+  local placement="${3:-default}"
+
+  aos_visual_configure_sigil_status_item "$avatar_id"
+  aos_visual_remove_canvas "$avatar_id"
+  aos_visual_remove_canvas "sigil-hit-$avatar_id"
+  aos_visual_remove_canvas "sigil-radial-menu-$avatar_id"
+  aos_visual_remove_canvas "$inspector_id"
+  aos_visual_launch_canvas_inspector "$inspector_id"
+  aos_visual_show_sigil_avatar_via_live_status_click "$avatar_id"
   if [[ "$placement" == "manual-visible" ]]; then
     aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
   fi
