@@ -32,6 +32,12 @@ repo files, running tests, restarting canvases, reading logs, or committing a
 checkpoint. Treat these as elevated privileges, not as capabilities that normal
 app agents automatically inherit.
 
+For repo workflow routing, prefer `./aos dev recommend --json` before choosing
+between a Swift rebuild, package-local test, schema test, canvas reload, or
+readiness loop. The source of truth is `docs/dev/workflow-rules.json`; update
+that manifest and `shared/schemas/dev-workflow-rules.schema.json` when routing
+policy changes.
+
 ### Testing
 
 Use the smallest stable test harness that exercises the changed behavior. Prefer

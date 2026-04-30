@@ -1,0 +1,305 @@
+{
+  "$schema": "../../shared/schemas/dev-workflow-rules.schema.json",
+  "schema_version": 1,
+  "summary": "Repo development workflow routing rules for changed files.",
+  "rules": [
+    {
+      "id": "app-subtree-local-contract",
+      "summary": "App subtree changes delegate app-specific workflow details to the nearest local contract.",
+      "patterns": [
+        "apps/**"
+      ],
+      "classes": [
+        "app",
+        "local_contract"
+      ],
+      "actions": [
+        "read_local_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [],
+      "verification": [],
+      "notes": [
+        "Repo-wide routing should not encode app-specific behavior; read the nearest subtree AGENTS.md or local playbook before choosing app tests."
+      ]
+    },
+    {
+      "id": "swift-core",
+      "summary": "Unified aos binary or Swift IPC sources changed.",
+      "patterns": [
+        "src/**/*.swift",
+        "shared/swift/ipc/**/*.swift"
+      ],
+      "classes": [
+        "swift",
+        "aos_binary"
+      ],
+      "actions": [
+        "swift_build"
+      ],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [
+        {
+          "id": "dev-build",
+          "command": "./aos dev build --no-restart",
+          "reason": "Swift source changes require a current repo-mode ./aos binary. The dev wrapper preserves the signing/TCC warning surface."
+        }
+      ],
+      "verification": [
+        {
+          "id": "ready",
+          "command": "./aos ready",
+          "reason": "Verify the rebuilt binary and managed daemon still agree on repo-mode readiness."
+        }
+      ]
+    },
+    {
+      "id": "toolkit-components",
+      "summary": "Reusable toolkit component or runtime browser code changed.",
+      "patterns": [
+        "packages/toolkit/components/**",
+        "packages/toolkit/panel/**",
+        "packages/toolkit/runtime/**"
+      ],
+      "classes": [
+        "toolkit",
+        "web_surface"
+      ],
+      "actions": [
+        "component_reload",
+        "focused_toolkit_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [],
+      "verification": [
+        {
+          "id": "toolkit-test",
+          "command": "node --test tests/toolkit/*.test.mjs",
+          "reason": "Use focused toolkit/runtime tests for pure browser-surface changes."
+        },
+        {
+          "id": "show-wait",
+          "command": "./aos show wait --id <canvas-id> --timeout 5s",
+          "reason": "When manually verifying a canvas-backed component, wait for the affected canvas instead of rebuilding the binary."
+        }
+      ]
+    },
+    {
+      "id": "browser-intent-sensor",
+      "summary": "Browser intent sensor or JS adapter path changed.",
+      "patterns": [
+        "packages/toolkit/browser-intent-sensor/**"
+      ],
+      "classes": [
+        "toolkit",
+        "browser_intent_sensor"
+      ],
+      "actions": [
+        "focused_js_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "browser-intent-test",
+          "command": "node --test packages/toolkit/browser-intent-sensor",
+          "reason": "Browser intent sensor changes stay in the JavaScript test loop unless an adapter contract changes."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "schemas",
+      "summary": "Shared schema contracts changed.",
+      "patterns": [
+        "shared/schemas/**"
+      ],
+      "classes": [
+        "schema"
+      ],
+      "actions": [
+        "schema_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "schema-tests",
+          "command": "node --test tests/schemas/*.test.mjs",
+          "reason": "Schema changes should run schema validation tests without daemon restart."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "dev-workflow-manifest",
+      "summary": "Developer workflow router manifest or tests changed.",
+      "patterns": [
+        "docs/dev/workflow-rules.json",
+        "shared/schemas/dev-workflow-rules.schema.json",
+        "shared/schemas/fixtures/dev-workflow-rules/**",
+        "tests/schemas/dev-workflow-rules.test.mjs"
+      ],
+      "classes": [
+        "dev_workflow",
+        "schema"
+      ],
+      "actions": [
+        "schema_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "dev-workflow-schema-test",
+          "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
+          "reason": "Validate the router manifest and fixtures against the schema."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "package-gateway",
+      "summary": "Gateway package TypeScript changed.",
+      "patterns": [
+        "packages/gateway/**"
+      ],
+      "classes": [
+        "package",
+        "gateway"
+      ],
+      "actions": [
+        "package_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "gateway-test",
+          "command": "cd packages/gateway && npm test",
+          "reason": "Gateway changes stay in the package-local TypeScript test loop."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "package-host",
+      "summary": "Host package TypeScript changed.",
+      "patterns": [
+        "packages/host/**"
+      ],
+      "classes": [
+        "package",
+        "host"
+      ],
+      "actions": [
+        "package_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "host-test",
+          "command": "cd packages/host && npm test",
+          "reason": "Host changes stay in the package-local TypeScript test loop."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "command-contract-docs",
+      "summary": "CLI/API contract documentation changed.",
+      "patterns": [
+        "docs/api/**/*.md",
+        "docs/api/*.md"
+      ],
+      "classes": [
+        "docs",
+        "command_contract"
+      ],
+      "actions": [
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "help-contract",
+          "command": "bash tests/help-contract.sh",
+          "reason": "Public CLI docs must stay aligned with discoverable help and parser contracts."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "docs-only",
+      "summary": "Docs, plans, or recipes changed.",
+      "patterns": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        "**/AGENTS.md",
+        "**/CLAUDE.md",
+        "docs/**/*.md",
+        "recipes/**",
+        "README.md"
+      ],
+      "classes": [
+        "docs"
+      ],
+      "actions": [
+        "docs_review"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [],
+      "verification": [],
+      "notes": [
+        "Docs-only changes do not require runtime verification unless they change command contracts or executable examples."
+      ]
+    },
+    {
+      "id": "tests",
+      "summary": "Test harnesses or scenarios changed.",
+      "patterns": [
+        "tests/**"
+      ],
+      "classes": [
+        "tests"
+      ],
+      "actions": [
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [],
+      "verification": [
+        {
+          "id": "focused-test",
+          "command": "bash <changed-test>",
+          "reason": "Run the changed shell scenario or the smallest adjacent test set."
+        }
+      ]
+    }
+  ],
+  "fallback": {
+    "id": "unclassified",
+    "summary": "No workflow rule matched the changed path.",
+    "patterns": [],
+    "classes": [
+      "unclassified"
+    ],
+    "actions": [
+      "inspect_manually"
+    ],
+    "hot_swappable": true,
+    "tcc_identity_sensitive": false,
+    "commands": [],
+    "verification": [],
+    "notes": [
+      "No manifest rule matched this path; inspect the nearest AGENTS.md or CLAUDE.md before choosing a verification loop."
+    ]
+  }
+}

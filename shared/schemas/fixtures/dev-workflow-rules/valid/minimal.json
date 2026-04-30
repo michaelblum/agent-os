@@ -1,0 +1,35 @@
+{
+  "$schema": "../../../dev-workflow-rules.schema.json",
+  "schema_version": 1,
+  "summary": "Minimal valid workflow manifest.",
+  "rules": [
+    {
+      "id": "swift-core",
+      "summary": "Swift changed.",
+      "patterns": ["src/**/*.swift"],
+      "classes": ["swift"],
+      "actions": ["swift_build"],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [
+        {
+          "id": "dev-build",
+          "command": "./aos dev build --no-restart",
+          "reason": "Swift changes require a build."
+        }
+      ],
+      "verification": []
+    }
+  ],
+  "fallback": {
+    "id": "unclassified",
+    "summary": "No rule matched.",
+    "patterns": [],
+    "classes": ["unclassified"],
+    "actions": ["inspect_manually"],
+    "hot_swappable": true,
+    "tcc_identity_sensitive": false,
+    "commands": [],
+    "verification": []
+  }
+}

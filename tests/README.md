@@ -1,17 +1,26 @@
 # Test Targets
 
-Use the smallest loop that matches the change. Do not rebuild `./aos` by
-default before every verification step.
+Use the smallest loop that matches the change. Start with the manifest-backed
+router when the right loop is not obvious:
+
+```bash
+./aos dev recommend --json
+```
+
+Do not rebuild `./aos` by default before every verification step.
 
 For the repo-wide entry-path model behind these choices, see
 `docs/recipes/agent-entry-paths-and-verification.md`.
 
 ## Rebuild `./aos` First
 
-Rebuild with `bash build.sh` when both of these are true:
+Rebuild with `./aos dev build --no-restart` when both of these are true:
 
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
+
+Use raw `bash build.sh` only when `./aos` is missing or the build command itself
+is being repaired.
 
 If you are chaining build + `./aos` verification from automation, prefer:
 

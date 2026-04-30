@@ -1068,6 +1068,55 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos runtime display-union", "aos runtime display-union --native"])
     ]))
 
+    // ── dev ───────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["dev"], summary: "Repo development workflow router and build surface", forms: [
+        InvocationForm(id: "dev-classify", usage: "aos dev classify [--paths <path,...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
+            args: [
+                flag("paths", "--paths", "Comma-separated changed paths to classify"),
+                flag("files", "--files", "Space-separated changed paths to classify", variadic: true),
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),
+                flag("base", "--base", "Git ref to diff against instead of working-tree status"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("json", "--json", "Emit machine-readable classification", type: .bool),
+                pos("path", "Changed path", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev classify --json",
+                "aos dev classify --paths src/main.swift,packages/toolkit/runtime/canvas.js --json"
+            ]),
+        InvocationForm(id: "dev-recommend", usage: "aos dev recommend [--paths <path,...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
+            args: [
+                flag("paths", "--paths", "Comma-separated changed paths to classify before recommending"),
+                flag("files", "--files", "Space-separated changed paths to classify before recommending", variadic: true),
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),
+                flag("base", "--base", "Git ref to diff against instead of working-tree status"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("json", "--json", "Emit machine-readable recommendation", type: .bool),
+                pos("path", "Changed path", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev recommend --json",
+                "aos dev recommend src/commands/dev.swift --json"
+            ]),
+        InvocationForm(id: "dev-build", usage: "aos dev build [--release] [--force] [--no-restart] [--json]",
+            args: [
+                flag("release", "--release", "Build optimized release binary", type: .bool),
+                flag("force", "--force", "Force rebuild even when inputs appear current", type: .bool),
+                flag("no-restart", "--no-restart", "Do not restart the managed daemon after building", type: .bool),
+                flag("json", "--json", "Emit machine-readable build result", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"])
+    ]))
+
     // ── status ────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["status"], summary: "Primary runtime/session status entrypoint", forms: [
         InvocationForm(id: "status", usage: "aos status [--json]",
