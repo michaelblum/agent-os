@@ -99,6 +99,39 @@ def hit_target_probe():
     )
 
 
+def radial_surface_probe():
+    return eval_json(
+        """(() => {
+      const snap = window.__sigilDebug?.snapshot?.() || {};
+      const surface = snap.radialTargetSurface || null;
+      return JSON.stringify({
+        state: snap.state || null,
+        phase: snap.radialGestureMenu?.phase || null,
+        surface,
+        targetIds: (surface?.targets || []).map((target) => target.id)
+      });
+    })()"""
+    )
+
+
+def radial_surface_xray(surface_id):
+    payload = run_json("see", "capture", "--canvas", surface_id, "--xray")
+    elements = payload.get("elements") or []
+    names = []
+    for element in elements:
+        for key in ("title", "label", "value"):
+            value = element.get(key)
+            if isinstance(value, str) and value:
+                names.append(value)
+    return {
+        "status": payload.get("status"),
+        "canvas": surface_id,
+        "names": names,
+        "buttonCount": sum(1 for element in elements if element.get("role") == "AXButton"),
+        "elements": elements,
+    }
+
+
 eval_json("window.__sigilDebug?.armInteractionTrace?.('radial-brain-real-input'); JSON.stringify(true)")
 
 last_stable = {"probe": None, "count": 0}
@@ -163,6 +196,41 @@ drag = subprocess.Popen(
     text=True,
 )
 
+surface = wait_until(
+    lambda: (
+        lambda probe: probe
+        if (
+            probe.get("state") == "RADIAL"
+            and probe.get("phase") == "radial"
+            and (probe.get("surface") or {}).get("ready") is True
+            and (probe.get("surface") or {}).get("interactive") is True
+            and "wiki-graph" in (probe.get("targetIds") or [])
+        )
+        else None
+    )(radial_surface_probe()),
+    timeout=4.0,
+    interval=0.08,
+    label="AOS radial menu target surface",
+)
+
+surface_xray = radial_surface_xray(surface["surface"]["id"])
+surface_names = " ".join(surface_xray.get("names") or [])
+if surface_xray.get("buttonCount", 0) < 2 or "Context Menu" not in surface_names or "Wiki Graph" not in surface_names:
+    raise SystemExit("FAIL: aos see could not discover radial menu item buttons: " + json.dumps({
+        "surface": surface,
+        "xray": surface_xray,
+    }, sort_keys=True))
+if "Sigil radial item:" in surface_names:
+    raise SystemExit("FAIL: radial menu item AX labels should be command names only: " + json.dumps({
+        "surface": surface,
+        "xray": surface_xray,
+    }, sort_keys=True))
+if "Sigil radial menu" not in surface_names:
+    raise SystemExit("FAIL: radial menu AX group context missing: " + json.dumps({
+        "surface": surface,
+        "xray": surface_xray,
+    }, sort_keys=True))
+
 proof = None
 proof_error = None
 stdout = ""
@@ -200,6 +268,8 @@ finally:
 
 diagnostics = {
     "initial": initial,
+    "surface": surface,
+    "surfaceXray": surface_xray,
     "start": start,
     "target": target,
     "preDragCursor": pre_drag_cursor,
@@ -220,6 +290,11 @@ if drag.returncode != 0:
 
 print("PASS", json.dumps({
     "initial": initial,
+    "surface": surface,
+    "surfaceXray": {
+        "buttonCount": surface_xray.get("buttonCount"),
+        "names": surface_xray.get("names"),
+    },
     "proof": proof,
     "preDragCursor": pre_drag_cursor,
     "drag": json.loads(stdout) if stdout.strip().startswith("{") else stdout.strip(),

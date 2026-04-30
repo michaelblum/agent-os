@@ -174,8 +174,10 @@ wait_until(
     lambda: (
         lambda snap: snap
         if snap.get("radialGestureVisuals", {}).get("visible") is True
-        and set(snap.get("radialGestureVisuals", {}).get("itemIds", [])) == {"context-menu", "wiki-graph"}
+        and {"context-menu", "wiki-graph"}.issubset(set(snap.get("radialGestureVisuals", {}).get("itemIds", [])))
         and snap.get("radialGestureVisuals", {}).get("scales", {}).get("context-menu", 0) > 0
+        and snap.get("radialTargetSurface", {}).get("interactive") is True
+        and {"context-menu", "wiki-graph"}.issubset({target.get("id") for target in snap.get("radialTargetSurface", {}).get("targets", [])})
         else None
     )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
     timeout=3.0,
