@@ -67,9 +67,32 @@ func runContentWait(_ args: [String]) {
     }
     defer { session.disconnect() }
 
-    guard var response = waitForContentStatus(session: session, requiredRoots: requiredRoots, timeoutMs: timeoutMs) else {
+    let deadline = Date().addingTimeInterval(Double(timeoutMs) / 1000)
+    var response: [String: Any]?
+    var lastIssues: [ContentRootValidationIssue] = []
+    while Date() < deadline {
+        if let raw = session.sendAndReceive(buildEnvelopePayload(
+            service: "content", action: "status", data: [:]
+        )) {
+            let current = (raw["data"] as? [String: Any]) ?? raw
+            let issues = contentRootValidationIssues(current, requiredRoots: requiredRoots)
+            let fatalIssues = issues.filter { !$0.isTransient }
+            if !fatalIssues.isEmpty {
+                exitError(contentRootIssueSummary(fatalIssues), code: "CONTENT_ROOT_INVALID")
+            }
+            lastIssues = issues
+            if contentStatusIsReady(current, requiredRoots: requiredRoots) {
+                response = current
+                break
+            }
+        }
+        usleep(100_000)
+    }
+
+    guard var response else {
         let rootsText = requiredRoots.isEmpty ? "content server" : "content roots \(requiredRoots.joined(separator: ", "))"
-        exitError("\(rootsText) did not become ready before timeout", code: "CONTENT_WAIT_TIMEOUT")
+        let issueText = lastIssues.isEmpty ? "" : " \(contentRootIssueSummary(lastIssues))"
+        exitError("\(rootsText) did not become ready before timeout.\(issueText)", code: "CONTENT_WAIT_TIMEOUT")
     }
     response["status"] = "success"
     response["ready"] = true

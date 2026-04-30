@@ -1421,6 +1421,7 @@ private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.kind == "content" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
     return "degraded"
 }
@@ -1445,6 +1446,9 @@ private func readyDiagnosis(
     }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) {
         return "input_tap_not_active"
+    }
+    if blockers.contains(where: { $0.kind == "content" }) {
+        return "content_root_invalid"
     }
     if blockers.contains(where: { $0.kind == "setup" }) {
         return "permissions_onboarding_required"
@@ -1576,7 +1580,30 @@ private func readyBlockers(
         ))
     }
 
+    if runtime.socket_reachable {
+        blockers.append(contentsOf: contentRootReadyBlockers(mode: mode))
+    }
+
     return blockers
+}
+
+private func contentRootReadyBlockers(mode: AOSRuntimeMode) -> [ReadyBlocker] {
+    guard mode == .repo,
+          let raw = sendEnvelopeRequest(service: "content", action: "status", data: [:]) else {
+        return []
+    }
+    let response = (raw["data"] as? [String: Any]) ?? raw
+    return contentRootValidationIssues(response, validateConfiguredCanonicalRoots: true).map { issue in
+        ReadyBlocker(
+            kind: "content",
+            id: "content_root_\(issue.root)_\(issue.code)",
+            scope: issue.root,
+            message: issue.message,
+            target_path: issue.path,
+            settings_url: nil,
+            blocks: ["show"]
+        )
+    }
 }
 
 private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
@@ -1620,6 +1647,24 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         append(ReadyNextAction(
             type: "command",
             label: "restart the managed daemon and re-check readiness",
+            command: "\(prefix) service restart --mode \(mode.rawValue)"
+        ))
+    }
+
+    for blocker in blockers where blocker.kind == "content" {
+        guard let root = blocker.scope,
+              let relativePath = canonicalContentRootRelativePath(root) else { continue }
+        append(ReadyNextAction(
+            type: "command",
+            label: "reset \(root) content root to the current repo",
+            command: "\(prefix) set content.roots.\(root) \(relativePath)"
+        ))
+    }
+
+    if blockers.contains(where: { $0.kind == "content" }) {
+        append(ReadyNextAction(
+            type: "command",
+            label: "restart daemon after content root changes",
             command: "\(prefix) service restart --mode \(mode.rawValue)"
         ))
     }

@@ -229,8 +229,126 @@ func waitForCanvasBridge(
 func contentStatusIsReady(_ response: [String: Any], requiredRoots: [String] = []) -> Bool {
     let port = response["port"] as? Int ?? 0
     guard port > 0 else { return false }
+    return contentRootValidationIssues(response, requiredRoots: requiredRoots).isEmpty
+}
+
+struct ContentRootValidationIssue {
+    let root: String
+    let code: String
+    let message: String
+    let path: String?
+    let expectedPath: String?
+
+    var isTransient: Bool {
+        code == "missing_root"
+    }
+
+    var dictionary: [String: Any] {
+        var out: [String: Any] = [
+            "root": root,
+            "code": code,
+            "message": message
+        ]
+        if let path { out["path"] = path }
+        if let expectedPath { out["expected_path"] = expectedPath }
+        return out
+    }
+}
+
+func contentRootValidationIssues(
+    _ response: [String: Any],
+    requiredRoots: [String] = [],
+    validateConfiguredCanonicalRoots: Bool = false
+) -> [ContentRootValidationIssue] {
     let roots = response["roots"] as? [String: String] ?? [:]
-    return requiredRoots.allSatisfy { roots[$0] != nil }
+    var names = Set(requiredRoots)
+    if validateConfiguredCanonicalRoots {
+        for name in roots.keys where canonicalContentRootRelativePath(name) != nil {
+            names.insert(name)
+        }
+    }
+
+    return names.sorted().flatMap { validateContentRoot(name: $0, path: roots[$0]) }
+}
+
+func contentRootIssueSummary(_ issues: [ContentRootValidationIssue]) -> String {
+    issues.map(\.message).joined(separator: " ")
+}
+
+private func validateContentRoot(name: String, path: String?) -> [ContentRootValidationIssue] {
+    guard let path, !path.isEmpty else {
+        return [ContentRootValidationIssue(
+            root: name,
+            code: "missing_root",
+            message: "Content root '\(name)' is missing from the live content server; restart the daemon if config was just changed.",
+            path: nil,
+            expectedPath: canonicalContentRootExpectedPath(name)
+        )]
+    }
+
+    let normalizedPath = normalizePath(path)
+    var issues: [ContentRootValidationIssue] = []
+    var isDirectory: ObjCBool = false
+    if !FileManager.default.fileExists(atPath: normalizedPath, isDirectory: &isDirectory) {
+        issues.append(ContentRootValidationIssue(
+            root: name,
+            code: "path_missing",
+            message: "Content root '\(name)' points to a missing path: \(normalizedPath).",
+            path: normalizedPath,
+            expectedPath: canonicalContentRootExpectedPath(name)
+        ))
+    } else if !isDirectory.boolValue {
+        issues.append(ContentRootValidationIssue(
+            root: name,
+            code: "path_not_directory",
+            message: "Content root '\(name)' is not a directory: \(normalizedPath).",
+            path: normalizedPath,
+            expectedPath: canonicalContentRootExpectedPath(name)
+        ))
+    }
+
+    if let expectedPath = canonicalContentRootExpectedPath(name),
+       !canonicalContentRootOverridesAllowed(),
+       normalizePath(expectedPath) != normalizedPath {
+        issues.append(ContentRootValidationIssue(
+            root: name,
+            code: "canonical_path_mismatch",
+            message: "Canonical repo content root '\(name)' points to \(normalizedPath); expected \(expectedPath).",
+            path: normalizedPath,
+            expectedPath: expectedPath
+        ))
+    }
+
+    return issues
+}
+
+func canonicalContentRootRelativePath(_ name: String) -> String? {
+    switch name {
+    case "toolkit":
+        return "packages/toolkit"
+    case "sigil":
+        return "apps/sigil"
+    default:
+        return nil
+    }
+}
+
+private func canonicalContentRootExpectedPath(_ name: String) -> String? {
+    guard aosCurrentRuntimeMode() == .repo,
+          let relativePath = canonicalContentRootRelativePath(name),
+          let repoRoot = aosCurrentRepoRoot() else {
+        return nil
+    }
+    return normalizePath((repoRoot as NSString).appendingPathComponent(relativePath))
+}
+
+private func canonicalContentRootOverridesAllowed() -> Bool {
+    let env = ProcessInfo.processInfo.environment
+    return env["AOS_ALLOW_EXTERNAL_CANONICAL_CONTENT_ROOTS"] == "1"
+}
+
+private func normalizePath(_ path: String) -> String {
+    NSString(string: path).standardizingPath
 }
 
 func waitForContentStatus(

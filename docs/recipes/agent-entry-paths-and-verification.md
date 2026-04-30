@@ -36,6 +36,10 @@ For Swift rebuilds, use `./aos dev build`, not raw `bash build.sh`, unless the
 build control surface itself is broken. See
 `docs/recipes/aos-developer-builds.md`.
 
+For canvases served through `aos://...`, check content-root hygiene before
+treating a raw `Not Found` canvas as an app rendering failure. See
+`docs/recipes/content-root-hygiene.md`.
+
 ### Testing
 
 Use the smallest stable test harness that exercises the changed behavior. Prefer
