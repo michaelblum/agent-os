@@ -613,6 +613,11 @@ Consumers:
   post). If the CLI grant is present but the daemon reports stale or missing
   daemon-owned grants, setup returns degraded with remove/re-add guidance
   instead of silently declaring onboarding complete.
+- The permissions onboarding marker is mode-scoped and proves the operator has
+  completed the setup flow for that runtime mode. The marker's recorded
+  `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely
+  because another worktree last wrote the marker when the current CLI grants and
+  daemon input tap are verified green.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
 - `aos status` text mode includes `tap=<status>` in the one-line summary.
