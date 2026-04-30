@@ -11,6 +11,10 @@ import {
   normalizeGraphPayload,
   renderMarkdown,
 } from './views/shared.js'
+import {
+  applyWikiKBSemanticTarget,
+  wikiKBAosRef,
+} from './semantics.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
@@ -75,7 +79,13 @@ export default function WikiKB() {
     for (const button of rootEl.querySelectorAll('.wiki-kb-toggle-button')) {
       const isActive = button.dataset.mode === sidebarMode
       button.classList.toggle('active', isActive)
-      button.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+      applyWikiKBSemanticTarget(button, {
+        id: `sidebar-mode-${button.dataset.mode}`,
+        name: button.textContent,
+        action: 'set_sidebar_mode',
+        aosRef: wikiKBAosRef('sidebar-mode', button.dataset.mode),
+        pressed: isActive,
+      })
     }
   }
 
@@ -127,6 +137,12 @@ export default function WikiKB() {
       button.type = 'button'
       button.className = 'wiki-kb-related-link'
       button.dataset.nodeId = relatedNode.id
+      applyWikiKBSemanticTarget(button, {
+        id: `related-${relatedNode.id}`,
+        name: `Related: ${relatedNode.name}`,
+        action: 'select_related_node',
+        aosRef: wikiKBAosRef('related', relatedNode.id),
+      })
 
       const dot = document.createElement('span')
       dot.className = 'wiki-kb-related-dot'
@@ -238,6 +254,9 @@ export default function WikiKB() {
     })
     const viewEl = instance.mount()
     viewEl.classList.add('wiki-kb-view')
+    viewEl.id = `wiki-kb-panel-${id}`
+    viewEl.setAttribute('role', 'tabpanel')
+    viewEl.setAttribute('aria-labelledby', `wiki-kb-tab-${id}`)
     viewEl.hidden = true
     contentEl.appendChild(viewEl)
 
@@ -258,7 +277,15 @@ export default function WikiKB() {
     for (const button of rootEl.querySelectorAll('.wiki-kb-view-tab')) {
       const isActive = button.dataset.view === id
       button.classList.toggle('active', isActive)
-      button.setAttribute('aria-selected', isActive ? 'true' : 'false')
+      const view = VIEW_DEFS.find((entry) => entry.id === button.dataset.view)
+      applyWikiKBSemanticTarget(button, {
+        id: `view-tab-${button.dataset.view}`,
+        role: 'AXTab',
+        name: view?.label || button.textContent,
+        action: 'set_view',
+        aosRef: wikiKBAosRef('tab', button.dataset.view),
+        selected: isActive,
+      })
     }
     focusActiveViewOnSelection()
   }
@@ -330,10 +357,12 @@ export default function WikiKB() {
           ${VIEW_DEFS.map((view, index) => `
             <button
               type="button"
+              id="wiki-kb-tab-${view.id}"
               class="wiki-kb-view-tab${index === 0 ? ' active' : ''}"
               data-view="${view.id}"
               role="tab"
               aria-selected="${index === 0 ? 'true' : 'false'}"
+              aria-controls="wiki-kb-panel-${view.id}"
             >${view.label}</button>
           `).join('')}
           <div class="wiki-kb-tab-spacer"></div>
@@ -375,6 +404,14 @@ export default function WikiKB() {
     dom.sidebarBodyEl = rootEl.querySelector('.wiki-kb-sidebar-body')
     dom.relatedSectionEl = rootEl.querySelector('.wiki-kb-sidebar-related')
     dom.relatedListEl = rootEl.querySelector('.wiki-kb-related-list')
+
+    applyWikiKBSemanticTarget(rootEl.querySelector('.wiki-kb-sidebar-close'), {
+      id: 'sidebar-close',
+      name: 'Close details',
+      action: 'close_details',
+      aosRef: wikiKBAosRef('sidebar', 'close'),
+    })
+    syncSidebarToggle()
 
     rootEl.addEventListener('click', onRootClick)
     updateStatus()

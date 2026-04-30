@@ -12,6 +12,10 @@ import {
   normalizeGraphViewConfig,
   resizeCanvasToContainer,
 } from './shared.js'
+import {
+  applyWikiKBSemanticTarget,
+  wikiKBAosRef,
+} from '../semantics.js'
 
 const COLORS = {
   edge: 'rgba(100, 100, 160, 0.35)',
@@ -251,6 +255,14 @@ export default function GraphView({ onSelectNode }) {
     return viewport.clientToWorld(canvas, clientX, clientY)
   }
 
+  function applyGraphSemanticTarget(element, id, target = {}) {
+    return applyWikiKBSemanticTarget(element, {
+      id,
+      ...target,
+      aosRef: target.aosRef || wikiKBAosRef('graph', id),
+    })
+  }
+
   function collectFocusNodes() {
     const selected = selectedNode()
     if (!selected) return []
@@ -316,8 +328,13 @@ export default function GraphView({ onSelectNode }) {
     dom.controlsShellEl?.classList.toggle('collapsed', !controlsOpen)
     dom.controlsPanelEl?.toggleAttribute('hidden', !controlsOpen)
     if (dom.controlsToggleEl) {
-      dom.controlsToggleEl.setAttribute('aria-pressed', controlsOpen ? 'true' : 'false')
       dom.controlsToggleEl.textContent = controlsOpen ? 'Hide Controls' : 'Show Controls'
+      applyGraphSemanticTarget(dom.controlsToggleEl, 'controls-toggle', {
+        name: controlsOpen ? 'Hide graph controls' : 'Show graph controls',
+        action: 'toggle_graph_controls',
+        pressed: controlsOpen,
+        expanded: controlsOpen,
+      })
     }
   }
 
@@ -409,7 +426,11 @@ export default function GraphView({ onSelectNode }) {
       button.textContent = type
       const isActive = activeTypes.has(type)
       button.classList.toggle('active', isActive)
-      button.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+      applyGraphSemanticTarget(button, `type-filter-${type}`, {
+        name: `Type filter: ${type}`,
+        action: 'toggle_type_filter',
+        pressed: isActive,
+      })
       fragment.appendChild(button)
     }
     dom.typeFiltersEl.appendChild(fragment)
@@ -431,7 +452,11 @@ export default function GraphView({ onSelectNode }) {
       button.textContent = `${entry.value} (${entry.count})`
       const isActive = activeTags.has(entry.value)
       button.classList.toggle('active', isActive)
-      button.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+      applyGraphSemanticTarget(button, `tag-filter-${entry.value}`, {
+        name: `Tag filter: ${entry.value}`,
+        action: 'toggle_tag_filter',
+        pressed: isActive,
+      })
       fragment.appendChild(button)
     }
     dom.tagFiltersEl.appendChild(fragment)
@@ -446,6 +471,11 @@ export default function GraphView({ onSelectNode }) {
     if (dom.searchInput) {
       dom.searchInput.value = searchQuery
       dom.searchSectionEl.toggleAttribute('hidden', !graphViewConfig.features.search)
+      applyGraphSemanticTarget(dom.searchInput, 'search', {
+        role: 'AXSearchField',
+        name: 'Search Wiki KB graph',
+        action: 'search_nodes',
+      })
     }
 
     if (dom.scopeSectionEl) {
@@ -459,12 +489,20 @@ export default function GraphView({ onSelectNode }) {
       if (dom.scopeGlobalButton) {
         const isGlobal = mode === 'global'
         dom.scopeGlobalButton.classList.toggle('active', isGlobal)
-        dom.scopeGlobalButton.setAttribute('aria-pressed', isGlobal ? 'true' : 'false')
+        applyGraphSemanticTarget(dom.scopeGlobalButton, 'scope-global', {
+          name: 'Global scope',
+          action: 'set_scope_global',
+          pressed: isGlobal,
+        })
       }
       if (dom.scopeLocalButton) {
         const isLocal = mode === 'local'
         dom.scopeLocalButton.classList.toggle('active', isLocal)
-        dom.scopeLocalButton.setAttribute('aria-pressed', isLocal ? 'true' : 'false')
+        applyGraphSemanticTarget(dom.scopeLocalButton, 'scope-local', {
+          name: 'Local scope',
+          action: 'set_scope_local',
+          pressed: isLocal,
+        })
       }
     }
 
@@ -473,6 +511,15 @@ export default function GraphView({ onSelectNode }) {
       dom.depthRange.max = String(graphViewConfig.limits.maxDepth)
       dom.depthRange.value = String(depth)
       dom.depthValueEl.textContent = String(depth)
+      applyGraphSemanticTarget(dom.depthRange, 'depth', {
+        role: 'AXSlider',
+        name: 'Graph depth',
+        action: 'set_depth',
+        value: `${depth}`,
+      })
+      dom.depthRange.setAttribute('aria-valuemin', dom.depthRange.min)
+      dom.depthRange.setAttribute('aria-valuemax', dom.depthRange.max)
+      dom.depthRange.setAttribute('aria-valuenow', String(depth))
     }
 
     if (dom.labelSectionEl) {
@@ -480,15 +527,31 @@ export default function GraphView({ onSelectNode }) {
       for (const button of dom.labelButtons) {
         const isActive = button.dataset.labelMode === labelMode
         button.classList.toggle('active', isActive)
-        button.setAttribute('aria-pressed', isActive ? 'true' : 'false')
+        applyGraphSemanticTarget(button, `label-mode-${button.dataset.labelMode}`, {
+          name: `Labels: ${button.textContent}`,
+          action: 'set_label_mode',
+          pressed: isActive,
+        })
       }
     }
 
     dom.summaryEl.textContent = `${filteredGraph.stats.visibleNodes}/${filteredGraph.stats.totalNodes} nodes · ${filteredGraph.stats.visibleLinks}/${filteredGraph.stats.totalLinks} links`
     dom.isolatedToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.isolated)
     dom.showIsolatedInput.checked = showIsolated
+    applyGraphSemanticTarget(dom.showIsolatedInput, 'show-isolated', {
+      role: 'AXCheckBox',
+      name: 'Show isolated nodes',
+      action: 'toggle_show_isolated',
+      checked: showIsolated,
+    })
     dom.neighborToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.neighbors)
     dom.highlightNeighborsInput.checked = highlightNeighbors
+    applyGraphSemanticTarget(dom.highlightNeighborsInput, 'highlight-neighbors', {
+      role: 'AXCheckBox',
+      name: 'Highlight neighbors',
+      action: 'toggle_highlight_neighbors',
+      checked: highlightNeighbors,
+    })
     dom.highlightSectionEl.toggleAttribute(
       'hidden',
       !(graphViewConfig.features.neighbors || graphViewConfig.features.path)
@@ -497,14 +560,55 @@ export default function GraphView({ onSelectNode }) {
     dom.pathCaptionEl.toggleAttribute('hidden', !graphViewConfig.features.path)
     dom.pathCaptionEl.textContent = formatPathCaption()
     dom.pathStartButton.disabled = !graphViewConfig.features.path || !selectedNodeId
+    applyGraphSemanticTarget(dom.pathStartButton, 'set-path-start', {
+      name: 'Set path start',
+      action: 'set_path_start',
+      enabled: !dom.pathStartButton.disabled,
+    })
     dom.clearPathButton.disabled = !graphViewConfig.features.path || !pathStartId
+    applyGraphSemanticTarget(dom.clearPathButton, 'clear-path', {
+      name: 'Clear path',
+      action: 'clear_path',
+      enabled: !dom.clearPathButton.disabled,
+    })
     dom.freezeToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.freeze)
     dom.freezeInput.checked = frozen
+    applyGraphSemanticTarget(dom.freezeInput, 'freeze-layout', {
+      role: 'AXCheckBox',
+      name: 'Freeze layout',
+      action: 'toggle_freeze_layout',
+      checked: frozen,
+    })
     dom.focusSelectionButton.toggleAttribute('hidden', !graphViewConfig.features.focus)
     dom.focusSelectionButton.disabled = !selectedNodeId
+    applyGraphSemanticTarget(dom.focusSelectionButton, 'focus-selection', {
+      name: 'Focus selection',
+      action: 'focus_selection',
+      enabled: !dom.focusSelectionButton.disabled,
+    })
     dom.fitButton.toggleAttribute('hidden', !graphViewConfig.features.fit)
+    applyGraphSemanticTarget(dom.fitButton, 'fit', {
+      name: 'Fit graph',
+      action: 'fit_graph',
+    })
     dom.resetViewButton.toggleAttribute('hidden', !graphViewConfig.features.reset)
+    applyGraphSemanticTarget(dom.resetViewButton, 'reset-view', {
+      name: 'Reset view',
+      action: 'reset_view',
+    })
     dom.resetFiltersButton.toggleAttribute('hidden', !graphViewConfig.features.reset)
+    applyGraphSemanticTarget(dom.resetFiltersButton, 'reset-filters', {
+      name: 'Reset filters',
+      action: 'reset_filters',
+    })
+    applyGraphSemanticTarget(dom.typesAllButton, 'types-all', {
+      name: 'Enable all type filters',
+      action: 'enable_all_type_filters',
+    })
+    applyGraphSemanticTarget(dom.tagsClearButton, 'tags-clear', {
+      name: 'Clear tag filters',
+      action: 'clear_tag_filters',
+    })
 
     setControlsOpen(controlsOpen)
     renderTypeFilters()
@@ -1059,8 +1163,10 @@ export default function GraphView({ onSelectNode }) {
       dom.labelSectionEl = rootEl.querySelector('.wiki-kb-controls-section-labels')
       dom.labelButtons = [...rootEl.querySelectorAll('[data-label-mode]')]
       dom.typeSectionEl = rootEl.querySelector('.wiki-kb-controls-section-types')
+      dom.typesAllButton = rootEl.querySelector('[data-action="types-all"]')
       dom.typeFiltersEl = rootEl.querySelector('.wiki-kb-type-filters')
       dom.tagSectionEl = rootEl.querySelector('.wiki-kb-controls-section-tags')
+      dom.tagsClearButton = rootEl.querySelector('[data-action="tags-clear"]')
       dom.tagFiltersEl = rootEl.querySelector('.wiki-kb-tag-filters')
       dom.tagEmptyEl = rootEl.querySelector('.wiki-kb-controls-empty')
       dom.highlightSectionEl = rootEl.querySelector('.wiki-kb-controls-section-highlights')

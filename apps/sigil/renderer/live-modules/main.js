@@ -36,6 +36,7 @@ import {
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
+import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
@@ -57,6 +58,11 @@ const hitTarget = createHitTargetController({
     url: 'aos://sigil/renderer/hit-area.html',
     size: state.avatarHitRadius * 2,
     id: 'sigil-hit-avatar-main',
+});
+const radialTargetSurface = createRadialMenuTargetSurface({
+    runtime: host,
+    url: 'aos://sigil/renderer/radial-menu-surface.html',
+    id: 'sigil-radial-menu-avatar-main',
 });
 
 const liveJs = {
@@ -217,6 +223,7 @@ function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (msg.type === 'display_geometry') return false;
     if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) return false;
+    if (msg.type === 'canvas_message' && msg.id === radialTargetSurface.id) return false;
     return true;
 }
 
@@ -1016,6 +1023,7 @@ function setInteractionState(next, reason) {
     liveJs.currentState = next;
     liveJs.state = next;
     if (next === 'IDLE' && !liveJs.travel) postLastPositionToDaemon();
+    emitAvatarMark();
 }
 
 function postLastPositionToDaemon() {
@@ -1083,7 +1091,7 @@ const fastTravel = createFastTravelController({
     liveJs,
     projectStagePoint: stagePoint,
     getExcludedCanvasIds() {
-        return ['avatar-main', hitTarget.hit.id].filter(Boolean);
+        return ['avatar-main', hitTarget.hit.id, radialTargetSurface.id].filter(Boolean);
     },
     canCaptureDisplayImages: isPrimarySurfaceSegment,
 });
@@ -1166,6 +1174,25 @@ const MARKS_OBJECT_ID = 'avatar';
 const MARKS_HEARTBEAT_MS = 5000;
 let _lastMarkEmitAt = 0;
 
+function radialGestureObjectMarks() {
+    const radial = liveJs.radialGestureMenu;
+    if (!radial || radial.phase !== 'radial' || !Array.isArray(radial.items)) return [];
+    return radial.items
+        .filter((item) => item?.id && item?.center)
+        .map((item) => ({
+            id: `radial-${item.id}`,
+            x: Math.round(Number(item.center.x) || 0),
+            y: Math.round(Number(item.center.y) || 0),
+            name: item.label || item.id,
+            color: item.id === radial.activeItemId ? '#ffffff' : '#8cf8ff',
+            w: Math.max(44, Math.round(Number(item.hitRadius || item.visualRadius || 24) * 2)),
+            h: Math.max(44, Math.round(Number(item.hitRadius || item.visualRadius || 24) * 2)),
+            rect: true,
+            ellipse: true,
+            cross: false,
+        }));
+}
+
 function emitAvatarMark() {
     if (!isPrimarySurfaceSegment()) return;
     if (!liveJs.avatarPos.valid) return;
@@ -1177,14 +1204,15 @@ function emitAvatarMark() {
         _lastMarkEmitAt = performance.now();
         return;
     }
+    const objects = [{
+        id: MARKS_OBJECT_ID,
+        x: Math.round(liveJs.avatarPos.x),
+        y: Math.round(liveJs.avatarPos.y),
+        name: 'Avatar',
+    }, ...radialGestureObjectMarks()];
     host.post('canvas_object.marks', {
         canvas_id: MARKS_CANVAS_ID,
-        objects: [{
-            id: MARKS_OBJECT_ID,
-            x: Math.round(liveJs.avatarPos.x),
-            y: Math.round(liveJs.avatarPos.y),
-            name: 'Avatar',
-        }],
+        objects,
     });
     _lastMarkEmitAt = performance.now();
 }
@@ -1327,6 +1355,7 @@ function openContextMenuAt(x, y, options = {}) {
 
 function applyRadialGestureMove(update, x, y) {
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
+    emitAvatarMark();
     if (update?.enteredFastTravel) {
         fastTravel.beginGesture({ ...liveJs.avatarPos });
         fastTravel.updateGesture({ x, y, valid: true });
@@ -1583,6 +1612,42 @@ function handleHitCanvasEvent(payload = {}) {
     });
 }
 
+function handleRadialTargetSurfaceEvent(payload = {}) {
+    if (payload.source !== 'sigil-radial-menu-surface') return;
+    interactionTrace.record('radial-surface', {
+        kind: payload.kind,
+        itemId: payload.itemId,
+        radialPhase: liveJs.radialGestureMenu?.phase ?? null,
+    });
+    if (payload.kind === 'radial_cancel') {
+        radialGestureMenu.cancel('radial-surface-cancel');
+        clearGestureState();
+        fastTravel.clearGesture('radial-surface-cancel');
+        setInteractionState('IDLE', 'radial-surface-cancel');
+        return;
+    }
+    if (payload.kind !== 'radial_item_click') return;
+    if (liveJs.currentState !== 'RADIAL' || !liveJs.radialGestureMenu) {
+        interactionTrace.record('radial-surface:ignored', {
+            reason: 'state-not-radial',
+            itemId: payload.itemId,
+        });
+        return;
+    }
+    const item = liveJs.radialGestureMenu.items?.find((candidate) => candidate.id === payload.itemId);
+    if (!item?.center) {
+        interactionTrace.record('radial-surface:ignored', {
+            reason: 'missing-item',
+            itemId: payload.itemId,
+        });
+        return;
+    }
+    const result = radialGestureMenu.release({ ...item.center, valid: true });
+    clearGestureState();
+    fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
+    setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
+}
+
 function originFromMessage(msg = {}) {
     const x = Number(msg.origin_x ?? msg.originX);
     const y = Number(msg.origin_y ?? msg.originY);
@@ -1769,6 +1834,11 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'canvas_message' && msg.id === radialTargetSurface.id) {
+        handleRadialTargetSurfaceEvent(msg.payload || {});
+        return;
+    }
+
     if (INPUT_POINTER_EVENT_TYPES.has(msg.type) && typeof msg.x === 'number' && typeof msg.y === 'number') {
         const worldPoint = nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
         handleInputEvent({ ...msg, x: worldPoint.x, y: worldPoint.y });
@@ -1804,6 +1874,9 @@ function startPrimarySurfaceServices() {
     startMarkHeartbeat();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
+    });
+    void radialTargetSurface.ensureCreated().catch((error) => {
+        console.error('[sigil] radial menu target surface create failed:', error);
     });
 }
 
@@ -2012,6 +2085,9 @@ function animate() {
     } else if (primarySegment && liveJs.avatarPos.valid) {
         syncHitTargetToAvatar();
     }
+    if (primarySegment) {
+        radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
+    }
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
     overlay.draw({
@@ -2092,6 +2168,7 @@ window.__sigilDebug = {
             hitTargetReady: hitTarget.hit.ready,
             hitTargetFrame: hitTarget.hit.frame,
             hitTargetInteractive: hitTarget.hit.interactive,
+            radialTargetSurface: radialTargetSurface.snapshot(),
             transition: visibilityTransition.active?.effect ?? null,
             surface: desktopWorldSurface ? {
                 segment: desktopWorldSurface.segment,
