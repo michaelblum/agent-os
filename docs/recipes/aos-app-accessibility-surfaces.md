@@ -29,6 +29,12 @@ The accessibility surface should still behave like a Mac app: `aos see --xray`
 can discover it, and `aos do` can operate it through the daemon route when the
 runtime is ready.
 
+For AOS-owned canvases, `aos see capture --canvas <id> --xray` also exposes a
+`semantic_targets` array. Treat that as a projection of the same standard facts,
+not a separate agent language: role and name come from AX/ARIA, bounds come from
+the DOM frame, state comes from ARIA/native disabled/value state, and AOS
+metadata supplies ownership and routing identity.
+
 ## Labels And Names
 
 Keep visible labels and semantic names separate.
@@ -109,7 +115,8 @@ before claiming runtime verification. In installed mode, use the installed
 For representative controls, verify:
 
 - `./aos see --xray` exposes the expected role, semantic name, frame, state, and
-  action.
+  action. For AOS-owned canvases, check `semantic_targets` for stable refs,
+  surface id, parent canvas id, and action id.
 - `./aos do` can operate the control through the daemon/AOS route, not only
   through app-local JavaScript or a synthetic unit test.
 - Screenshots show the intended visual design, with no duplicate agent labels

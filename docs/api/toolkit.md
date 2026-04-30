@@ -364,9 +364,13 @@ Supported include toggles today:
 - `xray`
 
 `xray` writes an additional `xray.json` artifact containing the AX-derived
-element list from `aos see capture --xray`. This config shape is intentionally
-under `see` so future `see` bundle/record presets can grow beside the current
-inspector export path instead of being trapped in inspector-only settings.
+element list from `aos see capture --xray`. Canvas-id captures can also include
+`semantic_targets`, the fixed AOS projection of toolkit-stamped DOM/AX/ARIA
+target metadata. Current region-based inspector bundle exports remain AX-only
+unless their runner switches to `--canvas <id>`. This config shape is
+intentionally under `see` so future `see` bundle/record presets can grow beside
+the current inspector export path instead of being trapped in inspector-only
+settings.
 
 ### Spatial Telemetry
 

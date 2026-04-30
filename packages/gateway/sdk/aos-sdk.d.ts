@@ -19,6 +19,7 @@ declare const aos: {
   /** Capture a screenshot, optionally with accessibility tree. */
   capture(opts?: {
     display?: string;
+    canvas?: string;
     window?: boolean;
     xray?: boolean;
     base64?: boolean;
@@ -28,6 +29,17 @@ declare const aos: {
     status: string; base64?: string; elements?: Array<{
       role: string; label?: string; value?: string;
       frame: { x: number; y: number; width: number; height: number };
+    }>; semantic_targets?: Array<{
+      canvas_id?: string; id?: string; ref?: string;
+      role: string; name?: string; action?: string;
+      surface?: string; parent_canvas?: string; enabled: boolean;
+      bounds: { x: number; y: number; width: number; height: number };
+      center: { x: number; y: number };
+      state?: {
+        current?: string; pressed?: boolean; selected?: boolean;
+        checked?: boolean; expanded?: boolean; disabled?: boolean;
+        value?: string;
+      };
     }>; path?: string;
   }>;
 

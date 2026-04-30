@@ -3,10 +3,42 @@
 <head>
 <meta charset="utf-8">
 <style>
-html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; cursor: pointer; }
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.avatar-hit-target {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    appearance: none;
+    cursor: pointer;
+}
+
+.avatar-hit-target:focus-visible {
+    outline: 3px solid rgba(140, 248, 255, 0.95);
+    outline-offset: -3px;
+}
 </style>
 </head>
 <body>
+<button
+    id="sigil-avatar-hit-target"
+    class="avatar-hit-target"
+    type="button"
+    aria-label="Sigil avatar"
+    data-aos-surface="sigil.avatar"
+    data-semantic-target-id="avatar"></button>
 <script>
 // Minimal absorber page. Exists where canvas.update puts it so clicks land
 // here instead of passing through to the desktop.
@@ -15,6 +47,12 @@ const HIT_SOURCE = 'sigil-hit';
 const HIT_PARAMS = new URLSearchParams(window.location.search);
 const HIT_PARENT_ID = HIT_PARAMS.get('parent') || 'avatar-main';
 const HIT_ID = HIT_PARAMS.get('id') || null;
+const HIT_ELEMENT = document.getElementById('sigil-avatar-hit-target');
+
+if (HIT_ELEMENT) {
+    HIT_ELEMENT.dataset.aosRef = HIT_ID || 'sigil-avatar-hit';
+    HIT_ELEMENT.dataset.aosParentCanvas = HIT_PARENT_ID;
+}
 
 function emit(kind, event) {
     const rect = document.body.getBoundingClientRect();

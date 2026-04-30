@@ -54,8 +54,8 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
-| `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. |
-| `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see --xray` can discover labeled item targets and `aos do` can act on them. |
+| `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. Exposes the avatar as an AOS semantic target via `aos see capture --canvas <hit-id> --xray`. |
+| `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see capture --canvas <radial-id> --xray` can discover labeled item targets and `aos do` can act on them. |
 | `renderer/appearance.js` / `renderer/state.js` | Runtime appearance and interaction config, including Sigil's radial gesture menu defaults. |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
