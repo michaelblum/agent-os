@@ -55,6 +55,7 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
 | `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. |
+| `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see --xray` can discover labeled item targets and `aos do` can act on them. |
 | `renderer/appearance.js` / `renderer/state.js` | Runtime appearance and interaction config, including Sigil's radial gesture menu defaults. |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
@@ -85,6 +86,16 @@ removal gate.
 If a hit canvas forwards native DOM events, the renderer must immediately
 normalize them into the same DesktopWorld event path used by daemon `input_event`
 delivery. Do not add a parallel DOM-owned interaction stream for convenience.
+
+Interactive Sigil surfaces must be ergonomic for AOS agents as well as humans.
+Canvas-only visuals that represent actionable controls should have a small
+child surface or equivalent AX-visible affordance with stable labels, adequate
+target size, and daemon-routed behavior before tests reach for renderer debug
+state. If the visual control is already rendered by the parent canvas, keep the
+child surface's labels in ARIA/AX semantics rather than painting duplicate text
+or tooltips into the user-facing composition. See
+`docs/recipes/aos-app-accessibility-surfaces.md` for the repo-wide app and
+toolkit contract.
 
 ### Content Server
 
