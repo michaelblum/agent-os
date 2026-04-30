@@ -179,6 +179,7 @@ func printFullRegistryText() {
         "serve",
         "service",
         "runtime",
+        "dev",
         "permissions",
         "doctor",
         "clean",

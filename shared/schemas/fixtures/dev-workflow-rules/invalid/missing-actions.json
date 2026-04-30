@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "bad-rule",
+      "summary": "Missing actions should fail.",
+      "patterns": ["src/**/*.swift"],
+      "classes": ["swift"],
+      "hot_swappable": false,
+      "tcc_identity_sensitive": true,
+      "commands": [],
+      "verification": []
+    }
+  ],
+  "fallback": {
+    "id": "unclassified",
+    "summary": "No rule matched.",
+    "patterns": [],
+    "classes": ["unclassified"],
+    "actions": ["inspect_manually"],
+    "hot_swappable": true,
+    "tcc_identity_sensitive": false,
+    "commands": [],
+    "verification": []
+  }
+}

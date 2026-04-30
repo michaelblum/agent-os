@@ -7,22 +7,23 @@ Unified binary for macOS perception, display, action, and voice.
 ## Build
 
 ```bash
-bash build.sh
+./aos dev build --no-restart
 ```
 
 Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/`, or when
 the next verification step runs `./aos` directly. Do not rebuild before pure
 Node-based tests or package-local workflows.
 
-When an automated flow needs to rebuild and then immediately run an `./aos`
-command, prefer:
+When you are unsure which loop applies, ask the router first:
 
 ```bash
-scripts/aos-after-build -- ./aos status --json
+./aos dev recommend --json
 ```
 
-That wrapper waits for any in-flight rebuild, refreshes the binary if needed,
-then runs the `./aos` command.
+Use raw `bash build.sh` only when `./aos` is missing or the build surface itself
+is being repaired. `scripts/aos-after-build` still exists for serialized
+automation around an in-flight build, but the normal developer control surface is
+`./aos dev build`.
 
 Examples that usually do **not** need `bash build.sh`:
 

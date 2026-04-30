@@ -62,6 +62,8 @@ struct AOS {
             serviceCommand(args: Array(args.dropFirst()))
         case "runtime":
             runtimeCommand(args: Array(args.dropFirst()))
+        case "dev":
+            devCommand(args: Array(args.dropFirst()))
         case "status":
             statusCommand(args: Array(args.dropFirst()))
         case "ready":

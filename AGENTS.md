@@ -127,11 +127,17 @@ spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.m
 - Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
   the first move. `./aos ready` is the explicit daemon bring-up and readiness
   gate; startup hooks should stay lightweight and avoid hidden runtime mutation.
+- Before choosing a rebuild, package test, canvas reload, or runtime readiness
+  loop, ask the dev workflow router: `./aos dev recommend --json`. The router is
+  manifest-backed by `docs/dev/workflow-rules.json`; update that manifest and
+  schema when routing policy changes instead of scattering new session rules.
 
-- Do not default to `bash build.sh` before every test or verification step.
+- Do not default to rebuilding before every test or verification step.
   Rebuild `./aos` only when the work changes Swift sources in `src/` or
   `shared/swift/ipc/`, or when the command/test you are about to run executes
-  `./aos` directly.
+  `./aos` directly. Use `./aos dev build --no-restart` for repo builds so the
+  signing/TCC implication stays visible; call `bash build.sh` directly only when
+  `./aos` cannot run or you are fixing the build surface itself.
 - Pure Node/TypeScript/package workflows should stay in their local loop unless
   they explicitly depend on a fresh `./aos` binary. Examples: `packages/gateway`
   build/test, `packages/host` test, and pure `node --test` suites under

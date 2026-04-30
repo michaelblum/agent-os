@@ -19,6 +19,7 @@ Start here:
 
 ```bash
 ./aos ready
+./aos dev recommend --json
 ./aos help <command> [--json]
 ./aos introspect review
 ```
@@ -28,6 +29,12 @@ managed daemon and exits non-zero when AOS is not ready. Use `./aos status` for
 a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
 `clean` when you need deeper diagnostics or explicit cleanup, not as the default
 first move.
+
+Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
+changes through the manifest-backed developer workflow before choosing a build,
+test, canvas reload, or readiness loop. Use `./aos dev build --no-restart`
+instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
+itself under repair.
 
 ## Contract
 
@@ -91,6 +98,7 @@ The current top-level commands are:
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
 | `aos runtime` | packaged runtime utilities |
+| `aos dev` | repo development workflow classification, recommendations, and build wrapper |
 | `aos permissions` | preflight and onboarding |
 | `aos doctor` | detailed runtime and permission diagnostics |
 | `aos clean` | explicit stale daemon / canvas cleanup |
@@ -117,6 +125,23 @@ Typical consumer loop:
 2. Decide externally.
 3. Use `aos do` or `aos show`.
 4. Re-perceive if needed.
+
+### Repo Development Workflow
+
+`aos dev` is the developer workflow router for this repo. `classify` and
+`recommend` are read-only and do not start the daemon.
+
+```bash
+./aos dev classify --json
+./aos dev recommend --json
+./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
+./aos dev build --no-restart
+```
+
+`classify` reports changed files, matched rules, classes, actions, and whether
+the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
+and verification steps. The rules live in `docs/dev/workflow-rules.json` and
+are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 
 ### 2. Create a Persistent Canvas
 
