@@ -26,6 +26,7 @@ import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
 import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
+import { canvasActionAttrs, inspectorControlAttrs } from './semantics.js'
 import {
   applyMouseEffectsInput,
   clearMouseEffectsState,
@@ -104,6 +105,64 @@ function renderCanvasStatusPrefix(c = {}) {
     + `</span>`
 }
 
+function renderCanvasActionButtons(canvasId, options = {}) {
+  const tintedIds = options.tintedIds || new Set()
+  const statsIds = options.statsIds || new Set()
+  const tintClass = tintedIds.has(canvasId) ? 'btn tint-btn active' : 'btn tint-btn'
+  const statsClass = statsIds.has(canvasId) ? 'btn stats-btn active' : 'btn stats-btn'
+  return `<button class="${statsClass}" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'stats', { pressed: statsIds.has(canvasId) })}>stats</button>`
+    + `<button class="${tintClass}" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'tint', { pressed: tintedIds.has(canvasId) })}>tint</button>`
+    + `<button class="btn remove-btn" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'remove')}>\u2715</button>`
+}
+
+export function renderCursorToggleRowHTML(options = {}) {
+  const enabled = !!options.enabled
+  const depth = Number.isFinite(Number(options.depth)) ? Number(options.depth) : 0
+  const toggleClass = enabled ? 'btn cursor-toggle-btn active' : 'btn cursor-toggle-btn'
+  const toggleLabel = enabled ? 'on' : 'off'
+  return `<div class="tree-row cursor-toggle-row" style="${rowIndentStyle(depth)}">`
+    + `<span class="cursor-toggle-label">minimap cursor</span>`
+    + `<span class="cursor-toggle-state">${enabled ? 'live' : 'hidden'}</span>`
+    + `<span class="canvas-flags">`
+    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" ${inspectorControlAttrs('minimap-cursor', {
+      name: 'Minimap cursor',
+      action: 'toggle_minimap_cursor',
+      pressed: enabled,
+    })}>${toggleLabel}</button>`
+    + `</span>`
+    + `</div>`
+}
+
+export function renderMouseEventsToggleRowHTML(options = {}) {
+  const enabled = !!options.enabled
+  const depth = Number.isFinite(Number(options.depth)) ? Number(options.depth) : 0
+  const toggleClass = enabled ? 'btn mouse-events-toggle-btn active' : 'btn mouse-events-toggle-btn'
+  const toggleLabel = enabled ? 'on' : 'off'
+  return `<div class="tree-row cursor-toggle-row" style="${rowIndentStyle(depth)}">`
+    + `<span class="cursor-toggle-label">mouse events</span>`
+    + `<span class="cursor-toggle-state">${enabled ? 'live' : 'hidden'}</span>`
+    + `<span class="canvas-flags">`
+    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" ${inspectorControlAttrs('mouse-events', {
+      name: 'Mouse events',
+      action: 'toggle_mouse_events',
+      pressed: enabled,
+    })}>${toggleLabel}</button>`
+    + `</span>`
+    + `</div>`
+}
+
+export function renderCanvasListToggleButton(options = {}) {
+  const collapsed = options.collapsed !== false
+  const label = collapsed ? 'Show canvas list' : 'Hide canvas list'
+  return `<button class="canvas-list-toggle" type="button" ${inspectorControlAttrs('canvas-list-toggle', {
+    name: label,
+    action: 'toggle_canvas_list',
+    expanded: !collapsed,
+  })} title="${escapeHTML(label)}">`
+    + `<span class="canvas-list-caret ${collapsed ? '' : 'open'}" aria-hidden="true"></span>`
+    + `</button>`
+}
+
 function renderSurfaceSegmentRow(segment, depth) {
   return `<div class="tree-row surface-segment" data-display-id="${escapeHTML(segment.display_id)}" style="${rowIndentStyle(depth)}">`
     + `<span class="seg-index">[${escapeHTML(segment.index)}]</span>`
@@ -113,11 +172,7 @@ function renderSurfaceSegmentRow(segment, depth) {
 }
 
 function renderSurfaceRow(c, depth, options = {}) {
-  const tintedIds = options.tintedIds || new Set()
-  const statsIds = options.statsIds || new Set()
   const segmentCount = Array.isArray(c.segments) ? c.segments.length : 0
-  const tintClass = tintedIds.has(c.id) ? 'btn tint-btn active' : 'btn tint-btn'
-  const statsClass = statsIds.has(c.id) ? 'btn stats-btn active' : 'btn stats-btn'
   let html = `<div class="tree-row surface" data-id="${escapeHTML(c.id)}" style="${rowIndentStyle(depth)}">`
   html += renderCanvasStatusPrefix(c)
   html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
@@ -125,9 +180,7 @@ function renderSurfaceRow(c, depth, options = {}) {
   html += `<span class="canvas-kind-detail">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
   html += `<span class="canvas-dims">${formatAt(c.atResolved || c.at)}</span>`
   html += `<span class="canvas-flags">`
-  html += `<button class="${statsClass}" data-id="${escapeHTML(c.id)}" title="Toggle inline stats.js for this canvas">stats</button>`
-  html += `<button class="${tintClass}" data-id="${escapeHTML(c.id)}">tint</button>`
-  html += `<button class="btn remove-btn" data-id="${escapeHTML(c.id)}">\u2715</button>`
+  html += renderCanvasActionButtons(c.id, options)
   html += `</span></div>`
   html += (c.segments || []).map((segment) => renderSurfaceSegmentRow(segment, depth + 1)).join('')
   return html
@@ -146,11 +199,7 @@ export function renderCanvasRow(c, depth = 0, options = {}) {
   html += `<span class="canvas-id">${escapeHTML(c?.id)}</span>`
   html += `<span class="canvas-dims">${dims}</span>`
   html += `<span class="canvas-flags">`
-  const tintClass = tintedIds.has(c?.id) ? 'btn tint-btn active' : 'btn tint-btn'
-  const statsClass = statsIds.has(c?.id) ? 'btn stats-btn active' : 'btn stats-btn'
-  html += `<button class="${statsClass}" data-id="${escapeHTML(c?.id)}" title="Toggle inline stats.js for this canvas">stats</button>`
-  html += `<button class="${tintClass}" data-id="${escapeHTML(c?.id)}">tint</button>`
-  html += `<button class="btn remove-btn" data-id="${escapeHTML(c?.id)}">\u2715</button>`
+  html += renderCanvasActionButtons(c?.id, { tintedIds, statsIds })
   html += `</span></div>`
   return html
 }
@@ -481,11 +530,11 @@ export default function CanvasInspector() {
       html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${tintStyle}" title="${esc(c.id)}"></div>`
     }
     // Object marks: projected CG position, primitive composition at logical w/h.
-    for (const [, entry] of marksState.marksByCanvas) {
+    for (const [canvasId, entry] of marksState.marksByCanvas) {
       for (const m of entry.marks) {
         const projected = projectPointToMinimap(layout, { x: m.x, y: m.y })
         if (!projected) continue
-        html += renderMinimapMark(m, projected)
+        html += renderMinimapMark(m, projected, { canvasId })
       }
     }
     html += `<div class="minimap-dynamic-layer"></div>`
@@ -542,27 +591,11 @@ export default function CanvasInspector() {
   }
 
   function renderCursorToggleRow(depth) {
-    const toggleClass = cursorTrackingEnabled ? 'btn cursor-toggle-btn active' : 'btn cursor-toggle-btn'
-    const toggleLabel = cursorTrackingEnabled ? 'on' : 'off'
-    return `<div class="tree-row cursor-toggle-row" style="${indentStyle(depth)}">`
-      + `<span class="cursor-toggle-label">minimap cursor</span>`
-      + `<span class="cursor-toggle-state">${cursorTrackingEnabled ? 'live' : 'hidden'}</span>`
-      + `<span class="canvas-flags">`
-      + `<button class="${toggleClass}" data-enabled="${cursorTrackingEnabled ? '1' : '0'}">${toggleLabel}</button>`
-      + `</span>`
-      + `</div>`
+    return renderCursorToggleRowHTML({ depth, enabled: cursorTrackingEnabled })
   }
 
   function renderMouseEventsToggleRow(depth) {
-    const toggleClass = mouseEventsEnabled ? 'btn mouse-events-toggle-btn active' : 'btn mouse-events-toggle-btn'
-    const toggleLabel = mouseEventsEnabled ? 'on' : 'off'
-    return `<div class="tree-row cursor-toggle-row" style="${indentStyle(depth)}">`
-      + `<span class="cursor-toggle-label">mouse events</span>`
-      + `<span class="cursor-toggle-state">${mouseEventsEnabled ? 'live' : 'hidden'}</span>`
-      + `<span class="canvas-flags">`
-      + `<button class="${toggleClass}" data-enabled="${mouseEventsEnabled ? '1' : '0'}">${toggleLabel}</button>`
-      + `</span>`
-      + `</div>`
+    return renderMouseEventsToggleRowHTML({ depth, enabled: mouseEventsEnabled })
   }
 
   function renderMarkTreeRow(mark, depth) {
@@ -588,9 +621,7 @@ export default function CanvasInspector() {
     }
     return `<div class="status-bar">`
       + `<span class="event-count">${eventCount} events</span>`
-      + `<button class="canvas-list-toggle" type="button" aria-expanded="${listCollapsed ? 'false' : 'true'}" title="${listCollapsed ? 'Show canvas list' : 'Hide canvas list'}">`
-      + `<span class="canvas-list-caret ${listCollapsed ? '' : 'open'}" aria-hidden="true"></span>`
-      + `</button>`
+      + renderCanvasListToggleButton({ collapsed: listCollapsed })
       + `<span>${detail}</span>`
       + `</div>`
   }

@@ -73,18 +73,29 @@ test('buildMarkLayers respects custom w and h', () => {
 });
 
 test('renderMinimapMark centers mark on projected point and embeds metadata', () => {
-  const svg = renderMinimapMark(mark({ id: 'avatar', name: 'Avatar' }), { x: 50, y: 60 });
+  const svg = renderMinimapMark(mark({ id: 'avatar', name: 'Avatar', x: 100, y: 120 }), { x: 50, y: 60 }, { canvasId: 'avatar-main' });
   assert.match(svg, /left:40px/);  // 50 - 20/2
   assert.match(svg, /top:50px/);   // 60 - 20/2
+  assert.match(svg, /role="img"/);
+  assert.match(svg, /aria-label="Avatar"/);
+  assert.match(svg, /data-aos-ref="canvas-inspector:mark:avatar-main:avatar"/);
+  assert.match(svg, /data-aos-parent-canvas="avatar-main"/);
+  assert.match(svg, /data-canvas-id="avatar-main"/);
   assert.match(svg, /data-mark-id="avatar"/);
+  assert.match(svg, /data-mark-x="100"/);
+  assert.match(svg, /data-mark-y="120"/);
   assert.match(svg, /<title>Avatar<\/title>/);
   assert.match(svg, /class="minimap-mark"/);
   assert.match(svg, /viewBox="0 0 20 20"/);
+  assert.doesNotMatch(svg, /data-aos-action=/);
 });
 
 test('renderMinimapMark escapes id and name', () => {
-  const svg = renderMinimapMark(mark({ id: 'x"<y', name: '<b>bold</b>' }), { x: 0, y: 0 });
+  const svg = renderMinimapMark(mark({ id: 'x"<y', name: '<b>bold</b>' }), { x: 0, y: 0 }, { canvasId: 'canvas"<id' });
+  assert.match(svg, /aria-label="&lt;b&gt;bold&lt;\/b&gt;"/);
+  assert.match(svg, /data-canvas-id="canvas&quot;&lt;id"/);
   assert.match(svg, /data-mark-id="x&quot;&lt;y"/);
+  assert.match(svg, /data-aos-ref="canvas-inspector:mark:canvas&quot;&lt;id:x&quot;&lt;y"/);
   assert.match(svg, /<title>&lt;b&gt;bold&lt;\/b&gt;<\/title>/);
 });
 
@@ -95,6 +106,7 @@ test('renderMarkListRow emits name only by default (no coords, no swatch, no but
   assert.match(html, /<span class="mark-name">Avatar<\/span>/);
   assert.doesNotMatch(html, /mark-coords/);
   assert.doesNotMatch(html, /<button/);
+  assert.doesNotMatch(html, /data-aos-action=/);
   assert.doesNotMatch(html, /swatch/);
   assert.doesNotMatch(html, /<img/);
 });

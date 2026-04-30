@@ -2,6 +2,7 @@ import { emit, wireBridge } from '../runtime/bridge.js'
 import { subscribe } from '../runtime/subscribe.js'
 import { commandForHotkey } from './hotkeys.js'
 import { commandLabel, menuCommandsForState, primaryCommandForState, viewForRunState } from './controls.js'
+import { applyRunPuckSemanticTarget } from './semantics.js'
 
 const state = {
   session_id: new URLSearchParams(location.search).get('session') || 'unknown',
@@ -33,17 +34,37 @@ function render() {
   const primary = document.querySelector('[data-role="primary"]')
   const command = primaryCommandForState(state.run_state)
   primary.dataset.command = command
-  primary.textContent = commandLabel(command)
-  primary.title = commandLabel(command)
+  applyRunPuckSemanticTarget(primary, {
+    id: 'primary',
+    name: commandLabel(command),
+    action: command,
+    sessionId: state.session_id,
+  }, { visibleLabel: true })
 
+  const menuToggle = document.querySelector('[data-role="menu-toggle"]')
+  applyRunPuckSemanticTarget(menuToggle, {
+    id: 'menu-toggle',
+    name: 'More run controls',
+    action: 'toggle_menu',
+    sessionId: state.session_id,
+    expanded: state.menu_open,
+  })
+  menuToggle.textContent = '...'
   const menu = document.querySelector('[data-role="menu"]')
+  menu.setAttribute('role', 'menu')
+  menu.setAttribute('aria-label', 'Run controls')
   menu.hidden = !state.menu_open
   menu.innerHTML = ''
   for (const item of menuCommandsForState(state.run_state)) {
     const button = document.createElement('button')
-    button.type = 'button'
     button.dataset.command = item
-    button.textContent = commandLabel(item)
+    applyRunPuckSemanticTarget(button, {
+      id: `menu-${item}`,
+      role: 'AXMenuItem',
+      name: commandLabel(item),
+      action: item,
+      sessionId: state.session_id,
+    }, { visibleLabel: true })
     button.addEventListener('click', () => {
       state.menu_open = false
       sendCommand(item, 'puck')

@@ -23,6 +23,13 @@ export {
 } from './interaction-region.js'
 export { createInteractionSurface } from './interaction-surface.js'
 export {
+  aosRefForTarget,
+  applySemanticTargetAttributes,
+  createSemanticTargetElement,
+  normalizeSemanticTarget,
+  normalizeSemanticTargets,
+} from './semantic-targets.js'
+export {
   createDesktopWorldRangeDrag,
   desktopWorldRangeValue,
   updateDesktopWorldRangeDrag,
