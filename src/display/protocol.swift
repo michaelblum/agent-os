@@ -114,6 +114,7 @@ struct CanvasInfo: Codable {
     var parent: String?         // parent canvas ID (nil if root)
     var cascade: Bool?          // lifecycle cascade flag
     var suspended: Bool?        // true if canvas is suspended (hidden + paused)
+    var windowNumbers: [Int]?   // native window numbers backing this canvas
     var segments: [DesktopWorldSurfaceSegment]?  // present for DesktopWorldSurface canvases
 }
 

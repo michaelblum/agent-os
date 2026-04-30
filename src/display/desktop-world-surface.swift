@@ -292,6 +292,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             parent: parent,
             cascade: cascadeFromParent,
             suspended: suspended,
+            windowNumbers: windowNumbers,
             segments: segmentMetadata()
         )
     }

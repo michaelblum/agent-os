@@ -265,6 +265,11 @@ canvases are unchanged and do not carry `segments`. Existing normal canvases
 cannot be converted into DesktopWorld surfaces with `show update`; remove and
 recreate the canvas so it boots with the segmented backing.
 
+`show list` and `show get` also expose `windowNumbers`, the native macOS window
+number or numbers backing a canvas. Perception commands use this to keep
+canvas-scoped captures and `--xray` AX traversal attached to the intended AOS
+surface instead of falling back to the frontmost app.
+
 ## `aos ops`
 
 `ops` is the source-backed operator recipe surface. It sits above primitive

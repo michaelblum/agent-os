@@ -513,6 +513,7 @@ class Canvas {
             parent: parent,
             cascade: cascadeFromParent,
             suspended: suspended,
+            windowNumbers: windowNumbers,
             segments: nil
         )
     }

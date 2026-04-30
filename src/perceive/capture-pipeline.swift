@@ -621,7 +621,7 @@ func resolveCaptureSurface(opts: CaptureOptions, displays: [CaptureDisplayEntry]
             kind: "canvas",
             id: canvasID,
             globalBounds: bounds,
-            windowID: nil,
+            windowID: canvas.windowNumbers?.first ?? canvas.anchorWindow,
             segments: resolveSurfaceSegments(bounds, displays: displays)
         )
     }

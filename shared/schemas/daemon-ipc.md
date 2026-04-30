@@ -96,14 +96,19 @@ canvas layering. Valid values are `automatic`, `floating`, `status_bar`, and
 `screen_saver`; `automatic` preserves the daemon default for the canvas'
 interactive mode.
 
-DesktopWorld surfaces keep one logical canvas id while the daemon backs that id
-with one physical segment per active display. `show.list`, `show.get`, and
-`canvas_lifecycle` metadata include `segments` for these surfaces:
+`show.list`, `show.get`, and `canvas_lifecycle` metadata include
+`windowNumbers`, the native macOS window number or numbers backing a canvas.
+Normal canvases report one entry. DesktopWorld surfaces keep one logical canvas
+id while the daemon backs that id with one physical segment per active display;
+for those surfaces `windowNumbers` is ordered to match `segments`.
+`show.list`, `show.get`, and `canvas_lifecycle` metadata include `segments` for
+DesktopWorld surfaces:
 
 ```json
 {
   "id": "avatar-main",
   "track": "union",
+  "windowNumbers": [91234],
   "segments": [
     {
       "display_id": 1,

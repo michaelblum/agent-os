@@ -27,6 +27,8 @@ export function mergeCanvasLifecycleCanvas(existing, data) {
     cascade: data?.cascade ?? canvas.cascade ?? existing?.cascade ?? null,
     suspended: data?.suspended ?? canvas.suspended ?? existing?.suspended ?? null,
   }
+  const windowNumbers = data?.windowNumbers ?? canvas.windowNumbers ?? existing?.windowNumbers
+  if (windowNumbers !== undefined) next.windowNumbers = windowNumbers
   const segments = data?.segments ?? canvas.segments ?? existing?.segments
   if (segments !== undefined) next.segments = segments
   return next
