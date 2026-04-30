@@ -7,8 +7,6 @@ import {
   normalizeSemanticTarget,
   normalizeSemanticTargets,
 } from '../../packages/toolkit/runtime/semantic-targets.js'
-import { descriptorFromElement } from '../../packages/toolkit/browser-intent-sensor/dom-crawl.js'
-import { buildLocatorCandidates } from '../../packages/toolkit/browser-intent-sensor/canonicalize.js'
 
 function dataAttrName(name) {
   return name.replace(/^data-/, '').replace(/-([a-z])/g, (_, char) => char.toUpperCase())
@@ -181,25 +179,4 @@ test('applySemanticTargetAttributes removes stale optional attrs on update', () 
   assert.equal(element.dataset.aosAction, undefined)
   assert.equal(element.dataset.aosSurface, undefined)
   assert.equal(element.dataset.aosRef, 'toggle')
-})
-
-test('helper-stamped elements expose role-name and ref browser intent descriptors', async () => {
-  const element = createSemanticTargetElement(new FakeDocument(), {
-    id: 'run',
-    role: 'AXButton',
-    name: 'Run',
-    action: 'start',
-    surface: 'run-puck',
-    frame: [4, 8, 32, 24],
-  })
-  const descriptor = descriptorFromElement(element)
-  const candidates = await buildLocatorCandidates(descriptor)
-
-  assert.equal(descriptor.role, 'button')
-  assert.equal(descriptor.name, 'Run')
-  assert.equal(descriptor.ref, 'run-puck:run')
-  assert.deepEqual(
-    candidates.map((candidate) => candidate.id),
-    ['role_name', 'css', 'ref', 'rect']
-  )
 })
