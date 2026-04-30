@@ -97,6 +97,24 @@ or tooltips into the user-facing composition. See
 `docs/recipes/aos-app-accessibility-surfaces.md` for the repo-wide app and
 toolkit contract.
 
+### Radial Menu Real-Input Verification
+
+For Sigil radial menu, avatar hit target, status-item launch, or physical
+pointer behavior, use the canonical real-input scenario before inventing an ad
+hoc canvas path:
+
+```bash
+AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
+```
+
+This scenario uses the active repo daemon and the visible AOS status item,
+opens Sigil through the human-facing path, opens the radial menu with real
+cursor movement and drag input, verifies the radial child surface through AOS
+semantic targets, and removes its canvases on exit. Synthetic renderer tests and
+`show eval` probes remain appropriate for focused state-machine or DOM logic,
+but they are not enough to close regressions that only appear through actual
+mouse input.
+
 ### Content Server
 
 The AOS daemon serves Sigil's HTML surfaces over localhost. Configure in `~/.config/aos/{mode}/config.json`:
