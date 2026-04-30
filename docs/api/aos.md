@@ -191,6 +191,7 @@ Shorthand capture is supported:
 aos see main
 aos see external 1
 aos see capture --canvas canvas-inspector --perception
+aos see capture --canvas sigil-radial-menu --xray
 aos see capture --region 1172,442,320,480 --perception
 ```
 
@@ -201,6 +202,18 @@ Useful capture modifiers include:
 - `--canvas <id>` / `--channel <id>` for surface-relative captures
 - `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
 - `--perception` to attach spatial metadata alongside the image payload
+
+`--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
+canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
+semantic target probe inside that canvas and returns `semantic_targets`. Those
+entries project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such
+as `canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
+`data-semantic-target-id`. The probe does not use caller-supplied JavaScript;
+`show eval` remains a developer diagnostic bridge, not the agent perception
+contract.
+
+See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
+for the response shape.
 
 `--perception` augments the capture response with:
 

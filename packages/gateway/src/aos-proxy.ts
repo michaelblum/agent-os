@@ -87,13 +87,15 @@ export async function getCursor(): Promise<{ x: number; y: number; app?: string;
 
 export async function capture(opts?: {
   display?: string;
+  canvas?: string;
   window?: boolean;
   xray?: boolean;
   base64?: boolean;
   format?: 'png' | 'jpg';
   out?: string;
-}): Promise<{ status: string; base64?: string; elements?: unknown[]; path?: string }> {
+}): Promise<{ status: string; base64?: string; elements?: unknown[]; semantic_targets?: unknown[]; path?: string }> {
   const args = ['see', 'capture', opts?.display ?? 'user_active'];
+  if (opts?.canvas) args.push('--canvas', opts.canvas);
   if (opts?.window) args.push('--window');
   if (opts?.xray) args.push('--xray');
   if (opts?.base64) args.push('--base64');

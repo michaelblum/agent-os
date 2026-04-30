@@ -2068,6 +2068,7 @@ func captureCommand(args: [String]) async {
     var responseClickX: Int? = nil
     var responseClickY: Int? = nil
     var responseElements: [AXElementJSON]? = nil
+    var responseSemanticTargets: [AOSSemanticTargetJSON]? = nil
     var responseAnnotations: [AnnotationJSON]? = nil
     var responseWindow: CaptureWindowJSON? = nil
     var responseSurfaces: [CaptureSurfaceJSON] = []
@@ -2175,6 +2176,9 @@ func captureCommand(args: [String]) async {
                 )
             } else {
                 responseElements = xrayFrontmostApp(mapper: mapper, imageSize: imageSize)
+            }
+            if surface.kind == "canvas", let canvasID = surface.id {
+                responseSemanticTargets = collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: captureScale)
             }
         }
 
@@ -2448,6 +2452,7 @@ func captureCommand(args: [String]) async {
         resp.click_y = responseClickY
         resp.warning = responseWarning
         resp.elements = responseElements
+        resp.semantic_targets = responseSemanticTargets
         resp.annotations = responseAnnotations
         if !responseSurfaces.isEmpty {
             resp.surfaces = responseSurfaces

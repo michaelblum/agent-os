@@ -168,7 +168,7 @@ struct SpatialTopology: Encodable {
 // MARK: - Capture Pipeline Cursor Output Models
 // These use different struct names to avoid collision with the aos cursor command models.
 
-struct CursorJSON: Encodable {
+struct CursorJSON: Codable {
     let x: Int
     let y: Int
 }
@@ -215,7 +215,7 @@ struct SelectionResponse: Encodable {
 
 // MARK: - Capture Pipeline AX Output Models
 
-struct BoundsJSON: Encodable {
+struct BoundsJSON: Codable {
     let x: Int
     let y: Int
     let width: Int
@@ -231,6 +231,33 @@ struct AXElementJSON: Encodable {
     let context_path: [String]
     let bounds: BoundsJSON?
     let ref: String?
+}
+
+// MARK: - AOS-owned Canvas Semantic Target Output
+
+struct AOSSemanticTargetStateJSON: Codable {
+    let current: String?
+    let pressed: Bool?
+    let selected: Bool?
+    let checked: Bool?
+    let expanded: Bool?
+    let disabled: Bool?
+    let value: String?
+}
+
+struct AOSSemanticTargetJSON: Codable {
+    let canvas_id: String?
+    let id: String?
+    let ref: String?
+    let role: String
+    let name: String?
+    let action: String?
+    let surface: String?
+    let parent_canvas: String?
+    let enabled: Bool
+    let bounds: BoundsJSON
+    let center: CursorJSON
+    let state: AOSSemanticTargetStateJSON?
 }
 
 // MARK: - Annotation Output Model (annotation.schema.json v0.1.0)
@@ -296,13 +323,14 @@ struct SuccessResponse: Encodable {
     var click_y: Int?
     var warning: String?
     var elements: [AXElementJSON]?
+    var semantic_targets: [AOSSemanticTargetJSON]?
     var annotations: [AnnotationJSON]?
     var window: CaptureWindowJSON?
     var surfaces: [CaptureSurfaceJSON]?
     var perceptions: [CapturePerceptionJSON]?
 
     enum CodingKeys: String, CodingKey {
-        case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, annotations, window, surfaces, perceptions
+        case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, semantic_targets, annotations, window, surfaces, perceptions
     }
 
     func encode(to encoder: Encoder) throws {
@@ -316,6 +344,7 @@ struct SuccessResponse: Encodable {
         if let cy = click_y { try c.encode(cy, forKey: .click_y) }
         if let w = warning { try c.encode(w, forKey: .warning) }
         if let e = elements { try c.encode(e, forKey: .elements) }
+        if let st = semantic_targets { try c.encode(st, forKey: .semantic_targets) }
         if let a = annotations { try c.encode(a, forKey: .annotations) }
         if let win = window { try c.encode(win, forKey: .window) }
         if let s = surfaces { try c.encode(s, forKey: .surfaces) }
