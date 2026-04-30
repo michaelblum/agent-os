@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { createHitTargetController } from '../../apps/sigil/renderer/live-modules/hit-target.js'
 
 test('Sigil hit target requests the above-menu window level', async () => {
@@ -77,4 +78,16 @@ test('Sigil hit target skips redundant frame updates', async () => {
   assert.equal(creates.length, 1)
   assert.equal(updates.length, 1)
   assert.deepEqual(updates[0], { id: 'sigil-hit-test', frame: [60, 60, 80, 80] })
+})
+
+test('Sigil hit area exposes avatar semantics without visible label text', async () => {
+  const html = await readFile(new URL('../../apps/sigil/renderer/hit-area.html', import.meta.url), 'utf8')
+
+  assert.match(html, /id="sigil-avatar-hit-target"/)
+  assert.match(html, /aria-label="Sigil avatar"/)
+  assert.match(html, /data-aos-surface="sigil\.avatar"/)
+  assert.match(html, /data-semantic-target-id="avatar"/)
+  assert.match(html, /dataset\.aosRef = HIT_ID/)
+  assert.match(html, /dataset\.aosParentCanvas = HIT_PARENT_ID/)
+  assert.doesNotMatch(html, />\s*Sigil avatar\s*<\/button>/)
 })

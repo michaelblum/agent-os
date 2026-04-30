@@ -42,6 +42,7 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
 python3 - <<'PY'
 import json
 import math
+import os
 import subprocess
 import time
 
@@ -65,7 +66,51 @@ def canvas_ids():
     return {canvas["id"] for canvas in payload.get("canvases", [])}
 
 
-def wait_until(predicate, timeout=5.0, interval=0.05):
+def see_canvas(canvas_id):
+    safe_id = "".join(char if char.isalnum() or char in "-_" else "-" for char in canvas_id)
+    out_path = f"/tmp/aos-sigil-semantic-{safe_id}-{os.getpid()}.png"
+    try:
+        return json.loads(run("see", "capture", "--canvas", canvas_id, "--xray", "--out", out_path))
+    finally:
+        try:
+            os.remove(out_path)
+        except FileNotFoundError:
+            pass
+
+
+def semantic_target(canvas_id, target_id):
+    payload = see_canvas(canvas_id)
+    for target in payload.get("semantic_targets") or []:
+        if target.get("id") == target_id:
+            return {"payload": payload, "target": target}
+    return None
+
+
+def native_desktop_bounds(displays):
+    rects = [display.get("native_bounds") for display in displays if display.get("native_bounds")]
+    if not rects:
+        return {"x": 0, "y": 0}
+    min_x = min(rect.get("x", 0) for rect in rects)
+    min_y = min(rect.get("y", 0) for rect in rects)
+    return {"x": min_x, "y": min_y}
+
+
+def semantic_target_world_point(surface_snapshot, capture_payload, target, displays):
+    frame = surface_snapshot.get("frame") or [0, 0, 0, 0]
+    surface = (capture_payload.get("surfaces") or [{}])[0]
+    scale = surface.get("capture_scale_factor") or 1
+    native_point = {
+        "x": frame[0] + target["center"]["x"] / scale,
+        "y": frame[1] + target["center"]["y"] / scale,
+    }
+    origin = native_desktop_bounds(displays)
+    return {
+        "x": native_point["x"] - origin["x"],
+        "y": native_point["y"] - origin["y"],
+    }
+
+
+def wait_until(predicate, timeout=5.0, interval=0.05, label="condition"):
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
@@ -73,7 +118,7 @@ def wait_until(predicate, timeout=5.0, interval=0.05):
         if last is not None:
             return last
         time.sleep(interval)
-    raise SystemExit(f"FAIL: timed out waiting for condition; last={last!r}")
+    raise SystemExit(f"FAIL: timed out waiting for {label}; last={last!r}")
 
 
 snapshot = show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")
@@ -81,6 +126,16 @@ hit_target_id = snapshot["hitTargetId"]
 assert snapshot["hitTargetReady"] is True, snapshot
 assert hit_target_id in canvas_ids(), f"missing hit target canvas {hit_target_id}"
 assert snapshot["avatarVisible"] is True, snapshot
+
+hit_semantic = wait_until(lambda: semantic_target(hit_target_id, "avatar"), timeout=5.0, label="avatar hit semantic target")
+hit_target = hit_semantic["target"]
+assert hit_target["ref"] == hit_target_id, hit_target
+assert hit_target["role"] == "button", hit_target
+assert hit_target["name"] == "Sigil avatar", hit_target
+assert hit_target["surface"] == "sigil.avatar", hit_target
+assert hit_target["parent_canvas"] == "avatar-main", hit_target
+assert hit_target["enabled"] is True, hit_target
+assert hit_target["bounds"]["width"] > 0 and hit_target["bounds"]["height"] > 0, hit_target
 
 hover_state = show_eval_json(
     """(() => {
@@ -170,7 +225,7 @@ drag_state = show_eval_json(
 )
 assert drag_state["state"] == "RADIAL", drag_state
 assert drag_state["radialGestureMenu"]["phase"] == "radial", drag_state
-wait_until(
+radial_ready = wait_until(
     lambda: (
         lambda snap: snap
         if snap.get("radialGestureVisuals", {}).get("visible") is True
@@ -181,6 +236,28 @@ wait_until(
         else None
     )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
     timeout=3.0,
+    label="radial target surface ready",
+)
+radial_surface = radial_ready["radialTargetSurface"]
+radial_surface_id = radial_surface["id"]
+radial_context_semantic = wait_until(lambda: semantic_target(radial_surface_id, "context-menu"), timeout=3.0, label="radial context semantic target")
+radial_targets = radial_context_semantic["payload"].get("semantic_targets") or []
+radial_target_ids = {target.get("id") for target in radial_targets}
+assert {"context-menu", "wiki-graph"}.issubset(radial_target_ids), radial_targets
+context_target = radial_context_semantic["target"]
+assert context_target["ref"] == "sigil-radial-item-context-menu", context_target
+assert context_target["role"] == "button", context_target
+assert context_target["name"] == "Context Menu", context_target
+assert context_target["action"] == "contextMenu", context_target
+assert context_target["surface"] == radial_surface_id, context_target
+assert context_target["parent_canvas"] == "avatar-main", context_target
+
+displays = show_eval_json("JSON.stringify(window.liveJs.displays)")
+context_point = semantic_target_world_point(
+    radial_surface,
+    radial_context_semantic["payload"],
+    context_target,
+    displays,
 )
 
 canceled = show_eval_json(
@@ -192,16 +269,14 @@ canceled = show_eval_json(
 assert canceled["state"] == "IDLE", canceled
 
 radial_context = show_eval_json(
-    """(() => {
+    f"""(() => {{
       const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
-      const radial = window.__sigilDebug.snapshot().radialGestureMenu
-      const item = radial.items.find((candidate) => candidate.id === 'context-menu')
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: item.center.x, y: item.center.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: item.center.x, y: item.center.y })
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_down', x: p.x, y: p.y }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: p.x + 18, y: p.y }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: {context_point['x']}, y: {context_point['y']} }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {context_point['x']}, y: {context_point['y']} }})
       return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
+    }})()"""
 )
 assert radial_context["state"] == "IDLE", radial_context
 assert radial_context["contextMenu"]["open"] is True, radial_context
