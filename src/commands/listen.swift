@@ -69,6 +69,7 @@ private func listenRead(channel: String, since: String?, limit: Int) {
     var data: [String: Any] = ["channel": channel, "limit": limit]
     if let s = since { data["since"] = s }
 
+    ensureDaemonRuntimePreflight(command: "aos listen", autoStartBinary: CommandLine.arguments[0])
     guard let response = sendEnvelopeRequest(service: "listen", action: "read", data: data, autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }
@@ -87,6 +88,7 @@ private func listenRead(channel: String, since: String?, limit: Int) {
 // MARK: - Streaming follow
 
 private func listenFollow(channel: String, since: String?) {
+    ensureDaemonRuntimePreflight(command: "aos listen --follow", autoStartBinary: CommandLine.arguments[0])
     let session = DaemonSession()
     guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
@@ -159,6 +161,7 @@ private func listenFollow(channel: String, since: String?) {
 // MARK: - List channels
 
 private func listenChannels() {
+    ensureDaemonRuntimePreflight(command: "aos listen --channels", autoStartBinary: CommandLine.arguments[0])
     guard let response = sendEnvelopeRequest(service: "listen", action: "channels", data: [:], autoStartBinary: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon", code: "DAEMON_UNREACHABLE")
     }

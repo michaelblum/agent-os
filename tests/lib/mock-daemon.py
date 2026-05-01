@@ -163,6 +163,11 @@ def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
     svc = req.get("service")
     action = req.get("action")
     ref = req.get("ref")
+    if args.request_log:
+        with open(args.request_log, "a", encoding="utf-8") as log:
+            command = (req.get("data") or {}).get("command")
+            suffix = f" {command}" if command else ""
+            log.write(f"{svc}.{action}{suffix}\n")
     if (svc, action) == ("system", "ping"):
         resp: dict[str, Any] = {
             "v": 1,
@@ -226,6 +231,8 @@ def main() -> None:
                         help="Emit only legacy flat fields; omit the structured "
                              "input_tap/permissions blocks (simulates a "
                              "pre-readiness-contract daemon binary).")
+    parser.add_argument("--request-log",
+                        help="Append one service.action line per received request.")
     args = parser.parse_args()
 
     if os.path.exists(args.socket):

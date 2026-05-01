@@ -817,8 +817,20 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
     ensureLegacyInputTapPreflight(command: command)
 }
 
+func ensureDaemonRuntimePreflight(command: String, autoStartBinary: String? = nil) {
+    _ = ensureCapabilityPreflight(
+        command: command,
+        requirements: [["id": "runtime.daemon", "scope": "daemon"]],
+        autoStartBinary: autoStartBinary
+    )
+}
+
 @discardableResult
-func ensureCapabilityPreflight(command: String, requirements: [[String: Any]]) -> Bool {
+func ensureCapabilityPreflight(
+    command: String,
+    requirements: [[String: Any]],
+    autoStartBinary: String? = nil
+) -> Bool {
     let mode = aosCurrentRuntimeMode()
     guard let response = sendEnvelopeRequest(
         service: "system",
@@ -828,7 +840,8 @@ func ensureCapabilityPreflight(command: String, requirements: [[String: Any]]) -
             "required_capabilities": requirements
         ],
         socketPath: aosSocketPath(for: mode),
-        timeoutMs: 250
+        autoStartBinary: autoStartBinary,
+        timeoutMs: autoStartBinary == nil ? 250 : 3000
     ) else {
         return false
     }
