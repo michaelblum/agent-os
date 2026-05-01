@@ -1001,7 +1001,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "content-status", usage: "aos content status [--json]",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSONFlag,
             examples: ["aos content status", "aos content status --json"]),
         InvocationForm(id: "content-wait", usage: "aos content wait [--root <name> ...] [--timeout <dur>] [--auto-start] [--json]",
@@ -1012,7 +1012,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("json", "--json", "Emit JSON output", type: .bool)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSONFlag,
             examples: [
                 "aos content wait --root toolkit --auto-start",

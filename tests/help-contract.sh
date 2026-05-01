@@ -181,7 +181,7 @@ else
 fi
 
 # --- 16. live command registry exposes capability preflight metadata ---
-if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" GRAPH="$(./aos help graph --json 2>/dev/null)" DAEMON_SNAPSHOT="$(./aos help daemon-snapshot --json 2>/dev/null)" python3 - <<'PY'
+if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" GRAPH="$(./aos help graph --json 2>/dev/null)" DAEMON_SNAPSHOT="$(./aos help daemon-snapshot --json 2>/dev/null)" CONTENT="$(./aos help content --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -206,6 +206,7 @@ listen = forms(os.environ["LISTEN"])
 voice = forms(os.environ["VOICE"])
 graph = forms(os.environ["GRAPH"])
 daemon_snapshot = forms(os.environ["DAEMON_SNAPSHOT"])
+content = forms(os.environ["CONTENT"])
 
 assert ids(see["see-target"]) == ["perception.ax"], see["see-target"]
 assert ids(see["see-observe"]) == ["runtime.daemon", "perception.ax"], see["see-observe"]
@@ -244,6 +245,8 @@ assert ids(graph["graph-windows"]) == ["runtime.daemon"], graph["graph-windows"]
 assert ids(graph["graph-deepen"]) == ["runtime.daemon"], graph["graph-deepen"]
 assert ids(graph["graph-collapse"]) == ["runtime.daemon"], graph["graph-collapse"]
 assert ids(daemon_snapshot["daemon-snapshot"]) == ["runtime.daemon"], daemon_snapshot["daemon-snapshot"]
+assert ids(content["content-status"]) == ["runtime.daemon"], content["content-status"]
+assert ids(content["content-wait"]) == ["runtime.daemon"], content["content-wait"]
 PY
 then
     pass "live command registry exposes capability preflight metadata"

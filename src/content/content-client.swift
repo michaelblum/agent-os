@@ -3,6 +3,7 @@
 import Foundation
 
 func runContentStatus(_ args: [String]) {
+    ensureDaemonRuntimePreflight(command: "aos content status")
     guard let raw = sendEnvelopeRequest(service: "content", action: "status", data: [:]) else {
         exitError("Cannot connect to daemon — is 'aos serve' running?", code: "NO_DAEMON")
     }
@@ -57,6 +58,11 @@ func runContentWait(_ args: [String]) {
         }
         i += 1
     }
+
+    ensureDaemonRuntimePreflight(
+        command: "aos content wait",
+        autoStartBinary: autoStart ? CommandLine.arguments[0] : nil
+    )
 
     let session = DaemonSession()
     let connected = autoStart
