@@ -805,6 +805,47 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
     // need the input tap.
     guard requiresInputTap else { return }
 
+    if ensureCapabilityPreflight(
+        command: command,
+        requirements: [["id": "action.input", "scope": "daemon"]]
+    ) {
+        return
+    }
+
+    // Compatibility fallback for older daemons and test doubles that have not
+    // implemented system.preflight yet.
+    ensureLegacyInputTapPreflight(command: command)
+}
+
+@discardableResult
+func ensureCapabilityPreflight(command: String, requirements: [[String: Any]]) -> Bool {
+    let mode = aosCurrentRuntimeMode()
+    guard let response = sendEnvelopeRequest(
+        service: "system",
+        action: "preflight",
+        data: [
+            "command": command,
+            "required_capabilities": requirements
+        ],
+        socketPath: aosSocketPath(for: mode),
+        timeoutMs: 250
+    ) else {
+        return false
+    }
+
+    if response["status"] as? String == "error" {
+        return false
+    }
+
+    let payload = (response["data"] as? [String: Any]) ?? response
+    let blocked = payload["blocked_capabilities"] as? [String] ?? []
+    guard blocked.isEmpty else {
+        exitCapabilityPreflightFailure(command: command, payload: payload)
+    }
+    return true
+}
+
+private func ensureLegacyInputTapPreflight(command: String) {
     let mode = aosCurrentRuntimeMode()
     if let response = sendEnvelopeRequest(
         service: "system",
@@ -828,6 +869,26 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
         }
         exitError(message, code: "INPUT_TAP_NOT_ACTIVE")
     }
+}
+
+private func exitCapabilityPreflightFailure(command: String, payload: [String: Any]) -> Never {
+    let diagnosis = (payload["diagnosis"] as? String) ?? "capability_blocked"
+    let blockers = payload["blockers"] as? [[String: Any]] ?? []
+    let message = (blockers.first?["message"] as? String)
+        ?? "\(command) capability preflight failed with diagnosis=\(diagnosis)."
+    let error = "\(command) capability preflight failed: \(message)"
+
+    let obj: [String: Any] = [
+        "error": error,
+        "code": "CAPABILITY_PREFLIGHT_FAILED",
+        "preflight": payload
+    ]
+    if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+       let text = String(data: data, encoding: .utf8) {
+        FileHandle.standardError.write(text.data(using: .utf8)!)
+        FileHandle.standardError.write("\n".data(using: .utf8)!)
+    }
+    exit(1)
 }
 
 func showExistsCommand(args: [String]) {

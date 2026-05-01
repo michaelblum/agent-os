@@ -95,7 +95,7 @@ case "$OUT_TEXT" in
   *) echo "FAIL: status text one-liner missing tap=retrying: $OUT_TEXT"; exit 1 ;;
 esac
 
-# do click should fail at the preflight gate with INPUT_TAP_NOT_ACTIVE.
+# do click should fail at the capability preflight gate without attempting repair.
 set +e
 DO_OUT="$(./aos do click 500,300 2>&1)"
 DO_RC=$?
@@ -104,9 +104,17 @@ if [ "$DO_RC" -eq 0 ]; then
   echo "FAIL: do click unexpectedly exited 0 against degraded tap: $DO_OUT"
   exit 1
 fi
-case "$DO_OUT" in
-  *INPUT_TAP_NOT_ACTIVE*) echo "PASS: do click exits with INPUT_TAP_NOT_ACTIVE" ;;
-  *) echo "FAIL: do click error code missing INPUT_TAP_NOT_ACTIVE: $DO_OUT (rc=$DO_RC)"; exit 1 ;;
-esac
+echo "$DO_OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+assert d.get("code") == "CAPABILITY_PREFLIGHT_FAILED", d
+preflight = d.get("preflight", {})
+assert preflight.get("repair_attempted") is False, preflight
+assert preflight.get("blocked_capabilities") == ["action.input"], preflight
+blockers = preflight.get("blockers", [])
+assert blockers and blockers[0].get("id") == "input_tap_not_active", blockers
+assert blockers[0].get("source") == "daemon", blockers
+'
+echo "PASS: do click exits with CAPABILITY_PREFLIGHT_FAILED"
 
 echo "PASS"

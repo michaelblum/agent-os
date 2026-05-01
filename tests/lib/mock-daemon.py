@@ -2,9 +2,10 @@
 """Mock daemon socket server for input-tap readiness tests.
 
 Speaks the v1 IPC envelope on a configurable Unix socket path. Responds to
-system.ping with a payload whose input_tap and permissions blocks are filled
-from CLI flags, so tests can exercise the daemon-aware reporting layer
-without requiring a real CGEventTap failure or launchd round-trip.
+system.ping and system.preflight with payloads whose input_tap and permissions
+blocks are filled from CLI flags, so tests can exercise the daemon-aware
+reporting layer without requiring a real CGEventTap failure or launchd
+round-trip.
 
 Usage:
   mock-daemon.py --socket PATH [--tap-status STATUS] [--listen-access BOOL]
@@ -56,6 +57,90 @@ def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
     return payload
 
 
+def requested_capabilities(req: dict[str, Any]) -> list[str]:
+    data = req.get("data") or {}
+    if isinstance(data.get("capabilities"), list):
+        return [str(item) for item in data["capabilities"]]
+    raw = data.get("required_capabilities")
+    if isinstance(raw, list):
+        out: list[str] = []
+        for item in raw:
+            if isinstance(item, dict) and item.get("id"):
+                out.append(str(item["id"]))
+        return out
+    return []
+
+
+def build_preflight_payload(args: argparse.Namespace, req: dict[str, Any]) -> dict[str, Any]:
+    capabilities = requested_capabilities(req)
+    blocked: list[str] = []
+    satisfied: list[str] = []
+    blockers: list[dict[str, Any]] = []
+    leases: list[dict[str, Any]] = []
+
+    for capability in capabilities:
+        if capability == "action.input":
+            if args.tap_status != "active":
+                blocked.append(capability)
+                blockers.append({
+                    "kind": "runtime",
+                    "id": "input_tap_not_active",
+                    "scope": "daemon",
+                    "source": "daemon",
+                    "capabilities": [capability],
+                    "blocks": ["do"],
+                    "message": f"Daemon input tap is not active (status={args.tap_status}, attempts={args.attempts}).",
+                    "next_actions": [{
+                        "type": "command",
+                        "label": "Run explicit readiness repair",
+                        "command": "./aos ready --repair",
+                    }],
+                })
+                continue
+            if not parse_bool(args.post_access):
+                blocked.append(capability)
+                blockers.append({
+                    "kind": "permission",
+                    "id": "input_monitoring_post",
+                    "scope": "daemon",
+                    "source": "daemon",
+                    "capabilities": [capability],
+                    "blocks": ["do"],
+                    "message": "Daemon lacks Input Monitoring post access.",
+                })
+                continue
+
+        satisfied.append(capability)
+        leases.append({
+            "capability": capability,
+            "scope": "daemon",
+            "mode": args.mode,
+            "status": "valid",
+            "source": "daemon",
+            "checked_at": "2026-04-24T00:00:00Z",
+            "expires_at": None,
+            "daemon_pid": os.getpid(),
+            "daemon_started_at": "2026-04-24T00:00:00Z",
+            "socket_path": args.socket,
+            "reused": False,
+            "evidence": {"mock": True},
+        })
+
+    blocked_unique = sorted(set(blocked))
+    return {
+        "phase": "ready" if not blocked_unique else "capability_blocked",
+        "diagnosis": "ready" if not blockers else blockers[0]["id"],
+        "mode": args.mode,
+        "command": (req.get("data") or {}).get("command"),
+        "repair_attempted": False,
+        "required_capabilities": capabilities,
+        "satisfied_capabilities": sorted(set(satisfied)),
+        "blocked_capabilities": blocked_unique,
+        "leases": leases,
+        "blockers": blockers,
+    }
+
+
 def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
     try:
         req = json.loads(line.decode())
@@ -69,6 +154,16 @@ def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
             "v": 1,
             "status": "success",
             "data": build_ping_payload(args),
+        }
+        if ref is not None:
+            resp["ref"] = ref
+        return json.dumps(resp).encode() + b"\n"
+    if (svc, action) == ("system", "preflight"):
+        payload = build_preflight_payload(args, req)
+        resp = {
+            "v": 1,
+            "status": "success" if not payload["blocked_capabilities"] else "degraded",
+            "data": payload,
         }
         if ref is not None:
             resp["ref"] = ref
