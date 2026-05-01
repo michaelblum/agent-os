@@ -180,6 +180,59 @@ else
     fail "show create/update registry drifted from canvas parser"
 fi
 
+# --- 16. live command registry exposes capability preflight metadata ---
+if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+
+def forms(payload):
+    return {form["id"]: form for form in json.loads(payload)["forms"]}
+
+
+def caps(form):
+    return form["execution"].get("required_capabilities", [])
+
+
+def ids(form):
+    return [cap["id"] for cap in caps(form)]
+
+
+see = forms(os.environ["SEE"])
+do = forms(os.environ["DO"])
+show = forms(os.environ["SHOW"])
+tell = forms(os.environ["TELL"])
+listen = forms(os.environ["LISTEN"])
+
+assert ids(see["see-target"]) == ["perception.ax"], see["see-target"]
+assert ids(see["see-observe"]) == ["runtime.daemon", "perception.ax"], see["see-observe"]
+assert ids(see["see-capture"]) == ["perception.screen", "browser.adapter"], see["see-capture"]
+
+click_caps = caps(do["do-click"])
+assert click_caps[0] == {
+    "id": "action.input",
+    "scope": "daemon",
+    "when": "target_kind != browser",
+}, click_caps
+assert click_caps[1] == {
+    "id": "browser.adapter",
+    "scope": "target.session",
+    "when": "target_kind == browser",
+}, click_caps
+assert ids(do["do-fill"]) == ["browser.adapter"], do["do-fill"]
+assert ids(do["do-navigate"]) == ["browser.adapter"], do["do-navigate"]
+
+assert ids(show["show-create"]) == ["runtime.daemon", "projection.canvas", "content.root"], show["show-create"]
+assert ids(show["show-list"]) == ["runtime.daemon", "projection.canvas"], show["show-list"]
+assert ids(tell["tell-message"]) == ["runtime.daemon"], tell["tell-message"]
+assert ids(listen["listen-read"]) == ["runtime.daemon"], listen["listen-read"]
+PY
+then
+    pass "live command registry exposes capability preflight metadata"
+else
+    fail "live command capability metadata missing or malformed"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"

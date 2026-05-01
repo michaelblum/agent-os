@@ -5,24 +5,32 @@ import Foundation
 // MARK: - Convenience Builders
 
 /// Shorthand for common execution profiles
-func execReadOnly(daemon: Bool = false, permissions: Bool = false) -> ExecutionMeta {
+func cap(_ id: String, scope: String? = nil, when: String? = nil) -> CapabilityRequirement {
+    CapabilityRequirement(id: id, scope: scope, when: when)
+}
+
+func execReadOnly(daemon: Bool = false, permissions: Bool = false, capabilities: [CapabilityRequirement] = []) -> ExecutionMeta {
     ExecutionMeta(readOnly: true, mutatesState: false, interactive: false, streaming: false,
-                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false)
+                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false,
+                  requiredCapabilities: capabilities)
 }
 
-func execMutating(daemon: Bool = false, permissions: Bool = false, dryRun: Bool = false) -> ExecutionMeta {
+func execMutating(daemon: Bool = false, permissions: Bool = false, dryRun: Bool = false, capabilities: [CapabilityRequirement] = []) -> ExecutionMeta {
     ExecutionMeta(readOnly: false, mutatesState: true, interactive: false, streaming: false,
-                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: dryRun)
+                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: dryRun,
+                  requiredCapabilities: capabilities)
 }
 
-func execStreaming(daemon: Bool = true, permissions: Bool = false) -> ExecutionMeta {
+func execStreaming(daemon: Bool = true, permissions: Bool = false, capabilities: [CapabilityRequirement] = []) -> ExecutionMeta {
     ExecutionMeta(readOnly: true, mutatesState: false, interactive: false, streaming: true,
-                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false)
+                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false,
+                  requiredCapabilities: capabilities)
 }
 
-func execInteractive(daemon: Bool = true, permissions: Bool = false) -> ExecutionMeta {
+func execInteractive(daemon: Bool = true, permissions: Bool = false, capabilities: [CapabilityRequirement] = []) -> ExecutionMeta {
     ExecutionMeta(readOnly: false, mutatesState: false, interactive: true, streaming: true,
-                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false)
+                  autoStartsDaemon: daemon, requiresPermissions: permissions, supportsDryRun: false,
+                  requiredCapabilities: capabilities)
 }
 
 /// Shorthand for common output profiles
@@ -55,12 +63,31 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         .staticValues(["main", "external", "user_active", "selfie", "mouse", "all"]),
         .command(path: ["see", "zone"], formId: "zone-list")
     ]
+    let axPerception = [cap("perception.ax")]
+    let screenOrBrowserCapture = [
+        cap("perception.screen", when: "target_kind != browser"),
+        cap("browser.adapter", scope: "target.session", when: "target_kind == browser")
+    ]
+    let actionInputOrBrowser = [
+        cap("action.input", scope: "daemon", when: "target_kind != browser"),
+        cap("browser.adapter", scope: "target.session", when: "target_kind == browser")
+    ]
+    let projectionCanvas = [
+        cap("runtime.daemon"),
+        cap("projection.canvas")
+    ]
+    let projectionCanvasWithContentRoot = [
+        cap("runtime.daemon"),
+        cap("projection.canvas"),
+        cap("content.root", scope: "url.root", when: "url begins with aos://")
+    ]
+    let daemonChannel = [cap("runtime.daemon")]
 
     reg.append(CommandDescriptor(path: ["see"], summary: "Perception — query what's on screen", forms: [
         InvocationForm(id: "see-cursor", usage: "aos see cursor",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(permissions: true),
+            execution: execReadOnly(permissions: true, capabilities: axPerception),
             output: outJSON,
             examples: ["aos see cursor"]),
         InvocationForm(id: "see-target", usage: "aos see target [--json]",
@@ -68,7 +95,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("json", "--json", "Emit the target probe as JSON", type: .bool)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(permissions: true),
+            execution: execReadOnly(permissions: true, capabilities: axPerception),
             output: outJSON,
             examples: ["aos see target --json"]),
         InvocationForm(id: "see-capture", usage: "aos see capture <target> [options]",
@@ -108,7 +135,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: nil,
             constraints: ConstraintSet(requires: nil, conflicts: [["base64", "out"], ["crop", "region"], ["window", "region"], ["window", "canvas"], ["window", "channel"], ["region", "canvas", "channel"]], oneOf: nil, implies: ["label": ["xray"]]),
-            execution: execReadOnly(permissions: true),
+            execution: execReadOnly(permissions: true, capabilities: screenOrBrowserCapture),
             output: outFile,
             examples: [
                 "aos see capture main --out /tmp/screen.png",
@@ -130,19 +157,19 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      ]))
             ],
             stdin: nil, constraints: nil,
-            execution: execStreaming(daemon: true, permissions: true),
+            execution: execStreaming(daemon: true, permissions: true, capabilities: [cap("runtime.daemon"), cap("perception.ax")]),
             output: outNDJSON,
             examples: ["aos see observe --depth 2"]),
         InvocationForm(id: "see-list", usage: "aos see list",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(permissions: true),
+            execution: execReadOnly(permissions: true, capabilities: axPerception),
             output: outJSON,
             examples: ["aos see list"]),
         InvocationForm(id: "see-selection", usage: "aos see selection",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(permissions: true),
+            execution: execReadOnly(permissions: true, capabilities: axPerception),
             output: outJSON,
             examples: ["aos see selection"])
     ]))
@@ -236,7 +263,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 oneOf: nil,
                 implies: nil
             ),
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvasWithContentRoot),
             output: outJSON,
             examples: [
                 "aos show create --id ball --at 100,100,200,200 --html \"<div>hello</div>\"",
@@ -276,25 +303,25 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 oneOf: nil,
                 implies: nil
             ),
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvasWithContentRoot),
             output: outJSON,
             examples: ["aos show update --id ball --at 200,200,200,200"]),
         InvocationForm(id: "show-remove", usage: "aos show remove --id <name>",
             args: [flag("id", "--id", "Canvas identifier", required: true)],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show remove --id ball"]),
         InvocationForm(id: "show-remove-all", usage: "aos show remove-all",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show remove-all"]),
         InvocationForm(id: "show-list", usage: "aos show list",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show list"]),
         InvocationForm(id: "show-render", usage: "aos show render [--html <html>] [--width N] [--height N] [--out path]",
@@ -315,7 +342,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("js", "--js", "JavaScript to execute", required: true)
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show eval --id avatar --js \"document.title\""]),
         InvocationForm(id: "show-listen", usage: "aos show listen",
@@ -424,13 +451,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("dwell", "--dwell", "Dwell time in ms", type: .int)
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do click 500,300", "aos do click 500,300 --right"]),
         InvocationForm(id: "do-hover", usage: "aos do hover <x,y>",
             args: [pos("coords", "Target coordinates as x,y")],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do hover 500,300"]),
         InvocationForm(id: "do-drag", usage: "aos do drag <x1,y1> <x2,y2> [--speed N]",
@@ -440,7 +467,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("speed", "--speed", "Drag speed in pixels/sec", type: .int)
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do drag 100,100 500,500"]),
         InvocationForm(id: "do-scroll", usage: "aos do scroll <x,y> [--dx N] [--dy N]",
@@ -451,7 +478,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: nil,
             constraints: ConstraintSet(requires: nil, conflicts: nil, oneOf: [["dx", "dy"]], implies: nil),
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do scroll 500,300 --dy -3"]),
         InvocationForm(id: "do-type", usage: "aos do type <text> [--delay ms] [--variance N]",
@@ -461,13 +488,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("variance", "--variance", "Delay variance for natural cadence", type: .int)
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do type \"hello world\""]),
         InvocationForm(id: "do-key", usage: "aos do key <combo>",
             args: [pos("combo", "Key combination (e.g. cmd+s, ctrl+shift+tab)")],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: actionInputOrBrowser),
             output: outJSON,
             examples: ["aos do key \"cmd+s\"", "aos do key \"ctrl+shift+tab\""]),
         InvocationForm(id: "do-fill", usage: "aos do fill <browser:<s>/<ref>> <text>",
@@ -476,7 +503,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 pos("text", "Text to fill into the element")
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: [cap("browser.adapter", scope: "target.session")]),
             output: outJSON,
             examples: ["aos do fill browser:todo/e21 \"buy groceries\""]),
         InvocationForm(id: "do-navigate", usage: "aos do navigate <browser:<s>> <url>",
@@ -485,7 +512,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 pos("url", "URL to navigate to")
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: execMutating(permissions: true, capabilities: [cap("browser.adapter", scope: "target.session")]),
             output: outJSON,
             examples: ["aos do navigate browser:todo https://example.com"]),
         InvocationForm(id: "do-press", usage: "aos do press --pid <pid> --role <role> [filters]",
@@ -722,7 +749,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "no text and no --json", contentType: "text"),
             constraints: ConstraintSet(requires: nil, conflicts: nil, oneOf: [["text", "stdin", "json"]], implies: nil),
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "aos tell human \"Found the bug\"",
@@ -745,7 +772,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("harness", "--harness", "Agent harness identifier", default: .string("unknown"))
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "aos tell --register --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --name canvas-runtime",
@@ -757,13 +784,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("session-id", "--session-id", "Canonical session id (preferred)")
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos tell --unregister --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos tell --unregister my-session"]),
         InvocationForm(id: "tell-who", usage: "aos tell --who",
             args: [flag("who", "--who", "List online sessions", type: .bool, required: true)],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos tell --who"])
     ]))
@@ -778,7 +805,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("limit", "--limit", "Max messages to return", type: .int, default: .int(50))
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos listen handoff", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c", "aos listen handoff --limit 10"]),
         InvocationForm(id: "listen-follow", usage: "aos listen <channel>|--session-id <id> --follow [--since id]",
@@ -789,13 +816,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("since", "--since", "Start after this message ID")
             ],
             stdin: nil, constraints: nil,
-            execution: execStreaming(daemon: true),
+            execution: execStreaming(daemon: true, capabilities: daemonChannel),
             output: outNDJSON,
             examples: ["aos listen handoff --follow", "aos listen --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --follow"]),
         InvocationForm(id: "listen-channels", usage: "aos listen --channels",
             args: [flag("channels", "--channels", "List known channels", type: .bool, required: true)],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos listen --channels"])
     ]))

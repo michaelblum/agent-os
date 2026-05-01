@@ -71,6 +71,12 @@ struct ConstraintSet {
     let implies: [String: [String]]?
 }
 
+struct CapabilityRequirement {
+    let id: String
+    let scope: String?
+    let when: String?
+}
+
 struct ExecutionMeta {
     let readOnly: Bool
     let mutatesState: Bool
@@ -79,6 +85,27 @@ struct ExecutionMeta {
     let autoStartsDaemon: Bool
     let requiresPermissions: Bool
     let supportsDryRun: Bool
+    let requiredCapabilities: [CapabilityRequirement]
+
+    init(
+        readOnly: Bool,
+        mutatesState: Bool,
+        interactive: Bool,
+        streaming: Bool,
+        autoStartsDaemon: Bool,
+        requiresPermissions: Bool,
+        supportsDryRun: Bool,
+        requiredCapabilities: [CapabilityRequirement] = []
+    ) {
+        self.readOnly = readOnly
+        self.mutatesState = mutatesState
+        self.interactive = interactive
+        self.streaming = streaming
+        self.autoStartsDaemon = autoStartsDaemon
+        self.requiresPermissions = requiresPermissions
+        self.supportsDryRun = supportsDryRun
+        self.requiredCapabilities = requiredCapabilities
+    }
 }
 
 struct OutputMeta {
@@ -195,9 +222,18 @@ extension ConstraintSet {
     }
 }
 
+extension CapabilityRequirement {
+    func toJSON() -> [String: Any] {
+        var dict: [String: Any] = ["id": id]
+        if let scope { dict["scope"] = scope }
+        if let when { dict["when"] = when }
+        return dict
+    }
+}
+
 extension ExecutionMeta {
     func toJSON() -> [String: Any] {
-        return [
+        var dict: [String: Any] = [
             "read_only": readOnly,
             "mutates_state": mutatesState,
             "interactive": interactive,
@@ -206,6 +242,10 @@ extension ExecutionMeta {
             "requires_permissions": requiresPermissions,
             "supports_dry_run": supportsDryRun
         ]
+        if !requiredCapabilities.isEmpty {
+            dict["required_capabilities"] = requiredCapabilities.map { $0.toJSON() }
+        }
+        return dict
     }
 }
 
