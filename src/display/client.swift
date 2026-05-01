@@ -44,6 +44,8 @@ class DaemonClient {
         if let ch = request.channel { dataDict["channel"] = ch }
         if let d = request.data { dataDict["data"] = d }
 
+        preflightShowRequest(request)
+
         guard let response = sendEnvelopeRequest(service: service, action: action, data: dataDict) else {
             return CanvasResponse.fail("IPC failure", code: "INTERNAL")
         }
@@ -63,6 +65,23 @@ private func envelopeAction(for legacy: String) -> String {
     case "to-front":    return "to_front"
     default:            return legacy  // let the daemon reject unknown actions
     }
+}
+
+private func preflightShowRequest(_ request: CanvasRequest) {
+    guard ["create", "update", "eval", "remove", "remove-all", "list", "to-front"].contains(request.action) else {
+        return
+    }
+
+    var requirements: [[String: Any]] = [
+        ["id": "runtime.daemon", "scope": "daemon"],
+        ["id": "projection.canvas", "scope": "canvas"]
+    ]
+
+    if let url = request.url, url.hasPrefix("aos://") {
+        requirements.append(["id": "content.root", "scope": "url.root"])
+    }
+
+    _ = ensureCapabilityPreflight(command: "aos show \(request.action)", requirements: requirements)
 }
 
 // MARK: - Resolve HTML content from CLI args
