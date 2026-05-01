@@ -31,11 +31,11 @@ func voiceCommand(args: [String]) {
     case "list":
         response = voiceListEnvelope(args: Array(args.dropFirst()))
     case "assignments":
-        response = sendEnvelopeRequest(service: "voice", action: "assignments", data: [:], autoStartBinary: CommandLine.arguments[0])
+        response = sendVoiceEnvelopeRequest(action: "assignments", data: [:], command: "aos voice assignments")
     case "refresh":
-        response = sendEnvelopeRequest(service: "voice", action: "refresh", data: [:], autoStartBinary: CommandLine.arguments[0])
+        response = sendVoiceEnvelopeRequest(action: "refresh", data: [:], command: "aos voice refresh")
     case "providers":
-        response = sendEnvelopeRequest(service: "voice", action: "providers", data: [:], autoStartBinary: CommandLine.arguments[0])
+        response = sendVoiceEnvelopeRequest(action: "providers", data: [:], command: "aos voice providers")
     case "bind":
         response = voiceBindEnvelope(args: Array(args.dropFirst()))
     case "next":
@@ -62,6 +62,11 @@ func voiceCommand(args: [String]) {
     }
 }
 
+private func sendVoiceEnvelopeRequest(action: String, data: [String: Any], command: String) -> [String: Any]? {
+    ensureDaemonRuntimePreflight(command: command, autoStartBinary: CommandLine.arguments[0])
+    return sendEnvelopeRequest(service: "voice", action: action, data: data, autoStartBinary: CommandLine.arguments[0])
+}
+
 private func voiceListEnvelope(args: [String]) -> [String: Any]? {
     var data: [String: Any] = [:]
     var i = 0
@@ -80,7 +85,7 @@ private func voiceListEnvelope(args: [String]) -> [String: Any]? {
         }
         i += 1
     }
-    return sendEnvelopeRequest(service: "voice", action: "list", data: data, autoStartBinary: CommandLine.arguments[0])
+    return sendVoiceEnvelopeRequest(action: "list", data: data, command: "aos voice list")
 }
 
 private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
@@ -159,7 +164,7 @@ private func voiceBindEnvelope(args: [String]) -> [String: Any]? {
     if let kind = filter.kind { data["kind"] = kind }
     if let qualityTier = filter.quality_tier { data["quality_tier"] = qualityTier }
     if !filter.tags.isEmpty { data["tags"] = filter.tags }
-    return sendEnvelopeRequest(service: "voice", action: "bind", data: data, autoStartBinary: CommandLine.arguments[0])
+    return sendVoiceEnvelopeRequest(action: "bind", data: data, command: "aos voice bind")
 }
 
 private func voiceNextEnvelope(args: [String]) -> [String: Any]? {
@@ -181,12 +186,7 @@ private func voiceNextEnvelope(args: [String]) -> [String: Any]? {
     guard let sessionID, !sessionID.isEmpty else {
         exitError("next requires --session-id <id>", code: "MISSING_ARG")
     }
-    return sendEnvelopeRequest(
-        service: "voice",
-        action: "next",
-        data: ["session_id": sessionID],
-        autoStartBinary: CommandLine.arguments[0]
-    )
+    return sendVoiceEnvelopeRequest(action: "next", data: ["session_id": sessionID], command: "aos voice next")
 }
 
 private func voiceInternalIDRoundtrip(args: [String]) {
@@ -274,5 +274,5 @@ private func buildFinalResponseEnvelope(hookPayload: Any, sessionID: String?, ha
     var data: [String: Any] = ["hook_payload": hookPayload]
     if let sid = sessionID, !sid.isEmpty { data["session_id"] = sid }
     if let h = harness, !h.isEmpty { data["harness"] = h }
-    return sendEnvelopeRequest(service: "voice", action: "final_response", data: data, autoStartBinary: CommandLine.arguments[0])
+    return sendVoiceEnvelopeRequest(action: "final_response", data: data, command: "aos voice final-response")
 }

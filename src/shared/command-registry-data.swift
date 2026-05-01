@@ -653,7 +653,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("speakable-only", "--speakable-only", "Show only enabled voices that can actually synthesize", type: .bool)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "aos voice list",
@@ -665,7 +665,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 pos("assignments", "List session-centric voice assignments", required: false)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos voice assignments"]),
         InvocationForm(id: "voice-refresh", usage: "aos voice refresh",
@@ -673,7 +673,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 pos("refresh", "Re-enumerate voices from all providers", required: false)
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos voice refresh"]),
         InvocationForm(id: "voice-providers", usage: "aos voice providers",
@@ -681,7 +681,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 pos("providers", "List voice providers with availability and voice counts", required: false)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos voice providers"]),
         InvocationForm(id: "voice-bind", usage: "aos voice bind --session-id <id> [--voice <voice-id>] [--provider <name>] [--gender <value>] [--tag <tag>] [--kind <value>] [--locale <value>] [--language <value>] [--region <value>] [--quality-tier <value>]",
@@ -698,7 +698,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("quality-tier", "--quality-tier", "Filter random selection by quality tier")
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "aos voice bind --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c --voice voice://system/com.apple.voice.enhanced.en-US.Evan",
@@ -710,7 +710,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("session-id", "--session-id", "Canonical session id", required: true)
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "aos voice next --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c"
@@ -723,7 +723,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "reading the raw hook JSON payload from stdin", contentType: "json"),
             constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: [
                 "printf '%s' \"$HOOK_JSON\" | aos voice final-response --harness codex --session-id 019d97cc-2f15-7951-b0bd-3a271d7fb97c",

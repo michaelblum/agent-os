@@ -181,7 +181,7 @@ else
 fi
 
 # --- 16. live command registry exposes capability preflight metadata ---
-if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" python3 - <<'PY'
+if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -203,6 +203,7 @@ do = forms(os.environ["DO"])
 show = forms(os.environ["SHOW"])
 tell = forms(os.environ["TELL"])
 listen = forms(os.environ["LISTEN"])
+voice = forms(os.environ["VOICE"])
 
 assert ids(see["see-target"]) == ["perception.ax"], see["see-target"]
 assert ids(see["see-observe"]) == ["runtime.daemon", "perception.ax"], see["see-observe"]
@@ -229,6 +230,13 @@ assert ids(show["show-post"]) == ["runtime.daemon", "projection.canvas"], show["
 assert ids(show["show-to-front"]) == ["runtime.daemon", "projection.canvas"], show["show-to-front"]
 assert ids(tell["tell-message"]) == ["runtime.daemon"], tell["tell-message"]
 assert ids(listen["listen-read"]) == ["runtime.daemon"], listen["listen-read"]
+assert ids(voice["voice-list"]) == ["runtime.daemon"], voice["voice-list"]
+assert ids(voice["voice-assignments"]) == ["runtime.daemon"], voice["voice-assignments"]
+assert ids(voice["voice-refresh"]) == ["runtime.daemon"], voice["voice-refresh"]
+assert ids(voice["voice-providers"]) == ["runtime.daemon"], voice["voice-providers"]
+assert ids(voice["voice-bind"]) == ["runtime.daemon"], voice["voice-bind"]
+assert ids(voice["voice-next"]) == ["runtime.daemon"], voice["voice-next"]
+assert ids(voice["voice-final-response"]) == ["runtime.daemon"], voice["voice-final-response"]
 PY
 then
     pass "live command registry exposes capability preflight metadata"
