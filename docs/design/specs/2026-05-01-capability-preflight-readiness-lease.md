@@ -350,8 +350,10 @@ Implementation path:
 1. Extend command registry metadata with `required_capabilities`.
 2. Extend dev workflow action metadata with optional
    `required_capabilities` or a reference to a command form.
-3. Teach `aos dev recommend --json` to collapse a `ready_check` action when the
-   following recommended command declares equivalent preflight coverage.
+3. Teach `aos dev recommend --json` to collapse a `ready_check` action when a
+   remaining recommended command declares equivalent preflight coverage. Expose
+   collapsed items in `collapsed_actions` so the optimization is auditable
+   rather than implicit.
 4. Preserve explicit human handoff actions.
 
 ## Test Plan

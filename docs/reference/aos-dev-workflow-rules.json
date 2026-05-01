@@ -64,6 +64,20 @@
           "requires": [
             "build"
           ],
+          "required_capabilities": [
+            {
+              "id": "runtime.daemon",
+              "scope": "daemon"
+            },
+            {
+              "id": "perception.ax",
+              "scope": "daemon"
+            },
+            {
+              "id": "action.input",
+              "scope": "daemon"
+            }
+          ],
           "mutates_runtime": true,
           "reason": "AOS-backed verification depends on daemon ownership, Accessibility, and Input Monitoring readiness."
         }
@@ -300,6 +314,20 @@
           "command": [
             "./aos",
             "ready"
+          ],
+          "required_capabilities": [
+            {
+              "id": "runtime.daemon",
+              "scope": "daemon"
+            },
+            {
+              "id": "perception.ax",
+              "scope": "daemon"
+            },
+            {
+              "id": "action.input",
+              "scope": "daemon"
+            }
           ],
           "mutates_runtime": true,
           "reason": "Shell integration tests that invoke ./aos depend on daemon readiness and mode isolation."

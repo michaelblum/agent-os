@@ -71,7 +71,7 @@ struct ConstraintSet {
     let implies: [String: [String]]?
 }
 
-struct CapabilityRequirement {
+struct CapabilityRequirement: Codable {
     let id: String
     let scope: String?
     let when: String?

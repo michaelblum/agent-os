@@ -54,6 +54,7 @@ private struct DevWorkflowAction: Decodable {
     let kind: String
     let command: [String]?
     let requires: [String]?
+    let required_capabilities: [CapabilityRequirement]?
     let mutates_runtime: Bool?
     let reason: String
 }
@@ -326,7 +327,7 @@ private func devClassifyResponse(
                 "matched_paths": match.matchedPaths,
                 "matched_patterns": match.matchedPatterns,
                 "risk_flags": match.rule.risk_flags ?? [],
-                "actions": match.rule.actions.map(devWorkflowActionJSON),
+                "actions": match.rule.actions.map { devWorkflowActionJSON($0) },
                 "verification": (match.rule.verification ?? []).map(devWorkflowVerificationJSON)
             ]
             if let handoff = match.rule.human_handoff {
@@ -360,6 +361,7 @@ private func devRecommendResponse(_ classification: DevWorkflowClassification) -
         "operating_paths": Array(Set(classification.matches.map { $0.rule.entry_path })).sorted(),
         "matched_rules": classification.matches.map { $0.rule.id },
         "steps": plan.steps,
+        "collapsed_actions": plan.collapsedActions,
         "verification": plan.verification,
         "human_handoffs": plan.humanHandoffs,
         "next": plan.steps.isEmpty
@@ -372,16 +374,23 @@ private func devRecommendResponse(_ classification: DevWorkflowClassification) -
     return response
 }
 
-private func devWorkflowActionJSON(_ action: DevWorkflowAction) -> [String: Any] {
+private func devWorkflowActionJSON(
+    _ action: DevWorkflowAction,
+    omittedRequires: Set<String> = []
+) -> [String: Any] {
+    let requires = (action.requires ?? []).filter { !omittedRequires.contains($0) }
     var json: [String: Any] = [
         "id": action.id,
         "kind": action.kind,
-        "requires": action.requires ?? [],
+        "requires": requires,
         "mutates_runtime": action.mutates_runtime ?? false,
         "reason": action.reason
     ]
     if let command = action.command {
         json["command"] = command
+    }
+    if let requiredCapabilities = action.required_capabilities, !requiredCapabilities.isEmpty {
+        json["required_capabilities"] = requiredCapabilities.map { $0.toJSON() }
     }
     return json
 }
@@ -431,6 +440,7 @@ private func devRecommendedActions(_ matches: [DevMatchedWorkflowRule]) -> [[Str
 
 private struct DevRecommendedPlan {
     let steps: [[String: Any]]
+    let collapsedActions: [[String: Any]]
     let verification: [[String: Any]]
     let humanHandoffs: [[String: Any]]
 }
@@ -496,7 +506,10 @@ private func devRecommendedPlan(_ matches: [DevMatchedWorkflowRule]) -> DevRecom
         }
     }
 
-    let orderedKeys = actionOrder.sorted { lhs, rhs in
+    let collapseMap = devReadyCheckCollapseMap(actionsByKey: actionsByKey, actionOrder: actionOrder)
+    let collapsedReadyIDs = Set(collapseMap.keys.compactMap { actionsByKey[$0]?.action.id })
+
+    let orderedKeys = actionOrder.filter { collapseMap[$0] == nil }.sorted { lhs, rhs in
         let left = actionsByKey[lhs]?.action
         let right = actionsByKey[rhs]?.action
         let leftRank = devActionKindRank(left?.kind ?? "")
@@ -507,17 +520,120 @@ private func devRecommendedPlan(_ matches: [DevMatchedWorkflowRule]) -> DevRecom
 
     let steps = orderedKeys.enumerated().compactMap { index, key -> [String: Any]? in
         guard let planAction = actionsByKey[key] else { return nil }
-        var json = devWorkflowActionJSON(planAction.action)
+        var json = devWorkflowActionJSON(planAction.action, omittedRequires: collapsedReadyIDs)
         json["step_id"] = String(format: "step_%03d", index + 1)
         json["source_rules"] = Array(planAction.sourceRules).sorted()
         return json
     }
 
+    let collapsedActions = actionOrder.compactMap { key -> [String: Any]? in
+        guard let coveringKey = collapseMap[key],
+              let planAction = actionsByKey[key],
+              let coveringAction = actionsByKey[coveringKey]?.action else { return nil }
+        var json = devWorkflowActionJSON(planAction.action)
+        json["source_rules"] = Array(planAction.sourceRules).sorted()
+        json["collapse_reason"] = "Covered by command-level capability preflight."
+        if let command = coveringAction.command {
+            json["covered_by_command"] = command
+        }
+        return json
+    }
+
     return DevRecommendedPlan(
         steps: steps,
+        collapsedActions: collapsedActions,
         verification: verificationOrder.compactMap { verificationByKey[$0] },
         humanHandoffs: handoffOrder.compactMap { handoffByKey[$0] }
     )
+}
+
+private func devReadyCheckCollapseMap(
+    actionsByKey: [String: DevPlanAction],
+    actionOrder: [String]
+) -> [String: String] {
+    var collapsed: [String: String] = [:]
+    for readyKey in actionOrder {
+        guard let readyAction = actionsByKey[readyKey]?.action,
+              readyAction.kind == "ready_check",
+              let needed = readyAction.required_capabilities,
+              !needed.isEmpty else { continue }
+        for candidateKey in actionOrder where candidateKey != readyKey {
+            guard let candidate = actionsByKey[candidateKey]?.action,
+                  candidate.kind != "ready_check" else { continue }
+            let available = devActionRequiredCapabilities(candidate)
+            if devCapabilities(available, cover: needed) {
+                collapsed[readyKey] = candidateKey
+                break
+            }
+        }
+    }
+    return collapsed
+}
+
+private func devActionRequiredCapabilities(_ action: DevWorkflowAction) -> [CapabilityRequirement] {
+    if let requiredCapabilities = action.required_capabilities, !requiredCapabilities.isEmpty {
+        return requiredCapabilities
+    }
+    guard let command = action.command else { return [] }
+    return devCommandRequiredCapabilities(command)
+}
+
+private func devCommandRequiredCapabilities(_ command: [String]) -> [CapabilityRequirement] {
+    guard command.count >= 2 else { return [] }
+    let binary = command[0]
+    guard binary == "aos" || binary == "./aos" || binary.hasSuffix("/aos") else { return [] }
+
+    let args = Array(command.dropFirst())
+    guard !args.isEmpty else { return [] }
+    let positionalPrefix = args.prefix { !$0.hasPrefix("-") }
+    guard !positionalPrefix.isEmpty else { return [] }
+
+    let maxPathLength = positionalPrefix.count
+    for length in stride(from: maxPathLength, through: 1, by: -1) {
+        let path = Array(positionalPrefix.prefix(length))
+        if let command = findCommand(path: path), command.forms.count == 1 {
+            return command.forms[0].execution.requiredCapabilities
+        }
+    }
+    return []
+}
+
+private struct DevCapabilityKey: Hashable {
+    let id: String
+    let scope: String
+    let when: String
+}
+
+private func devCapabilities(
+    _ available: [CapabilityRequirement],
+    cover needed: [CapabilityRequirement]
+) -> Bool {
+    let availableKeys = Set(available.map(devCapabilityKey))
+    let neededKeys = Set(needed.map(devCapabilityKey))
+    return !neededKeys.isEmpty && neededKeys.isSubset(of: availableKeys)
+}
+
+private func devCapabilityKey(_ capability: CapabilityRequirement) -> DevCapabilityKey {
+    DevCapabilityKey(
+        id: capability.id,
+        scope: capability.scope ?? devDefaultCapabilityScope(capability.id),
+        when: capability.when ?? ""
+    )
+}
+
+private func devDefaultCapabilityScope(_ capability: String) -> String {
+    switch capability {
+    case "runtime.daemon", "perception.ax", "action.input":
+        return "daemon"
+    case "projection.canvas":
+        return "canvas"
+    case "perception.screen":
+        return "screen"
+    case "browser.adapter":
+        return "target.session"
+    default:
+        return capability
+    }
 }
 
 private func devPlanActionKey(_ action: DevWorkflowAction) -> String {

@@ -74,7 +74,88 @@ else
     fail "dev recommend ordered plan failed"
 fi
 
-# --- 4. App subtree paths route only to local-contract delegation. ---
+# --- 4. Ready checks collapse when command preflight covers the same capabilities. ---
+MANIFEST="$(mktemp "${TMPDIR:-/tmp}/aos-dev-workflow-collapse.XXXXXX.json")"
+trap 'rm -f "$MANIFEST"' EXIT
+cat >"$MANIFEST" <<'JSON'
+{
+  "id": "aos/dev-workflow-rules",
+  "version": 1,
+  "summary": "Focused ready collapse fixture.",
+  "default_entry_path": "agent/dev",
+  "rules": [
+    {
+      "id": "observe-preflight",
+      "summary": "Daemon-backed observe commands own their capability preflight.",
+      "match": {
+        "paths": [
+          "src/perceive/observe.swift"
+        ]
+      },
+      "entry_path": "agent/dev/testing/headless",
+      "actions": [
+        {
+          "id": "ready",
+          "kind": "ready_check",
+          "command": [
+            "./aos",
+            "ready"
+          ],
+          "required_capabilities": [
+            {
+              "id": "runtime.daemon",
+              "scope": "daemon"
+            },
+            {
+              "id": "perception.ax",
+              "scope": "daemon"
+            }
+          ],
+          "mutates_runtime": true,
+          "reason": "Observe used to require a standalone readiness check."
+        },
+        {
+          "id": "observe",
+          "kind": "test",
+          "command": [
+            "./aos",
+            "see",
+            "observe",
+            "--depth",
+            "1"
+          ],
+          "requires": [
+            "ready"
+          ],
+          "mutates_runtime": false,
+          "reason": "The command registry exposes equivalent capability preflight metadata."
+        }
+      ]
+    }
+  ]
+}
+JSON
+if OUT="$(./aos dev recommend --json --manifest "$MANIFEST" src/perceive/observe.swift 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+steps = data["steps"]
+collapsed = data["collapsed_actions"]
+assert data["status"] == "ok", data
+assert [step["id"] for step in steps] == ["observe"], steps
+assert steps[0]["command"] == ["./aos", "see", "observe", "--depth", "1"], steps
+assert steps[0]["requires"] == [], steps
+assert collapsed and collapsed[0]["id"] == "ready", collapsed
+assert collapsed[0]["covered_by_command"] == ["./aos", "see", "observe", "--depth", "1"], collapsed
+PY
+then
+    pass "dev recommend collapses ready checks covered by command preflight"
+else
+    fail "dev recommend ready collapse failed"
+fi
+
+# --- 5. App subtree paths route only to local-contract delegation. ---
 if OUT="$(./aos dev classify --json apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -98,7 +179,7 @@ else
     fail "app subtree local-contract classification failed"
 fi
 
-# --- 5. Default text mode is concise and non-JSON. ---
+# --- 6. Default text mode is concise and non-JSON. ---
 OUT="$(./aos dev classify src/main.swift 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'swift-binary-source'; then
     pass "dev classify default output is text"

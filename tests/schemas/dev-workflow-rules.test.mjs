@@ -84,6 +84,10 @@ test('canonical AOS dev workflow manifest validates and preserves core routing r
   const swiftRule = rules.get('swift-binary-source');
   assert.ok(swiftRule.risk_flags.includes('tcc_identity_sensitive'));
   assert.deepEqual(swiftRule.actions[0].command, ['./aos', 'dev', 'build', '--no-restart']);
+  assert.deepEqual(
+    swiftRule.actions[1].required_capabilities.map((capability) => capability.id),
+    ['runtime.daemon', 'perception.ax', 'action.input'],
+  );
   assert.deepEqual(swiftRule.human_handoff.resume_command, ['./aos', 'ready', '--post-permission']);
 
   const toolkitRule = rules.get('toolkit-canvas-surface');
