@@ -187,6 +187,16 @@ def handle_request(line: bytes, args: argparse.Namespace) -> bytes:
         if ref is not None:
             resp["ref"] = ref
         return json.dumps(resp).encode() + b"\n"
+    if svc == "show" and action in ("create", "post"):
+        resp = {"v": 1, "status": "success", "data": {"status": "ok"}}
+        if ref is not None:
+            resp["ref"] = ref
+        return json.dumps(resp).encode() + b"\n"
+    if (svc, action) == ("show", "eval"):
+        resp = {"v": 1, "status": "success", "data": {"result": "ready"}}
+        if ref is not None:
+            resp["ref"] = ref
+        return json.dumps(resp).encode() + b"\n"
     err: dict[str, Any] = {
         "v": 1,
         "status": "error",

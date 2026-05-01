@@ -181,7 +181,7 @@ else
 fi
 
 # --- 16. live command registry exposes capability preflight metadata ---
-if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" GRAPH="$(./aos help graph --json 2>/dev/null)" DAEMON_SNAPSHOT="$(./aos help daemon-snapshot --json 2>/dev/null)" CONTENT="$(./aos help content --json 2>/dev/null)" python3 - <<'PY'
+if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" GRAPH="$(./aos help graph --json 2>/dev/null)" DAEMON_SNAPSHOT="$(./aos help daemon-snapshot --json 2>/dev/null)" CONTENT="$(./aos help content --json 2>/dev/null)" LOG="$(./aos help log --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -207,6 +207,7 @@ voice = forms(os.environ["VOICE"])
 graph = forms(os.environ["GRAPH"])
 daemon_snapshot = forms(os.environ["DAEMON_SNAPSHOT"])
 content = forms(os.environ["CONTENT"])
+log = forms(os.environ["LOG"])
 
 assert ids(see["see-target"]) == ["perception.ax"], see["see-target"]
 assert ids(see["see-observe"]) == ["runtime.daemon", "perception.ax"], see["see-observe"]
@@ -247,6 +248,9 @@ assert ids(graph["graph-collapse"]) == ["runtime.daemon"], graph["graph-collapse
 assert ids(daemon_snapshot["daemon-snapshot"]) == ["runtime.daemon"], daemon_snapshot["daemon-snapshot"]
 assert ids(content["content-status"]) == ["runtime.daemon"], content["content-status"]
 assert ids(content["content-wait"]) == ["runtime.daemon"], content["content-wait"]
+assert ids(log["log-stream"]) == ["runtime.daemon", "projection.canvas", "content.root"], log["log-stream"]
+assert ids(log["log-push"]) == ["runtime.daemon", "projection.canvas"], log["log-push"]
+assert ids(log["log-clear"]) == ["runtime.daemon", "projection.canvas"], log["log-clear"]
 PY
 then
     pass "live command registry exposes capability preflight metadata"

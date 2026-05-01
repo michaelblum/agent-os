@@ -61,10 +61,12 @@ func logCommand(args: [String]) {
             exitError("log push requires a message. Usage: aos log push \"<message>\" [--level <lvl>]",
                       code: "MISSING_ARG")
         }
+        ensureLogPostPreflight(command: "aos log push")
         logPushMessage(message, level: level)
         return
 
     case "clear":
+        ensureLogPostPreflight(command: "aos log clear")
         logClearConsole()
         return
 
@@ -73,6 +75,7 @@ func logCommand(args: [String]) {
     }
 
     // Stream mode
+    ensureLogStreamPreflight()
     let session = DaemonSession()
     guard session.connectWithAutoStart(binaryPath: CommandLine.arguments[0]) else {
         exitError("Cannot connect to daemon. Run 'aos serve' first.", code: "CONNECT_ERROR")
@@ -145,4 +148,26 @@ private func logClearConsole() {
     } else {
         exitError("Daemon not running or no log console active", code: "CONNECT_ERROR")
     }
+}
+
+private func ensureLogStreamPreflight() {
+    _ = ensureCapabilityPreflight(
+        command: "aos log",
+        requirements: [
+            ["id": "runtime.daemon", "scope": "daemon"],
+            ["id": "projection.canvas", "scope": "canvas"],
+            ["id": "content.root", "scope": "url.root"]
+        ],
+        autoStartBinary: CommandLine.arguments[0]
+    )
+}
+
+private func ensureLogPostPreflight(command: String) {
+    _ = ensureCapabilityPreflight(
+        command: command,
+        requirements: [
+            ["id": "runtime.daemon", "scope": "daemon"],
+            ["id": "projection.canvas", "scope": "canvas"]
+        ]
+    )
 }

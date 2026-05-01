@@ -1307,7 +1307,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "streaming mode (default)", contentType: "text"),
             constraints: nil,
-            execution: execStreaming(daemon: true),
+            execution: execStreaming(daemon: true, capabilities: projectionCanvasWithContentRoot),
             output: outNDJSON,
             examples: ["echo 'hello' | aos log", "tail -f /var/log/app.log | aos log"]),
         InvocationForm(id: "log-push", usage: "aos log push <message> [--level level]",
@@ -1322,13 +1322,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                      ]), default: .string("info"))
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos log push \"test message\"", "aos log push \"error occurred\" --level error"]),
         InvocationForm(id: "log-clear", usage: "aos log clear",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos log clear"])
     ]))
