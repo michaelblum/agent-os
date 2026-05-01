@@ -223,7 +223,7 @@ func focusRemoveCommand(args: [String]) {
 // MARK: - Graph Commands
 
 func graphDisplaysCommand() {
-    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "displays", data: [:], autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendSpatialDaemonRequest(service: "graph", action: "displays", data: [:], command: "aos graph displays"))
 }
 
 func graphWindowsCommand(args: [String]) {
@@ -231,7 +231,7 @@ func graphWindowsCommand(args: [String]) {
     if let displayStr = getArg(args, "--display"), let d = Int(displayStr) {
         data["display"] = d
     }
-    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "windows", data: data, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendSpatialDaemonRequest(service: "graph", action: "windows", data: data, command: "aos graph windows"))
 }
 
 func graphDeepenCommand(args: [String]) {
@@ -251,7 +251,7 @@ func graphDeepenCommand(args: [String]) {
         data["subtree"] = subDict
     }
 
-    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "deepen", data: data, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendSpatialDaemonRequest(service: "graph", action: "deepen", data: data, command: "aos graph deepen"))
 }
 
 func graphCollapseCommand(args: [String]) {
@@ -263,11 +263,16 @@ func graphCollapseCommand(args: [String]) {
     var data: [String: Any] = ["id": id]
     if let depth = depth { data["depth"] = depth }
 
-    printDaemonResult(sendEnvelopeRequest(service: "graph", action: "collapse", data: data, autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendSpatialDaemonRequest(service: "graph", action: "collapse", data: data, command: "aos graph collapse"))
 }
 
 func daemonSnapshotCommand() {
-    printDaemonResult(sendEnvelopeRequest(service: "see", action: "snapshot", data: [:], autoStartBinary: aosExecutablePath()))
+    printDaemonResult(sendSpatialDaemonRequest(service: "see", action: "snapshot", data: [:], command: "aos daemon-snapshot"))
+}
+
+private func sendSpatialDaemonRequest(service: String, action: String, data: [String: Any], command: String) -> [String: Any]? {
+    ensureDaemonRuntimePreflight(command: command, autoStartBinary: aosExecutablePath())
+    return sendEnvelopeRequest(service: service, action: action, data: data, autoStartBinary: aosExecutablePath())
 }
 
 // MARK: - Response Output

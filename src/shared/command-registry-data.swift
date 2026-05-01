@@ -943,13 +943,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "graph-displays", usage: "aos graph displays",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos graph displays"]),
         InvocationForm(id: "graph-windows", usage: "aos graph windows [--display N]",
             args: [flag("display", "--display", "Display index", type: .int)],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos graph windows"]),
         InvocationForm(id: "graph-deepen", usage: "aos graph deepen --id <id> [options]",
@@ -961,7 +961,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("subtree-identifier", "--subtree-identifier", "Filter by identifier")
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos graph deepen --id node-1 --depth 2"]),
         InvocationForm(id: "graph-collapse", usage: "aos graph collapse --id <id> [--depth N]",
@@ -970,7 +970,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("depth", "--depth", "Depth decrement", type: .int)
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos graph collapse --id node-1"])
     ]))
@@ -980,7 +980,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "daemon-snapshot", usage: "aos daemon-snapshot",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos daemon-snapshot"])
     ]))

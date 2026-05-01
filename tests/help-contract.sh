@@ -181,7 +181,7 @@ else
 fi
 
 # --- 16. live command registry exposes capability preflight metadata ---
-if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" python3 - <<'PY'
+if SEE="$(./aos help see --json 2>/dev/null)" DO="$(./aos help do --json 2>/dev/null)" SHOW="$(./aos help show --json 2>/dev/null)" TELL="$(./aos help tell --json 2>/dev/null)" LISTEN="$(./aos help listen --json 2>/dev/null)" VOICE="$(./aos help voice --json 2>/dev/null)" GRAPH="$(./aos help graph --json 2>/dev/null)" DAEMON_SNAPSHOT="$(./aos help daemon-snapshot --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -204,6 +204,8 @@ show = forms(os.environ["SHOW"])
 tell = forms(os.environ["TELL"])
 listen = forms(os.environ["LISTEN"])
 voice = forms(os.environ["VOICE"])
+graph = forms(os.environ["GRAPH"])
+daemon_snapshot = forms(os.environ["DAEMON_SNAPSHOT"])
 
 assert ids(see["see-target"]) == ["perception.ax"], see["see-target"]
 assert ids(see["see-observe"]) == ["runtime.daemon", "perception.ax"], see["see-observe"]
@@ -237,6 +239,11 @@ assert ids(voice["voice-providers"]) == ["runtime.daemon"], voice["voice-provide
 assert ids(voice["voice-bind"]) == ["runtime.daemon"], voice["voice-bind"]
 assert ids(voice["voice-next"]) == ["runtime.daemon"], voice["voice-next"]
 assert ids(voice["voice-final-response"]) == ["runtime.daemon"], voice["voice-final-response"]
+assert ids(graph["graph-displays"]) == ["runtime.daemon"], graph["graph-displays"]
+assert ids(graph["graph-windows"]) == ["runtime.daemon"], graph["graph-windows"]
+assert ids(graph["graph-deepen"]) == ["runtime.daemon"], graph["graph-deepen"]
+assert ids(graph["graph-collapse"]) == ["runtime.daemon"], graph["graph-collapse"]
+assert ids(daemon_snapshot["daemon-snapshot"]) == ["runtime.daemon"], daemon_snapshot["daemon-snapshot"]
 PY
 then
     pass "live command registry exposes capability preflight metadata"
