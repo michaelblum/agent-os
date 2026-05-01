@@ -4,6 +4,9 @@ Status: design note, not implementation.
 
 Tracking: GitHub issue #177.
 
+Implementation spec:
+[`2026-05-01-capability-preflight-readiness-lease.md`](../specs/2026-05-01-capability-preflight-readiness-lease.md).
+
 ## Problem
 
 Agent guidance currently says to check readiness before live perception,
