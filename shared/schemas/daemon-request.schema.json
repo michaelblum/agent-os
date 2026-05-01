@@ -60,6 +60,8 @@
       "then": { "properties": { "data": { "$ref": "#/$defs/VoiceFinalResponseData" } } } },
     { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "ping" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
+    { "if": { "properties": { "service": { "const": "system" }, "action": { "const": "preflight" } } },
+      "then": { "properties": { "data": { "$ref": "#/$defs/SystemPreflightData" } } } },
     { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "list" } } },
       "then": { "properties": { "data": { "$ref": "#/$defs/Empty" } } } },
     { "if": { "properties": { "service": { "const": "focus" }, "action": { "const": "create" } } },
@@ -90,6 +92,45 @@
         "events": { "type": "array", "items": { "type": "string" } },
         "snapshot": { "type": "boolean" }
       },
+      "additionalProperties": true
+    },
+    "CapabilityRequirement": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$"
+        },
+        "scope": { "type": "string", "minLength": 1 },
+        "when": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SystemPreflightData": {
+      "type": "object",
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)+$"
+          },
+          "uniqueItems": true
+        },
+        "required_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/CapabilityRequirement" },
+          "uniqueItems": true
+        }
+      },
+      "anyOf": [
+        { "required": ["capabilities"] },
+        { "required": ["required_capabilities"] }
+      ],
       "additionalProperties": true
     },
     "ShowCreateData": {

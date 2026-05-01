@@ -53,6 +53,7 @@ Error response:
 | `voice.next` | Cycle the session voice forward within the filtered pool and audition it. | `session_id`. |
 | `voice.final_response` | Harness-ingress for final-response TTS. | `hook_payload` (optionally `session_id`, `harness`). |
 | `system.ping` | Daemon health, identity, and uptime. | (none) |
+| `system.preflight` | Evaluate daemon-owned capability requirements and return leases or blockers without repair. | `capabilities` or `required_capabilities`. |
 | `focus.list` | List focus channels. | (none) |
 | `focus.create` | Create a focus channel. | `id`, `window_id`. |
 | `focus.update` | Update a focus channel. | `id`. |
@@ -155,6 +156,40 @@ the response may include:
 These fields are additive and intended for operator surfaces such as `status`,
 `doctor`, and startup hooks that need to distinguish a healthy current daemon
 from ownership mismatch or perception degradation.
+
+## `system.preflight` Payload
+
+`system.preflight` is the daemon-owned command capability gate. Clients send
+either a simple `capabilities` array or a structured `required_capabilities`
+array:
+
+```json
+{
+  "command": "aos see observe",
+  "required_capabilities": [
+    { "id": "runtime.daemon", "scope": "daemon" },
+    { "id": "perception.ax", "scope": "daemon" }
+  ]
+}
+```
+
+The daemon returns envelope status `success` when every capability is satisfied
+and `degraded` when one or more capabilities are blocked. The response data
+includes:
+
+- `phase` — `ready` or `capability_blocked`
+- `diagnosis` — `ready` or the primary blocker id
+- `repair_attempted` — always `false` for ordinary command preflight
+- `required_capabilities`, `satisfied_capabilities`, and
+  `blocked_capabilities` arrays of capability ids
+- `leases` — daemon-sourced capability lease evidence for satisfied
+  capabilities, with `reused` indicating cache reuse
+- `blockers` — structured blocker objects with `kind`, `id`, `scope`,
+  `source`, `capabilities`, `blocks`, `message`, and optional next-action
+  fields
+
+Supported daemon-evaluated capabilities currently include `runtime.daemon`,
+`perception.ax`, `action.input`, `projection.canvas`, and `content.root`.
 
 Envelope `v` is an integer, currently `1`. Adding an action or an optional field does not bump `v`. Breaking wire changes bump `v`.
 

@@ -10,7 +10,7 @@
       "additionalProperties": false,
       "properties": {
         "v": { "const": 1 },
-        "status": { "const": "success" },
+        "status": { "enum": ["success", "degraded"] },
         "data": { "type": "object" },
         "ref": { "type": "string" }
       }

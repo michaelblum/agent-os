@@ -17,6 +17,8 @@ jsonschema.Draft202012Validator.check_schema(resp_schema)
 
 good_requests = [
     {"v":1,"service":"system","action":"ping","data":{}},
+    {"v":1,"service":"system","action":"preflight","data":{"command":"aos see observe","required_capabilities":[{"id":"runtime.daemon","scope":"daemon"},{"id":"perception.ax","scope":"daemon"}]}},
+    {"v":1,"service":"system","action":"preflight","data":{"capabilities":["runtime.daemon","projection.canvas"]}},
     {"v":1,"service":"see","action":"observe","data":{"depth":1,"scope":"cursor"}},
     {"v":1,"service":"see","action":"snapshot","data":{}},
     {"v":1,"service":"show","action":"create","data":{"id":"x","at":[0,0,10,10],"html":"<div/>"}},
@@ -35,6 +37,8 @@ bad_requests = [
     {"v":1,"service":"system","action":"ping"},  # missing data
     {"v":2,"service":"system","action":"ping","data":{}},  # wrong v
     {"v":1,"service":"system","action":"PING","data":{}},  # uppercase action
+    {"v":1,"service":"system","action":"preflight","data":{}},  # missing capabilities
+    {"v":1,"service":"system","action":"preflight","data":{"capabilities":[]}},  # empty capabilities
     {"v":1,"service":"unknown","action":"ping","data":{}},  # bad service
     {"v":1,"service":"tell","action":"send","data":{"audience":["ops"]}},  # no text or payload
     {"v":1,"service":"session","action":"register","data":{"name":"only-a-name"}},  # missing session_id
@@ -49,6 +53,16 @@ bad_requests = [
 for r in bad_requests:
     errors = list(validator.iter_errors(r))
     assert errors, f"expected errors for {r} but got none"
+
+response_validator = jsonschema.Draft202012Validator(resp_schema)
+good_responses = [
+    {"v":1,"status":"success","data":{"phase":"ready"}},
+    {"v":1,"status":"degraded","data":{"phase":"capability_blocked","blocked_capabilities":["content.root"]}},
+    {"v":1,"status":"error","error":"missing","code":"MISSING_ARG"},
+]
+for r in good_responses:
+    errors = list(response_validator.iter_errors(r))
+    assert not errors, f"unexpected response errors for {r}: {errors}"
 
 print("PASS")
 PY
