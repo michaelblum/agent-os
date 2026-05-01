@@ -86,6 +86,26 @@ class UnifiedDaemon {
         var chatRect: CGRect?
     }
 
+    private struct CapabilityLease {
+        let capability: String
+        let scope: String
+        let mode: String
+        let source: String
+        let checkedAt: Date
+        let daemonPID: Int
+        let daemonStartedAt: Date
+        let socketPath: String
+        let evidence: [String: Any]
+    }
+
+    private var capabilityLeases: [String: CapabilityLease] = [:]
+    private let capabilityLeaseLock = NSLock()
+
+    private struct CapabilityRequest {
+        let id: String
+        let scope: String
+    }
+
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
         self.socketPath = kDefaultSocketPath
         self.config = config
@@ -1251,6 +1271,7 @@ class UnifiedDaemon {
         case ("voice", "next"):               return "voice-next"
         case ("voice", "final_response"):     return "voice-final-response"
         case ("system", "ping"):              return "ping"
+        case ("system", "preflight"):         return "preflight"
         // Content server actions
         case ("content", "status"):           return "content_status"
         // Focus channel actions
@@ -1619,6 +1640,10 @@ class UnifiedDaemon {
             if let port = contentServer?.assignedPort, port > 0 {
                 response["content_port"] = Int(port)
             }
+            sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
+        case "preflight":
+            let response = capabilityPreflightResponse(json)
             sendResponseJSON(to: clientFD, response, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
 
         case "content_status":
@@ -2042,6 +2067,290 @@ class UnifiedDaemon {
     }
 
     // MARK: - Helpers
+
+    private func capabilityPreflightResponse(_ json: [String: Any]) -> [String: Any] {
+        let requirements = capabilityRequests(from: json)
+        guard !requirements.isEmpty else {
+            return [
+                "error": "system.preflight requires capabilities or required_capabilities",
+                "code": "MISSING_ARG"
+            ]
+        }
+
+        var leases: [[String: Any]] = []
+        var blockers: [[String: Any]] = []
+        var satisfied: [String] = []
+        var blocked: [String] = []
+
+        for requirement in requirements {
+            if let lease = currentCapabilityLease(for: requirement) {
+                leases.append(capabilityLeaseDict(lease, reused: true))
+                satisfied.append(requirement.id)
+                continue
+            }
+
+            let result = evaluateCapability(requirement)
+            if let lease = result.lease {
+                storeCapabilityLease(lease)
+                leases.append(capabilityLeaseDict(lease, reused: false))
+                satisfied.append(requirement.id)
+            } else {
+                blockers.append(contentsOf: result.blockers)
+                blocked.append(requirement.id)
+            }
+        }
+
+        let blockedSet = Array(Set(blocked)).sorted()
+        let status = blockedSet.isEmpty ? "ok" : "degraded"
+        return [
+            "status": status,
+            "phase": blockedSet.isEmpty ? "ready" : "capability_blocked",
+            "diagnosis": blockedSet.isEmpty ? "ready" : ((blockers.first?["id"] as? String) ?? "capability_blocked"),
+            "mode": aosCurrentRuntimeMode().rawValue,
+            "command": json["command"] as? String ?? NSNull(),
+            "repair_attempted": false,
+            "required_capabilities": requirements.map(\.id),
+            "satisfied_capabilities": Array(Set(satisfied)).sorted(),
+            "blocked_capabilities": blockedSet,
+            "leases": leases,
+            "blockers": blockers
+        ]
+    }
+
+    private func capabilityRequests(from json: [String: Any]) -> [CapabilityRequest] {
+        if let raw = json["required_capabilities"] as? [[String: Any]] {
+            return raw.compactMap { item in
+                guard let id = item["id"] as? String, !id.isEmpty else { return nil }
+                return CapabilityRequest(id: id, scope: capabilityScope(for: id, rawScope: item["scope"] as? String))
+            }
+        }
+        if let raw = json["capabilities"] as? [String] {
+            return raw.filter { !$0.isEmpty }.map {
+                CapabilityRequest(id: $0, scope: capabilityScope(for: $0, rawScope: nil))
+            }
+        }
+        return []
+    }
+
+    private func capabilityScope(for capability: String, rawScope: String?) -> String {
+        if let rawScope, !rawScope.isEmpty { return rawScope }
+        switch capability {
+        case "runtime.daemon", "perception.ax", "action.input":
+            return "daemon"
+        case "projection.canvas":
+            return "canvas"
+        case "perception.screen":
+            return "screen"
+        case "browser.adapter":
+            return "target.session"
+        default:
+            return capability
+        }
+    }
+
+    private func evaluateCapability(_ request: CapabilityRequest) -> (lease: CapabilityLease?, blockers: [[String: Any]]) {
+        switch request.id {
+        case "runtime.daemon":
+            return (makeCapabilityLease(request, source: "daemon", evidence: [
+                "pid": Int(getpid()),
+                "socket_path": socketPath
+            ]), [])
+
+        case "perception.ax":
+            guard perception.daemonAccessibilityGranted else {
+                return (nil, [capabilityBlocker(
+                    kind: "permission",
+                    id: "accessibility",
+                    scope: "daemon",
+                    source: "daemon",
+                    capabilities: [request.id],
+                    blocks: ["see", "do", "inspect", "listen"],
+                    message: "Daemon lacks Accessibility permission.",
+                    settingsURL: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                )])
+            }
+            return (makeCapabilityLease(request, source: "daemon", evidence: [
+                "permissions.accessibility": true
+            ]), [])
+
+        case "action.input":
+            if perception.inputTapStatus != "active" {
+                return (nil, [capabilityBlocker(
+                    kind: "runtime",
+                    id: "input_tap_not_active",
+                    scope: "daemon",
+                    source: "daemon",
+                    capabilities: [request.id],
+                    blocks: ["do"],
+                    message: "Daemon input tap is not active (status=\(perception.inputTapStatus), attempts=\(perception.inputTapAttempts)).",
+                    nextActions: [readyRepairAction()]
+                )])
+            }
+            if !perception.inputTapPostAccess {
+                return (nil, [capabilityBlocker(
+                    kind: "permission",
+                    id: "input_monitoring_post",
+                    scope: "daemon",
+                    source: "daemon",
+                    capabilities: [request.id],
+                    blocks: ["do"],
+                    message: "Daemon lacks Input Monitoring post access.",
+                    settingsURL: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+                )])
+            }
+            return (makeCapabilityLease(request, source: "daemon", evidence: [
+                "input_tap.status": perception.inputTapStatus,
+                "input_tap.post_access": perception.inputTapPostAccess
+            ]), [])
+
+        case "projection.canvas":
+            return (makeCapabilityLease(request, source: "daemon", evidence: [
+                "canvas_manager": "available"
+            ]), [])
+
+        case "content.root":
+            let issues = contentRootCapabilityIssues(scope: request.scope)
+            guard issues.isEmpty else {
+                return (nil, issues.map { issue in
+                    capabilityBlocker(
+                        kind: "content",
+                        id: "content_root_\(issue.root)_\(issue.code)",
+                        scope: issue.root,
+                        source: "daemon",
+                        capabilities: [request.id],
+                        blocks: ["show"],
+                        message: issue.message,
+                        targetPath: issue.path
+                    )
+                })
+            }
+            return (makeCapabilityLease(request, source: "daemon", evidence: [
+                "content.root.scope": request.scope
+            ]), [])
+
+        default:
+            return (nil, [capabilityBlocker(
+                kind: "capability",
+                id: "unsupported_capability",
+                scope: request.scope,
+                source: "daemon",
+                capabilities: [request.id],
+                blocks: [],
+                message: "Capability '\(request.id)' is not evaluated by daemon system.preflight."
+            )])
+        }
+    }
+
+    private func contentRootCapabilityIssues(scope: String) -> [ContentRootValidationIssue] {
+        let response: [String: Any]
+        if let server = contentServer {
+            response = [
+                "port": Int(server.assignedPort),
+                "roots": server.rootSnapshot()
+            ]
+        } else {
+            response = [
+                "port": 0,
+                "roots": currentConfig.content?.roots ?? [:]
+            ]
+        }
+
+        if scope == "url.root" || scope == "content.root" {
+            return contentRootValidationIssues(response, validateConfiguredCanonicalRoots: true)
+        }
+        let root = scope.hasPrefix("content.root:") ? String(scope.dropFirst("content.root:".count)) : scope
+        return contentRootValidationIssues(response, requiredRoots: [root])
+    }
+
+    private func makeCapabilityLease(_ request: CapabilityRequest, source: String, evidence: [String: Any]) -> CapabilityLease {
+        CapabilityLease(
+            capability: request.id,
+            scope: request.scope,
+            mode: aosCurrentRuntimeMode().rawValue,
+            source: source,
+            checkedAt: Date(),
+            daemonPID: Int(getpid()),
+            daemonStartedAt: startTime,
+            socketPath: socketPath,
+            evidence: evidence
+        )
+    }
+
+    private func capabilityLeaseKey(_ request: CapabilityRequest) -> String {
+        "\(aosCurrentRuntimeMode().rawValue)|\(request.id)|\(request.scope)"
+    }
+
+    private func currentCapabilityLease(for request: CapabilityRequest) -> CapabilityLease? {
+        capabilityLeaseLock.lock()
+        defer { capabilityLeaseLock.unlock() }
+        guard let lease = capabilityLeases[capabilityLeaseKey(request)] else { return nil }
+        guard lease.daemonPID == Int(getpid()),
+              lease.daemonStartedAt == startTime,
+              lease.socketPath == socketPath else {
+            capabilityLeases.removeValue(forKey: capabilityLeaseKey(request))
+            return nil
+        }
+        return lease
+    }
+
+    private func storeCapabilityLease(_ lease: CapabilityLease) {
+        let request = CapabilityRequest(id: lease.capability, scope: lease.scope)
+        capabilityLeaseLock.lock()
+        capabilityLeases[capabilityLeaseKey(request)] = lease
+        capabilityLeaseLock.unlock()
+    }
+
+    private func capabilityLeaseDict(_ lease: CapabilityLease, reused: Bool) -> [String: Any] {
+        [
+            "capability": lease.capability,
+            "scope": lease.scope,
+            "mode": lease.mode,
+            "status": "valid",
+            "source": lease.source,
+            "checked_at": ISO8601DateFormatter().string(from: lease.checkedAt),
+            "expires_at": NSNull(),
+            "daemon_pid": lease.daemonPID,
+            "daemon_started_at": ISO8601DateFormatter().string(from: lease.daemonStartedAt),
+            "socket_path": lease.socketPath,
+            "reused": reused,
+            "evidence": lease.evidence
+        ]
+    }
+
+    private func capabilityBlocker(
+        kind: String,
+        id: String,
+        scope: String,
+        source: String,
+        capabilities: [String],
+        blocks: [String],
+        message: String,
+        targetPath: String? = nil,
+        settingsURL: String? = nil,
+        nextActions: [[String: Any]] = []
+    ) -> [String: Any] {
+        var blocker: [String: Any] = [
+            "kind": kind,
+            "id": id,
+            "scope": scope,
+            "source": source,
+            "capabilities": capabilities,
+            "blocks": blocks,
+            "message": message
+        ]
+        if let targetPath { blocker["target_path"] = targetPath }
+        if let settingsURL { blocker["settings_url"] = settingsURL }
+        if !nextActions.isEmpty { blocker["next_actions"] = nextActions }
+        return blocker
+    }
+
+    private func readyRepairAction() -> [String: Any] {
+        [
+            "type": "command",
+            "label": "Run explicit readiness repair",
+            "command": "\(aosInvocationDisplayName()) ready --repair"
+        ]
+    }
 
     private func waitForContentServerPort(timeoutMs: Int = 10000, pollMs: Int = 25) -> UInt16? {
         guard let server = contentServer else { return nil }

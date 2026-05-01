@@ -73,4 +73,55 @@ assert isinstance(perms.get("accessibility"), bool), f"permissions.accessibility
 '
 echo "PASS: system.ping"
 
+# 2. system.preflight returns daemon-owned capability leases and reuses them.
+OUT="$(echo '{"v":1,"service":"system","action":"preflight","data":{"command":"test preflight","capabilities":["runtime.daemon","projection.canvas"]}}' | send_envelope)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+assert d.get("status") == "success", d
+payload = d.get("data", d)
+assert payload.get("phase") == "ready", payload
+assert payload.get("repair_attempted") is False, payload
+assert payload.get("required_capabilities") == ["runtime.daemon", "projection.canvas"], payload
+assert payload.get("blocked_capabilities") == [], payload
+leases = payload.get("leases", [])
+assert len(leases) == 2, payload
+assert all(lease.get("status") == "valid" for lease in leases), leases
+assert all(lease.get("source") == "daemon" for lease in leases), leases
+assert all(lease.get("reused") is False for lease in leases), leases
+'
+echo "PASS: system.preflight leases"
+
+OUT="$(echo '{"v":1,"service":"system","action":"preflight","data":{"command":"test preflight","capabilities":["runtime.daemon","projection.canvas"]}}' | send_envelope)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+payload = d.get("data", d)
+leases = payload.get("leases", [])
+assert len(leases) == 2, payload
+assert all(lease.get("reused") is True for lease in leases), leases
+'
+echo "PASS: system.preflight reuses leases"
+
+# 3. system.preflight reports scoped blockers without attempting repair.
+OUT="$(echo '{"v":1,"service":"system","action":"preflight","data":{"required_capabilities":[{"id":"content.root","scope":"toolkit"}]}}' | send_envelope)"
+echo "$OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+assert d.get("status") == "degraded", d
+payload = d.get("data", d)
+assert payload.get("phase") == "capability_blocked", payload
+assert payload.get("repair_attempted") is False, payload
+assert payload.get("blocked_capabilities") == ["content.root"], payload
+blockers = payload.get("blockers", [])
+assert len(blockers) == 1, payload
+blocker = blockers[0]
+assert blocker.get("kind") == "content", blocker
+assert blocker.get("scope") == "toolkit", blocker
+assert blocker.get("source") == "daemon", blocker
+assert blocker.get("capabilities") == ["content.root"], blocker
+assert "show" in blocker.get("blocks", []), blocker
+'
+echo "PASS: system.preflight blockers"
+
 echo "PASS"
