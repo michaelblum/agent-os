@@ -84,18 +84,17 @@ Before creating any live EVOI artifact, land or identify:
 6. A decision about whether any thresholds belong in schema-backed run-control
    events, a docs recipe, or runtime wiki playbook knowledge.
 
-## Next Artifact
+## Promoted Recipe
 
-The next durable artifact should be a narrow docs recipe, not a skill or ops
-recipe. Suggested working title:
+The next durable artifact is a narrow docs recipe, not a skill or ops recipe:
 
 ```text
 docs/recipes/value-of-information-clarification.md
 ```
 
-That recipe should describe the AOS-native decision loop for choosing between
+That recipe describes the AOS-native decision loop for choosing between
 structured perception, visual capture, projection-backed clarification, and
-execution. It should stay qualitative until AOS has measured budget and
+execution. It stays qualitative until AOS has measured budget and
 confidence fields worth enforcing.
 
 Do not implement EVOI behavior from this memo. Treat it as placement guidance
