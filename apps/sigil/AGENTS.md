@@ -50,7 +50,7 @@ copies as source-controlled truth.
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
-| `context-menu/` | Live avatar context menu implementation and agent playbook for menu diagnostics. |
+| `context-menu/` | Live avatar context menu implementation and app-local playbook for menu diagnostics. |
 | `codex-terminal/` | Codex-only terminal MVP. A Sigil canvas fronts a named tmux session through a dependency-free local bridge; launch with `apps/sigil/codex-terminal/launch.sh`. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
 | `chat/` | Bidirectional conversational canvas. Protocol details live in `chat/README.md`. |

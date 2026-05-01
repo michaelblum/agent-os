@@ -87,8 +87,8 @@ When adding or changing commands:
 
 ## Runtime Knowledge
 
-`aos wiki` runtime behavior lives in source, but wiki content and plugin
-classification follow the artifact taxonomy in
+`aos wiki` runtime behavior lives in source, but runtime wiki content and wiki
+plugin classification follow the artifact taxonomy in
 [`docs/api/aos-taxonomy.md`](../docs/api/aos-taxonomy.md). Executable repo
 contracts should live in source-backed commands, tests, schemas, or ops recipes,
 not only in runtime wiki prose.
