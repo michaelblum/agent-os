@@ -11,8 +11,11 @@ contract.
 
 Start with the cheapest reliable source that can answer the question.
 
-1. Check readiness when the task depends on live perception, action, canvas
-   projection, or input routing. If readiness is blocked, report the concrete
+1. Use a readiness-gated live path when the task depends on live perception,
+   action, canvas projection, or input routing. A prior explicit readiness
+   check or a deterministic capability preflight may satisfy the gate. Recheck
+   only when the required capability lease is missing or invalidated; do not
+   poll readiness on every turn. If readiness is blocked, report the concrete
    blocker instead of guessing from stale state.
 2. Use structured perception first: `see`, `inspect`, `target.probe`, known
    refs, semantic names, accessibility roles, handles, and adapter metadata.
@@ -122,6 +125,7 @@ Avoid these patterns:
 ## Related
 
 - `docs/api/target-probe.md`
+- `docs/design/notes/2026-05-01-capability-preflight-readiness-lease.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `docs/recipes/aos-app-accessibility-surfaces.md`
 - `docs/design/notes/2026-05-01-evoi-placement-decision.md`
