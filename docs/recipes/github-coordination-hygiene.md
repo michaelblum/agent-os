@@ -84,12 +84,14 @@ The distinction is source-of-truth, not usefulness:
 |---|---|
 | GitHub issues/PRs/comments | Chronology, discussion, rationale, tradeoffs, work state, review history, retrospective evidence |
 | Repo docs/schemas/recipes | Current durable contracts, SOPs, API shape, verification mechanics |
+| `docs/design/` | Provider-neutral active design plans, specs, notes, and supporting artifacts |
+| `docs/superpowers/` | Legacy Superpowers-origin design history, not required orchestration for new work |
 | `wiki-seed/` | Source-controlled agent-operable knowledge that should be available at runtime |
 | Runtime AOS wiki markdown + SQLite index | Local retrieval substrate used by agents through `aos wiki` |
 
 | Stable result | Durable home |
 |---|---|
-| Scope, sequencing, implementation approach | Plan doc under `docs/superpowers/plans/` |
+| Scope, sequencing, implementation approach | Plan doc under `docs/design/plans/` |
 | Architecture or cross-tool contract | `ARCHITECTURE.md`, `docs/api/`, or `shared/schemas/` |
 | Repeatable operating procedure | Recipe under `docs/recipes/` |
 | Reusable agent knowledge | Wiki seed page under `wiki-seed/` |
@@ -188,7 +190,7 @@ flowchart LR
   end
 
   subgraph Repo["agent-os repo"]
-    Plans["docs/superpowers/plans/"]
+    Plans["docs/design/plans/"]
     Recipes["docs/recipes/"]
     Schemas["shared/schemas/<br/>docs/api/"]
     WikiSeed["wiki-seed/<br/>(source-controlled wiki seed)"]

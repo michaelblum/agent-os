@@ -1,48 +1,9 @@
 @../../AGENTS.md
+@./AGENTS.md
 
-# aos-gateway
+# Gateway Local Guidance
 
-MCP server providing typed script execution and cross-harness coordination for agent-os.
+Provider-neutral gateway guidance lives in `packages/gateway/AGENTS.md`.
 
-## Quick Start
-
-```bash
-cd packages/gateway
-npm install
-npm run build
-npm start          # Starts MCP server on stdio
-```
-
-## Configure in Claude Code
-
-Add to `.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "aos-gateway": {
-      "command": "node",
-      "args": ["/path/to/agent-os/packages/gateway/dist/index.js"]
-    }
-  }
-}
-```
-
-## Tools (10)
-
-**Coordination:** register_session, set_state, get_state, post_message, read_stream, who_is_online
-**Execution:** run_os_script, save_script, list_scripts, discover_capabilities
-
-## State
-
-All gateway state lives at `~/.config/aos-gateway/`:
-- `gateway.db` — SQLite coordination store
-- `sdk.sock` — SDK socket for subprocess communication
-- `scripts/` — saved scripts
-- `config.json` — gateway configuration (optional)
-
-## Tests
-
-```bash
-npm test           # All tests
-```
+This file remains as a compatibility pointer for tools that still discover
+subtree-local instructions by the historical `CLAUDE.md` filename.

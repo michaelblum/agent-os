@@ -8,9 +8,9 @@ creating separate workflows.
 
 - Keep this root file limited to repo-wide rules and methods.
 - Put specialized guidance in the nearest subtree-specific markdown file.
-- Prefer provider-neutral docs when adding new instructions. During migration,
-  some subtree-specific details still live in nearby `CLAUDE.md` files; treat
-  those as local detail, not root policy.
+- Prefer provider-neutral docs when adding new instructions. Historical
+  `CLAUDE.md` files are compatibility pointers for tools that still discover
+  that filename; keep subtree-specific detail in nearby `AGENTS.md` files.
 
 ## Repo Model
 
@@ -54,9 +54,10 @@ path change before using the new layer.
 Durable lessons should be recorded at the right boundary instead of scattered as
 session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
 files for local contracts, `tests/README.md` for verification mechanics,
-`docs/recipes/` for reusable SOPs, and `shared/schemas/`, `docs/api/`, or
-`ARCHITECTURE.md` for cross-tool contracts. Prefer measured, provider-neutral
-guidance over reactive warnings. See
+`docs/recipes/` for reusable SOPs, `docs/design/` for provider-neutral plans
+and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
+cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
+warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
 
 ## Design Principle: Primitives First
@@ -206,7 +207,11 @@ source of truth at the interface boundary:
 ## Follow-On Detail
 
 - `ARCHITECTURE.md` for system architecture
+- `docs/api/aos-taxonomy.md` for classifying AOS artifact types and their
+  source-of-truth homes
+- `docs/design/` for provider-neutral plans, specs, notes, and supporting
+  design artifacts
 - nearest subtree markdown file for package or app specifics
 - `docs/recipes/aos-app-accessibility-surfaces.md` for AOS app and toolkit
   accessibility surface contracts
-- today, many of those local files are still named `CLAUDE.md`
+- historical `CLAUDE.md` files remain only as compatibility pointers

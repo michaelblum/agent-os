@@ -3,24 +3,34 @@
 Use the smallest loop that matches the change. Do not rebuild `./aos` by
 default before every verification step.
 
+This file owns test and harness selection mechanics. Consumer-facing command
+contracts belong in `docs/api/aos.md`; build routing belongs in
+`docs/recipes/aos-developer-builds.md`; broader verification entry paths live
+in `docs/recipes/agent-entry-paths-and-verification.md`.
+
 For the repo-wide entry-path model behind these choices, see
 `docs/recipes/agent-entry-paths-and-verification.md`.
 
 ## Rebuild `./aos` First
 
-Rebuild with `bash build.sh` when both of these are true:
+Run the AOS developer build surface before `./aos`-backed checks when both of
+these are true:
 
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
 
-If you are chaining build + `./aos` verification from automation, prefer:
+Use:
 
-- `scripts/aos-after-build -- ./aos ...`
+```bash
+./aos dev build --no-restart
+```
 
-That wrapper waits for any in-flight rebuild, ensures the binary is current,
-then runs the `./aos` command.
+Use raw `bash build.sh` only when repairing the build surface itself or when
+the current `./aos` binary cannot run. `scripts/aos-after-build` remains a
+lower-level serialization wrapper for build-surface tests and specialized
+automation; normal repo verification should prefer `./aos dev build`.
 
-Examples:
+Representative `./aos`-backed checks:
 
 - `bash tests/wiki-seed.sh`
 - `bash tests/wiki-migrate.sh`
@@ -39,7 +49,7 @@ Examples:
 Stay in the local package or Node loop when the work does not depend on a fresh
 `./aos` binary.
 
-Examples:
+Representative local checks:
 
 - `node --test tests/studio/*.test.mjs`
 - `node --test tests/renderer/*.test.mjs`
@@ -151,7 +161,7 @@ Manual Sigil harnesses can pass `manual-visible` to
 non-main display when available. This avoids repeated false debugging of Sigil
 state while tracked union canvases are still unreliable on some display slices.
 
-Examples:
+Representative daemon-backed visual/manual checks:
 
 - `bash tests/capture-region-perception.sh`
 - `bash tests/capture-canvas-surface.sh`

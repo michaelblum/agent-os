@@ -12,6 +12,8 @@ These docs are for both:
 This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
+- [`aos-taxonomy.md`](./aos-taxonomy.md) — classification rules for AOS artifact types and their source-of-truth
+  homes
 - [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
 - [`steerable-collection.md`](./steerable-collection.md) — browser-only V0 steerable collection schemas and source-pack contract
 - [`target-probe.md`](./target-probe.md) — structured target-acquisition packet used by `aos see target`, inspect, and intent projections
@@ -21,7 +23,8 @@ This directory documents the interfaces consumers are expected to build against:
 It does **not** try to replace:
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) for system design and ecosystem context
-- `docs/superpowers/` for plans/specs/internal design work
+- `docs/design/` for provider-neutral plans, specs, notes, and internal design work
+- `docs/superpowers/` for legacy Superpowers-origin design history
 - source comments for implementation details
 
 ## Maintenance Contract

@@ -188,7 +188,11 @@ All subsystems share the LCS convention. All emit JSON. All are stateless at the
 
 ### Monorepo Structure
 
-The `aos` unified binary is the canonical primitive. `packages/` holds supporting Node.js services (MCP gateway, agent host) and reusable WKWebView components. `apps/` holds Track 2 consumers.
+The `aos` unified binary is the canonical primitive. `packages/` holds
+supporting Node.js services (MCP gateway, agent host) and reusable WKWebView
+components. `apps/` holds Track 2 consumers. For classifying AOS artifact types
+and source-of-truth homes across docs, wiki, recipes, schemas, and app-local
+guidance, see `docs/api/aos-taxonomy.md`.
 
 ```
 agent-os/
