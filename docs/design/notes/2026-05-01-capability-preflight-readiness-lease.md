@@ -2,6 +2,8 @@
 
 Status: design note, not implementation.
 
+Tracking: GitHub issue #177.
+
 ## Problem
 
 Agent guidance currently says to check readiness before live perception,
