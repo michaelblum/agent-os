@@ -35,6 +35,14 @@ func observeCommand(args: [String]) {
         exitError("Cannot connect to daemon at \(kDefaultSocketPath). Is 'aos serve' running?", code: "CONNECT_ERROR")
     }
 
+    _ = ensureCapabilityPreflight(
+        command: "aos see observe",
+        requirements: [
+            ["id": "runtime.daemon", "scope": "daemon"],
+            ["id": "perception.ax", "scope": "daemon"]
+        ]
+    )
+
     // Send v1 envelope see.observe request
     var data: [String: Any] = [:]
     data["depth"] = depth

@@ -383,6 +383,9 @@ Required tests:
    - Assert `aos do click ... --json` fails with
      `CAPABILITY_PREFLIGHT_FAILED`, `blocked_capabilities=["action.input"]`,
      `source="daemon"`, and `repair_attempted=false`.
+   - Assert daemon-backed `aos see observe` fails with
+     `blocked_capabilities=["perception.ax"]` when daemon Accessibility is not
+     available.
 4. No hidden repair:
    - Make the mock report `daemon_tcc_grant_stale_or_missing`-equivalent
      blocker data.

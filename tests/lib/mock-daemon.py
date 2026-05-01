@@ -79,6 +79,20 @@ def build_preflight_payload(args: argparse.Namespace, req: dict[str, Any]) -> di
     leases: list[dict[str, Any]] = []
 
     for capability in capabilities:
+        if capability == "perception.ax":
+            if not parse_bool(args.accessibility):
+                blocked.append(capability)
+                blockers.append({
+                    "kind": "permission",
+                    "id": "accessibility",
+                    "scope": "daemon",
+                    "source": "daemon",
+                    "capabilities": [capability],
+                    "blocks": ["see", "do", "inspect", "listen"],
+                    "message": "Daemon lacks Accessibility permission.",
+                })
+                continue
+
         if capability == "action.input":
             if args.tap_status != "active":
                 blocked.append(capability)
