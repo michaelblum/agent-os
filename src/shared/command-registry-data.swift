@@ -354,7 +354,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "show-ping", usage: "aos show ping",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: daemonChannel),
             output: outJSON,
             examples: ["aos show ping"]),
         InvocationForm(id: "show-wait", usage: "aos show wait --id <name> [--manifest <name>] [--js <condition>] [--timeout <dur>] [--auto-start] [--json]",

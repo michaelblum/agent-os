@@ -46,6 +46,7 @@ run_against_limited_mock() {
 run_against_limited_mock "post" ./aos show post --id demo --event '{"type":"test"}'
 run_against_limited_mock "to-front" ./aos show to-front --id demo
 run_against_limited_mock "wait" ./aos show wait --id demo --timeout 0.001s --auto-start --json
+run_against_limited_mock "ping" ./aos show ping
 
 python3 - "$REQUEST_LOG" <<'PY'
 import sys
@@ -56,6 +57,7 @@ expected = [
     ("system.preflight aos show post", "show.post"),
     ("system.preflight aos show to-front", "show.to_front"),
     ("system.preflight aos show wait", "show.eval"),
+    ("system.preflight aos show ping", "show.ping"),
 ]
 cursor = 0
 for preflight, action in expected:

@@ -232,6 +232,7 @@ assert ids(show["show-list"]) == ["runtime.daemon", "projection.canvas"], show["
 assert ids(show["show-wait"]) == ["runtime.daemon", "projection.canvas"], show["show-wait"]
 assert ids(show["show-post"]) == ["runtime.daemon", "projection.canvas"], show["show-post"]
 assert ids(show["show-to-front"]) == ["runtime.daemon", "projection.canvas"], show["show-to-front"]
+assert ids(show["show-ping"]) == ["runtime.daemon"], show["show-ping"]
 assert ids(tell["tell-message"]) == ["runtime.daemon"], tell["tell-message"]
 assert ids(listen["listen-read"]) == ["runtime.daemon"], listen["listen-read"]
 assert ids(voice["voice-list"]) == ["runtime.daemon"], voice["voice-list"]

@@ -68,17 +68,19 @@ private func envelopeAction(for legacy: String) -> String {
 }
 
 private func preflightShowRequest(_ request: CanvasRequest) {
-    guard ["create", "update", "eval", "remove", "remove-all", "list", "post", "to-front"].contains(request.action) else {
+    guard ["create", "update", "eval", "remove", "remove-all", "list", "post", "to-front", "ping"].contains(request.action) else {
         return
     }
 
     var requirements: [[String: Any]] = [
-        ["id": "runtime.daemon", "scope": "daemon"],
-        ["id": "projection.canvas", "scope": "canvas"]
+        ["id": "runtime.daemon", "scope": "daemon"]
     ]
 
-    if let url = request.url, url.hasPrefix("aos://") {
-        requirements.append(["id": "content.root", "scope": "url.root"])
+    if request.action != "ping" {
+        requirements.append(["id": "projection.canvas", "scope": "canvas"])
+        if let url = request.url, url.hasPrefix("aos://") {
+            requirements.append(["id": "content.root", "scope": "url.root"])
+        }
     }
 
     _ = ensureCapabilityPreflight(command: "aos show \(request.action)", requirements: requirements)

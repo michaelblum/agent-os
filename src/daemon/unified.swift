@@ -1270,6 +1270,7 @@ class UnifiedDaemon {
         case ("voice", "bind"):               return "voice-bind"
         case ("voice", "next"):               return "voice-next"
         case ("voice", "final_response"):     return "voice-final-response"
+        case ("show", "ping"):                return "ping"
         case ("system", "ping"):              return "ping"
         case ("system", "preflight"):         return "preflight"
         // Content server actions
