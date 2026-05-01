@@ -98,3 +98,6 @@ follow-up decision memo should classify the EVOI prototype against this table
 and state whether it belongs as a docs recipe, runtime wiki knowledge, wiki
 plugin workflow, app-local playbook, agent skill, schema-backed policy, or ops
 recipe.
+
+Current placement decision:
+[`2026-05-01-evoi-placement-decision.md`](../design/notes/2026-05-01-evoi-placement-decision.md).
