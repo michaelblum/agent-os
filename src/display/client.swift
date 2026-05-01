@@ -68,7 +68,7 @@ private func envelopeAction(for legacy: String) -> String {
 }
 
 private func preflightShowRequest(_ request: CanvasRequest) {
-    guard ["create", "update", "eval", "remove", "remove-all", "list", "to-front"].contains(request.action) else {
+    guard ["create", "update", "eval", "remove", "remove-all", "list", "post", "to-front"].contains(request.action) else {
         return
     }
 
@@ -490,6 +490,15 @@ func showWaitCommand(args: [String]) {
     }
     defer { session.disconnect() }
 
+    _ = ensureCapabilityPreflight(
+        command: "aos show wait",
+        requirements: [
+            ["id": "runtime.daemon", "scope": "daemon"],
+            ["id": "projection.canvas", "scope": "canvas"]
+        ],
+        autoStartBinary: autoStart ? ProcessInfo.processInfo.arguments[0] : nil
+    )
+
     var condition = "window.headsup && typeof window.headsup.receive === 'function'"
     if let manifest {
         condition += " && window.headsup.manifest && window.headsup.manifest.name === \(jsStringLiteral(manifest))"
@@ -638,6 +647,14 @@ func listenCommand(args: [String]) {
     }
 
     let client = DaemonClient()
+    _ = ensureCapabilityPreflight(
+        command: "aos show listen",
+        requirements: [
+            ["id": "runtime.daemon", "scope": "daemon"],
+            ["id": "projection.canvas", "scope": "canvas"]
+        ],
+        autoStartBinary: ProcessInfo.processInfo.arguments[0]
+    )
     if !client.ensureDaemon() {
         exitError("Failed to start aos daemon", code: "DAEMON_START_FAILED")
     }

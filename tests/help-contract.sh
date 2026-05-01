@@ -224,6 +224,9 @@ assert ids(do["do-navigate"]) == ["browser.adapter"], do["do-navigate"]
 
 assert ids(show["show-create"]) == ["runtime.daemon", "projection.canvas", "content.root"], show["show-create"]
 assert ids(show["show-list"]) == ["runtime.daemon", "projection.canvas"], show["show-list"]
+assert ids(show["show-wait"]) == ["runtime.daemon", "projection.canvas"], show["show-wait"]
+assert ids(show["show-post"]) == ["runtime.daemon", "projection.canvas"], show["show-post"]
+assert ids(show["show-to-front"]) == ["runtime.daemon", "projection.canvas"], show["show-to-front"]
 assert ids(tell["tell-message"]) == ["runtime.daemon"], tell["tell-message"]
 assert ids(listen["listen-read"]) == ["runtime.daemon"], listen["listen-read"]
 PY

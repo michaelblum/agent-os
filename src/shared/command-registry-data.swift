@@ -348,7 +348,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "show-listen", usage: "aos show listen",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execStreaming(daemon: true),
+            execution: execStreaming(daemon: true, capabilities: projectionCanvas),
             output: outNDJSON,
             examples: ["aos show listen"]),
         InvocationForm(id: "show-ping", usage: "aos show ping",
@@ -367,7 +367,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("json", "--json", "Emit JSON output", type: .bool)
             ],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(daemon: true),
+            execution: execReadOnly(daemon: true, capabilities: projectionCanvas),
             output: outJSONFlag,
             examples: [
                 "aos show wait --id canvas-inspector --manifest canvas-inspector",
@@ -388,7 +388,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "show-to-front", usage: "aos show to-front --id <name>",
             args: [flag("id", "--id", "Canvas identifier", required: true)],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show to-front --id avatar"]),
         InvocationForm(id: "show-post", usage: "aos show post --id <name> --event <json>",
@@ -397,7 +397,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("event", "--event", "JSON event payload to post", type: .json, required: true)
             ],
             stdin: nil, constraints: nil,
-            execution: execMutating(daemon: true),
+            execution: execMutating(daemon: true, capabilities: projectionCanvas),
             output: outJSON,
             examples: ["aos show post --id avatar --event '{\"type\":\"update\"}'"])
     ]))
