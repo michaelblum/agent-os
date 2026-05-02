@@ -96,6 +96,15 @@ canvas layering. Valid values are `automatic`, `floating`, `status_bar`, and
 `screen_saver`; `automatic` preserves the daemon default for the canvas'
 interactive mode.
 
+The official `aos show create` client attaches optional `owner` metadata to
+new canvases. This is diagnostic caller metadata, not a permission boundary or
+lease scheduler. The daemon stores it with the canvas, child canvases inherit it
+when they are created through a parent canvas, and it is exposed through
+`show.list`, `show.get`, and `canvas_lifecycle` so consumers can quickly identify
+which agent/session/worktree produced a visible surface. Current fields are
+`consumer_id`, `harness`, `pid`, `cwd`, optional `worktree_root`, and
+`runtime_mode`.
+
 `show.list`, `show.get`, and `canvas_lifecycle` metadata include
 `windowNumbers`, the native macOS window number or numbers backing a canvas.
 Normal canvases report one entry. DesktopWorld surfaces keep one logical canvas
@@ -107,6 +116,14 @@ DesktopWorld surfaces:
 ```json
 {
   "id": "avatar-main",
+  "owner": {
+    "consumer_id": "codex-abc123",
+    "harness": "codex",
+    "pid": 4242,
+    "cwd": "/Users/Michael/Code/agent-os-worktrees/example",
+    "worktree_root": "/Users/Michael/Code/agent-os-worktrees/example",
+    "runtime_mode": "repo"
+  },
   "track": "union",
   "windowNumbers": [91234],
   "segments": [

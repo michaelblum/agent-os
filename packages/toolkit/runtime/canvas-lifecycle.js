@@ -31,5 +31,7 @@ export function mergeCanvasLifecycleCanvas(existing, data) {
   if (windowNumbers !== undefined) next.windowNumbers = windowNumbers
   const segments = data?.segments ?? canvas.segments ?? existing?.segments
   if (segments !== undefined) next.segments = segments
+  const owner = data?.owner ?? canvas.owner ?? existing?.owner
+  if (owner !== undefined) next.owner = owner
   return next
 }

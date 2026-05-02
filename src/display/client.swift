@@ -43,6 +43,8 @@ class DaemonClient {
         if let sus = request.suspended { dataDict["suspended"] = sus }
         if let ch = request.channel { dataDict["channel"] = ch }
         if let d = request.data { dataDict["data"] = d }
+        let owner = request.owner ?? (request.action == "create" ? CanvasOwnerInfo.currentCLI() : nil)
+        if let ownerDict = owner?.dictionary() { dataDict["owner"] = ownerDict }
 
         guard let response = sendEnvelopeRequest(service: service, action: action, data: dataDict) else {
             return CanvasResponse.fail("IPC failure", code: "INTERNAL")
