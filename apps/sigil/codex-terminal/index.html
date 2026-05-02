@@ -90,7 +90,7 @@
     .content {
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 238px;
+      grid-template-columns: minmax(0, 1fr) 340px;
       background: #050708;
     }
     .shell.rail-collapsed .content {
@@ -157,7 +157,7 @@
     .rail-content {
       min-height: 0;
       display: grid;
-      grid-template-rows: auto auto 1fr;
+      grid-template-rows: auto auto minmax(108px, 1fr) minmax(168px, 0.9fr);
       gap: 8px;
       padding: 8px;
     }
@@ -188,6 +188,10 @@
     .session-button:hover {
       background: rgba(255,255,255,0.09);
       border-color: rgba(255,255,255,0.18);
+    }
+    .session-button.selected {
+      border-color: rgba(137,220,235,0.58);
+      background: rgba(137,220,235,0.1);
     }
     .filters {
       display: grid;
@@ -270,6 +274,92 @@
     .empty-state {
       padding: 8px 2px;
     }
+    .inspector {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 28px 1fr;
+      border-top: 1px solid rgba(255,255,255,0.09);
+      padding-top: 8px;
+    }
+    .inspector-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .inspector-title {
+      color: #c9d3d8;
+      font-size: 12px;
+      font-weight: 650;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .inspector-body {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.18) transparent;
+    }
+    .inspector-section {
+      display: grid;
+      gap: 5px;
+      padding: 7px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .inspector-section:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .inspector-heading {
+      color: #f3f7f8;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .inspector-row {
+      display: grid;
+      grid-template-columns: minmax(72px, 0.42fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      min-width: 0;
+      font-size: 10.5px;
+      line-height: 1.25;
+    }
+    .inspector-key {
+      color: #849198;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .inspector-value {
+      color: #dce6ea;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .inspector-source {
+      color: #8e9aa0;
+      font-size: 9.5px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .diagnostic {
+      display: grid;
+      gap: 2px;
+      padding: 6px;
+      border: 1px solid rgba(255,209,102,0.2);
+      border-radius: 6px;
+      background: rgba(255,209,102,0.055);
+    }
+    .diagnostic.warn .inspector-heading {
+      color: #ffd166;
+    }
+    .diagnostic.error .inspector-heading {
+      color: #ff8f87;
+    }
   </style>
 </head>
 <body>
@@ -309,6 +399,13 @@
             </select>
           </div>
           <div class="session-list" id="sessionList" role="list" aria-label="Recent sessions"></div>
+          <section class="inspector" aria-label="Session inspector">
+            <div class="inspector-top">
+              <span class="inspector-title">Inspector</span>
+              <button class="icon-button" id="refreshInspector" type="button" aria-label="Refresh inspector">I</button>
+            </div>
+            <div class="inspector-body" id="sessionInspector"></div>
+          </section>
         </div>
       </aside>
     </section>
@@ -326,6 +423,7 @@
     const subtitle = document.getElementById('subtitle');
     const statusDot = document.getElementById('status');
     const sessionList = document.getElementById('sessionList');
+    const sessionInspector = document.getElementById('sessionInspector');
     const providerFilter = document.getElementById('providerFilter');
     const sessionSort = document.getElementById('sessionSort');
     const railToggle = document.getElementById('railToggle');
@@ -338,6 +436,8 @@
     let resizeRaf = 0;
     let lastFit = { cols: 0, rows: 0 };
     let sessions = [];
+    let selectedSession = null;
+    let inspectorRequest = 0;
 
     function emit(body) {
       window.webkit?.messageHandlers?.headsup?.postMessage(body);
@@ -400,6 +500,183 @@
       });
     }
 
+    function formatNumber(value) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
+      return new Intl.NumberFormat().format(value);
+    }
+
+    function formatRatio(value) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
+      return `${Math.round(value * 1000) / 10}%`;
+    }
+
+    function appendText(parent, className, text, title) {
+      const element = document.createElement('div');
+      element.className = className;
+      element.textContent = text;
+      if (title) element.title = title;
+      parent.append(element);
+      return element;
+    }
+
+    function appendRow(parent, key, value, title) {
+      const row = document.createElement('div');
+      row.className = 'inspector-row';
+      appendText(row, 'inspector-key', key);
+      appendText(row, 'inspector-value', value || 'unknown', title);
+      parent.append(row);
+      return row;
+    }
+
+    function appendSection(parent, heading) {
+      const section = document.createElement('section');
+      section.className = 'inspector-section';
+      appendText(section, 'inspector-heading', heading);
+      parent.append(section);
+      return section;
+    }
+
+    function metricDisplay(metric) {
+      if (!metric || typeof metric !== 'object') return 'unknown';
+      if (metric.unit === 'ratio') return formatRatio(metric.value);
+      return `${formatNumber(metric.value)} ${metric.unit || ''}`.trim();
+    }
+
+    function sourceDisplay(metric) {
+      const source = metric?.source;
+      if (!source) return '';
+      return [source.stability, source.precision, source.kind, source.provider_version]
+        .filter(Boolean)
+        .join(' / ');
+    }
+
+    function appendMetric(parent, key, metric) {
+      appendRow(parent, key, metricDisplay(metric), metric?.source?.provider_surface);
+      const source = sourceDisplay(metric);
+      if (source) appendText(parent, 'inspector-source', source, metric?.source?.provider_surface);
+    }
+
+    function renderInspectorEmpty(text = 'Select a session') {
+      sessionInspector.replaceChildren();
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = text;
+      sessionInspector.append(empty);
+    }
+
+    function renderInspectorLoading(record) {
+      sessionInspector.replaceChildren();
+      const section = appendSection(sessionInspector, 'Session');
+      appendRow(section, 'provider', providerLabel(record.provider));
+      appendRow(section, 'id', record.session_id);
+      appendRow(section, 'cwd', record.cwd, record.cwd);
+      appendText(sessionInspector, 'empty-state', 'Loading telemetry...');
+    }
+
+    function renderInspector(record, payload) {
+      sessionInspector.replaceChildren();
+      const sourceSession = payload?.session || record;
+      const telemetry = payload?.telemetry || null;
+      const context = telemetry?.context || null;
+      const diagnostics = [
+        ...(Array.isArray(payload?.diagnostics) ? payload.diagnostics : []),
+        ...(Array.isArray(telemetry?.diagnostics) ? telemetry.diagnostics : []),
+      ];
+      const lifecycleEvents = Array.isArray(payload?.lifecycle_events) ? payload.lifecycle_events : [];
+
+      const sessionSection = appendSection(sessionInspector, 'Session');
+      appendRow(sessionSection, 'provider', providerLabel(sourceSession.provider));
+      appendRow(sessionSection, 'id', sourceSession.session_id);
+      appendRow(sessionSection, 'cwd', sourceSession.cwd, sourceSession.cwd);
+      appendRow(sessionSection, 'branch', sourceSession.branch || 'unknown');
+      appendRow(sessionSection, 'source', sourceSession.source_file || 'unknown', sourceSession.source_file);
+      if (telemetry?.model?.id || telemetry?.model?.display_name) {
+        appendRow(sessionSection, 'model', telemetry.model.display_name || telemetry.model.id);
+      }
+
+      const contextSection = appendSection(sessionInspector, 'Context');
+      if (context) {
+        appendMetric(contextSection, 'window', context.window_tokens);
+        appendMetric(contextSection, 'used', context.used_tokens);
+        appendMetric(contextSection, 'remaining', context.remaining_tokens);
+        appendMetric(contextSection, 'used ratio', context.used_ratio);
+        appendMetric(contextSection, 'remaining ratio', context.remaining_ratio);
+      } else {
+        appendText(contextSection, 'empty-state', 'Unknown');
+      }
+
+      if (context?.tokens) {
+        const tokenSection = appendSection(sessionInspector, 'Token Counters');
+        for (const key of Object.keys(context.tokens).sort()) {
+          appendMetric(tokenSection, key.replace(/_/g, ' '), context.tokens[key]);
+        }
+      }
+
+      if (lifecycleEvents.length) {
+        const lifecycleSection = appendSection(sessionInspector, 'Lifecycle');
+        for (const event of lifecycleEvents.slice(-3)) {
+          appendRow(lifecycleSection, event.event, event.trigger || event.observed_at);
+          if (event.pre_tokens) appendMetric(lifecycleSection, 'pre', event.pre_tokens);
+          if (event.post_tokens) appendMetric(lifecycleSection, 'post', event.post_tokens);
+        }
+      }
+
+      const diagnosticSection = appendSection(sessionInspector, 'Diagnostics');
+      if (diagnostics.length) {
+        const seen = new Set();
+        for (const diagnostic of diagnostics) {
+          const key = `${diagnostic.code}:${diagnostic.provider_surface}:${diagnostic.fallback || ''}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const item = document.createElement('div');
+          item.className = `diagnostic ${diagnostic.severity || ''}`;
+          appendText(item, 'inspector-heading', diagnostic.code || 'diagnostic');
+          appendText(item, 'inspector-source', [
+            diagnostic.severity,
+            diagnostic.provider_surface,
+            diagnostic.fallback ? `fallback: ${diagnostic.fallback}` : '',
+          ].filter(Boolean).join(' / '));
+          diagnosticSection.append(item);
+        }
+      } else {
+        appendText(diagnosticSection, 'empty-state', 'No diagnostics');
+      }
+    }
+
+    function selectSession(record, { loadTelemetry = true } = {}) {
+      selectedSession = record || null;
+      renderSessions();
+      if (!record) {
+        renderInspectorEmpty();
+        return;
+      }
+      renderInspectorLoading(record);
+      if (loadTelemetry) void loadInspector(record);
+    }
+
+    async function loadInspector(record = selectedSession) {
+      if (!record) {
+        renderInspectorEmpty();
+        return;
+      }
+      const requestId = ++inspectorRequest;
+      const query = new URLSearchParams();
+      query.set('provider', record.provider);
+      query.set('session_id', record.session_id);
+      if (currentCwd) query.set('cwd', currentCwd);
+      try {
+        const response = await fetch(bridgeUrl(`/session-inspector?${query.toString()}`));
+        if (!response.ok) throw new Error(await response.text());
+        const payload = await response.json();
+        if (requestId === inspectorRequest) renderInspector(record, payload);
+      } catch (error) {
+        if (requestId !== inspectorRequest) return;
+        sessionInspector.replaceChildren();
+        const section = appendSection(sessionInspector, 'Inspector');
+        appendText(section, 'empty-state', error.message || String(error));
+      }
+    }
+
     function sessionSortTimestamp(record) {
       if (sessionSort.value === 'created') {
         return record.created_at || record.updated_at || record.last_message_at;
@@ -431,9 +708,14 @@
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'session-button';
+        if (selectedSession?.provider === record.provider && selectedSession?.session_id === record.session_id) {
+          item.classList.add('selected');
+          item.setAttribute('aria-current', 'true');
+        }
         item.setAttribute('role', 'listitem');
         item.setAttribute('aria-label', `Resume ${providerLabel(record.provider)} session ${record.session_id} in ${record.cwd}`);
         item.addEventListener('click', () => {
+          selectSession(record, { loadTelemetry: true });
           void runAgentCommand({
             command: record.resume_command,
             cwd: record.cwd,
@@ -476,6 +758,20 @@
       } catch (_) {
         sessions = [];
       }
+      if (selectedSession) {
+        const replacement = sessions.find((record) => (
+          record.provider === selectedSession.provider && record.session_id === selectedSession.session_id
+        ));
+        if (replacement) selectedSession = replacement;
+      }
+      if (!selectedSession && sessions.length) {
+        selectedSession = [...sessions].sort(compareSessionsForRail)[0];
+        void loadInspector(selectedSession);
+      } else if (selectedSession) {
+        void loadInspector(selectedSession);
+      } else {
+        renderInspectorEmpty('No session selected');
+      }
       renderSessions();
     }
 
@@ -516,6 +812,7 @@
     async function runAgentCommand({ command, cwd, label }) {
       activeLabel = label;
       currentCwd = cwd || currentCwd;
+      if (!selectedSession) renderInspectorEmpty('Telemetry pending');
       setStatus('', `Starting ${label}`);
       terminal?.clear();
       terminal?.writeln(`Starting ${label}...`);
@@ -572,6 +869,7 @@
     }
 
     document.getElementById('newCodex').addEventListener('click', () => {
+      selectSession(null);
       void runAgentCommand({
         command: ['codex', '--no-alt-screen'],
         cwd: currentCwd,
@@ -580,6 +878,7 @@
     });
 
     document.getElementById('newClaude').addEventListener('click', () => {
+      selectSession(null);
       void runAgentCommand({
         command: ['claude'],
         cwd: currentCwd,
@@ -589,6 +888,10 @@
 
     document.getElementById('refreshSessions').addEventListener('click', () => {
       void loadSessions();
+    });
+
+    document.getElementById('refreshInspector').addEventListener('click', () => {
+      void loadInspector();
     });
 
     providerFilter.addEventListener('change', () => {
