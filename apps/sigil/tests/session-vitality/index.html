@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sigil Session Vitality Lab</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #080b0f;
+  --panel: #10161d;
+  --panel-2: #0c1117;
+  --line: rgba(255,255,255,0.12);
+  --muted: #8a98a5;
+  --text: #e8eef2;
+  --accent: #8ef0ff;
+  --warn: #ffd166;
+  --hot: #ff6b6b;
+  --ok: #36d399;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+body {
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: #151b22;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+header strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(360px, 1fr);
+  min-height: 0;
+}
+
+section {
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+}
+
+section + section {
+  border-left: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+.group {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+label,
+.label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #070a0e;
+  color: var(--text);
+  padding: 4px 8px;
+}
+
+input[type="range"] {
+  height: 24px;
+  padding: 0;
+}
+
+.inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+}
+
+.value {
+  text-align: right;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #18212a;
+  color: var(--text);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+button:hover { background: #202c36; }
+button.primary {
+  border-color: rgba(142,240,255,0.55);
+  background: rgba(38,123,140,0.36);
+}
+
+.meters {
+  display: grid;
+  gap: 8px;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 150px minmax(120px, 1fr) 64px;
+  gap: 8px;
+  align-items: center;
+}
+
+.track {
+  height: 8px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.1);
+}
+
+.fill {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+}
+
+.fill.warn { background: var(--warn); }
+.fill.hot { background: var(--hot); }
+.fill.ok { background: var(--ok); }
+
+pre {
+  margin: 0;
+  min-height: 118px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #05070a;
+  padding: 10px;
+  color: #cbd5df;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+
+.log {
+  max-height: 160px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.dot.ok { background: var(--ok); }
+.dot.error { background: var(--hot); }
+
+@media (max-width: 820px) {
+  main { grid-template-columns: 1fr; }
+  section + section {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .row { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <strong>Sigil Session Vitality Lab</strong>
+  <span class="status"><span id="host-dot" class="dot"></span><span id="host-status">starting</span></span>
+</header>
+
+<main>
+  <section>
+    <h2>Session Signal</h2>
+    <div class="row">
+      <label for="target-canvas">Target canvas</label>
+      <input id="target-canvas" value="avatar-main">
+    </div>
+    <div class="row">
+      <label for="provider">Provider</label>
+      <select id="provider">
+        <option value="codex">Codex</option>
+        <option value="claude-code">Claude Code</option>
+        <option value="synthetic">Synthetic</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="delivery">Delivery</label>
+      <select id="delivery">
+        <option value="agent-terminal">Agent Terminal envelope</option>
+        <option value="direct">Direct session event</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="metric-mode">Metrics</label>
+      <select id="metric-mode">
+        <option value="ratio">used + remaining ratios</option>
+        <option value="used_ratio">used ratio only</option>
+        <option value="remaining_ratio">remaining ratio only</option>
+        <option value="tokens">token counts</option>
+        <option value="unknown">unknown</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="precision">Precision</label>
+      <select id="precision">
+        <option value="exact">exact</option>
+        <option value="derived">derived</option>
+        <option value="estimated">estimated</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="used-ratio">Context used</label>
+      <div class="inline">
+        <input id="used-ratio" type="range" min="0" max="1" step="0.01" value="0.5">
+        <span id="used-ratio-value" class="value">50%</span>
+      </div>
+    </div>
+    <div class="row">
+      <label for="used-tokens">Used tokens</label>
+      <input id="used-tokens" type="number" min="0" step="1000" value="50000">
+    </div>
+    <div class="row">
+      <label for="window-tokens">Window tokens</label>
+      <input id="window-tokens" type="number" min="1" step="1000" value="100000">
+    </div>
+
+    <div class="group">
+      <h2>Presets</h2>
+      <div id="preset-buttons" class="buttons"></div>
+    </div>
+
+    <div class="group">
+      <h2>Lifecycle</h2>
+      <div id="lifecycle-buttons" class="buttons"></div>
+    </div>
+
+    <div class="group buttons">
+      <button id="apply" class="primary" type="button">Apply telemetry</button>
+      <button id="read-target" type="button">Read target</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Target Factors</h2>
+    <div id="meters" class="meters"></div>
+
+    <div class="group">
+      <h2>Last Telemetry</h2>
+      <pre id="last-telemetry">No telemetry sent</pre>
+    </div>
+
+    <div class="group">
+      <h2>Readback</h2>
+      <pre id="readback">No readback yet</pre>
+    </div>
+
+    <div class="group">
+      <h2>Log</h2>
+      <pre id="log" class="log"></pre>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import {
+  DEFAULT_LAB_STATE,
+  LIFECYCLE_EVENTS,
+  PRESSURE_PRESETS,
+  clampRatio,
+  makeLifecycleDelivery,
+  makeLifecycleEvent,
+  makeTelemetry,
+  makeTelemetryDelivery,
+  normalizeLabState,
+  summarizeSessionVitality,
+} from './lab.js';
+
+const pending = new Map();
+const controls = {
+  targetCanvas: document.getElementById('target-canvas'),
+  provider: document.getElementById('provider'),
+  delivery: document.getElementById('delivery'),
+  mode: document.getElementById('metric-mode'),
+  precision: document.getElementById('precision'),
+  usedRatio: document.getElementById('used-ratio'),
+  usedRatioValue: document.getElementById('used-ratio-value'),
+  usedTokens: document.getElementById('used-tokens'),
+  windowTokens: document.getElementById('window-tokens'),
+};
+const hostDot = document.getElementById('host-dot');
+const hostStatus = document.getElementById('host-status');
+const presetButtons = document.getElementById('preset-buttons');
+const lifecycleButtons = document.getElementById('lifecycle-buttons');
+const meters = document.getElementById('meters');
+const lastTelemetry = document.getElementById('last-telemetry');
+const readback = document.getElementById('readback');
+const logEl = document.getElementById('log');
+
+const params = new URLSearchParams(location.search);
+controls.targetCanvas.value = params.get('target') || DEFAULT_LAB_STATE.targetCanvasId;
+controls.delivery.value = params.get('delivery') || DEFAULT_LAB_STATE.delivery;
+controls.provider.value = params.get('provider') || DEFAULT_LAB_STATE.provider;
+
+function post(type, payload) {
+  window.webkit?.messageHandlers?.headsup?.postMessage(
+    payload === undefined ? { type } : { type, payload },
+  );
+}
+
+function request(type, payload, timeoutMs = 3000) {
+  const request_id = 'vitality-lab-' + Math.random().toString(36).slice(2, 10);
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(request_id);
+      reject(new Error(`TIMEOUT: ${type}`));
+    }, timeoutMs);
+    pending.set(request_id, { resolve, reject, timer });
+    post(type, { ...payload, request_id });
+  });
+}
+
+function setHostStatus(kind, text) {
+  hostDot.className = 'dot ' + (kind || '');
+  hostStatus.textContent = text;
+}
+
+function log(message) {
+  const time = new Date().toISOString().slice(11, 19);
+  logEl.textContent = `${time} ${message}\n${logEl.textContent}`;
+}
+
+window.headsup = window.headsup || {};
+window.headsup.receive = function receive(b64) {
+  let msg;
+  try {
+    msg = JSON.parse(atob(b64));
+  } catch (error) {
+    log(`decode error: ${error}`);
+    return;
+  }
+
+  if (msg?.type === 'canvas.response' && msg.request_id) {
+    const entry = pending.get(msg.request_id);
+    if (!entry) return;
+    pending.delete(msg.request_id);
+    clearTimeout(entry.timer);
+    if (msg.status === 'ok') entry.resolve(msg);
+    else entry.reject(new Error(`${msg.code || 'ERROR'}: ${msg.message || 'unknown'}`));
+  }
+};
+
+function stateFromControls(overrides = {}) {
+  return normalizeLabState({
+    provider: controls.provider.value,
+    sessionId: 'session-vitality-lab-' + controls.provider.value,
+    mode: controls.mode.value,
+    usedRatio: controls.usedRatio.value,
+    usedTokens: controls.usedTokens.value,
+    windowTokens: controls.windowTokens.value,
+    precision: controls.precision.value,
+    delivery: controls.delivery.value,
+    targetCanvasId: controls.targetCanvas.value,
+    ...overrides,
+  });
+}
+
+function syncDerivedControls({ syncTokensFromRatio = false } = {}) {
+  const ratio = clampRatio(controls.usedRatio.value);
+  controls.usedRatioValue.textContent = `${Math.round(ratio * 100)}%`;
+  if (syncTokensFromRatio && controls.mode.value === 'tokens') {
+    const windowTokens = Math.max(1, Number(controls.windowTokens.value) || DEFAULT_LAB_STATE.windowTokens);
+    controls.usedTokens.value = Math.round(windowTokens * ratio);
+  }
+  renderTelemetryPreview();
+}
+
+function syncRatioFromTokenControls() {
+  if (controls.mode.value === 'tokens') {
+    const usedTokens = Math.max(0, Number(controls.usedTokens.value) || 0);
+    const windowTokens = Math.max(1, Number(controls.windowTokens.value) || DEFAULT_LAB_STATE.windowTokens);
+    controls.usedRatio.value = clampRatio(usedTokens / windowTokens);
+  }
+  syncDerivedControls();
+}
+
+function renderTelemetryPreview() {
+  lastTelemetry.textContent = JSON.stringify(makeTelemetry(stateFromControls()), null, 2);
+}
+
+function setPreset(id) {
+  const preset = PRESSURE_PRESETS.find((item) => item.id === id) || PRESSURE_PRESETS[0];
+  controls.mode.value = preset.mode;
+  controls.usedRatio.value = preset.usedRatio;
+  syncDerivedControls();
+  return stateFromControls();
+}
+
+function dispatchCanvasSend(delivery) {
+  post('canvas.send', delivery);
+}
+
+async function applyTelemetry(overrides = {}) {
+  const state = stateFromControls(overrides);
+  const telemetry = makeTelemetry(state);
+  const delivery = makeTelemetryDelivery(state, telemetry);
+  dispatchCanvasSend(delivery);
+  lastTelemetry.textContent = JSON.stringify(telemetry, null, 2);
+  log(`sent telemetry ${state.mode} ${Math.round(state.usedRatio * 100)}% via ${state.delivery}`);
+  setTimeout(() => { void readTarget(); }, 180);
+  return telemetry;
+}
+
+async function sendLifecycle(eventName) {
+  const state = stateFromControls();
+  const event = makeLifecycleEvent(eventName, state);
+  const delivery = makeLifecycleDelivery(state, event);
+  dispatchCanvasSend(delivery);
+  log(`sent lifecycle ${eventName} via ${state.delivery}`);
+  setTimeout(() => { void readTarget(); }, 180);
+  return event;
+}
+
+async function readTarget() {
+  const target = controls.targetCanvas.value || DEFAULT_LAB_STATE.targetCanvasId;
+  try {
+    const response = await request('canvas.eval', {
+      id: target,
+      js: 'JSON.stringify(window.__sigilDebug?.snapshot?.().sessionVitality ?? null)',
+    }, 4000);
+    const parsed = parseReadback(response.result);
+    renderFactors(parsed);
+    readback.textContent = JSON.stringify(parsed, null, 2);
+    log(`read ${target}`);
+    return parsed;
+  } catch (error) {
+    readback.textContent = String(error);
+    renderFactors(null);
+    log(`read failed: ${error.message || error}`);
+    return null;
+  }
+}
+
+function parseReadback(value) {
+  if (typeof value !== 'string') return value ?? null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function renderFactors(snapshot) {
+  const summary = summarizeSessionVitality(snapshot);
+  const specs = [
+    ['pressure', summary.pressure, 'hot'],
+    ['remainingRatio', summary.remainingRatio, 'ok'],
+    ['confidence', summary.confidence, 'ok'],
+    ['auraReachMultiplier', summary.auraReachMultiplier, 'warn'],
+    ['auraIntensityMultiplier', summary.auraIntensityMultiplier, 'warn'],
+    ['rotationMultiplier', summary.rotationMultiplier, 'warn'],
+    ['brightnessMultiplier', summary.brightnessMultiplier, 'warn'],
+    ['flickerAmount', summary.flickerAmount, 'hot'],
+    ['scaleMultiplier', summary.scaleMultiplier, 'accent'],
+    ['refreshProgress', summary.refreshProgress, 'accent'],
+  ];
+  meters.innerHTML = '';
+  for (const [name, value, tone] of specs) {
+    const row = document.createElement('div');
+    row.className = 'meter';
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = name;
+    const track = document.createElement('div');
+    track.className = 'track';
+    const fill = document.createElement('div');
+    fill.className = `fill ${tone === 'accent' ? '' : tone}`;
+    const normalized = value == null ? 0 : Math.max(0, Math.min(1.35, Number(value))) / 1.35;
+    fill.style.width = `${Math.round(normalized * 100)}%`;
+    track.append(fill);
+    const number = document.createElement('div');
+    number.className = 'value';
+    number.textContent = value == null ? '-' : value.toFixed(3);
+    row.append(label, track, number);
+    meters.append(row);
+  }
+}
+
+function renderButtons() {
+  for (const preset of PRESSURE_PRESETS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = preset.label;
+    button.addEventListener('click', () => {
+      setPreset(preset.id);
+      void applyTelemetry();
+    });
+    presetButtons.append(button);
+  }
+
+  for (const eventName of LIFECYCLE_EVENTS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = eventName.replaceAll('_', ' ');
+    button.addEventListener('click', () => {
+      void sendLifecycle(eventName);
+    });
+    lifecycleButtons.append(button);
+  }
+}
+
+for (const element of [controls.targetCanvas, controls.provider, controls.delivery, controls.precision]) {
+  element.addEventListener('input', () => syncDerivedControls());
+  element.addEventListener('change', () => syncDerivedControls());
+}
+controls.mode.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
+controls.usedRatio.addEventListener('input', () => syncDerivedControls({ syncTokensFromRatio: true }));
+controls.usedRatio.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: true }));
+controls.usedTokens.addEventListener('input', syncRatioFromTokenControls);
+controls.usedTokens.addEventListener('change', syncRatioFromTokenControls);
+controls.windowTokens.addEventListener('input', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
+controls.windowTokens.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
+document.getElementById('apply').addEventListener('click', () => { void applyTelemetry(); });
+document.getElementById('read-target').addEventListener('click', () => { void readTarget(); });
+
+renderButtons();
+syncDerivedControls();
+renderFactors(null);
+setHostStatus(window.webkit?.messageHandlers?.headsup ? 'ok' : 'error', window.webkit?.messageHandlers?.headsup ? 'host ready' : 'host unavailable');
+const manifest = {
+  name: 'sigil-session-vitality-lab',
+  accepts: ['agent.session.telemetry', 'agent.session.lifecycle'],
+  emits: ['canvas.send', 'canvas.eval'],
+};
+window.headsup.manifest = manifest;
+post('ready', manifest);
+
+window.__sessionVitalityLab = {
+  snapshot() {
+    return {
+      state: stateFromControls(),
+      telemetry: makeTelemetry(stateFromControls()),
+      readback: parseReadback(readback.textContent),
+    };
+  },
+  setPreset,
+  applyTelemetry,
+  sendLifecycle,
+  readTarget,
+};
+</script>
+</body>
+</html>
