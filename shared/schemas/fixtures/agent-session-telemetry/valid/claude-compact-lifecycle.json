@@ -1,0 +1,49 @@
+{
+  "type": "agent.session.lifecycle",
+  "schema_version": "2026-05-02",
+  "observed_at": "2026-05-02T11:56:00.000Z",
+  "session": {
+    "provider": "claude-code",
+    "session_id": "fe9076b7-449c-46fd-8572-0ca0f79bf07a",
+    "cwd": "/Users/Michael/Code/agent-os",
+    "source_file": "/Users/Michael/.claude/projects/agent-os/session.jsonl"
+  },
+  "event": "context_compacted",
+  "trigger": "manual",
+  "pre_tokens": {
+    "value": 165246,
+    "unit": "tokens",
+    "source": {
+      "kind": "provider_transcript",
+      "provider_surface": "claude.transcript.compactMetadata",
+      "stability": "provider-local",
+      "precision": "exact"
+    }
+  },
+  "post_tokens": {
+    "value": 23229,
+    "unit": "tokens",
+    "source": {
+      "kind": "provider_transcript",
+      "provider_surface": "claude.transcript.compactMetadata",
+      "stability": "provider-local",
+      "precision": "exact"
+    }
+  },
+  "duration_ms": {
+    "value": 97699,
+    "unit": "milliseconds",
+    "source": {
+      "kind": "provider_transcript",
+      "provider_surface": "claude.transcript.compactMetadata",
+      "stability": "provider-local",
+      "precision": "exact"
+    }
+  },
+  "source": {
+    "kind": "provider_transcript",
+    "provider_surface": "claude.transcript.compactMetadata",
+    "stability": "provider-local",
+    "precision": "exact"
+  }
+}

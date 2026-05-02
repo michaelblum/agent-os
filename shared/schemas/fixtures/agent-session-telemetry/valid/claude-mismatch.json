@@ -1,0 +1,14 @@
+{
+  "type": "agent.session.telemetry_mismatch",
+  "schema_version": "2026-05-02",
+  "observed_at": "2026-05-02T12:00:00.000Z",
+  "provider": "claude-code",
+  "session_id": "fe9076b7-449c-46fd-8572-0ca0f79bf07a",
+  "provider_version": "2.1.126",
+  "source": "provider_statusline",
+  "provider_surface": "claude.statusline.context_window",
+  "code": "claude_context_window_size_missing",
+  "expected": ["context_window.context_window_size"],
+  "fallback": "usage_or_percentage_only",
+  "severity": "warn"
+}

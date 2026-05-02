@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/agent-session-telemetry.schema.json",
+  "title": "Agent Session Telemetry",
+  "description": "Provider-neutral AOS envelope for agent-session context metrics, lifecycle events, capabilities, and provider-shape mismatch diagnostics.",
+  "oneOf": [
+    { "$ref": "#/$defs/telemetrySnapshot" },
+    { "$ref": "#/$defs/lifecycleEvent" },
+    { "$ref": "#/$defs/capabilitiesSnapshot" },
+    { "$ref": "#/$defs/telemetryMismatch" }
+  ],
+  "$defs": {
+    "schemaVersion": {
+      "const": "2026-05-02"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["codex", "claude-code"]
+    },
+    "sourceKind": {
+      "type": "string",
+      "enum": [
+        "provider_statusline",
+        "provider_hook",
+        "provider_transcript",
+        "provider_app_server",
+        "model_catalog",
+        "derived",
+        "aos_adapter"
+      ]
+    },
+    "sourceStability": {
+      "type": "string",
+      "enum": ["documented", "provider-local", "inferred", "aos-contract"]
+    },
+    "precision": {
+      "type": "string",
+      "enum": ["exact", "derived", "estimated", "unknown"]
+    },
+    "telemetrySource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "provider_surface", "stability", "precision"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/sourceKind" },
+        "provider_surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stability": { "$ref": "#/$defs/sourceStability" },
+        "precision": { "$ref": "#/$defs/precision" },
+        "provider_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "numericMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit", "source"],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["tokens", "ratio", "percent", "milliseconds", "count"]
+        },
+        "source": { "$ref": "#/$defs/telemetrySource" }
+      }
+    },
+    "sessionIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "session_id"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/provider" },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_file": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "anyOf": [
+        { "required": ["id"] },
+        { "required": ["display_name"] }
+      ]
+    },
+    "tokenMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": { "$ref": "#/$defs/numericMetric" },
+        "cached_input_tokens": { "$ref": "#/$defs/numericMetric" },
+        "cache_creation_input_tokens": { "$ref": "#/$defs/numericMetric" },
+        "cache_read_input_tokens": { "$ref": "#/$defs/numericMetric" },
+        "output_tokens": { "$ref": "#/$defs/numericMetric" },
+        "reasoning_output_tokens": { "$ref": "#/$defs/numericMetric" },
+        "total_tokens": { "$ref": "#/$defs/numericMetric" }
+      },
+      "minProperties": 1
+    },
+    "contextTelemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "window_tokens": { "$ref": "#/$defs/numericMetric" },
+        "used_tokens": { "$ref": "#/$defs/numericMetric" },
+        "remaining_tokens": { "$ref": "#/$defs/numericMetric" },
+        "used_ratio": { "$ref": "#/$defs/numericMetric" },
+        "remaining_ratio": { "$ref": "#/$defs/numericMetric" },
+        "tokens": { "$ref": "#/$defs/tokenMetrics" }
+      },
+      "minProperties": 1
+    },
+    "telemetrySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "observed_at", "session"],
+      "properties": {
+        "type": {
+          "const": "agent.session.telemetry"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "session": { "$ref": "#/$defs/sessionIdentity" },
+        "model": { "$ref": "#/$defs/model" },
+        "context": { "$ref": "#/$defs/contextTelemetry" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/telemetryMismatch" }
+        }
+      }
+    },
+    "lifecycleEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "observed_at", "session", "event", "source"],
+      "properties": {
+        "type": {
+          "const": "agent.session.lifecycle"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "session": { "$ref": "#/$defs/sessionIdentity" },
+        "event": {
+          "type": "string",
+          "enum": [
+            "session_started",
+            "session_resumed",
+            "context_compaction_started",
+            "context_compacted",
+            "handoff_started",
+            "handoff_completed",
+            "session_ended"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "enum": ["manual", "automatic", "provider", "handoff", "unknown"]
+        },
+        "pre_tokens": { "$ref": "#/$defs/numericMetric" },
+        "post_tokens": { "$ref": "#/$defs/numericMetric" },
+        "duration_ms": { "$ref": "#/$defs/numericMetric" },
+        "source": { "$ref": "#/$defs/telemetrySource" }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "supported", "source"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["check_in", "compact", "handoff", "resume"]
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "source": { "$ref": "#/$defs/telemetrySource" },
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "capabilitiesSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "observed_at", "session", "capabilities"],
+      "properties": {
+        "type": {
+          "const": "agent.session.capabilities"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "session": { "$ref": "#/$defs/sessionIdentity" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/capability" }
+        }
+      }
+    },
+    "telemetryMismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "schema_version",
+        "observed_at",
+        "provider",
+        "source",
+        "provider_surface",
+        "code",
+        "expected",
+        "severity"
+      ],
+      "properties": {
+        "type": {
+          "const": "agent.session.telemetry_mismatch"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "provider": { "$ref": "#/$defs/provider" },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": { "$ref": "#/$defs/sourceKind" },
+        "provider_surface": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fallback": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warn", "error"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "type": "agent.session.telemetry",
+  "schema_version": "2026-05-02",
+  "observed_at": "2026-05-02T12:00:00.000Z",
+  "session": {
+    "provider": "codex",
+    "session_id": "019de3a9-2b0b-79f2-bb17-79dfb2c7a706",
+    "cwd": "/Users/Michael/Code/agent-os",
+    "source_file": "/Users/Michael/.codex/sessions/rollout-test.jsonl"
+  },
+  "context": {
+    "window_tokens": {
+      "value": 258400,
+      "unit": "tokens",
+      "source": {
+        "kind": "provider_transcript",
+        "provider_surface": "codex.transcript.event_msg.token_count",
+        "stability": "provider-local",
+        "precision": "exact",
+        "provider_version": "codex-cli 0.125.0"
+      }
+    },
+    "used_tokens": {
+      "value": 33581,
+      "unit": "tokens",
+      "source": {
+        "kind": "provider_transcript",
+        "provider_surface": "codex.transcript.event_msg.token_count",
+        "stability": "provider-local",
+        "precision": "exact",
+        "provider_version": "codex-cli 0.125.0"
+      }
+    },
+    "used_ratio": {
+      "value": 0.12995665634674923,
+      "unit": "ratio",
+      "source": {
+        "kind": "derived",
+        "provider_surface": "codex.derived(context.used_tokens,context.window_tokens)",
+        "stability": "aos-contract",
+        "precision": "derived",
+        "provider_version": "codex-cli 0.125.0"
+      }
+    },
+    "tokens": {
+      "input_tokens": {
+        "value": 33053,
+        "unit": "tokens",
+        "source": {
+          "kind": "provider_transcript",
+          "provider_surface": "codex.transcript.event_msg.token_count",
+          "stability": "provider-local",
+          "precision": "exact",
+          "provider_version": "codex-cli 0.125.0"
+        }
+      },
+      "cached_input_tokens": {
+        "value": 3456,
+        "unit": "tokens",
+        "source": {
+          "kind": "provider_transcript",
+          "provider_surface": "codex.transcript.event_msg.token_count",
+          "stability": "provider-local",
+          "precision": "exact",
+          "provider_version": "codex-cli 0.125.0"
+        }
+      },
+      "output_tokens": {
+        "value": 528,
+        "unit": "tokens",
+        "source": {
+          "kind": "provider_transcript",
+          "provider_surface": "codex.transcript.event_msg.token_count",
+          "stability": "provider-local",
+          "precision": "exact",
+          "provider_version": "codex-cli 0.125.0"
+        }
+      },
+      "total_tokens": {
+        "value": 33581,
+        "unit": "tokens",
+        "source": {
+          "kind": "provider_transcript",
+          "provider_surface": "codex.transcript.event_msg.token_count",
+          "stability": "provider-local",
+          "precision": "exact",
+          "provider_version": "codex-cli 0.125.0"
+        }
+      }
+    }
+  }
+}

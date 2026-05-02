@@ -1,0 +1,12 @@
+{
+  "type": "agent.session.telemetry",
+  "schema_version": "2026-05-02",
+  "observed_at": "2026-05-02T12:00:00.000Z",
+  "session": {
+    "provider": "claude-code",
+    "session_id": "fe9076b7-449c-46fd-8572-0ca0f79bf07a"
+  },
+  "context": {
+    "used_tokens": 42
+  }
+}
