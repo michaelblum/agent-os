@@ -77,10 +77,13 @@ export function computeAuraPosition() {
 
 export function animateAura(dt) {
     const { auraPos, auraScaleMult } = computeAuraPosition();
+    const vitality = state.sessionVitality || {};
+    const reachMultiplier = Number.isFinite(vitality.auraReachMultiplier) ? vitality.auraReachMultiplier : 1;
+    const intensityMultiplier = Number.isFinite(vitality.auraIntensityMultiplier) ? vitality.auraIntensityMultiplier : 1;
 
     state.auraSpike *= state.auraSpikeDecay;
-    const baseScale = state.auraBaseScale * state.auraReach * state.z_depth;
-    const pulseOffset = Math.sin(Date.now() * state.auraPulseRate) * (state.auraPulseAmplitude * state.auraReach) * state.z_depth;
+    const baseScale = state.auraBaseScale * state.auraReach * reachMultiplier * state.z_depth;
+    const pulseOffset = Math.sin(Date.now() * state.auraPulseRate) * (state.auraPulseAmplitude * state.auraReach * reachMultiplier) * state.z_depth;
     const spikeBonus = baseScale * (state.spikeMultiplier - 1.0) * state.auraSpike;
     const reachScale = baseScale + pulseOffset + spikeBonus;
 
@@ -99,7 +102,7 @@ export function animateAura(dt) {
         state.coreSprite.visible = true;
         state.coreSprite.position.copy(auraPos);
 
-        let iFactor = state.auraIntensity / 3.0;
+        let iFactor = (state.auraIntensity * intensityMultiplier) / 3.0;
         let ciScale = (0.2 + 1.8 * iFactor) * state.z_depth * auraScaleMult * state.appScale;
         state.coreSprite.scale.set(ciScale, ciScale, 1);
         state.coreSprite.material.opacity = 1.0 - state.auraCoreFade * iFactor;

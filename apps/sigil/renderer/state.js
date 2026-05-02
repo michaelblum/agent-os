@@ -325,7 +325,22 @@ const defaults = {
     segmentProgress: 0,
 
     // Force aura visible flag
-    forceAuraVisible: false
+    forceAuraVisible: false,
+
+    // Session telemetry expression (Sigil-local, derived from raw AOS metrics)
+    sessionVitality: {
+        confidence: 0,
+        pressure: null,
+        usedRatio: null,
+        remainingRatio: null,
+        auraReachMultiplier: 1,
+        auraIntensityMultiplier: 1,
+        rotationMultiplier: 1,
+        brightnessMultiplier: 1,
+        flickerAmount: 0,
+        scaleMultiplier: 1,
+        refreshProgress: null,
+    }
 };
 
 const state = { ...defaults };

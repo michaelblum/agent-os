@@ -40,6 +40,7 @@ import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
+import { createSessionVitalityController } from '../session-vitality.js';
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -95,6 +96,7 @@ const liveJs = {
     contextMenu: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
+    sessionVitality: null,
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
@@ -129,6 +131,9 @@ const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 let radialGestureVisuals = null;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
+const sessionVitality = createSessionVitalityController({
+    now: () => performance.now(),
+});
 const DEFAULT_AGENT_WIKI_PATH = 'sigil/agents/default';
 const DEFAULT_AGENT_WIKI_URL = `/wiki/${DEFAULT_AGENT_WIKI_PATH}.md`;
 const INPUT_POINTER_EVENT_TYPES = new Set([
@@ -1665,6 +1670,42 @@ function originFromMessage(msg = {}) {
     return nativeToDesktopWorldPoint({ x, y }, liveJs.displays) ?? { x, y, valid: true };
 }
 
+function publishSessionVitalitySnapshot() {
+    const snapshot = sessionVitality.snapshot();
+    liveJs.sessionVitality = snapshot;
+    state.sessionVitality = snapshot.factors;
+    scheduleRenderFrame();
+    return snapshot;
+}
+
+function handleSessionTelemetryEnvelope(envelope = {}) {
+    let changed = false;
+    const telemetry = envelope.type === 'agent.session.telemetry'
+        ? envelope
+        : envelope.telemetry;
+    if (telemetry?.type === 'agent.session.telemetry') {
+        sessionVitality.applyTelemetry(telemetry);
+        changed = true;
+    }
+
+    const lifecycle = envelope.type === 'agent.session.lifecycle'
+        ? [envelope]
+        : (Array.isArray(envelope.lifecycle_events) ? envelope.lifecycle_events : []);
+    for (const event of lifecycle) {
+        if (event?.type !== 'agent.session.lifecycle') continue;
+        sessionVitality.applyLifecycle(event);
+        if (['context_compaction_started', 'context_compacted', 'handoff_started', 'handoff_completed'].includes(event.event)) {
+            state.auraSpike = Math.max(state.auraSpike || 0, 1);
+        }
+        changed = true;
+    }
+
+    if (changed) {
+        publishSessionVitalitySnapshot();
+    }
+    return changed;
+}
+
 function handleHostMessage(rawMsg) {
     const msg = normalizeMessage(rawMsg);
     if (
@@ -1692,6 +1733,11 @@ function handleHostMessage(rawMsg) {
         });
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
+
+    if (msg.type === 'agent.session.telemetry' || msg.type === 'agent.session.lifecycle') {
+        handleSessionTelemetryEnvelope(msg);
+        return;
+    }
 
     if (msg.type === 'canvas_lifecycle') {
         const canvasId = msg.canvas_id || msg.canvas?.id;
@@ -1836,6 +1882,10 @@ function handleHostMessage(rawMsg) {
         if (msg.payload?.type === 'agent_terminal.avatar_toggle'
             || msg.payload?.type === 'codex_terminal.avatar_toggle') {
             void toggleUtilityCanvas('agent-terminal');
+            return;
+        }
+        if (msg.payload?.type === 'agent_terminal.session_telemetry') {
+            handleSessionTelemetryEnvelope(msg.payload.payload || {});
         }
         return;
     }
@@ -2039,6 +2089,9 @@ function animate() {
     if (fastTravelState?.avatarPos?.valid) {
         renderAvatarPos = fastTravelState.avatarPos;
     }
+    const vitalityFrame = sessionVitality.tick(dt, performance.now());
+    state.sessionVitality = vitalityFrame;
+    liveJs.sessionVitality = sessionVitality.snapshot();
 
     const visualActive = liveJs.avatarVisible
         || !!visibilityTransition.active
@@ -2054,6 +2107,7 @@ function animate() {
         const projected = projectAvatarToScene(renderAvatarPos.x, renderAvatarPos.y);
         state.polyGroup.position.copy(projected);
         state.pointLight.position.copy(state.polyGroup.position);
+        state.pointLight.intensity = 2 * (Number.isFinite(vitalityFrame.brightnessMultiplier) ? vitalityFrame.brightnessMultiplier : 1);
         window.__sigilRenderDebug = {
             desktopWorld: {
                 x: Math.round(renderAvatarPos.x),
@@ -2068,8 +2122,11 @@ function animate() {
     }
 
     if (!state.isPaused) {
-        state.polyGroup.rotation.y += 0.005;
-        state.polyGroup.rotation.x += 0.002;
+        const rotationMultiplier = Number.isFinite(vitalityFrame.rotationMultiplier)
+            ? vitalityFrame.rotationMultiplier
+            : 1;
+        state.polyGroup.rotation.y += 0.005 * rotationMultiplier;
+        state.polyGroup.rotation.x += 0.002 * rotationMultiplier;
     }
 
     const hoverTarget = liveJs.avatarHover && liveJs.avatarVisible && liveJs.currentState === 'IDLE' ? 1 : 0;
@@ -2123,7 +2180,8 @@ function animate() {
         window.__sigilBootFirstFrameAt = Date.now();
         recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
     }
-    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * (1 + liveJs.avatarHoverProgress * 0.055));
+    const vitalityScale = Number.isFinite(vitalityFrame.scaleMultiplier) ? vitalityFrame.scaleMultiplier : 1;
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * (1 + liveJs.avatarHoverProgress * 0.055));
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
@@ -2175,6 +2233,7 @@ window.__sigilDebug = {
                 enabled: interactionTrace.snapshot().enabled,
             },
             avatarVisible: liveJs.avatarVisible,
+            sessionVitality: liveJs.sessionVitality,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,
             hitTargetFrame: hitTarget.hit.frame,
