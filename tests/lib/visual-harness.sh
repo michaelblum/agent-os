@@ -14,6 +14,79 @@ aos_visual_aos() {
   printf '%s\n' "${AOS:-$VISUAL_HARNESS_ROOT/aos}"
 }
 
+aos_visual_assert_live_content_root() {
+  local root_name="$1"
+  local expected_path="$2"
+  local aos_bin mode status_json verdict
+  aos_bin="$(aos_visual_aos)"
+  mode="${AOS_VISUAL_CONTENT_PREFLIGHT:-fail}"
+
+  status_json="$("$aos_bin" content status --json 2>/dev/null)" || {
+    echo "FAIL: unable to read active AOS content roots for visual harness preflight." >&2
+    echo "Expected ${root_name}: ${expected_path}" >&2
+    return 1
+  }
+
+  verdict="$(python3 - "$root_name" "$expected_path" "$status_json" <<'PY'
+import json
+import pathlib
+import sys
+
+root_name, expected_path, payload = sys.argv[1:4]
+try:
+    status = json.loads(payload)
+except Exception as error:
+    print(f"error\tinvalid content status JSON: {error}")
+    raise SystemExit(0)
+
+roots = status.get("roots") or {}
+active_path = roots.get(root_name)
+if not active_path:
+    print(f"mismatch\t{root_name}\t{expected_path}\t<missing>")
+    raise SystemExit(0)
+
+def normalize(path):
+    return str(pathlib.Path(path).expanduser().resolve(strict=False))
+
+expected = normalize(expected_path)
+active = normalize(active_path)
+if expected != active:
+    print(f"mismatch\t{root_name}\t{expected}\t{active}")
+else:
+    print(f"ok\t{root_name}\t{expected}\t{active}")
+PY
+)"
+
+  case "$verdict" in
+    ok$'\t'*)
+      return 0
+      ;;
+    error$'\t'*)
+      echo "FAIL: ${verdict#*$'\t'}" >&2
+      return 1
+      ;;
+    mismatch$'\t'*)
+      local name expected active prefix
+      IFS=$'\t' read -r _ name expected active <<<"$verdict"
+      prefix="FAIL"
+      if [[ "$mode" == "warn" ]]; then
+        prefix="WARN"
+      fi
+      echo "${prefix}: live content root mismatch for ${name}." >&2
+      echo "Expected: ${expected}" >&2
+      echo "Active:   ${active}" >&2
+      echo "The running daemon is not serving the worktree used by this visual harness." >&2
+      echo "Restart AOS after changing content.roots. If explicit HTTP URL overrides are intentional, rerun with AOS_VISUAL_CONTENT_PREFLIGHT=warn." >&2
+      [[ "$mode" == "warn" ]]
+      return $?
+      ;;
+    *)
+      echo "FAIL: unexpected visual harness content preflight result: ${verdict}" >&2
+      return 1
+      ;;
+  esac
+}
+
 aos_visual_seed_sigil() {
   local mode="${1:-repo}"
   local aos_bin
@@ -35,6 +108,8 @@ aos_visual_prepare_live_roots() {
   "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
   "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
   "$aos_bin" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
+  aos_visual_assert_live_content_root toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit"
+  aos_visual_assert_live_content_root sigil "$VISUAL_HARNESS_ROOT/apps/sigil"
 }
 
 aos_visual_configure_sigil_status_item() {
