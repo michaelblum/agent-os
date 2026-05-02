@@ -304,6 +304,7 @@ class Canvas {
     var suspended: Bool = false
     var cascadeFromParent: Bool = true
     var parent: String?
+    var owner: CanvasOwnerInfo?
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
     /// `frame + externalScreen.frame.origin` for specific ratios, while
@@ -514,7 +515,8 @@ class Canvas {
             cascade: cascadeFromParent,
             suspended: suspended,
             windowNumbers: windowNumbers,
-            segments: nil
+            segments: nil,
+            owner: owner
         )
     }
 }
@@ -987,13 +989,17 @@ class CanvasManager {
             canvas = single
         }
         canvas.cascadeFromParent = req.cascade ?? true
+        canvas.owner = req.owner
         // Explicit parent from request (implicit parent set by daemon layer)
         if let explicitParent = req.parent {
-            guard canvases[explicitParent] != nil else {
+            guard let parentCanvas = canvases[explicitParent] else {
                 canvas.close()
                 return .fail("Parent canvas '\(explicitParent)' not found", code: "PARENT_NOT_FOUND")
             }
             canvas.parent = explicitParent
+            if canvas.owner == nil {
+                canvas.owner = parentCanvas.owner
+            }
         }
         // Born suspended: if explicitly requested, or if parent is suspended
         // and cascade is true, start hidden while still allowing the web view

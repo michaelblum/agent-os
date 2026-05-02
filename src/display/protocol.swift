@@ -77,6 +77,7 @@ struct CanvasRequest: Codable {
     var suspended: Bool?        // create hidden/suspended without showing a window first
     var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
+    var owner: CanvasOwnerInfo? = nil // optional caller/session metadata for daemon-owned resources
 
     enum CodingKeys: String, CodingKey {
         case action, id, at, offset, html, url, interactive, focus, ttl, js, scope
@@ -84,11 +85,51 @@ struct CanvasRequest: Codable {
         case anchorWindow = "anchor_window"
         case anchorChannel = "anchor_channel"
         case autoProject = "auto_project"
-        case track, surface, parent, cascade, suspended, channel, data
+        case track, surface, parent, cascade, suspended, channel, data, owner
     }
 }
 
 // MARK: - Response (Daemon → CLI)
+
+struct CanvasOwnerInfo: Codable, Equatable {
+    let consumerID: String
+    let harness: String
+    let pid: Int
+    let cwd: String
+    let worktreeRoot: String?
+    let runtimeMode: String
+
+    enum CodingKeys: String, CodingKey {
+        case consumerID = "consumer_id"
+        case harness
+        case pid
+        case cwd
+        case worktreeRoot = "worktree_root"
+        case runtimeMode = "runtime_mode"
+    }
+}
+
+extension CanvasOwnerInfo {
+    static func currentCLI() -> CanvasOwnerInfo {
+        let cwd = FileManager.default.currentDirectoryPath
+        return CanvasOwnerInfo(
+            consumerID: aosCurrentSessionKey(),
+            harness: aosCurrentSessionHarness(),
+            pid: Int(getpid()),
+            cwd: cwd,
+            worktreeRoot: aosRepoRootFromBases([cwd]),
+            runtimeMode: aosCurrentRuntimeMode().rawValue
+        )
+    }
+
+    func dictionary() -> [String: Any]? {
+        guard let data = try? JSONEncoder().encode(self),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return object
+    }
+}
 
 struct CanvasResponse: Codable {
     var status: String?         // "success" on success
@@ -116,6 +157,7 @@ struct CanvasInfo: Codable {
     var suspended: Bool?        // true if canvas is suspended (hidden + paused)
     var windowNumbers: [Int]?   // native window numbers backing this canvas
     var segments: [DesktopWorldSurfaceSegment]?  // present for DesktopWorldSurface canvases
+    var owner: CanvasOwnerInfo? // optional caller/session metadata that created the canvas
 }
 
 // MARK: - Encode/Decode Helpers

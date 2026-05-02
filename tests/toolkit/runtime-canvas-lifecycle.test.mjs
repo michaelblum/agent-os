@@ -96,6 +96,27 @@ test('mergeCanvasLifecycleCanvas preserves top-level native window numbers', () 
   assert.deepEqual(merged.windowNumbers, [4242])
 })
 
+test('mergeCanvasLifecycleCanvas preserves owner metadata', () => {
+  const owner = {
+    consumer_id: 'codex-thread-123',
+    harness: 'codex',
+    pid: 4242,
+    cwd: '/worktrees/agent-a',
+    worktree_root: '/worktrees/agent-a',
+    runtime_mode: 'repo',
+  }
+
+  const merged = mergeCanvasLifecycleCanvas(null, {
+    canvas_id: 'agent-panel',
+    action: 'created',
+    at: [10, 20, 300, 200],
+    interactive: true,
+    owner,
+  })
+
+  assert.deepEqual(merged.owner, owner)
+})
+
 test('mergeCanvasLifecycleCanvas preserves DesktopWorld surface segments', () => {
   const segments = [
     { display_id: 1, index: 0, dw_bounds: [0, 0, 100, 100], native_bounds: [0, 0, 100, 100] },

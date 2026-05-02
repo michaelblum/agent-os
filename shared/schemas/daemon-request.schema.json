@@ -113,7 +113,8 @@
         "surface": { "type": "string", "enum": ["desktop-world"] },
         "parent": { "type": "string" },
         "cascade": { "type": "boolean" },
-        "suspended": { "type": "boolean" }
+        "suspended": { "type": "boolean" },
+        "owner": { "$ref": "#/$defs/CanvasOwnerInfo" }
       },
       "oneOf": [
         { "required": ["at"], "not": { "required": ["surface"] } },
@@ -134,6 +135,19 @@
           }
         }
       ],
+      "additionalProperties": true
+    },
+    "CanvasOwnerInfo": {
+      "type": "object",
+      "required": ["consumer_id", "harness", "pid", "cwd", "runtime_mode"],
+      "properties": {
+        "consumer_id": { "type": "string", "minLength": 1 },
+        "harness": { "type": "string", "minLength": 1 },
+        "pid": { "type": "integer", "minimum": 1 },
+        "cwd": { "type": "string", "minLength": 1 },
+        "worktree_root": { "type": ["string", "null"] },
+        "runtime_mode": { "enum": ["repo", "installed"] }
+      },
       "additionalProperties": true
     },
     "ShowUpdateData": {

@@ -17,6 +17,7 @@ protocol CanvasLike: AnyObject {
     var suspended: Bool { get set }
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
+    var owner: CanvasOwnerInfo? { get set }
     var onMessage: ((Any) -> Void)? { get set }
     var onTTLExpired: (() -> Void)? { get set }
     var remainingTTL: Double? { get }
@@ -156,6 +157,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     var suspended: Bool = false
     var cascadeFromParent: Bool = true
     var parent: String? = nil
+    var owner: CanvasOwnerInfo? = nil
     var onTTLExpired: (() -> Void)?
     var onMessage: ((Any) -> Void)? {
         didSet {
@@ -293,7 +295,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             cascade: cascadeFromParent,
             suspended: suspended,
             windowNumbers: windowNumbers,
-            segments: segmentMetadata()
+            segments: segmentMetadata(),
+            owner: owner
         )
     }
 
