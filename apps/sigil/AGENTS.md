@@ -50,7 +50,7 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
 | `context-menu/` | Live avatar context menu implementation and agent playbook for menu diagnostics. |
-| `codex-terminal/` | Codex-only terminal MVP. A Sigil canvas fronts a named tmux session through a dependency-free local bridge; launch with `apps/sigil/codex-terminal/launch.sh`. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
+| `codex-terminal/` | Agent Terminal evolved from the Codex-only MVP. A Sigil canvas fronts a named tmux session through a dependency-free local bridge, lists local Codex/Claude Code sessions, and resumes provider CLI commands into the terminal carrier; launch with `apps/sigil/codex-terminal/launch.sh`. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
 | `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |

@@ -63,7 +63,7 @@ export const DEFAULT_SIGIL_RADIAL_ITEMS = [
     },
     {
         id: 'codex-terminal',
-        label: 'Codex Terminal',
+        label: 'Agent Terminal',
         action: 'codexTerminal',
         geometry: CODEX_TERMINAL_TABLET_MODEL,
     },

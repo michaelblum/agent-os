@@ -4,15 +4,17 @@ import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { listProviderSessions } from '../../../packages/host/src/session-catalog.ts';
 
-const port = Number(process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
+const port = Number(process.env.SIGIL_AGENT_TERMINAL_PORT || process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const ptyProxyPath = path.join(scriptDir, 'pty-proxy.py');
-const defaultSession = process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-codex-cli-agent-os';
-const defaultCwd = process.env.SIGIL_CODEX_CWD || process.cwd();
-const defaultCommand = process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
-const requestedDriver = process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
+const defaultSession = process.env.SIGIL_AGENT_TMUX_SESSION || process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-codex-cli-agent-os';
+const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD || process.cwd();
+const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
+const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
 const processSessions = new Map();
+const sessionCommands = new Map();
 const allowedKeys = new Set([
   'Enter',
   'C-c',
@@ -62,6 +64,22 @@ function run(cmd, args, options = {}) {
     throw error;
   }
   return result.stdout || '';
+}
+
+function shellQuote(value) {
+  const textValue = String(value);
+  if (/^[A-Za-z0-9_./:=@%+-]+$/.test(textValue)) return textValue;
+  return `'${textValue.replace(/'/g, `'\\''`)}'`;
+}
+
+function commandText(value) {
+  if (Array.isArray(value)) {
+    const parts = value.map((part) => String(part)).filter(Boolean);
+    if (!parts.length) return defaultCommand;
+    return parts.map(shellQuote).join(' ');
+  }
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return defaultCommand;
 }
 
 function commandExists(command) {
@@ -123,9 +141,13 @@ function hasSession(session) {
 }
 
 function appendProcessOutput(record, chunk) {
-  record.buffer += chunk.toString('utf8');
+  const textChunk = chunk.toString('utf8');
+  record.buffer += textChunk;
   if (record.buffer.length > 240000) {
     record.buffer = record.buffer.slice(-200000);
+  }
+  for (const client of record.clients) {
+    if (!client.destroyed) client.write(wsFrame(textChunk));
   }
 }
 
@@ -149,18 +171,34 @@ function ensureProcessSession(session, cwd, command, force = false) {
     command: shellCommand,
     cwd: cwd || defaultCwd,
     buffer: `$ ${shellCommand}\n`,
+    clients: new Set(),
     exited: false,
   };
   processSessions.set(session, record);
+  sessionCommands.set(session, { command: shellCommand, cwd: cwd || defaultCwd });
   child.stdout.on('data', chunk => appendProcessOutput(record, chunk));
   child.stderr.on('data', chunk => appendProcessOutput(record, chunk));
   child.on('exit', (code, signal) => {
     record.exited = true;
-    record.buffer += `\n[process exited: ${signal || (code ?? 0)}]\n`;
+    const message = `\n[process exited: ${signal || (code ?? 0)}]\n`;
+    record.buffer += message;
+    for (const client of record.clients) {
+      if (!client.destroyed) {
+        client.write(wsFrame(message));
+        client.end();
+      }
+    }
   });
   child.on('error', error => {
     record.exited = true;
-    record.buffer += `\n[process error: ${error.message}]\n`;
+    const message = `\n[process error: ${error.message}]\n`;
+    record.buffer += message;
+    for (const client of record.clients) {
+      if (!client.destroyed) {
+        client.write(wsFrame(message));
+        client.end();
+      }
+    }
   });
   return { created: true, driver: 'process' };
 }
@@ -177,6 +215,7 @@ function ensureTmuxSession(session, cwd, command, force = false) {
   if (cwd) args.push('-c', cwd);
   args.push(command || defaultCommand);
   run('tmux', args);
+  sessionCommands.set(session, { command: command || defaultCommand, cwd: cwd || defaultCwd });
   return { created: true, driver: 'tmux' };
 }
 
@@ -296,7 +335,46 @@ function terminalCommandForSession(session) {
   if (tmuxAvailable && hasSession(session)) {
     return `tmux attach-session -t ${JSON.stringify(session)}`;
   }
-  return defaultCommand;
+  return processSessions.get(session)?.command || sessionCommands.get(session)?.command || defaultCommand;
+}
+
+function terminalCwdForSession(session) {
+  return processSessions.get(session)?.cwd || sessionCommands.get(session)?.cwd || defaultCwd;
+}
+
+function attachExistingProcessSocket(socket, session, record) {
+  terminalClients.add(socket);
+  record.clients.add(socket);
+  if (record.buffer) socket.write(wsFrame(record.buffer));
+  let incoming = Buffer.alloc(0);
+
+  function detach() {
+    terminalClients.delete(socket);
+    record.clients.delete(socket);
+  }
+
+  socket.on('data', chunk => {
+    incoming = Buffer.concat([incoming, chunk]);
+    const decoded = decodeWsFrames(incoming);
+    incoming = decoded.rest;
+    for (const frame of decoded.frames) {
+      if (frame.opcode === 8) {
+        socket.end();
+        return;
+      }
+      if (frame.opcode === 9) {
+        socket.write(wsFrame(frame.payload, 10));
+        continue;
+      }
+      if (frame.opcode === 1 || frame.opcode === 2) {
+        const payload = frame.payload.toString('utf8');
+        if (frame.opcode === 1 && payload.charCodeAt(0) === 0) continue;
+        record.child.stdin.write(frame.payload);
+      }
+    }
+  });
+  socket.on('close', detach);
+  socket.on('error', detach);
 }
 
 function attachTerminalSocket(socket, req) {
@@ -319,9 +397,15 @@ function attachTerminalSocket(socket, req) {
     '\r\n',
   ].join('\r\n'));
 
+  const existing = processSessions.get(session);
+  if (activeDriver() === 'process' && existing && !existing.exited) {
+    attachExistingProcessSocket(socket, session, existing);
+    return;
+  }
+
   const command = terminalCommandForSession(session);
   const child = spawn(pythonAvailable ? 'python3' : 'sh', pythonAvailable ? [ptyProxyPath, command] : ['-lc', command], {
-    cwd: defaultCwd,
+    cwd: terminalCwdForSession(session),
     stdio: 'pipe',
     env: { ...process.env, TERM: 'xterm-256color' },
   });
@@ -407,11 +491,26 @@ async function handle(req, res) {
       json(res, 200, {
         ok: true,
         defaultSession,
+        defaultCwd,
         driver: activeDriver(),
         tmuxAvailable,
         scriptAvailable,
         pythonAvailable,
       });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/sessions') {
+      const providerParams = url.searchParams.getAll('provider');
+      const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
+      const sessions = listProviderSessions({
+        homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
+        codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
+        claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
+        cwd: url.searchParams.get('cwd') || defaultCwd,
+        providers: providers.length ? providers : undefined,
+      });
+      json(res, 200, { sessions });
       return;
     }
 
@@ -431,7 +530,7 @@ async function handle(req, res) {
       const result = ensureSession(
         session,
         typeof body.cwd === 'string' ? body.cwd : defaultCwd,
-        typeof body.command === 'string' ? body.command : defaultCommand,
+        commandText(body.command),
         body.force === true,
       );
       json(res, 200, { ok: true, session, ...result });
