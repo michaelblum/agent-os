@@ -369,6 +369,7 @@ const meters = document.getElementById('meters');
 const lastTelemetry = document.getElementById('last-telemetry');
 const readback = document.getElementById('readback');
 const logEl = document.getElementById('log');
+let pendingTelemetryApply = null;
 
 const params = new URLSearchParams(location.search);
 controls.targetCanvas.value = params.get('target') || DEFAULT_LAB_STATE.targetCanvasId;
@@ -473,7 +474,28 @@ function dispatchCanvasSend(delivery) {
   post('canvas.send', delivery);
 }
 
+function clearPendingTelemetryApply() {
+  if (pendingTelemetryApply === null) return;
+  clearTimeout(pendingTelemetryApply);
+  pendingTelemetryApply = null;
+}
+
+function scheduleTelemetryApply(delayMs = 120) {
+  clearPendingTelemetryApply();
+  pendingTelemetryApply = setTimeout(() => {
+    pendingTelemetryApply = null;
+    void applyTelemetry();
+  }, delayMs);
+}
+
+async function flushTelemetryApply() {
+  if (pendingTelemetryApply === null) return null;
+  clearPendingTelemetryApply();
+  return applyTelemetry();
+}
+
 async function applyTelemetry(overrides = {}) {
+  clearPendingTelemetryApply();
   const state = stateFromControls(overrides);
   const telemetry = makeTelemetry(state);
   const delivery = makeTelemetryDelivery(state, telemetry);
@@ -485,6 +507,7 @@ async function applyTelemetry(overrides = {}) {
 }
 
 async function sendLifecycle(eventName) {
+  await flushTelemetryApply();
   const state = stateFromControls();
   const event = makeLifecycleEvent(eventName, state);
   const delivery = makeLifecycleDelivery(state, event);
@@ -587,13 +610,34 @@ for (const element of [controls.targetCanvas, controls.provider, controls.delive
   element.addEventListener('input', () => syncDerivedControls());
   element.addEventListener('change', () => syncDerivedControls());
 }
-controls.mode.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
-controls.usedRatio.addEventListener('input', () => syncDerivedControls({ syncTokensFromRatio: true }));
-controls.usedRatio.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: true }));
-controls.usedTokens.addEventListener('input', syncRatioFromTokenControls);
-controls.usedTokens.addEventListener('change', syncRatioFromTokenControls);
-controls.windowTokens.addEventListener('input', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
-controls.windowTokens.addEventListener('change', () => syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' }));
+controls.mode.addEventListener('change', () => {
+  syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' });
+  scheduleTelemetryApply(0);
+});
+controls.usedRatio.addEventListener('input', () => {
+  syncDerivedControls({ syncTokensFromRatio: true });
+  scheduleTelemetryApply();
+});
+controls.usedRatio.addEventListener('change', () => {
+  syncDerivedControls({ syncTokensFromRatio: true });
+  scheduleTelemetryApply(0);
+});
+controls.usedTokens.addEventListener('input', () => {
+  syncRatioFromTokenControls();
+  scheduleTelemetryApply();
+});
+controls.usedTokens.addEventListener('change', () => {
+  syncRatioFromTokenControls();
+  scheduleTelemetryApply(0);
+});
+controls.windowTokens.addEventListener('input', () => {
+  syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' });
+  scheduleTelemetryApply();
+});
+controls.windowTokens.addEventListener('change', () => {
+  syncDerivedControls({ syncTokensFromRatio: controls.mode.value === 'tokens' });
+  scheduleTelemetryApply(0);
+});
 document.getElementById('apply').addEventListener('click', () => { void applyTelemetry(); });
 document.getElementById('read-target').addEventListener('click', () => { void readTarget(); });
 

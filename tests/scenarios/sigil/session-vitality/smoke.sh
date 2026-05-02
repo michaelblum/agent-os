@@ -86,6 +86,33 @@ aos_visual_avoid_sigil_avatar_overlap "$AVATAR_ID" "$INSPECTOR_ID"
 
 "$aos_bin" show eval \
   --id "$LAB_ID" \
+  --js 'const slider = document.getElementById("used-ratio"); slider.value = "0.2"; slider.dispatchEvent(new Event("input", { bubbles: true })); "ok"' >/dev/null
+
+sleep 0.5
+
+slider_snapshot="$("$aos_bin" show eval --id "$AVATAR_ID" --js 'JSON.stringify(window.__sigilDebug.snapshot().sessionVitality?.factors || null)')"
+python3 - "$slider_snapshot" <<'PY'
+import json
+import sys
+
+outer = json.loads(sys.argv[1])
+factors = json.loads(outer.get("result") or "null")
+if not isinstance(factors, dict):
+    print("FAIL: no slider session vitality factors returned", file=sys.stderr)
+    raise SystemExit(1)
+
+pressure = factors.get("pressure")
+if not (isinstance(pressure, (int, float)) and 0.19 <= pressure <= 0.21):
+    print(f"FAIL: expected slider input to live-send pressure near 0.2, got {pressure!r}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(json.dumps({
+    "liveSliderPressure": pressure,
+}, sort_keys=True))
+PY
+
+"$aos_bin" show eval \
+  --id "$LAB_ID" \
   --js 'window.__sessionVitalityLab.setPreset("near-full"); window.__sessionVitalityLab.applyTelemetry(); "ok"' >/dev/null
 
 sleep 0.5
