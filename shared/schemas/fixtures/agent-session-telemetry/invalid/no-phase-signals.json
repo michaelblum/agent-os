@@ -1,0 +1,12 @@
+{
+  "type": "agent.session.telemetry",
+  "schema_version": "2026-05-02",
+  "observed_at": "2026-05-02T12:00:00.000Z",
+  "session": {
+    "provider": "codex",
+    "session_id": "019de3a9-2b0b-79f2-bb17-79dfb2c7a706"
+  },
+  "context": {
+    "phase": "healthy"
+  }
+}
