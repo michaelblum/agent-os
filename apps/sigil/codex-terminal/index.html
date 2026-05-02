@@ -319,7 +319,7 @@
   <script>
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
-    const session = params.get('session') || 'sigil-codex-cli-agent-os';
+    const session = params.get('session') || 'sigil-agent-terminal-agent-os';
     let currentCwd = params.get('cwd') || '';
     let activeLabel = 'Agent terminal';
     const shell = document.getElementById('shell');
@@ -608,7 +608,7 @@
     document.getElementById('avatarButton').addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      emit({ type: 'codex_terminal.avatar_toggle' });
+      emit({ type: 'agent_terminal.avatar_toggle' });
     });
 
     document.getElementById('dragHandle').addEventListener('mousedown', (event) => {
@@ -647,7 +647,7 @@
         scheduleRefit();
         emit({ type: 'lifecycle.complete', payload: { action: 'resume' } });
       }
-      if (msg?.type === 'codex_terminal.refit') scheduleRefit();
+      if (msg?.type === 'agent_terminal.refit' || msg?.type === 'codex_terminal.refit') scheduleRefit();
       if (msg?.type === 'agent_terminal.refresh_sessions') void loadSessions();
     };
     window.focusInput = function focusInput() {

@@ -7,19 +7,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"
-CANVAS_ID="${CANVAS_ID:-sigil-codex-terminal}"
+CANVAS_ID="${CANVAS_ID:-sigil-agent-terminal}"
 AVATAR_ID="${AVATAR_ID:-avatar-main}"
-SESSION="${SESSION:-sigil-codex-cli-agent-os}"
+SESSION="${SESSION:-sigil-agent-terminal-agent-os}"
 PORT="${PORT:-17761}"
 CWD_TARGET="${CWD_TARGET:-$REPO_ROOT}"
 AGENT_COMMAND="${AGENT_COMMAND:-${CODEX_COMMAND:-codex --no-alt-screen}}"
 STATE_DIR="${HOME}/.config/aos/${MODE}/sigil"
 BRIDGE_LOG="${STATE_DIR}/agent-terminal-bridge.log"
-BRIDGE_SESSION="${BRIDGE_SESSION:-sigil-codex-bridge-${PORT}}"
+BRIDGE_SESSION="${BRIDGE_SESSION:-sigil-agent-bridge-${PORT}}"
 
 usage() {
   printf 'Usage: %s [--new|--new-codex|--new-claude|--pick|--last|--restart]\n' "$0"
-  printf 'Default starts a fresh Sigil-owned Codex CLI. Use --new-claude for Claude Code.\n'
+  printf 'Default starts a fresh Sigil-owned agent CLI. Use --new-codex or --new-claude for a specific provider.\n'
 }
 
 RESTART=0
@@ -174,6 +174,9 @@ main() {
   fi
 
   "$AOS" show remove --id "$CANVAS_ID" >/dev/null 2>&1 || true
+  if [[ "$CANVAS_ID" != "sigil-codex-terminal" ]]; then
+    "$AOS" show remove --id "sigil-codex-terminal" >/dev/null 2>&1 || true
+  fi
   local frame
   local encoded_cwd
   frame="$(compute_frame)"
@@ -182,7 +185,7 @@ main() {
     --at "$frame" \
     --interactive \
     --focus \
-    --url "aos://sigil/codex-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}" >/dev/null
+    --url "aos://sigil/agent-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}" >/dev/null
 
   echo "Sigil Agent terminal launched."
   echo "  canvas:  $CANVAS_ID ($frame)"

@@ -50,6 +50,7 @@ test('Sigil radial menu commits configured context item on release', () => {
 
 test('Sigil radial menu config carries native wiki model geometry', () => {
   const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
   const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
 
   assert.equal(contextItem.action, 'contextMenu')
@@ -58,6 +59,11 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.match(contextItem.geometry.src, /cog\/scene\.gltf$/)
   assert.deepEqual(contextItem.geometry.rotationDegrees, { x: 90, y: 0, z: 0 })
   assert.equal(contextItem.geometry.attribution.author, 'Jiri Kuba')
+
+  assert.equal(agentTerminalItem.label, 'Agent Terminal')
+  assert.equal(agentTerminalItem.action, 'agentTerminal')
+  assert.equal(agentTerminalItem.geometry.type, 'gltf')
+  assert.match(agentTerminalItem.geometry.src, /low-poly-sci-fi-tablet\/scene\.gltf$/)
 
   assert.equal(wikiItem.action, 'wikiGraph')
   assert.equal(wikiItem.geometry.type, 'gltf')

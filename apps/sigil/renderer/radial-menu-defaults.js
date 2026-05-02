@@ -35,7 +35,7 @@ export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     },
 };
 
-export const CODEX_TERMINAL_TABLET_MODEL = {
+export const AGENT_TERMINAL_TABLET_MODEL = {
     type: 'gltf',
     src: '../assets/models/low-poly-sci-fi-tablet/scene.gltf',
     modelUid: 'ee1fde7ec1514fd5a61790809ebd46a6',
@@ -62,10 +62,10 @@ export const DEFAULT_SIGIL_RADIAL_ITEMS = [
         geometry: CONTEXT_COG_MODEL,
     },
     {
-        id: 'codex-terminal',
+        id: 'agent-terminal',
         label: 'Agent Terminal',
-        action: 'codexTerminal',
-        geometry: CODEX_TERMINAL_TABLET_MODEL,
+        action: 'agentTerminal',
+        geometry: AGENT_TERMINAL_TABLET_MODEL,
     },
     {
         id: 'wiki-graph',

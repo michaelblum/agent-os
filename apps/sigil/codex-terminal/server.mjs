@@ -9,7 +9,7 @@ import { listProviderSessions } from '../../../packages/host/src/session-catalog
 const port = Number(process.env.SIGIL_AGENT_TERMINAL_PORT || process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const ptyProxyPath = path.join(scriptDir, 'pty-proxy.py');
-const defaultSession = process.env.SIGIL_AGENT_TMUX_SESSION || process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-codex-cli-agent-os';
+const defaultSession = process.env.SIGIL_AGENT_TMUX_SESSION || process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-agent-terminal-agent-os';
 const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD || process.cwd();
 const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
 const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
@@ -600,5 +600,5 @@ server.on('upgrade', (req, socket) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`sigil-codex-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
+  console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
 });

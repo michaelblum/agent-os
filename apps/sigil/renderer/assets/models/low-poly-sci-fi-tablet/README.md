@@ -1,6 +1,6 @@
 # Low Poly Sci-Fi Tablet Radial Asset
 
-Sigil's Codex terminal radial item loads this native Three.js glTF asset from:
+Sigil's Agent Terminal radial item loads this native Three.js glTF asset from:
 
 ```text
 apps/sigil/renderer/assets/models/low-poly-sci-fi-tablet/scene.gltf

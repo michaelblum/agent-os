@@ -103,9 +103,10 @@ const liveJs = {
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
-const CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
-const CODEX_TERMINAL_URL = 'aos://sigil/codex-terminal/index.html?port=17761&session=sigil-codex-cli-agent-os';
-const CODEX_TERMINAL_PARK_SCALE = 0.24;
+const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
+const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
+const AGENT_TERMINAL_URL = 'aos://sigil/agent-terminal/index.html?port=17761&session=sigil-agent-terminal-agent-os';
+const AGENT_TERMINAL_PARK_SCALE = 0.24;
 const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
@@ -577,7 +578,8 @@ const UTILITY_CANVAS_IDS = new Set([
     'canvas-inspector',
     'sigil-interaction-trace',
     RENDER_PERFORMANCE_CANVAS_ID,
-    CODEX_TERMINAL_CANVAS_ID,
+    AGENT_TERMINAL_CANVAS_ID,
+    LEGACY_CODEX_TERMINAL_CANVAS_ID,
 ]);
 
 function markAppearanceChanged() {
@@ -662,7 +664,7 @@ function utilityConfig(kind) {
             frame: utilityFrame(kind),
         };
     }
-    if (kind === 'codex-terminal') {
+    if (kind === 'agent-terminal' || kind === 'codex-terminal') {
         const visible = mainDisplayVisibleBounds() || { x: 0, y: 0, w: 1512, h: 875 };
         const previousWidth = Math.min(920, Math.max(720, visible.w * 0.58));
         const width = Math.round(previousWidth * 2 / 3);
@@ -674,8 +676,8 @@ function utilityConfig(kind) {
             Math.round(height),
         ];
         return {
-            id: CODEX_TERMINAL_CANVAS_ID,
-            url: CODEX_TERMINAL_URL,
+            id: AGENT_TERMINAL_CANVAS_ID,
+            url: AGENT_TERMINAL_URL,
             frame: defaultFrame,
         };
     }
@@ -686,16 +688,22 @@ function utilityConfig(kind) {
     };
 }
 
-function codexTerminalFrame() {
-    return utilityConfig('codex-terminal').frame;
+function agentTerminalFrame() {
+    return utilityConfig('agent-terminal').frame;
 }
 
-function codexTerminalState() {
-    return liveJs.utilityCanvases.get(CODEX_TERMINAL_CANVAS_ID) || null;
+function agentTerminalState() {
+    return liveJs.utilityCanvases.get(AGENT_TERMINAL_CANVAS_ID)
+        || liveJs.utilityCanvases.get(LEGACY_CODEX_TERMINAL_CANVAS_ID)
+        || null;
 }
 
-function isCodexTerminalVisible() {
-    const current = codexTerminalState();
+function isAgentTerminalCanvasId(id) {
+    return id === AGENT_TERMINAL_CANVAS_ID || id === LEGACY_CODEX_TERMINAL_CANVAS_ID;
+}
+
+function isAgentTerminalVisible() {
+    const current = agentTerminalState();
     return liveJs.avatarParking?.mode === 'terminal' || (!!current && current.suspended !== true);
 }
 
@@ -761,7 +769,7 @@ function postRenderPerformanceSample({ frameStartedAt, renderStartedAt, renderEn
     }
 }
 
-function isCodexTerminalParkedAtStatus() {
+function isAgentTerminalParkedAtStatus() {
     return liveJs.avatarParking?.mode === 'status';
 }
 
@@ -777,7 +785,7 @@ function nativePointToDesktop(nativePoint) {
     return nativeToDesktopWorldPoint(nativePoint, liveJs.displays) ?? nativePoint;
 }
 
-function parkAvatarAtNativePoint(nativePoint, mode, scale = CODEX_TERMINAL_PARK_SCALE) {
+function parkAvatarAtNativePoint(nativePoint, mode, scale = AGENT_TERMINAL_PARK_SCALE) {
     const desktopPoint = nativePointToDesktop(nativePoint);
     if (!desktopPoint) return;
     if (!liveJs.avatarParking && liveJs.avatarPos.valid) {
@@ -796,12 +804,12 @@ function parkAvatarAtNativePoint(nativePoint, mode, scale = CODEX_TERMINAL_PARK_
 }
 
 function parkAvatarInTerminal(frameLike) {
-    const frame = Array.isArray(frameLike) ? frameLike : codexTerminalState()?.at;
+    const frame = Array.isArray(frameLike) ? frameLike : agentTerminalState()?.at;
     if (!Array.isArray(frame) || frame.length < 4) return;
     parkAvatarAtNativePoint({
         x: Number(frame[0]) + 23,
         y: Number(frame[1]) + 21,
-    }, 'terminal', CODEX_TERMINAL_PARK_SCALE);
+    }, 'terminal', AGENT_TERMINAL_PARK_SCALE);
 }
 
 function parkAvatarAtStatus(msg) {
@@ -845,61 +853,63 @@ function animateUtilityCanvasFrame(id, from, to, durationMs = 180) {
     });
 }
 
-async function collapseCodexTerminalToStatus(msg) {
-    const current = codexTerminalState();
+async function collapseAgentTerminalToStatus(msg) {
+    const current = agentTerminalState();
     const origin = nativePointFromMessageOrigin(msg);
     if (!current || !origin) return false;
-    liveJs.pendingCodexTerminalCollapse = 'status';
-    liveJs.pendingCodexTerminalStatusPoint = { ...origin };
+    const targetId = isAgentTerminalCanvasId(current.id) ? current.id : AGENT_TERMINAL_CANVAS_ID;
+    liveJs.pendingAgentTerminalCollapse = 'status';
+    liveJs.pendingAgentTerminalStatusPoint = { ...origin };
     parkAvatarAtStatus(msg);
-    const from = Array.isArray(current.at) ? current.at.map(Number) : codexTerminalFrame();
+    const from = Array.isArray(current.at) ? current.at.map(Number) : agentTerminalFrame();
     const to = [origin.x - 14, origin.y - 14, 28, 28];
-    await animateUtilityCanvasFrame(CODEX_TERMINAL_CANVAS_ID, from, to, 180);
-    await host.canvasSuspend(CODEX_TERMINAL_CANVAS_ID);
-    host.canvasUpdate({ id: CODEX_TERMINAL_CANVAS_ID, frame: from });
-    liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, { ...current, suspended: true, at: from });
+    await animateUtilityCanvasFrame(targetId, from, to, 180);
+    await host.canvasSuspend(targetId);
+    host.canvasUpdate({ id: targetId, frame: from });
+    liveJs.utilityCanvases.set(targetId, { ...current, id: targetId, suspended: true, at: from });
     return true;
 }
 
-async function restoreCodexTerminalFromStatus() {
-    const current = codexTerminalState();
+async function restoreAgentTerminalFromStatus() {
+    const current = agentTerminalState();
     if (!current) return false;
-    liveJs.pendingCodexTerminalCollapse = null;
-    liveJs.pendingCodexTerminalStatusPoint = null;
-    const frame = Array.isArray(current.at) ? current.at : codexTerminalFrame();
-    host.canvasUpdate({ id: CODEX_TERMINAL_CANVAS_ID, frame });
-    await host.canvasResume(CODEX_TERMINAL_CANVAS_ID);
-    liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, { ...current, suspended: false, at: frame });
+    const targetId = isAgentTerminalCanvasId(current.id) ? current.id : AGENT_TERMINAL_CANVAS_ID;
+    liveJs.pendingAgentTerminalCollapse = null;
+    liveJs.pendingAgentTerminalStatusPoint = null;
+    const frame = Array.isArray(current.at) ? current.at : agentTerminalFrame();
+    host.canvasUpdate({ id: targetId, frame });
+    await host.canvasResume(targetId);
+    liveJs.utilityCanvases.set(targetId, { ...current, id: targetId, suspended: false, at: frame });
     parkAvatarInTerminal(frame);
     return true;
 }
 
-async function prewarmCodexTerminalCanvas() {
-    if (liveJs._codexTerminalPrewarmStarted) return;
-    liveJs._codexTerminalPrewarmStarted = true;
-    liveJs.prewarmingCodexTerminal = true;
-    const frame = codexTerminalFrame();
+async function prewarmAgentTerminalCanvas() {
+    if (liveJs._agentTerminalPrewarmStarted) return;
+    liveJs._agentTerminalPrewarmStarted = true;
+    liveJs.prewarmingAgentTerminal = true;
+    const frame = agentTerminalFrame();
     try {
         await host.canvasCreate({
-            id: CODEX_TERMINAL_CANVAS_ID,
-            url: CODEX_TERMINAL_URL,
+            id: AGENT_TERMINAL_CANVAS_ID,
+            url: AGENT_TERMINAL_URL,
             frame,
             interactive: true,
             focus: false,
             suspended: true,
         });
-        liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, {
-            id: CODEX_TERMINAL_CANVAS_ID,
+        liveJs.utilityCanvases.set(AGENT_TERMINAL_CANVAS_ID, {
+            id: AGENT_TERMINAL_CANVAS_ID,
             suspended: true,
             at: frame,
         });
     } catch (error) {
         // Existing sessions are common after launcher/reload; use lifecycle snapshots.
         if (!/ID_COLLISION|DUPLICATE/i.test(String(error?.message || error))) {
-            console.warn('[sigil] codex terminal prewarm failed:', error);
+            console.warn('[sigil] agent terminal prewarm failed:', error);
         }
     } finally {
-        liveJs.prewarmingCodexTerminal = false;
+        liveJs.prewarmingAgentTerminal = false;
     }
 }
 
@@ -910,7 +920,7 @@ async function toggleUtilityCanvas(kind) {
         if (current && current.suspended !== true) {
             await host.canvasSuspend(config.id);
             liveJs.utilityCanvases.set(config.id, { ...current, suspended: true });
-            if (config.id === CODEX_TERMINAL_CANVAS_ID && liveJs.avatarParking?.mode === 'terminal') {
+            if (isAgentTerminalCanvasId(config.id) && liveJs.avatarParking?.mode === 'terminal') {
                 clearAvatarParking({ restoreVisible: true });
             }
             return;
@@ -920,7 +930,7 @@ async function toggleUtilityCanvas(kind) {
             host.canvasUpdate({ id: config.id, frame });
             await host.canvasResume(config.id);
             liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
-            if (config.id === CODEX_TERMINAL_CANVAS_ID) {
+            if (isAgentTerminalCanvasId(config.id)) {
                 parkAvatarInTerminal(frame);
             }
             return;
@@ -937,7 +947,7 @@ async function toggleUtilityCanvas(kind) {
             suspended: false,
             at: config.frame,
         });
-        if (config.id === CODEX_TERMINAL_CANVAS_ID) {
+        if (isAgentTerminalCanvasId(config.id)) {
             parkAvatarInTerminal(config.frame);
         }
     } catch (error) {
@@ -1102,8 +1112,8 @@ const radialGestureMenu = createSigilRadialGestureMenu({
             openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
             return;
         }
-        if (item?.action === 'codexTerminal') {
-            toggleUtilityCanvas('codex-terminal');
+        if (item?.action === 'agentTerminal' || item?.action === 'codexTerminal') {
+            toggleUtilityCanvas('agent-terminal');
             return;
         }
         if (item?.action === 'wikiGraph') {
@@ -1696,36 +1706,36 @@ function handleHostMessage(rawMsg) {
                     at: msg.at ?? msg.canvas?.at ?? null,
                 });
             }
-            if (canvasId === CODEX_TERMINAL_CANVAS_ID) {
+            if (isAgentTerminalCanvasId(canvasId)) {
                 const suspended = msg.suspended ?? msg.canvas?.suspended;
                 if (msg.action === 'removed') {
                     clearAvatarParking({ restoreVisible: true });
-                    liveJs.pendingCodexTerminalCollapse = null;
-                    liveJs.pendingCodexTerminalStatusPoint = null;
-                    liveJs.prewarmingCodexTerminal = false;
-                } else if (liveJs.prewarmingCodexTerminal) {
+                    liveJs.pendingAgentTerminalCollapse = null;
+                    liveJs.pendingAgentTerminalStatusPoint = null;
+                    liveJs.prewarmingAgentTerminal = false;
+                } else if (liveJs.prewarmingAgentTerminal) {
                     if (suspended === true) {
-                        liveJs.utilityCanvases.set(CODEX_TERMINAL_CANVAS_ID, {
-                            ...(codexTerminalState() || {}),
-                            id: CODEX_TERMINAL_CANVAS_ID,
+                        liveJs.utilityCanvases.set(canvasId, {
+                            ...(agentTerminalState() || {}),
+                            id: canvasId,
                             suspended: true,
-                            at: codexTerminalFrame(),
+                            at: agentTerminalFrame(),
                         });
                     }
                 } else if (suspended === true) {
-                    if (liveJs.pendingCodexTerminalCollapse === 'status' || isCodexTerminalParkedAtStatus()) {
-                        const statusPoint = liveJs.pendingCodexTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
+                    if (liveJs.pendingAgentTerminalCollapse === 'status' || isAgentTerminalParkedAtStatus()) {
+                        const statusPoint = liveJs.pendingAgentTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
                         parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
                     } else if (liveJs.avatarParking?.mode === 'terminal') {
                         clearAvatarParking({ restoreVisible: true });
                     }
                 } else {
-                    if (liveJs.pendingCodexTerminalCollapse === 'status') {
-                        const statusPoint = liveJs.pendingCodexTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
+                    if (liveJs.pendingAgentTerminalCollapse === 'status') {
+                        const statusPoint = liveJs.pendingAgentTerminalStatusPoint || liveJs.avatarParking?.nativePoint;
                         parkAvatarAtStatus({ origin_x: statusPoint?.x, origin_y: statusPoint?.y });
                     } else {
-                        liveJs.pendingCodexTerminalCollapse = null;
-                        liveJs.pendingCodexTerminalStatusPoint = null;
+                        liveJs.pendingAgentTerminalCollapse = null;
+                        liveJs.pendingAgentTerminalStatusPoint = null;
                         const frame = msg.at ?? msg.canvas?.at;
                         parkAvatarInTerminal(frame);
                     }
@@ -1742,15 +1752,15 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.toggle') {
-        if (isCodexTerminalVisible()) {
-            void collapseCodexTerminalToStatus(msg).catch((error) => {
-                console.warn('[sigil] codex terminal collapse failed:', error);
+        if (isAgentTerminalVisible()) {
+            void collapseAgentTerminalToStatus(msg).catch((error) => {
+                console.warn('[sigil] agent terminal collapse failed:', error);
             });
             return;
         }
-        if (isCodexTerminalParkedAtStatus() && codexTerminalState()?.suspended === true) {
-            void restoreCodexTerminalFromStatus().catch((error) => {
-                console.warn('[sigil] codex terminal restore failed:', error);
+        if (isAgentTerminalParkedAtStatus() && agentTerminalState()?.suspended === true) {
+            void restoreAgentTerminalFromStatus().catch((error) => {
+                console.warn('[sigil] agent terminal restore failed:', error);
             });
             return;
         }
@@ -1822,9 +1832,10 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
-    if (msg.type === 'canvas_message' && msg.id === CODEX_TERMINAL_CANVAS_ID) {
-        if (msg.payload?.type === 'codex_terminal.avatar_toggle') {
-            void toggleUtilityCanvas('codex-terminal');
+    if (msg.type === 'canvas_message' && isAgentTerminalCanvasId(msg.id)) {
+        if (msg.payload?.type === 'agent_terminal.avatar_toggle'
+            || msg.payload?.type === 'codex_terminal.avatar_toggle') {
+            void toggleUtilityCanvas('agent-terminal');
         }
         return;
     }
@@ -2226,7 +2237,7 @@ export async function boot() {
     runBootStep('applyDefaultAvatarDefinition', () => applyDefaultAvatarDefinition(defaultAvatar));
 
     recordBoot('boot:displayReady', { displays: displays.length });
-    if (isPrimarySurfaceSegment()) void prewarmCodexTerminalCanvas();
+    if (isPrimarySurfaceSegment()) void prewarmAgentTerminalCanvas();
 
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
     if (position) {
