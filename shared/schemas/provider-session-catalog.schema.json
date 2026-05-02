@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/provider-session-catalog.schema.json",
+  "title": "Provider Session Catalog",
+  "description": "Read-only normalized records for local provider-owned agent sessions, sorted by recency.",
+  "type": "array",
+  "items": { "$ref": "#/$defs/providerSessionRecord" },
+  "$defs": {
+    "providerSessionRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "session_id",
+        "cwd",
+        "updated_at",
+        "source_file",
+        "resume_command"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["codex", "claude-code"]
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_message_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_file": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resume_command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
