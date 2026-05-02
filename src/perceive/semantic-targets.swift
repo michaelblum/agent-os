@@ -110,21 +110,38 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
 
 func collectCanvasSemanticTargets(canvasID: String, scaleFactor: Double) -> [AOSSemanticTargetJSON]? {
     let js = semanticTargetProbeJS(canvasID: canvasID, scaleFactor: scaleFactor)
-    guard
-        let response = sendEnvelopeRequest(
-            service: "show",
-            action: "eval",
-            data: ["id": canvasID, "js": js],
-            autoStartBinary: aosExecutablePath()
-        ),
-        let decoded = decodeCanvasResponse(response),
-        decoded.error == nil,
-        let result = decoded.result,
-        !result.hasPrefix("error:")
-    else {
-        return nil
+    let maxAttempts = 5
+    let retryDelaySeconds = 0.05
+
+    for attempt in 0..<maxAttempts {
+        guard
+            let response = sendEnvelopeRequest(
+                service: "show",
+                action: "eval",
+                data: ["id": canvasID, "js": js],
+                autoStartBinary: aosExecutablePath()
+            ),
+            let decoded = decodeCanvasResponse(response),
+            decoded.error == nil,
+            let result = decoded.result,
+            !result.hasPrefix("error:")
+        else {
+            return nil
+        }
+
+        guard
+            let data = result.data(using: .utf8),
+            let targets = try? JSONDecoder().decode([AOSSemanticTargetJSON].self, from: data)
+        else {
+            return nil
+        }
+
+        if !targets.isEmpty || attempt == maxAttempts - 1 {
+            return targets
+        }
+
+        Thread.sleep(forTimeInterval: retryDelaySeconds)
     }
 
-    guard let data = result.data(using: .utf8) else { return nil }
-    return try? JSONDecoder().decode([AOSSemanticTargetJSON].self, from: data)
+    return []
 }
