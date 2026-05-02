@@ -5,6 +5,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listProviderSessions } from '../../../packages/host/src/session-catalog.ts';
+import { buildSessionInspector } from './session-inspector.mjs';
 
 const port = Number(process.env.SIGIL_AGENT_TERMINAL_PORT || process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -342,6 +343,18 @@ function terminalCwdForSession(session) {
   return processSessions.get(session)?.cwd || sessionCommands.get(session)?.cwd || defaultCwd;
 }
 
+function sessionCatalogForUrl(url) {
+  const providerParams = url.searchParams.getAll('provider');
+  const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
+  return listProviderSessions({
+    homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
+    codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
+    claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
+    cwd: url.searchParams.get('cwd') || defaultCwd,
+    providers: providers.length ? providers : undefined,
+  });
+}
+
 function attachExistingProcessSocket(socket, session, record) {
   terminalClients.add(socket);
   record.clients.add(socket);
@@ -501,16 +514,27 @@ async function handle(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/sessions') {
-      const providerParams = url.searchParams.getAll('provider');
-      const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
-      const sessions = listProviderSessions({
-        homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
-        codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
-        claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
-        cwd: url.searchParams.get('cwd') || defaultCwd,
-        providers: providers.length ? providers : undefined,
-      });
+      const sessions = sessionCatalogForUrl(url);
       json(res, 200, { sessions });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/session-inspector') {
+      const provider = url.searchParams.get('provider');
+      const sessionId = url.searchParams.get('session_id');
+      if (!provider || !sessionId) {
+        text(res, 400, 'provider and session_id are required');
+        return;
+      }
+      const sessions = sessionCatalogForUrl(url);
+      const record = sessions.find((candidate) => (
+        candidate.provider === provider && candidate.session_id === sessionId
+      ));
+      if (!record) {
+        text(res, 404, `session not found: ${provider}:${sessionId}`);
+        return;
+      }
+      json(res, 200, buildSessionInspector(record));
       return;
     }
 

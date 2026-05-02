@@ -26,14 +26,64 @@ describe('Sigil Agent Terminal bridge', () => {
       path.join(homeDir, '.codex', 'sessions', '2026', '05', '01', 'rollout-2026-05-01T09-10-08-codex-session.jsonl'),
       [
         { timestamp: '2026-05-01T13:10:37.580Z', type: 'session_meta', payload: { id: 'codex-session', cwd: repoCwd, git: { branch: 'main' } } },
-        { timestamp: '2026-05-01T13:11:00.000Z', type: 'response_item', payload: { type: 'message' } },
+        {
+          timestamp: '2026-05-01T13:11:00.000Z',
+          type: 'event_msg',
+          payload: {
+            type: 'token_count',
+            info: {
+              total_token_usage: {
+                input_tokens: 12000,
+                cached_input_tokens: 2000,
+                output_tokens: 400,
+                total_tokens: 12400,
+              },
+              model_context_window: 258400,
+            },
+          },
+        },
+      ],
+    );
+    writeJsonl(
+      path.join(homeDir, '.codex', 'sessions', '2026', '05', '01', 'rollout-2026-05-01T10-00-00-codex-drift.jsonl'),
+      [
+        { timestamp: '2026-05-01T13:20:00.000Z', type: 'session_meta', payload: { id: 'codex-drift', cwd: repoCwd, git: { branch: 'main' } } },
+        { timestamp: '2026-05-01T13:21:00.000Z', type: 'event_msg', payload: { type: 'token_count' } },
       ],
     );
     writeJsonl(
       path.join(homeDir, '.claude', 'projects', '-tmp-work-agent-os', 'claude-session.jsonl'),
       [
         { type: 'user', timestamp: '2026-05-01T14:00:00.000Z', sessionId: 'claude-session', cwd: repoCwd, gitBranch: 'main', message: { role: 'user', content: 'fixture' } },
-        { type: 'assistant', timestamp: '2026-05-01T14:02:00.000Z', sessionId: 'claude-session', cwd: repoCwd, gitBranch: 'main', message: { role: 'assistant', content: 'fixture' } },
+        {
+          type: 'assistant',
+          timestamp: '2026-05-01T14:02:00.000Z',
+          sessionId: 'claude-session',
+          cwd: repoCwd,
+          gitBranch: 'main',
+          message: {
+            role: 'assistant',
+            content: 'fixture',
+            model: 'claude-opus-4-7',
+            usage: {
+              input_tokens: 6,
+              cache_creation_input_tokens: 11000,
+              cache_read_input_tokens: 16256,
+              output_tokens: 209,
+            },
+          },
+        },
+        {
+          timestamp: '2026-05-01T14:03:00.000Z',
+          sessionId: 'claude-session',
+          cwd: repoCwd,
+          compactMetadata: {
+            trigger: 'manual',
+            preTokens: 165246,
+            postTokens: 23229,
+            durationMs: 97699,
+          },
+        },
       ],
     );
 
@@ -70,18 +120,58 @@ describe('Sigil Agent Terminal bridge', () => {
     const payload = await response.json();
     assert.deepEqual(
       payload.sessions.map((session) => `${session.provider}:${session.session_id}`).sort(),
-      ['claude-code:claude-session', 'codex:codex-session'],
+      ['claude-code:claude-session', 'codex:codex-drift', 'codex:codex-session'],
     );
-    const codexSession = payload.sessions.find((session) => session.provider === 'codex');
+    const codexSession = payload.sessions.find((session) => session.session_id === 'codex-session');
     assert.equal(codexSession.created_at, '2026-05-01T13:10:37.580Z');
     assert.equal(codexSession.last_message_at, '2026-05-01T13:11:00.000Z');
     const claudeSession = payload.sessions.find((session) => session.provider === 'claude-code');
     assert.equal(claudeSession.created_at, '2026-05-01T14:00:00.000Z');
-    assert.equal(claudeSession.last_message_at, '2026-05-01T14:02:00.000Z');
+    assert.equal(claudeSession.last_message_at, '2026-05-01T14:03:00.000Z');
 
     const codexResponse = await fetch(`http://127.0.0.1:${port}/sessions?cwd=${encodeURIComponent(repoCwd)}&provider=codex`);
     const codexPayload = await codexResponse.json();
-    assert.deepEqual(codexPayload.sessions.map((session) => session.provider), ['codex']);
+    assert.deepEqual(codexPayload.sessions.map((session) => session.provider), ['codex', 'codex']);
+  });
+
+  it('returns sanitized session inspector telemetry for selected sessions', async () => {
+    const codexResponse = await fetch(
+      `http://127.0.0.1:${port}/session-inspector?cwd=${encodeURIComponent(repoCwd)}&provider=codex&session_id=codex-session`,
+    );
+    assert.equal(codexResponse.status, 200);
+    const codexPayload = await codexResponse.json();
+    assert.equal(codexPayload.session.provider, 'codex');
+    assert.equal(codexPayload.telemetry.context.window_tokens.value, 258400);
+    assert.equal(codexPayload.telemetry.context.used_tokens.value, 12400);
+    assert.equal(codexPayload.telemetry.context.remaining_tokens.value, 246000);
+    assert.equal(codexPayload.telemetry.context.used_tokens.source.stability, 'provider-local');
+    assert.deepEqual(codexPayload.diagnostics, []);
+
+    const claudeResponse = await fetch(
+      `http://127.0.0.1:${port}/session-inspector?cwd=${encodeURIComponent(repoCwd)}&provider=claude-code&session_id=claude-session`,
+    );
+    assert.equal(claudeResponse.status, 200);
+    const claudePayload = await claudeResponse.json();
+    assert.equal(claudePayload.session.provider, 'claude-code');
+    assert.equal(claudePayload.telemetry.model.id, 'claude-opus-4-7');
+    assert.equal(claudePayload.telemetry.context.used_tokens.value, 27262);
+    assert.equal(claudePayload.telemetry.context.used_tokens.source.precision, 'derived');
+    assert.equal(claudePayload.lifecycle_events[0].event, 'context_compacted');
+    assert.equal(claudePayload.lifecycle_events[0].pre_tokens.value, 165246);
+    assert.equal(JSON.stringify(claudePayload).includes('fixture'), false);
+  });
+
+  it('surfaces provider drift diagnostics in the session inspector', async () => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/session-inspector?cwd=${encodeURIComponent(repoCwd)}&provider=codex&session_id=codex-drift`,
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.session.session_id, 'codex-drift');
+    assert.equal(payload.telemetry.context, undefined);
+    assert.equal(payload.diagnostics[0].type, 'agent.session.telemetry_mismatch');
+    assert.equal(payload.diagnostics[0].code, 'codex_token_count_missing_info');
+    assert.equal(payload.diagnostics[0].fallback, 'context_unavailable');
   });
 
   it('accepts provider resume commands as argv arrays', async () => {
