@@ -491,6 +491,7 @@ async function sendLifecycle(eventName) {
   dispatchCanvasSend(delivery);
   log(`sent lifecycle ${eventName} via ${state.delivery}`);
   setTimeout(() => { void readTarget(); }, 180);
+  setTimeout(() => { void readTarget(); }, 1400);
   return event;
 }
 

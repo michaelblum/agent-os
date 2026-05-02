@@ -149,6 +149,10 @@ export function createSessionVitalityController(options = {}) {
         if (event?.type !== 'agent.session.lifecycle') return snapshot();
         lastLifecycleEvent = event;
         if (isRefreshLifecycleEvent(event)) {
+            if (isRefreshCompletionLifecycleEvent(event)) {
+                telemetry = null;
+                factors = { ...DEFAULT_SESSION_VITALITY_FACTORS };
+            }
             refreshStartedAt = now();
         }
         return snapshot();
@@ -200,6 +204,13 @@ function isRefreshLifecycleEvent(event) {
         'context_compaction_started',
         'context_compacted',
         'handoff_started',
+        'handoff_completed',
+    ].includes(event.event);
+}
+
+function isRefreshCompletionLifecycleEvent(event) {
+    return [
+        'context_compacted',
         'handoff_completed',
     ].includes(event.event);
 }

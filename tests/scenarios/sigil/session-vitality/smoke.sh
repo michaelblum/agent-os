@@ -121,4 +121,46 @@ print(json.dumps({
 }, sort_keys=True))
 PY
 
-echo "PASS: session vitality lab delivered synthetic pressure to Sigil avatar."
+"$aos_bin" show eval \
+  --id "$LAB_ID" \
+  --js 'window.__sessionVitalityLab.sendLifecycle("context_compacted"); "ok"' >/dev/null
+
+sleep 1.5
+
+reset_snapshot="$("$aos_bin" show eval --id "$AVATAR_ID" --js 'JSON.stringify(window.__sigilDebug.snapshot().sessionVitality?.factors || null)')"
+python3 - "$reset_snapshot" <<'PY'
+import json
+import sys
+
+outer = json.loads(sys.argv[1])
+factors = json.loads(outer.get("result") or "null")
+if not isinstance(factors, dict):
+    print("FAIL: no post-refresh session vitality factors returned", file=sys.stderr)
+    raise SystemExit(1)
+
+pressure = factors.get("pressure")
+aura = factors.get("auraReachMultiplier")
+rotation = factors.get("rotationMultiplier")
+brightness = factors.get("brightnessMultiplier")
+if pressure is not None:
+    print(f"FAIL: expected pressure to reset to unknown after refresh, got {pressure!r}", file=sys.stderr)
+    raise SystemExit(1)
+if aura != 1:
+    print(f"FAIL: expected full aura reach after refresh, got {aura!r}", file=sys.stderr)
+    raise SystemExit(1)
+if rotation != 1:
+    print(f"FAIL: expected normal rotation after refresh, got {rotation!r}", file=sys.stderr)
+    raise SystemExit(1)
+if brightness != 1:
+    print(f"FAIL: expected normal brightness after refresh, got {brightness!r}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(json.dumps({
+    "pressure": pressure,
+    "auraReachMultiplier": aura,
+    "rotationMultiplier": rotation,
+    "brightnessMultiplier": brightness,
+}, sort_keys=True))
+PY
+
+echo "PASS: session vitality lab delivered synthetic pressure and refresh reset to Sigil avatar."

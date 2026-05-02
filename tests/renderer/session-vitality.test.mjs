@@ -130,4 +130,48 @@ test('controller accepts raw telemetry and lifecycle events without shared phase
   now += 1200;
   frame = controller.tick(0, now);
   assert.equal(frame.scaleMultiplier, 1);
+  assert.equal(frame.pressure, null);
+  assert.equal(frame.auraReachMultiplier, 1);
+  assert.equal(frame.rotationMultiplier, 1);
+});
+
+test('refresh start preserves pressure until refresh completion resets visual vitality', () => {
+  let now = 2000;
+  const controller = createSessionVitalityController({
+    now: () => now,
+    refreshDurationMs: 1000,
+  });
+
+  controller.applyTelemetry({
+    type: 'agent.session.telemetry',
+    context: {
+      used_ratio: metric(0.95),
+    },
+  });
+  let frame = controller.tick(0, now);
+  assert.equal(frame.pressure, 0.95);
+  assert.ok(frame.auraReachMultiplier < 0.5);
+  assert.ok(frame.rotationMultiplier < 0.35);
+
+  controller.applyLifecycle({
+    type: 'agent.session.lifecycle',
+    event: 'context_compaction_started',
+    observed_at: '2026-05-02T12:00:00.000Z',
+  });
+  now += 100;
+  frame = controller.tick(0, now);
+  assert.equal(frame.pressure, 0.95);
+  assert.ok(frame.refreshProgress > 0);
+
+  controller.applyLifecycle({
+    type: 'agent.session.lifecycle',
+    event: 'context_compacted',
+    observed_at: '2026-05-02T12:00:01.000Z',
+  });
+  now += 1200;
+  frame = controller.tick(0, now);
+  assert.equal(frame.pressure, null);
+  assert.equal(frame.auraReachMultiplier, 1);
+  assert.equal(frame.rotationMultiplier, 1);
+  assert.equal(frame.brightnessMultiplier, 1);
 });
