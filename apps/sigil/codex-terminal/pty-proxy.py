@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small stdio-to-PTY proxy for the Sigil Codex terminal bridge."""
+"""Small stdio-to-PTY proxy for the Sigil Agent Terminal bridge."""
 
 import os
 import pty
