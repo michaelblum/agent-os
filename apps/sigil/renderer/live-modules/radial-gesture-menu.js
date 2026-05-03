@@ -1,5 +1,8 @@
 import { createRadialGestureModel } from './radial-gesture-runtime.js';
-import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../radial-menu-defaults.js';
+import {
+    DEFAULT_SIGIL_RADIAL_ITEMS,
+    normalizeSigilRadialGestureMenu,
+} from '../radial-menu-defaults.js';
 
 export { DEFAULT_SIGIL_RADIAL_ITEMS };
 
@@ -24,17 +27,14 @@ function numberOr(value, fallback) {
 }
 
 function configFromState(state) {
-    const radial = state.radialGestureMenu && typeof state.radialGestureMenu === 'object'
+    const source = state.radialGestureMenu && typeof state.radialGestureMenu === 'object'
         ? state.radialGestureMenu
         : {};
-    const items = Array.isArray(radial.items) && radial.items.length > 0
-        ? radial.items
-        : DEFAULT_SIGIL_RADIAL_ITEMS;
+    const radial = normalizeSigilRadialGestureMenu(source);
     return {
         ...DEFAULT_CONFIG,
         ...radial,
         radiusBasis: numberOr(radial.radiusBasis, numberOr(state.avatarHitRadius, DEFAULT_CONFIG.radiusBasis)),
-        items,
     };
 }
 

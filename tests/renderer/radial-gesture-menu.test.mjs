@@ -4,6 +4,7 @@ import {
   createSigilRadialGestureMenu,
   DEFAULT_SIGIL_RADIAL_ITEMS,
 } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
+import { normalizeSigilRadialGestureMenu } from '../../apps/sigil/renderer/radial-menu-defaults.js'
 
 function createMenu(options = {}) {
   const commits = []
@@ -83,6 +84,70 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   })
   assert.equal(wikiItem.geometry.attribution.author, 'Versal')
   assert.equal(wikiItem.geometry.attribution.license, 'CC-BY-4.0')
+})
+
+test('Sigil radial menu normalizes stale wiki brain item geometry from saved config', () => {
+  const staleMenu = {
+    items: [
+      {
+        id: 'wiki-graph',
+        label: 'Wiki Graph',
+        action: 'wikiGraph',
+        geometry: {
+          type: 'gltf',
+          src: '../assets/models/human-brain/scene.gltf',
+          modelUid: '49bcdf19c1904c76a456b31838b0d7ac',
+          title: 'Human Brain',
+          radiusScale: 1.42,
+          normalizedRadius: 0.28,
+          material: 'translucent-brain',
+        },
+      },
+    ],
+  }
+
+  const normalized = normalizeSigilRadialGestureMenu(staleMenu)
+  const wikiItem = normalized.items.find((item) => item.id === 'wiki-graph')
+
+  assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
+  assert.deepEqual(wikiItem.geometry.radialEffect, {
+    kind: 'nested-neural-tree',
+    holdExitDirection: 'outward',
+    shellOpacity: {
+      rest: 0.75,
+      active: 0.26,
+      held: 0.75,
+    },
+  })
+  assert.equal(staleMenu.items[0].geometry.material, 'translucent-brain')
+  assert.equal(staleMenu.items[0].geometry.radialEffect, undefined)
+})
+
+test('Sigil radial menu start applies normalized stale item geometry', () => {
+  const { menu } = createMenu({
+    state: {
+      radialGestureMenu: {
+        items: [
+          {
+            id: 'wiki-graph',
+            label: 'Wiki Graph',
+            action: 'wikiGraph',
+            geometry: {
+              type: 'gltf',
+              src: '../assets/models/human-brain/scene.gltf',
+              material: 'translucent-brain',
+            },
+          },
+        ],
+      },
+    },
+  })
+
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const wikiItem = started.items.find((item) => item.id === 'wiki-graph')
+
+  assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
+  assert.equal(wikiItem.geometry.radialEffect.kind, 'nested-neural-tree')
 })
 
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {

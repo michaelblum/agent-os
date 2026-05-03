@@ -84,3 +84,72 @@ export const DEFAULT_SIGIL_RADIAL_ITEMS = [
         geometry: WIKI_BRAIN_HOLOGRAM_MODEL,
     },
 ];
+
+function isPlainObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function cloneConfig(value) {
+    if (Array.isArray(value)) return value.map((item) => cloneConfig(item));
+    if (!isPlainObject(value)) return value;
+    const next = {};
+    for (const [key, entry] of Object.entries(value)) {
+        next[key] = cloneConfig(entry);
+    }
+    return next;
+}
+
+function mergeConfig(base, override) {
+    if (!isPlainObject(base) || !isPlainObject(override)) {
+        return cloneConfig(override === undefined ? base : override);
+    }
+    const next = cloneConfig(base);
+    for (const [key, value] of Object.entries(override)) {
+        next[key] = isPlainObject(next[key]) && isPlainObject(value)
+            ? mergeConfig(next[key], value)
+            : cloneConfig(value);
+    }
+    return next;
+}
+
+function normalizeRadialItemOverride(item) {
+    const next = cloneConfig(item);
+    if (!isPlainObject(next)) return next;
+
+    if (next.id === 'codex-terminal') {
+        next.id = 'agent-terminal';
+        if (next.action === 'codexTerminal') next.action = 'agentTerminal';
+        if (next.label === 'Codex Terminal') next.label = 'Agent Terminal';
+    }
+
+    if (next.id === 'wiki-graph' && isPlainObject(next.geometry)) {
+        if (next.geometry.material === 'translucent-brain') {
+            next.geometry.material = WIKI_BRAIN_HOLOGRAM_MODEL.material;
+        }
+    }
+
+    return next;
+}
+
+const DEFAULT_SIGIL_RADIAL_ITEMS_BY_ID = new Map(
+    DEFAULT_SIGIL_RADIAL_ITEMS.map((item) => [item.id, item])
+);
+
+export function normalizeSigilRadialItems(items) {
+    if (!Array.isArray(items) || items.length === 0) {
+        return cloneConfig(DEFAULT_SIGIL_RADIAL_ITEMS);
+    }
+    return items.map((item) => {
+        const normalized = normalizeRadialItemOverride(item);
+        const defaults = DEFAULT_SIGIL_RADIAL_ITEMS_BY_ID.get(normalized?.id);
+        return defaults ? mergeConfig(defaults, normalized) : normalized;
+    });
+}
+
+export function normalizeSigilRadialGestureMenu(menu = {}) {
+    const source = isPlainObject(menu) ? menu : {};
+    return {
+        ...cloneConfig(source),
+        items: normalizeSigilRadialItems(source.items),
+    };
+}
