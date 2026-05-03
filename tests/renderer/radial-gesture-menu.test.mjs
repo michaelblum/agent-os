@@ -67,12 +67,22 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
 
   assert.equal(wikiItem.action, 'wikiGraph')
   assert.equal(wikiItem.geometry.type, 'gltf')
-  assert.equal(wikiItem.geometry.modelUid, '09d686a1a1f745cba6b2385d0c831214')
-  assert.match(wikiItem.geometry.src, /brain-hologram\/scene\.gltf$/)
-  assert.equal(wikiItem.geometry.material, 'source-emissive')
+  assert.equal(wikiItem.geometry.modelUid, '49bcdf19c1904c76a456b31838b0d7ac')
+  assert.match(wikiItem.geometry.src, /human-brain\/scene\.gltf$/)
+  assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
   assert.equal(wikiItem.geometry.radiusScale, 1.42)
-  assert.equal(wikiItem.geometry.bloomShell, undefined)
-  assert.equal(wikiItem.geometry.attribution.author, 'oxterium')
+  assert.equal(wikiItem.geometry.normalizedRadius, 0.28)
+  assert.deepEqual(wikiItem.geometry.radialEffect, {
+    kind: 'nested-neural-tree',
+    holdExitDirection: 'outward',
+    shellOpacity: {
+      rest: 0.75,
+      active: 0.26,
+      held: 0.75,
+    },
+  })
+  assert.equal(wikiItem.geometry.attribution.author, 'Versal')
+  assert.equal(wikiItem.geometry.attribution.license, 'CC-BY-4.0')
 })
 
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {

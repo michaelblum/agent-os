@@ -5,6 +5,7 @@ import {
   createRadialGestureModel,
   normalizeDegrees,
   pointAtAngle,
+  radialItemPointerMetrics,
   resolveRadialGestureItems,
   shortestAngleDelta,
 } from '../../packages/toolkit/runtime/radial-gesture.js'
@@ -88,6 +89,44 @@ test('release over a radial item commits that item', () => {
     { type: 'item', itemId: 'context-menu' }
   )
   assert.equal(released.lastTransition, 'commit_item')
+})
+
+test('radial item pointer metrics classify outward and inward exits', () => {
+  const gesture = model()
+  const started = gesture.start({ x: 200, y: 200 })
+  const wikiItem = started.items.find((item) => item.id === 'wiki-graph')
+
+  const overItem = gesture.move(wikiItem.center)
+  assert.equal(radialItemPointerMetrics(overItem, wikiItem).relation, 'inside')
+
+  const outward = gesture.move(pointAtAngle(started.origin, wikiItem.angle, 140))
+  const outwardMetrics = radialItemPointerMetrics(outward, wikiItem)
+  assert.equal(outwardMetrics.relation, 'outward')
+  assert.ok(outwardMetrics.axialDistance > 0)
+
+  const inward = gesture.move(pointAtAngle(started.origin, wikiItem.angle, 70))
+  const inwardMetrics = radialItemPointerMetrics(inward, wikiItem)
+  assert.equal(inwardMetrics.relation, 'inward')
+  assert.ok(inwardMetrics.axialDistance < 0)
+})
+
+test('radial item pointer metrics stay geometric during fast-travel handoff', () => {
+  const gesture = model({
+    itemRadius: 1.66,
+    itemHitRadius: 0.36,
+    itemVisualRadius: 0.56,
+    menuRadius: 1.06,
+    handoffRadius: 1.78,
+    reentryRadius: 1.58,
+  })
+  const started = gesture.start({ x: 200, y: 200 })
+  const wikiItem = started.items.find((item) => item.id === 'wiki-graph')
+
+  gesture.move(pointAtAngle(started.origin, wikiItem.angle, 190))
+  const moved = gesture.move(wikiItem.center)
+  assert.equal(moved.phase, 'fastTravel')
+  assert.equal(moved.activeItemId, null)
+  assert.equal(radialItemPointerMetrics(moved, wikiItem).relation, 'inside')
 })
 
 test('dragging past handoff radius enters fast travel and release commits destination', () => {

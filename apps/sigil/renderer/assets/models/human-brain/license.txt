@@ -1,0 +1,11 @@
+Model Information:
+* title:	Human Brain
+* source:	https://sketchfab.com/3d-models/human-brain-49bcdf19c1904c76a456b31838b0d7ac
+* author:	Versal (https://sketchfab.com/versal)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Human Brain" (https://sketchfab.com/3d-models/human-brain-49bcdf19c1904c76a456b31838b0d7ac) by Versal (https://sketchfab.com/versal) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -19,19 +19,29 @@ export const CONTEXT_COG_MODEL = {
 
 export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     type: 'gltf',
-    src: '../assets/models/brain-hologram/scene.gltf',
-    modelUid: '09d686a1a1f745cba6b2385d0c831214',
-    title: 'Brain hologram',
+    src: '../assets/models/human-brain/scene.gltf',
+    modelUid: '49bcdf19c1904c76a456b31838b0d7ac',
+    title: 'Human Brain',
     radiusScale: 1.42,
-    material: 'source-emissive',
+    normalizedRadius: 0.28,
+    material: 'translucent-brain-shell',
+    radialEffect: {
+        kind: 'nested-neural-tree',
+        holdExitDirection: 'outward',
+        shellOpacity: {
+            rest: 0.75,
+            active: 0.26,
+            held: 0.75,
+        },
+    },
     attribution: {
-        title: 'Brain hologram',
-        titleUrl: 'https://sketchfab.com/3d-models/brain-hologram-09d686a1a1f745cba6b2385d0c831214',
-        author: 'oxterium',
-        authorUrl: 'https://sketchfab.com/oxterium',
+        title: 'Human Brain',
+        titleUrl: 'https://sketchfab.com/3d-models/human-brain-49bcdf19c1904c76a456b31838b0d7ac',
+        author: 'Versal',
+        authorUrl: 'https://sketchfab.com/versal',
         source: 'Sketchfab',
-        license: 'Free Standard',
-        licenseUrl: 'https://sketchfab.com/licenses',
+        license: 'CC-BY-4.0',
+        licenseUrl: 'http://creativecommons.org/licenses/by/4.0/',
     },
 };
 
