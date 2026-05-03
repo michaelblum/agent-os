@@ -1,19 +1,17 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
+import {
+    DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedShellTransform,
+    resolveNestedTreeTransform,
+    vectorAngles,
+    vectorValue,
+} from './radial-object-control.js';
 
-const DEFAULT_NESTED_TREE_EFFECT = {
-    kind: 'nested-neural-tree',
-    holdExitDirection: 'outward',
-    treeTransform: {
-        position: { x: 0.018, y: -0.035, z: 0.018 },
-        scale: { x: 1.32, y: 1.42, z: 1.2 },
-        rotationDegrees: { x: -11.5, y: 0, z: 0 },
-    },
-    shellOpacity: {
-        rest: 0.75,
-        active: 0.26,
-        held: 0.75,
-    },
-};
+export {
+    DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedShellTransform,
+    resolveNestedTreeTransform,
+} from './radial-object-control.js';
 
 export function radialGlyphActivationState({ visualRadial, activeRadial, source, item } = {}) {
     const metrics = visualRadial ? radialItemPointerMetrics(visualRadial, item) : null;
@@ -27,47 +25,26 @@ export function radialGlyphActivationState({ visualRadial, activeRadial, source,
     };
 }
 
-function vectorValue(value = {}, fallback = {}) {
-    if (Number.isFinite(Number(value))) {
-        const n = Number(value);
-        return { x: n, y: n, z: n };
-    }
-    if (Array.isArray(value)) {
-        return {
-            x: finite(value[0], fallback.x ?? 0),
-            y: finite(value[1], fallback.y ?? 0),
-            z: finite(value[2], fallback.z ?? 0),
-        };
-    }
-    return {
-        x: finite(value.x, fallback.x ?? 0),
-        y: finite(value.y, fallback.y ?? 0),
-        z: finite(value.z, fallback.z ?? 0),
-    };
-}
-
-export function resolveNestedTreeTransform(effect = {}) {
-    const transform = effect.treeTransform || {};
-    const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
-    return {
-        position: vectorValue(transform.position, defaults.position),
-        scale: vectorValue(transform.scale, defaults.scale),
-        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
-    };
-}
-
-function applyNestedTreeTransform(tree, transform = {}) {
-    if (!tree) return;
-    const position = vectorValue(transform.position, DEFAULT_NESTED_TREE_EFFECT.treeTransform.position);
-    const scale = vectorValue(transform.scale, DEFAULT_NESTED_TREE_EFFECT.treeTransform.scale);
-    const rotation = vectorAngles(transform.rotationDegrees ?? transform.rotation, DEFAULT_NESTED_TREE_EFFECT.treeTransform.rotationDegrees);
-    tree.position.set(position.x, position.y, position.z);
-    tree.scale.set(scale.x, scale.y, scale.z);
-    tree.rotation.set(
+function applyObjectTransform(object, transform = {}, defaults = {}) {
+    if (!object) return;
+    const position = vectorValue(transform.position, defaults.position);
+    const scale = vectorValue(transform.scale, defaults.scale);
+    const rotation = vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees);
+    object.position.set(position.x, position.y, position.z);
+    object.scale.set(scale.x, scale.y, scale.z);
+    object.rotation.set(
         rotation.x * Math.PI / 180,
         rotation.y * Math.PI / 180,
         rotation.z * Math.PI / 180
     );
+}
+
+function applyNestedTreeTransform(tree, transform = {}) {
+    applyObjectTransform(tree, transform, DEFAULT_NESTED_TREE_EFFECT.treeTransform);
+}
+
+function applyNestedShellTransform(shell, transform = {}) {
+    applyObjectTransform(shell, transform, DEFAULT_NESTED_TREE_EFFECT.shellTransform);
 }
 
 function material(color, opacity = 0.75) {
@@ -209,6 +186,7 @@ function effectConfig(item = {}) {
             ...(effect.shellOpacity || {}),
         },
     };
+    merged.shellTransform = resolveNestedShellTransform(merged);
     merged.treeTransform = resolveNestedTreeTransform(merged);
     return merged;
 }
@@ -463,21 +441,6 @@ function objectSceneSize(object) {
     };
 }
 
-function vectorAngles(value = {}, fallback = {}) {
-    if (Array.isArray(value)) {
-        return {
-            x: finite(value[0], fallback.x ?? 0),
-            y: finite(value[1], fallback.y ?? 0),
-            z: finite(value[2], fallback.z ?? 0),
-        };
-    }
-    return {
-        x: finite(value.x, fallback.x ?? 0),
-        y: finite(value.y, fallback.y ?? 0),
-        z: finite(value.z, fallback.z ?? 0),
-    };
-}
-
 function applyGeometryOrientation(object, geometry = {}) {
     const rotationDegrees = geometry.rotationDegrees ?? geometry.rotation;
     if (!rotationDegrees) return;
@@ -648,12 +611,14 @@ function createRadialEffectHost(group, item = {}) {
     modelHost.name = `${item.id || 'radial-item'}-model-host`;
     const treeEffect = createNestedNeuralTreeEffect();
     treeEffect.name = `${item.id || 'radial-item'}-nested-neural-tree`;
+    applyNestedShellTransform(modelHost, effect.shellTransform);
     applyNestedTreeTransform(treeEffect, effect.treeTransform);
     composite.add(modelHost, treeEffect);
     group.add(composite);
     group.userData.modelHost = modelHost;
     group.userData.radialEffectConfig = effect;
     group.userData.radialEffectTree = treeEffect;
+    group.userData.radialEffectShellTransform = effect.shellTransform;
     group.userData.radialEffectTreeTransform = effect.treeTransform;
     group.userData.radialEffectState = {
         activation: 0,
@@ -664,6 +629,15 @@ function createRadialEffectHost(group, item = {}) {
         holding: false,
     };
     return modelHost;
+}
+
+function syncRadialEffectConfig(glyph, item = {}) {
+    if (!glyph?.userData?.radialEffectTree) return;
+    const effect = effectConfig(item);
+    if (!effect) return;
+    glyph.userData.radialEffectConfig = effect;
+    glyph.userData.radialEffectShellTransform = effect.shellTransform;
+    glyph.userData.radialEffectTreeTransform = effect.treeTransform;
 }
 
 function createGltfGlyph(item = {}) {
@@ -803,6 +777,7 @@ function updateRadialEffect(glyph, item, {
 } = {}) {
     const config = glyph.userData.radialEffectConfig;
     const state = glyph.userData.radialEffectState;
+    const modelHost = glyph.userData.modelHost;
     const tree = glyph.userData.radialEffectTree;
     if (!config || !state || !tree) return null;
 
@@ -841,6 +816,7 @@ function updateRadialEffect(glyph, item, {
     state.shellOpacity += (shellTarget - state.shellOpacity) * 0.2;
 
     const display = clamp01(progress);
+    applyNestedShellTransform(modelHost, glyph.userData.radialEffectShellTransform || config.shellTransform);
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);
     updateNestedNeuralTreeEffect(tree, state.treeProgress * display, dt);
     applyNestedTreeTransform(tree, glyph.userData.radialEffectTreeTransform || config.treeTransform);
@@ -926,6 +902,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
 
         for (const item of items) {
             const glyph = ensureGlyph(item);
+            syncRadialEffectConfig(glyph, item);
             const projected = projectPoint?.(item.center);
             glyph.visible = !!projected;
             if (!projected) continue;
