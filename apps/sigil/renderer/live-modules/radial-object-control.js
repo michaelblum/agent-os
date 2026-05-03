@@ -4,7 +4,15 @@ export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
+export const WIKI_BRAIN_FIBER_STEM_OBJECT_ID = 'radial.wiki-brain.fiber-stem';
+export const WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID = 'radial.wiki-brain.fiber-bloom';
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
+
+const DEFAULT_FIBER_TRANSFORM = {
+    position: { x: 0.018, y: -0.035, z: 0.018 },
+    scale: { x: 1.32, y: 1.42, z: 1.2 },
+    rotationDegrees: { x: -11.5, y: 0, z: 0 },
+};
 
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
@@ -14,11 +22,8 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         scale: { x: 1, y: 1, z: 1 },
         rotationDegrees: { x: 0, y: 0, z: 0 },
     },
-    treeTransform: {
-        position: { x: 0.018, y: -0.035, z: 0.018 },
-        scale: { x: 1.32, y: 1.42, z: 1.2 },
-        rotationDegrees: { x: -11.5, y: 0, z: 0 },
-    },
+    fiberStemTransform: DEFAULT_FIBER_TRANSFORM,
+    fiberBloomTransform: DEFAULT_FIBER_TRANSFORM,
     fractalTreeTransform: {
         position: { x: 0.02, y: -0.054, z: -0.006 },
         scale: { x: 2.14, y: 2.65, z: 2.61 },
@@ -31,7 +36,8 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
     },
     visibility: {
         shell: true,
-        tree: true,
+        fiberStem: true,
+        fiberBloom: true,
         fractalTree: true,
     },
 };
@@ -96,14 +102,28 @@ export function resolveNestedShellTransform(effect = {}) {
     };
 }
 
-export function resolveNestedTreeTransform(effect = {}) {
-    const transform = effect.treeTransform || {};
-    const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
+export function resolveNestedFiberStemTransform(effect = {}) {
+    const transform = effect.fiberStemTransform || effect.treeTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fiberStemTransform;
     return {
         position: vectorValue(transform.position, defaults.position),
         scale: vectorValue(transform.scale, defaults.scale),
         rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
     };
+}
+
+export function resolveNestedFiberBloomTransform(effect = {}) {
+    const transform = effect.fiberBloomTransform || effect.treeTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fiberBloomTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function resolveNestedTreeTransform(effect = {}) {
+    return resolveNestedFiberBloomTransform(effect);
 }
 
 export function resolveNestedFractalTreeTransform(effect = {}) {
@@ -121,7 +141,12 @@ export function resolveNestedVisibility(effect = {}) {
     const defaults = DEFAULT_NESTED_TREE_EFFECT.visibility;
     return {
         shell: visibility.shell === undefined ? defaults.shell : !!visibility.shell,
-        tree: visibility.tree === undefined ? defaults.tree : !!visibility.tree,
+        fiberStem: visibility.fiberStem === undefined
+            ? (visibility.tree === undefined ? defaults.fiberStem : !!visibility.tree)
+            : !!visibility.fiberStem,
+        fiberBloom: visibility.fiberBloom === undefined
+            ? (visibility.tree === undefined ? defaults.fiberBloom : !!visibility.tree)
+            : !!visibility.fiberBloom,
         fractalTree: visibility.fractalTree === undefined ? defaults.fractalTree : !!visibility.fractalTree,
     };
 }
@@ -207,7 +232,8 @@ export function resolveWikiBrainEffect(item = {}) {
         },
         visibility: resolveNestedVisibility(effect),
         shellTransform: resolveNestedShellTransform(effect),
-        treeTransform: resolveNestedTreeTransform(effect),
+        fiberStemTransform: resolveNestedFiberStemTransform(effect),
+        fiberBloomTransform: resolveNestedFiberBloomTransform(effect),
         fractalTreeTransform: resolveNestedFractalTreeTransform(effect),
     };
 }
@@ -242,11 +268,18 @@ export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {
                 metadata: { role: 'shell' },
             }),
             registryObject({
-                objectId: WIKI_BRAIN_FIBER_OBJECT_ID,
-                name: 'Wiki Brain Fiber Optics',
-                transform: effect.treeTransform,
-                visible: effect.visibility.tree,
-                metadata: { role: 'fiber-optics' },
+                objectId: WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+                name: 'Wiki Brain Fiber Stem',
+                transform: effect.fiberStemTransform,
+                visible: effect.visibility.fiberStem,
+                metadata: { role: 'fiber-stem' },
+            }),
+            registryObject({
+                objectId: WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+                name: 'Wiki Brain Fiber Bloom',
+                transform: effect.fiberBloomTransform,
+                visible: effect.visibility.fiberBloom,
+                metadata: { role: 'fiber-bloom' },
             }),
             registryObject({
                 objectId: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -311,9 +344,19 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
             resolve: resolveNestedShellTransform,
         },
         [WIKI_BRAIN_FIBER_OBJECT_ID]: {
-            key: 'treeTransform',
-            visibilityKey: 'tree',
-            resolve: resolveNestedTreeTransform,
+            key: 'fiberBloomTransform',
+            visibilityKey: 'fiberBloom',
+            resolve: resolveNestedFiberBloomTransform,
+        },
+        [WIKI_BRAIN_FIBER_STEM_OBJECT_ID]: {
+            key: 'fiberStemTransform',
+            visibilityKey: 'fiberStem',
+            resolve: resolveNestedFiberStemTransform,
+        },
+        [WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID]: {
+            key: 'fiberBloomTransform',
+            visibilityKey: 'fiberBloom',
+            resolve: resolveNestedFiberBloomTransform,
         },
         [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
             key: 'fractalTreeTransform',

@@ -85,17 +85,24 @@ globalThis.THREE = { Box3, Color, Vector3 }
 const {
   normalizeModelScene,
   radialGlyphActivationState,
+  resolveNestedFiberBloomTransform,
+  resolveNestedFiberStemTransform,
   resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
   resolveRadialHoverSpinSpeed,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
-test('resolveNestedTreeTransform anchors tree roots toward the brain stem volume', () => {
-  const transform = resolveNestedTreeTransform({})
+test('resolveNestedFiberStemTransform anchors fiber roots toward the brain stem volume', () => {
+  const transform = resolveNestedFiberStemTransform({})
 
   assert.deepEqual(transform.position, { x: 0.018, y: -0.035, z: 0.018 })
   assert.deepEqual(transform.scale, { x: 1.32, y: 1.42, z: 1.2 })
   assert.deepEqual(transform.rotationDegrees, { x: -11.5, y: 0, z: 0 })
+})
+
+test('resolveNestedFiberBloomTransform preserves legacy tree transform fallback', () => {
+  assert.deepEqual(resolveNestedFiberBloomTransform({}), resolveNestedFiberStemTransform({}))
+  assert.deepEqual(resolveNestedTreeTransform({ treeTransform: { scale: 1.5 } }).scale, { x: 1.5, y: 1.5, z: 1.5 })
 })
 
 test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain shell', () => {

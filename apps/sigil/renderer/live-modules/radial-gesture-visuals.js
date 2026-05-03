@@ -1,6 +1,8 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import {
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedFiberBloomTransform,
+    resolveNestedFiberStemTransform,
     resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
@@ -11,6 +13,8 @@ import {
 
 export {
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedFiberBloomTransform,
+    resolveNestedFiberStemTransform,
     resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
@@ -47,8 +51,12 @@ function applyObjectTransform(object, transform = {}, defaults = {}) {
     );
 }
 
-function applyNestedTreeTransform(tree, transform = {}) {
-    applyObjectTransform(tree, transform, DEFAULT_NESTED_TREE_EFFECT.treeTransform);
+function applyNestedFiberStemTransform(stem, transform = {}) {
+    applyObjectTransform(stem, transform, DEFAULT_NESTED_TREE_EFFECT.fiberStemTransform);
+}
+
+function applyNestedFiberBloomTransform(bloom, transform = {}) {
+    applyObjectTransform(bloom, transform, DEFAULT_NESTED_TREE_EFFECT.fiberBloomTransform);
 }
 
 function applyNestedFractalTreeTransform(tree, transform = {}) {
@@ -219,7 +227,8 @@ function effectConfig(item = {}) {
     };
     merged.visibility = resolveNestedVisibility(merged);
     merged.shellTransform = resolveNestedShellTransform(merged);
-    merged.treeTransform = resolveNestedTreeTransform(merged);
+    merged.fiberStemTransform = resolveNestedFiberStemTransform(merged);
+    merged.fiberBloomTransform = resolveNestedFiberBloomTransform(merged);
     merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
     return merged;
 }
@@ -238,12 +247,22 @@ function brainTreePoint(rand, depth = 1) {
 
 function createNestedNeuralTreeGeometry() {
     const rand = seededRandom(0x51a9e1);
-    const positions = [];
-    const reveals = [];
-    const sparkPositions = [];
-    const sparkReveals = [];
-    const sparkSeeds = [];
+    const stem = {
+        positions: [],
+        reveals: [],
+        sparkPositions: [],
+        sparkReveals: [],
+        sparkSeeds: [],
+    };
+    const bloom = {
+        positions: [],
+        reveals: [],
+        sparkPositions: [],
+        sparkReveals: [],
+        sparkSeeds: [],
+    };
     const trunk = new THREE.Vector3(0, -0.12, -0.006);
+    const stemStepRatio = 0.42;
     let maxReveal = 0.0001;
 
     for (let path = 0; path < 96; path += 1) {
@@ -263,28 +282,71 @@ function createNestedNeuralTreeGeometry() {
             const reveal = Math.max(0.02, ((path / 96) * 0.24) + (t * 0.76));
             maxReveal = Math.max(maxReveal, reveal);
 
-            positions.push(prior.x, prior.y, prior.z, next.x, next.y, next.z);
-            reveals.push(reveal - 0.04, reveal);
+            const bucket = t <= stemStepRatio ? stem : bloom;
+            bucket.positions.push(prior.x, prior.y, prior.z, next.x, next.y, next.z);
+            bucket.reveals.push(reveal - 0.04, reveal);
 
             if (step === steps || rand() > 0.58) {
-                sparkPositions.push(next.x, next.y, next.z);
-                sparkReveals.push(reveal);
-                sparkSeeds.push(rand());
+                bucket.sparkPositions.push(next.x, next.y, next.z);
+                bucket.sparkReveals.push(reveal);
+                bucket.sparkSeeds.push(rand());
             }
             prior = next;
         }
     }
 
-    const lineGeometry = new THREE.BufferGeometry();
-    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    lineGeometry.setAttribute('a_reveal', new THREE.Float32BufferAttribute(reveals, 1));
+    function geometryFor(bucket) {
+        const lineGeometry = new THREE.BufferGeometry();
+        lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.positions, 3));
+        lineGeometry.setAttribute('a_reveal', new THREE.Float32BufferAttribute(bucket.reveals, 1));
 
-    const sparkGeometry = new THREE.BufferGeometry();
-    sparkGeometry.setAttribute('position', new THREE.Float32BufferAttribute(sparkPositions, 3));
-    sparkGeometry.setAttribute('a_reveal', new THREE.Float32BufferAttribute(sparkReveals, 1));
-    sparkGeometry.setAttribute('a_seed', new THREE.Float32BufferAttribute(sparkSeeds, 1));
+        const sparkGeometry = new THREE.BufferGeometry();
+        sparkGeometry.setAttribute('position', new THREE.Float32BufferAttribute(bucket.sparkPositions, 3));
+        sparkGeometry.setAttribute('a_reveal', new THREE.Float32BufferAttribute(bucket.sparkReveals, 1));
+        sparkGeometry.setAttribute('a_seed', new THREE.Float32BufferAttribute(bucket.sparkSeeds, 1));
 
-    return { lineGeometry, sparkGeometry, maxReveal };
+        return { lineGeometry, sparkGeometry };
+    }
+
+    return {
+        stem: geometryFor(stem),
+        bloom: geometryFor(bloom),
+        maxReveal,
+    };
+}
+
+function createNestedNeuralTreePart(name, geometry, renderOrder = 22) {
+    const group = new THREE.Group();
+    group.name = name;
+    const lineMaterial = createNestedNeuralTreeMaterial();
+    const sparkMaterial = createNestedNeuralSparkMaterial();
+    const lines = new THREE.LineSegments(geometry.lineGeometry, lineMaterial);
+    const sparks = new THREE.Points(geometry.sparkGeometry, sparkMaterial);
+    lines.renderOrder = renderOrder;
+    sparks.renderOrder = renderOrder + 1;
+    group.add(lines, sparks);
+    group.userData.lineMaterial = lineMaterial;
+    group.userData.sparkMaterial = sparkMaterial;
+    return group;
+}
+
+function updateNestedNeuralTreePart(part, progress, time) {
+    if (!part) return;
+    const lineMaterial = part.userData.lineMaterial;
+    const sparkMaterial = part.userData.sparkMaterial;
+    if (lineMaterial?.uniforms) {
+        lineMaterial.uniforms.u_growth.value = progress;
+        lineMaterial.uniforms.u_opacity.value = Math.pow(progress, 0.82) * 0.88;
+        lineMaterial.uniforms.u_brightness.value = 0.75 + (progress * 2.2);
+    }
+    if (sparkMaterial?.uniforms) {
+        sparkMaterial.uniforms.u_growth.value = progress;
+        sparkMaterial.uniforms.u_opacity.value = progress;
+        sparkMaterial.uniforms.u_density.value = progress;
+        sparkMaterial.uniforms.u_brightness.value = 0.8 + (progress * 2.8);
+        sparkMaterial.uniforms.u_time.value = time;
+    }
+    part.visible = progress > 0.015;
 }
 
 function createNestedNeuralTreeMaterial() {
@@ -372,16 +434,13 @@ function createNestedNeuralTreeEffect() {
     const group = new THREE.Group();
     group.name = 'nested-neural-tree-effect';
     group.visible = false;
-    const { lineGeometry, sparkGeometry } = createNestedNeuralTreeGeometry();
-    const lineMaterial = createNestedNeuralTreeMaterial();
-    const sparkMaterial = createNestedNeuralSparkMaterial();
-    const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
-    const sparks = new THREE.Points(sparkGeometry, sparkMaterial);
-    lines.renderOrder = 22;
-    sparks.renderOrder = 23;
-    group.add(lines, sparks);
-    group.userData.lineMaterial = lineMaterial;
-    group.userData.sparkMaterial = sparkMaterial;
+    const { stem, bloom } = createNestedNeuralTreeGeometry();
+    const stemGroup = createNestedNeuralTreePart('nested-neural-tree-stem', stem, 22);
+    const bloomGroup = createNestedNeuralTreePart('nested-neural-tree-bloom', bloom, 24);
+    group.add(stemGroup, bloomGroup);
+    group.userData.stem = stemGroup;
+    group.userData.bloom = bloomGroup;
+    group.userData.parts = [stemGroup, bloomGroup];
     group.userData.time = 0;
     return group;
 }
@@ -391,19 +450,8 @@ function updateNestedNeuralTreeEffect(effect, progress, dt) {
     const p = clamp01(progress);
     effect.visible = p > 0.015;
     effect.userData.time = finite(effect.userData.time, 0) + dt;
-    const lineMaterial = effect.userData.lineMaterial;
-    const sparkMaterial = effect.userData.sparkMaterial;
-    if (lineMaterial?.uniforms) {
-        lineMaterial.uniforms.u_growth.value = p;
-        lineMaterial.uniforms.u_opacity.value = Math.pow(p, 0.82) * 0.88;
-        lineMaterial.uniforms.u_brightness.value = 0.75 + (p * 2.2);
-    }
-    if (sparkMaterial?.uniforms) {
-        sparkMaterial.uniforms.u_growth.value = p;
-        sparkMaterial.uniforms.u_opacity.value = p;
-        sparkMaterial.uniforms.u_density.value = p;
-        sparkMaterial.uniforms.u_brightness.value = 0.8 + (p * 2.8);
-        sparkMaterial.uniforms.u_time.value = effect.userData.time;
+    for (const part of effect.userData.parts || []) {
+        updateNestedNeuralTreePart(part, p, effect.userData.time);
     }
 }
 
@@ -1233,10 +1281,13 @@ function createRadialEffectHost(group, item = {}) {
     modelHost.name = `${item.id || 'radial-item'}-model-host`;
     const fiberEffect = createNestedNeuralTreeEffect();
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
+    const fiberStemEffect = fiberEffect.userData.stem;
+    const fiberBloomEffect = fiberEffect.userData.bloom;
     const fractalTreeEffect = createFractalBrainTreeEffect();
     fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
     applyNestedShellTransform(modelHost, effect.shellTransform);
-    applyNestedTreeTransform(fiberEffect, effect.treeTransform);
+    applyNestedFiberStemTransform(fiberStemEffect, effect.fiberStemTransform);
+    applyNestedFiberBloomTransform(fiberBloomEffect, effect.fiberBloomTransform);
     applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
     composite.add(modelHost, fiberEffect, fractalTreeEffect);
     group.add(composite);
@@ -1245,9 +1296,12 @@ function createRadialEffectHost(group, item = {}) {
     group.userData.radialEffectComposite = composite;
     group.userData.radialEffectTree = fiberEffect;
     group.userData.radialEffectFiber = fiberEffect;
+    group.userData.radialEffectFiberStem = fiberStemEffect;
+    group.userData.radialEffectFiberBloom = fiberBloomEffect;
     group.userData.radialEffectFractalTree = fractalTreeEffect;
     group.userData.radialEffectShellTransform = effect.shellTransform;
-    group.userData.radialEffectTreeTransform = effect.treeTransform;
+    group.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
+    group.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
     group.userData.radialEffectVisibility = effect.visibility;
     group.userData.radialEffectState = {
@@ -1268,7 +1322,8 @@ function syncRadialEffectConfig(glyph, item = {}) {
     if (!effect) return;
     glyph.userData.radialEffectConfig = effect;
     glyph.userData.radialEffectShellTransform = effect.shellTransform;
-    glyph.userData.radialEffectTreeTransform = effect.treeTransform;
+    glyph.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
+    glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
     glyph.userData.radialEffectVisibility = effect.visibility;
 }
@@ -1412,6 +1467,8 @@ function updateRadialEffect(glyph, item, {
     const state = glyph.userData.radialEffectState;
     const modelHost = glyph.userData.modelHost;
     const tree = glyph.userData.radialEffectTree;
+    const fiberStem = glyph.userData.radialEffectFiberStem;
+    const fiberBloom = glyph.userData.radialEffectFiberBloom;
     const fractalTree = glyph.userData.radialEffectFractalTree;
     if (!config || !state || !tree) return null;
 
@@ -1455,8 +1512,20 @@ function updateRadialEffect(glyph, item, {
     if (modelHost) modelHost.visible = visibility.shell !== false;
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);
     updateNestedNeuralTreeEffect(tree, state.treeProgress * display, dt);
-    tree.visible = visibility.tree !== false && tree.visible;
-    applyNestedTreeTransform(tree, glyph.userData.radialEffectTreeTransform || config.treeTransform);
+    if (fiberStem) {
+        applyNestedFiberStemTransform(
+            fiberStem,
+            glyph.userData.radialEffectFiberStemTransform || config.fiberStemTransform
+        );
+        fiberStem.visible = visibility.fiberStem !== false && fiberStem.visible;
+    }
+    if (fiberBloom) {
+        applyNestedFiberBloomTransform(
+            fiberBloom,
+            glyph.userData.radialEffectFiberBloomTransform || config.fiberBloomTransform
+        );
+        fiberBloom.visible = visibility.fiberBloom !== false && fiberBloom.visible;
+    }
     if (fractalTree) {
         state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (
             treeTarget >= state.fractalTreeProgress ? 0.14 : 0.1
