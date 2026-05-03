@@ -19,6 +19,7 @@ It is split into three layers:
 | Layer | Path | Purpose |
 | --- | --- | --- |
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake |
+| Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
@@ -60,6 +61,19 @@ aos show create \
 ```
 
 Within toolkit HTML, imports typically use relative module paths.
+
+## Controls
+
+`packages/toolkit/controls/` contains reusable behavior for controls that need to
+feel like AOS app controls instead of raw browser defaults. Controls attach to
+ordinary semantic HTML and dispatch normal DOM events so panels can remain
+domain-specific.
+
+`number-field.js` provides focused wheel and arrow-key stepping for numeric
+fields marked with `data-aos-control="number-field"`. It uses the field's
+native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
+`change` events after a step, uses `Shift` for coarse stepping, and uses
+`Option` for fine stepping.
 
 ## Stock Components Snapshot
 

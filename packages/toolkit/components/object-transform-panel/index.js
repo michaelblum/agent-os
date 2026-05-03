@@ -1,4 +1,5 @@
 import { emit, esc } from '../../runtime/bridge.js';
+import { wireNumberFieldControls } from '../../controls/number-field.js';
 import {
   TRANSFORM_GROUPS,
   VECTOR_AXES,
@@ -21,6 +22,11 @@ import {
 } from './semantics.js';
 
 const BASE_TITLE = 'Object Transform';
+const TRANSFORM_INPUT_STEPS = Object.freeze({
+  position: '0.001',
+  scale: '0.01',
+  rotation_degrees: '1',
+});
 
 let requestCounter = 0;
 
@@ -38,6 +44,10 @@ function shortStatus(result) {
 function unitForGroup(entry, group) {
   const def = TRANSFORM_GROUPS.find((candidate) => candidate.key === group);
   return entry?.units?.[def?.unitKey] || '';
+}
+
+function stepForGroup(group) {
+  return TRANSFORM_INPUT_STEPS[group] || '0.001';
 }
 
 function renderObjectList(entries, selectedKey) {
@@ -64,6 +74,7 @@ function renderObjectList(entries, selectedKey) {
 function renderTriplet(entry, groupDef) {
   const triplet = entry.transform[groupDef.key];
   const unit = unitForGroup(entry, groupDef.key);
+  const step = stepForGroup(groupDef.key);
   return (
     `<fieldset class="object-transform-triplet" data-transform-group="${esc(groupDef.key)}">`
       + `<legend><span>${esc(groupDef.label)}</span><em>${esc(unit)}</em></legend>`
@@ -73,7 +84,8 @@ function renderTriplet(entry, groupDef) {
           return (
             `<label>`
               + `<span>${axis.toUpperCase()}</span>`
-              + `<input class="object-transform-input" type="number" step="0.001" inputmode="decimal" value="${esc(value)}" `
+              + `<input class="object-transform-input" type="number" step="${esc(step)}" inputmode="decimal" value="${esc(value)}" `
+                + `data-aos-control="number-field" data-aos-step="${esc(step)}" `
                 + `data-transform-group="${esc(groupDef.key)}" data-transform-axis="${esc(axis)}" `
                 + `${tripletInputAttrs(entry, groupDef.key, axis, value)}>`
             + `</label>`
@@ -131,6 +143,7 @@ function renderSnapshot(state) {
 export default function ObjectTransformPanel() {
   let host = null;
   let root = null;
+  let numberFields = null;
   const state = createObjectTransformState();
 
   function syncDebugState() {
@@ -150,9 +163,35 @@ export default function ObjectTransformPanel() {
     host.setTitle(`${BASE_TITLE} - ${count}${selected ? ` - ${selected.name}` : ''}`);
   }
 
+  function focusedTripletTarget() {
+    const active = globalThis.document?.activeElement;
+    const input = active?.closest?.('.object-transform-input');
+    if (!input) return null;
+    if (root?.contains && !root.contains(input)) return null;
+    return {
+      group: input.dataset?.transformGroup || '',
+      axis: input.dataset?.transformAxis || '',
+    };
+  }
+
+  function restoreTripletFocus(target) {
+    if (!target?.group || !target?.axis) return;
+    const input = root?.querySelector?.(
+      `.object-transform-input[data-transform-group="${target.group}"][data-transform-axis="${target.axis}"]`
+    );
+    if (!input?.focus) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+  }
+
   function rerender() {
     if (!root) return;
+    const focusTarget = focusedTripletTarget();
     root.innerHTML = renderSnapshot(state);
+    restoreTripletFocus(focusTarget);
     updateTitle();
     syncDebugState();
   }
@@ -253,6 +292,7 @@ export default function ObjectTransformPanel() {
       root.setAttribute('aria-label', BASE_TITLE);
       root.addEventListener('click', handleClick);
       root.addEventListener('change', handleChange);
+      numberFields = wireNumberFieldControls(root);
       window.__objectTransformPanelDebug = {
         applyRegistry(message) {
           applyRegistryMessage(state, message);
@@ -278,5 +318,9 @@ export default function ObjectTransformPanel() {
     },
 
     onMessage: handleMessage,
+
+    destroy() {
+      numberFields?.dispose?.();
+    },
   };
 }
