@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import InspectorPanel from '../../packages/toolkit/components/inspector-panel/index.js'
 import LogConsole from '../../packages/toolkit/components/log-console/index.js'
+import ObjectTransformPanel from '../../packages/toolkit/components/object-transform-panel/index.js'
 import RenderPerformance from '../../packages/toolkit/components/render-performance/index.js'
 import SpatialTelemetry from '../../packages/toolkit/components/spatial-telemetry/index.js'
 
@@ -187,4 +188,41 @@ test('SpatialTelemetry exposes root region, labeled tables, and log semantics', 
   assert.match(root.innerHTML, /<table class="telemetry-table" aria-label="Canvas geometry">/)
   assert.match(root.innerHTML, /<table class="telemetry-table" aria-label="Cursor position">/)
   assert.match(root.innerHTML, /class="event-log" role="log" aria-label="Telemetry events" aria-live="polite"/)
+})
+
+test('ObjectTransformPanel exposes root region, object list, and triplet fields', (t) => {
+  withFakeBrowser(t)
+
+  const panel = ObjectTransformPanel()
+  const root = panel.render(fakeHost())
+
+  assert.equal(root.getAttribute('role'), 'region')
+  assert.equal(root.getAttribute('aria-label'), 'Object Transform')
+
+  panel.onMessage({
+    type: 'canvas_object.registry',
+    schema_version: '2026-05-03',
+    canvas_id: 'avatar-main',
+    objects: [{
+      object_id: 'radial.wiki-brain.tree',
+      name: 'Wiki Brain Tree',
+      kind: 'three.object3d',
+      capabilities: ['transform.read', 'transform.patch'],
+      transform: {
+        position: { x: 0, y: 0, z: 0 },
+        scale: { x: 1.32, y: 1.42, z: 1.2 },
+        rotation_degrees: { x: -11.5, y: 0, z: 0 },
+      },
+      units: {
+        position: 'scene',
+        scale: 'multiplier',
+        rotation: 'degrees',
+      },
+    }],
+  })
+
+  assert.match(root.innerHTML, /role="listbox" aria-label="Addressable objects"/)
+  assert.match(root.innerHTML, /data-aos-action="select_object"/)
+  assert.match(root.innerHTML, /data-aos-action="edit_transform"/)
+  assert.match(root.innerHTML, /aria-label="scale x for Wiki Brain Tree"/)
 })
