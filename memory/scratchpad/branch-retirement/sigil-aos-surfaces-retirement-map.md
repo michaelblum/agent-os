@@ -69,7 +69,24 @@ These do not need to be ported from `codex/sigil-aos-surfaces`.
 
 ### 1. Retire The Old Branch As Active Work
 
-Recommended lever after review:
+Status: completed on 2026-05-03.
+
+Actions taken:
+
+- Renamed local `codex/sigil-aos-surfaces` to
+  `archive/sigil-aos-surfaces-retired-2026-05-03`.
+- Removed the archived local branch's upstream tracking pointer.
+- Deleted remote `origin/codex/sigil-aos-surfaces`.
+- Fetched/pruned remotes afterward.
+
+Safety handles still retained:
+
+- Local archive branch:
+  `archive/sigil-aos-surfaces-retired-2026-05-03`.
+- Local checkpoint branch:
+  `checkpoint/sigil-aos-surfaces-root-2026-05-03`.
+
+Original lever:
 
 ```sh
 git branch -m codex/sigil-aos-surfaces archive/sigil-aos-surfaces-retired-2026-05-03
