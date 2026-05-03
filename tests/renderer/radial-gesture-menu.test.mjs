@@ -61,12 +61,12 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
 
   assert.equal(wikiItem.action, 'wikiGraph')
   assert.equal(wikiItem.geometry.type, 'gltf')
-  assert.equal(wikiItem.geometry.modelUid, '09d686a1a1f745cba6b2385d0c831214')
-  assert.match(wikiItem.geometry.src, /wiki-brain\/scene\.gltf$/)
-  assert.equal(wikiItem.geometry.material, 'source-emissive')
+  assert.equal(wikiItem.geometry.modelUid, '49bcdf19c1904c76a456b31838b0d7ac')
+  assert.match(wikiItem.geometry.src, /human-brain\/scene\.gltf$/)
+  assert.equal(wikiItem.geometry.material, 'translucent-brain')
   assert.equal(wikiItem.geometry.radiusScale, 1.42)
   assert.equal(wikiItem.geometry.bloomShell, undefined)
-  assert.equal(wikiItem.geometry.attribution.author, 'oxterium')
+  assert.equal(wikiItem.geometry.attribution.author, 'Versal')
 })
 
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {

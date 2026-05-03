@@ -55,6 +55,7 @@ assert len(surfaces) == 1, payload
 surface = surfaces[0]
 assert surface["kind"] == "canvas", surface
 assert surface["id"] == "surface-probe", surface
+assert isinstance(surface.get("window_id"), int) and surface["window_id"] > 0, surface
 assert surface["bounds_global"] == {"x": 40, "y": 40, "width": 120, "height": 80}, surface
 assert surface["displays"] == [surface["display"]], surface
 assert len(surface["segments"]) == 1, surface
