@@ -32,9 +32,34 @@ export function radialGlyphActivationState({ visualRadial, activeRadial, source,
     };
 }
 
-export function resolveRadialHoverSpinSpeed(item = {}, { nativeGeometry = false } = {}) {
-    const value = item.geometry?.hoverSpinSpeed ?? item.hoverSpinSpeed;
-    return Math.max(0, finite(value, nativeGeometry ? 1.45 : 1.1));
+export const DEFAULT_RADIAL_ITEM_MOTION = {
+    modelHoverSpinSpeed: 1.45,
+    shapeHoverSpinSpeed: 1.1,
+};
+
+function objectValue(value = {}) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+export function resolveRadialItemMotion(item = {}, { nativeGeometry = false, itemMotion = {} } = {}) {
+    const menuMotion = objectValue(itemMotion);
+    const localMotion = objectValue(item.geometry?.itemMotion ?? item.itemMotion);
+    const baseSpeed = nativeGeometry
+        ? finite(menuMotion.modelHoverSpinSpeed, DEFAULT_RADIAL_ITEM_MOTION.modelHoverSpinSpeed)
+        : finite(menuMotion.shapeHoverSpinSpeed, DEFAULT_RADIAL_ITEM_MOTION.shapeHoverSpinSpeed);
+    const localSpeed = nativeGeometry ? localMotion.modelHoverSpinSpeed : localMotion.shapeHoverSpinSpeed;
+    const value = item.geometry?.hoverSpinSpeed
+        ?? item.hoverSpinSpeed
+        ?? localMotion.hoverSpinSpeed
+        ?? localSpeed
+        ?? baseSpeed;
+    return {
+        hoverSpinSpeed: Math.max(0, finite(value, baseSpeed)),
+    };
+}
+
+export function resolveRadialHoverSpinSpeed(item = {}, options = {}) {
+    return resolveRadialItemMotion(item, options).hoverSpinSpeed;
 }
 
 function applyObjectTransform(object, transform = {}, defaults = {}) {
@@ -1552,7 +1577,7 @@ function updateRadialEffect(glyph, item, {
     };
 }
 
-export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRadius } = {}) {
+export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRadius, itemMotion = {} } = {}) {
     const group = new THREE.Group();
     group.visible = false;
     group.renderOrder = 20;
@@ -1562,6 +1587,13 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
     let lastRadial = null;
     let displayProgress = 0;
     let lastUpdateTime = null;
+
+    function resolveItemMotion(source = {}) {
+        return {
+            ...objectValue(itemMotion),
+            ...objectValue(source?.visuals?.itemMotion ?? source?.itemMotion),
+        };
+    }
 
     function ensureGlyph(item) {
         const id = item.id || 'item';
@@ -1618,6 +1650,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         const scales = {};
         const geometry = {};
         const effects = {};
+        const sourceItemMotion = resolveItemMotion(source);
 
         for (const item of items) {
             const glyph = ensureGlyph(item);
@@ -1658,7 +1691,10 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
                     size: glyph.userData.geometrySize || null,
                 };
             }
-            const hoverSpinSpeed = resolveRadialHoverSpinSpeed(item, { nativeGeometry });
+            const hoverSpinSpeed = resolveRadialHoverSpinSpeed(item, {
+                nativeGeometry,
+                itemMotion: sourceItemMotion,
+            });
             glyph.userData.hoverSpin = hoverSpinSpeed > 0
                 ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpinSpeed)
                 : 0;

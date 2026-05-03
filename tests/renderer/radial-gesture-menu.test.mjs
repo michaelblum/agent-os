@@ -154,6 +154,28 @@ test('Sigil radial menu start applies normalized stale item geometry', () => {
   assert.equal(wikiItem.geometry.radialEffect.kind, 'nested-neural-tree')
 })
 
+test('Sigil radial menu carries visual motion config into snapshots', () => {
+  const { menu } = createMenu({
+    state: {
+      radialGestureMenu: {
+        visuals: {
+          itemMotion: {
+            modelHoverSpinSpeed: 0,
+          },
+        },
+      },
+    },
+  })
+
+  const started = menu.start({ x: 200, y: 200, valid: true })
+
+  assert.deepEqual(started.visuals, {
+    itemMotion: {
+      modelHoverSpinSpeed: 0,
+    },
+  })
+})
+
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {
   const { menu } = createMenu()
   menu.start({ x: 0, y: 0, valid: true })

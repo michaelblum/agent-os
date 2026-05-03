@@ -83,6 +83,7 @@ class Color {
 globalThis.THREE = { Box3, Color, Vector3 }
 
 const {
+  DEFAULT_RADIAL_ITEM_MOTION,
   normalizeModelScene,
   radialGlyphActivationState,
   resolveNestedFiberBloomTransform,
@@ -90,6 +91,7 @@ const {
   resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
   resolveRadialHoverSpinSpeed,
+  resolveRadialItemMotion,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
 test('resolveNestedFiberStemTransform anchors fiber roots toward the brain stem volume', () => {
@@ -175,8 +177,26 @@ test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative val
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0 } }, { nativeGeometry: true }), 0)
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: -2 } }, { nativeGeometry: true }), 0)
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0.25 } }, { nativeGeometry: false }), 0.25)
-  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: true }), 1.45)
-  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: false }), 1.1)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: true }), DEFAULT_RADIAL_ITEM_MOTION.modelHoverSpinSpeed)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: false }), DEFAULT_RADIAL_ITEM_MOTION.shapeHoverSpinSpeed)
+})
+
+test('resolveRadialItemMotion allows menu-level defaults and item-level overrides', () => {
+  assert.deepEqual(
+    resolveRadialItemMotion({}, { nativeGeometry: true, itemMotion: { modelHoverSpinSpeed: 0 } }),
+    { hoverSpinSpeed: 0 }
+  )
+  assert.deepEqual(
+    resolveRadialItemMotion({}, { nativeGeometry: false, itemMotion: { shapeHoverSpinSpeed: 0.2 } }),
+    { hoverSpinSpeed: 0.2 }
+  )
+  assert.deepEqual(
+    resolveRadialItemMotion({ geometry: { itemMotion: { hoverSpinSpeed: 0.4 } } }, {
+      nativeGeometry: true,
+      itemMotion: { modelHoverSpinSpeed: 0 },
+    }),
+    { hoverSpinSpeed: 0.4 }
+  )
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {

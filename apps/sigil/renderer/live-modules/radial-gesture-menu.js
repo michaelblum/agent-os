@@ -41,21 +41,32 @@ function configFromState(state) {
 export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
     let model = null;
     let snapshot = null;
+    let activeConfig = null;
 
     function ensureModel() {
-        model = createRadialGestureModel(configFromState(state || {}));
+        activeConfig = configFromState(state || {});
+        model = createRadialGestureModel(activeConfig);
         return model;
     }
 
+    function decorateSnapshot(nextSnapshot) {
+        if (!nextSnapshot || typeof nextSnapshot !== 'object') return null;
+        if (!activeConfig?.visuals) return nextSnapshot;
+        return {
+            ...nextSnapshot,
+            visuals: activeConfig.visuals,
+        };
+    }
+
     function start(origin, pointer = origin) {
-        snapshot = ensureModel().start(origin, pointer);
+        snapshot = decorateSnapshot(ensureModel().start(origin, pointer));
         return snapshot;
     }
 
     function move(pointer) {
         if (!model) return null;
         const priorPhase = snapshot?.phase || 'idle';
-        snapshot = model.move(pointer);
+        snapshot = decorateSnapshot(model.move(pointer));
         return {
             snapshot,
             enteredFastTravel: priorPhase !== 'fastTravel' && snapshot.phase === 'fastTravel',
@@ -65,27 +76,30 @@ export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
 
     function release(pointer) {
         if (!model) return null;
-        snapshot = model.release(pointer);
+        snapshot = decorateSnapshot(model.release(pointer));
         if (snapshot.committed?.type === 'item') {
             onCommitItem?.(snapshot.committed.item, snapshot);
         }
         const result = snapshot;
         model = null;
+        activeConfig = null;
         snapshot = null;
         return result;
     }
 
     function cancel(reason = 'cancelled') {
         if (!model) return null;
-        snapshot = model.cancel(reason);
+        snapshot = decorateSnapshot(model.cancel(reason));
         const result = snapshot;
         model = null;
+        activeConfig = null;
         snapshot = null;
         return result;
     }
 
     function applySnapshot(nextSnapshot) {
-        snapshot = nextSnapshot && typeof nextSnapshot === 'object' ? nextSnapshot : null;
+        activeConfig = configFromState(state || {});
+        snapshot = decorateSnapshot(nextSnapshot && typeof nextSnapshot === 'object' ? nextSnapshot : null);
     }
 
     function currentSnapshot() {
