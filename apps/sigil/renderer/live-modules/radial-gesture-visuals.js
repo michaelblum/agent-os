@@ -37,11 +37,6 @@ export function resolveRadialHoverSpinSpeed(item = {}, { nativeGeometry = false 
     return Math.max(0, finite(value, nativeGeometry ? 1.45 : 1.1));
 }
 
-export function resolveRadialHoverYawRadians(item = {}) {
-    const degrees = finite(item.geometry?.hoverYawDegrees ?? item.hoverYawDegrees, 0);
-    return degrees * Math.PI / 180;
-}
-
 function applyObjectTransform(object, transform = {}, defaults = {}) {
     if (!object) return;
     const position = vectorValue(transform.position, defaults.position);
@@ -1667,9 +1662,8 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             glyph.userData.hoverSpin = hoverSpinSpeed > 0
                 ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpinSpeed)
                 : 0;
-            const hoverYaw = hoverProgress * resolveRadialHoverYawRadians(item);
             glyph.rotation.x = nativeGeometry ? hoverProgress * 0.12 : 0.08 + (hoverProgress * 0.04);
-            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + hoverYaw + glyph.userData.hoverSpin;
+            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + glyph.userData.hoverSpin;
             glyph.rotation.z = hoverProgress * 0.055;
         }
 
