@@ -17,7 +17,10 @@ import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
 import { applySkin } from './skins.js';
-import { DEFAULT_SIGIL_RADIAL_ITEMS } from './radial-menu-defaults.js';
+import {
+    DEFAULT_SIGIL_RADIAL_ITEMS,
+    normalizeSigilRadialGestureMenu,
+} from './radial-menu-defaults.js';
 import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     DEFAULT_TRANSITION_EFFECT,
@@ -383,7 +386,9 @@ export function applyAppearance(blob) {
     state.dragCancelRadius = interaction.dragCancelRadius ?? D.interaction.dragCancelRadius;
     state.gotoRingRadius = interaction.gotoRingRadius ?? D.interaction.gotoRingRadius;
     state.menuRingRadius = interaction.menuRingRadius ?? D.interaction.menuRingRadius;
-    state.radialGestureMenu = interaction.radialGestureMenu ?? D.interaction.radialGestureMenu;
+    state.radialGestureMenu = normalizeSigilRadialGestureMenu(
+        interaction.radialGestureMenu ?? D.interaction.radialGestureMenu
+    );
 
     const windowing = blob.windowing ?? D.windowing;
     state.avatarWindowLevel = windowing.avatarLevel === 'screen_saver'
