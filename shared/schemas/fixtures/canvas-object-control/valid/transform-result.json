@@ -1,0 +1,16 @@
+{
+  "type": "canvas_object.transform.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-transform-1",
+  "source_id": "avatar-main",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.tree"
+  },
+  "status": "applied",
+  "transform": {
+    "position": { "x": 0.018, "y": -0.042, "z": 0.018 },
+    "scale": { "x": 1.4, "y": 1.5, "z": 1.25 },
+    "rotation_degrees": { "x": -9, "y": 0, "z": 0 }
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/canvas-object-control.schema.json",
+  "title": "Canvas Object Control Messages",
+  "description": "Typed AOS toolkit messages for addressable canvas-owned objects and transform patch control.",
+  "oneOf": [
+    { "$ref": "#/$defs/registrySnapshot" },
+    { "$ref": "#/$defs/transformPatch" },
+    { "$ref": "#/$defs/transformResult" }
+  ],
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "2026-05-03"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "address": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canvas_id", "object_id"],
+      "properties": {
+        "canvas_id": { "$ref": "#/$defs/nonEmptyString" },
+        "object_id": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "fullTriplet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "partialTriplet": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "scale", "rotation_degrees"],
+      "properties": {
+        "position": { "$ref": "#/$defs/fullTriplet" },
+        "scale": { "$ref": "#/$defs/fullTriplet" },
+        "rotation_degrees": { "$ref": "#/$defs/fullTriplet" }
+      }
+    },
+    "transformPatchValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "position": { "$ref": "#/$defs/partialTriplet" },
+        "scale": { "$ref": "#/$defs/partialTriplet" },
+        "rotation_degrees": { "$ref": "#/$defs/partialTriplet" }
+      },
+      "anyOf": [
+        { "required": ["position"] },
+        { "required": ["scale"] },
+        { "required": ["rotation_degrees"] }
+      ]
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["position", "scale", "rotation"],
+      "properties": {
+        "position": {
+          "type": "string",
+          "enum": ["scene"]
+        },
+        "scale": {
+          "type": "string",
+          "enum": ["multiplier"]
+        },
+        "rotation": {
+          "type": "string",
+          "enum": ["degrees"]
+        }
+      }
+    },
+    "capability": {
+      "type": "string",
+      "enum": ["transform.read", "transform.patch"]
+    },
+    "registryObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_id", "name", "kind", "capabilities", "transform", "units"],
+      "properties": {
+        "object_id": { "$ref": "#/$defs/nonEmptyString" },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "kind": {
+          "type": "string",
+          "enum": ["three.object3d", "canvas.object", "dom.element", "custom"]
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/capability" }
+        },
+        "transform": { "$ref": "#/$defs/transform" },
+        "units": { "$ref": "#/$defs/units" },
+        "visible": { "type": "boolean" },
+        "metadata": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "registrySnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "canvas_id", "objects"],
+      "properties": {
+        "type": { "const": "canvas_object.registry" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "canvas_id": { "$ref": "#/$defs/nonEmptyString" },
+        "source_id": { "$ref": "#/$defs/nonEmptyString" },
+        "observed_at": { "$ref": "#/$defs/timestamp" },
+        "objects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/registryObject" }
+        }
+      }
+    },
+    "transformPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "request_id", "target", "patch"],
+      "properties": {
+        "type": { "const": "canvas_object.transform.patch" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "request_id": { "$ref": "#/$defs/nonEmptyString" },
+        "source_id": { "$ref": "#/$defs/nonEmptyString" },
+        "target": { "$ref": "#/$defs/address" },
+        "patch": { "$ref": "#/$defs/transformPatchValues" }
+      }
+    },
+    "transformResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "request_id", "target", "status"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "applied" }
+            }
+          },
+          "then": { "required": ["transform"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["rejected", "stale"] }
+            }
+          },
+          "then": { "required": ["reason"] }
+        }
+      ],
+      "properties": {
+        "type": { "const": "canvas_object.transform.result" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "request_id": { "$ref": "#/$defs/nonEmptyString" },
+        "source_id": { "$ref": "#/$defs/nonEmptyString" },
+        "target": { "$ref": "#/$defs/address" },
+        "status": {
+          "type": "string",
+          "enum": ["applied", "rejected", "stale"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "unknown_object",
+            "unsupported_capability",
+            "invalid_patch",
+            "not_ready",
+            "owner_rejected",
+            "contract_mismatch"
+          ]
+        },
+        "message": { "type": "string" },
+        "transform": { "$ref": "#/$defs/transform" }
+      }
+    }
+  }
+}

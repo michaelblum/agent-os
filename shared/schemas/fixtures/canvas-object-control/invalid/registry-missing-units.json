@@ -1,0 +1,18 @@
+{
+  "type": "canvas_object.registry",
+  "schema_version": "2026-05-03",
+  "canvas_id": "avatar-main",
+  "objects": [
+    {
+      "object_id": "radial.wiki-brain.tree",
+      "name": "Wiki Brain Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read"],
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 },
+        "rotation_degrees": { "x": 0, "y": 0, "z": 0 }
+      }
+    }
+  ]
+}

@@ -317,6 +317,91 @@ Subscribe side is handled for you — the canvas-inspector subscribes to
 `canvas_object.marks` via its manifest. Any canvas that subscribes will
 receive the daemon's fan-out.
 
+### Addressable Canvas Object Control
+
+`canvas_object.registry`, `canvas_object.transform.patch`, and
+`canvas_object.transform.result` define the addressable object control contract
+for reusable transform editors. This is a control contract, not a replacement
+for `canvas_object.marks`: marks are visual/debug telemetry, while registry and
+transform messages describe objects that a canvas owner explicitly exposes for
+remote control.
+
+The schema source of truth is
+[`shared/schemas/canvas-object-control.schema.json`](../../shared/schemas/canvas-object-control.schema.json)
+and the reference narrative is
+[`shared/schemas/canvas-object-control.md`](../../shared/schemas/canvas-object-control.md).
+
+Addresses use `canvas_id + object_id`:
+
+```json
+{
+  "canvas_id": "avatar-main",
+  "object_id": "radial.wiki-brain.tree"
+}
+```
+
+Registry snapshots are retained-state messages. A canvas owner publishes a full
+replacement list of addressable objects with current transform values, units,
+and capabilities:
+
+```json
+{
+  "type": "canvas_object.registry",
+  "schema_version": "2026-05-03",
+  "canvas_id": "avatar-main",
+  "objects": [
+    {
+      "object_id": "radial.wiki-brain.tree",
+      "name": "Wiki Brain Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch"],
+      "transform": {
+        "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
+        "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
+        "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      }
+    }
+  ]
+}
+```
+
+Transform patches are commands. Controllers send a partial transform update to
+one addressed object and correlate the owner response by `request_id`:
+
+```json
+{
+  "type": "canvas_object.transform.patch",
+  "schema_version": "2026-05-03",
+  "request_id": "req-42",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.tree"
+  },
+  "patch": {
+    "scale": { "x": 1.4, "y": 1.5, "z": 1.25 }
+  }
+}
+```
+
+The intended v0 routing uses existing AOS canvas plumbing:
+
+- owners emit registry snapshots through toolkit `emit()` and daemon fan-out to
+  canvases subscribed to `canvas_object.registry`
+- transform editors subscribe through toolkit `subscribe()`
+- transform patches are delivered to the owning `canvas_id` with existing
+  canvas message delivery
+- owner results are direct replies or subscribed result messages, depending on
+  the controller surface
+
+Keep bus-shaped discipline at this boundary: typed messages, structured
+addresses, separate state snapshots from commands, and include `request_id` for
+mutating requests. Do not introduce a general AOS bus for this contract.
+
 The inspector's minimap cursor is operator-toggleable and starts hidden by
 default. Turning it on subscribes to `input_event` on demand and requests a
 snapshot so the current cursor dot appears immediately instead of waiting for
