@@ -2,7 +2,6 @@ export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
 export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
-export const WIKI_BRAIN_SCENE_OBJECT_ID = 'radial.wiki-brain.scene';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
@@ -10,11 +9,6 @@ export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
-    sceneTransform: {
-        position: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 },
-        rotationDegrees: { x: 0, y: 0, z: 0 },
-    },
     shellTransform: {
         position: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -36,7 +30,6 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         held: 0.75,
     },
     visibility: {
-        scene: true,
         shell: true,
         tree: true,
         fractalTree: true,
@@ -103,16 +96,6 @@ export function resolveNestedShellTransform(effect = {}) {
     };
 }
 
-export function resolveNestedSceneTransform(effect = {}) {
-    const transform = effect.sceneTransform || {};
-    const defaults = DEFAULT_NESTED_TREE_EFFECT.sceneTransform;
-    return {
-        position: vectorValue(transform.position, defaults.position),
-        scale: vectorValue(transform.scale, defaults.scale),
-        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
-    };
-}
-
 export function resolveNestedTreeTransform(effect = {}) {
     const transform = effect.treeTransform || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
@@ -137,7 +120,6 @@ export function resolveNestedVisibility(effect = {}) {
     const visibility = effect.visibility || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.visibility;
     return {
-        scene: visibility.scene === undefined ? defaults.scene : !!visibility.scene,
         shell: visibility.shell === undefined ? defaults.shell : !!visibility.shell,
         tree: visibility.tree === undefined ? defaults.tree : !!visibility.tree,
         fractalTree: visibility.fractalTree === undefined ? defaults.fractalTree : !!visibility.fractalTree,
@@ -224,7 +206,6 @@ export function resolveWikiBrainEffect(item = {}) {
             ...(effect.shellOpacity || {}),
         },
         visibility: resolveNestedVisibility(effect),
-        sceneTransform: resolveNestedSceneTransform(effect),
         shellTransform: resolveNestedShellTransform(effect),
         treeTransform: resolveNestedTreeTransform(effect),
         fractalTreeTransform: resolveNestedFractalTreeTransform(effect),
@@ -253,13 +234,6 @@ export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {
         schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
         canvas_id: canvasId,
         objects: effect ? [
-            registryObject({
-                objectId: WIKI_BRAIN_SCENE_OBJECT_ID,
-                name: 'Wiki Brain Scene',
-                transform: effect.sceneTransform,
-                visible: effect.visibility.scene,
-                metadata: { role: 'scene-root' },
-            }),
             registryObject({
                 objectId: WIKI_BRAIN_SHELL_OBJECT_ID,
                 name: 'Wiki Brain Shell',
@@ -335,11 +309,6 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
             key: 'shellTransform',
             visibilityKey: 'shell',
             resolve: resolveNestedShellTransform,
-        },
-        [WIKI_BRAIN_SCENE_OBJECT_ID]: {
-            key: 'sceneTransform',
-            visibilityKey: 'scene',
-            resolve: resolveNestedSceneTransform,
         },
         [WIKI_BRAIN_FIBER_OBJECT_ID]: {
             key: 'treeTransform',
