@@ -18,7 +18,7 @@ export const CONTEXT_COG_MODEL = {
 };
 
 const LEGACY_WIKI_BRAIN_RADIUS_SCALE = 1.42;
-const WIKI_BRAIN_RADIUS_SCALE = 1.278;
+const WIKI_BRAIN_RADIUS_SCALE = 1.1502;
 
 export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     type: 'gltf',
