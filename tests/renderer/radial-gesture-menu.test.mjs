@@ -71,7 +71,7 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.equal(wikiItem.geometry.modelUid, '49bcdf19c1904c76a456b31838b0d7ac')
   assert.match(wikiItem.geometry.src, /human-brain\/scene\.gltf$/)
   assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
-  assert.equal(wikiItem.geometry.radiusScale, 1.42)
+  assert.equal(wikiItem.geometry.radiusScale, 1.278)
   assert.equal(wikiItem.geometry.normalizedRadius, 0.28)
   assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
   assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
@@ -112,6 +112,7 @@ test('Sigil radial menu normalizes stale wiki brain item geometry from saved con
   const wikiItem = normalized.items.find((item) => item.id === 'wiki-graph')
 
   assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
+  assert.equal(wikiItem.geometry.radiusScale, 1.278)
   assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
   assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
   assert.deepEqual(wikiItem.geometry.radialEffect, {

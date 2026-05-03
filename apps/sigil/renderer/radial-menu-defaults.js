@@ -17,12 +17,15 @@ export const CONTEXT_COG_MODEL = {
     },
 };
 
+const LEGACY_WIKI_BRAIN_RADIUS_SCALE = 1.42;
+const WIKI_BRAIN_RADIUS_SCALE = 1.278;
+
 export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     type: 'gltf',
     src: '../assets/models/human-brain/scene.gltf',
     modelUid: '49bcdf19c1904c76a456b31838b0d7ac',
     title: 'Human Brain',
-    radiusScale: 1.42,
+    radiusScale: WIKI_BRAIN_RADIUS_SCALE,
     normalizedRadius: 0.28,
     material: 'translucent-brain-shell',
     radialEffect: {
@@ -125,6 +128,9 @@ function normalizeRadialItemOverride(item) {
     if (next.id === 'wiki-graph' && isPlainObject(next.geometry)) {
         if (next.geometry.material === 'translucent-brain') {
             next.geometry.material = WIKI_BRAIN_HOLOGRAM_MODEL.material;
+        }
+        if (Number(next.geometry.radiusScale) === LEGACY_WIKI_BRAIN_RADIUS_SCALE) {
+            next.geometry.radiusScale = WIKI_BRAIN_RADIUS_SCALE;
         }
     }
 
