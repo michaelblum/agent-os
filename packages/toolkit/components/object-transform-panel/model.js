@@ -210,6 +210,7 @@ export function normalizeTransformResultMessage(message = {}) {
       reason: text(payload.reason),
       message: text(payload.message),
       transform: payload.transform ? normalizeTransform(payload.transform) : null,
+      visible: payload.visible === undefined ? null : !!payload.visible,
     },
   };
 }
@@ -230,6 +231,13 @@ export function applyTransformResultMessage(state, message = {}) {
     state.objectsByKey.set(result.key, {
       ...entry,
       transform: result.transform,
+      visible: result.visible === null ? entry.visible : result.visible,
+    });
+  } else if (result.status === 'applied' && result.visible !== null && state.objectsByKey.has(result.key)) {
+    const entry = state.objectsByKey.get(result.key);
+    state.objectsByKey.set(result.key, {
+      ...entry,
+      visible: result.visible,
     });
   }
   return normalized;
@@ -237,6 +245,10 @@ export function applyTransformResultMessage(state, message = {}) {
 
 export function canPatchObject(entry) {
   return !!entry?.capabilities?.includes?.('transform.patch');
+}
+
+export function canPatchVisibility(entry) {
+  return !!entry?.capabilities?.includes?.('visibility.patch');
 }
 
 export function buildTripletPatchMessage(entry, group, values, options = {}) {
@@ -264,6 +276,25 @@ export function buildTripletPatchMessage(entry, group, values, options = {}) {
   };
 }
 
+export function buildVisibilityPatchMessage(entry, visible, options = {}) {
+  if (!entry) throw new Error('target entry is required');
+  if (!canPatchVisibility(entry)) throw new Error(`object ${entry.object_id} does not advertise visibility.patch`);
+  const requestId = text(options.requestId, `object-transform-${Date.now().toString(36)}`);
+
+  return {
+    type: 'canvas_object.transform.patch',
+    schema_version: SCHEMA_VERSION,
+    request_id: requestId,
+    target: {
+      canvas_id: entry.canvas_id,
+      object_id: entry.object_id,
+    },
+    patch: {
+      visible: !!visible,
+    },
+  };
+}
+
 export function patchDeliveryForTarget(entry, patchMessage) {
   if (!entry) throw new Error('target entry is required');
   return {
@@ -272,6 +303,14 @@ export function patchDeliveryForTarget(entry, patchMessage) {
       target: entry.canvas_id,
       message: patchMessage,
     },
+  };
+}
+
+export function updateEntryVisibilityDraft(entry, visible) {
+  if (!entry) return null;
+  return {
+    ...entry,
+    visible: !!visible,
   };
 }
 

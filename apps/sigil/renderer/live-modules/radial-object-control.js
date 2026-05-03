@@ -2,6 +2,7 @@ export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
 export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
+export const WIKI_BRAIN_SCENE_OBJECT_ID = 'radial.wiki-brain.scene';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
@@ -9,6 +10,11 @@ export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
+    sceneTransform: {
+        position: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        rotationDegrees: { x: 0, y: 0, z: 0 },
+    },
     shellTransform: {
         position: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
@@ -28,6 +34,12 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         rest: 0.75,
         active: 0.26,
         held: 0.75,
+    },
+    visibility: {
+        scene: true,
+        shell: true,
+        tree: true,
+        fractalTree: true,
     },
 };
 
@@ -91,6 +103,16 @@ export function resolveNestedShellTransform(effect = {}) {
     };
 }
 
+export function resolveNestedSceneTransform(effect = {}) {
+    const transform = effect.sceneTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.sceneTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
 export function resolveNestedTreeTransform(effect = {}) {
     const transform = effect.treeTransform || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
@@ -108,6 +130,17 @@ export function resolveNestedFractalTreeTransform(effect = {}) {
         position: vectorValue(transform.position, defaults.position),
         scale: vectorValue(transform.scale, defaults.scale),
         rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function resolveNestedVisibility(effect = {}) {
+    const visibility = effect.visibility || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.visibility;
+    return {
+        scene: visibility.scene === undefined ? defaults.scene : !!visibility.scene,
+        shell: visibility.shell === undefined ? defaults.shell : !!visibility.shell,
+        tree: visibility.tree === undefined ? defaults.tree : !!visibility.tree,
+        fractalTree: visibility.fractalTree === undefined ? defaults.fractalTree : !!visibility.fractalTree,
     };
 }
 
@@ -190,21 +223,24 @@ export function resolveWikiBrainEffect(item = {}) {
             ...DEFAULT_NESTED_TREE_EFFECT.shellOpacity,
             ...(effect.shellOpacity || {}),
         },
+        visibility: resolveNestedVisibility(effect),
+        sceneTransform: resolveNestedSceneTransform(effect),
         shellTransform: resolveNestedShellTransform(effect),
         treeTransform: resolveNestedTreeTransform(effect),
         fractalTreeTransform: resolveNestedFractalTreeTransform(effect),
     };
 }
 
-function registryObject({ objectId, name, transform }) {
+function registryObject({ objectId, name, transform, visible = true, metadata = {} }) {
     return {
         object_id: objectId,
         name,
         kind: 'three.object3d',
-        capabilities: ['transform.read', 'transform.patch'],
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
         transform: contractTransformFromEffect(transform),
         units: CONTRACT_UNITS,
-        visible: true,
+        visible: !!visible,
+        metadata,
     };
 }
 
@@ -218,19 +254,32 @@ export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {
         canvas_id: canvasId,
         objects: effect ? [
             registryObject({
+                objectId: WIKI_BRAIN_SCENE_OBJECT_ID,
+                name: 'Wiki Brain Scene',
+                transform: effect.sceneTransform,
+                visible: effect.visibility.scene,
+                metadata: { role: 'scene-root' },
+            }),
+            registryObject({
                 objectId: WIKI_BRAIN_SHELL_OBJECT_ID,
                 name: 'Wiki Brain Shell',
                 transform: effect.shellTransform,
+                visible: effect.visibility.shell,
+                metadata: { role: 'shell' },
             }),
             registryObject({
                 objectId: WIKI_BRAIN_FIBER_OBJECT_ID,
                 name: 'Wiki Brain Fiber Optics',
                 transform: effect.treeTransform,
+                visible: effect.visibility.tree,
+                metadata: { role: 'fiber-optics' },
             }),
             registryObject({
                 objectId: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
                 name: 'Wiki Brain Fractal Tree',
                 transform: effect.fractalTreeTransform,
+                visible: effect.visibility.fractalTree,
+                metadata: { role: 'fractal-tree' },
             }),
         ] : [],
     };
@@ -284,14 +333,22 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
     const target = {
         [WIKI_BRAIN_SHELL_OBJECT_ID]: {
             key: 'shellTransform',
+            visibilityKey: 'shell',
             resolve: resolveNestedShellTransform,
+        },
+        [WIKI_BRAIN_SCENE_OBJECT_ID]: {
+            key: 'sceneTransform',
+            visibilityKey: 'scene',
+            resolve: resolveNestedSceneTransform,
         },
         [WIKI_BRAIN_FIBER_OBJECT_ID]: {
             key: 'treeTransform',
+            visibilityKey: 'tree',
             resolve: resolveNestedTreeTransform,
         },
         [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
             key: 'fractalTreeTransform',
+            visibilityKey: 'fractalTree',
             resolve: resolveNestedFractalTreeTransform,
         },
     }[objectId] || null;
@@ -310,15 +367,32 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
 
     const current = target.resolve(effect);
     const merged = mergeTransformPatch(current, message.patch);
-    if (!merged.changed) {
+    let visibilityChanged = false;
+    let visibility = resolveNestedVisibility(effect);
+    if (message.patch.visible !== undefined) {
+        if (typeof message.patch.visible !== 'boolean') {
+            return resultFor(message, 'rejected', {
+                reason: 'invalid_patch',
+                message: 'visible patch must be boolean',
+            });
+        }
+        visibility = {
+            ...visibility,
+            [target.visibilityKey]: message.patch.visible,
+        };
+        visibilityChanged = true;
+    }
+    if (!merged.changed && !visibilityChanged) {
         return resultFor(message, 'rejected', {
             reason: 'invalid_patch',
-            message: 'patch did not contain numeric transform axes',
+            message: 'patch did not contain numeric transform axes or visibility',
         });
     }
 
-    effect[target.key] = merged.transform;
+    if (merged.changed) effect[target.key] = merged.transform;
+    if (visibilityChanged) effect.visibility = visibility;
     return resultFor(message, 'applied', {
-        transform: contractTransformFromEffect(merged.transform),
+        transform: contractTransformFromEffect(merged.changed ? merged.transform : current),
+        visible: visibility[target.visibilityKey],
     });
 }

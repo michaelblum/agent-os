@@ -442,9 +442,9 @@ mutating requests. Do not introduce a general AOS bus for this contract.
 `object-transform-panel` is the reusable controller for the addressable canvas
 object control contract. It subscribes to `canvas_object.registry` and
 `canvas_object.transform.result`, renders advertised objects by
-`canvas_id + object_id`, and emits transform edits through existing
-`canvas.send` routing to the owning canvas. The panel does not inspect another
-canvas or assume the object is backed by Three.js.
+`canvas_id + object_id`, and emits transform and visibility edits through
+existing `canvas.send` routing to the owning canvas. The panel does not inspect
+another canvas or assume the object is backed by Three.js.
 
 Default launcher:
 

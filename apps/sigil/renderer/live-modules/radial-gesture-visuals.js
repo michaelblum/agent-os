@@ -2,8 +2,10 @@ import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import {
     DEFAULT_NESTED_TREE_EFFECT,
     resolveNestedFractalTreeTransform,
+    resolveNestedSceneTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
+    resolveNestedVisibility,
     vectorAngles,
     vectorValue,
 } from './radial-object-control.js';
@@ -11,6 +13,7 @@ import {
 export {
     DEFAULT_NESTED_TREE_EFFECT,
     resolveNestedFractalTreeTransform,
+    resolveNestedSceneTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
 } from './radial-object-control.js';
@@ -47,6 +50,10 @@ function applyNestedTreeTransform(tree, transform = {}) {
 
 function applyNestedFractalTreeTransform(tree, transform = {}) {
     applyObjectTransform(tree, transform, DEFAULT_NESTED_TREE_EFFECT.fractalTreeTransform);
+}
+
+function applyNestedSceneTransform(scene, transform = {}) {
+    applyObjectTransform(scene, transform, DEFAULT_NESTED_TREE_EFFECT.sceneTransform);
 }
 
 function applyNestedShellTransform(shell, transform = {}) {
@@ -211,6 +218,8 @@ function effectConfig(item = {}) {
             ...(effect.shellOpacity || {}),
         },
     };
+    merged.visibility = resolveNestedVisibility(merged);
+    merged.sceneTransform = resolveNestedSceneTransform(merged);
     merged.shellTransform = resolveNestedShellTransform(merged);
     merged.treeTransform = resolveNestedTreeTransform(merged);
     merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
@@ -1228,6 +1237,7 @@ function createRadialEffectHost(group, item = {}) {
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fractalTreeEffect = createFractalBrainTreeEffect();
     fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
+    applyNestedSceneTransform(composite, effect.sceneTransform);
     applyNestedShellTransform(modelHost, effect.shellTransform);
     applyNestedTreeTransform(fiberEffect, effect.treeTransform);
     applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
@@ -1235,12 +1245,15 @@ function createRadialEffectHost(group, item = {}) {
     group.add(composite);
     group.userData.modelHost = modelHost;
     group.userData.radialEffectConfig = effect;
+    group.userData.radialEffectComposite = composite;
     group.userData.radialEffectTree = fiberEffect;
     group.userData.radialEffectFiber = fiberEffect;
     group.userData.radialEffectFractalTree = fractalTreeEffect;
+    group.userData.radialEffectSceneTransform = effect.sceneTransform;
     group.userData.radialEffectShellTransform = effect.shellTransform;
     group.userData.radialEffectTreeTransform = effect.treeTransform;
     group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    group.userData.radialEffectVisibility = effect.visibility;
     group.userData.radialEffectState = {
         activation: 0,
         treeProgress: 0,
@@ -1258,9 +1271,11 @@ function syncRadialEffectConfig(glyph, item = {}) {
     const effect = effectConfig(item);
     if (!effect) return;
     glyph.userData.radialEffectConfig = effect;
+    glyph.userData.radialEffectSceneTransform = effect.sceneTransform;
     glyph.userData.radialEffectShellTransform = effect.shellTransform;
     glyph.userData.radialEffectTreeTransform = effect.treeTransform;
     glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    glyph.userData.radialEffectVisibility = effect.visibility;
 }
 
 function createGltfGlyph(item = {}) {
@@ -1400,6 +1415,7 @@ function updateRadialEffect(glyph, item, {
 } = {}) {
     const config = glyph.userData.radialEffectConfig;
     const state = glyph.userData.radialEffectState;
+    const composite = glyph.userData.radialEffectComposite;
     const modelHost = glyph.userData.modelHost;
     const tree = glyph.userData.radialEffectTree;
     const fractalTree = glyph.userData.radialEffectFractalTree;
@@ -1440,15 +1456,22 @@ function updateRadialEffect(glyph, item, {
     state.shellOpacity += (shellTarget - state.shellOpacity) * 0.2;
 
     const display = clamp01(progress);
+    const visibility = glyph.userData.radialEffectVisibility || config.visibility || DEFAULT_NESTED_TREE_EFFECT.visibility;
+    const sceneVisible = visibility.scene !== false;
+    applyNestedSceneTransform(composite, glyph.userData.radialEffectSceneTransform || config.sceneTransform);
+    if (composite) composite.visible = sceneVisible;
     applyNestedShellTransform(modelHost, glyph.userData.radialEffectShellTransform || config.shellTransform);
+    if (modelHost) modelHost.visible = sceneVisible && visibility.shell !== false;
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);
     updateNestedNeuralTreeEffect(tree, state.treeProgress * display, dt);
+    tree.visible = sceneVisible && visibility.tree !== false && tree.visible;
     applyNestedTreeTransform(tree, glyph.userData.radialEffectTreeTransform || config.treeTransform);
     if (fractalTree) {
         state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (
             treeTarget >= state.fractalTreeProgress ? 0.14 : 0.1
         );
         updateFractalBrainTreeEffect(fractalTree, state.fractalTreeProgress * display, dt);
+        fractalTree.visible = sceneVisible && visibility.fractalTree !== false && fractalTree.visible;
         applyNestedFractalTreeTransform(
             fractalTree,
             glyph.userData.radialEffectFractalTreeTransform || config.fractalTreeTransform

@@ -6,7 +6,9 @@ import {
   applyRegistryMessage,
   applyTransformResultMessage,
   buildTripletPatchMessage,
+  buildVisibilityPatchMessage,
   canPatchObject,
+  canPatchVisibility,
   createObjectTransformState,
   formatTripletValue,
   objectAddressLabel,
@@ -15,10 +17,12 @@ import {
   selectedObject,
   sortedObjectEntries,
   updateEntryTransformDraft,
+  updateEntryVisibilityDraft,
 } from './model.js';
 import {
   objectRowAttrs,
   tripletInputAttrs,
+  visibilityToggleAttrs,
 } from './semantics.js';
 
 const BASE_TITLE = 'Object Transform';
@@ -58,13 +62,20 @@ function renderObjectList(entries, selectedKey) {
     `<div class="object-transform-list" role="listbox" aria-label="Addressable objects">`
       + entries.map((entry) => {
         const selected = entry.key === selectedKey;
-        const visible = entry.visible === null ? '' : `<span>${entry.visible ? 'visible' : 'hidden'}</span>`;
+        const visible = entry.visible !== false;
+        const visibilityDisabled = canPatchVisibility(entry) ? '' : ' disabled';
         return (
-          `<button type="button" class="object-transform-row${selected ? ' selected' : ''}" data-object-key="${esc(entry.key)}" ${objectRowAttrs(entry, selected)}>`
-            + `<strong>${esc(entry.name)}</strong>`
-            + `<small>${esc(entry.canvas_id)} / ${esc(entry.object_id)}</small>`
-            + `<em>${esc(entry.kind)}${visible}</em>`
-          + `</button>`
+          `<div class="object-transform-row${selected ? ' selected' : ''}${visible ? '' : ' hidden-object'}">`
+            + `<button type="button" class="object-transform-select" data-object-key="${esc(entry.key)}" ${objectRowAttrs(entry, selected)}>`
+              + `<strong>${esc(entry.name)}</strong>`
+              + `<small>${esc(entry.canvas_id)} / ${esc(entry.object_id)}</small>`
+              + `<em>${esc(entry.kind)}<span>${visible ? 'visible' : 'hidden'}</span></em>`
+            + `</button>`
+            + `<label class="object-transform-visibility${visible ? '' : ' off'}" title="${visible ? 'Hide' : 'Show'} ${esc(entry.name)}">`
+              + `<input type="checkbox" class="object-transform-visibility-input" data-object-visibility-key="${esc(entry.key)}" ${visible ? 'checked' : ''}${visibilityDisabled} ${visibilityToggleAttrs(entry)}>`
+              + `<span aria-hidden="true"></span>`
+            + `</label>`
+          + `</div>`
         );
       }).join('')
     + `</div>`
@@ -236,6 +247,48 @@ export default function ObjectTransformPanel() {
     }
   }
 
+  function emitVisibilityPatch(key, visible) {
+    const entry = state.objectsByKey.get(key);
+    if (!entry) return null;
+    try {
+      const patch = buildVisibilityPatchMessage(entry, visible, { requestId: nextRequestId() });
+      state.pendingByRequest.set(patch.request_id, {
+        key: entry.key,
+        group: 'visible',
+        sent_at: Date.now(),
+      });
+      state.objectsByKey.set(entry.key, updateEntryVisibilityDraft(entry, visible));
+      const delivery = patchDeliveryForTarget(entry, patch);
+      emit(delivery.type, delivery.payload);
+      state.lastResult = {
+        request_id: patch.request_id,
+        target: patch.target,
+        key: entry.key,
+        status: 'pending',
+        reason: '',
+        message: 'waiting for owner',
+        transform: null,
+        visible: !!visible,
+      };
+      rerender();
+      return patch;
+    } catch (error) {
+      state.errors.push(error.message);
+      state.lastResult = {
+        request_id: '',
+        target: { canvas_id: entry.canvas_id, object_id: entry.object_id },
+        key: entry.key,
+        status: 'rejected',
+        reason: 'invalid_patch',
+        message: error.message,
+        transform: null,
+        visible: null,
+      };
+      rerender();
+      return null;
+    }
+  }
+
   function tripletValuesFromDom(group) {
     const values = {};
     for (const axis of VECTOR_AXES) {
@@ -253,6 +306,11 @@ export default function ObjectTransformPanel() {
   }
 
   function handleChange(event) {
+    const visibility = event.target?.closest?.('.object-transform-visibility-input');
+    if (visibility) {
+      emitVisibilityPatch(visibility.dataset.objectVisibilityKey, visibility.checked);
+      return;
+    }
     const input = event.target?.closest?.('.object-transform-input');
     if (!input) return;
     const group = input.dataset.transformGroup;
@@ -311,6 +369,9 @@ export default function ObjectTransformPanel() {
         },
         emitTriplet(group, values) {
           return emitTripletPatch(group, values);
+        },
+        emitVisibility(key, visible) {
+          return emitVisibilityPatch(key, visible);
         },
       };
       rerender();

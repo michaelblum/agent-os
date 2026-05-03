@@ -27,6 +27,7 @@ function semanticAttrString(target = {}, options = {}) {
   ];
   if (normalized.action) attrs.push(['data-aos-action', normalized.action]);
   if (normalized.selected !== null) attrs.push(['aria-selected', boolAttr(normalized.selected)]);
+  if (normalized.checked !== null) attrs.push(['aria-checked', boolAttr(normalized.checked)]);
   if (normalized.value !== null) attrs.push(['aria-valuetext', normalized.value]);
   if (!normalized.enabled) attrs.push(['aria-disabled', 'true']);
   if (normalized.role && !(options.nativeRole && normalized.role === options.nativeRole)) {
@@ -47,6 +48,18 @@ export function objectRowAttrs(entry, selected = false) {
     aosRef: `${SURFACE}:object:${entry.canvas_id}:${entry.object_id}`,
     selected,
   }, { nativeRole: 'button' });
+}
+
+export function visibilityToggleAttrs(entry) {
+  const visible = entry.visible !== false;
+  return semanticAttrString({
+    id: `visibility-${entry.key}`,
+    role: 'AXCheckBox',
+    name: `${visible ? 'Hide' : 'Show'} ${entry.name}`,
+    action: 'toggle_visibility',
+    aosRef: `${SURFACE}:visibility:${entry.canvas_id}:${entry.object_id}`,
+    checked: visible,
+  }, { nativeRole: 'checkbox' });
 }
 
 export function tripletInputAttrs(entry, group, axis, value) {

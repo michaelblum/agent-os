@@ -4,6 +4,7 @@ import {
   applyRegistryMessage,
   applyTransformResultMessage,
   buildTripletPatchMessage,
+  buildVisibilityPatchMessage,
   createObjectTransformState,
   objectAddressKey,
   patchDeliveryForTarget,
@@ -22,7 +23,8 @@ function registry(canvasId = 'avatar-main') {
         object_id: 'radial.wiki-brain.tree',
         name: 'Wiki Brain Tree',
         kind: 'three.object3d',
-        capabilities: ['transform.read', 'transform.patch'],
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        visible: true,
         transform: {
           position: { x: 0.018, y: -0.035, z: 0.018 },
           scale: { x: 1.32, y: 1.42, z: 1.2 },
@@ -114,6 +116,44 @@ test('patch delivery uses existing canvas.send routing to the owning canvas', ()
   assert.equal(delivery.payload.target, 'avatar-main');
   assert.equal(delivery.payload.message.type, 'canvas_object.transform.patch');
   assert.equal(delivery.payload.message.request_id, 'req-rotate');
+});
+
+test('visibility edits build a visibility patch and update local state from owner result', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+
+  const entry = selectedObject(state);
+  const patch = buildVisibilityPatchMessage(entry, false, { requestId: 'req-visible' });
+
+  assert.deepEqual(patch, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-visible',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    patch: {
+      visible: false,
+    },
+  });
+
+  const result = applyTransformResultMessage(state, {
+    type: 'canvas_object.transform.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-visible',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'applied',
+    transform: entry.transform,
+    visible: false,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(selectedObject(state).visible, false);
 });
 
 test('non-patchable advertised objects reject transform patch construction', () => {

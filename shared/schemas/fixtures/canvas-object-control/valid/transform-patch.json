@@ -10,6 +10,7 @@
   "patch": {
     "position": { "y": -0.042 },
     "scale": { "x": 1.4, "y": 1.5, "z": 1.25 },
-    "rotation_degrees": { "x": -9 }
+    "rotation_degrees": { "x": -9 },
+    "visible": true
   }
 }

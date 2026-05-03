@@ -224,6 +224,8 @@ test('ObjectTransformPanel exposes root region, object list, and triplet fields'
   assert.match(root.innerHTML, /role="listbox" aria-label="Addressable objects"/)
   assert.match(root.innerHTML, /data-aos-action="select_object"/)
   assert.match(root.innerHTML, /data-aos-action="edit_transform"/)
+  assert.match(root.innerHTML, /data-aos-action="toggle_visibility"/)
+  assert.match(root.innerHTML, /aria-checked="true"/)
   assert.match(root.innerHTML, /data-aos-control="number-field"/)
   assert.match(root.innerHTML, /aria-label="scale x for Wiki Brain Tree"/)
 })
