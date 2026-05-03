@@ -90,6 +90,7 @@ const {
   resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
   resolveRadialHoverSpinSpeed,
+  resolveRadialHoverYawRadians,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
 test('resolveNestedFiberStemTransform anchors fiber roots toward the brain stem volume', () => {
@@ -177,6 +178,12 @@ test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative val
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0.25 } }, { nativeGeometry: false }), 0.25)
   assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: true }), 1.45)
   assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: false }), 1.1)
+})
+
+test('resolveRadialHoverYawRadians uses explicit non-accumulating hover pose', () => {
+  assert.equal(resolveRadialHoverYawRadians({}), 0)
+  assert.equal(resolveRadialHoverYawRadians({ geometry: { hoverYawDegrees: 10 } }), Math.PI / 18)
+  assert.equal(resolveRadialHoverYawRadians({ hoverYawDegrees: -15 }), -Math.PI / 12)
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {
