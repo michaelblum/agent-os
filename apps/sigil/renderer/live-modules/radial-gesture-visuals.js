@@ -1,6 +1,9 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import {
+    DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveRadialItemModelTransform,
+    resolveRadialItemModelVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
     resolveNestedFractalTreeTransform,
@@ -12,7 +15,10 @@ import {
 } from './radial-object-control.js';
 
 export {
+    DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveRadialItemModelTransform,
+    resolveRadialItemModelVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
     resolveNestedFractalTreeTransform,
@@ -1297,13 +1303,22 @@ function applyGeometryMaterial(object, geometry = {}) {
 }
 
 function createRadialEffectHost(group, item = {}) {
+    const modelHost = new THREE.Group();
+    modelHost.name = `${item.id || 'radial-item'}-model-host`;
+    group.userData.modelHost = modelHost;
+    group.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
+    group.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
+
     const effect = effectConfig(item);
-    if (!effect) return group;
+    if (!effect) {
+        applyObjectTransform(modelHost, group.userData.radialItemModelTransform, DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
+        modelHost.visible = group.userData.radialItemModelVisible;
+        group.add(modelHost);
+        return modelHost;
+    }
 
     const composite = new THREE.Group();
     composite.name = `${item.id || 'radial-item'}-effect-composite`;
-    const modelHost = new THREE.Group();
-    modelHost.name = `${item.id || 'radial-item'}-model-host`;
     const fiberEffect = createNestedNeuralTreeEffect();
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fiberStemEffect = fiberEffect.userData.stem;
@@ -1316,7 +1331,6 @@ function createRadialEffectHost(group, item = {}) {
     applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
     composite.add(modelHost, fiberEffect, fractalTreeEffect);
     group.add(composite);
-    group.userData.modelHost = modelHost;
     group.userData.radialEffectConfig = effect;
     group.userData.radialEffectComposite = composite;
     group.userData.radialEffectTree = fiberEffect;
@@ -1351,6 +1365,22 @@ function syncRadialEffectConfig(glyph, item = {}) {
     glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
     glyph.userData.radialEffectVisibility = effect.visibility;
+}
+
+function syncRadialItemModelConfig(glyph, item = {}) {
+    if (!glyph?.userData?.modelHost || glyph.userData.radialEffectTree) return;
+    glyph.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
+    glyph.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
+}
+
+function applyRadialItemModelConfig(glyph) {
+    if (!glyph?.userData?.modelHost || glyph.userData.radialEffectTree) return;
+    applyObjectTransform(
+        glyph.userData.modelHost,
+        glyph.userData.radialItemModelTransform,
+        DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+    );
+    glyph.userData.modelHost.visible = glyph.userData.radialItemModelVisible !== false;
 }
 
 function createGltfGlyph(item = {}) {
@@ -1654,6 +1684,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
 
         for (const item of items) {
             const glyph = ensureGlyph(item);
+            syncRadialItemModelConfig(glyph, item);
             syncRadialEffectConfig(glyph, item);
             const projected = projectPoint?.(item.center);
             glyph.visible = !!projected;
@@ -1672,6 +1703,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             const radiusScale = finite(item.geometry?.radiusScale ?? item.radiusScale, 1);
             const targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (1 + hoverProgress * 0.08) * progress;
             glyph.scale.setScalar(targetScale);
+            applyRadialItemModelConfig(glyph);
             const effectState = updateRadialEffect(glyph, item, {
                 active,
                 visualRadial,

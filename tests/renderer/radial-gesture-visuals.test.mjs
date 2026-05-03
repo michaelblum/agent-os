@@ -90,6 +90,8 @@ const {
   resolveNestedFiberStemTransform,
   resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
+  resolveRadialItemModelTransform,
+  resolveRadialItemModelVisibility,
   resolveRadialHoverSpinSpeed,
   resolveRadialItemMotion,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
@@ -117,6 +119,29 @@ test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain 
   assert.deepEqual(transform.position, { x: 0.02, y: -0.054, z: -0.006 })
   assert.deepEqual(transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
   assert.deepEqual(transform.rotationDegrees, { x: -8, y: 86, z: 8 })
+})
+
+test('resolveRadialItemModelTransform normalizes generic 3D item model controls', () => {
+  const item = {
+    geometry: {
+      modelTransform: {
+        position: [0.1, -0.2, 0.3],
+        scale: 1.25,
+        rotation: { y: 45 },
+      },
+      visibility: {
+        model: false,
+      },
+    },
+  }
+
+  assert.deepEqual(resolveRadialItemModelTransform(item), {
+    position: { x: 0.1, y: -0.2, z: 0.3 },
+    scale: { x: 1.25, y: 1.25, z: 1.25 },
+    rotationDegrees: { x: 0, y: 45, z: 0 },
+  })
+  assert.equal(resolveRadialItemModelVisibility(item), false)
+  assert.equal(resolveRadialItemModelVisibility({ geometry: {} }), true)
 })
 
 test('radialGlyphActivationState treats direct fast-travel hover as active', () => {

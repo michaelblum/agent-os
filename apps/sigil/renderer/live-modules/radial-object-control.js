@@ -1,12 +1,22 @@
 export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
 export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
+export const CONTEXT_MENU_RADIAL_ITEM_ID = 'context-menu';
+export const AGENT_TERMINAL_RADIAL_ITEM_ID = 'agent-terminal';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
+export const CONTEXT_MENU_MODEL_OBJECT_ID = 'radial.context-menu.model';
+export const AGENT_TERMINAL_MODEL_OBJECT_ID = 'radial.agent-terminal.model';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
 export const WIKI_BRAIN_FIBER_STEM_OBJECT_ID = 'radial.wiki-brain.fiber-stem';
 export const WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID = 'radial.wiki-brain.fiber-bloom';
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
+
+export const DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM = {
+    position: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    rotationDegrees: { x: 0, y: 0, z: 0 },
+};
 
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
@@ -210,9 +220,57 @@ function mergeTransformPatch(base = {}, patch = {}) {
     return { transform: next, changed };
 }
 
-export function findWikiBrainRadialItem(radialGestureMenu = {}) {
+function geometryKind(item = {}) {
+    return typeof item.geometry?.type === 'string' ? item.geometry.type.toLowerCase() : null;
+}
+
+function isNative3dRadialItem(item = {}) {
+    const kind = geometryKind(item);
+    return kind === 'gltf' || kind === 'glb';
+}
+
+function ensureGeometry(item = {}) {
+    if (!item.geometry || typeof item.geometry !== 'object' || Array.isArray(item.geometry)) {
+        item.geometry = {};
+    }
+    return item.geometry;
+}
+
+function modelObjectIdForItem(item = {}) {
+    if (item.id === CONTEXT_MENU_RADIAL_ITEM_ID) return CONTEXT_MENU_MODEL_OBJECT_ID;
+    if (item.id === AGENT_TERMINAL_RADIAL_ITEM_ID) return AGENT_TERMINAL_MODEL_OBJECT_ID;
+    return item.id ? `radial.${item.id}.model` : null;
+}
+
+function modelNameForItem(item = {}) {
+    const label = text(item.label || item.geometry?.title || item.id, 'Radial Item');
+    return `${label} Model`;
+}
+
+export function resolveRadialItemModelTransform(item = {}) {
+    const transform = item.geometry?.modelTransform || {};
+    const defaults = DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function resolveRadialItemModelVisibility(item = {}) {
+    const visibility = item.geometry?.visibility || {};
+    if (visibility.model !== undefined) return !!visibility.model;
+    if (item.geometry?.modelVisible !== undefined) return !!item.geometry.modelVisible;
+    return true;
+}
+
+function findRadialItem(radialGestureMenu = {}, predicate = () => false) {
     const items = Array.isArray(radialGestureMenu?.items) ? radialGestureMenu.items : [];
-    return items.find((item) => item?.id === WIKI_BRAIN_RADIAL_ITEM_ID) || null;
+    return items.find(predicate) || null;
+}
+
+export function findWikiBrainRadialItem(radialGestureMenu = {}) {
+    return findRadialItem(radialGestureMenu, (item) => item?.id === WIKI_BRAIN_RADIAL_ITEM_ID);
 }
 
 function wikiBrainEffect(item = {}) {
@@ -253,44 +311,122 @@ function registryObject({ objectId, name, transform, visible = true, metadata = 
     };
 }
 
-export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {}) {
-    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+function wikiBrainObjectTargets() {
+    return {
+        [WIKI_BRAIN_SHELL_OBJECT_ID]: {
+            key: 'shellTransform',
+            visibilityKey: 'shell',
+            resolve: resolveNestedShellTransform,
+            name: 'Wiki Brain Shell',
+            role: 'shell',
+        },
+        [WIKI_BRAIN_FIBER_OBJECT_ID]: {
+            key: 'fiberBloomTransform',
+            visibilityKey: 'fiberBloom',
+            resolve: resolveNestedFiberBloomTransform,
+            name: 'Wiki Brain Fiber Bloom',
+            role: 'fiber-bloom',
+        },
+        [WIKI_BRAIN_FIBER_STEM_OBJECT_ID]: {
+            key: 'fiberStemTransform',
+            visibilityKey: 'fiberStem',
+            resolve: resolveNestedFiberStemTransform,
+            name: 'Wiki Brain Fiber Stem',
+            role: 'fiber-stem',
+        },
+        [WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID]: {
+            key: 'fiberBloomTransform',
+            visibilityKey: 'fiberBloom',
+            resolve: resolveNestedFiberBloomTransform,
+            name: 'Wiki Brain Fiber Bloom',
+            role: 'fiber-bloom',
+        },
+        [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
+            key: 'fractalTreeTransform',
+            visibilityKey: 'fractalTree',
+            resolve: resolveNestedFractalTreeTransform,
+            name: 'Wiki Brain Fractal Tree',
+            role: 'fractal-tree',
+        },
+    };
+}
+
+function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMetadata = false } = {}) {
     const item = findWikiBrainRadialItem(radialGestureMenu);
     const effect = resolveWikiBrainEffect(item);
+    if (!effect) return [];
+    const objectSpecs = [
+        WIKI_BRAIN_SHELL_OBJECT_ID,
+        WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+        WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+        WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+    ];
+    const targets = wikiBrainObjectTargets();
+    return objectSpecs.map((objectId) => {
+        const target = targets[objectId];
+        return registryObject({
+            objectId,
+            name: target.name,
+            transform: target.resolve(effect),
+            visible: effect.visibility[target.visibilityKey],
+            metadata: {
+                role: target.role,
+                ...(includeItemMetadata ? {
+                    item_id: item.id,
+                    item_label: item.label || item.id,
+                    editor: '3d-radial-item',
+                } : {}),
+            },
+        });
+    });
+}
+
+export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
     return {
         type: 'canvas_object.registry',
         schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
         canvas_id: canvasId,
-        objects: effect ? [
-            registryObject({
-                objectId: WIKI_BRAIN_SHELL_OBJECT_ID,
-                name: 'Wiki Brain Shell',
-                transform: effect.shellTransform,
-                visible: effect.visibility.shell,
-                metadata: { role: 'shell' },
-            }),
-            registryObject({
-                objectId: WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
-                name: 'Wiki Brain Fiber Stem',
-                transform: effect.fiberStemTransform,
-                visible: effect.visibility.fiberStem,
-                metadata: { role: 'fiber-stem' },
-            }),
-            registryObject({
-                objectId: WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
-                name: 'Wiki Brain Fiber Bloom',
-                transform: effect.fiberBloomTransform,
-                visible: effect.visibility.fiberBloom,
-                metadata: { role: 'fiber-bloom' },
-            }),
-            registryObject({
-                objectId: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
-                name: 'Wiki Brain Fractal Tree',
-                transform: effect.fractalTreeTransform,
-                visible: effect.visibility.fractalTree,
-                metadata: { role: 'fractal-tree' },
-            }),
-        ] : [],
+        objects: buildWikiBrainRegistryObjects(radialGestureMenu),
+    };
+}
+
+export function buildRadialMenuObjectRegistry(radialGestureMenu = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    const items = Array.isArray(radialGestureMenu?.items) ? radialGestureMenu.items : [];
+    const objects = [];
+
+    for (const item of items) {
+        if (!item?.id) continue;
+        if (item.id === WIKI_BRAIN_RADIAL_ITEM_ID && resolveWikiBrainEffect(item)) {
+            objects.push(...buildWikiBrainRegistryObjects(radialGestureMenu, {
+                includeItemMetadata: true,
+            }));
+            continue;
+        }
+        if (!isNative3dRadialItem(item)) continue;
+        const objectId = modelObjectIdForItem(item);
+        if (!objectId) continue;
+        objects.push(registryObject({
+            objectId,
+            name: modelNameForItem(item),
+            transform: resolveRadialItemModelTransform(item),
+            visible: resolveRadialItemModelVisibility(item),
+            metadata: {
+                role: 'model',
+                item_id: item.id,
+                item_label: item.label || item.id,
+                target: 'model-host',
+                editor: '3d-radial-item',
+            },
+        }));
+    }
+
+    return {
+        type: 'canvas_object.registry',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        canvas_id: canvasId,
+        objects,
     };
 }
 
@@ -309,6 +445,10 @@ function resultFor(message, status, fields = {}) {
 }
 
 export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {}, options = {}) {
+    return applyRadialMenuObjectTransformPatch(radialGestureMenu, message, options);
+}
+
+export function applyRadialMenuObjectTransformPatch(radialGestureMenu = {}, message = {}, options = {}) {
     const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
     if (message.type && message.type !== 'canvas_object.transform.patch') {
         return resultFor(message, 'rejected', {
@@ -329,49 +469,7 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
         });
     }
 
-    const item = findWikiBrainRadialItem(radialGestureMenu);
-    const effect = wikiBrainEffect(item);
-    if (!item || !effect) {
-        return resultFor(message, 'rejected', {
-            reason: 'not_ready',
-            message: 'wiki brain radial effect is not available',
-        });
-    }
-
     const objectId = message.target.object_id;
-    const target = {
-        [WIKI_BRAIN_SHELL_OBJECT_ID]: {
-            key: 'shellTransform',
-            visibilityKey: 'shell',
-            resolve: resolveNestedShellTransform,
-        },
-        [WIKI_BRAIN_FIBER_OBJECT_ID]: {
-            key: 'fiberBloomTransform',
-            visibilityKey: 'fiberBloom',
-            resolve: resolveNestedFiberBloomTransform,
-        },
-        [WIKI_BRAIN_FIBER_STEM_OBJECT_ID]: {
-            key: 'fiberStemTransform',
-            visibilityKey: 'fiberStem',
-            resolve: resolveNestedFiberStemTransform,
-        },
-        [WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID]: {
-            key: 'fiberBloomTransform',
-            visibilityKey: 'fiberBloom',
-            resolve: resolveNestedFiberBloomTransform,
-        },
-        [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
-            key: 'fractalTreeTransform',
-            visibilityKey: 'fractalTree',
-            resolve: resolveNestedFractalTreeTransform,
-        },
-    }[objectId] || null;
-    if (!target) {
-        return resultFor(message, 'rejected', {
-            reason: 'unknown_object',
-            message: `unknown object ${objectId}`,
-        });
-    }
     if (!message.patch || typeof message.patch !== 'object') {
         return resultFor(message, 'rejected', {
             reason: 'invalid_patch',
@@ -379,16 +477,48 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
         });
     }
 
+    const wikiItem = findWikiBrainRadialItem(radialGestureMenu);
+    const wikiEffect = wikiBrainEffect(wikiItem);
+    const wikiTarget = wikiItem && wikiEffect ? wikiBrainObjectTargets()[objectId] || null : null;
+    if (wikiTarget) {
+        return applyWikiBrainObjectPatch({ message, effect: wikiEffect, target: wikiTarget });
+    }
+
+    const item = findRadialItem(radialGestureMenu, (entry) => (
+        isNative3dRadialItem(entry) && modelObjectIdForItem(entry) === objectId
+    ));
+    if (item) {
+        return applyRadialItemModelObjectPatch({ message, item });
+    }
+
+    return resultFor(message, 'rejected', {
+        reason: 'unknown_object',
+        message: `unknown object ${objectId}`,
+    });
+}
+
+function rejectInvalidVisibilityPatch(message) {
+    return resultFor(message, 'rejected', {
+        reason: 'invalid_patch',
+        message: 'visible patch must be boolean',
+    });
+}
+
+function rejectEmptyPatch(message) {
+    return resultFor(message, 'rejected', {
+        reason: 'invalid_patch',
+        message: 'patch did not contain numeric transform axes or visibility',
+    });
+}
+
+function applyWikiBrainObjectPatch({ message, effect, target }) {
     const current = target.resolve(effect);
     const merged = mergeTransformPatch(current, message.patch);
     let visibilityChanged = false;
     let visibility = resolveNestedVisibility(effect);
     if (message.patch.visible !== undefined) {
         if (typeof message.patch.visible !== 'boolean') {
-            return resultFor(message, 'rejected', {
-                reason: 'invalid_patch',
-                message: 'visible patch must be boolean',
-            });
+            return rejectInvalidVisibilityPatch(message);
         }
         visibility = {
             ...visibility,
@@ -397,10 +527,7 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
         visibilityChanged = true;
     }
     if (!merged.changed && !visibilityChanged) {
-        return resultFor(message, 'rejected', {
-            reason: 'invalid_patch',
-            message: 'patch did not contain numeric transform axes or visibility',
-        });
+        return rejectEmptyPatch(message);
     }
 
     if (merged.changed) effect[target.key] = merged.transform;
@@ -408,5 +535,36 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
     return resultFor(message, 'applied', {
         transform: contractTransformFromEffect(merged.changed ? merged.transform : current),
         visible: visibility[target.visibilityKey],
+    });
+}
+
+function applyRadialItemModelObjectPatch({ message, item }) {
+    const geometry = ensureGeometry(item);
+    const current = resolveRadialItemModelTransform(item);
+    const merged = mergeTransformPatch(current, message.patch);
+    let visibilityChanged = false;
+    let visible = resolveRadialItemModelVisibility(item);
+
+    if (message.patch.visible !== undefined) {
+        if (typeof message.patch.visible !== 'boolean') {
+            return rejectInvalidVisibilityPatch(message);
+        }
+        visible = message.patch.visible;
+        visibilityChanged = true;
+    }
+    if (!merged.changed && !visibilityChanged) {
+        return rejectEmptyPatch(message);
+    }
+
+    if (merged.changed) geometry.modelTransform = merged.transform;
+    if (visibilityChanged) {
+        geometry.visibility = {
+            ...(geometry.visibility || {}),
+            model: visible,
+        };
+    }
+    return resultFor(message, 'applied', {
+        transform: contractTransformFromEffect(merged.changed ? merged.transform : current),
+        visible,
     });
 }

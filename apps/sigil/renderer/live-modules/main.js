@@ -40,8 +40,8 @@ import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
-    applyWikiBrainTransformPatch,
-    buildWikiBrainObjectRegistry,
+    applyRadialMenuObjectTransformPatch,
+    buildRadialMenuObjectRegistry,
 } from './radial-object-control.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
@@ -596,7 +596,7 @@ function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
     defaultAvatarDirty = true;
     updateDefaultAvatarSaveState({ lastError: null });
-    emitWikiBrainObjectRegistry();
+    emitRadialMenuObjectRegistry();
 }
 
 state._onAppearanceChanged = () => {
@@ -1195,9 +1195,9 @@ const MARKS_OBJECT_ID = 'avatar';
 const MARKS_HEARTBEAT_MS = 5000;
 let _lastMarkEmitAt = 0;
 
-function emitWikiBrainObjectRegistry() {
+function emitRadialMenuObjectRegistry() {
     if (!isPrimarySurfaceSegment()) return;
-    const registry = buildWikiBrainObjectRegistry(state.radialGestureMenu, {
+    const registry = buildRadialMenuObjectRegistry(state.radialGestureMenu, {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
     });
     host.post('canvas_object.registry', registry);
@@ -1205,14 +1205,14 @@ function emitWikiBrainObjectRegistry() {
 
 function handleCanvasObjectTransformPatch(msg = {}) {
     if (!isPrimarySurfaceSegment()) return;
-    const result = applyWikiBrainTransformPatch(state.radialGestureMenu, msg, {
+    const result = applyRadialMenuObjectTransformPatch(state.radialGestureMenu, msg, {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
     });
     if (result.status !== 'applied') {
         console.warn('[sigil] object transform patch rejected:', result.reason, result.message || result.target?.object_id);
     }
     host.post('canvas_object.transform.result', result);
-    emitWikiBrainObjectRegistry();
+    emitRadialMenuObjectRegistry();
     scheduleRenderFrame();
 }
 
@@ -1965,7 +1965,7 @@ function startPrimarySurfaceServices() {
     primarySurfaceServicesStarted = true;
     host.subscribe(['display_geometry', 'input_event', 'canvas_message', 'canvas_lifecycle'], { snapshot: true });
     startMarkHeartbeat();
-    emitWikiBrainObjectRegistry();
+    emitRadialMenuObjectRegistry();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
     });
@@ -2327,7 +2327,7 @@ export async function boot() {
     });
     const [displays, defaultAvatar] = await Promise.all([displaysPromise, defaultAvatarPromise]);
     runBootStep('applyDefaultAvatarDefinition', () => applyDefaultAvatarDefinition(defaultAvatar));
-    emitWikiBrainObjectRegistry();
+    emitRadialMenuObjectRegistry();
 
     recordBoot('boot:displayReady', { displays: displays.length });
     if (isPrimarySurfaceSegment()) void prewarmAgentTerminalCanvas();

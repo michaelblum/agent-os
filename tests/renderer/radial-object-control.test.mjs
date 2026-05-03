@@ -2,12 +2,16 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
 import {
+  AGENT_TERMINAL_MODEL_OBJECT_ID,
+  CONTEXT_MENU_MODEL_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
+  applyRadialMenuObjectTransformPatch,
   applyWikiBrainTransformPatch,
+  buildRadialMenuObjectRegistry,
   buildWikiBrainObjectRegistry,
   findWikiBrainRadialItem,
   resolveWikiBrainEffect,
@@ -58,6 +62,69 @@ test('wiki brain object registry advertises shell, split fiber, and fractal tree
   assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.054, z: -0.006 })
   assert.deepEqual(fractalTree.transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
   assert.deepEqual(fractalTree.transform.rotation_degrees, { x: -8, y: 86, z: 8 })
+})
+
+test('radial menu object registry advertises generic model hosts and wiki brain layers', () => {
+  const registry = buildRadialMenuObjectRegistry(radialConfig(), { canvasId: 'avatar-main' })
+
+  assert.deepEqual(registry.objects.map((object) => object.object_id), [
+    CONTEXT_MENU_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_MODEL_OBJECT_ID,
+    WIKI_BRAIN_SHELL_OBJECT_ID,
+    WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+    WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+    WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+  ])
+
+  const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
+  assert.equal(terminal.name, 'Agent Terminal Model')
+  assert.equal(terminal.metadata.editor, '3d-radial-item')
+  assert.equal(terminal.metadata.item_id, 'agent-terminal')
+  assert.equal(terminal.metadata.role, 'model')
+  assert.deepEqual(terminal.transform, {
+    position: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    rotation_degrees: { x: 0, y: 0, z: 0 },
+  })
+  assert.equal(terminal.visible, true)
+})
+
+test('radial menu transform patch can tune the agent terminal model host', () => {
+  const config = radialConfig()
+  const result = applyRadialMenuObjectTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-model',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AGENT_TERMINAL_MODEL_OBJECT_ID,
+    },
+    patch: {
+      position: { y: 0.02 },
+      scale: { x: 1.1, z: 0.88 },
+      rotation_degrees: { z: -12 },
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.deepEqual(result.transform.position, { x: 0, y: 0.02, z: 0 })
+  assert.deepEqual(result.transform.scale, { x: 1.1, y: 1, z: 0.88 })
+  assert.deepEqual(result.transform.rotation_degrees, { x: 0, y: 0, z: -12 })
+  assert.equal(result.visible, false)
+
+  const item = config.items.find((entry) => entry.id === 'agent-terminal')
+  assert.deepEqual(item.geometry.modelTransform, {
+    position: { x: 0, y: 0.02, z: 0 },
+    scale: { x: 1.1, y: 1, z: 0.88 },
+    rotationDegrees: { x: 0, y: 0, z: -12 },
+  })
+  assert.deepEqual(item.geometry.visibility, { model: false })
+
+  const registry = buildRadialMenuObjectRegistry(config, { canvasId: 'avatar-main' })
+  const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
+  assert.deepEqual(terminal.transform.scale, { x: 1.1, y: 1, z: 0.88 })
+  assert.equal(terminal.visible, false)
 })
 
 test('wiki brain visibility patch updates advertised object visibility', () => {
