@@ -1,0 +1,29 @@
+{
+  "type": "canvas_object.registry",
+  "schema_version": "2026-05-03",
+  "canvas_id": "avatar-main",
+  "source_id": "avatar-main",
+  "observed_at": "2026-05-03T12:00:00Z",
+  "objects": [
+    {
+      "object_id": "radial.wiki-brain.tree",
+      "name": "Wiki Brain Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch"],
+      "visible": true,
+      "transform": {
+        "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
+        "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
+        "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      },
+      "metadata": {
+        "radial_item": "wiki-graph"
+      }
+    }
+  ]
+}

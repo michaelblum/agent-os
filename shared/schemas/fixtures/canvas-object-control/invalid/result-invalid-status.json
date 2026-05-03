@@ -1,0 +1,10 @@
+{
+  "type": "canvas_object.transform.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-transform-1",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.tree"
+  },
+  "status": "ok"
+}

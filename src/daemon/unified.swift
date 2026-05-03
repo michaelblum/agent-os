@@ -36,6 +36,7 @@ class UnifiedDaemon {
     // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
     var canvasEventSubscriptions: [String: Set<String>] = [:]
+    var canvasObjectRegistries: [String: [String: Any]] = [:]
     let canvasSubscriptionLock = NSLock()
 
     // Canvas ownership: child canvas ID → parent canvas ID.
@@ -214,6 +215,24 @@ class UnifiedDaemon {
                     markPayload["source_id"] = canvasID
                     self.forwardCanvasObjectMarks(data: markPayload)
                     return
+                case "canvas_object.registry":
+                    var registryPayload: [String: Any] = [:]
+                    if let inner = inner {
+                        for (k, v) in inner { registryPayload[k] = v }
+                    }
+                    let registryCanvasID = (registryPayload["canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? canvasID
+                    registryPayload["canvas_id"] = registryCanvasID
+                    registryPayload["source_id"] = canvasID
+                    self.forwardCanvasObjectRegistry(canvasID: registryCanvasID, data: registryPayload)
+                    return
+                case "canvas_object.transform.result":
+                    var resultPayload: [String: Any] = [:]
+                    if let inner = inner {
+                        for (k, v) in inner { resultPayload[k] = v }
+                    }
+                    resultPayload["source_id"] = canvasID
+                    self.forwardCanvasObjectControlMessage(type: type, data: resultPayload)
+                    return
                 case "canvas_inspector.capture_bundle":
                     self.triggerCanvasInspectorSeeBundle(sourceCanvasID: canvasID, trigger: inner?["trigger"] as? String ?? "canvas")
                     return
@@ -238,6 +257,7 @@ class UnifiedDaemon {
                 let canvasID = canvasInfo.id
                 self.canvasSubscriptionLock.lock()
                 let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
+                let hadRegistry = self.canvasObjectRegistries.removeValue(forKey: canvasID) != nil
                 let children = self.canvasChildren.removeValue(forKey: canvasID) ?? []
                 // Detach this canvas from its parent's child set.
                 if let parent = self.canvasCreatedBy.removeValue(forKey: canvasID) {
@@ -253,6 +273,9 @@ class UnifiedDaemon {
                 self.canvasSubscriptionLock.unlock()
                 if had {
                     fputs("[canvas-sub] cleared subscriptions for removed canvas=\(canvasID)\n", stderr)
+                }
+                if hadRegistry {
+                    fputs("[canvas-object] cleared registry for removed canvas=\(canvasID)\n", stderr)
                 }
                 // Cascade: children with cascade=true are removed; cascade=false are orphaned.
                 for child in children {
@@ -506,6 +529,9 @@ class UnifiedDaemon {
                     payload: self.currentInputEventSnapshot()
                 )
             }
+            if requested.contains("canvas_object.registry") {
+                self.broadcastCanvasObjectRegistrySnapshot(to: canvasID)
+            }
         }
     }
 
@@ -589,15 +615,51 @@ class UnifiedDaemon {
     /// in a `{type: "canvas_object.marks", ...}` envelope since live-js
     /// canvas dispatch routes by `msg.type`.
     private func forwardCanvasObjectMarks(data: [String: Any]) {
+        forwardCanvasObjectControlMessage(type: "canvas_object.marks", data: data)
+    }
+
+    private func forwardCanvasObjectRegistry(canvasID: String, data: [String: Any]) {
+        guard let objects = data["objects"] as? [Any] else {
+            fputs("[canvas-object] registry dropped source=\(data["source_id"] ?? "?") canvas=\(canvasID) reason=missing-objects\n", stderr)
+            return
+        }
+
+        canvasSubscriptionLock.lock()
+        if objects.isEmpty {
+            canvasObjectRegistries.removeValue(forKey: canvasID)
+        } else {
+            canvasObjectRegistries[canvasID] = data
+        }
+        canvasSubscriptionLock.unlock()
+
+        forwardCanvasObjectControlMessage(type: "canvas_object.registry", data: data)
+    }
+
+    private func broadcastCanvasObjectRegistrySnapshot(to specificCanvas: String) {
+        canvasSubscriptionLock.lock()
+        let subscribed = canvasEventSubscriptions[specificCanvas]?.contains("canvas_object.registry") == true
+        let snapshots = Array(canvasObjectRegistries.values)
+        canvasSubscriptionLock.unlock()
+
+        guard subscribed, !snapshots.isEmpty else { return }
+
+        for snapshot in snapshots {
+            var msg: [String: Any] = ["type": "canvas_object.registry"]
+            for (k, v) in snapshot { msg[k] = v }
+            canvasManager.postMessageAsync(canvasID: specificCanvas, payload: msg)
+        }
+    }
+
+    private func forwardCanvasObjectControlMessage(type: String, data: [String: Any]) {
         canvasSubscriptionLock.lock()
         let targets = canvasEventSubscriptions
-            .filter { $0.value.contains("canvas_object.marks") }
+            .filter { $0.value.contains(type) }
             .map { $0.key }
         canvasSubscriptionLock.unlock()
 
         guard !targets.isEmpty else { return }
 
-        var msg: [String: Any] = ["type": "canvas_object.marks"]
+        var msg: [String: Any] = ["type": type]
         for (k, v) in data { msg[k] = v }
 
         for canvasID in targets {
