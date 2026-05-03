@@ -14,6 +14,7 @@ import {
   buildEditorRadialSnapshot,
   createRadialItemEditorState,
   editableRadialItems,
+  exportSelectedRadialItemDefinition,
   selectRadialItem,
   selectedRadialItem,
   setSelectedItemHoverSpin,
@@ -99,4 +100,75 @@ test('radial item editor preserves per-item edits when switching subjects', () =
 
   selectRadialItem(state, 'agent-terminal')
   assert.equal(selectedRadialItem(state).geometry.hoverSpinSpeed, 2.5)
+})
+
+test('radial item editor exports a source-ready lock-in payload for the selected item', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'agent-terminal',
+    canvasId: 'preview',
+  })
+
+  applyEditorObjectPatch(state, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-export',
+    target: {
+      canvas_id: 'preview',
+      object_id: AGENT_TERMINAL_MODEL_OBJECT_ID,
+    },
+    patch: {
+      position: { x: 0.07 },
+      visible: false,
+    },
+  })
+  setSelectedItemHoverSpin(state, true, 1.8)
+
+  const payload = exportSelectedRadialItemDefinition(state, {
+    generatedAt: '2026-05-03T12:00:00.000Z',
+  })
+
+  assert.equal(payload.type, 'sigil.radial_item_editor.lock_in')
+  assert.equal(payload.schema_version, '2026-05-03')
+  assert.equal(payload.generated_at, '2026-05-03T12:00:00.000Z')
+  assert.deepEqual(payload.source, {
+    kind: 'sigil.radial_menu.default_items',
+    path: 'apps/sigil/renderer/radial-menu-defaults.js',
+    export: 'DEFAULT_SIGIL_RADIAL_ITEMS',
+    operation: 'replace_item_by_id',
+  })
+  assert.equal(payload.item_id, 'agent-terminal')
+  assert.equal(payload.item.id, 'agent-terminal')
+  assert.deepEqual(payload.item.geometry.modelTransform.position, { x: 0.07, y: 0, z: 0 })
+  assert.deepEqual(payload.item.geometry.visibility, { model: false })
+  assert.equal(payload.item.geometry.hoverSpinSpeed, 1.8)
+  assert.equal(payload.registry.canvas_id, 'preview')
+  assert.deepEqual(payload.registry.objects.map((object) => object.object_id), [
+    AGENT_TERMINAL_MODEL_OBJECT_ID,
+  ])
+})
+
+test('radial item editor lock-in payload is detached from later state mutation', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'agent-terminal',
+    canvasId: 'preview',
+  })
+  const payload = exportSelectedRadialItemDefinition(state, {
+    generatedAt: '2026-05-03T12:00:00.000Z',
+  })
+
+  applyEditorObjectPatch(state, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-export-after',
+    target: {
+      canvas_id: 'preview',
+      object_id: AGENT_TERMINAL_MODEL_OBJECT_ID,
+    },
+    patch: {
+      position: { x: 1 },
+    },
+  })
+
+  assert.equal(payload.item.geometry.modelTransform, undefined)
+  assert.equal(payload.registry.objects[0].transform.position.x, 0)
 })

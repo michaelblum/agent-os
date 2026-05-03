@@ -6,6 +6,7 @@ import {
     buildEditorRadialSnapshot,
     createRadialItemEditorState,
     editableRadialItems,
+    exportSelectedRadialItemDefinition,
     selectRadialItem,
     selectedRadialItem,
     setSelectedItemHoverSpin,
@@ -20,6 +21,7 @@ const status = document.getElementById('status');
 const toolbar = document.getElementById('toolbar');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
+const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
 
 const scene = new THREE.Scene();
@@ -86,6 +88,9 @@ const editorState = createRadialItemEditorState({
     itemId: initialItemId,
     canvasId,
 });
+let lastLockIn = null;
+let transientStatusText = '';
+let transientStatusUntil = 0;
 
 const orbitState = {
     x: 0,
@@ -128,6 +133,19 @@ function emitRegistry() {
     post('canvas_object.registry', snapshot);
     sendToController(snapshot);
     return snapshot;
+}
+
+function setTransientStatus(text, durationMs = 2400) {
+    transientStatusText = text;
+    transientStatusUntil = performance.now() + durationMs;
+}
+
+function lockIn() {
+    lastLockIn = exportSelectedRadialItemDefinition(editorState);
+    post(lastLockIn.type, lastLockIn);
+    const item = selectedRadialItem(editorState);
+    setTransientStatus(`${item?.label || item?.id || 'Radial item'} lock-in payload emitted`);
+    return lastLockIn;
 }
 
 function handlePatch(payload) {
@@ -191,6 +209,7 @@ renderer.domElement.addEventListener('pointerup', endOrbitDrag);
 renderer.domElement.addEventListener('pointercancel', endOrbitDrag);
 renderer.domElement.addEventListener('dblclick', resetOrbit);
 toolbar.addEventListener('pointerdown', (event) => event.stopPropagation());
+lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
 
 itemSelect.addEventListener('change', () => {
@@ -207,7 +226,7 @@ syncControls();
 post('ready', {
     name: 'sigil-radial-item-editor',
     accepts: ['canvas_object.transform.patch'],
-    emits: ['canvas_object.registry', 'canvas_object.transform.result'],
+    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'sigil.radial_item_editor.lock_in'],
 });
 emitRegistry();
 
@@ -228,12 +247,20 @@ window.__sigilRadialItemEditor = {
     applyPatch(message) {
         return handlePatch(message);
     },
+    exportItemDefinition(options) {
+        return exportSelectedRadialItemDefinition(editorState, options);
+    },
+    lockIn,
+    get lastLockIn() {
+        return lastLockIn;
+    },
     snapshot() {
         return {
             canvasId,
             controllerId,
             selectedItemId: editorState.selectedItemId,
             registry: registry(),
+            lastLockIn,
             orbit: { x: orbitState.x, y: orbitState.y },
             visuals: visuals.snapshot(),
         };
@@ -251,7 +278,9 @@ function frame(now) {
     const snapshot = visuals.snapshot();
     const item = selectedRadialItem(editorState);
     const geometry = item ? snapshot.geometry?.[item.id] : null;
-    status.textContent = geometry?.status === 'ready'
+    status.textContent = now < transientStatusUntil
+        ? transientStatusText
+        : geometry?.status === 'ready'
         ? `${item.label || item.id} editor`
         : `Loading ${geometry?.status || item?.label || 'radial item'}...`;
     renderer.render(scene, camera);

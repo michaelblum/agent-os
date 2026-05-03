@@ -6,6 +6,14 @@ import {
 
 export const DEFAULT_EDITOR_CANVAS_ID = 'sigil-radial-item-editor';
 export const DEFAULT_EDITOR_ITEM_ID = 'wiki-graph';
+export const RADIAL_ITEM_EDITOR_LOCK_IN_TYPE = 'sigil.radial_item_editor.lock_in';
+export const RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION = '2026-05-03';
+export const RADIAL_ITEM_SOURCE = Object.freeze({
+    kind: 'sigil.radial_menu.default_items',
+    path: 'apps/sigil/renderer/radial-menu-defaults.js',
+    export: 'DEFAULT_SIGIL_RADIAL_ITEMS',
+    operation: 'replace_item_by_id',
+});
 
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -124,6 +132,21 @@ export function buildEditorObjectRegistry(state = {}) {
     return buildRadialMenuObjectRegistry(selectedRadialConfig(state), {
         canvasId: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
     });
+}
+
+export function exportSelectedRadialItemDefinition(state = {}, {
+    generatedAt = new Date().toISOString(),
+} = {}) {
+    const item = selectedRadialItem(state);
+    return {
+        type: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
+        schema_version: RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION,
+        generated_at: text(generatedAt, new Date().toISOString()),
+        source: cloneConfig(RADIAL_ITEM_SOURCE),
+        item_id: item?.id || null,
+        item: item ? cloneConfig(item) : null,
+        registry: buildEditorObjectRegistry(state),
+    };
 }
 
 export function applyEditorObjectPatch(state = {}, message = {}) {
