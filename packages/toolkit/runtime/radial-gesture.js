@@ -65,6 +65,56 @@ export function distanceBetween(a = {}, b = {}) {
   return Math.hypot(dx, dy)
 }
 
+export function radialItemPointerMetrics(radial = {}, item = {}, options = {}) {
+  const origin = point(radial.origin)
+  const pointer = point(radial.pointer)
+  const center = point(item.center)
+  const itemRadius = Math.max(0, finite(item.hitRadius, finite(item.visualRadius, 0)))
+  const centerDistance = distanceBetween(origin, center)
+  const itemDistance = distanceBetween(center, pointer)
+  const pointerDistance = distanceBetween(origin, pointer)
+  const active = radial.phase === 'radial' && item.id != null && radial.activeItemId === item.id
+
+  if (centerDistance <= 0.000001) {
+    return {
+      itemId: item.id ?? null,
+      active,
+      itemDistance,
+      pointerDistance,
+      centerDistance,
+      axialDistance: 0,
+      lateralDistance: itemDistance,
+      relation: active || itemDistance <= itemRadius ? 'inside' : 'sideways',
+    }
+  }
+
+  const axisX = (center.x - origin.x) / centerDistance
+  const axisY = (center.y - origin.y) / centerDistance
+  const pointerFromCenterX = pointer.x - center.x
+  const pointerFromCenterY = pointer.y - center.y
+  const axialDistance = (pointerFromCenterX * axisX) + (pointerFromCenterY * axisY)
+  const lateralDistance = Math.abs((pointerFromCenterX * axisY) - (pointerFromCenterY * axisX))
+  const axisTolerance = Math.max(1, finite(options.axisTolerance, itemRadius * 0.35))
+  const relation = active || itemDistance <= itemRadius
+    ? 'inside'
+    : axialDistance > axisTolerance
+      ? 'outward'
+      : axialDistance < -axisTolerance
+        ? 'inward'
+        : 'sideways'
+
+  return {
+    itemId: item.id ?? null,
+    active,
+    itemDistance,
+    pointerDistance,
+    centerDistance,
+    axialDistance,
+    lateralDistance,
+    relation,
+  }
+}
+
 export function angleDegrees(origin = {}, target = {}) {
   return normalizeDegrees(Math.atan2(finite(target.y, 0) - finite(origin.y, 0), finite(target.x, 0) - finite(origin.x, 0)) * 180 / Math.PI)
 }

@@ -40,6 +40,7 @@ export {
   distanceBetween,
   normalizeDegrees,
   pointAtAngle,
+  radialItemPointerMetrics,
   resolveRadialGestureConfig,
   resolveRadialGestureItems,
   shortestAngleDelta,

@@ -1,0 +1,294 @@
+export const SIGIL_OBJECT_CONTROL_SCHEMA_VERSION = '2026-05-03';
+export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
+export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
+export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
+export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
+
+export const DEFAULT_NESTED_TREE_EFFECT = {
+    kind: 'nested-neural-tree',
+    holdExitDirection: 'outward',
+    shellTransform: {
+        position: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        rotationDegrees: { x: 0, y: 0, z: 0 },
+    },
+    treeTransform: {
+        position: { x: 0.018, y: -0.035, z: 0.018 },
+        scale: { x: 1.32, y: 1.42, z: 1.2 },
+        rotationDegrees: { x: -11.5, y: 0, z: 0 },
+    },
+    shellOpacity: {
+        rest: 0.75,
+        active: 0.26,
+        held: 0.75,
+    },
+};
+
+const CONTRACT_UNITS = {
+    position: 'scene',
+    scale: 'multiplier',
+    rotation: 'degrees',
+};
+
+function text(value, fallback = '') {
+    const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+    return normalized || fallback;
+}
+
+function finite(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+export function vectorValue(value = {}, fallback = {}) {
+    if (Number.isFinite(Number(value))) {
+        const n = Number(value);
+        return { x: n, y: n, z: n };
+    }
+    if (Array.isArray(value)) {
+        return {
+            x: finite(value[0], fallback.x ?? 0),
+            y: finite(value[1], fallback.y ?? 0),
+            z: finite(value[2], fallback.z ?? 0),
+        };
+    }
+    return {
+        x: finite(value.x, fallback.x ?? 0),
+        y: finite(value.y, fallback.y ?? 0),
+        z: finite(value.z, fallback.z ?? 0),
+    };
+}
+
+export function vectorAngles(value = {}, fallback = {}) {
+    if (Array.isArray(value)) {
+        return {
+            x: finite(value[0], fallback.x ?? 0),
+            y: finite(value[1], fallback.y ?? 0),
+            z: finite(value[2], fallback.z ?? 0),
+        };
+    }
+    return {
+        x: finite(value.x, fallback.x ?? 0),
+        y: finite(value.y, fallback.y ?? 0),
+        z: finite(value.z, fallback.z ?? 0),
+    };
+}
+
+export function resolveNestedShellTransform(effect = {}) {
+    const transform = effect.shellTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.shellTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function resolveNestedTreeTransform(effect = {}) {
+    const transform = effect.treeTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function contractTransformFromEffect(transform = {}) {
+    return {
+        position: vectorValue(transform.position, { x: 0, y: 0, z: 0 }),
+        scale: vectorValue(transform.scale, { x: 1, y: 1, z: 1 }),
+        rotation_degrees: vectorAngles(transform.rotationDegrees ?? transform.rotation_degrees, { x: 0, y: 0, z: 0 }),
+    };
+}
+
+function effectTransformFromContract(transform = {}) {
+    return {
+        position: vectorValue(transform.position, { x: 0, y: 0, z: 0 }),
+        scale: vectorValue(transform.scale, { x: 1, y: 1, z: 1 }),
+        rotationDegrees: vectorAngles(transform.rotation_degrees ?? transform.rotationDegrees, { x: 0, y: 0, z: 0 }),
+    };
+}
+
+function mergeTriplet(base = {}, patch = {}) {
+    const next = { ...base };
+    let changed = false;
+    for (const axis of ['x', 'y', 'z']) {
+        if (patch[axis] === undefined || patch[axis] === '') continue;
+        const n = Number(patch[axis]);
+        if (!Number.isFinite(n)) continue;
+        next[axis] = n;
+        changed = true;
+    }
+    return { next, changed };
+}
+
+function mergeTransformPatch(base = {}, patch = {}) {
+    const current = effectTransformFromContract(base);
+    let changed = false;
+    const next = {
+        position: { ...current.position },
+        scale: { ...current.scale },
+        rotationDegrees: { ...current.rotationDegrees },
+    };
+
+    if (patch.position && typeof patch.position === 'object') {
+        const merged = mergeTriplet(next.position, patch.position);
+        next.position = merged.next;
+        changed = changed || merged.changed;
+    }
+    if (patch.scale && typeof patch.scale === 'object') {
+        const merged = mergeTriplet(next.scale, patch.scale);
+        next.scale = merged.next;
+        changed = changed || merged.changed;
+    }
+    if (patch.rotation_degrees && typeof patch.rotation_degrees === 'object') {
+        const merged = mergeTriplet(next.rotationDegrees, patch.rotation_degrees);
+        next.rotationDegrees = merged.next;
+        changed = changed || merged.changed;
+    }
+
+    return { transform: next, changed };
+}
+
+export function findWikiBrainRadialItem(radialGestureMenu = {}) {
+    const items = Array.isArray(radialGestureMenu?.items) ? radialGestureMenu.items : [];
+    return items.find((item) => item?.id === WIKI_BRAIN_RADIAL_ITEM_ID) || null;
+}
+
+function wikiBrainEffect(item = {}) {
+    const effect = item?.geometry?.radialEffect;
+    if (!effect || typeof effect !== 'object') return null;
+    if (effect.kind !== DEFAULT_NESTED_TREE_EFFECT.kind) return null;
+    return effect;
+}
+
+export function resolveWikiBrainEffect(item = {}) {
+    const effect = wikiBrainEffect(item);
+    if (!effect) return null;
+    return {
+        ...DEFAULT_NESTED_TREE_EFFECT,
+        ...effect,
+        shellOpacity: {
+            ...DEFAULT_NESTED_TREE_EFFECT.shellOpacity,
+            ...(effect.shellOpacity || {}),
+        },
+        shellTransform: resolveNestedShellTransform(effect),
+        treeTransform: resolveNestedTreeTransform(effect),
+    };
+}
+
+function registryObject({ objectId, name, transform }) {
+    return {
+        object_id: objectId,
+        name,
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'transform.patch'],
+        transform: contractTransformFromEffect(transform),
+        units: CONTRACT_UNITS,
+        visible: true,
+    };
+}
+
+export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    const item = findWikiBrainRadialItem(radialGestureMenu);
+    const effect = resolveWikiBrainEffect(item);
+    return {
+        type: 'canvas_object.registry',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        canvas_id: canvasId,
+        objects: effect ? [
+            registryObject({
+                objectId: WIKI_BRAIN_SHELL_OBJECT_ID,
+                name: 'Wiki Brain Shell',
+                transform: effect.shellTransform,
+            }),
+            registryObject({
+                objectId: WIKI_BRAIN_TREE_OBJECT_ID,
+                name: 'Wiki Brain Tree',
+                transform: effect.treeTransform,
+            }),
+        ] : [],
+    };
+}
+
+function resultFor(message, status, fields = {}) {
+    return {
+        type: 'canvas_object.transform.result',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        request_id: text(message?.request_id, 'missing-request'),
+        target: {
+            canvas_id: text(message?.target?.canvas_id, SIGIL_OBJECT_CONTROL_CANVAS_ID),
+            object_id: text(message?.target?.object_id, 'unknown'),
+        },
+        status,
+        ...fields,
+    };
+}
+
+export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    if (message.type && message.type !== 'canvas_object.transform.patch') {
+        return resultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: `unexpected message type ${message.type}`,
+        });
+    }
+    if (!message.request_id || !message.target || typeof message.target !== 'object') {
+        return resultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: 'transform patch requires request_id and target',
+        });
+    }
+    if (message.target.canvas_id !== canvasId) {
+        return resultFor(message, 'stale', {
+            reason: 'unknown_object',
+            message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
+        });
+    }
+
+    const item = findWikiBrainRadialItem(radialGestureMenu);
+    const effect = wikiBrainEffect(item);
+    if (!item || !effect) {
+        return resultFor(message, 'rejected', {
+            reason: 'not_ready',
+            message: 'wiki brain radial effect is not available',
+        });
+    }
+
+    const objectId = message.target.object_id;
+    const transformKey = objectId === WIKI_BRAIN_SHELL_OBJECT_ID
+        ? 'shellTransform'
+        : objectId === WIKI_BRAIN_TREE_OBJECT_ID
+            ? 'treeTransform'
+            : null;
+    if (!transformKey) {
+        return resultFor(message, 'rejected', {
+            reason: 'unknown_object',
+            message: `unknown object ${objectId}`,
+        });
+    }
+    if (!message.patch || typeof message.patch !== 'object') {
+        return resultFor(message, 'rejected', {
+            reason: 'invalid_patch',
+            message: 'transform patch requires patch object',
+        });
+    }
+
+    const current = transformKey === 'shellTransform'
+        ? resolveNestedShellTransform(effect)
+        : resolveNestedTreeTransform(effect);
+    const merged = mergeTransformPatch(current, message.patch);
+    if (!merged.changed) {
+        return resultFor(message, 'rejected', {
+            reason: 'invalid_patch',
+            message: 'patch did not contain numeric transform axes',
+        });
+    }
+
+    effect[transformKey] = merged.transform;
+    return resultFor(message, 'applied', {
+        transform: contractTransformFromEffect(merged.transform),
+    });
+}

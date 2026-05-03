@@ -15,6 +15,7 @@ const toolkit = await import(TOOLKIT_RADIAL_GESTURE_SPECIFIER);
 
 export const {
     createRadialGestureModel,
+    radialItemPointerMetrics,
     resolveRadialGestureConfig,
     resolveRadialGestureItems,
 } = toolkit;

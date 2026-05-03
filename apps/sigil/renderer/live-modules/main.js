@@ -38,6 +38,11 @@ import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
+import {
+    SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    applyWikiBrainTransformPatch,
+    buildWikiBrainObjectRegistry,
+} from './radial-object-control.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -591,6 +596,7 @@ function markAppearanceChanged() {
     liveJs.appearanceVersion += 1;
     defaultAvatarDirty = true;
     updateDefaultAvatarSaveState({ lastError: null });
+    emitWikiBrainObjectRegistry();
 }
 
 state._onAppearanceChanged = () => {
@@ -1184,10 +1190,31 @@ function emitStatusItemState() {
 // canvas-inspector can mark it on its minimap and indented tree list.
 // Event-driven via setAvatarPosition + visibility changes; a ~5 s heartbeat
 // keeps the mark alive inside the inspector's 10 s TTL while idle-visible.
-const MARKS_CANVAS_ID = 'avatar-main';
+const MARKS_CANVAS_ID = SIGIL_OBJECT_CONTROL_CANVAS_ID;
 const MARKS_OBJECT_ID = 'avatar';
 const MARKS_HEARTBEAT_MS = 5000;
 let _lastMarkEmitAt = 0;
+
+function emitWikiBrainObjectRegistry() {
+    if (!isPrimarySurfaceSegment()) return;
+    const registry = buildWikiBrainObjectRegistry(state.radialGestureMenu, {
+        canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    });
+    host.post('canvas_object.registry', registry);
+}
+
+function handleCanvasObjectTransformPatch(msg = {}) {
+    if (!isPrimarySurfaceSegment()) return;
+    const result = applyWikiBrainTransformPatch(state.radialGestureMenu, msg, {
+        canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    });
+    if (result.status !== 'applied') {
+        console.warn('[sigil] object transform patch rejected:', result.reason, result.message || result.target?.object_id);
+    }
+    host.post('canvas_object.transform.result', result);
+    emitWikiBrainObjectRegistry();
+    scheduleRenderFrame();
+}
 
 function radialGestureObjectMarks() {
     const radial = liveJs.radialGestureMenu;
@@ -1797,6 +1824,11 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'canvas_object.transform.patch') {
+        handleCanvasObjectTransformPatch(msg);
+        return;
+    }
+
     if (msg.type === 'status_item.toggle') {
         if (isAgentTerminalVisible()) {
             void collapseAgentTerminalToStatus(msg).catch((error) => {
@@ -1933,6 +1965,7 @@ function startPrimarySurfaceServices() {
     primarySurfaceServicesStarted = true;
     host.subscribe(['display_geometry', 'input_event', 'canvas_message', 'canvas_lifecycle'], { snapshot: true });
     startMarkHeartbeat();
+    emitWikiBrainObjectRegistry();
     void hitTarget.ensureCreated().catch((error) => {
         console.error('[sigil] avatar hit target create failed:', error);
     });
@@ -2294,6 +2327,7 @@ export async function boot() {
     });
     const [displays, defaultAvatar] = await Promise.all([displaysPromise, defaultAvatarPromise]);
     runBootStep('applyDefaultAvatarDefinition', () => applyDefaultAvatarDefinition(defaultAvatar));
+    emitWikiBrainObjectRegistry();
 
     recordBoot('boot:displayReady', { displays: displays.length });
     if (isPrimarySurfaceSegment()) void prewarmAgentTerminalCanvas();
