@@ -1,11 +1,16 @@
 ---
 name: agent-human-collab-stage
-status: raw-musings
+status: promoted-to-design-note
 updated: 2026-05-03
 connects_to: AOS primitives, toolkit panels, Sigil, canvas object control, provider sessions, EVOI
+promoted_to: docs/design/aos-workbench-pattern.md
 ---
 
 # Agent-Human Collab Stage
+
+Update: the reusable platform direction from this scratchpad has been promoted
+to `docs/design/aos-workbench-pattern.md`. Keep this file as session provenance
+and raw idea history; use the design note for future planning.
 
 ## Raw Thought
 
