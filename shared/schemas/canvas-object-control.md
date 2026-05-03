@@ -90,7 +90,7 @@ capability, and patch values before applying them. Controllers should correlate
 responses by `request_id` and use the next registry snapshot as the eventual
 state authority.
 
-The initial routing should use existing AOS canvas plumbing:
+V0 runtime routing uses existing AOS canvas plumbing:
 
 - owner registry publish: toolkit `emit('canvas_object.registry', snapshot)` to
   daemon fan-out for subscribers

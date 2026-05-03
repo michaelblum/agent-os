@@ -388,7 +388,7 @@ one addressed object and correlate the owner response by `request_id`:
 }
 ```
 
-The intended v0 routing uses existing AOS canvas plumbing:
+V0 routing uses existing AOS canvas plumbing:
 
 - owners emit registry snapshots through toolkit `emit()` and daemon fan-out to
   canvases subscribed to `canvas_object.registry`
