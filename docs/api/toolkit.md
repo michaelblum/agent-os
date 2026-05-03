@@ -341,6 +341,10 @@ Addresses use `canvas_id + object_id`:
 }
 ```
 
+Sigil's wiki-brain adopter currently exposes the outer shell, the fiber-optic
+filament layer, and the fractal tree layer as separate objects so transform
+controllers can tune their overlap independently.
+
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
 and capabilities:
@@ -353,13 +357,29 @@ and capabilities:
   "objects": [
     {
       "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Tree",
+      "name": "Wiki Brain Fiber Optics",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch"],
       "transform": {
         "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
         "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
         "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      }
+    },
+    {
+      "object_id": "radial.wiki-brain.fractal-tree",
+      "name": "Wiki Brain Fractal Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch"],
+      "transform": {
+        "position": { "x": 0.008, "y": -0.018, "z": 0.012 },
+        "scale": { "x": 1.26, "y": 1.34, "z": 1.16 },
+        "rotation_degrees": { "x": -9, "y": 0, "z": 0 }
       },
       "units": {
         "position": "scene",

@@ -19,7 +19,7 @@ addressable objects publishes the full set it wants controllers to see:
   "objects": [
     {
       "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Tree",
+      "name": "Wiki Brain Fiber Optics",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch"],
       "transform": {

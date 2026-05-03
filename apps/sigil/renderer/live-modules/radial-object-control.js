@@ -3,6 +3,8 @@ export const SIGIL_OBJECT_CONTROL_CANVAS_ID = 'avatar-main';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
+export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
+export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
 
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
@@ -16,6 +18,11 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         position: { x: 0.018, y: -0.035, z: 0.018 },
         scale: { x: 1.32, y: 1.42, z: 1.2 },
         rotationDegrees: { x: -11.5, y: 0, z: 0 },
+    },
+    fractalTreeTransform: {
+        position: { x: 0.008, y: -0.018, z: 0.012 },
+        scale: { x: 1.26, y: 1.34, z: 1.16 },
+        rotationDegrees: { x: -9, y: 0, z: 0 },
     },
     shellOpacity: {
         rest: 0.75,
@@ -87,6 +94,16 @@ export function resolveNestedShellTransform(effect = {}) {
 export function resolveNestedTreeTransform(effect = {}) {
     const transform = effect.treeTransform || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.treeTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+export function resolveNestedFractalTreeTransform(effect = {}) {
+    const transform = effect.fractalTreeTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fractalTreeTransform;
     return {
         position: vectorValue(transform.position, defaults.position),
         scale: vectorValue(transform.scale, defaults.scale),
@@ -175,6 +192,7 @@ export function resolveWikiBrainEffect(item = {}) {
         },
         shellTransform: resolveNestedShellTransform(effect),
         treeTransform: resolveNestedTreeTransform(effect),
+        fractalTreeTransform: resolveNestedFractalTreeTransform(effect),
     };
 }
 
@@ -205,9 +223,14 @@ export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {
                 transform: effect.shellTransform,
             }),
             registryObject({
-                objectId: WIKI_BRAIN_TREE_OBJECT_ID,
-                name: 'Wiki Brain Tree',
+                objectId: WIKI_BRAIN_FIBER_OBJECT_ID,
+                name: 'Wiki Brain Fiber Optics',
                 transform: effect.treeTransform,
+            }),
+            registryObject({
+                objectId: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+                name: 'Wiki Brain Fractal Tree',
+                transform: effect.fractalTreeTransform,
             }),
         ] : [],
     };
@@ -258,12 +281,21 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
     }
 
     const objectId = message.target.object_id;
-    const transformKey = objectId === WIKI_BRAIN_SHELL_OBJECT_ID
-        ? 'shellTransform'
-        : objectId === WIKI_BRAIN_TREE_OBJECT_ID
-            ? 'treeTransform'
-            : null;
-    if (!transformKey) {
+    const target = {
+        [WIKI_BRAIN_SHELL_OBJECT_ID]: {
+            key: 'shellTransform',
+            resolve: resolveNestedShellTransform,
+        },
+        [WIKI_BRAIN_FIBER_OBJECT_ID]: {
+            key: 'treeTransform',
+            resolve: resolveNestedTreeTransform,
+        },
+        [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
+            key: 'fractalTreeTransform',
+            resolve: resolveNestedFractalTreeTransform,
+        },
+    }[objectId] || null;
+    if (!target) {
         return resultFor(message, 'rejected', {
             reason: 'unknown_object',
             message: `unknown object ${objectId}`,
@@ -276,9 +308,7 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
         });
     }
 
-    const current = transformKey === 'shellTransform'
-        ? resolveNestedShellTransform(effect)
-        : resolveNestedTreeTransform(effect);
+    const current = target.resolve(effect);
     const merged = mergeTransformPatch(current, message.patch);
     if (!merged.changed) {
         return resultFor(message, 'rejected', {
@@ -287,7 +317,7 @@ export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {
         });
     }
 
-    effect[transformKey] = merged.transform;
+    effect[target.key] = merged.transform;
     return resultFor(message, 'applied', {
         transform: contractTransformFromEffect(merged.transform),
     });

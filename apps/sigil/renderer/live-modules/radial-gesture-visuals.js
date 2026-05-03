@@ -1,6 +1,7 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import {
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
     vectorAngles,
@@ -9,6 +10,7 @@ import {
 
 export {
     DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
 } from './radial-object-control.js';
@@ -41,6 +43,10 @@ function applyObjectTransform(object, transform = {}, defaults = {}) {
 
 function applyNestedTreeTransform(tree, transform = {}) {
     applyObjectTransform(tree, transform, DEFAULT_NESTED_TREE_EFFECT.treeTransform);
+}
+
+function applyNestedFractalTreeTransform(tree, transform = {}) {
+    applyObjectTransform(tree, transform, DEFAULT_NESTED_TREE_EFFECT.fractalTreeTransform);
 }
 
 function applyNestedShellTransform(shell, transform = {}) {
@@ -158,6 +164,15 @@ function createFallbackForItem(item = {}) {
     return createFallbackGlyph();
 }
 
+const FRACTAL_TREE_LOBES = [
+    { name: 'Hemisphere', pos: [-1.3, 1.4, -0.2], scale: [2.0, 2.8, 3.8], leaves: 150 },
+    { name: 'Cerebellum', pos: [-1.0, -1.8, -2.8], scale: [1.4, 0.9, 1.5], leaves: 40 },
+    { name: 'Temporal', pos: [-2.2, 0.2, 0.5], scale: [1.2, 1.4, 2.4], leaves: 40 },
+    { name: 'Occipital', pos: [-1.0, 0.8, -3.4], scale: [1.3, 1.5, 1.6], leaves: 40 },
+    { name: 'Parietal', pos: [-1.3, 2.6, -0.8], scale: [1.5, 1.4, 2.0], leaves: 40 },
+    { name: 'Frontal', pos: [-1.3, 1.8, 2.2], scale: [1.6, 2.0, 2.4], leaves: 40 },
+];
+
 function clamp01(value) {
     return Math.max(0, Math.min(1, value));
 }
@@ -174,6 +189,16 @@ function seededRandom(seed = 0x5eed1234) {
     };
 }
 
+function randomUnitVector(rand) {
+    const v = new THREE.Vector3(
+        rand() - 0.5,
+        rand() - 0.5,
+        rand() - 0.5
+    );
+    if (v.lengthSq() < 0.000001) return new THREE.Vector3(0, 1, 0);
+    return v.normalize();
+}
+
 function effectConfig(item = {}) {
     const effect = item.geometry?.radialEffect;
     if (!effect || typeof effect !== 'object') return null;
@@ -188,6 +213,7 @@ function effectConfig(item = {}) {
     };
     merged.shellTransform = resolveNestedShellTransform(merged);
     merged.treeTransform = resolveNestedTreeTransform(merged);
+    merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
     return merged;
 }
 
@@ -372,6 +398,595 @@ function updateNestedNeuralTreeEffect(effect, progress, dt) {
         sparkMaterial.uniforms.u_brightness.value = 0.8 + (p * 2.8);
         sparkMaterial.uniforms.u_time.value = effect.userData.time;
     }
+}
+
+function deformFractalBrainPoint(source) {
+    const y = source.y < -1
+        ? -1 + ((source.y + 1) * 0.42)
+        : source.y > 2.35
+            ? 2.35 + ((source.y - 2.35) * 0.62)
+            : source.y;
+    const heightT = clamp01((y + 2.35) / 5.25);
+    const crown = Math.sin(heightT * Math.PI);
+    const lowerTaper = 0.62 + (0.38 * crown);
+    const upperTaper = 0.76 + (0.24 * Math.sin(clamp01((y + 1.2) / 3.5) * Math.PI));
+    const sideTaper = Math.min(lowerTaper, upperTaper);
+    const frontBackTaper = 0.68 + (0.32 * crown);
+    const hemispherePull = Math.sign(source.x) * Math.pow(Math.abs(source.x) / 3.4, 1.35) * 0.18;
+    const foldedZ = (source.z * frontBackTaper * 0.62) - (Math.max(0, -y - 0.65) * 0.28);
+
+    return new THREE.Vector3(
+        (source.x * sideTaper * 0.72) - hemispherePull,
+        y * 0.72,
+        foldedZ
+    );
+}
+
+function deformFractalBrainGeometry(geometry) {
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i += 1) {
+        const deformed = deformFractalBrainPoint(new THREE.Vector3(
+            position.getX(i),
+            position.getY(i),
+            position.getZ(i)
+        ));
+        position.setXYZ(i, deformed.x, deformed.y, deformed.z);
+    }
+    position.needsUpdate = true;
+    geometry.computeBoundingBox?.();
+    geometry.computeBoundingSphere?.();
+}
+
+function makeFractalBranchClass(branchLen) {
+    return class Branch {
+        constructor(parent, pos, dir, treeId) {
+            this.parent = parent;
+            this.pos = pos;
+            this.dir = dir.clone();
+            this.origDir = dir.clone();
+            this.count = 0;
+            this.children = [];
+            this.treeId = treeId;
+            if (parent) parent.children.push(this);
+            this.dist = parent ? parent.dist + parent.pos.distanceTo(pos) : 0;
+        }
+
+        reset() {
+            this.dir.copy(this.origDir);
+            this.count = 0;
+        }
+
+        next() {
+            return new this.constructor(
+                this,
+                this.pos.clone().add(this.dir.clone().multiplyScalar(branchLen)),
+                this.dir.clone(),
+                this.treeId
+            );
+        }
+    };
+}
+
+function createFractalBrainTreeGeometry({
+    leafMaxDist = 30,
+    leafMinDist = 0.8,
+    branchLen = 0.5,
+    maxIterations = 8000,
+    rand = seededRandom(),
+} = {}) {
+    let leaves = [];
+    let branches = [];
+    const Branch = makeFractalBranchClass(branchLen);
+
+    FRACTAL_TREE_LOBES.forEach((lobe, lobeIdx) => {
+        for (let i = 0; i < lobe.leaves; i += 1) {
+            const r = Math.cbrt(rand()) * 0.85;
+            const theta = rand() * 2 * Math.PI;
+            const phi = Math.acos((2 * rand()) - 1);
+            leaves.push({
+                pos: new THREE.Vector3(
+                    (r * Math.sin(phi) * Math.cos(theta) * lobe.scale[0]) + lobe.pos[0],
+                    (r * Math.sin(phi) * Math.sin(theta) * lobe.scale[1]) + lobe.pos[1],
+                    (r * Math.cos(phi) * lobe.scale[2]) + lobe.pos[2]
+                ),
+                reached: false,
+                treeId: lobeIdx,
+            });
+        }
+
+        const xOff = (rand() - 0.5) * 0.4;
+        const zOff = (rand() - 0.5) * 0.4;
+        const root = new Branch(
+            null,
+            new THREE.Vector3(-0.3 + xOff, -4.2, -1.0 + zOff),
+            new THREE.Vector3(0, 1, 0),
+            lobeIdx
+        );
+        branches.push(root);
+
+        let curr = root;
+        for (let y = -3.7; y <= -0.5; y += branchLen) {
+            const next = new Branch(
+                curr,
+                new THREE.Vector3(curr.pos.x, y, curr.pos.z + ((y + 3.7) * 0.1)),
+                new THREE.Vector3(0, 1, 0),
+                lobeIdx
+            );
+            branches.push(next);
+            curr = next;
+        }
+    });
+
+    let growing = true;
+    let iterations = 0;
+    while (growing && iterations < maxIterations) {
+        iterations += 1;
+        growing = false;
+
+        for (const leaf of leaves) {
+            let closestBranch = null;
+            let record = leafMaxDist;
+
+            for (const branch of branches) {
+                if (branch.treeId !== leaf.treeId) continue;
+                const d = leaf.pos.distanceTo(branch.pos);
+                if (d < leafMinDist) {
+                    leaf.reached = true;
+                    closestBranch = null;
+                    break;
+                }
+                if (d < record) {
+                    closestBranch = branch;
+                    record = d;
+                }
+            }
+
+            if (closestBranch) {
+                closestBranch.dir.add(leaf.pos.clone().sub(closestBranch.pos).normalize());
+                closestBranch.count += 1;
+                growing = true;
+            }
+        }
+
+        leaves = leaves.filter((leaf) => !leaf.reached);
+
+        for (let i = branches.length - 1; i >= 0; i -= 1) {
+            const branch = branches[i];
+            if (branch.count > 0) {
+                branch.dir.divideScalar(branch.count + 1);
+                branch.dir.add(randomUnitVector(rand).setLength(0.2)).normalize();
+                branches.push(branch.next());
+            }
+            branch.reset();
+        }
+    }
+
+    const rightBranches = [];
+    const mirrorMap = new Map();
+    for (const branch of branches) {
+        const rPos = branch.pos.clone();
+        rPos.x *= -1;
+        const rDir = branch.dir.clone();
+        rDir.x *= -1;
+        const rBranch = new Branch(null, rPos, rDir, branch.treeId + 100);
+        rBranch.dist = branch.dist;
+        rightBranches.push(rBranch);
+        mirrorMap.set(branch, rBranch);
+    }
+
+    for (const branch of branches) {
+        const rBranch = mirrorMap.get(branch);
+        if (branch.parent) rBranch.parent = mirrorMap.get(branch.parent);
+        for (const child of branch.children) {
+            rBranch.children.push(mirrorMap.get(child));
+        }
+    }
+    branches = branches.concat(rightBranches);
+
+    let maxDist = 0;
+    for (const branch of branches) {
+        maxDist = Math.max(maxDist, branch.dist);
+        branch.pos.copy(deformFractalBrainPoint(branch.pos));
+    }
+
+    const positions = [];
+    const p0s = [];
+    const p1s = [];
+    const d0s = [];
+    const d1s = [];
+    const isEnds = [];
+
+    for (let i = 1; i < branches.length; i += 1) {
+        const branch = branches[i];
+        if (!branch.parent) continue;
+        positions.push(branch.parent.pos.x, branch.parent.pos.y, branch.parent.pos.z);
+        p0s.push(branch.parent.pos.x, branch.parent.pos.y, branch.parent.pos.z);
+        p1s.push(branch.pos.x, branch.pos.y, branch.pos.z);
+        d0s.push(branch.parent.dist);
+        d1s.push(branch.dist);
+        isEnds.push(0);
+
+        positions.push(branch.pos.x, branch.pos.y, branch.pos.z);
+        p0s.push(branch.parent.pos.x, branch.parent.pos.y, branch.parent.pos.z);
+        p1s.push(branch.pos.x, branch.pos.y, branch.pos.z);
+        d0s.push(branch.parent.dist);
+        d1s.push(branch.dist);
+        isEnds.push(1);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('a_p0', new THREE.Float32BufferAttribute(p0s, 3));
+    geometry.setAttribute('a_p1', new THREE.Float32BufferAttribute(p1s, 3));
+    geometry.setAttribute('a_d0', new THREE.Float32BufferAttribute(d0s, 1));
+    geometry.setAttribute('a_d1', new THREE.Float32BufferAttribute(d1s, 1));
+    geometry.setAttribute('a_isEnd', new THREE.Float32BufferAttribute(isEnds, 1));
+    return { geometry, maxDist, branches, treeCount: FRACTAL_TREE_LOBES.length * 2 };
+}
+
+function createFractalPulseBaseMaterial(maxDist) {
+    return new THREE.ShaderMaterial({
+        uniforms: {
+            u_color: { value: new THREE.Color(0xffffff) },
+            u_progress: { value: 0 },
+            u_trailLength: { value: 0.6 },
+            u_net_progress: { value: 1 },
+            u_maxDist: { value: maxDist },
+            u_alpha: { value: 1 },
+        },
+        vertexShader: `
+            attribute float a_percent;
+            attribute float a_dist;
+            varying float v_percent;
+            varying float v_dist;
+            void main() {
+                v_percent = a_percent;
+                v_dist = a_dist;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 u_color;
+            uniform float u_progress;
+            uniform float u_trailLength;
+            uniform float u_net_progress;
+            uniform float u_maxDist;
+            uniform float u_alpha;
+            varying float v_percent;
+            varying float v_dist;
+            void main() {
+                if (v_dist > u_net_progress * u_maxDist) discard;
+                float dist = u_progress - v_percent;
+                if (dist < 0.0 || dist > u_trailLength) discard;
+                float alpha = pow(1.0 - (dist / u_trailLength), 1.5) * u_alpha;
+                vec3 glowColor = mix(u_color, vec3(1.0, 1.0, 0.8), smoothstep(0.1, 0.0, dist));
+                gl_FragColor = vec4(glowColor * alpha * 2.0, alpha);
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+    });
+}
+
+function createFractalSparkMaterial() {
+    return new THREE.ShaderMaterial({
+        vertexShader: `
+            attribute float a_alpha;
+            varying float v_alpha;
+            void main() {
+                v_alpha = a_alpha;
+                gl_PointSize = 2.4;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            varying float v_alpha;
+            void main() {
+                if (v_alpha <= 0.0) discard;
+                vec2 uv = gl_PointCoord - 0.5;
+                float dist = length(uv);
+                if (dist > 0.5) discard;
+                vec3 color = vec3(1.0, 0.0, 0.0);
+                color = mix(color, vec3(1.0, 0.7, 0.0), smoothstep(0.5, 0.2, dist));
+                color = mix(color, vec3(1.0, 1.0, 1.0), smoothstep(0.2, 0.0, dist));
+                float alpha = smoothstep(0.5, 0.0, dist) * v_alpha;
+                gl_FragColor = vec4(color * 2.5, alpha);
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: false,
+    });
+}
+
+function buildFractalPulsePath(effect, params) {
+    const branches = effect.userData.branches || [];
+    const rand = effect.userData.rand || Math.random;
+    if (branches.length === 0) return null;
+
+    const pathBranches = [];
+    if (rand() < params.rootRatio) {
+        const roots = branches.filter((branch) => !branch.parent);
+        let curr = roots[Math.floor(rand() * roots.length)];
+        if (!curr) return null;
+        pathBranches.push(curr);
+        while (curr.children?.length > 0) {
+            curr = curr.children[Math.floor(rand() * curr.children.length)];
+            pathBranches.push(curr);
+        }
+    } else {
+        let curr = branches[Math.floor(rand() * branches.length)];
+        if (!curr) return null;
+        const steps = 10 + Math.floor(rand() * 40);
+        pathBranches.push(curr);
+        for (let i = 0; i < steps; i += 1) {
+            if (!curr.parent) break;
+            curr = curr.parent;
+            pathBranches.push(curr);
+        }
+        pathBranches.reverse();
+    }
+
+    return pathBranches.length >= 2 ? pathBranches : null;
+}
+
+function spawnFractalPulse(effect, params) {
+    const pulses = effect.userData.pulses;
+    if (!pulses || pulses.length >= params.concurrent) return;
+    const pathBranches = buildFractalPulsePath(effect, params);
+    if (!pathBranches) return;
+
+    const positions = new Float32Array(pathBranches.length * 3);
+    const percents = new Float32Array(pathBranches.length);
+    const dists = new Float32Array(pathBranches.length);
+    let totalLen = 0;
+    const lengths = [0];
+    for (let i = 1; i < pathBranches.length; i += 1) {
+        totalLen += pathBranches[i].pos.distanceTo(pathBranches[i - 1].pos);
+        lengths.push(totalLen);
+    }
+    if (totalLen <= 0) return;
+
+    for (let i = 0; i < pathBranches.length; i += 1) {
+        positions[i * 3] = pathBranches[i].pos.x;
+        positions[(i * 3) + 1] = pathBranches[i].pos.y;
+        positions[(i * 3) + 2] = pathBranches[i].pos.z;
+        percents[i] = lengths[i] / totalLen;
+        dists[i] = pathBranches[i].dist;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('a_percent', new THREE.BufferAttribute(percents, 1));
+    geometry.setAttribute('a_dist', new THREE.BufferAttribute(dists, 1));
+    const material = effect.userData.pulseBaseMaterial.clone();
+    material.uniforms.u_maxDist.value = effect.userData.maxDist;
+    const line = new THREE.Line(geometry, material);
+    line.renderOrder = 24;
+    const content = effect.userData.content || effect;
+    content.add(line);
+    pulses.push({
+        mesh: line,
+        material,
+        progress: -0.1,
+        speed: 0.9 + ((effect.userData.rand || Math.random)() * 1.5),
+        pathBranches,
+        totalLen,
+        lengths,
+    });
+}
+
+function fractalPulseSparkPosition(pulse, targetDist, netProgress, maxDist) {
+    if (targetDist < 0 || targetDist > pulse.totalLen) return null;
+    for (let i = 0; i < pulse.lengths.length - 1; i += 1) {
+        if (targetDist < pulse.lengths[i] || targetDist > pulse.lengths[i + 1]) continue;
+        const segmentLen = pulse.lengths[i + 1] - pulse.lengths[i];
+        const t = segmentLen > 0 ? (targetDist - pulse.lengths[i]) / segmentLen : 0;
+        const currentDist = lerp(pulse.pathBranches[i].dist, pulse.pathBranches[i + 1].dist, t);
+        if (currentDist <= netProgress * maxDist) {
+            return new THREE.Vector3().lerpVectors(pulse.pathBranches[i].pos, pulse.pathBranches[i + 1].pos, t);
+        }
+        return null;
+    }
+    return null;
+}
+
+function updateFractalBrainTreeEffect(effect, progress, dt) {
+    if (!effect) return;
+    const p = clamp01(progress);
+    effect.visible = p > 0.015;
+    const maxSparks = effect.userData.maxSparks || 300;
+    const sparkPositions = effect.userData.sparkPositions;
+    const sparkAlphas = effect.userData.sparkAlphas;
+    const sparkGeometry = effect.userData.sparkGeometry;
+    const params = {
+        concurrent: Math.max(1, Math.round(1 + (p * 19))),
+        frequency: 1 + (p * 14),
+        rootRatio: p * 0.8,
+    };
+
+    const material = effect.userData.material;
+    if (material?.uniforms) {
+        material.uniforms.u_progress.value = p;
+        material.uniforms.u_alpha.value = Math.pow(p, 1.15) * 0.72;
+        material.uniforms.u_brightness.value = 0.4 + (p * 1.7);
+    }
+
+    if (p > 0.02 && (effect.userData.rand || Math.random)() < params.frequency * dt) {
+        spawnFractalPulse(effect, params);
+    }
+
+    let sparkIdx = 0;
+    const pulses = effect.userData.pulses || [];
+    for (let i = pulses.length - 1; i >= 0; i -= 1) {
+        const pulse = pulses[i];
+        pulse.progress += pulse.speed * dt;
+        pulse.material.uniforms.u_progress.value = pulse.progress;
+        pulse.material.uniforms.u_net_progress.value = p;
+        pulse.material.uniforms.u_alpha.value = p;
+
+        if (pulse.progress >= 0 && pulse.progress <= 1.2) {
+            const baseDist = pulse.progress * pulse.totalLen;
+            const offsets = [0, 0.15, 0.3];
+            const alphas = [1.0, 0.6, 0.15];
+            for (let k = 0; k < offsets.length; k += 1) {
+                const pos = fractalPulseSparkPosition(
+                    pulse,
+                    baseDist - offsets[k],
+                    p,
+                    effect.userData.maxDist
+                );
+                if (pos && sparkIdx < maxSparks) {
+                    sparkPositions[sparkIdx * 3] = pos.x;
+                    sparkPositions[(sparkIdx * 3) + 1] = pos.y;
+                    sparkPositions[(sparkIdx * 3) + 2] = pos.z;
+                    sparkAlphas[sparkIdx] = alphas[k] * p;
+                    sparkIdx += 1;
+                }
+            }
+        }
+
+        if (pulse.progress > 1.2 || p <= 0.001) {
+            const content = effect.userData.content || effect;
+            content.remove(pulse.mesh);
+            pulse.mesh.geometry.dispose();
+            pulse.material.dispose();
+            pulses.splice(i, 1);
+        }
+    }
+
+    for (let i = sparkIdx; i < maxSparks; i += 1) {
+        sparkAlphas[i] = 0;
+    }
+    sparkGeometry.setDrawRange(0, sparkIdx);
+    sparkGeometry.attributes.position.needsUpdate = true;
+    sparkGeometry.attributes.a_alpha.needsUpdate = true;
+    effect.userData.signalParams = params;
+}
+
+function createFractalBrainTreeEffect() {
+    const group = new THREE.Group();
+    group.name = 'fractal-brain-tree-effect';
+    group.visible = false;
+    const content = new THREE.Group();
+    content.name = 'fractal-brain-tree-content';
+    group.add(content);
+
+    const transparentScaffold = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+    });
+
+    for (const lobe of FRACTAL_TREE_LOBES) {
+        const geo = new THREE.IcosahedronGeometry(1, 1);
+        geo.scale(lobe.scale[0], lobe.scale[1], lobe.scale[2]);
+        const left = geo.clone();
+        left.translate(lobe.pos[0], lobe.pos[1], lobe.pos[2]);
+        const right = geo.clone();
+        right.translate(-lobe.pos[0], lobe.pos[1], lobe.pos[2]);
+        deformFractalBrainGeometry(left);
+        deformFractalBrainGeometry(right);
+        content.add(new THREE.Mesh(left, transparentScaffold));
+        content.add(new THREE.Mesh(right, transparentScaffold));
+        geo.dispose();
+    }
+
+    const stemGeo = new THREE.CylinderGeometry(0.5, 0.3, 4.0, 8);
+    stemGeo.translate(0, -3.5, -1.0);
+    deformFractalBrainGeometry(stemGeo);
+    content.add(new THREE.Mesh(stemGeo, transparentScaffold));
+
+    const { geometry, maxDist, branches, treeCount } = createFractalBrainTreeGeometry();
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            u_progress: { value: 0 },
+            u_maxDist: { value: maxDist },
+            u_alpha: { value: 0 },
+            u_brightness: { value: 0.35 },
+            u_color: { value: new THREE.Color(0x00ffff) },
+        },
+        vertexShader: `
+            attribute vec3 a_p0;
+            attribute vec3 a_p1;
+            attribute float a_d0;
+            attribute float a_d1;
+            attribute float a_isEnd;
+            uniform float u_progress;
+            uniform float u_maxDist;
+            varying float v_opacity;
+            void main() {
+                float current_growth_dist = u_progress * u_maxDist;
+                vec3 final_pos = position;
+                v_opacity = 1.0;
+                if (current_growth_dist <= a_d0) {
+                    final_pos = a_p0;
+                    v_opacity = 0.0;
+                } else if (current_growth_dist < a_d1) {
+                    if (a_isEnd > 0.5) {
+                        float t = (current_growth_dist - a_d0) / max(0.0001, a_d1 - a_d0);
+                        final_pos = mix(a_p0, a_p1, t);
+                    } else {
+                        final_pos = a_p0;
+                    }
+                }
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(final_pos, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 u_color;
+            uniform float u_alpha;
+            uniform float u_brightness;
+            varying float v_opacity;
+            void main() {
+                if (v_opacity < 0.5 || u_alpha <= 0.001) discard;
+                gl_FragColor = vec4(u_color * u_brightness, u_alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+        blending: THREE.AdditiveBlending,
+    });
+
+    const network = new THREE.LineSegments(geometry, material);
+    network.renderOrder = 21;
+    content.add(network);
+
+    const maxSparks = 300;
+    const sparkGeometry = new THREE.BufferGeometry();
+    const sparkPositions = new Float32Array(maxSparks * 3);
+    const sparkAlphas = new Float32Array(maxSparks);
+    sparkGeometry.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+    sparkGeometry.setAttribute('a_alpha', new THREE.BufferAttribute(sparkAlphas, 1));
+    sparkGeometry.setDrawRange(0, 0);
+    const sparkMesh = new THREE.Points(sparkGeometry, createFractalSparkMaterial());
+    sparkMesh.renderOrder = 25;
+    content.add(sparkMesh);
+
+    content.scale.set(0.046, 0.044, 0.04);
+    content.position.set(0, 0.008, 0.004);
+    group.userData.content = content;
+    group.userData.network = network;
+    group.userData.material = material;
+    group.userData.scaffoldMaterial = transparentScaffold;
+    group.userData.pulseBaseMaterial = createFractalPulseBaseMaterial(maxDist);
+    group.userData.sparkGeometry = sparkGeometry;
+    group.userData.sparkPositions = sparkPositions;
+    group.userData.sparkAlphas = sparkAlphas;
+    group.userData.sparkMesh = sparkMesh;
+    group.userData.maxSparks = maxSparks;
+    group.userData.pulses = [];
+    group.userData.rand = seededRandom(0x51a9e1);
+    group.userData.branches = branches;
+    group.userData.maxDist = maxDist;
+    group.userData.treeCount = treeCount;
+    return group;
 }
 
 function geometryKind(item = {}) {
@@ -609,20 +1224,27 @@ function createRadialEffectHost(group, item = {}) {
     composite.name = `${item.id || 'radial-item'}-effect-composite`;
     const modelHost = new THREE.Group();
     modelHost.name = `${item.id || 'radial-item'}-model-host`;
-    const treeEffect = createNestedNeuralTreeEffect();
-    treeEffect.name = `${item.id || 'radial-item'}-nested-neural-tree`;
+    const fiberEffect = createNestedNeuralTreeEffect();
+    fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
+    const fractalTreeEffect = createFractalBrainTreeEffect();
+    fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
     applyNestedShellTransform(modelHost, effect.shellTransform);
-    applyNestedTreeTransform(treeEffect, effect.treeTransform);
-    composite.add(modelHost, treeEffect);
+    applyNestedTreeTransform(fiberEffect, effect.treeTransform);
+    applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
+    composite.add(modelHost, fiberEffect, fractalTreeEffect);
     group.add(composite);
     group.userData.modelHost = modelHost;
     group.userData.radialEffectConfig = effect;
-    group.userData.radialEffectTree = treeEffect;
+    group.userData.radialEffectTree = fiberEffect;
+    group.userData.radialEffectFiber = fiberEffect;
+    group.userData.radialEffectFractalTree = fractalTreeEffect;
     group.userData.radialEffectShellTransform = effect.shellTransform;
     group.userData.radialEffectTreeTransform = effect.treeTransform;
+    group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
     group.userData.radialEffectState = {
         activation: 0,
         treeProgress: 0,
+        fractalTreeProgress: 0,
         heldProgress: 0,
         shellOpacity: effect.shellOpacity.rest,
         relation: null,
@@ -638,6 +1260,7 @@ function syncRadialEffectConfig(glyph, item = {}) {
     glyph.userData.radialEffectConfig = effect;
     glyph.userData.radialEffectShellTransform = effect.shellTransform;
     glyph.userData.radialEffectTreeTransform = effect.treeTransform;
+    glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
 }
 
 function createGltfGlyph(item = {}) {
@@ -779,6 +1402,7 @@ function updateRadialEffect(glyph, item, {
     const state = glyph.userData.radialEffectState;
     const modelHost = glyph.userData.modelHost;
     const tree = glyph.userData.radialEffectTree;
+    const fractalTree = glyph.userData.radialEffectFractalTree;
     if (!config || !state || !tree) return null;
 
     const metrics = visualRadial ? radialItemPointerMetrics(visualRadial, item) : null;
@@ -820,6 +1444,16 @@ function updateRadialEffect(glyph, item, {
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);
     updateNestedNeuralTreeEffect(tree, state.treeProgress * display, dt);
     applyNestedTreeTransform(tree, glyph.userData.radialEffectTreeTransform || config.treeTransform);
+    if (fractalTree) {
+        state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (
+            treeTarget >= state.fractalTreeProgress ? 0.14 : 0.1
+        );
+        updateFractalBrainTreeEffect(fractalTree, state.fractalTreeProgress * display, dt);
+        applyNestedFractalTreeTransform(
+            fractalTree,
+            glyph.userData.radialEffectFractalTreeTransform || config.fractalTreeTransform
+        );
+    }
     state.relation = relation;
     state.holding = holding;
 
@@ -827,6 +1461,8 @@ function updateRadialEffect(glyph, item, {
         kind: config.kind,
         activation: state.activation,
         treeProgress: state.treeProgress,
+        fiberProgress: state.treeProgress,
+        fractalTreeProgress: state.fractalTreeProgress,
         shellOpacity: state.shellOpacity,
         relation,
         holding,
