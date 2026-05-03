@@ -28,6 +28,11 @@ export function radialGlyphActivationState({ visualRadial, activeRadial, source,
     };
 }
 
+export function resolveRadialHoverSpinSpeed(item = {}, { nativeGeometry = false } = {}) {
+    const value = item.geometry?.hoverSpinSpeed ?? item.hoverSpinSpeed;
+    return Math.max(0, finite(value, nativeGeometry ? 1.45 : 1.1));
+}
+
 function applyObjectTransform(object, transform = {}, defaults = {}) {
     if (!object) return;
     const position = vectorValue(transform.position, defaults.position);
@@ -1584,7 +1589,10 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
                     size: glyph.userData.geometrySize || null,
                 };
             }
-            glyph.userData.hoverSpin = finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * (nativeGeometry ? 1.45 : 1.1));
+            const hoverSpinSpeed = resolveRadialHoverSpinSpeed(item, { nativeGeometry });
+            glyph.userData.hoverSpin = hoverSpinSpeed > 0
+                ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpinSpeed)
+                : 0;
             glyph.rotation.x = nativeGeometry ? hoverProgress * 0.12 : 0.08 + (hoverProgress * 0.04);
             glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + glyph.userData.hoverSpin;
             glyph.rotation.z = hoverProgress * 0.055;

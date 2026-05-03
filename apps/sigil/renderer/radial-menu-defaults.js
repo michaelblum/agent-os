@@ -25,6 +25,7 @@ export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     radiusScale: 1.42,
     normalizedRadius: 0.28,
     material: 'translucent-brain-shell',
+    hoverSpinSpeed: 0,
     radialEffect: {
         kind: 'nested-neural-tree',
         holdExitDirection: 'outward',

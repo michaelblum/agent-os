@@ -86,6 +86,7 @@ const {
   normalizeModelScene,
   radialGlyphActivationState,
   resolveNestedTreeTransform,
+  resolveRadialHoverSpinSpeed,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
 test('resolveNestedTreeTransform anchors tree roots toward the brain stem volume', () => {
@@ -148,6 +149,14 @@ test('radialGlyphActivationState ignores non-selected outward pointer travel', (
   assert.equal(state.directHover, false)
   assert.equal(state.selected, false)
   assert.equal(state.relation, 'outward')
+})
+
+test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative values', () => {
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0 } }, { nativeGeometry: true }), 0)
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: -2 } }, { nativeGeometry: true }), 0)
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0.25 } }, { nativeGeometry: false }), 0.25)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: true }), 1.45)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: false }), 1.1)
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {
