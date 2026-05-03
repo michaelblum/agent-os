@@ -8,12 +8,6 @@ export const WIKI_BRAIN_FIBER_STEM_OBJECT_ID = 'radial.wiki-brain.fiber-stem';
 export const WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID = 'radial.wiki-brain.fiber-bloom';
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
 
-const DEFAULT_FIBER_TRANSFORM = {
-    position: { x: 0.018, y: -0.035, z: 0.018 },
-    scale: { x: 1.32, y: 1.42, z: 1.2 },
-    rotationDegrees: { x: -11.5, y: 0, z: 0 },
-};
-
 export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
@@ -22,11 +16,19 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         scale: { x: 1, y: 1, z: 1 },
         rotationDegrees: { x: 0, y: 0, z: 0 },
     },
-    fiberStemTransform: DEFAULT_FIBER_TRANSFORM,
-    fiberBloomTransform: DEFAULT_FIBER_TRANSFORM,
+    fiberStemTransform: {
+        position: { x: 0.019, y: -0.017, z: -0.004 },
+        scale: { x: 0.94, y: 1.94, z: 1.05 },
+        rotationDegrees: { x: -7.5, y: -19, z: -23 },
+    },
+    fiberBloomTransform: {
+        position: { x: 0, y: 0.033, z: 0 },
+        scale: { x: 1.79, y: 1.22, z: 1.68 },
+        rotationDegrees: { x: 0, y: 0, z: 0 },
+    },
     fractalTreeTransform: {
         position: { x: 0.02, y: -0.054, z: -0.006 },
-        scale: { x: 2.14, y: 2.65, z: 2.61 },
+        scale: { x: 1.85, y: 2.65, z: 2.61 },
         rotationDegrees: { x: -8, y: 86, z: 8 },
     },
     shellOpacity: {

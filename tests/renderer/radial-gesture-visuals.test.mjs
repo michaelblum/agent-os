@@ -95,13 +95,17 @@ const {
 test('resolveNestedFiberStemTransform anchors fiber roots toward the brain stem volume', () => {
   const transform = resolveNestedFiberStemTransform({})
 
-  assert.deepEqual(transform.position, { x: 0.018, y: -0.035, z: 0.018 })
-  assert.deepEqual(transform.scale, { x: 1.32, y: 1.42, z: 1.2 })
-  assert.deepEqual(transform.rotationDegrees, { x: -11.5, y: 0, z: 0 })
+  assert.deepEqual(transform.position, { x: 0.019, y: -0.017, z: -0.004 })
+  assert.deepEqual(transform.scale, { x: 0.94, y: 1.94, z: 1.05 })
+  assert.deepEqual(transform.rotationDegrees, { x: -7.5, y: -19, z: -23 })
 })
 
 test('resolveNestedFiberBloomTransform preserves legacy tree transform fallback', () => {
-  assert.deepEqual(resolveNestedFiberBloomTransform({}), resolveNestedFiberStemTransform({}))
+  const transform = resolveNestedFiberBloomTransform({})
+
+  assert.deepEqual(transform.position, { x: 0, y: 0.033, z: 0 })
+  assert.deepEqual(transform.scale, { x: 1.79, y: 1.22, z: 1.68 })
+  assert.deepEqual(transform.rotationDegrees, { x: 0, y: 0, z: 0 })
   assert.deepEqual(resolveNestedTreeTransform({ treeTransform: { scale: 1.5 } }).scale, { x: 1.5, y: 1.5, z: 1.5 })
 })
 
@@ -109,7 +113,7 @@ test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain 
   const transform = resolveNestedFractalTreeTransform({})
 
   assert.deepEqual(transform.position, { x: 0.02, y: -0.054, z: -0.006 })
-  assert.deepEqual(transform.scale, { x: 2.14, y: 2.65, z: 2.61 })
+  assert.deepEqual(transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
   assert.deepEqual(transform.rotationDegrees, { x: -8, y: 86, z: 8 })
 })
 
