@@ -44,9 +44,9 @@ test('wiki brain object registry advertises shell, fiber, and fractal tree contr
 
   const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
   assert.equal(fractalTree.name, 'Wiki Brain Fractal Tree')
-  assert.deepEqual(fractalTree.transform.position, { x: 0.008, y: -0.018, z: 0.012 })
-  assert.deepEqual(fractalTree.transform.scale, { x: 1.26, y: 1.34, z: 1.16 })
-  assert.deepEqual(fractalTree.transform.rotation_degrees, { x: -9, y: 0, z: 0 })
+  assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.054, z: -0.006 })
+  assert.deepEqual(fractalTree.transform.scale, { x: 2.14, y: 2.65, z: 2.61 })
+  assert.deepEqual(fractalTree.transform.rotation_degrees, { x: -8, y: 86, z: 8 })
 })
 
 test('wiki brain visibility patch updates advertised object visibility', () => {
@@ -66,7 +66,7 @@ test('wiki brain visibility patch updates advertised object visibility', () => {
 
   assert.equal(result.status, 'applied')
   assert.equal(result.visible, false)
-  assert.deepEqual(result.transform.scale, { x: 1.26, y: 1.34, z: 1.16 })
+  assert.deepEqual(result.transform.scale, { x: 2.14, y: 2.65, z: 2.61 })
 
   const fractalTree = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
     .objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
@@ -129,12 +129,12 @@ test('wiki brain transform patch can independently tune the fractal tree', () =>
 
   assert.equal(result.status, 'applied')
   assert.equal(result.request_id, 'req-fractal-tree')
-  assert.deepEqual(result.transform.position, { x: 0.008, y: -0.024, z: 0.012 })
+  assert.deepEqual(result.transform.position, { x: 0.02, y: -0.024, z: -0.006 })
   assert.deepEqual(result.transform.scale, { x: 1.4, y: 1.5, z: 1.25 })
 
   const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
   const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
-  assert.deepEqual(fractalTree.transform.position, { x: 0.008, y: -0.024, z: 0.012 })
+  assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.024, z: -0.006 })
   assert.deepEqual(fractalTree.transform.scale, { x: 1.4, y: 1.5, z: 1.25 })
 })
 

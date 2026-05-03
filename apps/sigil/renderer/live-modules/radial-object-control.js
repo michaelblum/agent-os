@@ -20,9 +20,9 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         rotationDegrees: { x: -11.5, y: 0, z: 0 },
     },
     fractalTreeTransform: {
-        position: { x: 0.008, y: -0.018, z: 0.012 },
-        scale: { x: 1.26, y: 1.34, z: 1.16 },
-        rotationDegrees: { x: -9, y: 0, z: 0 },
+        position: { x: 0.02, y: -0.054, z: -0.006 },
+        scale: { x: 2.14, y: 2.65, z: 2.61 },
+        rotationDegrees: { x: -8, y: 86, z: 8 },
     },
     shellOpacity: {
         rest: 0.75,
