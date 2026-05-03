@@ -72,6 +72,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+- `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 
 ### Inline Canvas Stats
 
@@ -401,6 +402,28 @@ V0 routing uses existing AOS canvas plumbing:
 Keep bus-shaped discipline at this boundary: typed messages, structured
 addresses, separate state snapshots from commands, and include `request_id` for
 mutating requests. Do not introduce a general AOS bus for this contract.
+
+### Object Transform Panel
+
+`object-transform-panel` is the reusable controller for the addressable canvas
+object control contract. It subscribes to `canvas_object.registry` and
+`canvas_object.transform.result`, renders advertised objects by
+`canvas_id + object_id`, and emits transform edits through existing
+`canvas.send` routing to the owning canvas. The panel does not inspect another
+canvas or assume the object is backed by Three.js.
+
+Default launcher:
+
+```bash
+bash packages/toolkit/components/object-transform-panel/launch.sh
+```
+
+Machine-readable state is exposed for agents via:
+
+```bash
+./aos show eval --id object-transform-panel \
+  --js 'JSON.stringify(window.__objectTransformPanelState)'
+```
 
 The inspector's minimap cursor is operator-toggleable and starts hidden by
 default. Turning it on subscribes to `input_event` on demand and requests a
