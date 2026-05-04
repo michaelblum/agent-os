@@ -378,15 +378,17 @@ export function resolveWikiBrainEffect(item = {}) {
     };
 }
 
-function registryObject({ objectId, name, transform, visible = true, metadata = {} }) {
+function registryObject({ objectId, name, transform, visible = true, parentObjectId = '', descriptors = {}, metadata = {} }) {
     return {
         object_id: objectId,
+        ...(parentObjectId ? { parent_object_id: parentObjectId } : {}),
         name,
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
         transform: contractTransformFromEffect(transform),
         units: CONTRACT_UNITS,
         visible: !!visible,
+        descriptors,
         metadata,
     };
 }
@@ -397,36 +399,56 @@ function wikiBrainObjectTargets() {
             key: 'shellTransform',
             visibilityKey: 'shell',
             resolve: resolveNestedShellTransform,
-            name: 'Wiki Brain Shell',
+            name: 'Shell',
             role: 'shell',
+            descriptors: {
+                geometry: 'Outer glass brain volume that frames the nested neural layers.',
+                animation_effects: 'Opacity and reveal respond to radial-menu hover progress.',
+            },
         },
         [WIKI_BRAIN_FIBER_OBJECT_ID]: {
             key: 'fiberBloomTransform',
             visibilityKey: 'fiberBloom',
             resolve: resolveNestedFiberBloomTransform,
-            name: 'Wiki Brain Fiber Bloom',
+            name: 'Fiber Bloom',
             role: 'fiber-bloom',
+            descriptors: {
+                geometry: 'Branching fiber-optic bloom that spreads through the upper brain volume.',
+                animation_effects: 'Filaments brighten and expand with the nested neural-tree reveal.',
+            },
         },
         [WIKI_BRAIN_FIBER_STEM_OBJECT_ID]: {
             key: 'fiberStemTransform',
             visibilityKey: 'fiberStem',
             resolve: resolveNestedFiberStemTransform,
-            name: 'Wiki Brain Fiber Stem',
+            name: 'Fiber Stem',
             role: 'fiber-stem',
+            descriptors: {
+                geometry: 'Dense fiber bundle that runs down into the brain-stem region.',
+                animation_effects: 'Stem fibers intensify as the radial item opens.',
+            },
         },
         [WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID]: {
             key: 'fiberBloomTransform',
             visibilityKey: 'fiberBloom',
             resolve: resolveNestedFiberBloomTransform,
-            name: 'Wiki Brain Fiber Bloom',
+            name: 'Fiber Bloom',
             role: 'fiber-bloom',
+            descriptors: {
+                geometry: 'Branching fiber-optic bloom that spreads through the upper brain volume.',
+                animation_effects: 'Filaments brighten and expand with the nested neural-tree reveal.',
+            },
         },
         [WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID]: {
             key: 'fractalTreeTransform',
             visibilityKey: 'fractalTree',
             resolve: resolveNestedFractalTreeTransform,
-            name: 'Wiki Brain Fractal Tree',
+            name: 'Fractal Tree',
             role: 'fractal-tree',
+            descriptors: {
+                geometry: 'Recursive neural tree nested inside the glass brain shell.',
+                animation_effects: 'Tree growth, glow, and branch-travel particles react to reveal pressure.',
+            },
         },
     };
 }
@@ -437,9 +459,13 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
     if (!effect) return [];
     const group = registryObject({
         objectId: WIKI_BRAIN_GROUP_OBJECT_ID,
-        name: 'Wiki Brain Group',
+        name: 'Wiki Brain',
         transform: resolveRadialItemModelTransform(item),
         visible: resolveRadialItemModelVisibility(item),
+        descriptors: {
+            geometry: 'Complete wiki-graph menu item composition made from shell, fiber, and fractal-tree layers.',
+            animation_effects: 'Whole composition scales and reveals against the radial menu item orbit path.',
+        },
         metadata: {
             role: 'group',
             ...(includeItemMetadata ? {
@@ -465,8 +491,11 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
             name: target.name,
             transform: target.resolve(effect),
             visible: effect.visibility[target.visibilityKey],
+            parentObjectId: WIKI_BRAIN_GROUP_OBJECT_ID,
+            descriptors: target.descriptors,
             metadata: {
                 role: target.role,
+                parent_object_id: WIKI_BRAIN_GROUP_OBJECT_ID,
                 ...(includeItemMetadata ? {
                     item_id: item.id,
                     item_label: item.label || item.id,

@@ -11,6 +11,8 @@ import {
   selectObject,
   selectedObject,
   sortedObjectEntries,
+  treeObjectEntries,
+  updateEntryDescriptorDraft,
 } from '../../packages/toolkit/components/object-transform-panel/model.js';
 
 function registry(canvasId = 'avatar-main') {
@@ -21,7 +23,7 @@ function registry(canvasId = 'avatar-main') {
     objects: [
       {
         object_id: 'radial.wiki-brain.tree',
-        name: 'Wiki Brain Tree',
+        name: 'Tree',
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
         visible: true,
@@ -38,7 +40,7 @@ function registry(canvasId = 'avatar-main') {
       },
       {
         object_id: 'radial.wiki-brain.shell',
-        name: 'Wiki Brain Shell',
+        name: 'Shell',
         kind: 'three.object3d',
         capabilities: ['transform.read'],
         transform: {
@@ -62,7 +64,7 @@ test('registry ingest stores advertised objects and selects the first object', (
 
   assert.equal(result.ok, true);
   assert.equal(sortedObjectEntries(state).length, 2);
-  assert.equal(selectedObject(state).name, 'Wiki Brain Shell');
+  assert.equal(selectedObject(state).name, 'Shell');
   assert.deepEqual(selectedObject(state).transform.scale, { x: 1, y: 1, z: 1 });
 });
 
@@ -74,7 +76,7 @@ test('registry ingest sorts group entries before layer entries', () => {
       ...registry().objects,
       {
         object_id: 'radial.wiki-brain.group',
-        name: 'Wiki Brain Group',
+        name: 'Wiki Brain',
         kind: 'three.object3d',
         capabilities: ['transform.read', 'transform.patch'],
         metadata: { role: 'group' },
@@ -90,6 +92,107 @@ test('registry ingest sorts group entries before layer entries', () => {
   assert.equal(result.ok, true);
   assert.equal(sortedObjectEntries(state)[0].object_id, 'radial.wiki-brain.group');
   assert.equal(selectedObject(state).object_id, 'radial.wiki-brain.group');
+});
+
+test('registry ingest builds nested object tree rows and descriptor drafts', () => {
+  const state = createObjectTransformState();
+  const result = applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      {
+        object_id: 'radial.wiki-brain.group',
+        name: 'Wiki Brain',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        descriptors: {
+          geometry: 'Whole composition',
+          animation_effects: 'Reveals on hover',
+        },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+      },
+      {
+        ...registry().objects[0],
+        name: 'Tree',
+        parent_object_id: 'radial.wiki-brain.group',
+        visible: false,
+      },
+      {
+        ...registry().objects[1],
+        name: 'Shell',
+        parent_object_id: 'radial.wiki-brain.group',
+        visible: true,
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(treeObjectEntries(state).map((row) => [row.entry.name, row.depth, row.visibility.mixed]), [
+    ['Wiki Brain', 0, true],
+    ['Tree', 1, false],
+    ['Shell', 1, false],
+  ]);
+
+  const selected = selectedObject(state);
+  const updated = updateEntryDescriptorDraft(selected, 'geometry', 'Updated group geometry');
+  assert.equal(updated.descriptors.geometry, 'Updated group geometry');
+  assert.equal(updated.descriptors.animation_effects, 'Reveals on hover');
+});
+
+test('registry tree rows support nested groups and descendant mixed visibility', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      {
+        object_id: 'group.root',
+        name: 'Root Group',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+        units: { position: 'scene', scale: 'multiplier', rotation: 'degrees' },
+      },
+      {
+        object_id: 'group.child',
+        parent_object_id: 'group.root',
+        name: 'Child Group',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+        units: { position: 'scene', scale: 'multiplier', rotation: 'degrees' },
+      },
+      {
+        ...registry().objects[0],
+        object_id: 'mesh.hidden',
+        parent_object_id: 'group.child',
+        name: 'Hidden Mesh',
+        visible: false,
+      },
+    ],
+  });
+
+  assert.deepEqual(treeObjectEntries(state).map((row) => [row.entry.name, row.depth, row.visibility.mixed]), [
+    ['Root Group', 0, true],
+    ['Child Group', 1, false],
+    ['Hidden Mesh', 2, false],
+  ]);
 });
 
 test('selection targets one advertised object without assuming renderer internals', () => {

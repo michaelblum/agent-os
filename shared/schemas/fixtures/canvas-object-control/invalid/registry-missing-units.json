@@ -5,7 +5,7 @@
   "objects": [
     {
       "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Tree",
+      "name": "Tree",
       "kind": "three.object3d",
       "capabilities": ["transform.read"],
       "transform": {

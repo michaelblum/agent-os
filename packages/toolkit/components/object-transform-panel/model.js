@@ -20,6 +20,11 @@ const DEFAULT_UNITS = Object.freeze({
   rotation: 'degrees',
 });
 
+const DEFAULT_DESCRIPTORS = Object.freeze({
+  geometry: '',
+  animation_effects: '',
+});
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
@@ -74,6 +79,22 @@ function normalizeUnits(value = {}) {
   };
 }
 
+function normalizeDescriptorText(value) {
+  return String(value ?? '').trim();
+}
+
+function normalizeDescriptors(value = {}) {
+  return {
+    geometry: normalizeDescriptorText(value.geometry ?? value.description ?? DEFAULT_DESCRIPTORS.geometry),
+    animation_effects: normalizeDescriptorText(
+      value.animation_effects
+        ?? value.animationEffects
+        ?? value.effects
+        ?? DEFAULT_DESCRIPTORS.animation_effects
+    ),
+  };
+}
+
 function unwrapMessage(message = {}) {
   if (message?.payload && typeof message.payload === 'object') {
     return { ...message.payload, type: message.payload.type || message.type };
@@ -114,11 +135,13 @@ export function normalizeRegistryMessage(message = {}) {
   for (const object of payload.objects) {
     const objectId = text(object?.object_id);
     if (!objectId) continue;
+    const metadata = object.metadata && typeof object.metadata === 'object' ? { ...object.metadata } : {};
     const key = objectAddressKey(canvasId, objectId);
     objects.push({
       key,
       canvas_id: canvasId,
       object_id: objectId,
+      parent_object_id: text(object.parent_object_id ?? metadata.parent_object_id),
       name: text(object.name, objectId),
       kind: text(object.kind, 'custom'),
       capabilities: Array.isArray(object.capabilities)
@@ -127,7 +150,9 @@ export function normalizeRegistryMessage(message = {}) {
       transform: normalizeTransform(object.transform),
       units: normalizeUnits(object.units),
       visible: object.visible === undefined ? null : !!object.visible,
-      metadata: object.metadata && typeof object.metadata === 'object' ? { ...object.metadata } : {},
+      descriptors: normalizeDescriptors(object.descriptors ?? metadata.descriptors),
+      metadata,
+      order: objects.length,
     });
   }
 
@@ -149,8 +174,97 @@ export function sortedObjectEntries(state) {
     if (canvasOrder !== 0) return canvasOrder;
     const groupOrder = (a.metadata?.role === 'group' ? 0 : 1) - (b.metadata?.role === 'group' ? 0 : 1);
     if (groupOrder !== 0) return groupOrder;
+    const hasParent = !!(a.parent_object_id || b.parent_object_id);
+    const parentOrder = text(a.parent_object_id).localeCompare(text(b.parent_object_id));
+    if (hasParent && parentOrder !== 0) return parentOrder;
+    if (hasParent && Number.isFinite(a.order) && Number.isFinite(b.order) && a.order !== b.order) return a.order - b.order;
     return a.name.localeCompare(b.name) || a.object_id.localeCompare(b.object_id);
   });
+}
+
+export function isGroupEntry(entry) {
+  return entry?.metadata?.role === 'group' || entry?.kind === 'group' || entry?.kind === 'composition';
+}
+
+function sortSiblingEntries(entries = []) {
+  return [...entries].sort((a, b) => {
+    const groupOrder = (isGroupEntry(a) ? 0 : 1) - (isGroupEntry(b) ? 0 : 1);
+    if (groupOrder !== 0) return groupOrder;
+    if ((a.parent_object_id || b.parent_object_id) && Number.isFinite(a.order) && Number.isFinite(b.order) && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    return a.name.localeCompare(b.name) || a.object_id.localeCompare(b.object_id);
+  });
+}
+
+function childrenForEntry(entriesByObjectKey, childrenByParentKey, entry) {
+  const parentKey = objectAddressKey(entry.canvas_id, entry.object_id);
+  return childrenByParentKey.get(parentKey) || [];
+}
+
+export function treeObjectEntries(state) {
+  const entries = sortedObjectEntries(state);
+  const entriesByObjectKey = new Map(entries.map((entry) => [
+    objectAddressKey(entry.canvas_id, entry.object_id),
+    entry,
+  ]));
+  const childrenByParentKey = new Map();
+  const roots = [];
+
+  for (const entry of entries) {
+    const parentKey = entry.parent_object_id
+      ? objectAddressKey(entry.canvas_id, entry.parent_object_id)
+      : '';
+    if (parentKey && entriesByObjectKey.has(parentKey) && parentKey !== objectAddressKey(entry.canvas_id, entry.object_id)) {
+      const children = childrenByParentKey.get(parentKey) || [];
+      children.push(entry);
+      childrenByParentKey.set(parentKey, children);
+    } else {
+      roots.push(entry);
+    }
+  }
+
+  const rows = [];
+  const visited = new Set();
+
+  function descendantsFor(entry, seen = new Set()) {
+    if (!entry || seen.has(entry.key)) return [];
+    seen.add(entry.key);
+    const children = sortSiblingEntries(childrenForEntry(entriesByObjectKey, childrenByParentKey, entry));
+    return children.flatMap((child) => [child, ...descendantsFor(child, seen)]);
+  }
+
+  function walk(entry, depth) {
+    if (!entry || visited.has(entry.key)) return;
+    visited.add(entry.key);
+    const children = sortSiblingEntries(childrenForEntry(entriesByObjectKey, childrenByParentKey, entry));
+    const descendants = descendantsFor(entry);
+    rows.push({
+      entry,
+      depth,
+      hasChildren: children.length > 0,
+      visibility: visibilityStateForEntry(entry, descendants),
+    });
+    for (const child of children) walk(child, depth + 1);
+  }
+
+  for (const root of sortSiblingEntries(roots)) walk(root, 0);
+  for (const entry of entries) {
+    if (!visited.has(entry.key)) walk(entry, 0);
+  }
+  return rows;
+}
+
+export function visibilityStateForEntry(entry, children = []) {
+  const ownVisible = entry?.visible !== false;
+  if (!isGroupEntry(entry) || children.length === 0) {
+    return { checked: ownVisible, mixed: false };
+  }
+  const childVisibleCount = children.filter((child) => child.visible !== false).length;
+  return {
+    checked: ownVisible,
+    mixed: ownVisible && childVisibleCount > 0 && childVisibleCount < children.length,
+  };
 }
 
 export function selectedObject(state) {
@@ -313,6 +427,18 @@ export function updateEntryVisibilityDraft(entry, visible) {
   return {
     ...entry,
     visible: !!visible,
+  };
+}
+
+export function updateEntryDescriptorDraft(entry, field, value) {
+  if (!entry || !['geometry', 'animation_effects'].includes(field)) return entry;
+  return {
+    ...entry,
+    descriptors: {
+      ...DEFAULT_DESCRIPTORS,
+      ...(entry.descriptors || {}),
+      [field]: normalizeDescriptorText(value),
+    },
   };
 }
 

@@ -6,8 +6,34 @@
   "observed_at": "2026-05-03T12:00:00Z",
   "objects": [
     {
-      "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Fiber Optics",
+      "object_id": "radial.wiki-brain.group",
+      "name": "Wiki Brain",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
+      "visible": true,
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 },
+        "rotation_degrees": { "x": 0, "y": 0, "z": 0 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      },
+      "descriptors": {
+        "geometry": "Complete wiki-graph menu item composition.",
+        "animation_effects": "Whole composition reveal animation."
+      },
+      "metadata": {
+        "role": "group",
+        "radial_item": "wiki-graph"
+      }
+    },
+    {
+      "object_id": "radial.wiki-brain.fractal-tree",
+      "parent_object_id": "radial.wiki-brain.group",
+      "name": "Fractal Tree",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
       "visible": true,
@@ -20,6 +46,10 @@
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "descriptors": {
+        "geometry": "Recursive neural tree nested inside the glass brain shell.",
+        "animation_effects": "Tree growth and branch particles."
       },
       "metadata": {
         "radial_item": "wiki-graph"

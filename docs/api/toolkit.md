@@ -499,7 +499,7 @@ independently.
 
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
-and capabilities:
+parent links, optional natural-language descriptors, and capabilities:
 
 ```json
 {
@@ -509,7 +509,7 @@ and capabilities:
   "objects": [
     {
       "object_id": "radial.wiki-brain.group",
-      "name": "Wiki Brain Group",
+      "name": "Wiki Brain",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
       "transform": {
@@ -523,6 +523,10 @@ and capabilities:
         "rotation": "degrees"
       },
       "visible": true,
+      "descriptors": {
+        "geometry": "Complete wiki-graph menu item composition made from shell, fiber, and fractal-tree layers.",
+        "animation_effects": "Whole composition scales and reveals against the radial menu item orbit path."
+      },
       "metadata": {
         "role": "group",
         "target": "item-composition",
@@ -531,7 +535,8 @@ and capabilities:
     },
     {
       "object_id": "radial.wiki-brain.fractal-tree",
-      "name": "Wiki Brain Fractal Tree",
+      "parent_object_id": "radial.wiki-brain.group",
+      "name": "Fractal Tree",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch"],
       "transform": {
@@ -543,6 +548,11 @@ and capabilities:
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "visible": true,
+      "descriptors": {
+        "geometry": "Recursive neural tree nested inside the glass brain shell.",
+        "animation_effects": "Tree growth, glow, and branch-travel particles react to reveal pressure."
       }
     }
   ]
@@ -591,11 +601,15 @@ existing `canvas.send` routing to the owning canvas. The panel does not inspect
 another canvas or assume the object is backed by Three.js.
 
 The object list is intentionally layer-like: rows represent the addressable
-objects that collectively make up a larger visual composition, and the checkbox
-is the object's advertised visibility. Single-object transform editing is the
-current behavior. Multi-select, grouped edits over arbitrary subsets, and
-dockable/collapsible object-list panes belong to the follow-on split-pane and
-docking work rather than the control contract itself.
+objects that collectively make up a larger visual composition. A group object
+uses `metadata.role = "group"` and child objects use `parent_object_id` to form
+a nested list. The checkbox is the object's advertised visibility; group rows
+can show a mixed visual state when child visibility is split. The editor pane
+also exposes optional local natural-language descriptors for geometry and
+animation/effects. Single-object transform editing is the current behavior.
+Multi-select, grouped edits over arbitrary subsets, and dockable/collapsible
+object-list panes belong to the follow-on split-pane and docking work rather
+than the control contract itself.
 
 Default launcher:
 

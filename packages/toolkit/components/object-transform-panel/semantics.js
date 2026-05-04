@@ -14,6 +14,10 @@ function boolAttr(value) {
   return value ? 'true' : 'false';
 }
 
+function checkedAttr(value) {
+  return value === 'mixed' ? 'mixed' : boolAttr(value);
+}
+
 function semanticAttrString(target = {}, options = {}) {
   const normalized = normalizeSemanticTarget({
     ...target,
@@ -27,7 +31,7 @@ function semanticAttrString(target = {}, options = {}) {
   ];
   if (normalized.action) attrs.push(['data-aos-action', normalized.action]);
   if (normalized.selected !== null) attrs.push(['aria-selected', boolAttr(normalized.selected)]);
-  if (normalized.checked !== null) attrs.push(['aria-checked', boolAttr(normalized.checked)]);
+  if (normalized.checked !== null) attrs.push(['aria-checked', checkedAttr(normalized.checked)]);
   if (normalized.value !== null) attrs.push(['aria-valuetext', normalized.value]);
   if (!normalized.enabled) attrs.push(['aria-disabled', 'true']);
   if (normalized.role && !(options.nativeRole && normalized.role === options.nativeRole)) {
@@ -50,15 +54,16 @@ export function objectRowAttrs(entry, selected = false) {
   }, { nativeRole: 'button' });
 }
 
-export function visibilityToggleAttrs(entry) {
-  const visible = entry.visible !== false;
+export function visibilityToggleAttrs(entry, options = {}) {
+  const visible = options.checked ?? entry.visible !== false;
+  const checked = options.mixed ? 'mixed' : visible;
   return semanticAttrString({
     id: `visibility-${entry.key}`,
     role: 'AXCheckBox',
     name: `${visible ? 'Hide' : 'Show'} ${entry.name}`,
     action: 'toggle_visibility',
     aosRef: `${SURFACE}:visibility:${entry.canvas_id}:${entry.object_id}`,
-    checked: visible,
+    checked,
   }, { nativeRole: 'checkbox' });
 }
 
@@ -70,6 +75,18 @@ export function tripletInputAttrs(entry, group, axis, value) {
     name: label,
     action: 'edit_transform',
     aosRef: `${SURFACE}:input:${entry.canvas_id}:${entry.object_id}:${group}:${axis}`,
+    value,
+  }, { nativeRole: 'textbox' });
+}
+
+export function descriptorInputAttrs(entry, field, value) {
+  const label = `${field.replace('_', ' ')} descriptor for ${entry.name}`;
+  return semanticAttrString({
+    id: `descriptor-${field}-${entry.key}`,
+    role: 'AXTextArea',
+    name: label,
+    action: 'edit_descriptor',
+    aosRef: `${SURFACE}:descriptor:${entry.canvas_id}:${entry.object_id}:${field}`,
     value,
   }, { nativeRole: 'textbox' });
 }

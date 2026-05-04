@@ -18,8 +18,8 @@ addressable objects publishes the full set it wants controllers to see:
   "canvas_id": "avatar-main",
   "objects": [
     {
-      "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Fiber Optics",
+      "object_id": "radial.wiki-brain.group",
+      "name": "Wiki Brain",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
       "visible": true,
@@ -32,11 +32,42 @@ addressable objects publishes the full set it wants controllers to see:
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "descriptors": {
+        "geometry": "Complete wiki-graph menu item composition made from shell, fiber, and fractal-tree layers.",
+        "animation_effects": "Whole composition scales and reveals against the radial menu item orbit path."
+      }
+    },
+    {
+      "object_id": "radial.wiki-brain.fractal-tree",
+      "parent_object_id": "radial.wiki-brain.group",
+      "name": "Fractal Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
+      "visible": true,
+      "transform": {
+        "position": { "x": 0.02, "y": -0.054, "z": -0.006 },
+        "scale": { "x": 1.85, "y": 2.65, "z": 2.61 },
+        "rotation_degrees": { "x": -8, "y": 86, "z": 8 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      },
+      "descriptors": {
+        "geometry": "Recursive neural tree nested inside the glass brain shell.",
+        "animation_effects": "Tree growth, glow, and branch-travel particles react to reveal pressure."
       }
     }
   ]
 }
 ```
+
+`parent_object_id` is optional. When present, consumers may render a nested
+object tree under the referenced object in the same `canvas_id`. Descriptors are
+optional natural-language annotations for human-agent editing surfaces; they are
+not commandable effect definitions in this schema version.
 
 `canvas_object.transform.patch` is a command. A controller targets one object by
 `canvas_id + object_id` and sends only the transform components or visibility

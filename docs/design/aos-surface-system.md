@@ -61,6 +61,13 @@ left, a right controls pane, and inside that controls pane an object/layer list
 beside transform triplets. The same primitive should later support Markdown
 preview/source, workflow graph/source, and report/slides workbenches.
 
+The object/layer list should treat grouped scene objects as a tree, not a flat
+bag. A whole-composition group can own child meshes, and later it can own
+bespoke effects, reveal thresholds, cursor-coupled animation, particles, and
+other runtime behaviors as separately addressable edit subjects. For now those
+effect descriptors are natural-language annotations only; effect editing belongs
+to the future human-agent workbench loop rather than the transform panel.
+
 ### Toolkit Control Pack
 
 The toolkit should provide a basic, themeable control set:
