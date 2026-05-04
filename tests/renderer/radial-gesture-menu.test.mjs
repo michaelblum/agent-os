@@ -83,6 +83,9 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
       active: 0.26,
       held: 0.75,
     },
+    fractalPulse: {
+      intensity: 1,
+    },
   })
   assert.equal(wikiItem.geometry.attribution.author, 'Versal')
   assert.equal(wikiItem.geometry.attribution.license, 'CC-BY-4.0')
@@ -122,6 +125,9 @@ test('Sigil radial menu normalizes stale wiki brain item geometry from saved con
       rest: 0.75,
       active: 0.26,
       held: 0.75,
+    },
+    fractalPulse: {
+      intensity: 1,
     },
   })
   assert.equal(staleMenu.items[0].geometry.material, 'translucent-brain')
