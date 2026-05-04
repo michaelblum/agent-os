@@ -20,17 +20,19 @@ const params = new URLSearchParams(window.location.search);
 const canvasId = window.__aosSurfaceCanvasId || params.get('canvas-id') || 'sigil-radial-item-workbench';
 const initialItemId = params.get('item') || 'wiki-graph';
 const toolkitRoot = (params.get('toolkit-root') || 'toolkit').replace(/[^a-zA-Z0-9_-]/g, '');
+const appStylesheet = document.querySelector('link[href="./styles.css"]');
 
-function addStylesheet(href) {
+function addStylesheet(href, { before = null } = {}) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = href;
-    document.head.appendChild(link);
+    document.head.insertBefore(link, before);
 }
 
-addStylesheet(`/${toolkitRoot}/components/_base/theme.css`);
-addStylesheet(`/${toolkitRoot}/panel/defaults.css`);
-addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`);
+addStylesheet(`/${toolkitRoot}/components/_base/theme.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/workbench/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/panel/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
 

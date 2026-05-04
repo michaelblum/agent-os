@@ -24,10 +24,24 @@ The toolkit owns reusable panel chrome for normal interactive surfaces:
 - close action
 - minimize action and restore chip
 - focus and dirty-state affordances
-- action slots for app-specific controls
+- window-action slots for app-specific lifecycle controls
 - theme tokens with app override support
 
 The shell is for panels and workbenches, not for ambient desktop visuals.
+
+### Toolkit Workbench Toolbar
+
+Workbench controls are not window chrome. Editor actions such as selected item,
+axes, preview zoom, reset view, save, or lock-in belong in a reusable toolbar
+that can either span a full workbench or attach to one pane.
+
+Toolbars should support:
+
+- leading, middle, and trailing sections
+- whole-workbench placement under panel chrome
+- pane-local placement inside preview, editor, or controls panes
+- compact and regular densities
+- the toolkit control pack without app-specific restyling
 
 ### Toolkit Control Pack
 
@@ -94,17 +108,39 @@ During drag, AOS should preserve macOS-like transfer behavior:
 The temporary outline can initially be a short-lived canvas. Later it can become
 a layer on the desktop-world stage.
 
+## Surface Capabilities
+
+AOS should not recreate macOS window management. It should expose the small set
+of capabilities needed by agent-created canvases and workbenches:
+
+- surface states: normal, minimized, maximized within the current display work
+  area, and restored
+- surface geometry: drag, clamp, min/max size, later edge and corner resize
+- workbench layout: split panes, draggable divider, min/max pane sizes, and
+  pane open/closed docking
+- surface lifecycle: owner-aware close, suspend, resume, restore, and cleanup
+
+These capabilities are toolkit and daemon surface semantics. They should remain
+scoped to AOS canvases instead of becoming a general desktop replacement.
+
 ## Sequencing
 
 1. Ship toolkit panel chrome improvements: close, titlebar drag, slots, and
    default theme.
 2. Add minimize and restore chips for toolkit panels.
 3. Extract the basic control pack from current reusable patterns.
-4. Add single-display panel drag clamping so title bars cannot be stranded.
-5. Add cross-display transfer outline behavior.
-6. Promote the Sigil avatar/radial pattern into a desktop-world stage primitive.
-7. Add a visual/interaction binding registry.
-8. Build a normal-user surface manager, keeping Canvas Inspector as the
+4. Extract workbench shell and toolbar styling from the Sigil radial item
+   workbench so editor actions no longer live in titlebar chrome.
+5. Add maximize and restore as surface state primitives for toolkit panels.
+6. Add split-pane layout with draggable divider, min/max pane sizing, and
+   persisted ratios.
+7. Add pane open/closed docking for sidebars and inspectors.
+8. Add edge and corner resize with min/max geometry.
+9. Add single-display panel drag clamping so title bars cannot be stranded.
+10. Add cross-display transfer outline behavior.
+11. Promote the Sigil avatar/radial pattern into a desktop-world stage primitive.
+12. Add a visual/interaction binding registry.
+13. Build a normal-user surface manager, keeping Canvas Inspector as the
    developer/admin view.
 
 Each step should be useful on its own and reversible.

@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AOS Workbench Shell Smoke</title>
+  <link rel="stylesheet" href="../../components/_base/theme.css">
+  <link rel="stylesheet" href="../defaults.css">
+  <link rel="stylesheet" href="../../controls/defaults.css">
+  <style>
+    .demo-stage {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 47%, rgba(122, 241, 255, 0.22), transparent 26%),
+        radial-gradient(circle at 32% 58%, rgba(111, 232, 196, 0.14), transparent 20%),
+        radial-gradient(circle at 66% 36%, rgba(255, 214, 128, 0.1), transparent 18%);
+    }
+
+    .demo-object {
+      position: absolute;
+      left: 50%;
+      top: 49%;
+      width: 280px;
+      height: 190px;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(183, 252, 255, 0.34);
+      border-radius: 50%;
+      background:
+        linear-gradient(115deg, rgba(255, 255, 255, 0.16), transparent 35%),
+        radial-gradient(circle at 38% 42%, rgba(122, 241, 255, 0.24), transparent 34%),
+        rgba(16, 31, 38, 0.46);
+      box-shadow:
+        inset 0 0 32px rgba(122, 241, 255, 0.14),
+        0 0 48px rgba(122, 241, 255, 0.14);
+    }
+
+    .demo-object::before,
+    .demo-object::after {
+      content: "";
+      position: absolute;
+      inset: 27px 44px;
+      border: 1px solid rgba(111, 232, 196, 0.28);
+      border-radius: 50%;
+    }
+
+    .demo-object::after {
+      inset: 55px 88px;
+      border-color: rgba(255, 214, 128, 0.28);
+    }
+
+    .demo-form-row {
+      display: grid;
+      grid-template-columns: 72px repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+
+    .demo-form-row .aos-control-label {
+      color: rgba(220, 255, 255, 0.72);
+    }
+  </style>
+</head>
+<body>
+  <div class="aos-workbench-shell">
+    <header class="aos-workbench-titlebar" data-draggable="true">
+      <span class="aos-workbench-grip" aria-hidden="true"></span>
+      <strong class="aos-workbench-title">3D Radial Item Workbench</strong>
+      <div class="aos-workbench-actions" aria-label="Window controls">
+        <button type="button">-</button>
+        <button type="button">+</button>
+        <button type="button">x</button>
+      </div>
+    </header>
+    <div class="aos-workbench-toolbar" role="toolbar" aria-label="Workbench tools">
+      <div class="aos-workbench-toolbar-section">
+        <label>
+          <span>Item</span>
+          <select aria-label="Item">
+            <option>Wiki Brain</option>
+            <option>Agent Terminal</option>
+          </select>
+        </label>
+        <label>
+          <input type="checkbox" checked>
+          <span>Axes</span>
+        </label>
+        <label>
+          <span>Zoom</span>
+          <input id="zoom" type="range" min="40" max="180" value="100">
+          <output id="zoom-output">100%</output>
+        </label>
+        <button type="button">Lock in</button>
+        <button type="button">Reset view</button>
+      </div>
+    </div>
+    <main class="aos-workbench-main">
+      <section class="aos-workbench-preview-pane" aria-label="Preview">
+        <div class="demo-stage" aria-hidden="true"></div>
+        <div class="demo-object" aria-hidden="true"></div>
+        <div class="aos-workbench-status">Preview stage</div>
+        <div class="aos-workbench-readout" id="readout">100%</div>
+      </section>
+      <section class="aos-workbench-controls-pane" aria-label="Controls">
+        <div class="aos-workbench-pane-title">Object Transform</div>
+        <form class="aos-workbench-form">
+          <div class="aos-workbench-form-title">Selected Object</div>
+          <label class="aos-control-stack">
+            <span class="aos-control-label">Object</span>
+            <select class="aos-select">
+              <option>brain.shell</option>
+              <option>brain.fractalTree</option>
+              <option>brain.fiberBloom</option>
+            </select>
+          </label>
+          <div class="demo-form-row">
+            <span class="aos-control-label">Position</span>
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="0.00" step="0.05">
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="0.12" step="0.05">
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="-0.20" step="0.05">
+          </div>
+          <div class="demo-form-row">
+            <span class="aos-control-label">Scale</span>
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="0.82" step="0.05">
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="0.82" step="0.05">
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="0.82" step="0.05">
+          </div>
+        </form>
+        <div class="aos-workbench-content">
+          <div class="aos-control-stack">
+            <button type="button" class="aos-button primary">Apply Snapshot</button>
+            <label class="aos-toggle">
+              <input type="checkbox" checked>
+              <span>Model spin</span>
+            </label>
+            <label class="aos-checkbox">
+              <input type="checkbox" checked>
+              <span>Show control axes</span>
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script type="module">
+    import { enhanceNumberFields } from '../../controls/number-field.js'
+
+    enhanceNumberFields(document)
+
+    const zoom = document.querySelector('#zoom')
+    const output = document.querySelector('#zoom-output')
+    const readout = document.querySelector('#readout')
+    zoom.addEventListener('input', () => {
+      output.textContent = `${zoom.value}%`
+      readout.textContent = `${zoom.value}%`
+      document.querySelector('.demo-object').style.scale = String(Number(zoom.value) / 100)
+    })
+  </script>
+</body>
+</html>

@@ -8,11 +8,13 @@
   <script src="../renderer/vendor/GLTFLoader.js"></script>
 </head>
 <body>
-  <div class="workbench-shell">
-    <header class="workbench-titlebar" id="drag-handle">
-      <span class="workbench-grip" aria-hidden="true"></span>
-      <strong>Sigil Radial Item Workbench</strong>
-      <div class="workbench-actions">
+  <div class="aos-workbench-shell">
+    <header class="aos-workbench-titlebar" data-draggable="true" id="drag-handle">
+      <span class="aos-workbench-grip" aria-hidden="true"></span>
+      <strong class="aos-workbench-title">Sigil Radial Item Workbench</strong>
+    </header>
+    <div class="aos-workbench-toolbar" role="toolbar" aria-label="Radial item tools">
+      <div class="aos-workbench-toolbar-section">
         <label>
           <span>Item</span>
           <select id="item-select"></select>
@@ -33,17 +35,17 @@
         <button type="button" id="lock-in">Lock in</button>
         <button type="button" id="reset-orbit">Reset view</button>
       </div>
-    </header>
-    <main class="workbench-main">
-      <section class="preview-pane" aria-label="Radial item preview">
-        <div id="preview-stage"></div>
-        <div class="preview-status" id="status">Loading radial item...</div>
-        <div class="zoom-readout" id="zoom-readout">100%</div>
+    </div>
+    <main class="aos-workbench-main">
+      <section class="aos-workbench-preview-pane" aria-label="Radial item preview">
+        <div class="aos-workbench-stage" id="preview-stage"></div>
+        <div class="aos-workbench-status" id="status">Loading radial item...</div>
+        <div class="aos-workbench-readout" id="zoom-readout">100%</div>
       </section>
-      <section class="controls-pane" aria-label="Object transform controls">
-        <div class="controls-title" id="controls-title">Object Transform</div>
-        <form class="material-controls" id="material-controls" hidden>
-          <div class="material-controls-title">Part Material</div>
+      <section class="aos-workbench-controls-pane" aria-label="Object transform controls">
+        <div class="aos-workbench-pane-title" id="controls-title">Object Transform</div>
+        <form class="aos-workbench-form material-controls" id="material-controls" hidden>
+          <div class="aos-workbench-form-title">Part Material</div>
           <label>
             <span>Title</span>
             <input type="text" id="screen-title" maxlength="18" autocomplete="off">

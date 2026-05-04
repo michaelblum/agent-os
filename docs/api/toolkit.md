@@ -21,7 +21,7 @@ It is split into three layers:
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake |
 | Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
-| Workbench | `packages/toolkit/workbench/` | shared subject descriptors and workbench contracts |
+| Workbench | `packages/toolkit/workbench/` | shared subject descriptors, workbench contracts, and stock workbench shell styling |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
 ### DesktopWorld Surface Runtime
@@ -94,6 +94,19 @@ Workbench surfaces should describe the thing being edited with
 identity, subject type, owner, source, capabilities, views, controls,
 persistence, artifacts, and current state. It does not move domain ownership
 into the toolkit.
+
+`workbench/defaults.css` provides the stock dual-pane workbench shell used when a
+surface needs a rich preview/editor composition instead of a plain panel body. It
+covers the draggable titlebar, grip, optional window-action strip, workbench
+toolbar, pane toolbar, preview pane, controls pane, pane title, form band, and
+scrollable work area. Domain editors still own their subject model and renderer;
+the shell only normalizes the frame.
+
+```html
+<link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
+<link rel="stylesheet" href="aos://toolkit/workbench/defaults.css">
+<link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
+```
 
 Canonical schema:
 [`shared/schemas/aos-workbench-subject.schema.json`](../../shared/schemas/aos-workbench-subject.schema.json)
