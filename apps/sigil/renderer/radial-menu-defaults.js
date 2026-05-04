@@ -59,6 +59,24 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
     radiusScale: 1.18,
     normalizedRadius: 0.3,
     rotationDegrees: { x: 90, y: 0, z: 0 },
+    parts: [
+        {
+            id: 'screen',
+            name: 'Terminal Screen',
+            kind: 'plane',
+            transform: {
+                position: { x: 0, y: 0.078, z: 0.041 },
+                scale: { x: 0.38, y: 0.2, z: 1 },
+                rotationDegrees: { x: 0, y: 0, z: 0 },
+            },
+            visible: true,
+            material: {
+                color: '#071318',
+                emissive: '#28f6ff',
+                opacity: 0.74,
+            },
+        },
+    ],
     attribution: {
         title: 'Low Poly Sci-Fi Tablet',
         titleUrl: 'https://sketchfab.com/3d-models/low-poly-sci-fi-tablet-ee1fde7ec1514fd5a61790809ebd46a6',

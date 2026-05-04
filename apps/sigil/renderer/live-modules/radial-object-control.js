@@ -5,6 +5,7 @@ export const AGENT_TERMINAL_RADIAL_ITEM_ID = 'agent-terminal';
 export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const CONTEXT_MENU_MODEL_OBJECT_ID = 'radial.context-menu.model';
 export const AGENT_TERMINAL_MODEL_OBJECT_ID = 'radial.agent-terminal.model';
+export const AGENT_TERMINAL_SCREEN_OBJECT_ID = 'radial.agent-terminal.part.screen';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
@@ -290,9 +291,19 @@ function modelObjectIdForItem(item = {}) {
     return item.id ? `radial.${item.id}.model` : null;
 }
 
+function partObjectIdForItem(item = {}, part = {}) {
+    const itemId = text(item.id, 'radial-item').replace(/[^a-zA-Z0-9_-]/g, '-');
+    const partId = text(part.id, 'part').replace(/[^a-zA-Z0-9_-]/g, '-');
+    return `radial.${itemId}.part.${partId}`;
+}
+
 function modelNameForItem(item = {}) {
     const label = text(item.label || item.geometry?.title || item.id, 'Radial Item');
     return `${label} Model`;
+}
+
+function partNameForItem(item = {}, part = {}) {
+    return text(part.name || part.label, `${modelNameForItem(item)} Part`);
 }
 
 export function resolveRadialItemModelTransform(item = {}) {
@@ -310,6 +321,25 @@ export function resolveRadialItemModelVisibility(item = {}) {
     if (visibility.model !== undefined) return !!visibility.model;
     if (item.geometry?.modelVisible !== undefined) return !!item.geometry.modelVisible;
     return true;
+}
+
+export function radialItemParts(item = {}) {
+    return Array.isArray(item.geometry?.parts)
+        ? item.geometry.parts.filter((part) => part?.id)
+        : [];
+}
+
+export function resolveRadialItemPartTransform(part = {}) {
+    const transform = part.transform || {};
+    return {
+        position: vectorValue(transform.position, { x: 0, y: 0, z: 0 }),
+        scale: vectorValue(transform.scale, { x: 1, y: 1, z: 1 }),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, { x: 0, y: 0, z: 0 }),
+    };
+}
+
+export function resolveRadialItemPartVisibility(part = {}) {
+    return part.visible === undefined ? true : !!part.visible;
 }
 
 function findRadialItem(radialGestureMenu = {}, predicate = () => false) {
@@ -469,6 +499,23 @@ export function buildRadialMenuObjectRegistry(radialGestureMenu = {}, options = 
                 editor: '3d-radial-item',
             },
         }));
+        for (const part of radialItemParts(item)) {
+            objects.push(registryObject({
+                objectId: partObjectIdForItem(item, part),
+                name: partNameForItem(item, part),
+                transform: resolveRadialItemPartTransform(part),
+                visible: resolveRadialItemPartVisibility(part),
+                metadata: {
+                    role: 'model-part',
+                    item_id: item.id,
+                    item_label: item.label || item.id,
+                    part_id: part.id,
+                    part_kind: part.kind || 'object3d',
+                    target: 'model-part',
+                    editor: '3d-radial-item',
+                },
+            }));
+        }
     }
 
     return {
@@ -540,10 +587,26 @@ export function applyRadialMenuObjectTransformPatch(radialGestureMenu = {}, mess
         return applyRadialItemModelObjectPatch({ message, item });
     }
 
+    const partTarget = findRadialItemPartTarget(radialGestureMenu, objectId);
+    if (partTarget) {
+        return applyRadialItemPartObjectPatch({ message, ...partTarget });
+    }
+
     return resultFor(message, 'rejected', {
         reason: 'unknown_object',
         message: `unknown object ${objectId}`,
     });
+}
+
+function findRadialItemPartTarget(radialGestureMenu = {}, objectId = '') {
+    const items = Array.isArray(radialGestureMenu?.items) ? radialGestureMenu.items : [];
+    for (const item of items) {
+        if (!isNative3dRadialItem(item)) continue;
+        for (const part of radialItemParts(item)) {
+            if (partObjectIdForItem(item, part) === objectId) return { item, part };
+        }
+    }
+    return null;
 }
 
 function rejectInvalidVisibilityPatch(message) {
@@ -612,6 +675,31 @@ function applyRadialItemModelObjectPatch({ message, item }) {
             model: visible,
         };
     }
+    return resultFor(message, 'applied', {
+        transform: contractTransformFromEffect(merged.changed ? merged.transform : current),
+        visible,
+    });
+}
+
+function applyRadialItemPartObjectPatch({ message, part }) {
+    const current = resolveRadialItemPartTransform(part);
+    const merged = mergeTransformPatch(current, message.patch);
+    let visibilityChanged = false;
+    let visible = resolveRadialItemPartVisibility(part);
+
+    if (message.patch.visible !== undefined) {
+        if (typeof message.patch.visible !== 'boolean') {
+            return rejectInvalidVisibilityPatch(message);
+        }
+        visible = message.patch.visible;
+        visibilityChanged = true;
+    }
+    if (!merged.changed && !visibilityChanged) {
+        return rejectEmptyPatch(message);
+    }
+
+    if (merged.changed) part.transform = merged.transform;
+    if (visibilityChanged) part.visible = visible;
     return resultFor(message, 'applied', {
         transform: contractTransformFromEffect(merged.changed ? merged.transform : current),
         visible,

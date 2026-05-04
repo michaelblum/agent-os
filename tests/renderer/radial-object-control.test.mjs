@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
 import {
   AGENT_TERMINAL_MODEL_OBJECT_ID,
+  AGENT_TERMINAL_SCREEN_OBJECT_ID,
   CONTEXT_MENU_MODEL_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_OBJECT_ID,
@@ -70,6 +71,7 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
     CONTEXT_MENU_MODEL_OBJECT_ID,
     AGENT_TERMINAL_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_SCREEN_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
@@ -87,11 +89,20 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
     rotation_degrees: { x: 0, y: 0, z: 0 },
   })
   assert.equal(terminal.visible, true)
+
+  const screen = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_SCREEN_OBJECT_ID)
+  assert.equal(screen.name, 'Terminal Screen')
+  assert.equal(screen.metadata.role, 'model-part')
+  assert.equal(screen.metadata.part_id, 'screen')
+  assert.equal(screen.metadata.part_kind, 'plane')
+  assert.deepEqual(screen.transform.position, { x: 0, y: 0.078, z: 0.041 })
+  assert.deepEqual(screen.transform.scale, { x: 0.38, y: 0.2, z: 1 })
+  assert.equal(screen.visible, true)
 })
 
-test('radial menu transform patch can tune the agent terminal model host', () => {
+test('radial menu transform patch can tune the agent terminal model host and screen part', () => {
   const config = radialConfig()
-  const result = applyRadialMenuObjectTransformPatch(config, {
+  const modelResult = applyRadialMenuObjectTransformPatch(config, {
     type: 'canvas_object.transform.patch',
     schema_version: '2026-05-03',
     request_id: 'req-terminal-model',
@@ -107,11 +118,31 @@ test('radial menu transform patch can tune the agent terminal model host', () =>
     },
   }, { canvasId: 'avatar-main' })
 
-  assert.equal(result.status, 'applied')
-  assert.deepEqual(result.transform.position, { x: 0, y: 0.02, z: 0 })
-  assert.deepEqual(result.transform.scale, { x: 1.1, y: 1, z: 0.88 })
-  assert.deepEqual(result.transform.rotation_degrees, { x: 0, y: 0, z: -12 })
-  assert.equal(result.visible, false)
+  assert.equal(modelResult.status, 'applied')
+  assert.deepEqual(modelResult.transform.position, { x: 0, y: 0.02, z: 0 })
+  assert.deepEqual(modelResult.transform.scale, { x: 1.1, y: 1, z: 0.88 })
+  assert.deepEqual(modelResult.transform.rotation_degrees, { x: 0, y: 0, z: -12 })
+  assert.equal(modelResult.visible, false)
+
+  const screenResult = applyRadialMenuObjectTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-screen',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AGENT_TERMINAL_SCREEN_OBJECT_ID,
+    },
+    patch: {
+      position: { z: 0.05 },
+      scale: { x: 0.7 },
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(screenResult.status, 'applied')
+  assert.deepEqual(screenResult.transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.deepEqual(screenResult.transform.scale, { x: 0.7, y: 0.2, z: 1 })
+  assert.equal(screenResult.visible, false)
 
   const item = config.items.find((entry) => entry.id === 'agent-terminal')
   assert.deepEqual(item.geometry.modelTransform, {
@@ -120,11 +151,16 @@ test('radial menu transform patch can tune the agent terminal model host', () =>
     rotationDegrees: { x: 0, y: 0, z: -12 },
   })
   assert.deepEqual(item.geometry.visibility, { model: false })
+  assert.deepEqual(item.geometry.parts[0].transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.equal(item.geometry.parts[0].visible, false)
 
   const registry = buildRadialMenuObjectRegistry(config, { canvasId: 'avatar-main' })
   const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
   assert.deepEqual(terminal.transform.scale, { x: 1.1, y: 1, z: 0.88 })
   assert.equal(terminal.visible, false)
+  const screen = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_SCREEN_OBJECT_ID)
+  assert.deepEqual(screen.transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.equal(screen.visible, false)
 })
 
 test('wiki brain visibility patch updates advertised object visibility', () => {

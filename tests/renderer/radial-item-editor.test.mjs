@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/radial-menu-defaults.js'
 import {
   AGENT_TERMINAL_MODEL_OBJECT_ID,
+  AGENT_TERMINAL_SCREEN_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -53,6 +54,7 @@ test('radial item editor can select and patch the agent terminal model host', ()
   assert.equal(selectedRadialItem(state).id, 'agent-terminal')
   assert.deepEqual(buildEditorObjectRegistry(state).objects.map((object) => object.object_id), [
     AGENT_TERMINAL_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_SCREEN_OBJECT_ID,
   ])
 
   const result = applyEditorObjectPatch(state, {
@@ -78,6 +80,7 @@ test('radial item editor can select and patch the agent terminal model host', ()
   const terminal = selectedRadialItem(state)
   assert.deepEqual(terminal.geometry.modelTransform.position, { x: 0.03, y: 0, z: 0 })
   assert.deepEqual(terminal.geometry.visibility, { model: false })
+  assert.equal(terminal.geometry.parts[0].id, 'screen')
 })
 
 test('radial item editor preview snapshot isolates the selected item', () => {
@@ -157,6 +160,7 @@ test('radial item editor exports a source-ready lock-in payload for the selected
   assert.equal(payload.registry.canvas_id, 'preview')
   assert.deepEqual(payload.registry.objects.map((object) => object.object_id), [
     AGENT_TERMINAL_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_SCREEN_OBJECT_ID,
   ])
 })
 

@@ -2,8 +2,11 @@ import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import {
     DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
+    radialItemParts,
     resolveRadialItemModelTransform,
     resolveRadialItemModelVisibility,
+    resolveRadialItemPartTransform,
+    resolveRadialItemPartVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
     resolveNestedFractalPulse,
@@ -18,8 +21,11 @@ import {
 export {
     DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
+    radialItemParts,
     resolveRadialItemModelTransform,
     resolveRadialItemModelVisibility,
+    resolveRadialItemPartTransform,
+    resolveRadialItemPartVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
     resolveNestedFractalPulse,
@@ -1324,6 +1330,50 @@ function applyGeometryMaterial(object, geometry = {}) {
     }
 }
 
+function createRadialItemPartMesh(part = {}) {
+    if (part.kind !== 'plane') return null;
+    const material = part.material || {};
+    const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshPhongMaterial({
+            color: new THREE.Color(material.color || '#071318'),
+            emissive: new THREE.Color(material.emissive || '#28f6ff'),
+            transparent: true,
+            opacity: finite(material.opacity, 0.74),
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        })
+    );
+    mesh.name = part.name || part.label || part.id || 'radial-item-part';
+    mesh.renderOrder = 32;
+    return mesh;
+}
+
+function createRadialItemPartHosts(item = {}) {
+    const hosts = new Map();
+    for (const part of radialItemParts(item)) {
+        const object = createRadialItemPartMesh(part);
+        if (!object) continue;
+        object.userData.radialItemPartId = part.id;
+        hosts.set(part.id, object);
+    }
+    return hosts;
+}
+
+function syncRadialItemPartConfig(glyph, item = {}) {
+    if (!glyph?.userData?.radialItemPartHosts) return;
+    const parts = new Map(radialItemParts(item).map((part) => [part.id, part]));
+    for (const [partId, object] of glyph.userData.radialItemPartHosts) {
+        const part = parts.get(partId);
+        if (!part) {
+            object.visible = false;
+            continue;
+        }
+        applyObjectTransform(object, resolveRadialItemPartTransform(part), DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
+        object.visible = resolveRadialItemPartVisibility(part);
+    }
+}
+
 function createRadialEffectHost(group, item = {}) {
     const modelHost = new THREE.Group();
     modelHost.name = `${item.id || 'radial-item'}-model-host`;
@@ -1336,6 +1386,10 @@ function createRadialEffectHost(group, item = {}) {
         applyObjectTransform(modelHost, group.userData.radialItemModelTransform, DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
         modelHost.visible = group.userData.radialItemModelVisible;
         group.add(modelHost);
+        const partHosts = createRadialItemPartHosts(item);
+        group.userData.radialItemPartHosts = partHosts;
+        for (const object of partHosts.values()) group.add(object);
+        syncRadialItemPartConfig(group, item);
         return modelHost;
     }
 
@@ -1395,6 +1449,7 @@ function syncRadialItemModelConfig(glyph, item = {}) {
     if (!glyph?.userData?.modelHost || glyph.userData.radialEffectTree) return;
     glyph.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
     glyph.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
+    syncRadialItemPartConfig(glyph, item);
 }
 
 function applyRadialItemModelConfig(glyph) {
