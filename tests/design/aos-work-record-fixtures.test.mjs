@@ -55,6 +55,12 @@ test('do_step examples preserve the four-layer work-record shape', () => {
     assert.ok(fixture.intent.nl.length > 20);
     assert.equal(typeof fixture.action.verb, 'string');
     assert.equal(typeof fixture.action.target, 'string');
+    assert.match(fixture.precondition.state_id, /^see_[a-z0-9]+$/);
+    assert.equal(fixture.action.state_id, fixture.precondition.state_id);
+    assert.equal(fixture.evidence.execution.state_id, fixture.precondition.state_id);
+    assert.equal(typeof fixture.evidence.execution.strategy, 'string');
+    assert.equal(typeof fixture.evidence.execution.backend, 'string');
+    assert.equal(typeof fixture.evidence.execution.fallback_used, 'boolean');
     assert.equal(typeof fixture.health.state, 'string');
   }
 });

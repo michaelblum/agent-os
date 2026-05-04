@@ -90,6 +90,12 @@ Replay should re-perceive before each action:
 intent -> see -> resolve target -> do -> see -> verify
 ```
 
+Runtime `aos see capture` responses expose an opaque `state_id`, and `aos do`
+responses expose an `execution` object with the actuator backend, strategy,
+fallback flag, and originating `state_id` when supplied. Work records should
+carry those fields as correlation metadata between the natural-language spine,
+the structured execution map, and immutable evidence.
+
 Coordinates can be recorded, but they are fallback material. When semantic
 targets exist, prefer them.
 

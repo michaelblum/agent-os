@@ -1843,6 +1843,7 @@ func captureBrowserTarget(opts: CaptureOptions) async {
         if opts.xray {
             let elements = try seeCaptureXray(target: bt, withBounds: opts.label)
             var resp = SuccessResponse()
+            resp.state_id = makeAOSStateID()
             resp.elements = elements
             if opts.label {
                 let anns = buildAnnotations(from: elements)
@@ -1869,6 +1870,7 @@ func captureBrowserTarget(opts: CaptureOptions) async {
         let dst = opts.resolvedOutputPath
         _ = try seeCaptureScreenshot(target: bt, outPath: dst)
         var resp = SuccessResponse()
+        resp.state_id = makeAOSStateID()
         resp.files = [dst]
         print(jsonString(resp))
         return
@@ -2446,6 +2448,7 @@ func captureCommand(args: [String]) async {
     // ── Output ──
     func buildResponse() -> SuccessResponse {
         var resp = SuccessResponse()
+        resp.state_id = makeAOSStateID()
         resp.cursor = responseCursor
         resp.bounds = interactiveBounds
         resp.click_x = responseClickX

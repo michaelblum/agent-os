@@ -84,9 +84,9 @@ Every non-trivial action should report what actually happened:
 ```json
 {
   "strategy": "ax_press",
+  "backend": "ax",
   "fallback_used": false,
-  "state_id": "see_abc123",
-  "duration_ms": 82
+  "state_id": "see_abc123"
 }
 ```
 

@@ -406,44 +406,53 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── do ────────────────────────────────────────────────
     let permAction = execMutating(permissions: true)
+    let permActionDryRun = execMutating(permissions: true, dryRun: true)
+    let doStateIDArg = flag("state-id", "--state-id", "Perception state id this action was chosen from")
+    let doDryRunArg = flag("dry-run", "--dry-run", "Validate and describe the action without executing it", type: .bool)
 
     reg.append(CommandDescriptor(path: ["do"], summary: "Action — execute mouse, keyboard, AX actions", forms: [
-        InvocationForm(id: "do-click", usage: "aos do click <x,y> [--right] [--double] [--dwell N]",
+        InvocationForm(id: "do-click", usage: "aos do click <x,y> [--right] [--double] [--dwell N] [--state-id id]",
             args: [
                 pos("coords", "Click coordinates as x,y"),
                 flag("right", "--right", "Right-click", type: .bool),
                 flag("double", "--double", "Double-click", type: .bool),
-                flag("dwell", "--dwell", "Dwell time in ms", type: .int)
+                flag("dwell", "--dwell", "Dwell time in ms", type: .int),
+                doStateIDArg,
+                doDryRunArg
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: permActionDryRun,
             output: outJSON,
             examples: ["aos do click 500,300", "aos do click 500,300 --right"]),
-        InvocationForm(id: "do-hover", usage: "aos do hover <x,y>",
-            args: [pos("coords", "Target coordinates as x,y")],
+        InvocationForm(id: "do-hover", usage: "aos do hover <x,y> [--state-id id]",
+            args: [pos("coords", "Target coordinates as x,y"), doStateIDArg, doDryRunArg],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: permActionDryRun,
             output: outJSON,
             examples: ["aos do hover 500,300"]),
-        InvocationForm(id: "do-drag", usage: "aos do drag <x1,y1> <x2,y2> [--speed N]",
+        InvocationForm(id: "do-drag", usage: "aos do drag <x1,y1> <x2,y2> [--speed N] [--state-id id]",
             args: [
                 pos("from", "Start coordinates as x,y"),
                 pos("to", "End coordinates as x,y"),
-                flag("speed", "--speed", "Drag speed in pixels/sec", type: .int)
+                flag("speed", "--speed", "Drag speed in pixels/sec", type: .int),
+                doStateIDArg,
+                doDryRunArg
             ],
             stdin: nil, constraints: nil,
-            execution: permAction,
+            execution: permActionDryRun,
             output: outJSON,
             examples: ["aos do drag 100,100 500,500"]),
-        InvocationForm(id: "do-scroll", usage: "aos do scroll <x,y> [--dx N] [--dy N]",
+        InvocationForm(id: "do-scroll", usage: "aos do scroll <x,y> [--dx N] [--dy N] [--state-id id]",
             args: [
                 pos("coords", "Scroll position as x,y"),
                 flag("dx", "--dx", "Horizontal scroll amount", type: .int),
-                flag("dy", "--dy", "Vertical scroll amount", type: .int)
+                flag("dy", "--dy", "Vertical scroll amount", type: .int),
+                doStateIDArg,
+                doDryRunArg
             ],
             stdin: nil,
             constraints: ConstraintSet(requires: nil, conflicts: nil, oneOf: [["dx", "dy"]], implies: nil),
-            execution: permAction,
+            execution: permActionDryRun,
             output: outJSON,
             examples: ["aos do scroll 500,300 --dy -3"]),
         InvocationForm(id: "do-type", usage: "aos do type <text> [--delay ms] [--variance N]",
