@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Radial Item Editor</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="../renderer/vendor/three.min.js"></script>
+  <script src="../renderer/vendor/GLTFLoader.js"></script>
+</head>
+<body>
+  <div class="editor-titlebar" id="drag-handle" role="toolbar" aria-label="Sigil radial item editor">
+    <span class="editor-titlebar-grip" aria-hidden="true"></span>
+    <strong>Sigil Radial Item Editor</strong>
+  </div>
+  <div class="editor-toolbar" id="toolbar">
+    <label>
+      <span>Item</span>
+      <select id="item-select"></select>
+    </label>
+    <label>
+      <input type="checkbox" id="spin-toggle">
+      <span>Model spin</span>
+    </label>
+    <button type="button" id="lock-in">Lock in</button>
+    <button type="button" id="reset-orbit">Reset view</button>
+  </div>
+  <div class="editor-status" id="status">Loading radial item...</div>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

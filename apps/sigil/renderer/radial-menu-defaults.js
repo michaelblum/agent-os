@@ -17,12 +17,15 @@ export const CONTEXT_COG_MODEL = {
     },
 };
 
+const LEGACY_WIKI_BRAIN_RADIUS_SCALE = 1.42;
+const WIKI_BRAIN_RADIUS_SCALE = 1.1502;
+
 export const WIKI_BRAIN_HOLOGRAM_MODEL = {
     type: 'gltf',
     src: '../assets/models/human-brain/scene.gltf',
     modelUid: '49bcdf19c1904c76a456b31838b0d7ac',
     title: 'Human Brain',
-    radiusScale: 1.42,
+    radiusScale: WIKI_BRAIN_RADIUS_SCALE,
     normalizedRadius: 0.28,
     material: 'translucent-brain-shell',
     radialEffect: {
@@ -32,6 +35,9 @@ export const WIKI_BRAIN_HOLOGRAM_MODEL = {
             rest: 0.75,
             active: 0.26,
             held: 0.75,
+        },
+        fractalPulse: {
+            intensity: 1,
         },
     },
     attribution: {
@@ -53,6 +59,33 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
     radiusScale: 1.18,
     normalizedRadius: 0.3,
     rotationDegrees: { x: 90, y: 0, z: 0 },
+    hiddenMaterials: ['MAT_OpacityText'],
+    parts: [
+        {
+            id: 'screen',
+            name: 'Terminal Screen',
+            kind: 'plane',
+            transform: {
+                position: { x: 0, y: 0.078, z: 0.041 },
+                scale: { x: 0.38, y: 0.2, z: 1 },
+                rotationDegrees: { x: 0, y: 180, z: 0 },
+            },
+            visible: true,
+            material: {
+                kind: 'terminal-screen',
+                title: 'AGENT TERM',
+                lines: [
+                    '> attach provider',
+                    '> route session',
+                    '> resume stream',
+                    '> surface ready',
+                ],
+                color: '#071318',
+                accent: '#68f7ff',
+                opacity: 0.94,
+            },
+        },
+    ],
     attribution: {
         title: 'Low Poly Sci-Fi Tablet',
         titleUrl: 'https://sketchfab.com/3d-models/low-poly-sci-fi-tablet-ee1fde7ec1514fd5a61790809ebd46a6',
@@ -125,6 +158,9 @@ function normalizeRadialItemOverride(item) {
     if (next.id === 'wiki-graph' && isPlainObject(next.geometry)) {
         if (next.geometry.material === 'translucent-brain') {
             next.geometry.material = WIKI_BRAIN_HOLOGRAM_MODEL.material;
+        }
+        if (Number(next.geometry.radiusScale) === LEGACY_WIKI_BRAIN_RADIUS_SCALE) {
+            next.geometry.radiusScale = WIKI_BRAIN_RADIUS_SCALE;
         }
     }
 

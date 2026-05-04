@@ -2,9 +2,17 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
 import {
+  AGENT_TERMINAL_MODEL_OBJECT_ID,
+  AGENT_TERMINAL_SCREEN_OBJECT_ID,
+  CONTEXT_MENU_MODEL_OBJECT_ID,
+  WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+  WIKI_BRAIN_FIBER_OBJECT_ID,
+  WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+  WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
-  WIKI_BRAIN_TREE_OBJECT_ID,
+  applyRadialMenuObjectTransformPatch,
   applyWikiBrainTransformPatch,
+  buildRadialMenuObjectRegistry,
   buildWikiBrainObjectRegistry,
   findWikiBrainRadialItem,
   resolveWikiBrainEffect,
@@ -16,7 +24,7 @@ function radialConfig() {
   }
 }
 
-test('wiki brain object registry advertises shell and tree transforms', () => {
+test('wiki brain object registry advertises shell, split fiber, and fractal tree controls', () => {
   const registry = buildWikiBrainObjectRegistry(radialConfig(), { canvasId: 'avatar-main' })
 
   assert.equal(registry.type, 'canvas_object.registry')
@@ -24,20 +32,162 @@ test('wiki brain object registry advertises shell and tree transforms', () => {
   assert.equal(registry.canvas_id, 'avatar-main')
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
     WIKI_BRAIN_SHELL_OBJECT_ID,
-    WIKI_BRAIN_TREE_OBJECT_ID,
+    WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+    WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+    WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
   ])
 
-  const tree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_TREE_OBJECT_ID)
-  assert.equal(tree.name, 'Wiki Brain Tree')
-  assert.equal(tree.kind, 'three.object3d')
-  assert.deepEqual(tree.capabilities, ['transform.read', 'transform.patch'])
-  assert.deepEqual(tree.units, {
+  const stem = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_STEM_OBJECT_ID)
+  assert.equal(stem.name, 'Wiki Brain Fiber Stem')
+  assert.equal(stem.kind, 'three.object3d')
+  assert.deepEqual(stem.capabilities, ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'])
+  assert.deepEqual(stem.units, {
     position: 'scene',
     scale: 'multiplier',
     rotation: 'degrees',
   })
-  assert.deepEqual(tree.transform.scale, { x: 1.32, y: 1.42, z: 1.2 })
-  assert.deepEqual(tree.transform.rotation_degrees, { x: -11.5, y: 0, z: 0 })
+  assert.deepEqual(stem.transform.position, { x: 0.019, y: -0.017, z: -0.004 })
+  assert.deepEqual(stem.transform.scale, { x: 0.94, y: 1.94, z: 1.05 })
+  assert.deepEqual(stem.transform.rotation_degrees, { x: -7.5, y: -19, z: -23 })
+  assert.equal(stem.visible, true)
+
+  const bloom = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID)
+  assert.equal(bloom.name, 'Wiki Brain Fiber Bloom')
+  assert.deepEqual(bloom.transform.position, { x: 0, y: 0.033, z: 0 })
+  assert.deepEqual(bloom.transform.scale, { x: 1.79, y: 1.22, z: 1.68 })
+  assert.deepEqual(bloom.transform.rotation_degrees, { x: 0, y: 0, z: 0 })
+  assert.equal(bloom.visible, true)
+
+  const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
+  assert.equal(fractalTree.name, 'Wiki Brain Fractal Tree')
+  assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.054, z: -0.006 })
+  assert.deepEqual(fractalTree.transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
+  assert.deepEqual(fractalTree.transform.rotation_degrees, { x: -8, y: 86, z: 8 })
+})
+
+test('radial menu object registry advertises generic model hosts and wiki brain layers', () => {
+  const registry = buildRadialMenuObjectRegistry(radialConfig(), { canvasId: 'avatar-main' })
+
+  assert.deepEqual(registry.objects.map((object) => object.object_id), [
+    CONTEXT_MENU_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_MODEL_OBJECT_ID,
+    AGENT_TERMINAL_SCREEN_OBJECT_ID,
+    WIKI_BRAIN_SHELL_OBJECT_ID,
+    WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+    WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+    WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+  ])
+
+  const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
+  assert.equal(terminal.name, 'Agent Terminal Model')
+  assert.equal(terminal.metadata.editor, '3d-radial-item')
+  assert.equal(terminal.metadata.item_id, 'agent-terminal')
+  assert.equal(terminal.metadata.role, 'model')
+  assert.deepEqual(terminal.transform, {
+    position: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    rotation_degrees: { x: 0, y: 0, z: 0 },
+  })
+  assert.equal(terminal.visible, true)
+
+  const screen = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_SCREEN_OBJECT_ID)
+  assert.equal(screen.name, 'Terminal Screen')
+  assert.equal(screen.metadata.role, 'model-part')
+  assert.equal(screen.metadata.part_id, 'screen')
+  assert.equal(screen.metadata.part_kind, 'plane')
+  assert.deepEqual(screen.transform.position, { x: 0, y: 0.078, z: 0.041 })
+  assert.deepEqual(screen.transform.scale, { x: 0.38, y: 0.2, z: 1 })
+  assert.deepEqual(screen.transform.rotation_degrees, { x: 0, y: 180, z: 0 })
+  assert.equal(screen.visible, true)
+})
+
+test('radial menu transform patch can tune the agent terminal model host and screen part', () => {
+  const config = radialConfig()
+  const modelResult = applyRadialMenuObjectTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-model',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AGENT_TERMINAL_MODEL_OBJECT_ID,
+    },
+    patch: {
+      position: { y: 0.02 },
+      scale: { x: 1.1, z: 0.88 },
+      rotation_degrees: { z: -12 },
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(modelResult.status, 'applied')
+  assert.deepEqual(modelResult.transform.position, { x: 0, y: 0.02, z: 0 })
+  assert.deepEqual(modelResult.transform.scale, { x: 1.1, y: 1, z: 0.88 })
+  assert.deepEqual(modelResult.transform.rotation_degrees, { x: 0, y: 0, z: -12 })
+  assert.equal(modelResult.visible, false)
+
+  const screenResult = applyRadialMenuObjectTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-terminal-screen',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AGENT_TERMINAL_SCREEN_OBJECT_ID,
+    },
+    patch: {
+      position: { z: 0.05 },
+      scale: { x: 0.7 },
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(screenResult.status, 'applied')
+  assert.deepEqual(screenResult.transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.deepEqual(screenResult.transform.scale, { x: 0.7, y: 0.2, z: 1 })
+  assert.equal(screenResult.visible, false)
+
+  const item = config.items.find((entry) => entry.id === 'agent-terminal')
+  assert.deepEqual(item.geometry.modelTransform, {
+    position: { x: 0, y: 0.02, z: 0 },
+    scale: { x: 1.1, y: 1, z: 0.88 },
+    rotationDegrees: { x: 0, y: 0, z: -12 },
+  })
+  assert.deepEqual(item.geometry.visibility, { model: false })
+  assert.deepEqual(item.geometry.parts[0].transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.equal(item.geometry.parts[0].visible, false)
+  assert.equal(item.geometry.parts[0].material.kind, 'terminal-screen')
+  assert.deepEqual(item.geometry.hiddenMaterials, ['MAT_OpacityText'])
+
+  const registry = buildRadialMenuObjectRegistry(config, { canvasId: 'avatar-main' })
+  const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
+  assert.deepEqual(terminal.transform.scale, { x: 1.1, y: 1, z: 0.88 })
+  assert.equal(terminal.visible, false)
+  const screen = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_SCREEN_OBJECT_ID)
+  assert.deepEqual(screen.transform.position, { x: 0, y: 0.078, z: 0.05 })
+  assert.equal(screen.visible, false)
+})
+
+test('wiki brain visibility patch updates advertised object visibility', () => {
+  const config = radialConfig()
+  const result = applyWikiBrainTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-visible',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+    },
+    patch: {
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.equal(result.visible, false)
+  assert.deepEqual(result.transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
+
+  const fractalTree = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+    .objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
+  assert.equal(fractalTree.visible, false)
 })
 
 test('wiki brain shell transform defaults to identity around the model host', () => {
@@ -51,15 +201,15 @@ test('wiki brain shell transform defaults to identity around the model host', ()
   })
 })
 
-test('wiki brain transform patch updates tree config and returns applied result', () => {
+test('wiki brain transform patch updates fiber bloom config and returns applied result', () => {
   const config = radialConfig()
   const result = applyWikiBrainTransformPatch(config, {
     type: 'canvas_object.transform.patch',
     schema_version: '2026-05-03',
-    request_id: 'req-tree',
+    request_id: 'req-fiber-bloom',
     target: {
       canvas_id: 'avatar-main',
-      object_id: WIKI_BRAIN_TREE_OBJECT_ID,
+      object_id: WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
     },
     patch: {
       scale: { x: 1.45, y: 1.55, z: 1.3 },
@@ -68,14 +218,92 @@ test('wiki brain transform patch updates tree config and returns applied result'
   }, { canvasId: 'avatar-main' })
 
   assert.equal(result.status, 'applied')
-  assert.equal(result.request_id, 'req-tree')
+  assert.equal(result.request_id, 'req-fiber-bloom')
   assert.deepEqual(result.transform.scale, { x: 1.45, y: 1.55, z: 1.3 })
   assert.deepEqual(result.transform.rotation_degrees, { x: -9, y: 0, z: 0 })
 
   const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
-  const tree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_TREE_OBJECT_ID)
-  assert.deepEqual(tree.transform.scale, { x: 1.45, y: 1.55, z: 1.3 })
-  assert.deepEqual(tree.transform.rotation_degrees, { x: -9, y: 0, z: 0 })
+  const bloom = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID)
+  assert.deepEqual(bloom.transform.scale, { x: 1.45, y: 1.55, z: 1.3 })
+  assert.deepEqual(bloom.transform.rotation_degrees, { x: -9, y: 0, z: 0 })
+})
+
+test('wiki brain legacy fiber object id patches the bloom object', () => {
+  const config = radialConfig()
+  const result = applyWikiBrainTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-legacy-fiber',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FIBER_OBJECT_ID,
+    },
+    patch: {
+      position: { x: 0.04 },
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.deepEqual(result.transform.position, { x: 0.04, y: 0.033, z: 0 })
+
+  const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+  const bloom = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID)
+  assert.deepEqual(bloom.transform.position, { x: 0.04, y: 0.033, z: 0 })
+})
+
+test('wiki brain transform patch can independently tune the fiber stem', () => {
+  const config = radialConfig()
+  const result = applyWikiBrainTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-fiber-stem',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
+    },
+    patch: {
+      position: { y: -0.06 },
+      scale: { x: 0.8, y: 1.9, z: 0.8 },
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.equal(result.request_id, 'req-fiber-stem')
+  assert.deepEqual(result.transform.position, { x: 0.019, y: -0.06, z: -0.004 })
+  assert.deepEqual(result.transform.scale, { x: 0.8, y: 1.9, z: 0.8 })
+
+  const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+  const stem = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_STEM_OBJECT_ID)
+  const bloom = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID)
+  assert.deepEqual(stem.transform.position, { x: 0.019, y: -0.06, z: -0.004 })
+  assert.deepEqual(bloom.transform.position, { x: 0, y: 0.033, z: 0 })
+})
+
+test('wiki brain transform patch can independently tune the fractal tree', () => {
+  const config = radialConfig()
+  const result = applyWikiBrainTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-fractal-tree',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+    },
+    patch: {
+      position: { y: -0.024 },
+      scale: { x: 1.4, y: 1.5, z: 1.25 },
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.equal(result.request_id, 'req-fractal-tree')
+  assert.deepEqual(result.transform.position, { x: 0.02, y: -0.024, z: -0.006 })
+  assert.deepEqual(result.transform.scale, { x: 1.4, y: 1.5, z: 1.25 })
+
+  const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+  const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
+  assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.024, z: -0.006 })
+  assert.deepEqual(fractalTree.transform.scale, { x: 1.4, y: 1.5, z: 1.25 })
 })
 
 test('wiki brain transform patch can independently move the shell host', () => {

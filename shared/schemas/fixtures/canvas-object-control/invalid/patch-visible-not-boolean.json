@@ -1,0 +1,12 @@
+{
+  "type": "canvas_object.transform.patch",
+  "schema_version": "2026-05-03",
+  "request_id": "req-visibility-1",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.tree"
+  },
+  "patch": {
+    "visible": "yes"
+  }
+}

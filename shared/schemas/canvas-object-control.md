@@ -19,9 +19,10 @@ addressable objects publishes the full set it wants controllers to see:
   "objects": [
     {
       "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Tree",
+      "name": "Wiki Brain Fiber Optics",
       "kind": "three.object3d",
-      "capabilities": ["transform.read", "transform.patch"],
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
+      "visible": true,
       "transform": {
         "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
         "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
@@ -38,8 +39,8 @@ addressable objects publishes the full set it wants controllers to see:
 ```
 
 `canvas_object.transform.patch` is a command. A controller targets one object by
-`canvas_id + object_id` and sends only the transform components it wants to
-change:
+`canvas_id + object_id` and sends only the transform components or visibility
+state it wants to change:
 
 ```json
 {
@@ -51,7 +52,8 @@ change:
     "object_id": "radial.wiki-brain.tree"
   },
   "patch": {
-    "scale": { "x": 1.4, "y": 1.5, "z": 1.25 }
+    "scale": { "x": 1.4, "y": 1.5, "z": 1.25 },
+    "visible": true
   }
 }
 ```
@@ -73,7 +75,8 @@ patch was applied, rejected, or stale:
     "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
     "scale": { "x": 1.4, "y": 1.5, "z": 1.25 },
     "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
-  }
+  },
+  "visible": true
 }
 ```
 

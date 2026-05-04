@@ -1,11 +1,14 @@
 import { emit, esc } from '../../runtime/bridge.js';
+import { wireNumberFieldControls } from '../../controls/number-field.js';
 import {
   TRANSFORM_GROUPS,
   VECTOR_AXES,
   applyRegistryMessage,
   applyTransformResultMessage,
   buildTripletPatchMessage,
+  buildVisibilityPatchMessage,
   canPatchObject,
+  canPatchVisibility,
   createObjectTransformState,
   formatTripletValue,
   objectAddressLabel,
@@ -14,13 +17,20 @@ import {
   selectedObject,
   sortedObjectEntries,
   updateEntryTransformDraft,
+  updateEntryVisibilityDraft,
 } from './model.js';
 import {
   objectRowAttrs,
   tripletInputAttrs,
+  visibilityToggleAttrs,
 } from './semantics.js';
 
 const BASE_TITLE = 'Object Transform';
+const TRANSFORM_INPUT_STEPS = Object.freeze({
+  position: '0.001',
+  scale: '0.01',
+  rotation_degrees: '1',
+});
 
 let requestCounter = 0;
 
@@ -40,6 +50,10 @@ function unitForGroup(entry, group) {
   return entry?.units?.[def?.unitKey] || '';
 }
 
+function stepForGroup(group) {
+  return TRANSFORM_INPUT_STEPS[group] || '0.001';
+}
+
 function renderObjectList(entries, selectedKey) {
   if (entries.length === 0) {
     return '<div class="object-transform-empty">Waiting for addressable objects</div>';
@@ -48,13 +62,20 @@ function renderObjectList(entries, selectedKey) {
     `<div class="object-transform-list" role="listbox" aria-label="Addressable objects">`
       + entries.map((entry) => {
         const selected = entry.key === selectedKey;
-        const visible = entry.visible === null ? '' : `<span>${entry.visible ? 'visible' : 'hidden'}</span>`;
+        const visible = entry.visible !== false;
+        const visibilityDisabled = canPatchVisibility(entry) ? '' : ' disabled';
         return (
-          `<button type="button" class="object-transform-row${selected ? ' selected' : ''}" data-object-key="${esc(entry.key)}" ${objectRowAttrs(entry, selected)}>`
-            + `<strong>${esc(entry.name)}</strong>`
-            + `<small>${esc(entry.canvas_id)} / ${esc(entry.object_id)}</small>`
-            + `<em>${esc(entry.kind)}${visible}</em>`
-          + `</button>`
+          `<div class="object-transform-row${selected ? ' selected' : ''}${visible ? '' : ' hidden-object'}">`
+            + `<button type="button" class="object-transform-select" data-object-key="${esc(entry.key)}" ${objectRowAttrs(entry, selected)}>`
+              + `<strong>${esc(entry.name)}</strong>`
+              + `<small>${esc(entry.canvas_id)} / ${esc(entry.object_id)}</small>`
+              + `<em>${esc(entry.kind)}<span>${visible ? 'visible' : 'hidden'}</span></em>`
+            + `</button>`
+            + `<label class="object-transform-visibility${visible ? '' : ' off'}" title="${visible ? 'Hide' : 'Show'} ${esc(entry.name)}">`
+              + `<input type="checkbox" class="object-transform-visibility-input" data-object-visibility-key="${esc(entry.key)}" ${visible ? 'checked' : ''}${visibilityDisabled} ${visibilityToggleAttrs(entry)}>`
+              + `<span aria-hidden="true"></span>`
+            + `</label>`
+          + `</div>`
         );
       }).join('')
     + `</div>`
@@ -64,6 +85,7 @@ function renderObjectList(entries, selectedKey) {
 function renderTriplet(entry, groupDef) {
   const triplet = entry.transform[groupDef.key];
   const unit = unitForGroup(entry, groupDef.key);
+  const step = stepForGroup(groupDef.key);
   return (
     `<fieldset class="object-transform-triplet" data-transform-group="${esc(groupDef.key)}">`
       + `<legend><span>${esc(groupDef.label)}</span><em>${esc(unit)}</em></legend>`
@@ -73,7 +95,8 @@ function renderTriplet(entry, groupDef) {
           return (
             `<label>`
               + `<span>${axis.toUpperCase()}</span>`
-              + `<input class="object-transform-input" type="number" step="0.001" inputmode="decimal" value="${esc(value)}" `
+              + `<input class="object-transform-input" type="number" step="${esc(step)}" inputmode="decimal" value="${esc(value)}" `
+                + `data-aos-control="number-field" data-aos-step="${esc(step)}" `
                 + `data-transform-group="${esc(groupDef.key)}" data-transform-axis="${esc(axis)}" `
                 + `${tripletInputAttrs(entry, groupDef.key, axis, value)}>`
             + `</label>`
@@ -128,10 +151,12 @@ function renderSnapshot(state) {
   );
 }
 
-export default function ObjectTransformPanel() {
+export default function ObjectTransformPanel(options = {}) {
   let host = null;
   let root = null;
+  let numberFields = null;
   const state = createObjectTransformState();
+  const emitMessage = typeof options.emitMessage === 'function' ? options.emitMessage : null;
 
   function syncDebugState() {
     window.__objectTransformPanelState = {
@@ -150,9 +175,35 @@ export default function ObjectTransformPanel() {
     host.setTitle(`${BASE_TITLE} - ${count}${selected ? ` - ${selected.name}` : ''}`);
   }
 
+  function focusedTripletTarget() {
+    const active = globalThis.document?.activeElement;
+    const input = active?.closest?.('.object-transform-input');
+    if (!input) return null;
+    if (root?.contains && !root.contains(input)) return null;
+    return {
+      group: input.dataset?.transformGroup || '',
+      axis: input.dataset?.transformAxis || '',
+    };
+  }
+
+  function restoreTripletFocus(target) {
+    if (!target?.group || !target?.axis) return;
+    const input = root?.querySelector?.(
+      `.object-transform-input[data-transform-group="${target.group}"][data-transform-axis="${target.axis}"]`
+    );
+    if (!input?.focus) return;
+    try {
+      input.focus({ preventScroll: true });
+    } catch {
+      input.focus();
+    }
+  }
+
   function rerender() {
     if (!root) return;
+    const focusTarget = focusedTripletTarget();
     root.innerHTML = renderSnapshot(state);
+    restoreTripletFocus(focusTarget);
     updateTitle();
     syncDebugState();
   }
@@ -168,8 +219,6 @@ export default function ObjectTransformPanel() {
         sent_at: Date.now(),
       });
       state.objectsByKey.set(entry.key, updateEntryTransformDraft(entry, group, values));
-      const delivery = patchDeliveryForTarget(entry, patch);
-      emit(delivery.type, delivery.payload);
       state.lastResult = {
         request_id: patch.request_id,
         target: patch.target,
@@ -179,6 +228,9 @@ export default function ObjectTransformPanel() {
         message: 'waiting for owner',
         transform: null,
       };
+      const delivery = patchDeliveryForTarget(entry, patch);
+      if (emitMessage) emitMessage(delivery);
+      else emit(delivery.type, delivery.payload);
       rerender();
       return patch;
     } catch (error) {
@@ -191,6 +243,49 @@ export default function ObjectTransformPanel() {
         reason: 'invalid_patch',
         message: error.message,
         transform: null,
+      };
+      rerender();
+      return null;
+    }
+  }
+
+  function emitVisibilityPatch(key, visible) {
+    const entry = state.objectsByKey.get(key);
+    if (!entry) return null;
+    try {
+      const patch = buildVisibilityPatchMessage(entry, visible, { requestId: nextRequestId() });
+      state.pendingByRequest.set(patch.request_id, {
+        key: entry.key,
+        group: 'visible',
+        sent_at: Date.now(),
+      });
+      state.objectsByKey.set(entry.key, updateEntryVisibilityDraft(entry, visible));
+      state.lastResult = {
+        request_id: patch.request_id,
+        target: patch.target,
+        key: entry.key,
+        status: 'pending',
+        reason: '',
+        message: 'waiting for owner',
+        transform: null,
+        visible: !!visible,
+      };
+      const delivery = patchDeliveryForTarget(entry, patch);
+      if (emitMessage) emitMessage(delivery);
+      else emit(delivery.type, delivery.payload);
+      rerender();
+      return patch;
+    } catch (error) {
+      state.errors.push(error.message);
+      state.lastResult = {
+        request_id: '',
+        target: { canvas_id: entry.canvas_id, object_id: entry.object_id },
+        key: entry.key,
+        status: 'rejected',
+        reason: 'invalid_patch',
+        message: error.message,
+        transform: null,
+        visible: null,
       };
       rerender();
       return null;
@@ -214,6 +309,11 @@ export default function ObjectTransformPanel() {
   }
 
   function handleChange(event) {
+    const visibility = event.target?.closest?.('.object-transform-visibility-input');
+    if (visibility) {
+      emitVisibilityPatch(visibility.dataset.objectVisibilityKey, visibility.checked);
+      return;
+    }
     const input = event.target?.closest?.('.object-transform-input');
     if (!input) return;
     const group = input.dataset.transformGroup;
@@ -253,6 +353,7 @@ export default function ObjectTransformPanel() {
       root.setAttribute('aria-label', BASE_TITLE);
       root.addEventListener('click', handleClick);
       root.addEventListener('change', handleChange);
+      numberFields = wireNumberFieldControls(root);
       window.__objectTransformPanelDebug = {
         applyRegistry(message) {
           applyRegistryMessage(state, message);
@@ -272,11 +373,18 @@ export default function ObjectTransformPanel() {
         emitTriplet(group, values) {
           return emitTripletPatch(group, values);
         },
+        emitVisibility(key, visible) {
+          return emitVisibilityPatch(key, visible);
+        },
       };
       rerender();
       return root;
     },
 
     onMessage: handleMessage,
+
+    destroy() {
+      numberFields?.dispose?.();
+    },
   };
 }
