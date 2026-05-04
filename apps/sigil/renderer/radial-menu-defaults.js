@@ -59,6 +59,7 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
     radiusScale: 1.18,
     normalizedRadius: 0.3,
     rotationDegrees: { x: 90, y: 0, z: 0 },
+    hiddenMaterials: ['MAT_OpacityText'],
     parts: [
         {
             id: 'screen',
@@ -67,13 +68,14 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
             transform: {
                 position: { x: 0, y: 0.078, z: 0.041 },
                 scale: { x: 0.38, y: 0.2, z: 1 },
-                rotationDegrees: { x: 0, y: 0, z: 0 },
+                rotationDegrees: { x: 0, y: 180, z: 0 },
             },
             visible: true,
             material: {
+                kind: 'terminal-screen',
                 color: '#071318',
-                emissive: '#28f6ff',
-                opacity: 0.74,
+                accent: '#68f7ff',
+                opacity: 0.94,
             },
         },
     ],

@@ -1316,7 +1316,25 @@ function applyTranslucentBrainShellMaterial(object, options = {}) {
     }
 }
 
+function applyHiddenGeometryMaterials(object, materialNames = []) {
+    const names = new Set((Array.isArray(materialNames) ? materialNames : [])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean));
+    if (names.size === 0) return;
+    object.traverse((child) => {
+        if (!child.isMesh) return;
+        forEachMaterial(child.material, (mat) => {
+            if (!names.has(mat.name)) return;
+            mat.transparent = true;
+            mat.opacity = 0;
+            mat.depthWrite = false;
+            mat.needsUpdate = true;
+        });
+    });
+}
+
 function applyGeometryMaterial(object, geometry = {}) {
+    applyHiddenGeometryMaterials(object, geometry.hiddenMaterials);
     if (geometry.material === 'source-emissive') {
         applySourceEmissiveMaterial(object, geometry.materialOptions || {});
         return;
@@ -1330,19 +1348,114 @@ function applyGeometryMaterial(object, geometry = {}) {
     }
 }
 
-function createRadialItemPartMesh(part = {}) {
-    if (part.kind !== 'plane') return null;
+function createTerminalScreenTexture(options = {}) {
+    if (typeof document === 'undefined' || typeof THREE.CanvasTexture !== 'function') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const accent = options.accent || '#68f7ff';
+    const dim = options.dim || 'rgba(104, 247, 255, 0.42)';
+    const dark = options.color || '#071318';
+    const glow = options.glow || 'rgba(104, 247, 255, 0.22)';
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    bg.addColorStop(0, '#031014');
+    bg.addColorStop(0.52, dark);
+    bg.addColorStop(1, '#020608');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = glow;
+    ctx.lineWidth = 2;
+    for (let x = 28; x < canvas.width; x += 46) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x - 30, canvas.height);
+        ctx.stroke();
+    }
+    for (let y = 24; y < canvas.height; y += 38) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y + 16);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+    ctx.strokeStyle = dim;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 30, canvas.width - 60, canvas.height - 60);
+
+    ctx.fillStyle = accent;
+    ctx.font = '700 32px Menlo, Monaco, monospace';
+    ctx.fillText('AGENT TERM', 48, 72);
+    ctx.font = '600 18px Menlo, Monaco, monospace';
+    ctx.fillStyle = 'rgba(210, 255, 255, 0.88)';
+    const lines = [
+        '> attach provider',
+        '> route session',
+        '> resume stream',
+        '> surface ready',
+    ];
+    lines.forEach((line, index) => ctx.fillText(line, 52, 126 + (index * 30)));
+
+    ctx.fillStyle = 'rgba(104, 247, 255, 0.78)';
+    for (let i = 0; i < 7; i += 1) {
+        ctx.fillRect(330 + (i * 18), 120, 8, 72 - (i % 3) * 14);
+    }
+    ctx.beginPath();
+    ctx.arc(426, 216, 38, 0, Math.PI * 2);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(426, 216, 22, -0.6, Math.PI * 1.24);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    if (THREE.RepeatWrapping !== undefined) {
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.repeat.x = -1;
+        texture.offset.x = 1;
+    }
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function createRadialItemPartMaterial(part = {}) {
     const material = part.material || {};
-    const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(1, 1),
-        new THREE.MeshPhongMaterial({
-            color: new THREE.Color(material.color || '#071318'),
-            emissive: new THREE.Color(material.emissive || '#28f6ff'),
+    if (material.kind === 'terminal-screen') {
+        const texture = createTerminalScreenTexture(material);
+        return new THREE.MeshBasicMaterial({
+            map: texture || null,
+            color: texture ? new THREE.Color('#ffffff') : new THREE.Color(material.accent || '#68f7ff'),
             transparent: true,
-            opacity: finite(material.opacity, 0.74),
+            opacity: finite(material.opacity, 0.94),
             side: THREE.DoubleSide,
             depthWrite: false,
-        })
+        });
+    }
+    return new THREE.MeshPhongMaterial({
+        color: new THREE.Color(material.color || '#071318'),
+        emissive: new THREE.Color(material.emissive || '#28f6ff'),
+        transparent: true,
+        opacity: finite(material.opacity, 0.74),
+        side: THREE.DoubleSide,
+        depthWrite: false,
+    });
+}
+
+function createRadialItemPartMesh(part = {}) {
+    if (part.kind !== 'plane') return null;
+    const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        createRadialItemPartMaterial(part)
     );
     mesh.name = part.name || part.label || part.id || 'radial-item-part';
     mesh.renderOrder = 32;

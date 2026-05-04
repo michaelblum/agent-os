@@ -97,6 +97,7 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
   assert.equal(screen.metadata.part_kind, 'plane')
   assert.deepEqual(screen.transform.position, { x: 0, y: 0.078, z: 0.041 })
   assert.deepEqual(screen.transform.scale, { x: 0.38, y: 0.2, z: 1 })
+  assert.deepEqual(screen.transform.rotation_degrees, { x: 0, y: 180, z: 0 })
   assert.equal(screen.visible, true)
 })
 
@@ -153,6 +154,8 @@ test('radial menu transform patch can tune the agent terminal model host and scr
   assert.deepEqual(item.geometry.visibility, { model: false })
   assert.deepEqual(item.geometry.parts[0].transform.position, { x: 0, y: 0.078, z: 0.05 })
   assert.equal(item.geometry.parts[0].visible, false)
+  assert.equal(item.geometry.parts[0].material.kind, 'terminal-screen')
+  assert.deepEqual(item.geometry.hiddenMaterials, ['MAT_OpacityText'])
 
   const registry = buildRadialMenuObjectRegistry(config, { canvasId: 'avatar-main' })
   const terminal = registry.objects.find((object) => object.object_id === AGENT_TERMINAL_MODEL_OBJECT_ID)
