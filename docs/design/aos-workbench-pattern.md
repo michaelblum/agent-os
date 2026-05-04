@@ -140,6 +140,45 @@ Markdown, JSON, a DAG, and an execution timeline. A radial menu item may be
 viewed as production radial preview, isolated 3D preview, object graph, and
 source config.
 
+### Layered Subject Expressions
+
+Some subjects need multiple expressions of the same underlying intent. The
+useful pattern is not "raw data plus comments"; it is a layered record where
+one layer is canonical enough to survive drift and the other layers make the
+subject executable, visual, or easier to edit.
+
+The first concrete adopter is the object transform panel's
+`animation_effects` area:
+
+- natural-language description: compact human-agent spine of what the effect is
+  supposed to do
+- editable JSON: structured control definitions and current values
+- rendered controls: a mini-form projected from the JSON
+
+This same shape should generalize to workflow and recording subjects. For a web
+source artifact collection script, the narrative layer can describe the durable
+collection intent while a Playwright/codegen execution map records locators,
+waits, screenshots, traces, page text paths, and replay hints. The execution map
+is allowed to be brittle because it rides on the narrative spine and can be
+refreshed after drift.
+
+For a workflow demo movie, the same subject might have:
+
+- natural-language step spine
+- `do_step` or lower-level `do` units captured from browser or desktop action
+- show-layer settings for cursor decoration, target highlights, app-window
+  highlights, timing, and camera/crop choices
+
+The workbench should treat these as synchronized expressions of one subject,
+not as separate unrelated documents. Views choose which expression to render:
+text editor, JSON editor, generated form, timeline, flowchart, replay console,
+or artifact gallery. Controls send patches to the owning subject; the owner
+decides how changes propagate across layers.
+
+This is intentionally a design pattern, not a schema mandate. Promote a schema
+only after two concrete subjects use the same layered shape without special
+case pressure.
+
 ### Controls
 
 Controls edit subject state through structured operations.
