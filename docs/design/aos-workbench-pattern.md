@@ -344,6 +344,21 @@ Minimum slice:
 
 This proves the pattern is not only for 3D.
 
+Near-term order:
+
+1. Build a file-backed Markdown workbench before adding wiki persistence. File
+   editing is easier to verify, avoids daemon/runtime changes, and matches the
+   repo docs use case.
+2. Keep the first surface app-owned or demo-scoped if needed, but structure the
+   source editor, preview, diagnostics, and persistence seams so they can move
+   into `packages/toolkit/` after one real consumer.
+3. Start with source plus rendered preview. Add Mermaid fences, outline,
+   metadata controls, and richer patch/history only after the basic edit,
+   render, validate, and save loop is reliable.
+4. Treat the editor as the subject owner. Agent operations should be explicit
+   text or metadata patches with accepted/rejected results, not hidden DOM
+   mutation.
+
 ### Workflow Workbench
 
 Use a small workflow definition as the third proof.
@@ -395,7 +410,9 @@ Promote a concept from this note when all are true:
 
 ## Next Planning Move
 
-Do not start with a grand workbench implementation. Start by extracting the
-current 3D radial item tuning loop into the first formal subject/view/control
-adapter. Then add a Markdown/Mermaid subject. If those two fit the same contract
-without contortion, promote the shared pieces into toolkit workbench components.
+Do not start with a grand workbench implementation. The 3D radial item tuning
+loop is already the first proof. The next practical move is a file-backed
+Markdown workbench with source and preview panes, explicit save, and a narrow
+text patch/result contract. If that and the 3D workbench fit the same pattern
+without contortion, promote the shared shell and subject descriptors into
+toolkit workbench components.
