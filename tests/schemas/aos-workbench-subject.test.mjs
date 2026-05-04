@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
+import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
 import { buildRadialItemWorkbenchSubject, createRadialItemEditorState } from '../../apps/sigil/radial-item-editor/model.js';
 
@@ -58,4 +59,11 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     itemId: 'wiki-graph',
     canvasId: 'preview',
   })));
+  await validate(createWikiPageSubject({
+    path: 'aos/plugins/self-check/SKILL.md',
+    type: 'workflow',
+    name: 'self-check',
+    plugin: 'self-check',
+    tags: ['diagnostics', 'runtime'],
+  }));
 });

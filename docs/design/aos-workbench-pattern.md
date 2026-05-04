@@ -113,6 +113,11 @@ Current adopters publish this as `aos.workbench.subject` so a workbench shell,
 agent, or persistence adapter can inspect different subject kinds without
 knowing their private renderer internals.
 
+Wiki pages are the next natural subject catalog. A wiki page can project as
+`wiki.concept`, `wiki.entity`, `wiki.workflow`, `wiki.reference`, or an
+app-specialized type such as `sigil.agent` while retaining its canonical wiki
+path as source identity.
+
 ### View
 
 A view renders a subject or part of a subject.

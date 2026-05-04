@@ -93,14 +93,27 @@ Create descriptors with:
 import { createWorkbenchSubject } from '../workbench/subject.js'
 ```
 
+Wiki pages can be projected from `aos wiki list/show --json` shapes with:
+
+```js
+import { createWikiPageSubject } from '../workbench/wiki-subject.js'
+```
+
 The current schema version is `2026-05-03`. The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
+- Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
+  `wiki.reference`, and `sigil.agent`
 
 Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
 vocabulary.
+
+Wiki subject ids use `wiki:<path>`, for example
+`wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,
+namespace, plugin }`, and their persistence route is the wiki write/change-event
+handoff rather than direct canvas filesystem access.
 
 ## Stock Components Snapshot
 
