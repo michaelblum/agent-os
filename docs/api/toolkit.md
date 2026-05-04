@@ -19,6 +19,7 @@ It is split into three layers:
 | Layer | Path | Purpose |
 | --- | --- | --- |
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake |
+| Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
@@ -60,6 +61,19 @@ aos show create \
 ```
 
 Within toolkit HTML, imports typically use relative module paths.
+
+## Controls
+
+`packages/toolkit/controls/` contains reusable behavior for controls that need to
+feel like AOS app controls instead of raw browser defaults. Controls attach to
+ordinary semantic HTML and dispatch normal DOM events so panels can remain
+domain-specific.
+
+`number-field.js` provides focused wheel and arrow-key stepping for numeric
+fields marked with `data-aos-control="number-field"`. It uses the field's
+native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
+`change` events after a step, uses `Shift` for coarse stepping, and uses
+`Option` for fine stepping.
 
 ## Stock Components Snapshot
 
@@ -341,6 +355,10 @@ Addresses use `canvas_id + object_id`:
 }
 ```
 
+Sigil's wiki-brain adopter currently exposes the outer shell, the fiber-optic
+filament layer, and the fractal tree layer as separate objects so transform
+controllers can tune their overlap independently.
+
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
 and capabilities:
@@ -353,13 +371,29 @@ and capabilities:
   "objects": [
     {
       "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Tree",
+      "name": "Wiki Brain Fiber Optics",
       "kind": "three.object3d",
       "capabilities": ["transform.read", "transform.patch"],
       "transform": {
         "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
         "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
         "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+      },
+      "units": {
+        "position": "scene",
+        "scale": "multiplier",
+        "rotation": "degrees"
+      }
+    },
+    {
+      "object_id": "radial.wiki-brain.fractal-tree",
+      "name": "Wiki Brain Fractal Tree",
+      "kind": "three.object3d",
+      "capabilities": ["transform.read", "transform.patch"],
+      "transform": {
+        "position": { "x": 0.008, "y": -0.018, "z": 0.012 },
+        "scale": { "x": 1.26, "y": 1.34, "z": 1.16 },
+        "rotation_degrees": { "x": -9, "y": 0, "z": 0 }
       },
       "units": {
         "position": "scene",
@@ -408,9 +442,9 @@ mutating requests. Do not introduce a general AOS bus for this contract.
 `object-transform-panel` is the reusable controller for the addressable canvas
 object control contract. It subscribes to `canvas_object.registry` and
 `canvas_object.transform.result`, renders advertised objects by
-`canvas_id + object_id`, and emits transform edits through existing
-`canvas.send` routing to the owning canvas. The panel does not inspect another
-canvas or assume the object is backed by Three.js.
+`canvas_id + object_id`, and emits transform and visibility edits through
+existing `canvas.send` routing to the owning canvas. The panel does not inspect
+another canvas or assume the object is backed by Three.js.
 
 Default launcher:
 

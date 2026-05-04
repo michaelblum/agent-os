@@ -83,17 +83,77 @@ class Color {
 globalThis.THREE = { Box3, Color, Vector3 }
 
 const {
+  DEFAULT_RADIAL_ITEM_MOTION,
   normalizeModelScene,
   radialGlyphActivationState,
+  resolveNestedFiberBloomTransform,
+  resolveNestedFiberStemTransform,
+  resolveNestedFractalPulse,
+  resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
+  resolveRadialItemModelTransform,
+  resolveRadialItemModelVisibility,
+  resolveRadialHoverSpinSpeed,
+  resolveRadialItemMotion,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
-test('resolveNestedTreeTransform anchors tree roots toward the brain stem volume', () => {
-  const transform = resolveNestedTreeTransform({})
+test('resolveNestedFiberStemTransform anchors fiber roots toward the brain stem volume', () => {
+  const transform = resolveNestedFiberStemTransform({})
 
-  assert.deepEqual(transform.position, { x: 0.018, y: -0.035, z: 0.018 })
-  assert.deepEqual(transform.scale, { x: 1.32, y: 1.42, z: 1.2 })
-  assert.deepEqual(transform.rotationDegrees, { x: -11.5, y: 0, z: 0 })
+  assert.deepEqual(transform.position, { x: 0.019, y: -0.017, z: -0.004 })
+  assert.deepEqual(transform.scale, { x: 0.94, y: 1.94, z: 1.05 })
+  assert.deepEqual(transform.rotationDegrees, { x: -7.5, y: -19, z: -23 })
+})
+
+test('resolveNestedFiberBloomTransform preserves legacy tree transform fallback', () => {
+  const transform = resolveNestedFiberBloomTransform({})
+
+  assert.deepEqual(transform.position, { x: 0, y: 0.033, z: 0 })
+  assert.deepEqual(transform.scale, { x: 1.79, y: 1.22, z: 1.68 })
+  assert.deepEqual(transform.rotationDegrees, { x: 0, y: 0, z: 0 })
+  assert.deepEqual(resolveNestedTreeTransform({ treeTransform: { scale: 1.5 } }).scale, { x: 1.5, y: 1.5, z: 1.5 })
+})
+
+test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain shell', () => {
+  const transform = resolveNestedFractalTreeTransform({})
+
+  assert.deepEqual(transform.position, { x: 0.02, y: -0.054, z: -0.006 })
+  assert.deepEqual(transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
+  assert.deepEqual(transform.rotationDegrees, { x: -8, y: 86, z: 8 })
+})
+
+test('resolveNestedFractalPulse preserves node-travel spark controls with bounded fallbacks', () => {
+  assert.deepEqual(resolveNestedFractalPulse({}).tailSteps, [0, 0.07, 0.14, 0.21, 0.28, 0.35])
+  assert.equal(resolveNestedFractalPulse({}).dotSizePx, 5)
+  assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).intensity, 3)
+  assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).dotSizePx, 0.5)
+  assert.deepEqual(
+    resolveNestedFractalPulse({ fractalPulse: { tailSteps: [0, '0.2', 'bad'], tailAlphas: [] } }).tailSteps,
+    [0, 0.2]
+  )
+})
+
+test('resolveRadialItemModelTransform normalizes generic 3D item model controls', () => {
+  const item = {
+    geometry: {
+      modelTransform: {
+        position: [0.1, -0.2, 0.3],
+        scale: 1.25,
+        rotation: { y: 45 },
+      },
+      visibility: {
+        model: false,
+      },
+    },
+  }
+
+  assert.deepEqual(resolveRadialItemModelTransform(item), {
+    position: { x: 0.1, y: -0.2, z: 0.3 },
+    scale: { x: 1.25, y: 1.25, z: 1.25 },
+    rotationDegrees: { x: 0, y: 45, z: 0 },
+  })
+  assert.equal(resolveRadialItemModelVisibility(item), false)
+  assert.equal(resolveRadialItemModelVisibility({ geometry: {} }), true)
 })
 
 test('radialGlyphActivationState treats direct fast-travel hover as active', () => {
@@ -148,6 +208,32 @@ test('radialGlyphActivationState ignores non-selected outward pointer travel', (
   assert.equal(state.directHover, false)
   assert.equal(state.selected, false)
   assert.equal(state.relation, 'outward')
+})
+
+test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative values', () => {
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0 } }, { nativeGeometry: true }), 0)
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: -2 } }, { nativeGeometry: true }), 0)
+  assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0.25 } }, { nativeGeometry: false }), 0.25)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: true }), DEFAULT_RADIAL_ITEM_MOTION.modelHoverSpinSpeed)
+  assert.equal(resolveRadialHoverSpinSpeed({}, { nativeGeometry: false }), DEFAULT_RADIAL_ITEM_MOTION.shapeHoverSpinSpeed)
+})
+
+test('resolveRadialItemMotion allows menu-level defaults and item-level overrides', () => {
+  assert.deepEqual(
+    resolveRadialItemMotion({}, { nativeGeometry: true, itemMotion: { modelHoverSpinSpeed: 0 } }),
+    { hoverSpinSpeed: 0 }
+  )
+  assert.deepEqual(
+    resolveRadialItemMotion({}, { nativeGeometry: false, itemMotion: { shapeHoverSpinSpeed: 0.2 } }),
+    { hoverSpinSpeed: 0.2 }
+  )
+  assert.deepEqual(
+    resolveRadialItemMotion({ geometry: { itemMotion: { hoverSpinSpeed: 0.4 } } }, {
+      nativeGeometry: true,
+      itemMotion: { modelHoverSpinSpeed: 0 },
+    }),
+    { hoverSpinSpeed: 0.4 }
+  )
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {

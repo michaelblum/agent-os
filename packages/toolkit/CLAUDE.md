@@ -9,14 +9,17 @@ Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md)
 ## Layered model
 
 ```
-aos daemon (Layer 0)         canvas.create/update/remove, subscribe streams, eval, content server
-  └─ runtime/ (Layer 1a)     in-canvas helpers: bridge, subscribe, canvas mutation, manifest
-       ├─ panel/ (Layer 1b)  panel-shaped scaffolding: chrome, router, layouts (Single, Tabs)
-       │    └─ components/   reusable Content units consumed by panel layouts
-       └─ apps/ (Layer 3)    presence surfaces use 1a directly; panels use 1a + 1b + 2
+aos daemon (Layer 0)           canvas.create/update/remove, subscribe streams, eval, content server
+  └─ runtime/ (Layer 1a)       in-canvas helpers: bridge, subscribe, canvas mutation, manifest
+       ├─ controls/            reusable app-control behavior for WKWebView surfaces
+       ├─ panel/ (Layer 1b)    panel-shaped scaffolding: chrome, router, layouts (Single, Tabs)
+       │    └─ components/     reusable Content units consumed by panel layouts
+       └─ apps/ (Layer 3)      presence surfaces use 1a directly; panels use 1a + 1b + 2
 ```
 
-Every WKWebView surface (panel or presence) imports from `runtime/`. Surfaces that want chrome + content also import from `panel/`.
+Every WKWebView surface (panel or presence) imports from `runtime/`. Surfaces
+that need reusable app-control behavior import from `controls/`. Surfaces that
+want chrome + content also import from `panel/`.
 
 ## Structure
 
@@ -30,6 +33,10 @@ runtime/                Layer 1a — universal canvas runtime
   index.js                re-exports
   _smoke/                 smoke harness
   vendor/                 vendored third-party runtime modules and licenses
+
+controls/               Layer 1a — reusable app-control behavior for WKWebView surfaces
+  number-field.js         focused wheel/key stepping for numeric fields
+  index.js                re-exports
 
 panel/                  Layer 1b — panel primitives
   chrome.js               mountChrome — pure DOM scaffold + drag_start/drag_end lifecycle + absolute drag updates

@@ -70,12 +70,14 @@
       "properties": {
         "position": { "$ref": "#/$defs/partialTriplet" },
         "scale": { "$ref": "#/$defs/partialTriplet" },
-        "rotation_degrees": { "$ref": "#/$defs/partialTriplet" }
+        "rotation_degrees": { "$ref": "#/$defs/partialTriplet" },
+        "visible": { "type": "boolean" }
       },
       "anyOf": [
         { "required": ["position"] },
         { "required": ["scale"] },
-        { "required": ["rotation_degrees"] }
+        { "required": ["rotation_degrees"] },
+        { "required": ["visible"] }
       ]
     },
     "units": {
@@ -99,7 +101,7 @@
     },
     "capability": {
       "type": "string",
-      "enum": ["transform.read", "transform.patch"]
+      "enum": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"]
     },
     "registryObject": {
       "type": "object",
@@ -197,7 +199,8 @@
           ]
         },
         "message": { "type": "string" },
-        "transform": { "$ref": "#/$defs/transform" }
+        "transform": { "$ref": "#/$defs/transform" },
+        "visible": { "type": "boolean" }
       }
     }
   }

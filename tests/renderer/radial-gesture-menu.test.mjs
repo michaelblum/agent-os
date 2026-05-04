@@ -71,8 +71,10 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.equal(wikiItem.geometry.modelUid, '49bcdf19c1904c76a456b31838b0d7ac')
   assert.match(wikiItem.geometry.src, /human-brain\/scene\.gltf$/)
   assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
-  assert.equal(wikiItem.geometry.radiusScale, 1.42)
+  assert.equal(wikiItem.geometry.radiusScale, 1.1502)
   assert.equal(wikiItem.geometry.normalizedRadius, 0.28)
+  assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
+  assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
   assert.deepEqual(wikiItem.geometry.radialEffect, {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
@@ -80,6 +82,9 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
       rest: 0.75,
       active: 0.26,
       held: 0.75,
+    },
+    fractalPulse: {
+      intensity: 1,
     },
   })
   assert.equal(wikiItem.geometry.attribution.author, 'Versal')
@@ -110,6 +115,9 @@ test('Sigil radial menu normalizes stale wiki brain item geometry from saved con
   const wikiItem = normalized.items.find((item) => item.id === 'wiki-graph')
 
   assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
+  assert.equal(wikiItem.geometry.radiusScale, 1.1502)
+  assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
+  assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
   assert.deepEqual(wikiItem.geometry.radialEffect, {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
@@ -117,6 +125,9 @@ test('Sigil radial menu normalizes stale wiki brain item geometry from saved con
       rest: 0.75,
       active: 0.26,
       held: 0.75,
+    },
+    fractalPulse: {
+      intensity: 1,
     },
   })
   assert.equal(staleMenu.items[0].geometry.material, 'translucent-brain')
@@ -148,6 +159,28 @@ test('Sigil radial menu start applies normalized stale item geometry', () => {
 
   assert.equal(wikiItem.geometry.material, 'translucent-brain-shell')
   assert.equal(wikiItem.geometry.radialEffect.kind, 'nested-neural-tree')
+})
+
+test('Sigil radial menu carries visual motion config into snapshots', () => {
+  const { menu } = createMenu({
+    state: {
+      radialGestureMenu: {
+        visuals: {
+          itemMotion: {
+            modelHoverSpinSpeed: 0,
+          },
+        },
+      },
+    },
+  })
+
+  const started = menu.start({ x: 200, y: 200, valid: true })
+
+  assert.deepEqual(started.visuals, {
+    itemMotion: {
+      modelHoverSpinSpeed: 0,
+    },
+  })
 })
 
 test('Sigil radial menu reports fast-travel handoff and reentry', () => {

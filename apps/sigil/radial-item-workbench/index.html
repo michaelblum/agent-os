@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Radial Item Workbench</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="../renderer/vendor/three.min.js"></script>
+  <script src="../renderer/vendor/GLTFLoader.js"></script>
+</head>
+<body>
+  <div class="workbench-shell">
+    <header class="workbench-titlebar" id="drag-handle">
+      <span class="workbench-grip" aria-hidden="true"></span>
+      <strong>Sigil Radial Item Workbench</strong>
+      <div class="workbench-actions">
+        <label>
+          <span>Item</span>
+          <select id="item-select"></select>
+        </label>
+        <label>
+          <input type="checkbox" id="spin-toggle">
+          <span>Model spin</span>
+        </label>
+        <label>
+          <input type="checkbox" id="axes-toggle" checked>
+          <span>Axes</span>
+        </label>
+        <label class="workbench-range" id="pulse-control">
+          <span>Pulse</span>
+          <input type="range" id="pulse-intensity" min="0" max="3" step="0.05">
+          <output id="pulse-intensity-readout">1.00</output>
+        </label>
+        <button type="button" id="lock-in">Lock in</button>
+        <button type="button" id="reset-orbit">Reset view</button>
+      </div>
+    </header>
+    <main class="workbench-main">
+      <section class="preview-pane" aria-label="Radial item preview">
+        <div id="preview-stage"></div>
+        <div class="preview-status" id="status">Loading radial item...</div>
+        <div class="zoom-readout" id="zoom-readout">100%</div>
+      </section>
+      <section class="controls-pane" aria-label="Object transform controls">
+        <div class="controls-title" id="controls-title">Object Transform</div>
+        <form class="material-controls" id="material-controls" hidden>
+          <div class="material-controls-title">Part Material</div>
+          <label>
+            <span>Title</span>
+            <input type="text" id="screen-title" maxlength="18" autocomplete="off">
+          </label>
+          <label>
+            <span>Lines</span>
+            <textarea id="screen-lines" rows="5" maxlength="160" spellcheck="false"></textarea>
+          </label>
+          <div class="material-colors">
+            <label>
+              <span>Accent</span>
+              <input type="color" id="screen-accent">
+            </label>
+            <label>
+              <span>Back</span>
+              <input type="color" id="screen-color">
+            </label>
+          </div>
+        </form>
+        <div id="transform-panel"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>
