@@ -8,6 +8,7 @@ import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
+import { buildWorkRecordWorkbenchSubject, createWorkRecordWorkbenchState } from '../../packages/toolkit/components/work-record-workbench/model.js';
 import { buildRadialItemWorkbenchSubject, createRadialItemEditorState } from '../../apps/sigil/radial-item-editor/model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -72,4 +73,7 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     tags: ['diagnostics', 'runtime'],
   }));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
+  await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
+    record: JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8')),
+  })));
 });
