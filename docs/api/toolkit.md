@@ -129,6 +129,15 @@ The helper is a projection layer only; recording, replay, repair, and retirement
 remain owned by the work-record model in
 [`docs/design/aos-work-records-and-self-healing-recipes.md`](../design/aos-work-records-and-self-healing-recipes.md).
 
+The stock work-record workbench lives at:
+
+- `aos://toolkit/components/work-record-workbench/index.html`
+
+It accepts `work_record.open` and `work_record.patch.result`, emits
+`work-record-workbench/patch.requested`, and intentionally stays manual-first:
+it edits the NL intent and execution-map JSON while displaying health and
+evidence. It does not record, replay, repair, or retire recipes by itself.
+
 ## Stock Components Snapshot
 
 Current reusable toolkit components include:
