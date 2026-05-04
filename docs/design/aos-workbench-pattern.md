@@ -220,6 +220,19 @@ Examples:
 Artifacts need metadata: origin subject, producing workflow run, source files,
 validation status, and preview/export routes.
 
+### Work Record Projection
+
+Workbench surfaces can render work records, but they should not own the
+recording or replay model. The canonical design seed for recorded work is
+`docs/design/aos-work-records-and-self-healing-recipes.md`.
+
+A work-record projection should keep the natural-language intent visible as the
+primary spine, while structured execution maps, evidence, repair history, and
+health status appear as synchronized views or attached artifact sets. This lets
+one subject be edited as Markdown, JSON, generated controls, a step timeline, a
+workflow graph, or an artifact gallery without turning any one view into the
+source of truth.
+
 ## Workflow Subjects
 
 A workflow is a subject, but it is also an executable composition.

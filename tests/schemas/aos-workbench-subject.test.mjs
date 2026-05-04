@@ -6,12 +6,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
+import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
 import { buildRadialItemWorkbenchSubject, createRadialItemEditorState } from '../../apps/sigil/radial-item-editor/model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
+const workRecordFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json',
+);
 
 async function validate(instance) {
   const result = spawnSync(
@@ -66,4 +71,5 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     plugin: 'self-check',
     tags: ['diagnostics', 'runtime'],
   }));
+  await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
 });
