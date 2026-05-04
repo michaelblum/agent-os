@@ -70,6 +70,26 @@ export function removeSelf(opts = {}) {
   })
 }
 
+export function suspendCanvas(id) {
+  const payload = {}
+  if (id) payload.id = id
+  return rpc('canvas.suspend', payload, {
+    mapResult() {
+      return undefined
+    },
+  })
+}
+
+export function resumeCanvas(id) {
+  const payload = {}
+  if (id) payload.id = id
+  return rpc('canvas.resume', payload, {
+    mapResult() {
+      return undefined
+    },
+  })
+}
+
 export function setInteractive(interactive) {
   mutateSelf({ interactive: !!interactive })
 }

@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      color: rgba(220, 255, 255, 0.9);
+      font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .chip {
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px 4px 10px;
+      border: 1px solid rgba(122, 241, 255, 0.32);
+      border-radius: 8px;
+      background: rgba(5, 12, 16, 0.94);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+      user-select: none;
+      cursor: grab;
+    }
+
+    .chip[data-dragging="true"] {
+      cursor: grabbing;
+    }
+
+    .title {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 680;
+    }
+
+    button {
+      appearance: none;
+      flex: 0 0 auto;
+      width: 28px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(122, 241, 255, 0.26);
+      border-radius: 7px;
+      background: rgba(4, 14, 18, 0.78);
+      color: inherit;
+      font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: rgba(122, 241, 255, 0.5);
+      background: rgba(16, 38, 46, 0.82);
+    }
+
+    .close:hover {
+      border-color: rgba(255, 118, 118, 0.58);
+      background: rgba(82, 18, 24, 0.76);
+    }
+  </style>
+</head>
+<body>
+  <div class="chip" id="chip">
+    <span class="title" id="title"></span>
+    <button type="button" id="restore" aria-label="Restore panel" title="Restore">+</button>
+    <button type="button" class="close" id="close" aria-label="Close panel" title="Close">x</button>
+  </div>
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const target = params.get('target') || '';
+    const title = params.get('title') || target || 'AOS';
+    const chip = document.getElementById('chip');
+    document.getElementById('title').textContent = title;
+
+    function post(type, payload) {
+      const body = payload === undefined ? { type } : { type, payload };
+      window.webkit?.messageHandlers?.headsup?.postMessage(body);
+    }
+
+    function removeSelf() {
+      post('canvas.remove', { orphan_children: true });
+    }
+
+    function restore() {
+      if (target) post('canvas.resume', { id: target });
+      removeSelf();
+    }
+
+    function closeTarget() {
+      if (target) post('canvas.remove', { id: target, orphan_children: true });
+      removeSelf();
+    }
+
+    const drag = {
+      active: false,
+      pointerId: null,
+      offsetX: 0,
+      offsetY: 0,
+    };
+
+    chip.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      if (event.target?.closest?.('button')) return;
+      drag.active = true;
+      drag.pointerId = event.pointerId;
+      drag.offsetX = event.clientX;
+      drag.offsetY = event.clientY;
+      chip.dataset.dragging = 'true';
+      post('drag_start');
+      chip.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+
+    chip.addEventListener('pointermove', (event) => {
+      if (!drag.active || event.pointerId !== drag.pointerId) return;
+      window.webkit?.messageHandlers?.headsup?.postMessage({
+        type: 'move_abs',
+        screenX: event.screenX,
+        screenY: event.screenY,
+        offsetX: drag.offsetX,
+        offsetY: drag.offsetY,
+      });
+      event.preventDefault();
+    });
+
+    function endDrag(event) {
+      if (!drag.active || event.pointerId !== drag.pointerId) return;
+      drag.active = false;
+      drag.pointerId = null;
+      delete chip.dataset.dragging;
+      chip.releasePointerCapture?.(event.pointerId);
+      post('drag_end');
+    }
+
+    chip.addEventListener('pointerup', endDrag);
+    chip.addEventListener('pointercancel', endDrag);
+    chip.addEventListener('lostpointercapture', endDrag);
+    chip.addEventListener('dblclick', restore);
+    document.getElementById('restore').addEventListener('click', restore);
+    document.getElementById('close').addEventListener('click', closeTarget);
+  </script>
+</body>
+</html>

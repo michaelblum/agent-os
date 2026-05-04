@@ -115,6 +115,11 @@
   background: rgba(82, 18, 24, 0.76);
 }
 
+.aos-window-minimize:hover {
+  border-color: rgba(255, 210, 122, 0.58);
+  background: rgba(72, 50, 13, 0.76);
+}
+
 .aos-content {
   flex: 1;
   min-height: 0;
