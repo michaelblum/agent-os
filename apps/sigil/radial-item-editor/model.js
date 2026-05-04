@@ -2,6 +2,8 @@ import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../renderer/radial-menu-defaults.js'
 import {
     applyRadialMenuObjectTransformPatch,
     buildRadialMenuObjectRegistry,
+    DEFAULT_NESTED_TREE_EFFECT,
+    resolveNestedFractalPulse,
 } from '../renderer/live-modules/radial-object-control.js';
 
 export const DEFAULT_EDITOR_CANVAS_ID = 'sigil-radial-item-editor';
@@ -165,4 +167,32 @@ export function setSelectedItemHoverSpin(state = {}, enabled = false, speed = 1.
         delete item.geometry.hoverSpinSpeed;
     }
     return item.geometry.hoverSpinSpeed ?? null;
+}
+
+function ensureNestedTreeEffect(item = {}) {
+    item.geometry = isPlainObject(item.geometry) ? item.geometry : {};
+    const effect = isPlainObject(item.geometry.radialEffect) ? item.geometry.radialEffect : {};
+    item.geometry.radialEffect = {
+        kind: DEFAULT_NESTED_TREE_EFFECT.kind,
+        ...effect,
+    };
+    return item.geometry.radialEffect;
+}
+
+export function selectedItemFractalPulse(state = {}) {
+    const item = selectedRadialItem(state);
+    return resolveNestedFractalPulse(item?.geometry?.radialEffect || {});
+}
+
+export function setSelectedItemFractalPulseIntensity(state = {}, intensity = 1) {
+    const item = selectedRadialItem(state);
+    if (!item) return null;
+    const effect = ensureNestedTreeEffect(item);
+    const current = resolveNestedFractalPulse(effect);
+    const value = Number(intensity);
+    effect.fractalPulse = {
+        ...(isPlainObject(effect.fractalPulse) ? effect.fractalPulse : {}),
+        intensity: Number.isFinite(value) ? Math.max(0, Math.min(3, value)) : current.intensity,
+    };
+    return resolveNestedFractalPulse(effect);
 }

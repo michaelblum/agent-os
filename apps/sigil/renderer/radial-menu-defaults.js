@@ -36,6 +36,9 @@ export const WIKI_BRAIN_HOLOGRAM_MODEL = {
             active: 0.26,
             held: 0.75,
         },
+        fractalPulse: {
+            intensity: 1,
+        },
     },
     attribution: {
         title: 'Human Brain',

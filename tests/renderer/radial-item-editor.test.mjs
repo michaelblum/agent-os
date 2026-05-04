@@ -16,7 +16,9 @@ import {
   editableRadialItems,
   exportSelectedRadialItemDefinition,
   selectRadialItem,
+  selectedItemFractalPulse,
   selectedRadialItem,
+  setSelectedItemFractalPulseIntensity,
   setSelectedItemHoverSpin,
 } from '../../apps/sigil/radial-item-editor/model.js'
 
@@ -100,6 +102,17 @@ test('radial item editor preserves per-item edits when switching subjects', () =
 
   selectRadialItem(state, 'agent-terminal')
   assert.equal(selectedRadialItem(state).geometry.hoverSpinSpeed, 2.5)
+})
+
+test('radial item editor exposes wiki brain fractal pulse intensity as lock-in state', () => {
+  const state = createRadialItemEditorState({ itemId: 'wiki-graph', canvasId: 'preview' })
+
+  assert.equal(selectedItemFractalPulse(state).intensity, 1)
+  const pulse = setSelectedItemFractalPulseIntensity(state, 1.65)
+
+  assert.equal(pulse.intensity, 1.65)
+  assert.equal(selectedRadialItem(state).geometry.radialEffect.fractalPulse.intensity, 1.65)
+  assert.equal(exportSelectedRadialItemDefinition(state).item.geometry.radialEffect.fractalPulse.intensity, 1.65)
 })
 
 test('radial item editor exports a source-ready lock-in payload for the selected item', () => {

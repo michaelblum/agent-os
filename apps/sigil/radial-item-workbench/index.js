@@ -8,7 +8,9 @@ import {
     editableRadialItems,
     exportSelectedRadialItemDefinition,
     selectRadialItem,
+    selectedItemFractalPulse,
     selectedRadialItem,
+    setSelectedItemFractalPulseIntensity,
     setSelectedItemHoverSpin,
 } from '../radial-item-editor/model.js';
 
@@ -36,6 +38,9 @@ const dragHandle = document.getElementById('drag-handle');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
 const axesToggle = document.getElementById('axes-toggle');
+const pulseControl = document.getElementById('pulse-control');
+const pulseIntensity = document.getElementById('pulse-intensity');
+const pulseIntensityReadout = document.getElementById('pulse-intensity-readout');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
 const transformPanel = document.getElementById('transform-panel');
@@ -232,6 +237,12 @@ function syncControls() {
     }));
     const item = selectedRadialItem(editorState);
     spinToggle.checked = Number(item?.geometry?.hoverSpinSpeed) > 0;
+    const isWikiBrain = item?.geometry?.radialEffect?.kind === 'nested-neural-tree';
+    pulseControl.hidden = !isWikiBrain;
+    pulseIntensity.disabled = !isWikiBrain;
+    const pulse = selectedItemFractalPulse(editorState);
+    pulseIntensity.value = String(pulse.intensity);
+    pulseIntensityReadout.textContent = pulse.intensity.toFixed(2);
 }
 
 function syncPanelRegistry() {
@@ -400,6 +411,10 @@ spinToggle.addEventListener('change', () => {
 });
 
 axesToggle.addEventListener('change', syncOrbit);
+pulseIntensity.addEventListener('input', () => {
+    const pulse = setSelectedItemFractalPulseIntensity(editorState, pulseIntensity.value);
+    pulseIntensityReadout.textContent = pulse?.intensity?.toFixed?.(2) || '1.00';
+});
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
 

@@ -46,6 +46,21 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         active: 0.26,
         held: 0.75,
     },
+    fractalPulse: {
+        intensity: 1,
+        dotSizePx: 2.4,
+        trailLength: 0.6,
+        tailSteps: [0, 0.15, 0.3],
+        tailAlphas: [1, 0.6, 0.15],
+        maxSparks: 300,
+        baseFrequency: 1,
+        frequency: 14,
+        baseConcurrent: 1,
+        concurrent: 19,
+        minSpeed: 0.9,
+        speedJitter: 1.5,
+        rootRatio: 0.8,
+    },
     visibility: {
         shell: true,
         fiberStem: true,
@@ -145,6 +160,39 @@ export function resolveNestedFractalTreeTransform(effect = {}) {
         position: vectorValue(transform.position, defaults.position),
         scale: vectorValue(transform.scale, defaults.scale),
         rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
+function finiteRange(value, fallback, min, max) {
+    const n = finite(value, fallback);
+    return Math.max(min, Math.min(max, n));
+}
+
+function finiteList(value, fallback = []) {
+    const source = Array.isArray(value) ? value : fallback;
+    const next = source
+        .map((entry) => Number(entry))
+        .filter((entry) => Number.isFinite(entry));
+    return next.length > 0 ? next : [...fallback];
+}
+
+export function resolveNestedFractalPulse(effect = {}) {
+    const pulse = effect.fractalPulse || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fractalPulse;
+    return {
+        intensity: finiteRange(pulse.intensity, defaults.intensity, 0, 3),
+        dotSizePx: finiteRange(pulse.dotSizePx, defaults.dotSizePx, 0.5, 8),
+        trailLength: finiteRange(pulse.trailLength, defaults.trailLength, 0.05, 3),
+        tailSteps: finiteList(pulse.tailSteps, defaults.tailSteps),
+        tailAlphas: finiteList(pulse.tailAlphas, defaults.tailAlphas),
+        maxSparks: Math.round(finiteRange(pulse.maxSparks, defaults.maxSparks, 1, 2000)),
+        baseFrequency: finiteRange(pulse.baseFrequency, defaults.baseFrequency, 0, 60),
+        frequency: finiteRange(pulse.frequency, defaults.frequency, 0, 80),
+        baseConcurrent: Math.round(finiteRange(pulse.baseConcurrent, defaults.baseConcurrent, 0, 100)),
+        concurrent: Math.round(finiteRange(pulse.concurrent, defaults.concurrent, 0, 200)),
+        minSpeed: finiteRange(pulse.minSpeed, defaults.minSpeed, 0.05, 10),
+        speedJitter: finiteRange(pulse.speedJitter, defaults.speedJitter, 0, 10),
+        rootRatio: finiteRange(pulse.rootRatio, defaults.rootRatio, 0, 1),
     };
 }
 
@@ -290,6 +338,7 @@ export function resolveWikiBrainEffect(item = {}) {
             ...DEFAULT_NESTED_TREE_EFFECT.shellOpacity,
             ...(effect.shellOpacity || {}),
         },
+        fractalPulse: resolveNestedFractalPulse(effect),
         visibility: resolveNestedVisibility(effect),
         shellTransform: resolveNestedShellTransform(effect),
         fiberStemTransform: resolveNestedFiberStemTransform(effect),

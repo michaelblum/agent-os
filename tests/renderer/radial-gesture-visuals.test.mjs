@@ -88,6 +88,7 @@ const {
   radialGlyphActivationState,
   resolveNestedFiberBloomTransform,
   resolveNestedFiberStemTransform,
+  resolveNestedFractalPulse,
   resolveNestedFractalTreeTransform,
   resolveNestedTreeTransform,
   resolveRadialItemModelTransform,
@@ -119,6 +120,17 @@ test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain 
   assert.deepEqual(transform.position, { x: 0.02, y: -0.054, z: -0.006 })
   assert.deepEqual(transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
   assert.deepEqual(transform.rotationDegrees, { x: -8, y: 86, z: 8 })
+})
+
+test('resolveNestedFractalPulse preserves node-travel spark controls with bounded fallbacks', () => {
+  assert.deepEqual(resolveNestedFractalPulse({}).tailSteps, [0, 0.15, 0.3])
+  assert.equal(resolveNestedFractalPulse({}).dotSizePx, 2.4)
+  assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).intensity, 3)
+  assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).dotSizePx, 0.5)
+  assert.deepEqual(
+    resolveNestedFractalPulse({ fractalPulse: { tailSteps: [0, '0.2', 'bad'], tailAlphas: [] } }).tailSteps,
+    [0, 0.2]
+  )
 })
 
 test('resolveRadialItemModelTransform normalizes generic 3D item model controls', () => {

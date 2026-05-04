@@ -6,6 +6,7 @@ import {
     resolveRadialItemModelVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
+    resolveNestedFractalPulse,
     resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
@@ -21,6 +22,7 @@ export {
     resolveRadialItemModelVisibility,
     resolveNestedFiberBloomTransform,
     resolveNestedFiberStemTransform,
+    resolveNestedFractalPulse,
     resolveNestedFractalTreeTransform,
     resolveNestedShellTransform,
     resolveNestedTreeTransform,
@@ -261,6 +263,7 @@ function effectConfig(item = {}) {
     merged.fiberStemTransform = resolveNestedFiberStemTransform(merged);
     merged.fiberBloomTransform = resolveNestedFiberBloomTransform(merged);
     merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
+    merged.fractalPulse = resolveNestedFractalPulse(merged);
     return merged;
 }
 
@@ -756,14 +759,18 @@ function createFractalPulseBaseMaterial(maxDist) {
     });
 }
 
-function createFractalSparkMaterial() {
+function createFractalSparkMaterial(pointSize = DEFAULT_NESTED_TREE_EFFECT.fractalPulse.dotSizePx) {
     return new THREE.ShaderMaterial({
+        uniforms: {
+            u_pointSize: { value: Math.max(0.5, finite(pointSize, DEFAULT_NESTED_TREE_EFFECT.fractalPulse.dotSizePx)) },
+        },
         vertexShader: `
+            uniform float u_pointSize;
             attribute float a_alpha;
             varying float v_alpha;
             void main() {
                 v_alpha = a_alpha;
-                gl_PointSize = 2.4;
+                gl_PointSize = u_pointSize;
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
         `,
@@ -850,6 +857,7 @@ function spawnFractalPulse(effect, params) {
     geometry.setAttribute('a_dist', new THREE.BufferAttribute(dists, 1));
     const material = effect.userData.pulseBaseMaterial.clone();
     material.uniforms.u_maxDist.value = effect.userData.maxDist;
+    material.uniforms.u_trailLength.value = params.trailLength;
     const line = new THREE.Line(geometry, material);
     line.renderOrder = 24;
     const content = effect.userData.content || effect;
@@ -858,7 +866,7 @@ function spawnFractalPulse(effect, params) {
         mesh: line,
         material,
         progress: -0.1,
-        speed: 0.9 + ((effect.userData.rand || Math.random)() * 1.5),
+        speed: params.minSpeed + ((effect.userData.rand || Math.random)() * params.speedJitter),
         pathBranches,
         totalLen,
         lengths,
@@ -880,18 +888,25 @@ function fractalPulseSparkPosition(pulse, targetDist, netProgress, maxDist) {
     return null;
 }
 
-function updateFractalBrainTreeEffect(effect, progress, dt) {
+function updateFractalBrainTreeEffect(effect, progress, dt, pulseConfig = {}) {
     if (!effect) return;
     const p = clamp01(progress);
+    const pulseConfigResolved = resolveNestedFractalPulse({ fractalPulse: pulseConfig });
+    const pulseIntensity = pulseConfigResolved.intensity;
     effect.visible = p > 0.015;
-    const maxSparks = effect.userData.maxSparks || 300;
+    const maxSparks = Math.min(pulseConfigResolved.maxSparks, effect.userData.maxSparks || pulseConfigResolved.maxSparks);
     const sparkPositions = effect.userData.sparkPositions;
     const sparkAlphas = effect.userData.sparkAlphas;
     const sparkGeometry = effect.userData.sparkGeometry;
     const params = {
-        concurrent: Math.max(1, Math.round(1 + (p * 19))),
-        frequency: 1 + (p * 14),
-        rootRatio: p * 0.8,
+        concurrent: Math.max(0, Math.round(
+            pulseConfigResolved.baseConcurrent + (p * pulseConfigResolved.concurrent * pulseIntensity)
+        )),
+        frequency: pulseConfigResolved.baseFrequency + (p * pulseConfigResolved.frequency * pulseIntensity),
+        rootRatio: p * pulseConfigResolved.rootRatio,
+        trailLength: pulseConfigResolved.trailLength,
+        minSpeed: pulseConfigResolved.minSpeed,
+        speedJitter: pulseConfigResolved.speedJitter,
     };
 
     const material = effect.userData.material;
@@ -901,7 +916,12 @@ function updateFractalBrainTreeEffect(effect, progress, dt) {
         material.uniforms.u_brightness.value = 0.4 + (p * 1.7);
     }
 
-    if (p > 0.02 && (effect.userData.rand || Math.random)() < params.frequency * dt) {
+    const sparkMaterial = effect.userData.sparkMesh?.material;
+    if (sparkMaterial?.uniforms?.u_pointSize) {
+        sparkMaterial.uniforms.u_pointSize.value = pulseConfigResolved.dotSizePx;
+    }
+
+    if (p > 0.02 && pulseIntensity > 0 && (effect.userData.rand || Math.random)() < params.frequency * dt) {
         spawnFractalPulse(effect, params);
     }
 
@@ -912,12 +932,12 @@ function updateFractalBrainTreeEffect(effect, progress, dt) {
         pulse.progress += pulse.speed * dt;
         pulse.material.uniforms.u_progress.value = pulse.progress;
         pulse.material.uniforms.u_net_progress.value = p;
-        pulse.material.uniforms.u_alpha.value = p;
+        pulse.material.uniforms.u_alpha.value = p * Math.min(1, pulseIntensity);
 
         if (pulse.progress >= 0 && pulse.progress <= 1.2) {
             const baseDist = pulse.progress * pulse.totalLen;
-            const offsets = [0, 0.15, 0.3];
-            const alphas = [1.0, 0.6, 0.15];
+            const offsets = pulseConfigResolved.tailSteps;
+            const alphas = pulseConfigResolved.tailAlphas;
             for (let k = 0; k < offsets.length; k += 1) {
                 const pos = fractalPulseSparkPosition(
                     pulse,
@@ -929,7 +949,7 @@ function updateFractalBrainTreeEffect(effect, progress, dt) {
                     sparkPositions[sparkIdx * 3] = pos.x;
                     sparkPositions[(sparkIdx * 3) + 1] = pos.y;
                     sparkPositions[(sparkIdx * 3) + 2] = pos.z;
-                    sparkAlphas[sparkIdx] = alphas[k] * p;
+                    sparkAlphas[sparkIdx] = finite(alphas[k], 0) * p * Math.min(1, pulseIntensity);
                     sparkIdx += 1;
                 }
             }
@@ -953,7 +973,7 @@ function updateFractalBrainTreeEffect(effect, progress, dt) {
     effect.userData.signalParams = params;
 }
 
-function createFractalBrainTreeEffect() {
+function createFractalBrainTreeEffect(pulseConfig = {}) {
     const group = new THREE.Group();
     group.name = 'fractal-brain-tree-effect';
     group.visible = false;
@@ -1044,14 +1064,15 @@ function createFractalBrainTreeEffect() {
     network.renderOrder = 21;
     content.add(network);
 
-    const maxSparks = 300;
+    const pulseConfigResolved = resolveNestedFractalPulse({ fractalPulse: pulseConfig });
+    const maxSparks = pulseConfigResolved.maxSparks;
     const sparkGeometry = new THREE.BufferGeometry();
     const sparkPositions = new Float32Array(maxSparks * 3);
     const sparkAlphas = new Float32Array(maxSparks);
     sparkGeometry.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
     sparkGeometry.setAttribute('a_alpha', new THREE.BufferAttribute(sparkAlphas, 1));
     sparkGeometry.setDrawRange(0, 0);
-    const sparkMesh = new THREE.Points(sparkGeometry, createFractalSparkMaterial());
+    const sparkMesh = new THREE.Points(sparkGeometry, createFractalSparkMaterial(pulseConfigResolved.dotSizePx));
     sparkMesh.renderOrder = 25;
     content.add(sparkMesh);
 
@@ -1072,6 +1093,7 @@ function createFractalBrainTreeEffect() {
     group.userData.branches = branches;
     group.userData.maxDist = maxDist;
     group.userData.treeCount = treeCount;
+    group.userData.fractalPulse = pulseConfigResolved;
     return group;
 }
 
@@ -1323,7 +1345,7 @@ function createRadialEffectHost(group, item = {}) {
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fiberStemEffect = fiberEffect.userData.stem;
     const fiberBloomEffect = fiberEffect.userData.bloom;
-    const fractalTreeEffect = createFractalBrainTreeEffect();
+    const fractalTreeEffect = createFractalBrainTreeEffect(effect.fractalPulse);
     fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
     applyNestedShellTransform(modelHost, effect.shellTransform);
     applyNestedFiberStemTransform(fiberStemEffect, effect.fiberStemTransform);
@@ -1342,6 +1364,7 @@ function createRadialEffectHost(group, item = {}) {
     group.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
     group.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    group.userData.radialEffectFractalPulse = effect.fractalPulse;
     group.userData.radialEffectVisibility = effect.visibility;
     group.userData.radialEffectState = {
         activation: 0,
@@ -1364,6 +1387,7 @@ function syncRadialEffectConfig(glyph, item = {}) {
     glyph.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
     glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    glyph.userData.radialEffectFractalPulse = effect.fractalPulse;
     glyph.userData.radialEffectVisibility = effect.visibility;
 }
 
@@ -1585,7 +1609,12 @@ function updateRadialEffect(glyph, item, {
         state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (
             treeTarget >= state.fractalTreeProgress ? 0.14 : 0.1
         );
-        updateFractalBrainTreeEffect(fractalTree, state.fractalTreeProgress * display, dt);
+        updateFractalBrainTreeEffect(
+            fractalTree,
+            state.fractalTreeProgress * display,
+            dt,
+            glyph.userData.radialEffectFractalPulse || config.fractalPulse
+        );
         fractalTree.visible = visibility.fractalTree !== false && fractalTree.visible;
         applyNestedFractalTreeTransform(
             fractalTree,
