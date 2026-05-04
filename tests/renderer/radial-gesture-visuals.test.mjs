@@ -123,8 +123,8 @@ test('resolveNestedFractalTreeTransform fits the fractal roots inside the brain 
 })
 
 test('resolveNestedFractalPulse preserves node-travel spark controls with bounded fallbacks', () => {
-  assert.deepEqual(resolveNestedFractalPulse({}).tailSteps, [0, 0.15, 0.3])
-  assert.equal(resolveNestedFractalPulse({}).dotSizePx, 2.4)
+  assert.deepEqual(resolveNestedFractalPulse({}).tailSteps, [0, 0.07, 0.14, 0.21, 0.28, 0.35])
+  assert.equal(resolveNestedFractalPulse({}).dotSizePx, 5)
   assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).intensity, 3)
   assert.equal(resolveNestedFractalPulse({ fractalPulse: { intensity: 4, dotSizePx: 0 } }).dotSizePx, 0.5)
   assert.deepEqual(
