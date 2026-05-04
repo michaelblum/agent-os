@@ -64,11 +64,9 @@
   <div class="aos-workbench-shell">
     <header class="aos-workbench-titlebar" data-draggable="true">
       <span class="aos-workbench-grip" aria-hidden="true"></span>
-      <strong class="aos-workbench-title">3D Radial Item Workbench</strong>
+      <strong class="aos-workbench-title">AOS Workbench Shell Smoke</strong>
       <div class="aos-workbench-actions" aria-label="Window controls">
-        <button type="button">-</button>
-        <button type="button">+</button>
-        <button type="button">x</button>
+        <button type="button" id="close-smoke" aria-label="Close smoke surface">x</button>
       </div>
     </header>
     <div class="aos-workbench-toolbar" role="toolbar" aria-label="Workbench tools">
@@ -141,11 +139,7 @@
       </section>
     </main>
   </div>
-  <script type="module">
-    import { enhanceNumberFields } from '../../controls/number-field.js'
-
-    enhanceNumberFields(document)
-
+  <script>
     const zoom = document.querySelector('#zoom')
     const output = document.querySelector('#zoom-output')
     const readout = document.querySelector('#readout')
@@ -153,6 +147,10 @@
       output.textContent = `${zoom.value}%`
       readout.textContent = `${zoom.value}%`
       document.querySelector('.demo-object').style.scale = String(Number(zoom.value) / 100)
+    })
+
+    document.querySelector('#close-smoke').addEventListener('click', () => {
+      window.webkit?.messageHandlers?.headsup?.postMessage({ type: 'canvas.remove' })
     })
   </script>
 </body>

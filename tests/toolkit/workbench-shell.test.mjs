@@ -35,3 +35,12 @@ test('Sigil radial item workbench keeps editor controls out of titlebar chrome',
   assert.match(toolbar, /id="axes-toggle"/);
   assert.match(toolbar, /id="lock-in"/);
 });
+
+test('workbench shell smoke does not masquerade as the Sigil editor', async () => {
+  const html = await repoText('packages/toolkit/workbench/_smoke/index.html');
+
+  assert.match(html, /AOS Workbench Shell Smoke/);
+  assert.doesNotMatch(html, /<strong class="aos-workbench-title">3D Radial Item Workbench<\/strong>/);
+  assert.match(html, /id="close-smoke"/);
+  assert.match(html, /type: 'canvas\.remove'/);
+});
