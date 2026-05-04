@@ -470,12 +470,13 @@ receive the daemon's fan-out.
 
 ### Addressable Canvas Object Control
 
-`canvas_object.registry`, `canvas_object.transform.patch`, and
-`canvas_object.transform.result` define the addressable object control contract
-for reusable transform editors. This is a control contract, not a replacement
-for `canvas_object.marks`: marks are visual/debug telemetry, while registry and
-transform messages describe objects that a canvas owner explicitly exposes for
-remote control.
+`canvas_object.registry`, `canvas_object.transform.patch`,
+`canvas_object.transform.result`, `canvas_object.effects.patch`, and
+`canvas_object.effects.result` define the addressable object control contract
+for reusable transform/effect editors. This is a control contract, not a
+replacement for `canvas_object.marks`: marks are visual/debug telemetry, while
+registry, transform, and effect messages describe objects that a canvas owner
+explicitly exposes for remote control.
 
 The schema source of truth is
 [`shared/schemas/canvas-object-control.schema.json`](../../shared/schemas/canvas-object-control.schema.json)
@@ -492,14 +493,15 @@ Addresses use `canvas_id + object_id`:
 ```
 
 Sigil's wiki-brain adopter currently exposes a group object for the whole menu
-item composition plus the outer shell, fiber-optic stem, fiber-optic bloom, and
-fractal tree layers as separate objects. Transform controllers can tune the
-whole composition relative to the radial menu item orbit path or tune each layer
-independently.
+item composition plus the outer shell, a nested fiber-optics group, the
+fiber-optic stem, fiber-optic bloom, and fractal tree layers as separate
+objects. Transform controllers can tune the whole composition relative to the
+radial menu item orbit path or tune each layer independently.
 
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
-parent links, optional natural-language descriptors, and capabilities:
+parent links, optional natural-language descriptors, optional JSON-declared
+effect controls, and capabilities:
 
 ```json
 {
@@ -538,7 +540,7 @@ parent links, optional natural-language descriptors, and capabilities:
       "parent_object_id": "radial.wiki-brain.group",
       "name": "Fractal Tree",
       "kind": "three.object3d",
-      "capabilities": ["transform.read", "transform.patch"],
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch", "effects.read", "effects.patch"],
       "transform": {
         "position": { "x": 0.008, "y": -0.018, "z": 0.012 },
         "scale": { "x": 1.26, "y": 1.34, "z": 1.16 },
@@ -553,9 +555,43 @@ parent links, optional natural-language descriptors, and capabilities:
       "descriptors": {
         "geometry": "Recursive neural tree nested inside the glass brain shell.",
         "animation_effects": "Tree growth, glow, and branch-travel particles react to reveal pressure."
+      },
+      "controls": {
+        "animation_effects": [
+          {
+            "id": "fractalPulse.intensity",
+            "label": "Tree pulse",
+            "type": "range",
+            "value": 1,
+            "min": 0,
+            "max": 3,
+            "step": 0.05,
+            "tooltip": "Scale branch-travel particle pulse intensity"
+          }
+        ]
       }
     }
   ]
+}
+```
+
+Effect patches are commands for JSON-declared controls. Controllers send changed
+control values by id and correlate the owner response by `request_id`:
+
+```json
+{
+  "type": "canvas_object.effects.patch",
+  "schema_version": "2026-05-03",
+  "request_id": "req-effects-42",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.fractal-tree"
+  },
+  "patch": {
+    "controls": {
+      "fractalPulse.intensity": 1.35
+    }
+  }
 }
 ```
 
@@ -582,7 +618,7 @@ V0 routing uses existing AOS canvas plumbing:
 - owners emit registry snapshots through toolkit `emit()` and daemon fan-out to
   canvases subscribed to `canvas_object.registry`
 - transform editors subscribe through toolkit `subscribe()`
-- transform patches are delivered to the owning `canvas_id` with existing
+- transform/effects patches are delivered to the owning `canvas_id` with existing
   canvas message delivery
 - owner results are direct replies or subscribed result messages, depending on
   the controller surface
@@ -595,10 +631,11 @@ mutating requests. Do not introduce a general AOS bus for this contract.
 
 `object-transform-panel` is the reusable controller for the addressable canvas
 object control contract. It subscribes to `canvas_object.registry` and
-`canvas_object.transform.result`, renders advertised objects by
-`canvas_id + object_id`, and emits transform and visibility edits through
-existing `canvas.send` routing to the owning canvas. The panel does not inspect
-another canvas or assume the object is backed by Three.js.
+`canvas_object.transform.result`/`canvas_object.effects.result`, renders
+advertised objects by `canvas_id + object_id`, and emits transform, visibility,
+and JSON-declared effect edits through existing `canvas.send` routing to the
+owning canvas. The panel does not inspect another canvas or assume the object is
+backed by Three.js.
 
 The object list is intentionally layer-like: rows represent the addressable
 objects that collectively make up a larger visual composition. A group object
@@ -606,7 +643,9 @@ uses `metadata.role = "group"` and child objects use `parent_object_id` to form
 a nested list. The checkbox is the object's advertised visibility; group rows
 can show a mixed visual state when child visibility is split. The editor pane
 also exposes optional local natural-language descriptors for geometry and
-animation/effects. Single-object transform editing is the current behavior.
+animation/effects. The animation/effects area has three views: natural-language
+description, editable JSON control definitions, and a rendered mini-form driven
+by that JSON. Single-object transform editing is the current behavior.
 Multi-select, grouped edits over arbitrary subsets, and dockable/collapsible
 object-list panes belong to the follow-on split-pane and docking work rather
 than the control contract itself.

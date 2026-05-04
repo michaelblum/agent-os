@@ -1,5 +1,6 @@
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../renderer/radial-menu-defaults.js';
 import {
+    applyRadialMenuObjectEffectsPatch,
     applyRadialMenuObjectTransformPatch,
     buildRadialMenuObjectRegistry,
     DEFAULT_NESTED_TREE_EFFECT,
@@ -173,12 +174,13 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
         capabilities: [
             'canvas_object.registry',
             'canvas_object.transform.patch',
+            'canvas_object.effects.patch',
             'canvas_object.visibility.patch',
             'sigil.radial_item_editor.lock_in',
             'sigil.radial_item.preview',
         ],
         views: ['3d.preview', 'object.registry', 'production.radial.preview'],
-        controls: ['object.transform', 'object.visibility', 'scene.orbit', 'lock_in'],
+        controls: ['object.transform', 'object.visibility', 'object.effects', 'scene.orbit', 'lock_in'],
         persistence: {
             kind: 'agent_handoff',
             request: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
@@ -199,6 +201,12 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
 
 export function applyEditorObjectPatch(state = {}, message = {}) {
     return applyRadialMenuObjectTransformPatch(selectedRadialConfig(state), message, {
+        canvasId: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+    });
+}
+
+export function applyEditorEffectsPatch(state = {}, message = {}) {
+    return applyRadialMenuObjectEffectsPatch(selectedRadialConfig(state), message, {
         canvasId: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
     });
 }

@@ -31,11 +31,14 @@ test('Sigil radial item workbench keeps editor controls out of titlebar chrome',
 
   assert.match(titlebar, /aos-workbench-title/);
   assert.match(titlebar, /Sigil \/ Radial Menu \/ Item Editor/);
+  assert.match(titlebar, /id="minimize-workbench"/);
+  assert.match(titlebar, /id="close-workbench"/);
   assert.doesNotMatch(titlebar, /id="item-select"|id="axes-toggle"|id="lock-in"/);
 
   assert.match(toolbar, /id="item-select"/);
   assert.match(toolbar, /id="axes-toggle"/);
   assert.match(toolbar, /id="lock-in"/);
+  assert.doesNotMatch(toolbar, /id="pulse-control"/);
 });
 
 test('Sigil radial item workbench is focused on object transforms only', async () => {

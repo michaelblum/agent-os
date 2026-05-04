@@ -2,10 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyRegistryMessage,
+  applyEffectsResultMessage,
   applyTransformResultMessage,
+  buildEffectsPatchMessage,
   buildTripletPatchMessage,
   buildVisibilityPatchMessage,
   createObjectTransformState,
+  effectsJsonForEntry,
   objectAddressKey,
   patchDeliveryForTarget,
   selectObject,
@@ -13,6 +16,7 @@ import {
   sortedObjectEntries,
   treeObjectEntries,
   updateEntryDescriptorDraft,
+  updateEntryEffectsJsonDraft,
 } from '../../packages/toolkit/components/object-transform-panel/model.js';
 
 function registry(canvasId = 'avatar-main') {
@@ -25,8 +29,23 @@ function registry(canvasId = 'avatar-main') {
         object_id: 'radial.wiki-brain.tree',
         name: 'Tree',
         kind: 'three.object3d',
-        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch', 'effects.read', 'effects.patch'],
         visible: true,
+        controls: {
+          animation_effects: [
+            {
+              id: 'fractalPulse.intensity',
+              label: 'Tree pulse',
+              type: 'range',
+              value: 1,
+              min: 0,
+              max: 3,
+              step: 0.05,
+              tooltip: 'Scale branch-travel particles',
+            },
+          ],
+          notes: { owner: 'test' },
+        },
         transform: {
           position: { x: 0.018, y: -0.035, z: 0.018 },
           scale: { x: 1.32, y: 1.42, z: 1.2 },
@@ -283,6 +302,75 @@ test('visibility edits build a visibility patch and update local state from owne
 
   assert.equal(result.ok, true);
   assert.equal(selectedObject(state).visible, false);
+});
+
+test('effect control edits build effects patch messages and preserve editable json data', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+
+  const entry = selectedObject(state);
+  const patch = buildEffectsPatchMessage(entry, 'fractalPulse.intensity', '1.75', { requestId: 'req-effects' });
+
+  assert.deepEqual(patch, {
+    type: 'canvas_object.effects.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    patch: {
+      controls: {
+        'fractalPulse.intensity': 1.75,
+      },
+    },
+  });
+
+  const updated = updateEntryEffectsJsonDraft(entry, JSON.stringify({
+    animation_effects: [
+      {
+        id: 'fractalPulse.intensity',
+        label: 'Tree pulse',
+        type: 'range',
+        value: 2.1,
+        min: 0,
+        max: 3,
+        step: 0.05,
+      },
+    ],
+    notes: { owner: 'user-editable-json' },
+  }));
+
+  assert.equal(updated.ok, true);
+  assert.equal(updated.entry.controls.animation_effects[0].value, 2.1);
+  assert.deepEqual(updated.entry.controls.notes, { owner: 'user-editable-json' });
+  assert.match(effectsJsonForEntry(updated.entry), /user-editable-json/);
+});
+
+test('owner effects results update local control values and clear pending requests', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  state.pendingByRequest.set('req-effects', { key: state.selectedKey });
+
+  const result = applyEffectsResultMessage(state, {
+    type: 'canvas_object.effects.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'applied',
+    controls: {
+      'fractalPulse.intensity': 1.9,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(state.pendingByRequest.has('req-effects'), false);
+  assert.equal(selectedObject(state).controls.animation_effects[0].value, 1.9);
 });
 
 test('non-patchable advertised objects reject transform patch construction', () => {

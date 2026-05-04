@@ -95,6 +95,75 @@ function normalizeDescriptors(value = {}) {
   };
 }
 
+function normalizeControlValue(value, fallback = null) {
+  if (typeof fallback === 'boolean') return value === undefined ? fallback : !!value;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric;
+  return fallback ?? String(value ?? '');
+}
+
+function normalizeEffectControl(control = {}) {
+  const id = text(control.id);
+  if (!id) return null;
+  const type = text(control.type, 'range');
+  const fallbackValue = type === 'checkbox' ? false : 0;
+  return {
+    id,
+    label: text(control.label, id),
+    type,
+    value: normalizeControlValue(control.value, fallbackValue),
+    min: finiteNumber(control.min, 0),
+    max: finiteNumber(control.max, 3),
+    step: finiteNumber(control.step, type === 'range' ? 0.05 : 1),
+    unit: text(control.unit),
+    tooltip: text(control.tooltip),
+  };
+}
+
+function normalizeEffectControls(value = {}) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? { ...value } : {};
+  const animationEffects = Array.isArray(value.animation_effects)
+    ? value.animation_effects
+    : Array.isArray(value.animationEffects)
+      ? value.animationEffects
+      : [];
+  return {
+    ...source,
+    animation_effects: animationEffects
+      .map((control) => normalizeEffectControl(control))
+      .filter(Boolean),
+  };
+}
+
+export function effectsJsonForEntry(entry) {
+  return JSON.stringify(entry?.controls || normalizeEffectControls({}), null, 2);
+}
+
+export function updateEntryEffectsJsonDraft(entry, jsonText = '') {
+  if (!entry) return { entry: null, ok: false, error: 'missing entry' };
+  try {
+    const parsed = JSON.parse(String(jsonText || '{}'));
+    return {
+      entry: {
+        ...entry,
+        controls: normalizeEffectControls(parsed),
+        controls_json_error: '',
+      },
+      ok: true,
+      error: '',
+    };
+  } catch (error) {
+    return {
+      entry: {
+        ...entry,
+        controls_json_error: error?.message || String(error),
+      },
+      ok: false,
+      error: error?.message || String(error),
+    };
+  }
+}
+
 function unwrapMessage(message = {}) {
   if (message?.payload && typeof message.payload === 'object') {
     return { ...message.payload, type: message.payload.type || message.type };
@@ -118,6 +187,7 @@ export function createObjectTransformState() {
     lastResult: null,
     errors: [],
     pendingByRequest: new Map(),
+    descriptorModesByKey: new Map(),
   };
 }
 
@@ -151,6 +221,7 @@ export function normalizeRegistryMessage(message = {}) {
       units: normalizeUnits(object.units),
       visible: object.visible === undefined ? null : !!object.visible,
       descriptors: normalizeDescriptors(object.descriptors ?? metadata.descriptors),
+      controls: normalizeEffectControls(object.controls ?? metadata.controls),
       metadata,
       order: objects.length,
     });
@@ -331,6 +402,34 @@ export function normalizeTransformResultMessage(message = {}) {
   };
 }
 
+export function normalizeEffectsResultMessage(message = {}) {
+  const payload = unwrapMessage(message);
+  if (payload.type && payload.type !== 'canvas_object.effects.result') {
+    return { ok: false, error: `unexpected message type ${payload.type}` };
+  }
+  const requestId = text(payload.request_id);
+  const canvasId = text(payload.target?.canvas_id);
+  const objectId = text(payload.target?.object_id);
+  const status = text(payload.status);
+  if (!requestId) return { ok: false, error: 'result missing request_id' };
+  if (!canvasId || !objectId) return { ok: false, error: 'result missing target address' };
+  if (!['applied', 'rejected', 'stale'].includes(status)) return { ok: false, error: `invalid result status ${status}` };
+  return {
+    ok: true,
+    result: {
+      type: 'canvas_object.effects.result',
+      schema_version: text(payload.schema_version, SCHEMA_VERSION),
+      request_id: requestId,
+      target: { canvas_id: canvasId, object_id: objectId },
+      key: objectAddressKey(canvasId, objectId),
+      status,
+      reason: text(payload.reason),
+      message: text(payload.message),
+      controls: payload.controls && typeof payload.controls === 'object' ? { ...payload.controls } : {},
+    },
+  };
+}
+
 export function applyTransformResultMessage(state, message = {}) {
   const normalized = normalizeTransformResultMessage(message);
   if (!normalized.ok) {
@@ -359,12 +458,53 @@ export function applyTransformResultMessage(state, message = {}) {
   return normalized;
 }
 
+export function applyEffectsResultMessage(state, message = {}) {
+  const normalized = normalizeEffectsResultMessage(message);
+  if (!normalized.ok) {
+    state.errors.push(normalized.error);
+    while (state.errors.length > 12) state.errors.shift();
+    return normalized;
+  }
+
+  const { result } = normalized;
+  state.lastResult = result;
+  state.pendingByRequest.delete(result.request_id);
+  if (result.status === 'applied' && state.objectsByKey.has(result.key)) {
+    let entry = state.objectsByKey.get(result.key);
+    for (const [controlId, value] of Object.entries(result.controls || {})) {
+      entry = updateEntryEffectControlDraft(entry, controlId, value);
+    }
+    state.objectsByKey.set(result.key, entry);
+  }
+  return normalized;
+}
+
 export function canPatchObject(entry) {
   return !!entry?.capabilities?.includes?.('transform.patch');
 }
 
 export function canPatchVisibility(entry) {
   return !!entry?.capabilities?.includes?.('visibility.patch');
+}
+
+export function effectControlsForEntry(entry, field = 'animation_effects') {
+  return Array.isArray(entry?.controls?.[field]) ? entry.controls[field] : [];
+}
+
+export function hasEffectControls(entry, field = 'animation_effects') {
+  return effectControlsForEntry(entry, field).length > 0;
+}
+
+export function descriptorMode(state, entry, field) {
+  if (!entry || !field) return 'description';
+  return state?.descriptorModesByKey?.get?.(`${entry.key}:${field}`) || 'description';
+}
+
+export function setDescriptorMode(state, entry, field, mode) {
+  if (!state?.descriptorModesByKey || !entry || !field) return 'description';
+  const next = ['description', 'json', 'controls'].includes(mode) ? mode : 'description';
+  state.descriptorModesByKey.set(`${entry.key}:${field}`, next);
+  return next;
 }
 
 export function buildTripletPatchMessage(entry, group, values, options = {}) {
@@ -388,6 +528,28 @@ export function buildTripletPatchMessage(entry, group, values, options = {}) {
     },
     patch: {
       [group]: triplet,
+    },
+  };
+}
+
+export function buildEffectsPatchMessage(entry, controlId, value, options = {}) {
+  if (!entry) throw new Error('target entry is required');
+  const control = effectControlsForEntry(entry)
+    .find((candidate) => candidate.id === controlId);
+  if (!control) throw new Error(`object ${entry.object_id} does not advertise effect control ${controlId}`);
+  const requestId = text(options.requestId, `object-effects-${Date.now().toString(36)}`);
+  return {
+    type: 'canvas_object.effects.patch',
+    schema_version: SCHEMA_VERSION,
+    request_id: requestId,
+    target: {
+      canvas_id: entry.canvas_id,
+      object_id: entry.object_id,
+    },
+    patch: {
+      controls: {
+        [controlId]: normalizeControlValue(value, control.value),
+      },
     },
   };
 }
@@ -418,6 +580,22 @@ export function patchDeliveryForTarget(entry, patchMessage) {
     payload: {
       target: entry.canvas_id,
       message: patchMessage,
+    },
+  };
+}
+
+export function updateEntryEffectControlDraft(entry, controlId, value) {
+  if (!entry) return null;
+  const controls = normalizeEffectControls(entry.controls || {});
+  return {
+    ...entry,
+    controls: {
+      ...controls,
+      animation_effects: controls.animation_effects.map((control) => (
+        control.id === controlId
+          ? { ...control, value: normalizeControlValue(value, control.value) }
+          : control
+      )),
     },
   };
 }

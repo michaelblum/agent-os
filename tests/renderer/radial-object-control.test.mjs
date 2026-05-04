@@ -7,10 +7,12 @@ import {
   CONTEXT_MENU_MODEL_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_OBJECT_ID,
+  WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
   WIKI_BRAIN_GROUP_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
+  applyRadialMenuObjectEffectsPatch,
   applyRadialMenuObjectTransformPatch,
   applyWikiBrainTransformPatch,
   buildRadialMenuObjectRegistry,
@@ -34,6 +36,7 @@ test('wiki brain object registry advertises shell, split fiber, and fractal tree
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
     WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
+    WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
     WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -49,10 +52,20 @@ test('wiki brain object registry advertises shell, split fiber, and fractal tree
   assert.equal(group.metadata.role, 'group')
   assert.match(group.descriptors.geometry, /composition/)
 
+  const fiberGroup = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID)
+  assert.equal(fiberGroup.name, 'Fiber Optics')
+  assert.equal(fiberGroup.metadata.role, 'group')
+  assert.equal(fiberGroup.parent_object_id, WIKI_BRAIN_GROUP_OBJECT_ID)
+  assert.equal(fiberGroup.controls.animation_effects.length, 2)
+  assert.deepEqual(fiberGroup.controls.animation_effects.map((control) => control.id), [
+    'fiberPulse.intensity',
+    'fiberPulse.sparkDensity',
+  ])
+
   const stem = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_STEM_OBJECT_ID)
   assert.equal(stem.name, 'Fiber Stem')
-  assert.equal(stem.parent_object_id, WIKI_BRAIN_GROUP_OBJECT_ID)
-  assert.equal(stem.metadata.parent_object_id, WIKI_BRAIN_GROUP_OBJECT_ID)
+  assert.equal(stem.parent_object_id, WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID)
+  assert.equal(stem.metadata.parent_object_id, WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID)
   assert.equal(stem.kind, 'three.object3d')
   assert.deepEqual(stem.capabilities, ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'])
   assert.deepEqual(stem.units, {
@@ -75,6 +88,9 @@ test('wiki brain object registry advertises shell, split fiber, and fractal tree
   const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
   assert.equal(fractalTree.name, 'Fractal Tree')
   assert.match(fractalTree.descriptors.animation_effects, /particles/)
+  assert.deepEqual(fractalTree.controls.animation_effects.map((control) => control.id), [
+    'fractalPulse.intensity',
+  ])
   assert.deepEqual(fractalTree.transform.position, { x: 0.02, y: -0.054, z: -0.006 })
   assert.deepEqual(fractalTree.transform.scale, { x: 1.85, y: 2.65, z: 2.61 })
   assert.deepEqual(fractalTree.transform.rotation_degrees, { x: -8, y: 86, z: 8 })
@@ -89,6 +105,7 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
     AGENT_TERMINAL_SCREEN_OBJECT_ID,
     WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
+    WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
     WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -242,6 +259,61 @@ test('wiki brain visibility patch updates advertised object visibility', () => {
   const fractalTree = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
     .objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
   assert.equal(fractalTree.visible, false)
+})
+
+test('wiki brain effects patch updates json-declared fiber and fractal controls', () => {
+  const config = radialConfig()
+  const fiberResult = applyRadialMenuObjectEffectsPatch(config, {
+    type: 'canvas_object.effects.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-fiber-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
+    },
+    patch: {
+      controls: {
+        'fiberPulse.intensity': 1.7,
+        'fiberPulse.sparkDensity': 0.4,
+      },
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(fiberResult.status, 'applied')
+  assert.deepEqual(fiberResult.controls, {
+    'fiberPulse.intensity': 1.7,
+    'fiberPulse.sparkDensity': 0.4,
+  })
+
+  const fractalResult = applyRadialMenuObjectEffectsPatch(config, {
+    type: 'canvas_object.effects.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-fractal-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+    },
+    patch: {
+      controls: {
+        'fractalPulse.intensity': 2.2,
+      },
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(fractalResult.status, 'applied')
+  assert.deepEqual(fractalResult.controls, { 'fractalPulse.intensity': 2.2 })
+
+  const registry = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+  const fiberGroup = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID)
+  const fractalTree = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID)
+  assert.deepEqual(
+    Object.fromEntries(fiberGroup.controls.animation_effects.map((control) => [control.id, control.value])),
+    {
+      'fiberPulse.intensity': 1.7,
+      'fiberPulse.sparkDensity': 0.4,
+    },
+  )
+  assert.equal(fractalTree.controls.animation_effects[0].value, 2.2)
 })
 
 test('wiki brain shell transform defaults to identity around the model host', () => {

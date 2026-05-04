@@ -12,28 +12,27 @@
     <header class="aos-workbench-titlebar" data-draggable="true" id="drag-handle">
       <span class="aos-workbench-grip" aria-hidden="true"></span>
       <strong class="aos-workbench-title" id="workbench-title">Sigil / Radial Menu / Item Editor</strong>
+      <div class="aos-window-controls" aria-label="Window controls">
+        <button type="button" class="aos-window-button aos-window-minimize" id="minimize-workbench" aria-label="Minimize workbench" title="Minimize">-</button>
+        <button type="button" class="aos-window-button aos-window-close" id="close-workbench" aria-label="Close workbench" title="Close">x</button>
+      </div>
     </header>
     <div class="aos-workbench-toolbar" role="toolbar" aria-label="Radial item tools">
       <div class="aos-workbench-toolbar-section">
-        <label>
+        <label title="Select radial menu item">
           <span>Item</span>
           <select id="item-select"></select>
         </label>
-        <label>
+        <label title="Enable production hover spin in the radial menu">
           <input type="checkbox" id="spin-toggle">
           <span>Model spin</span>
         </label>
-        <label>
+        <label title="Show preview axes">
           <input type="checkbox" id="axes-toggle" checked>
           <span>Axes</span>
         </label>
-        <label class="workbench-range" id="pulse-control">
-          <span>Pulse</span>
-          <input type="range" id="pulse-intensity" min="0" max="3" step="0.05">
-          <output id="pulse-intensity-readout">1.00</output>
-        </label>
-        <button type="button" id="lock-in">Lock in</button>
-        <button type="button" id="reset-orbit">Reset view</button>
+        <button type="button" id="lock-in" title="Export the current item definition">Lock in</button>
+        <button type="button" id="reset-orbit" title="Reset preview orbit and zoom">Reset view</button>
       </div>
     </div>
     <main class="aos-workbench-main">

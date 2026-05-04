@@ -10,6 +10,7 @@ export const WIKI_BRAIN_GROUP_OBJECT_ID = 'radial.wiki-brain.group';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
+export const WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID = 'radial.wiki-brain.fiber-optics';
 export const WIKI_BRAIN_FIBER_STEM_OBJECT_ID = 'radial.wiki-brain.fiber-stem';
 export const WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID = 'radial.wiki-brain.fiber-bloom';
 export const WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID = 'radial.wiki-brain.fractal-tree';
@@ -24,6 +25,11 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
     shellTransform: {
+        position: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 },
+        rotationDegrees: { x: 0, y: 0, z: 0 },
+    },
+    fiberOpticsTransform: {
         position: { x: 0, y: 0, z: 0 },
         scale: { x: 1, y: 1, z: 1 },
         rotationDegrees: { x: 0, y: 0, z: 0 },
@@ -48,6 +54,10 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
         active: 0.26,
         held: 0.75,
     },
+    fiberPulse: {
+        intensity: 1,
+        sparkDensity: 1,
+    },
     fractalPulse: {
         intensity: 1,
         dotSizePx: 5,
@@ -65,6 +75,7 @@ export const DEFAULT_NESTED_TREE_EFFECT = {
     },
     visibility: {
         shell: true,
+        fiberOptics: true,
         fiberStem: true,
         fiberBloom: true,
         fractalTree: true,
@@ -131,6 +142,16 @@ export function resolveNestedShellTransform(effect = {}) {
     };
 }
 
+export function resolveNestedFiberOpticsTransform(effect = {}) {
+    const transform = effect.fiberOpticsTransform || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fiberOpticsTransform;
+    return {
+        position: vectorValue(transform.position, defaults.position),
+        scale: vectorValue(transform.scale, defaults.scale),
+        rotationDegrees: vectorAngles(transform.rotationDegrees ?? transform.rotation, defaults.rotationDegrees),
+    };
+}
+
 export function resolveNestedFiberStemTransform(effect = {}) {
     const transform = effect.fiberStemTransform || effect.treeTransform || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.fiberStemTransform;
@@ -178,6 +199,15 @@ function finiteList(value, fallback = []) {
     return next.length > 0 ? next : [...fallback];
 }
 
+export function resolveNestedFiberPulse(effect = {}) {
+    const pulse = effect.fiberPulse || {};
+    const defaults = DEFAULT_NESTED_TREE_EFFECT.fiberPulse;
+    return {
+        intensity: finiteRange(pulse.intensity, defaults.intensity, 0, 3),
+        sparkDensity: finiteRange(pulse.sparkDensity, defaults.sparkDensity, 0, 3),
+    };
+}
+
 export function resolveNestedFractalPulse(effect = {}) {
     const pulse = effect.fractalPulse || {};
     const defaults = DEFAULT_NESTED_TREE_EFFECT.fractalPulse;
@@ -203,6 +233,9 @@ export function resolveNestedVisibility(effect = {}) {
     const defaults = DEFAULT_NESTED_TREE_EFFECT.visibility;
     return {
         shell: visibility.shell === undefined ? defaults.shell : !!visibility.shell,
+        fiberOptics: visibility.fiberOptics === undefined
+            ? (visibility.tree === undefined ? defaults.fiberOptics : !!visibility.tree)
+            : !!visibility.fiberOptics,
         fiberStem: visibility.fiberStem === undefined
             ? (visibility.tree === undefined ? defaults.fiberStem : !!visibility.tree)
             : !!visibility.fiberStem,
@@ -372,23 +405,42 @@ export function resolveWikiBrainEffect(item = {}) {
         fractalPulse: resolveNestedFractalPulse(effect),
         visibility: resolveNestedVisibility(effect),
         shellTransform: resolveNestedShellTransform(effect),
+        fiberOpticsTransform: resolveNestedFiberOpticsTransform(effect),
         fiberStemTransform: resolveNestedFiberStemTransform(effect),
         fiberBloomTransform: resolveNestedFiberBloomTransform(effect),
         fractalTreeTransform: resolveNestedFractalTreeTransform(effect),
+        fiberPulse: resolveNestedFiberPulse(effect),
     };
 }
 
-function registryObject({ objectId, name, transform, visible = true, parentObjectId = '', descriptors = {}, metadata = {} }) {
+function registryObject({
+    objectId,
+    name,
+    transform,
+    visible = true,
+    parentObjectId = '',
+    descriptors = {},
+    controls = {},
+    metadata = {},
+}) {
+    const hasControls = Object.keys(controls || {}).length > 0;
     return {
         object_id: objectId,
         ...(parentObjectId ? { parent_object_id: parentObjectId } : {}),
         name,
         kind: 'three.object3d',
-        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        capabilities: [
+            'transform.read',
+            'transform.patch',
+            'visibility.read',
+            'visibility.patch',
+            ...(hasControls ? ['effects.read', 'effects.patch'] : []),
+        ],
         transform: contractTransformFromEffect(transform),
         units: CONTRACT_UNITS,
         visible: !!visible,
         descriptors,
+        ...(hasControls ? { controls } : {}),
         metadata,
     };
 }
@@ -404,6 +456,45 @@ function wikiBrainObjectTargets() {
             descriptors: {
                 geometry: 'Outer glass brain volume that frames the nested neural layers.',
                 animation_effects: 'Opacity and reveal respond to radial-menu hover progress.',
+            },
+        },
+        [WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID]: {
+            key: 'fiberOpticsTransform',
+            visibilityKey: 'fiberOptics',
+            resolve: resolveNestedFiberOpticsTransform,
+            name: 'Fiber Optics',
+            role: 'group',
+            parentObjectId: WIKI_BRAIN_GROUP_OBJECT_ID,
+            descriptors: {
+                geometry: 'Grouped fiber-optic stem and bloom layers nested inside the brain shell.',
+                animation_effects: 'Fiber pulse scales line and spark brightness during radial-menu reveal.',
+            },
+            controls(effect) {
+                const pulse = resolveNestedFiberPulse(effect);
+                return {
+                    animation_effects: [
+                        {
+                            id: 'fiberPulse.intensity',
+                            label: 'Fiber pulse',
+                            type: 'range',
+                            value: pulse.intensity,
+                            min: 0,
+                            max: 3,
+                            step: 0.05,
+                            tooltip: 'Scale fiber line and spark brightness',
+                        },
+                        {
+                            id: 'fiberPulse.sparkDensity',
+                            label: 'Spark density',
+                            type: 'range',
+                            value: pulse.sparkDensity,
+                            min: 0,
+                            max: 3,
+                            step: 0.05,
+                            tooltip: 'Scale fiber spark density and flicker',
+                        },
+                    ],
+                };
             },
         },
         [WIKI_BRAIN_FIBER_OBJECT_ID]: {
@@ -423,6 +514,7 @@ function wikiBrainObjectTargets() {
             resolve: resolveNestedFiberStemTransform,
             name: 'Fiber Stem',
             role: 'fiber-stem',
+            parentObjectId: WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
             descriptors: {
                 geometry: 'Dense fiber bundle that runs down into the brain-stem region.',
                 animation_effects: 'Stem fibers intensify as the radial item opens.',
@@ -434,6 +526,7 @@ function wikiBrainObjectTargets() {
             resolve: resolveNestedFiberBloomTransform,
             name: 'Fiber Bloom',
             role: 'fiber-bloom',
+            parentObjectId: WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
             descriptors: {
                 geometry: 'Branching fiber-optic bloom that spreads through the upper brain volume.',
                 animation_effects: 'Filaments brighten and expand with the nested neural-tree reveal.',
@@ -448,6 +541,21 @@ function wikiBrainObjectTargets() {
             descriptors: {
                 geometry: 'Recursive neural tree nested inside the glass brain shell.',
                 animation_effects: 'Tree growth, glow, and branch-travel particles react to reveal pressure.',
+            },
+            controls(effect) {
+                const pulse = resolveNestedFractalPulse(effect);
+                return {
+                    animation_effects: [{
+                        id: 'fractalPulse.intensity',
+                        label: 'Tree pulse',
+                        type: 'range',
+                        value: pulse.intensity,
+                        min: 0,
+                        max: 3,
+                        step: 0.05,
+                        tooltip: 'Scale branch-travel particle pulse intensity',
+                    }],
+                };
             },
         },
     };
@@ -479,6 +587,7 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
     });
     const objectSpecs = [
         WIKI_BRAIN_SHELL_OBJECT_ID,
+        WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
         WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
         WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
         WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -491,11 +600,12 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
             name: target.name,
             transform: target.resolve(effect),
             visible: effect.visibility[target.visibilityKey],
-            parentObjectId: WIKI_BRAIN_GROUP_OBJECT_ID,
+            parentObjectId: target.parentObjectId || WIKI_BRAIN_GROUP_OBJECT_ID,
             descriptors: target.descriptors,
+            controls: typeof target.controls === 'function' ? target.controls(effect) : {},
             metadata: {
                 role: target.role,
-                parent_object_id: WIKI_BRAIN_GROUP_OBJECT_ID,
+                parent_object_id: target.parentObjectId || WIKI_BRAIN_GROUP_OBJECT_ID,
                 ...(includeItemMetadata ? {
                     item_id: item.id,
                     item_label: item.label || item.id,
@@ -586,6 +696,20 @@ function resultFor(message, status, fields = {}) {
     };
 }
 
+function effectsResultFor(message, status, fields = {}) {
+    return {
+        type: 'canvas_object.effects.result',
+        schema_version: SIGIL_OBJECT_CONTROL_SCHEMA_VERSION,
+        request_id: text(message?.request_id, 'missing-request'),
+        target: {
+            canvas_id: text(message?.target?.canvas_id, SIGIL_OBJECT_CONTROL_CANVAS_ID),
+            object_id: text(message?.target?.object_id, 'unknown'),
+        },
+        status,
+        ...fields,
+    };
+}
+
 export function applyWikiBrainTransformPatch(radialGestureMenu = {}, message = {}, options = {}) {
     return applyRadialMenuObjectTransformPatch(radialGestureMenu, message, options);
 }
@@ -645,6 +769,106 @@ export function applyRadialMenuObjectTransformPatch(radialGestureMenu = {}, mess
         reason: 'unknown_object',
         message: `unknown object ${objectId}`,
     });
+}
+
+export function applyRadialMenuObjectEffectsPatch(radialGestureMenu = {}, message = {}, options = {}) {
+    const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
+    if (message.type && message.type !== 'canvas_object.effects.patch') {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: `unexpected message type ${message.type}`,
+        });
+    }
+    if (!message.request_id || !message.target || typeof message.target !== 'object') {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'contract_mismatch',
+            message: 'effects patch requires request_id and target',
+        });
+    }
+    if (message.target.canvas_id !== canvasId) {
+        return effectsResultFor(message, 'stale', {
+            reason: 'unknown_object',
+            message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
+        });
+    }
+    const controls = message.patch?.controls;
+    if (!controls || typeof controls !== 'object' || Array.isArray(controls)) {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'invalid_patch',
+            message: 'effects patch requires patch.controls object',
+        });
+    }
+
+    const objectId = message.target.object_id;
+    const wikiItem = findWikiBrainRadialItem(radialGestureMenu);
+    const effect = wikiBrainEffect(wikiItem);
+    if (!wikiItem || !effect) {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'unknown_object',
+            message: `unknown object ${objectId}`,
+        });
+    }
+
+    if (objectId === WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID) {
+        return applyWikiBrainFiberEffectsPatch({ message, effect, controls });
+    }
+    if (objectId === WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID) {
+        return applyWikiBrainFractalEffectsPatch({ message, effect, controls });
+    }
+    return effectsResultFor(message, 'rejected', {
+        reason: 'unknown_object',
+        message: `object ${objectId} does not advertise effect controls`,
+    });
+}
+
+function patchNumber(value, fallback, min = 0, max = 3) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+}
+
+function applyWikiBrainFiberEffectsPatch({ message, effect, controls }) {
+    const current = resolveNestedFiberPulse(effect);
+    const next = {
+        ...(effect.fiberPulse && typeof effect.fiberPulse === 'object' ? effect.fiberPulse : {}),
+    };
+    const applied = {};
+    if (controls['fiberPulse.intensity'] !== undefined) {
+        next.intensity = patchNumber(controls['fiberPulse.intensity'], current.intensity);
+        applied['fiberPulse.intensity'] = next.intensity;
+    }
+    if (controls['fiberPulse.sparkDensity'] !== undefined) {
+        next.sparkDensity = patchNumber(controls['fiberPulse.sparkDensity'], current.sparkDensity);
+        applied['fiberPulse.sparkDensity'] = next.sparkDensity;
+    }
+    if (Object.keys(applied).length === 0) {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'invalid_patch',
+            message: 'effects patch did not contain a supported fiber control',
+        });
+    }
+    effect.fiberPulse = next;
+    return effectsResultFor(message, 'applied', { controls: applied });
+}
+
+function applyWikiBrainFractalEffectsPatch({ message, effect, controls }) {
+    const current = resolveNestedFractalPulse(effect);
+    const next = {
+        ...(effect.fractalPulse && typeof effect.fractalPulse === 'object' ? effect.fractalPulse : {}),
+    };
+    const applied = {};
+    if (controls['fractalPulse.intensity'] !== undefined) {
+        next.intensity = patchNumber(controls['fractalPulse.intensity'], current.intensity);
+        applied['fractalPulse.intensity'] = next.intensity;
+    }
+    if (Object.keys(applied).length === 0) {
+        return effectsResultFor(message, 'rejected', {
+            reason: 'invalid_patch',
+            message: 'effects patch did not contain a supported fractal control',
+        });
+    }
+    effect.fractalPulse = next;
+    return effectsResultFor(message, 'applied', { controls: applied });
 }
 
 function findRadialItemPartTarget(radialGestureMenu = {}, objectId = '') {

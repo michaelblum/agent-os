@@ -1,6 +1,7 @@
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../renderer/radial-menu-defaults.js';
 import { createSigilRadialGestureVisuals } from '../renderer/live-modules/radial-gesture-visuals.js';
 import {
+    applyEditorEffectsPatch,
     applyEditorObjectPatch,
     buildEditorObjectRegistry,
     buildEditorRadialSnapshot,
@@ -8,9 +9,7 @@ import {
     editableRadialItems,
     exportSelectedRadialItemDefinition,
     selectRadialItem,
-    selectedItemFractalPulse,
     selectedRadialItem,
-    setSelectedItemFractalPulseIntensity,
     setSelectedItemHoverSpin,
 } from '../radial-item-editor/model.js';
 
@@ -34,16 +33,16 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
+const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
 const stage = document.getElementById('preview-stage');
 const workbenchTitle = document.getElementById('workbench-title');
 const dragHandle = document.getElementById('drag-handle');
+const closeWorkbenchButton = document.getElementById('close-workbench');
+const minimizeWorkbenchButton = document.getElementById('minimize-workbench');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
 const axesToggle = document.getElementById('axes-toggle');
-const pulseControl = document.getElementById('pulse-control');
-const pulseIntensity = document.getElementById('pulse-intensity');
-const pulseIntensityReadout = document.getElementById('pulse-intensity-readout');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
 const undoButton = document.getElementById('undo-change');
@@ -242,12 +241,6 @@ function syncControls() {
     }));
     const item = selectedRadialItem(editorState);
     spinToggle.checked = Number(item?.geometry?.hoverSpinSpeed) > 0;
-    const isWikiBrain = item?.geometry?.radialEffect?.kind === 'nested-neural-tree';
-    pulseControl.hidden = !isWikiBrain;
-    pulseIntensity.disabled = !isWikiBrain;
-    const pulse = selectedItemFractalPulse(editorState);
-    pulseIntensity.value = String(pulse.intensity);
-    pulseIntensityReadout.textContent = pulse.intensity.toFixed(2);
     workbenchTitle.textContent = item
         ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
         : 'Sigil / Radial Menu / Item Editor';
@@ -324,6 +317,14 @@ function applyPatch(message, { recordHistory = true } = {}) {
     return result;
 }
 
+function applyEffectsPatch(message) {
+    const result = applyEditorEffectsPatch(editorState, message);
+    panelContent.onMessage(result, panelHost);
+    post('canvas_object.effects.result', result);
+    syncPanelRegistry();
+    return result;
+}
+
 function handlePanelDelivery(delivery = {}) {
     if (delivery.type !== 'canvas.send') {
         post(delivery.type, delivery.payload);
@@ -332,6 +333,9 @@ function handlePanelDelivery(delivery = {}) {
     const message = delivery.payload?.message;
     if (message?.type === 'canvas_object.transform.patch') {
         return applyPatch(message);
+    }
+    if (message?.type === 'canvas_object.effects.patch') {
+        return applyEffectsPatch(message);
     }
     return null;
 }
@@ -379,8 +383,13 @@ function unwrapIncoming(message = {}) {
 
 function handleMessage(message = {}) {
     const payload = unwrapIncoming(message);
-    if (payload?.type !== 'canvas_object.transform.patch') return;
-    applyPatch(payload);
+    if (payload?.type === 'canvas_object.transform.patch') {
+        applyPatch(payload);
+        return;
+    }
+    if (payload?.type === 'canvas_object.effects.patch') {
+        applyEffectsPatch(payload);
+    }
 }
 
 window.headsup = window.headsup || {};
@@ -489,22 +498,67 @@ spinToggle.addEventListener('change', () => {
 });
 
 axesToggle.addEventListener('change', syncOrbit);
-pulseIntensity.addEventListener('input', () => {
-    const pulse = setSelectedItemFractalPulseIntensity(editorState, pulseIntensity.value);
-    pulseIntensityReadout.textContent = pulse?.intensity?.toFixed?.(2) || '1.00';
-});
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
 undoButton.addEventListener('click', undoChange);
 redoButton.addEventListener('click', redoChange);
+
+function chipFrame() {
+    const x = Number(window.screenX ?? window.screenLeft ?? 80);
+    const y = Number(window.screenY ?? window.screenTop ?? 80);
+    const width = Math.min(280, Math.max(180, Number(window.innerWidth || 240) * 0.42));
+    return [
+        Math.round(Number.isFinite(x) ? x : 80),
+        Math.round(Number.isFinite(y) ? y : 80),
+        Math.round(width),
+        38,
+    ];
+}
+
+function minimizeWorkbench() {
+    const target = window.__aosCanvasId || window.__aosSurfaceCanvasId || canvasId;
+    const item = selectedRadialItem(editorState);
+    const title = item
+        ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
+        : 'Sigil / Radial Menu / Item Editor';
+    const chipId = `aos-chip-${target}-${Date.now().toString(36)}`;
+    const url = `/${toolkitRoot}/panel/minimized-chip.html?target=${encodeURIComponent(target)}&title=${encodeURIComponent(title)}`;
+    spawnChild({
+        id: chipId,
+        url,
+        frame: chipFrame(),
+        interactive: true,
+        focus: false,
+        parent: target,
+        cascade: false,
+    })
+        .then(() => suspendCanvas(target))
+        .catch((error) => {
+            console.warn('[sigil/radial-item-workbench] minimize failed', error);
+        });
+}
+
+closeWorkbenchButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    removeSelf({ orphan_children: true }).catch((error) => {
+        console.warn('[sigil/radial-item-workbench] close failed', error);
+    });
+});
+
+minimizeWorkbenchButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    minimizeWorkbench();
+});
 
 syncControls();
 syncOrbit();
 syncPanelRegistry();
 post('ready', {
     name: 'sigil-radial-item-workbench',
-    accepts: ['canvas_object.transform.patch'],
-    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'sigil.radial_item_editor.lock_in'],
+    accepts: ['canvas_object.transform.patch', 'canvas_object.effects.patch'],
+    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result', 'sigil.radial_item_editor.lock_in'],
 });
 
 window.__sigilRadialItemWorkbench = {
@@ -522,6 +576,7 @@ window.__sigilRadialItemWorkbench = {
         return item;
     },
     applyPatch,
+    applyEffectsPatch,
     undoChange,
     redoChange,
     exportItemDefinition(options) {

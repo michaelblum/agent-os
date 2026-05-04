@@ -3,22 +3,30 @@ import { wireNumberFieldControls } from '../../controls/number-field.js';
 import {
   TRANSFORM_GROUPS,
   VECTOR_AXES,
+  applyEffectsResultMessage,
   applyRegistryMessage,
   applyTransformResultMessage,
+  buildEffectsPatchMessage,
   buildTripletPatchMessage,
   buildVisibilityPatchMessage,
   canPatchObject,
   canPatchVisibility,
   createObjectTransformState,
+  descriptorMode,
+  effectControlsForEntry,
+  effectsJsonForEntry,
   formatTripletValue,
   isGroupEntry,
   objectAddressLabel,
   patchDeliveryForTarget,
   selectObject,
   selectedObject,
+  setDescriptorMode,
   sortedObjectEntries,
   treeObjectEntries,
   updateEntryDescriptorDraft,
+  updateEntryEffectControlDraft,
+  updateEntryEffectsJsonDraft,
   updateEntryTransformDraft,
   updateEntryVisibilityDraft,
 } from './model.js';
@@ -89,11 +97,11 @@ function renderObjectList(rows, selectedKey) {
         ].filter(Boolean).join(' ');
         return (
           `<div class="${rowClass}" style="--object-depth: ${Math.max(0, depth)}" data-object-depth="${Math.max(0, depth)}" data-has-children="${hasChildren ? 'true' : 'false'}">`
-            + `<button type="button" class="object-transform-select" data-object-key="${esc(entry.key)}" ${objectRowAttrs(entry, selected)}>`
+            + `<button type="button" class="object-transform-select" data-object-key="${esc(entry.key)}" title="Select ${esc(entry.name)}" ${objectRowAttrs(entry, selected)}>`
               + renderObjectIcon(entry)
               + `<strong>${esc(entry.name)}</strong>`
             + `</button>`
-            + `<label class="object-transform-visibility${visible ? '' : ' off'}" title="${visible ? 'Hide' : 'Show'} ${esc(entry.name)}">`
+            + `<label class="object-transform-visibility${visible ? '' : ' off'}" title="Visible on stage">`
               + `<input type="checkbox" class="object-transform-visibility-input" data-object-visibility-key="${esc(entry.key)}" data-object-visibility-mixed="${mixed ? 'true' : 'false'}" ${visible ? 'checked' : ''}${visibilityDisabled} ${visibilityToggleAttrs(entry, { checked: visible, mixed })}>`
               + `<span aria-hidden="true"></span>`
             + `</label>`
@@ -104,20 +112,78 @@ function renderObjectList(rows, selectedKey) {
   );
 }
 
-function renderDescriptorFields(entry) {
+function effectControlValue(control) {
+  if (control.type === 'checkbox') return control.value ? 'true' : 'false';
+  const n = Number(control.value);
+  return Number.isFinite(n) ? Number.parseFloat(n.toFixed(3)).toString() : String(control.value ?? '');
+}
+
+function renderEffectControl(control) {
+  const value = effectControlValue(control);
+  const title = control.tooltip || control.label;
+  if (control.type === 'checkbox') {
+    return (
+      `<label class="object-transform-effect-control checkbox-control" title="${esc(title)}">`
+        + `<input type="checkbox" data-object-effect-control="${esc(control.id)}" ${control.value ? 'checked' : ''}>`
+        + `<span>${esc(control.label)}</span>`
+      + `</label>`
+    );
+  }
+  return (
+    `<label class="object-transform-effect-control" title="${esc(title)}">`
+      + `<span>${esc(control.label)}</span>`
+      + `<input type="${control.type === 'number' ? 'number' : 'range'}" data-object-effect-control="${esc(control.id)}" data-unit="${esc(control.unit)}" value="${esc(value)}" min="${esc(control.min)}" max="${esc(control.max)}" step="${esc(control.step)}">`
+      + `<output>${esc(value)}${control.unit ? ` ${esc(control.unit)}` : ''}</output>`
+    + `</label>`
+  );
+}
+
+function renderDescriptorModes(field, activeMode) {
+  const modes = [
+    { id: 'description', label: 'Description', title: 'Edit natural-language animation and effects description' },
+    { id: 'json', label: 'JSON', title: 'Edit JSON that drives rendered effect controls' },
+    { id: 'controls', label: 'Controls', title: 'Use rendered controls generated from JSON' },
+  ];
+  return (
+    `<div class="object-transform-descriptor-modes" role="tablist" aria-label="Animation/effects view">`
+      + modes.map((mode) => (
+        `<button type="button" class="object-transform-mode-button${mode.id === activeMode ? ' active' : ''}" `
+          + `data-object-descriptor-field="${esc(field)}" data-object-descriptor-mode="${esc(mode.id)}" `
+          + `aria-selected="${mode.id === activeMode ? 'true' : 'false'}" title="${esc(mode.title)}">`
+          + `${esc(mode.label)}`
+        + `</button>`
+      )).join('')
+    + `</div>`
+  );
+}
+
+function renderDescriptorFields(entry, state) {
   const descriptors = entry.descriptors || {};
   const geometry = descriptors.geometry || '';
   const effects = descriptors.animation_effects || '';
+  const effectsMode = descriptorMode(state, entry, 'animation_effects');
+  const controls = effectControlsForEntry(entry, 'animation_effects');
+  const controlsJson = effectsJsonForEntry(entry);
+  const jsonError = entry.controls_json_error || '';
   return (
     `<section class="object-transform-descriptors" aria-label="Object natural-language descriptors">`
       + `<label>`
         + `<span>Geometry</span>`
-        + `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="geometry" ${descriptorInputAttrs(entry, 'geometry', geometry)}>${esc(geometry)}</textarea>`
+        + `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="geometry" title="Describe this object's geometry" ${descriptorInputAttrs(entry, 'geometry', geometry)}>${esc(geometry)}</textarea>`
       + `</label>`
-      + `<label>`
-        + `<span>Animation/effects</span>`
-        + `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="animation_effects" ${descriptorInputAttrs(entry, 'animation_effects', effects)}>${esc(effects)}</textarea>`
-      + `</label>`
+      + `<div class="object-transform-descriptor-field">`
+        + `<div class="object-transform-descriptor-label"><span>Animation/effects</span>${renderDescriptorModes('animation_effects', effectsMode)}</div>`
+        + `<div class="object-transform-descriptor-box" data-descriptor-mode="${esc(effectsMode)}">`
+          + (effectsMode === 'controls'
+            ? (controls.length > 0
+              ? `<div class="object-transform-effect-controls">${controls.map((control) => renderEffectControl(control)).join('')}</div>`
+              : `<div class="object-transform-empty compact">No controls described in JSON</div>`)
+            : effectsMode === 'json'
+              ? `<textarea class="object-transform-effects-json" rows="7" spellcheck="false" data-object-effects-json="animation_effects" title="Editable JSON that drives rendered effect controls">${esc(controlsJson)}</textarea>`
+                + `<div class="object-transform-json-error${jsonError ? '' : ' hidden'}" role="alert">${esc(jsonError)}</div>`
+              : `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="animation_effects" title="Describe animations and effects for this object" ${descriptorInputAttrs(entry, 'animation_effects', effects)}>${esc(effects)}</textarea>`)
+        + `</div>`
+      + `</div>`
     + `</section>`
   );
 }
@@ -138,6 +204,7 @@ function renderTriplet(entry, groupDef) {
               + `<input class="object-transform-input" type="number" step="${esc(step)}" inputmode="decimal" value="${esc(value)}" `
                 + `data-aos-control="number-field" data-aos-step="${esc(step)}" `
                 + `data-transform-group="${esc(groupDef.key)}" data-transform-axis="${esc(axis)}" `
+                + `title="${esc(`${groupDef.label} ${axis.toUpperCase()} for ${entry.name}`)}" `
                 + `${tripletInputAttrs(entry, groupDef.key, axis, value)}>`
             + `</label>`
           );
@@ -158,23 +225,19 @@ function renderEditor(entry, state) {
 
   const patchable = canPatchObject(entry);
   const capabilityText = patchable ? 'patchable' : 'read only';
-  const visibleText = entry.visible === false ? 'hidden' : 'visible';
+  const address = `${entry.canvas_id} / ${entry.object_id}`;
   return (
     `<div class="object-transform-editor">`
       + `<header class="object-transform-target">`
         + `<div>`
           + `<strong>${esc(entry.name)}</strong>`
-          + `<span>${esc(isGroupEntry(entry) ? 'group / composition' : '3D object')}</span>`
         + `</div>`
         + `<em class="${patchable ? 'ok' : 'warn'}">${esc(capabilityText)}</em>`
       + `</header>`
       + `<dl class="object-transform-meta">`
-        + `<div><dt>Canvas</dt><dd>${esc(entry.canvas_id)}</dd></div>`
-        + `<div><dt>Object</dt><dd>${esc(entry.object_id)}</dd></div>`
-        + `<div><dt>Kind</dt><dd>${esc(entry.kind)}</dd></div>`
-        + `<div><dt>Visibility</dt><dd>${esc(visibleText)}</dd></div>`
+        + `<div><dt>Address</dt><dd title="${esc(address)}">${esc(address)}</dd></div>`
       + `</dl>`
-      + renderDescriptorFields(entry)
+      + renderDescriptorFields(entry, state)
       + `<div class="object-transform-triplets">`
         + TRANSFORM_GROUPS.map((group) => renderTriplet(entry, group)).join('')
       + `</div>`
@@ -191,7 +254,6 @@ function renderSnapshot(state) {
   return (
     `<div class="object-transform-body">`
       + `<aside class="object-transform-sidebar">`
-        + `<header><span>Objects</span><strong>${rows.length}</strong></header>`
         + renderObjectList(rows, state.selectedKey)
       + `</aside>`
       + renderEditor(selected, state)
@@ -226,9 +288,12 @@ export default function ObjectTransformPanel(options = {}) {
 
   function updateTitle() {
     if (!host) return;
-    const count = sortedObjectEntries(state).length;
     const selected = selectedObject(state);
-    host.setTitle(`${BASE_TITLE} - ${count}${selected ? ` - ${selected.name}` : ''}`);
+    if (!selected) {
+      host.setTitle(BASE_TITLE);
+      return;
+    }
+    host.setTitle(selected.object_id.split('.').filter(Boolean).join(' / '));
   }
 
   function focusedTripletTarget() {
@@ -349,6 +414,49 @@ export default function ObjectTransformPanel(options = {}) {
     }
   }
 
+  function emitEffectsPatch(controlId, value, { render = true } = {}) {
+    const entry = selectedObject(state);
+    if (!entry) return null;
+    try {
+      const patch = buildEffectsPatchMessage(entry, controlId, value, { requestId: nextRequestId() });
+      state.pendingByRequest.set(patch.request_id, {
+        key: entry.key,
+        group: 'animation_effects',
+        sent_at: Date.now(),
+      });
+      state.objectsByKey.set(entry.key, updateEntryEffectControlDraft(entry, controlId, value));
+      state.lastResult = {
+        request_id: patch.request_id,
+        target: patch.target,
+        key: entry.key,
+        status: 'pending',
+        reason: '',
+        message: 'waiting for owner',
+        controls: patch.patch.controls,
+      };
+      const delivery = patchDeliveryForTarget(entry, patch);
+      if (emitMessage) emitMessage(delivery);
+      else emit(delivery.type, delivery.payload);
+      if (render) rerender();
+      else syncDebugState();
+      return patch;
+    } catch (error) {
+      state.errors.push(error.message);
+      state.lastResult = {
+        request_id: '',
+        target: { canvas_id: entry.canvas_id, object_id: entry.object_id },
+        key: entry.key,
+        status: 'rejected',
+        reason: 'invalid_patch',
+        message: error.message,
+        controls: {},
+      };
+      if (render) rerender();
+      else syncDebugState();
+      return null;
+    }
+  }
+
   function tripletValuesFromDom(group) {
     const values = {};
     for (const axis of VECTOR_AXES) {
@@ -359,6 +467,19 @@ export default function ObjectTransformPanel(options = {}) {
   }
 
   function handleClick(event) {
+    const modeButton = event.target?.closest?.('[data-object-descriptor-mode]');
+    if (modeButton) {
+      const entry = selectedObject(state);
+      if (!entry) return;
+      setDescriptorMode(
+        state,
+        entry,
+        modeButton.dataset.objectDescriptorField || 'animation_effects',
+        modeButton.dataset.objectDescriptorMode
+      );
+      rerender();
+      return;
+    }
     const row = event.target?.closest?.('[data-object-key]');
     if (!row) return;
     selectObject(state, row.dataset.objectKey);
@@ -371,6 +492,11 @@ export default function ObjectTransformPanel(options = {}) {
       emitVisibilityPatch(visibility.dataset.objectVisibilityKey, visibility.checked);
       return;
     }
+    const effectControl = event.target?.closest?.('[data-object-effect-control]');
+    if (effectControl && effectControl.type === 'checkbox') {
+      emitEffectsPatch(effectControl.dataset.objectEffectControl, effectControl.checked);
+      return;
+    }
     const input = event.target?.closest?.('.object-transform-input');
     if (!input) return;
     const group = input.dataset.transformGroup;
@@ -379,6 +505,27 @@ export default function ObjectTransformPanel(options = {}) {
   }
 
   function handleInput(event) {
+    const effectControl = event.target?.closest?.('[data-object-effect-control]');
+    if (effectControl && effectControl.type !== 'checkbox') {
+      const output = effectControl.parentElement?.querySelector?.('output');
+      if (output) output.textContent = `${effectControl.value}${effectControl.dataset.unit ? ` ${effectControl.dataset.unit}` : ''}`;
+      emitEffectsPatch(effectControl.dataset.objectEffectControl, effectControl.value, { render: false });
+      return;
+    }
+    const effectsJson = event.target?.closest?.('[data-object-effects-json]');
+    if (effectsJson) {
+      const entry = selectedObject(state);
+      if (!entry) return;
+      const result = updateEntryEffectsJsonDraft(entry, effectsJson.value);
+      state.objectsByKey.set(entry.key, result.entry);
+      const error = effectsJson.parentElement?.querySelector?.('.object-transform-json-error');
+      if (error) {
+        error.textContent = result.error;
+        error.classList.toggle('hidden', result.ok);
+      }
+      syncDebugState();
+      return;
+    }
     const descriptor = event.target?.closest?.('.object-transform-descriptor-input');
     if (!descriptor) return;
     const entry = selectedObject(state);
@@ -400,6 +547,11 @@ export default function ObjectTransformPanel(options = {}) {
     if (msg.type === 'canvas_object.transform.result') {
       applyTransformResultMessage(state, msg);
       rerender();
+      return;
+    }
+    if (msg.type === 'canvas_object.effects.result') {
+      applyEffectsResultMessage(state, msg);
+      rerender();
     }
   }
 
@@ -407,10 +559,10 @@ export default function ObjectTransformPanel(options = {}) {
     manifest: {
       name: 'object-transform-panel',
       title: BASE_TITLE,
-      accepts: ['canvas_object.registry', 'canvas_object.transform.result'],
+      accepts: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result'],
       emits: ['canvas.send'],
       channelPrefix: 'object-transform',
-      requires: ['canvas_object.registry', 'canvas_object.transform.result'],
+      requires: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result'],
       defaultSize: { w: 620, h: 420 },
     },
 
@@ -436,6 +588,11 @@ export default function ObjectTransformPanel(options = {}) {
           rerender();
           return window.__objectTransformPanelState;
         },
+        applyEffectsResult(message) {
+          applyEffectsResultMessage(state, message);
+          rerender();
+          return window.__objectTransformPanelState;
+        },
         select(key) {
           selectObject(state, key);
           rerender();
@@ -446,6 +603,9 @@ export default function ObjectTransformPanel(options = {}) {
         },
         emitVisibility(key, visible) {
           return emitVisibilityPatch(key, visible);
+        },
+        emitEffects(controlId, value) {
+          return emitEffectsPatch(controlId, value);
         },
       };
       rerender();

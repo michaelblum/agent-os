@@ -1,9 +1,5 @@
-.aos-workbench-toolbar .workbench-range {
-  gap: 7px;
-}
-
-.aos-workbench-toolbar .workbench-range[hidden] {
-  display: none;
+.aos-workbench-titlebar .aos-window-controls {
+  margin-left: auto;
 }
 
 #preview-stage {
