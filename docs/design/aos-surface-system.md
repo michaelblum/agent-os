@@ -43,6 +43,24 @@ Toolbars should support:
 - compact and regular densities
 - the toolkit control pack without app-specific restyling
 
+### Toolkit Surface Division
+
+Workbenches need a general composition vocabulary for dividing a surface before
+they need app-specific editors. The vocabulary should describe layout behavior
+without knowing what the panes contain:
+
+- split orientation: left-right or top-bottom
+- divider mode: free drag, fixed, or absent
+- pane constraints: min/max width or height
+- pane state: open, closed, collapsed to a minimized bar, or restored
+- docking state: attached to the parent surface or broken out into its own
+  surface with a reversible break-in path
+
+The 3D radial item workbench is the first concrete target: a preview pane on the
+left, a right controls pane, and inside that controls pane an object/layer list
+beside transform triplets. The same primitive should later support Markdown
+preview/source, workflow graph/source, and report/slides workbenches.
+
 ### Toolkit Control Pack
 
 The toolkit should provide a basic, themeable control set:

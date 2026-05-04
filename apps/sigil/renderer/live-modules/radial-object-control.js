@@ -6,6 +6,7 @@ export const WIKI_BRAIN_RADIAL_ITEM_ID = 'wiki-graph';
 export const CONTEXT_MENU_MODEL_OBJECT_ID = 'radial.context-menu.model';
 export const AGENT_TERMINAL_MODEL_OBJECT_ID = 'radial.agent-terminal.model';
 export const AGENT_TERMINAL_SCREEN_OBJECT_ID = 'radial.agent-terminal.part.screen';
+export const WIKI_BRAIN_GROUP_OBJECT_ID = 'radial.wiki-brain.group';
 export const WIKI_BRAIN_SHELL_OBJECT_ID = 'radial.wiki-brain.shell';
 export const WIKI_BRAIN_TREE_OBJECT_ID = 'radial.wiki-brain.tree';
 export const WIKI_BRAIN_FIBER_OBJECT_ID = WIKI_BRAIN_TREE_OBJECT_ID;
@@ -434,6 +435,22 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
     const item = findWikiBrainRadialItem(radialGestureMenu);
     const effect = resolveWikiBrainEffect(item);
     if (!effect) return [];
+    const group = registryObject({
+        objectId: WIKI_BRAIN_GROUP_OBJECT_ID,
+        name: 'Wiki Brain Group',
+        transform: resolveRadialItemModelTransform(item),
+        visible: resolveRadialItemModelVisibility(item),
+        metadata: {
+            role: 'group',
+            ...(includeItemMetadata ? {
+                item_id: item.id,
+                item_label: item.label || item.id,
+                editor: '3d-radial-item',
+                target: 'item-composition',
+                frame: 'radial-item-orbit',
+            } : {}),
+        },
+    });
     const objectSpecs = [
         WIKI_BRAIN_SHELL_OBJECT_ID,
         WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
@@ -441,7 +458,7 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
         WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
     ];
     const targets = wikiBrainObjectTargets();
-    return objectSpecs.map((objectId) => {
+    return [group, ...objectSpecs.map((objectId) => {
         const target = targets[objectId];
         return registryObject({
             objectId,
@@ -457,7 +474,7 @@ function buildWikiBrainRegistryObjects(radialGestureMenu = {}, { includeItemMeta
                 } : {}),
             },
         });
-    });
+    })];
 }
 
 export function buildWikiBrainObjectRegistry(radialGestureMenu = {}, options = {}) {
@@ -575,6 +592,9 @@ export function applyRadialMenuObjectTransformPatch(radialGestureMenu = {}, mess
 
     const wikiItem = findWikiBrainRadialItem(radialGestureMenu);
     const wikiEffect = wikiBrainEffect(wikiItem);
+    if (wikiItem && wikiEffect && objectId === WIKI_BRAIN_GROUP_OBJECT_ID) {
+        return applyRadialItemModelObjectPatch({ message, item: wikiItem });
+    }
     const wikiTarget = wikiItem && wikiEffect ? wikiBrainObjectTargets()[objectId] || null : null;
     if (wikiTarget) {
         return applyWikiBrainObjectPatch({ message, effect: wikiEffect, target: wikiTarget });

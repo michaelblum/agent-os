@@ -147,6 +147,8 @@ export function sortedObjectEntries(state) {
   return [...(state?.objectsByKey?.values?.() || [])].sort((a, b) => {
     const canvasOrder = a.canvas_id.localeCompare(b.canvas_id);
     if (canvasOrder !== 0) return canvasOrder;
+    const groupOrder = (a.metadata?.role === 'group' ? 0 : 1) - (b.metadata?.role === 'group' ? 0 : 1);
+    if (groupOrder !== 0) return groupOrder;
     return a.name.localeCompare(b.name) || a.object_id.localeCompare(b.object_id);
   });
 }

@@ -53,9 +53,38 @@
   padding: 4px 9px;
 }
 
+.aos-icon-button {
+  width: 31px;
+  height: 31px;
+  min-width: 31px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(122, 241, 255, 0.26);
+  border-radius: 7px;
+  background: rgba(4, 14, 18, 0.78);
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+}
+
+.aos-icon-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aos-icon-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
 .aos-button:hover,
 .aos-chip-button:hover,
-.aos-select:hover {
+.aos-select:hover,
+.aos-icon-button:not(:disabled):hover {
   border-color: rgba(122, 241, 255, 0.48);
   background: rgba(16, 38, 46, 0.82);
 }
@@ -179,6 +208,7 @@
 
 .aos-button:focus-visible,
 .aos-chip-button:focus-visible,
+.aos-icon-button:focus-visible,
 .aos-select:focus-visible,
 .aos-text-input:focus-visible,
 .aos-number-field:focus-visible,

@@ -7,6 +7,7 @@ import {
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+  WIKI_BRAIN_GROUP_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
 } from '../../apps/sigil/renderer/live-modules/radial-object-control.js'
 import {
@@ -41,6 +42,7 @@ test('radial item editor defaults to the wiki brain subject and advertises its o
   assert.equal(selectedRadialItem(state).id, 'wiki-graph')
   assert.equal(registry.canvas_id, 'preview')
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
+    WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
@@ -210,7 +212,7 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.equal(subject.subject_type, 'sigil.radial_menu.item_3d')
   assert.equal(subject.owner, 'sigil.radial-item-editor')
   assert.equal(subject.state.canvas_id, 'preview')
-  assert.equal(subject.state.object_count, 4)
+  assert.equal(subject.state.object_count, 5)
   assert.ok(subject.capabilities.includes('canvas_object.registry'))
   assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
 })

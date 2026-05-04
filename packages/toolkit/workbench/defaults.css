@@ -203,6 +203,16 @@ body {
   inset: 0;
 }
 
+.aos-workbench-stage-actions {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
 .aos-workbench-stage canvas {
   display: block;
   width: 100%;

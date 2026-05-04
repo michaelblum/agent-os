@@ -10,10 +10,8 @@ import {
     selectRadialItem,
     selectedItemFractalPulse,
     selectedRadialItem,
-    patchSelectedTerminalScreenMaterial,
     setSelectedItemFractalPulseIntensity,
     setSelectedItemHoverSpin,
-    selectedTerminalScreenMaterial,
 } from '../radial-item-editor/model.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -32,12 +30,13 @@ function addStylesheet(href, { before = null } = {}) {
 addStylesheet(`/${toolkitRoot}/components/_base/theme.css`, { before: appStylesheet });
 addStylesheet(`/${toolkitRoot}/workbench/defaults.css`, { before: appStylesheet });
 addStylesheet(`/${toolkitRoot}/panel/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet });
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
 
 const stage = document.getElementById('preview-stage');
-const status = document.getElementById('status');
+const workbenchTitle = document.getElementById('workbench-title');
 const dragHandle = document.getElementById('drag-handle');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
@@ -47,14 +46,11 @@ const pulseIntensity = document.getElementById('pulse-intensity');
 const pulseIntensityReadout = document.getElementById('pulse-intensity-readout');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
+const undoButton = document.getElementById('undo-change');
+const redoButton = document.getElementById('redo-change');
 const transformPanel = document.getElementById('transform-panel');
 const controlsTitle = document.getElementById('controls-title');
 const zoomReadout = document.getElementById('zoom-readout');
-const materialControls = document.getElementById('material-controls');
-const screenTitle = document.getElementById('screen-title');
-const screenLines = document.getElementById('screen-lines');
-const screenAccent = document.getElementById('screen-accent');
-const screenColor = document.getElementById('screen-color');
 
 const editorState = createRadialItemEditorState({
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
@@ -62,8 +58,8 @@ const editorState = createRadialItemEditorState({
     canvasId,
 });
 let lastLockIn = null;
-let transientStatusText = '';
-let transientStatusUntil = 0;
+const undoStack = [];
+const redoStack = [];
 
 const MIN_SCENE_ZOOM = 0.55;
 const MAX_SCENE_ZOOM = 2.2;
@@ -252,14 +248,10 @@ function syncControls() {
     const pulse = selectedItemFractalPulse(editorState);
     pulseIntensity.value = String(pulse.intensity);
     pulseIntensityReadout.textContent = pulse.intensity.toFixed(2);
-    const screen = selectedTerminalScreenMaterial(editorState);
-    materialControls.hidden = !screen;
-    if (screen) {
-        screenTitle.value = screen.title || 'AGENT TERM';
-        screenLines.value = (Array.isArray(screen.lines) ? screen.lines : []).join('\n');
-        screenAccent.value = screen.accent || '#68f7ff';
-        screenColor.value = screen.color || '#071318';
-    }
+    workbenchTitle.textContent = item
+        ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
+        : 'Sigil / Radial Menu / Item Editor';
+    updateHistoryButtons();
 }
 
 function syncPanelRegistry() {
@@ -269,11 +261,66 @@ function syncPanelRegistry() {
     return snapshot;
 }
 
-function applyPatch(message) {
+function objectSnapshot(target = {}) {
+    const snapshot = registry();
+    return snapshot.objects.find((object) => (
+        object.object_id === target.object_id
+        && snapshot.canvas_id === target.canvas_id
+    )) || null;
+}
+
+function patchFromSnapshot(entry, requestId) {
+    if (!entry) return null;
+    return {
+        type: 'canvas_object.transform.patch',
+        schema_version: '2026-05-03',
+        request_id: requestId,
+        target: {
+            canvas_id: entry.canvas_id || canvasId,
+            object_id: entry.object_id,
+        },
+        patch: {
+            position: { ...entry.transform.position },
+            scale: { ...entry.transform.scale },
+            rotation_degrees: { ...entry.transform.rotation_degrees },
+            visible: entry.visible !== false,
+        },
+    };
+}
+
+function historyRequestId(prefix) {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function updateHistoryButtons() {
+    undoButton.disabled = undoStack.length === 0;
+    redoButton.disabled = redoStack.length === 0;
+}
+
+function clearHistory() {
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateHistoryButtons();
+}
+
+function applyPatch(message, { recordHistory = true } = {}) {
+    const before = recordHistory ? objectSnapshot(message.target) : null;
     const result = applyEditorObjectPatch(editorState, message);
+    const after = recordHistory && result.status === 'applied'
+        ? objectSnapshot(result.target || message.target)
+        : null;
+    if (before && after) {
+        undoStack.push({
+            undo: patchFromSnapshot(before, historyRequestId('undo')),
+            redo: patchFromSnapshot(after, historyRequestId('redo')),
+        });
+        redoStack.length = 0;
+        while (undoStack.length > 80) undoStack.shift();
+    }
     panelContent.onMessage(result, panelHost);
     post('canvas_object.transform.result', result);
     syncPanelRegistry();
+    updateHistoryButtons();
     return result;
 }
 
@@ -300,17 +347,30 @@ const renderedPanel = panelContent.render(panelHost);
 if (renderedPanel instanceof Node) transformPanel.appendChild(renderedPanel);
 else if (typeof renderedPanel === 'string') transformPanel.innerHTML = renderedPanel;
 
-function setTransientStatus(text, durationMs = 2400) {
-    transientStatusText = text;
-    transientStatusUntil = performance.now() + durationMs;
-}
-
 function lockIn() {
     lastLockIn = exportSelectedRadialItemDefinition(editorState);
     post(lastLockIn.type, lastLockIn);
-    const item = selectedRadialItem(editorState);
-    setTransientStatus(`${item?.label || item?.id || 'Radial item'} lock-in payload emitted`);
     return lastLockIn;
+}
+
+function undoChange() {
+    const entry = undoStack.pop();
+    if (!entry?.undo) return null;
+    const result = applyPatch(entry.undo, { recordHistory: false });
+    if (result.status === 'applied') redoStack.push(entry);
+    else undoStack.push(entry);
+    updateHistoryButtons();
+    return result;
+}
+
+function redoChange() {
+    const entry = redoStack.pop();
+    if (!entry?.redo) return null;
+    const result = applyPatch(entry.redo, { recordHistory: false });
+    if (result.status === 'applied') undoStack.push(entry);
+    else redoStack.push(entry);
+    updateHistoryButtons();
+    return result;
 }
 
 function unwrapIncoming(message = {}) {
@@ -419,6 +479,7 @@ renderer.domElement.addEventListener('wheel', (event) => {
 
 itemSelect.addEventListener('change', () => {
     selectRadialItem(editorState, itemSelect.value);
+    clearHistory();
     syncControls();
     syncPanelRegistry();
 });
@@ -432,16 +493,10 @@ pulseIntensity.addEventListener('input', () => {
     const pulse = setSelectedItemFractalPulseIntensity(editorState, pulseIntensity.value);
     pulseIntensityReadout.textContent = pulse?.intensity?.toFixed?.(2) || '1.00';
 });
-materialControls.addEventListener('input', () => {
-    patchSelectedTerminalScreenMaterial(editorState, {
-        title: screenTitle.value,
-        lines: screenLines.value,
-        accent: screenAccent.value,
-        color: screenColor.value,
-    });
-});
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
+undoButton.addEventListener('click', undoChange);
+redoButton.addEventListener('click', redoChange);
 
 syncControls();
 syncOrbit();
@@ -467,6 +522,8 @@ window.__sigilRadialItemWorkbench = {
         return item;
     },
     applyPatch,
+    undoChange,
+    redoChange,
     exportItemDefinition(options) {
         return exportSelectedRadialItemDefinition(editorState, options);
     },
@@ -481,6 +538,7 @@ window.__sigilRadialItemWorkbench = {
             registry: registry(),
             panel: window.__objectTransformPanelState || null,
             lastLockIn,
+            history: { undo: undoStack.length, redo: redoStack.length },
             orbit: { x: orbitState.x, y: orbitState.y, zoom: orbitState.zoom },
             axesVisible: axesGuide.visible,
             visuals: visuals.snapshot(),
@@ -497,14 +555,6 @@ function frame(now) {
         height: rect.height,
     });
     visuals.update(radial, { time: t });
-    const snapshot = visuals.snapshot();
-    const item = selectedRadialItem(editorState);
-    const geometry = item ? snapshot.geometry?.[item.id] : null;
-    status.textContent = now < transientStatusUntil
-        ? transientStatusText
-        : geometry?.status === 'ready'
-        ? `${item.label || item.id} editor`
-        : `Loading ${geometry?.status || item?.label || 'radial item'}...`;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
 }

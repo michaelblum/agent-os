@@ -16,6 +16,7 @@ test('workbench defaults define shell, toolbar, and pane primitives', async () =
     '.aos-workbench-titlebar',
     '.aos-workbench-toolbar',
     '.aos-workbench-pane-toolbar',
+    '.aos-workbench-stage-actions',
     '.aos-workbench-preview-pane',
     '.aos-workbench-controls-pane',
   ]) {
@@ -29,11 +30,22 @@ test('Sigil radial item workbench keeps editor controls out of titlebar chrome',
   const toolbar = html.match(/<div class="aos-workbench-toolbar"[\s\S]*?<\/div>\s*<main/)?.[0] || '';
 
   assert.match(titlebar, /aos-workbench-title/);
+  assert.match(titlebar, /Sigil \/ Radial Menu \/ Item Editor/);
   assert.doesNotMatch(titlebar, /id="item-select"|id="axes-toggle"|id="lock-in"/);
 
   assert.match(toolbar, /id="item-select"/);
   assert.match(toolbar, /id="axes-toggle"/);
   assert.match(toolbar, /id="lock-in"/);
+});
+
+test('Sigil radial item workbench is focused on object transforms only', async () => {
+  const html = await repoText('apps/sigil/radial-item-workbench/index.html');
+
+  assert.doesNotMatch(html, /Part Material/);
+  assert.doesNotMatch(html, /id="material-controls"/);
+  assert.doesNotMatch(html, /id="status"/);
+  assert.match(html, /id="undo-change"/);
+  assert.match(html, /id="redo-change"/);
 });
 
 test('workbench shell smoke does not masquerade as the Sigil editor', async () => {

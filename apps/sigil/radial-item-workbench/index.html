@@ -11,7 +11,7 @@
   <div class="aos-workbench-shell">
     <header class="aos-workbench-titlebar" data-draggable="true" id="drag-handle">
       <span class="aos-workbench-grip" aria-hidden="true"></span>
-      <strong class="aos-workbench-title">Sigil Radial Item Workbench</strong>
+      <strong class="aos-workbench-title" id="workbench-title">Sigil / Radial Menu / Item Editor</strong>
     </header>
     <div class="aos-workbench-toolbar" role="toolbar" aria-label="Radial item tools">
       <div class="aos-workbench-toolbar-section">
@@ -39,32 +39,24 @@
     <main class="aos-workbench-main">
       <section class="aos-workbench-preview-pane" aria-label="Radial item preview">
         <div class="aos-workbench-stage" id="preview-stage"></div>
-        <div class="aos-workbench-status" id="status">Loading radial item...</div>
+        <div class="aos-workbench-stage-actions" role="toolbar" aria-label="Preview history">
+          <button type="button" class="aos-icon-button" id="undo-change" aria-label="Undo transform change" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 7H4v5"></path>
+              <path d="M5 11a8 8 0 1 0 2.2-5.5L4 7"></path>
+            </svg>
+          </button>
+          <button type="button" class="aos-icon-button" id="redo-change" aria-label="Redo transform change" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 7h5v5"></path>
+              <path d="M19 11a8 8 0 1 1-2.2-5.5L20 7"></path>
+            </svg>
+          </button>
+        </div>
         <div class="aos-workbench-readout" id="zoom-readout">100%</div>
       </section>
       <section class="aos-workbench-controls-pane" aria-label="Object transform controls">
         <div class="aos-workbench-pane-title" id="controls-title">Object Transform</div>
-        <form class="aos-workbench-form material-controls" id="material-controls" hidden>
-          <div class="aos-workbench-form-title">Part Material</div>
-          <label>
-            <span>Title</span>
-            <input type="text" id="screen-title" maxlength="18" autocomplete="off">
-          </label>
-          <label>
-            <span>Lines</span>
-            <textarea id="screen-lines" rows="5" maxlength="160" spellcheck="false"></textarea>
-          </label>
-          <div class="material-colors">
-            <label>
-              <span>Accent</span>
-              <input type="color" id="screen-accent">
-            </label>
-            <label>
-              <span>Back</span>
-              <input type="color" id="screen-color">
-            </label>
-          </div>
-        </form>
         <div id="transform-panel"></div>
       </section>
     </main>

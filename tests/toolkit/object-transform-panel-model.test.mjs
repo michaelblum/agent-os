@@ -66,6 +66,32 @@ test('registry ingest stores advertised objects and selects the first object', (
   assert.deepEqual(selectedObject(state).transform.scale, { x: 1, y: 1, z: 1 });
 });
 
+test('registry ingest sorts group entries before layer entries', () => {
+  const state = createObjectTransformState();
+  const result = applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      ...registry().objects,
+      {
+        object_id: 'radial.wiki-brain.group',
+        name: 'Wiki Brain Group',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'transform.patch'],
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(sortedObjectEntries(state)[0].object_id, 'radial.wiki-brain.group');
+  assert.equal(selectedObject(state).object_id, 'radial.wiki-brain.group');
+});
+
 test('selection targets one advertised object without assuming renderer internals', () => {
   const state = createObjectTransformState();
   applyRegistryMessage(state, registry());

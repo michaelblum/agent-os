@@ -79,7 +79,8 @@ native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `defaults.css` provides the stock visual control pack for toolkit panels. It is
 optional and themeable through CSS custom properties. The first class set covers
 buttons, chip buttons, selects, text inputs, number fields, textareas,
-checkboxes, toggles, ranges, segmented controls, and selectable list rows.
+checkboxes, toggles, ranges, segmented controls, icon buttons, and selectable
+list rows.
 
 ```html
 <link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
@@ -95,12 +96,12 @@ identity, subject type, owner, source, capabilities, views, controls,
 persistence, artifacts, and current state. It does not move domain ownership
 into the toolkit.
 
-`workbench/defaults.css` provides the stock dual-pane workbench shell used when a
-surface needs a rich preview/editor composition instead of a plain panel body. It
-covers the draggable titlebar, grip, optional window-action strip, workbench
-toolbar, pane toolbar, preview pane, controls pane, pane title, form band, and
-scrollable work area. Domain editors still own their subject model and renderer;
-the shell only normalizes the frame.
+`workbench/defaults.css` provides the stock dual-pane workbench shell used when
+a surface needs a rich preview/editor composition instead of a plain panel body.
+It covers the draggable titlebar, grip, optional window-action strip, workbench
+toolbar, pane toolbar, stage action strip, preview pane, controls pane, pane
+title, form band, and scrollable work area. Domain editors still own their
+subject model and renderer; the shell only normalizes the frame.
 
 ```html
 <link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
@@ -490,9 +491,11 @@ Addresses use `canvas_id + object_id`:
 }
 ```
 
-Sigil's wiki-brain adopter currently exposes the outer shell, the fiber-optic
-filament layer, and the fractal tree layer as separate objects so transform
-controllers can tune their overlap independently.
+Sigil's wiki-brain adopter currently exposes a group object for the whole menu
+item composition plus the outer shell, fiber-optic stem, fiber-optic bloom, and
+fractal tree layers as separate objects. Transform controllers can tune the
+whole composition relative to the radial menu item orbit path or tune each layer
+independently.
 
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
@@ -505,19 +508,25 @@ and capabilities:
   "canvas_id": "avatar-main",
   "objects": [
     {
-      "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Fiber Optics",
+      "object_id": "radial.wiki-brain.group",
+      "name": "Wiki Brain Group",
       "kind": "three.object3d",
-      "capabilities": ["transform.read", "transform.patch"],
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
       "transform": {
-        "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
-        "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
-        "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 },
+        "rotation_degrees": { "x": 0, "y": 0, "z": 0 }
       },
       "units": {
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "visible": true,
+      "metadata": {
+        "role": "group",
+        "target": "item-composition",
+        "frame": "radial-item-orbit"
       }
     },
     {
@@ -580,6 +589,13 @@ object control contract. It subscribes to `canvas_object.registry` and
 `canvas_id + object_id`, and emits transform and visibility edits through
 existing `canvas.send` routing to the owning canvas. The panel does not inspect
 another canvas or assume the object is backed by Three.js.
+
+The object list is intentionally layer-like: rows represent the addressable
+objects that collectively make up a larger visual composition, and the checkbox
+is the object's advertised visibility. Single-object transform editing is the
+current behavior. Multi-select, grouped edits over arbitrary subsets, and
+dockable/collapsible object-list panes belong to the follow-on split-pane and
+docking work rather than the control contract itself.
 
 Default launcher:
 

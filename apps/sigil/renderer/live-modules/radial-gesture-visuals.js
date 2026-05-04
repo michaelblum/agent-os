@@ -1520,6 +1520,8 @@ function createRadialEffectHost(group, item = {}) {
 
     const composite = new THREE.Group();
     composite.name = `${item.id || 'radial-item'}-effect-composite`;
+    applyObjectTransform(composite, resolveRadialItemModelTransform(item), DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
+    composite.visible = resolveRadialItemModelVisibility(item);
     const fiberEffect = createNestedNeuralTreeEffect();
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fiberStemEffect = fiberEffect.userData.stem;
@@ -1562,6 +1564,8 @@ function syncRadialEffectConfig(glyph, item = {}) {
     const effect = effectConfig(item);
     if (!effect) return;
     glyph.userData.radialEffectConfig = effect;
+    glyph.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
+    glyph.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
     glyph.userData.radialEffectShellTransform = effect.shellTransform;
     glyph.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
     glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
@@ -1732,6 +1736,7 @@ function updateRadialEffect(glyph, item, {
     const fiberStem = glyph.userData.radialEffectFiberStem;
     const fiberBloom = glyph.userData.radialEffectFiberBloom;
     const fractalTree = glyph.userData.radialEffectFractalTree;
+    const composite = glyph.userData.radialEffectComposite;
     if (!config || !state || !tree) return null;
 
     const metrics = visualRadial ? radialItemPointerMetrics(visualRadial, item) : null;
@@ -1770,6 +1775,14 @@ function updateRadialEffect(glyph, item, {
 
     const display = clamp01(progress);
     const visibility = glyph.userData.radialEffectVisibility || config.visibility || DEFAULT_NESTED_TREE_EFFECT.visibility;
+    if (composite) {
+        applyObjectTransform(
+            composite,
+            glyph.userData.radialItemModelTransform,
+            DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+        );
+        composite.visible = glyph.userData.radialItemModelVisible !== false;
+    }
     applyNestedShellTransform(modelHost, glyph.userData.radialEffectShellTransform || config.shellTransform);
     if (modelHost) modelHost.visible = visibility.shell !== false;
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);

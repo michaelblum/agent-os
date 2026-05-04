@@ -9,6 +9,7 @@ import {
   WIKI_BRAIN_FIBER_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+  WIKI_BRAIN_GROUP_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
   applyRadialMenuObjectTransformPatch,
   applyWikiBrainTransformPatch,
@@ -31,11 +32,21 @@ test('wiki brain object registry advertises shell, split fiber, and fractal tree
   assert.equal(registry.schema_version, '2026-05-03')
   assert.equal(registry.canvas_id, 'avatar-main')
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
+    WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
     WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
   ])
+
+  const group = registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID)
+  assert.equal(group.name, 'Wiki Brain Group')
+  assert.deepEqual(group.transform, {
+    position: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    rotation_degrees: { x: 0, y: 0, z: 0 },
+  })
+  assert.equal(group.metadata.role, 'group')
 
   const stem = registry.objects.find((object) => object.object_id === WIKI_BRAIN_FIBER_STEM_OBJECT_ID)
   assert.equal(stem.name, 'Wiki Brain Fiber Stem')
@@ -72,6 +83,7 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
     CONTEXT_MENU_MODEL_OBJECT_ID,
     AGENT_TERMINAL_MODEL_OBJECT_ID,
     AGENT_TERMINAL_SCREEN_OBJECT_ID,
+    WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
@@ -99,6 +111,44 @@ test('radial menu object registry advertises generic model hosts and wiki brain 
   assert.deepEqual(screen.transform.scale, { x: 0.38, y: 0.2, z: 1 })
   assert.deepEqual(screen.transform.rotation_degrees, { x: 0, y: 180, z: 0 })
   assert.equal(screen.visible, true)
+})
+
+test('wiki brain group patch adjusts the whole radial item composition', () => {
+  const config = radialConfig()
+  const result = applyWikiBrainTransformPatch(config, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-wiki-group',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: WIKI_BRAIN_GROUP_OBJECT_ID,
+    },
+    patch: {
+      position: { x: 0.03, y: -0.02 },
+      scale: { x: 0.9, y: 0.9, z: 0.9 },
+      rotation_degrees: { z: 12 },
+      visible: false,
+    },
+  }, { canvasId: 'avatar-main' })
+
+  assert.equal(result.status, 'applied')
+  assert.deepEqual(result.transform.position, { x: 0.03, y: -0.02, z: 0 })
+  assert.deepEqual(result.transform.scale, { x: 0.9, y: 0.9, z: 0.9 })
+  assert.deepEqual(result.transform.rotation_degrees, { x: 0, y: 0, z: 12 })
+  assert.equal(result.visible, false)
+
+  const item = findWikiBrainRadialItem(config)
+  assert.deepEqual(item.geometry.modelTransform, {
+    position: { x: 0.03, y: -0.02, z: 0 },
+    scale: { x: 0.9, y: 0.9, z: 0.9 },
+    rotationDegrees: { x: 0, y: 0, z: 12 },
+  })
+  assert.deepEqual(item.geometry.visibility, { model: false })
+
+  const group = buildWikiBrainObjectRegistry(config, { canvasId: 'avatar-main' })
+    .objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID)
+  assert.deepEqual(group.transform.scale, { x: 0.9, y: 0.9, z: 0.9 })
+  assert.equal(group.visible, false)
 })
 
 test('radial menu transform patch can tune the agent terminal model host and screen part', () => {
