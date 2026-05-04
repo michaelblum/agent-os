@@ -87,11 +87,23 @@ function recordFromMessage(message = {}) {
   return payload.record && typeof payload.record === 'object' ? payload.record : payload;
 }
 
-export function createWorkRecordWorkbenchState({ record = null } = {}) {
+function normalizeSource(source = null) {
+  if (!source || typeof source !== 'object') return null;
+  const kind = text(source.kind);
+  if (!kind) return null;
+  return {
+    ...cloneJson(source),
+    kind,
+    path: text(source.path) || null,
+  };
+}
+
+export function createWorkRecordWorkbenchState({ record = null, source = null } = {}) {
   const initial = normalizeRecord(record || defaultRecord());
   return {
     record: initial,
     savedRecord: cloneJson(initial),
+    source: normalizeSource(source),
     dirty: false,
     selectedView: 'intent',
     lastResult: null,
@@ -100,15 +112,18 @@ export function createWorkRecordWorkbenchState({ record = null } = {}) {
 }
 
 export function openWorkRecord(state, message = {}) {
+  const payload = unwrapMessage(message);
   const record = normalizeRecord(recordFromMessage(message));
   state.record = record;
   state.savedRecord = cloneJson(record);
+  state.source = normalizeSource(payload.source) || state.source || null;
   state.dirty = false;
   state.lastResult = {
     type: 'work_record.open.result',
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
     status: 'opened',
     record_id: record.id,
+    source: state.source,
     subject: buildWorkRecordWorkbenchSubject(state),
   };
   return state.lastResult;
@@ -203,6 +218,7 @@ export function buildWorkRecordPatchRequest(state, {
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
     request_id: requestId,
     subject: buildWorkRecordWorkbenchSubject(state),
+    source: state.source,
     record_id: state.record.id,
     patch: {
       intent: cloneJson(objectValue(state.record.intent)),
@@ -238,6 +254,7 @@ export function workRecordWorkbenchSnapshot(state) {
     type: 'work_record.snapshot',
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
     subject: buildWorkRecordWorkbenchSubject(state),
+    source: state.source,
     record: cloneJson(state.record),
     dirty: !!state.dirty,
     diagnostics: workRecordDiagnostics(state.record),

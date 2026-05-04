@@ -151,7 +151,7 @@ export default function WorkRecordWorkbench(options = {}) {
   }
 
   function revert() {
-    openWorkRecord(state, { type: 'work_record.open', record: state.savedRecord });
+    openWorkRecord(state, { type: 'work_record.open', record: state.savedRecord, source: state.source });
     sync({ replaceEditorValues: true });
   }
 

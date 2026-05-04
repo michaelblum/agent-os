@@ -136,7 +136,11 @@ The stock work-record workbench lives at:
 It accepts `work_record.open` and `work_record.patch.result`, emits
 `work-record-workbench/patch.requested`, and intentionally stays manual-first:
 it edits the NL intent and execution-map JSON while displaying health and
-evidence. It does not record, replay, repair, or retire recipes by itself.
+evidence. `work_record.open` may include a file `source`, which is preserved in
+snapshots and patch requests. The companion
+`packages/toolkit/components/work-record-workbench/save-current.sh` helper can
+persist the current edited record JSON back to that file source or an explicit
+output path. It does not record, replay, repair, or retire recipes by itself.
 
 ## Stock Components Snapshot
 

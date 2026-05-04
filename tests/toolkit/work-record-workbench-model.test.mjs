@@ -28,6 +28,10 @@ test('work record workbench opens a do_step and exposes subject snapshot', () =>
   const state = createWorkRecordWorkbenchState();
   const result = openWorkRecord(state, {
     type: 'work_record.open',
+    source: {
+      kind: 'file',
+      path: '/tmp/work-record.json',
+    },
     record: fixture('browser-artifact-collection-step.json'),
   });
   const snapshot = workRecordWorkbenchSnapshot(state);
@@ -37,6 +41,7 @@ test('work record workbench opens a do_step and exposes subject snapshot', () =>
   assert.equal(snapshot.subject.type, 'aos.workbench.subject');
   assert.equal(snapshot.subject.id, 'work-record:collect-company-careers-page');
   assert.equal(snapshot.subject.subject_type, 'aos.do_step');
+  assert.deepEqual(snapshot.source, { kind: 'file', path: '/tmp/work-record.json' });
   assert.ok(snapshot.subject.capabilities.includes('work_record.patch.requested'));
   assert.equal(snapshot.diagnostics.health_state, 'stale');
   assert.equal(snapshot.diagnostics.artifact_count, 3);
@@ -62,8 +67,25 @@ test('work record workbench edits intent and execution-map JSON', () => {
   const request = buildWorkRecordPatchRequest(state, { requestId: 'patch-1' });
   assert.equal(request.request_id, 'patch-1');
   assert.equal(request.record_id, state.record.id);
+  assert.equal(request.source, null);
   assert.equal(request.patch.intent.nl, 'Tune the panel with the updated target.');
   assert.equal(request.patch.execution_map.target, 'canvas:object-transform-panel/wiki-brain');
+});
+
+test('work record patch requests preserve file source metadata', () => {
+  const state = createWorkRecordWorkbenchState({
+    record: fixture('browser-artifact-collection-step.json'),
+    source: {
+      kind: 'file',
+      path: '/tmp/source-record.json',
+    },
+  });
+
+  updateWorkRecordIntent(state, { purpose: 'source-preserving edit' });
+  const request = buildWorkRecordPatchRequest(state, { requestId: 'source-patch' });
+
+  assert.deepEqual(request.source, { kind: 'file', path: '/tmp/source-record.json' });
+  assert.deepEqual(workRecordWorkbenchSnapshot(state).source, { kind: 'file', path: '/tmp/source-record.json' });
 });
 
 test('invalid execution-map JSON is rejected without mutating current map', () => {
