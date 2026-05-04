@@ -129,7 +129,7 @@ The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to del
 
 ### Browser as a target
 
-As of spec `docs/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`, a browser tab is a first-class target for `see`, `do`, and `show` verbs. The adapter lives entirely in the CLI process (`src/browser/`) and shells out to Microsoft's `playwright-cli`; the daemon is unchanged. Targets use the grammar `browser:<session>[/<ref>]` where `<session>` is the `playwright-cli -s=<name>` session (registered as an aos focus channel) and `<ref>` is a ref from a prior `aos see capture browser:<session> --xray`. Overlays anchored to browser elements are static in v1 — they follow Chrome window movement (via `anchor_window`) but not page scroll; agents re-issue `aos show update --anchor-browser …` to re-anchor.
+A browser tab is a first-class target for `see`, `do`, and `show` verbs. The adapter lives entirely in the CLI process (`src/browser/`) and shells out to Microsoft's `playwright-cli`; the daemon is unchanged. Targets use the grammar `browser:<session>[/<ref>]` where `<session>` is the `playwright-cli -s=<name>` session (registered as an aos focus channel) and `<ref>` is a ref from a prior `aos see capture browser:<session> --xray`. Overlays anchored to browser elements are static in v1 — they follow Chrome window movement (via `anchor_window`) but not page scroll; agents re-issue `aos show update --anchor-browser …` to re-anchor. Historical adapter design context is archived at `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`.
 
 ### Communication Routing
 
@@ -163,7 +163,7 @@ Presence is mirrored into the runtime state dir and restored on daemon restart. 
 
 The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daemon's communication bus for external consumers who want MCP integration. It is not loaded during development inside agent-os. The daemon is the source of truth; the gateway is a view.
 
-Channels inherit runtime mode isolation (repo channels don't crosstalk with installed channels) and wiki namespace conventions (apps scope channels under their namespace, system channels are root-level). See the design spec: `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
+Channels inherit runtime mode isolation (repo channels don't crosstalk with installed channels) and wiki namespace conventions (apps scope channels under their namespace, system channels are root-level). Historical coordination-bus design context is archived at `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 All subsystems share the LCS convention. All emit JSON. All are stateless at the subcommand level — the daemon and orchestrator hold state.
 

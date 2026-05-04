@@ -93,8 +93,9 @@ The `aos` CLI uses an embodied verb metaphor. Know the verbs and what they cover
 
 `say` is sugar for `tell human`. `do tell` is AppleScript (talks to apps, not
 agents). The agent decides WHAT to communicate and TO WHOM — the daemon decides
-HOW to deliver it. See `ARCHITECTURE.md` for the full rationale and the design
-spec at `docs/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
+HOW to deliver it. See `ARCHITECTURE.md` for the full rationale. Historical
+design context is archived at
+`docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 ## Repo-Wide Methods
 

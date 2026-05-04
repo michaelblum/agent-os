@@ -18,7 +18,9 @@ This directory documents the interfaces consumers are expected to build against:
 It does **not** try to replace:
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) for system design and ecosystem context
-- `docs/superpowers/` for plans/specs/internal design work
+- `docs/design/` for provider-neutral plans, specs, and design notes
+- `docs/recipes/` for reusable operating procedures
+- `docs/archive/superpowers/` for historical Superpowers plans and specs
 - source comments for implementation details
 
 ## Maintenance Contract

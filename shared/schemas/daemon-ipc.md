@@ -3,7 +3,7 @@
 > **See also:** [`CONTRACT-GOVERNANCE.md`](./CONTRACT-GOVERNANCE.md) for the
 > rules governing daemon ↔ CLI capability contracts.
 
-Wire contract between the `aos` CLI (and future SDK/MCP adapter) and the unified daemon. Canonical source: `shared/schemas/daemon-request.schema.json` and `shared/schemas/daemon-response.schema.json`. Design rationale: `docs/superpowers/specs/2026-04-17-daemon-ipc-request-schema-v1-design.md`.
+Wire contract between the `aos` CLI (and future SDK/MCP adapter) and the unified daemon. Canonical source: `shared/schemas/daemon-request.schema.json` and `shared/schemas/daemon-response.schema.json`. Historical design rationale: `docs/archive/superpowers/specs/2026-04-17-daemon-ipc-request-schema-v1-design.md`.
 
 ## Transport
 

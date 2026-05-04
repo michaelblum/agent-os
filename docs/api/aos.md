@@ -771,5 +771,6 @@ Read-only virtual wiki graph endpoint:
 ## Guidance For Consumers
 
 - Prefer structured flags and JSON parsing over scraping help output.
-- Treat `docs/api/` as the consumer contract and `docs/superpowers/` as design history, not API reference.
+- Treat `docs/api/` as the consumer contract. Use `docs/design/` for active
+  design work and `docs/archive/superpowers/` only for historical context.
 - If you change a public command, update this doc in the same change.

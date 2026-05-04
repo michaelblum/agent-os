@@ -1,7 +1,7 @@
 # Sigil Foundation — Acceptance Test Report
 
-**Spec:** `docs/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md`
-**Plan:** `docs/superpowers/plans/2026-04-12-sigil-foundation-agents-and-global-canvas.md` (Task 11)
+**Spec:** `docs/archive/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md`
+**Plan:** `docs/archive/superpowers/plans/2026-04-12-sigil-foundation-agents-and-global-canvas.md` (Task 11)
 **Run date:** 2026-04-12
 **Runtime:** repo mode (`./aos`, daemon pid via launchd `com.agent-os.aos.repo`)
 **Git commit at run:** `114917e` (per `aos doctor --json .identity.git_commit`)
@@ -532,19 +532,19 @@ Cascade cleanup intact.
 
 ## Criterion 12 — Sigil-1 spec annotation
 
-**Spec language:** `docs/superpowers/specs/2026-04-12-sigil-1-state-machine.md`
+**Spec language:** `docs/archive/superpowers/specs/2026-04-12-sigil-1-state-machine.md`
 carries a note pointing to this spec and marking criterion #2 superseded.
 
 **Test:**
 
 ```bash
-grep -n -i "superseded" docs/superpowers/specs/2026-04-12-sigil-1-state-machine.md
+grep -n -i "superseded" docs/archive/superpowers/specs/2026-04-12-sigil-1-state-machine.md
 ```
 
 **Actual result:**
 
 ```
-3:> **Superseded 2026-04-12:** Acceptance criterion #2 (idle cursor-follow) was the wrong default. See `docs/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md` for the parked-idle model that replaces it.
+3:> **Superseded 2026-04-12:** Acceptance criterion #2 (idle cursor-follow) was the wrong default. See `docs/archive/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md` for the parked-idle model that replaces it.
 ```
 
 Banner present at the top of the Sigil-1 spec, with a clear pointer to this

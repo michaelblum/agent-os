@@ -1,6 +1,6 @@
 # birthplace + lastPosition — acceptance evidence
 
-**Spec:** `docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md`
+**Spec:** `docs/archive/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md`
 **Date:** 2026-04-13
 **Runtime:** `aos runtime status --json` (output below)
 

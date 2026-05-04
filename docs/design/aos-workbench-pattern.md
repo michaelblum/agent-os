@@ -82,7 +82,7 @@ same platform shape:
   state.
 - `docs/sdk-first-scripts.md` treats saved scripts as workflows and frames the
   SDK as primitive wrappers plus higher-level operations.
-- `docs/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
+- `docs/archive/superpowers/specs/2026-04-24-playwright-browser-adapter-design.md`
   explicitly calls out workflow recording, replay, and codegen as future work
   that should store replayable workflows with canvas provenance.
 
