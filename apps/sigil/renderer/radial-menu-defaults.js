@@ -73,6 +73,13 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
             visible: true,
             material: {
                 kind: 'terminal-screen',
+                title: 'AGENT TERM',
+                lines: [
+                    '> attach provider',
+                    '> route session',
+                    '> resume stream',
+                    '> surface ready',
+                ],
                 color: '#071318',
                 accent: '#68f7ff',
                 opacity: 0.94,

@@ -10,8 +10,10 @@ import {
     selectRadialItem,
     selectedItemFractalPulse,
     selectedRadialItem,
+    patchSelectedTerminalScreenMaterial,
     setSelectedItemFractalPulseIntensity,
     setSelectedItemHoverSpin,
+    selectedTerminalScreenMaterial,
 } from '../radial-item-editor/model.js';
 
 const params = new URLSearchParams(window.location.search);
@@ -46,6 +48,11 @@ const resetOrbitButton = document.getElementById('reset-orbit');
 const transformPanel = document.getElementById('transform-panel');
 const controlsTitle = document.getElementById('controls-title');
 const zoomReadout = document.getElementById('zoom-readout');
+const materialControls = document.getElementById('material-controls');
+const screenTitle = document.getElementById('screen-title');
+const screenLines = document.getElementById('screen-lines');
+const screenAccent = document.getElementById('screen-accent');
+const screenColor = document.getElementById('screen-color');
 
 const editorState = createRadialItemEditorState({
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
@@ -243,6 +250,14 @@ function syncControls() {
     const pulse = selectedItemFractalPulse(editorState);
     pulseIntensity.value = String(pulse.intensity);
     pulseIntensityReadout.textContent = pulse.intensity.toFixed(2);
+    const screen = selectedTerminalScreenMaterial(editorState);
+    materialControls.hidden = !screen;
+    if (screen) {
+        screenTitle.value = screen.title || 'AGENT TERM';
+        screenLines.value = (Array.isArray(screen.lines) ? screen.lines : []).join('\n');
+        screenAccent.value = screen.accent || '#68f7ff';
+        screenColor.value = screen.color || '#071318';
+    }
 }
 
 function syncPanelRegistry() {
@@ -414,6 +429,14 @@ axesToggle.addEventListener('change', syncOrbit);
 pulseIntensity.addEventListener('input', () => {
     const pulse = setSelectedItemFractalPulseIntensity(editorState, pulseIntensity.value);
     pulseIntensityReadout.textContent = pulse?.intensity?.toFixed?.(2) || '1.00';
+});
+materialControls.addEventListener('input', () => {
+    patchSelectedTerminalScreenMaterial(editorState, {
+        title: screenTitle.value,
+        lines: screenLines.value,
+        accent: screenAccent.value,
+        color: screenColor.value,
+    });
 });
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);

@@ -80,6 +80,12 @@ export function selectedRadialItem(state = {}) {
     return items.find((item) => item?.id === state.selectedItemId) || null;
 }
 
+export function selectedRadialItemPart(state = {}, partId = '') {
+    const item = selectedRadialItem(state);
+    const parts = Array.isArray(item?.geometry?.parts) ? item.geometry.parts : [];
+    return parts.find((part) => part?.id === partId) || null;
+}
+
 export function selectRadialItem(state = {}, itemId = '') {
     const nextId = pickInitialItemId(state.items, itemId);
     if (!nextId) return null;
@@ -155,6 +161,37 @@ export function applyEditorObjectPatch(state = {}, message = {}) {
     return applyRadialMenuObjectTransformPatch(selectedRadialConfig(state), message, {
         canvasId: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
     });
+}
+
+export function selectedTerminalScreenMaterial(state = {}) {
+    const part = selectedRadialItemPart(state, 'screen');
+    if (part?.material?.kind !== 'terminal-screen') return null;
+    return cloneConfig(part.material);
+}
+
+export function patchSelectedTerminalScreenMaterial(state = {}, patch = {}) {
+    const part = selectedRadialItemPart(state, 'screen');
+    if (part?.material?.kind !== 'terminal-screen' || !isPlainObject(patch)) return null;
+    const material = part.material;
+    if (patch.title !== undefined) {
+        material.title = text(patch.title, 'AGENT TERM').slice(0, 18);
+    }
+    if (patch.lines !== undefined) {
+        const source = Array.isArray(patch.lines) ? patch.lines : String(patch.lines || '').split(/\r?\n/);
+        material.lines = source
+            .map((line) => String(line || '').trim().slice(0, 28))
+            .filter(Boolean)
+            .slice(0, 5);
+    }
+    if (patch.accent !== undefined) {
+        const accent = String(patch.accent || '').trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(accent)) material.accent = accent;
+    }
+    if (patch.color !== undefined) {
+        const color = String(patch.color || '').trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(color)) material.color = color;
+    }
+    return selectedTerminalScreenMaterial(state);
 }
 
 export function setSelectedItemHoverSpin(state = {}, enabled = false, speed = 1.45) {

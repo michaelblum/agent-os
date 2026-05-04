@@ -42,6 +42,27 @@
       </section>
       <section class="controls-pane" aria-label="Object transform controls">
         <div class="controls-title" id="controls-title">Object Transform</div>
+        <form class="material-controls" id="material-controls" hidden>
+          <div class="material-controls-title">Part Material</div>
+          <label>
+            <span>Title</span>
+            <input type="text" id="screen-title" maxlength="18" autocomplete="off">
+          </label>
+          <label>
+            <span>Lines</span>
+            <textarea id="screen-lines" rows="5" maxlength="160" spellcheck="false"></textarea>
+          </label>
+          <div class="material-colors">
+            <label>
+              <span>Accent</span>
+              <input type="color" id="screen-accent">
+            </label>
+            <label>
+              <span>Back</span>
+              <input type="color" id="screen-color">
+            </label>
+          </div>
+        </form>
         <div id="transform-panel"></div>
       </section>
     </main>

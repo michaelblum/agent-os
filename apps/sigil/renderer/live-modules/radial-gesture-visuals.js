@@ -1360,6 +1360,17 @@ function createTerminalScreenTexture(options = {}) {
     const dim = options.dim || 'rgba(104, 247, 255, 0.42)';
     const dark = options.color || '#071318';
     const glow = options.glow || 'rgba(104, 247, 255, 0.22)';
+    const title = String(options.title || 'AGENT TERM').slice(0, 18);
+    const lines = (Array.isArray(options.lines) ? options.lines : [])
+        .map((line) => String(line || '').slice(0, 28))
+        .filter(Boolean)
+        .slice(0, 5);
+    const terminalLines = lines.length > 0 ? lines : [
+        '> attach provider',
+        '> route session',
+        '> resume stream',
+        '> surface ready',
+    ];
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const bg = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
@@ -1393,16 +1404,10 @@ function createTerminalScreenTexture(options = {}) {
 
     ctx.fillStyle = accent;
     ctx.font = '700 32px Menlo, Monaco, monospace';
-    ctx.fillText('AGENT TERM', 48, 72);
+    ctx.fillText(title, 48, 72);
     ctx.font = '600 18px Menlo, Monaco, monospace';
     ctx.fillStyle = 'rgba(210, 255, 255, 0.88)';
-    const lines = [
-        '> attach provider',
-        '> route session',
-        '> resume stream',
-        '> surface ready',
-    ];
-    lines.forEach((line, index) => ctx.fillText(line, 52, 126 + (index * 30)));
+    terminalLines.forEach((line, index) => ctx.fillText(line, 52, 126 + (index * 30)));
 
     ctx.fillStyle = 'rgba(104, 247, 255, 0.78)';
     for (let i = 0; i < 7; i += 1) {
@@ -1468,6 +1473,7 @@ function createRadialItemPartHosts(item = {}) {
         const object = createRadialItemPartMesh(part);
         if (!object) continue;
         object.userData.radialItemPartId = part.id;
+        object.userData.radialItemPartMaterialSignature = JSON.stringify(part.material || {});
         hosts.set(part.id, object);
     }
     return hosts;
@@ -1481,6 +1487,12 @@ function syncRadialItemPartConfig(glyph, item = {}) {
         if (!part) {
             object.visible = false;
             continue;
+        }
+        const materialSignature = JSON.stringify(part.material || {});
+        if (object.userData.radialItemPartMaterialSignature !== materialSignature) {
+            disposeMaterial(object.material);
+            object.material = createRadialItemPartMaterial(part);
+            object.userData.radialItemPartMaterialSignature = materialSignature;
         }
         applyObjectTransform(object, resolveRadialItemPartTransform(part), DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
         object.visible = resolveRadialItemPartVisibility(part);
@@ -1647,14 +1659,17 @@ function glyphSceneRadius(glyph) {
     return Number.isFinite(radius) && radius > 0 ? radius : 0.25;
 }
 
+function disposeMaterial(material) {
+    forEachMaterial(material, (mat) => {
+        mat.map?.dispose?.();
+        mat.dispose?.();
+    });
+}
+
 function disposeObject(object) {
     object.traverse((child) => {
         if (child.geometry) child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-            child.material.forEach((mat) => mat.dispose?.());
-        } else if (child.material) {
-            child.material.dispose?.();
-        }
+        disposeMaterial(child.material);
     });
 }
 

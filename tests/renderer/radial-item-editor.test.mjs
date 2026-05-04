@@ -19,6 +19,8 @@ import {
   selectRadialItem,
   selectedItemFractalPulse,
   selectedRadialItem,
+  selectedTerminalScreenMaterial,
+  patchSelectedTerminalScreenMaterial,
   setSelectedItemFractalPulseIntensity,
   setSelectedItemHoverSpin,
 } from '../../apps/sigil/radial-item-editor/model.js'
@@ -81,6 +83,35 @@ test('radial item editor can select and patch the agent terminal model host', ()
   assert.deepEqual(terminal.geometry.modelTransform.position, { x: 0.03, y: 0, z: 0 })
   assert.deepEqual(terminal.geometry.visibility, { model: false })
   assert.equal(terminal.geometry.parts[0].id, 'screen')
+})
+
+test('radial item editor can tune agent terminal screen material content', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'agent-terminal',
+    canvasId: 'preview',
+  })
+
+  assert.equal(selectedTerminalScreenMaterial(state).title, 'AGENT TERM')
+  const material = patchSelectedTerminalScreenMaterial(state, {
+    title: 'AOS LINK',
+    lines: ['> claude code', '> codex', '', '> resumed'],
+    accent: '#00ffcc',
+    color: '#02090c',
+  })
+
+  assert.deepEqual(material, {
+    kind: 'terminal-screen',
+    title: 'AOS LINK',
+    lines: ['> claude code', '> codex', '> resumed'],
+    color: '#02090c',
+    accent: '#00ffcc',
+    opacity: 0.94,
+  })
+  assert.deepEqual(exportSelectedRadialItemDefinition(state).item.geometry.parts[0].material.lines, [
+    '> claude code',
+    '> codex',
+    '> resumed',
+  ])
 })
 
 test('radial item editor preview snapshot isolates the selected item', () => {
