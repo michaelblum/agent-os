@@ -52,9 +52,14 @@ export default function MarkdownWorkbench(options = {}) {
     dom.preview.innerHTML = renderMarkdown(state.content);
   }
 
-  function sync() {
+  function sync({ replaceEditorValue = false } = {}) {
     dom.path.textContent = state.path;
-    dom.editor.value = state.content;
+    // Reassigning textarea.value during native input clears WKWebView/browser
+    // undo history. Only replace it for external document loads or explicit
+    // commands such as Revert.
+    if (replaceEditorValue && dom.editor.value !== state.content) {
+      dom.editor.value = state.content;
+    }
     dom.dirty.textContent = state.dirty ? 'Unsaved changes' : 'Saved';
     dom.dirty.dataset.dirty = state.dirty ? 'true' : 'false';
     syncTitle();
@@ -118,8 +123,12 @@ export default function MarkdownWorkbench(options = {}) {
 
     dom.editor.addEventListener('input', () => setContent(dom.editor.value));
     root.querySelector('[data-action="save"]').addEventListener('click', requestSave);
-    root.querySelector('[data-action="revert"]').addEventListener('click', () => setContent(state.savedContent));
-    sync();
+    root.querySelector('[data-action="revert"]').addEventListener('click', () => {
+      state.content = state.savedContent;
+      state.dirty = false;
+      sync({ replaceEditorValue: true });
+    });
+    sync({ replaceEditorValue: true });
     return root;
   }
 
@@ -127,10 +136,10 @@ export default function MarkdownWorkbench(options = {}) {
     const type = message.type || message.payload?.type;
     if (type === 'markdown_document.open') {
       openMarkdownDocument(state, message);
-      sync();
+      sync({ replaceEditorValue: true });
     } else if (type === 'markdown_document.text.patch') {
       applyMarkdownTextPatch(state, message);
-      sync();
+      sync({ replaceEditorValue: true });
     } else if (type === 'markdown_document.save.result') {
       applyMarkdownSaveResult(state, message);
       sync();
