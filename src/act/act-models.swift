@@ -52,6 +52,9 @@ struct ActionRequest: Codable {
     // Phase 2 placeholder
     var channel: String?
 
+    // Optional perception state this action was chosen from.
+    var state_id: String?
+
     // Memberwise init with defaults for use in CLI bridge
     init(action: String, x: Double? = nil, y: Double? = nil, dx: Double? = nil, dy: Double? = nil,
          from: CursorPosition? = nil, button: String? = nil, count: Int? = nil,
@@ -60,7 +63,8 @@ struct ActionRequest: Codable {
          identifier: String? = nil, value: String? = nil, index: Int? = nil,
          near: [Double]? = nil, match: String? = nil, depth: Int? = nil, timeout: Int? = nil,
          set: ContextFields? = nil, clear: Bool? = nil,
-         app: String? = nil, script: String? = nil, window_id: Int? = nil, channel: String? = nil) {
+         app: String? = nil, script: String? = nil, window_id: Int? = nil, channel: String? = nil,
+         state_id: String? = nil) {
         self.action = action; self.x = x; self.y = y; self.dx = dx; self.dy = dy
         self.from = from; self.button = button; self.count = count
         self.text = text; self.key = key
@@ -69,6 +73,7 @@ struct ActionRequest: Codable {
         self.near = near; self.match = match; self.depth = depth; self.timeout = timeout
         self.set = set; self.clear = clear
         self.app = app; self.script = script; self.window_id = window_id; self.channel = channel
+        self.state_id = state_id
     }
 }
 
@@ -96,6 +101,7 @@ struct ActionResponse: Encodable {
     var modifiers: [String]?
     var context: ContextSnapshot?
     var duration_ms: Int?
+    var execution: ActionExecutionMetadata? = nil
 
     // Error fields
     var error: String?
@@ -111,6 +117,13 @@ struct ActionResponse: Encodable {
 
     // Action introspection (for list_actions)
     var available: [AvailableAction]?
+}
+
+struct ActionExecutionMetadata: Encodable {
+    let strategy: String
+    let backend: String
+    let fallback_used: Bool
+    let state_id: String?
 }
 
 struct AvailableAction: Encodable {
@@ -333,6 +346,7 @@ struct LegacySuccessResponse: Encodable {
     let backend: String
     let target: LegacyTargetInfo
     var detail: String?
+    var execution: ActionExecutionMetadata?
 }
 
 struct LegacyTargetInfo: Encodable {

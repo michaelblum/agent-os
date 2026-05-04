@@ -228,6 +228,11 @@ Useful capture modifiers include:
 - `--exclude-window <CGWindowID>` to omit specific windows from a display/region capture
 - `--perception` to attach spatial metadata alongside the image payload
 
+Capture responses include an opaque `state_id` such as `see_abc123def456`.
+Work-record and recipe layers can carry that id into the next action as the
+perception state the agent acted from. The id is a correlation handle, not a
+stable object reference or cache key.
+
 `--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
 canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
 semantic target probe inside that canvas and returns `semantic_targets`. Those
@@ -348,6 +353,33 @@ Primary public verbs:
 | `press` | semantic AX press |
 | `set-value` | semantic AX set-value |
 | `focus` | semantic AX focus |
+| `raise` | raise an app/window |
+| `move` | move a window |
+| `resize` | resize a window |
+| `tell` | AppleScript verb |
+| `session` | interactive action session |
+| `profiles` | inspect behavior profiles |
+
+Coordinate and browser-target actions accept `--state-id <id>` when the action
+was chosen from a prior `aos see capture` response. Direct one-shot responses
+and session responses report an additive `execution` object:
+
+```json
+{
+  "execution": {
+    "strategy": "cgevent_click",
+    "backend": "cgevent",
+    "fallback_used": false,
+    "state_id": "see_abc123def456"
+  }
+}
+```
+
+`strategy` names the path that actually ran, `backend` identifies the actuator
+family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), and
+`fallback_used` is reserved for paths that intentionally degrade from a
+preferred semantic strategy. `duration_ms` remains the top-level timing field on
+session responses.
 
 ## `aos graph`
 
@@ -369,12 +401,6 @@ aos graph displays --json
 `displays[].visible_bounds` uses the same top-left-origin logical coordinate
 space as `bounds`, but reflects the usable display area after macOS menu bar /
 dock insets.
-| `raise` | raise an app/window |
-| `move` | move a window |
-| `resize` | resize a window |
-| `tell` | AppleScript verb |
-| `session` | interactive action session |
-| `profiles` | inspect behavior profiles |
 
 ## `aos say`
 

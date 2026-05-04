@@ -92,6 +92,16 @@ func iso8601Now() -> String {
     return fmt.string(from: Date())
 }
 
+// MARK: - Opaque Runtime IDs
+
+func makeAOSStateID(prefix: String = "see") -> String {
+    let token = UUID().uuidString
+        .lowercased()
+        .replacingOccurrences(of: "-", with: "")
+        .prefix(12)
+    return "\(prefix)_\(token)"
+}
+
 // MARK: - Response Helpers
 
 func sendResponse(to fd: Int32, _ data: Data) {

@@ -10,11 +10,13 @@
   },
   "precondition": {
     "see": "AOS can inspect the foreground app and accessibility tree.",
-    "target": "ax:com.agent-os.launcher"
+    "target": "ax:com.agent-os.launcher",
+    "state_id": "see_desktop000001"
   },
   "action": {
     "verb": "press",
     "target": "ax:com.agent-os.launcher/workflow-entry-employer-brand",
+    "state_id": "see_desktop000001",
     "args": {
       "role": "AXButton",
       "title": "Employer Brand Competitor Audit"
@@ -51,6 +53,12 @@
     }
   },
   "evidence": {
+    "execution": {
+      "strategy": "ax_press",
+      "backend": "ax",
+      "fallback_used": false,
+      "state_id": "see_desktop000001"
+    },
     "artifacts": [
       {
         "kind": "before_see",

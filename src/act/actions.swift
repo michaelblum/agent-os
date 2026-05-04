@@ -9,7 +9,16 @@ import Foundation
 // MARK: - Private Helpers
 
 /// Build a success response carrying current cursor, modifiers, context, and timing.
-private func okResponse(_ action: String, state: SessionState, start: Date, extra: ((inout ActionResponse) -> Void)? = nil) -> ActionResponse {
+private func okResponse(
+    _ action: String,
+    state: SessionState,
+    start: Date,
+    backend: String = "session",
+    strategy: String? = nil,
+    fallbackUsed: Bool = false,
+    stateID: String? = nil,
+    extra: ((inout ActionResponse) -> Void)? = nil
+) -> ActionResponse {
     let elapsed = Int(Date().timeIntervalSince(start) * 1000)
     var resp = ActionResponse(
         status: "ok",
@@ -18,6 +27,12 @@ private func okResponse(_ action: String, state: SessionState, start: Date, extr
         modifiers: state.modifiers.sorted(),
         context: state.contextSnapshot(),
         duration_ms: elapsed
+    )
+    resp.execution = ActionExecutionMetadata(
+        strategy: strategy ?? "\(backend)_\(action)",
+        backend: backend,
+        fallback_used: fallbackUsed,
+        state_id: stateID
     )
     extra?(&resp)
     return resp
@@ -104,7 +119,7 @@ func handleMove(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     }
 
     state.updateCursor(target)
-    return okResponse("move", state: state, start: start)
+    return okResponse("move", state: state, start: start, backend: "cgevent", strategy: "cgevent_move", stateID: req.state_id)
 }
 
 /// Click at (req.x, req.y). Moves to target first if cursor is more than 2px away.
@@ -169,7 +184,7 @@ func handleClick(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     }
 
     state.updateCursor(clickPoint)
-    return okResponse("click", state: state, start: start)
+    return okResponse("click", state: state, start: start, backend: "cgevent", strategy: "cgevent_click", stateID: req.state_id)
 }
 
 /// Drag from req.from (or current cursor) to req.x, req.y along a Bezier curve.
@@ -242,7 +257,7 @@ func handleDrag(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     up.post(tap: .cghidEventTap)
 
     state.updateCursor(target)
-    return okResponse("drag", state: state, start: start)
+    return okResponse("drag", state: state, start: start, backend: "cgevent", strategy: "cgevent_drag", stateID: req.state_id)
 }
 
 /// Scroll at (req.x, req.y) or current cursor with req.dx/req.dy.
@@ -298,7 +313,7 @@ func handleScroll(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         usleep(intervalUs)
     }
 
-    return okResponse("scroll", state: state, start: start)
+    return okResponse("scroll", state: state, start: start, backend: "cgevent", strategy: "cgevent_scroll", stateID: req.state_id)
 }
 
 /// Press and hold a key. If it is a modifier, add to state.modifiers.
@@ -319,7 +334,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
             event.flags = currentFlags(state)
             event.post(tap: .cghidEventTap)
         }
-        return okResponse("key_down", state: state, start: start)
+        return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id)
     }
 
     // Regular key
@@ -333,7 +348,7 @@ func handleKeyDown(_ req: ActionRequest, state: SessionState) -> ActionResponse 
         event.post(tap: .cghidEventTap)
     }
 
-    return okResponse("key_down", state: state, start: start)
+    return okResponse("key_down", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_down", stateID: req.state_id)
 }
 
 /// Release a key. If modifier, remove all aliases from state.modifiers.
@@ -358,7 +373,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             event.flags = currentFlags(state)
             event.post(tap: .cghidEventTap)
         }
-        return okResponse("key_up", state: state, start: start)
+        return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id)
     }
 
     // Regular key
@@ -372,7 +387,7 @@ func handleKeyUp(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         event.post(tap: .cghidEventTap)
     }
 
-    return okResponse("key_up", state: state, start: start)
+    return okResponse("key_up", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_up", stateID: req.state_id)
 }
 
 /// Press and release a key combo (e.g. "cmd+shift+tab"). Uses parseKeyCombo from helpers.
@@ -408,7 +423,7 @@ func handleKeyTap(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         up.post(tap: .cghidEventTap)
     }
 
-    return okResponse("key_tap", state: state, start: start)
+    return okResponse("key_tap", state: state, start: start, backend: "cgevent", strategy: "cgevent_key_tap", stateID: req.state_id)
 }
 
 /// Type text character by character with profile-driven cadence.
@@ -453,7 +468,7 @@ func handleType(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         }
     }
 
-    return okResponse("type", state: state, start: start)
+    return okResponse("type", state: state, start: start, backend: "cgevent", strategy: "cgevent_type", stateID: req.state_id)
 }
 
 // MARK: - AX Action Handlers
@@ -485,7 +500,7 @@ func handlePress(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         if result != .success {
             return errorResponse("press", state: state, message: "AXPress failed with code \(result.rawValue)", code: "AX_ACTION_FAILED")
         }
-        return okResponse("press", state: state, start: start)
+        return okResponse("press", state: state, start: start, backend: "ax", strategy: "ax_press", stateID: req.state_id)
     case .notFound(let msg):
         return errorResponse("press", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
     case .timeout:
@@ -541,7 +556,7 @@ func handleSetValue(_ req: ActionRequest, state: SessionState) -> ActionResponse
             return errorResponse("set_value", state: state,
                 message: "Failed to set value (AX error \(setResult.rawValue))", code: "AX_ACTION_FAILED")
         }
-        return okResponse("set_value", state: state, start: start)
+        return okResponse("set_value", state: state, start: start, backend: "ax", strategy: "ax_set_value", stateID: req.state_id)
 
     case .notFound(let msg):
         return errorResponse("set_value", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
@@ -567,7 +582,7 @@ func handleFocus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
             return errorResponse("focus", state: state,
                 message: "Failed to set focus (AX error \(result.rawValue))", code: "AX_ACTION_FAILED")
         }
-        return okResponse("focus", state: state, start: start)
+        return okResponse("focus", state: state, start: start, backend: "ax", strategy: "ax_focus", stateID: req.state_id)
     case .notFound(let msg):
         return errorResponse("focus", state: state, message: msg, code: "ELEMENT_NOT_FOUND")
     case .timeout:
@@ -603,7 +618,7 @@ func handleRaise(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         AXUIElementPerformAction(win, kAXRaiseAction as CFString)
     }
 
-    return okResponse("raise", state: state, start: start)
+    return okResponse("raise", state: state, start: start, backend: "ax", strategy: "ax_raise", stateID: req.state_id)
 }
 
 // MARK: - AppleScript Handler
@@ -629,7 +644,7 @@ func handleTell(_ req: ActionRequest, state: SessionState) -> ActionResponse {
         return errorResponse("tell", state: state, message: msg, code: "APPLESCRIPT_FAILED")
     }
 
-    return okResponse("tell", state: state, start: start)
+    return okResponse("tell", state: state, start: start, backend: "applescript", strategy: "applescript_tell", stateID: req.state_id)
 }
 
 // MARK: - Meta Handlers
@@ -637,7 +652,7 @@ func handleTell(_ req: ActionRequest, state: SessionState) -> ActionResponse {
 /// Return session status: cursor, modifiers, context, profile, uptime, bound_channel.
 func handleStatus(_ req: ActionRequest, state: SessionState) -> ActionResponse {
     let start = Date()
-    return okResponse("status", state: state, start: start) { resp in
+    return okResponse("status", state: state, start: start, stateID: req.state_id) { resp in
         resp.profile = state.profileName
         resp.session_uptime_s = Date().timeIntervalSince(state.startTime)
         resp.bound_channel = state.boundChannel
@@ -691,7 +706,7 @@ func handleListActions(_ req: ActionRequest, state: SessionState) -> ActionRespo
         actions: ["key_down", "key_tap", "key_up", "move", "scroll", "type"]
     ))
 
-    return okResponse("list_actions", state: state, start: start) { resp in
+    return okResponse("list_actions", state: state, start: start, stateID: req.state_id) { resp in
         resp.available = available
         resp.bound_channel = state.boundChannel
     }
