@@ -132,6 +132,18 @@ natural-language intent and AOS-level step/evidence envelope.
 
 Tracked in #239.
 
+## Computer-Use Control-Plane Lessons
+
+`pi-computer-use` validates a similar semantic-first direction for macOS
+desktop control: ref-first actions, perception state ids, stale-coordinate
+rejection, strict AX/background-safe policies, execution metadata, and quality
+benchmarks. AOS should adopt those lessons natively in its `see`, `do`, and
+work-record contracts instead of routing through `pi-computer-use` as a live
+intermediary.
+
+See
+[`pi-computer-use-lessons-for-aos-see-do.md`](pi-computer-use-lessons-for-aos-see-do.md).
+
 ## BNF, Schemas, And Logit Masking
 
 BNF-like grammar is useful for compact target strings and CLI forms. JSON
