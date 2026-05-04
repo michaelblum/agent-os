@@ -1,5 +1,9 @@
 import { renderMarkdown } from '../../markdown/render.js';
 import {
+  indentMarkdownSelection,
+  outdentMarkdownSelection,
+} from './editor-commands.js';
+import {
   applyMarkdownSaveResult,
   applyMarkdownTextPatch,
   buildMarkdownSaveRequest,
@@ -82,6 +86,30 @@ export default function MarkdownWorkbench(options = {}) {
     return request;
   }
 
+  function applyEditorCommand(result) {
+    dom.editor.value = result.value;
+    state.content = result.value;
+    state.dirty = state.content !== state.savedContent;
+    sync();
+    dom.editor.setSelectionRange(result.selectionStart, result.selectionEnd);
+  }
+
+  function handleEditorKeydown(event) {
+    const key = String(event.key || '').toLowerCase();
+    if ((event.metaKey || event.ctrlKey) && key === 's') {
+      event.preventDefault();
+      requestSave();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    event.preventDefault();
+    applyEditorCommand((event.shiftKey ? outdentMarkdownSelection : indentMarkdownSelection)({
+      value: dom.editor.value,
+      selectionStart: dom.editor.selectionStart,
+      selectionEnd: dom.editor.selectionEnd,
+    }));
+  }
+
   function render() {
     const root = el('div', 'markdown-workbench-root');
     root.innerHTML = `
@@ -122,6 +150,7 @@ export default function MarkdownWorkbench(options = {}) {
     dom.outline = root.querySelector('[data-role="outline"]');
 
     dom.editor.addEventListener('input', () => setContent(dom.editor.value));
+    dom.editor.addEventListener('keydown', handleEditorKeydown);
     root.querySelector('[data-action="save"]').addEventListener('click', requestSave);
     root.querySelector('[data-action="revert"]').addEventListener('click', () => {
       state.content = state.savedContent;
