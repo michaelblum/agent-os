@@ -70,3 +70,15 @@ node --test tests/renderer/radial-item-editor.test.mjs
 Use AOS live verification when changing the bridge between this editor and the
 toolkit transform panel. Visual tuning still needs human confirmation before the
 exported payload is applied back to the production radial menu defaults.
+
+## Split Workbench
+
+`apps/sigil/radial-item-workbench/` is the composed version of the same tool. It
+mounts the preview and toolkit object transform panel as panes in one canvas
+while keeping the same editor model, object registry, transform patch, and
+lock-in payload contracts.
+
+```bash
+AOS=/Users/Michael/Code/agent-os/aos \
+apps/sigil/radial-item-workbench/launch.sh wiki-graph
+```

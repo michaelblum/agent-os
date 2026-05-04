@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Radial Item Workbench</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="../renderer/vendor/three.min.js"></script>
+  <script src="../renderer/vendor/GLTFLoader.js"></script>
+</head>
+<body>
+  <div class="workbench-shell">
+    <header class="workbench-titlebar" id="drag-handle">
+      <span class="workbench-grip" aria-hidden="true"></span>
+      <strong>Sigil Radial Item Workbench</strong>
+      <div class="workbench-actions">
+        <label>
+          <span>Item</span>
+          <select id="item-select"></select>
+        </label>
+        <label>
+          <input type="checkbox" id="spin-toggle">
+          <span>Model spin</span>
+        </label>
+        <button type="button" id="lock-in">Lock in</button>
+        <button type="button" id="reset-orbit">Reset view</button>
+      </div>
+    </header>
+    <main class="workbench-main">
+      <section class="preview-pane" aria-label="Radial item preview">
+        <div id="preview-stage"></div>
+        <div class="preview-status" id="status">Loading radial item...</div>
+      </section>
+      <section class="controls-pane" aria-label="Object transform controls">
+        <div class="controls-title" id="controls-title">Object Transform</div>
+        <div id="transform-panel"></div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

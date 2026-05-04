@@ -151,11 +151,12 @@ function renderSnapshot(state) {
   );
 }
 
-export default function ObjectTransformPanel() {
+export default function ObjectTransformPanel(options = {}) {
   let host = null;
   let root = null;
   let numberFields = null;
   const state = createObjectTransformState();
+  const emitMessage = typeof options.emitMessage === 'function' ? options.emitMessage : null;
 
   function syncDebugState() {
     window.__objectTransformPanelState = {
@@ -218,8 +219,6 @@ export default function ObjectTransformPanel() {
         sent_at: Date.now(),
       });
       state.objectsByKey.set(entry.key, updateEntryTransformDraft(entry, group, values));
-      const delivery = patchDeliveryForTarget(entry, patch);
-      emit(delivery.type, delivery.payload);
       state.lastResult = {
         request_id: patch.request_id,
         target: patch.target,
@@ -229,6 +228,9 @@ export default function ObjectTransformPanel() {
         message: 'waiting for owner',
         transform: null,
       };
+      const delivery = patchDeliveryForTarget(entry, patch);
+      if (emitMessage) emitMessage(delivery);
+      else emit(delivery.type, delivery.payload);
       rerender();
       return patch;
     } catch (error) {
@@ -258,8 +260,6 @@ export default function ObjectTransformPanel() {
         sent_at: Date.now(),
       });
       state.objectsByKey.set(entry.key, updateEntryVisibilityDraft(entry, visible));
-      const delivery = patchDeliveryForTarget(entry, patch);
-      emit(delivery.type, delivery.payload);
       state.lastResult = {
         request_id: patch.request_id,
         target: patch.target,
@@ -270,6 +270,9 @@ export default function ObjectTransformPanel() {
         transform: null,
         visible: !!visible,
       };
+      const delivery = patchDeliveryForTarget(entry, patch);
+      if (emitMessage) emitMessage(delivery);
+      else emit(delivery.type, delivery.payload);
       rerender();
       return patch;
     } catch (error) {
