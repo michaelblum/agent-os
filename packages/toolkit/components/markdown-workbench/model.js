@@ -1,4 +1,5 @@
 import { createWorkbenchSubject } from '../../workbench/subject.js';
+import { createWikiPageSubject } from '../../workbench/wiki-subject.js';
 
 export const MARKDOWN_WORKBENCH_SCHEMA_VERSION = '2026-05-03';
 
@@ -16,14 +17,30 @@ export function createMarkdownWorkbenchState({
   content = '',
   savedContent = content,
   dirty = false,
+  source = null,
 } = {}) {
   const current = String(content ?? '');
   return {
     path: normalizePath(path),
+    source: normalizeSource(source, normalizePath(path)),
     content: current,
     savedContent: String(savedContent ?? current),
     dirty: !!dirty,
     lastResult: null,
+  };
+}
+
+function normalizeSource(source = null, path = 'untitled.md') {
+  if (source && typeof source === 'object' && source.kind === 'wiki') {
+    return {
+      kind: 'wiki',
+      path: normalizePath(source.path || path),
+      page: source.page && typeof source.page === 'object' ? source.page : null,
+    };
+  }
+  return {
+    kind: 'file',
+    path: normalizePath(path),
   };
 }
 
@@ -79,6 +96,7 @@ export function openMarkdownDocument(state, message = {}) {
   const payload = message.payload || message;
   const content = String(payload.content ?? payload.markdown ?? '');
   state.path = normalizePath(payload.path);
+  state.source = normalizeSource(payload.source, state.path);
   state.content = content;
   state.savedContent = content;
   state.dirty = false;
@@ -127,6 +145,7 @@ export function buildMarkdownSaveRequest(state, {
     schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
     request_id: requestId,
     subject: buildMarkdownWorkbenchSubject(state),
+    source: state.source,
     path: state.path,
     content: state.content,
     diagnostics: markdownDiagnostics(state.content),
@@ -155,6 +174,7 @@ export function markdownWorkbenchSnapshot(state) {
     type: 'markdown_document.snapshot',
     schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
     subject: buildMarkdownWorkbenchSubject(state),
+    source: state.source,
     path: state.path,
     content: state.content,
     dirty: state.dirty,
@@ -165,6 +185,32 @@ export function markdownWorkbenchSnapshot(state) {
 
 export function buildMarkdownWorkbenchSubject(state = {}) {
   const diagnostics = markdownDiagnostics(state.content);
+  if (state.source?.kind === 'wiki') {
+    const subject = createWikiPageSubject({
+      ...(state.source.page || {}),
+      path: state.source.path || state.path,
+    });
+    subject.capabilities = [...new Set([
+      ...subject.capabilities,
+      'markdown.render',
+      'markdown.diagnostics',
+      'markdown.outline',
+      'markdown_document.text.patch',
+      'markdown_document.save.requested',
+    ])];
+    subject.views = [...new Set([...subject.views, 'source', 'markdown.preview', 'outline', 'diagnostics'])];
+    subject.controls = [...new Set([...subject.controls, 'text.editor', 'save', 'revert'])];
+    subject.state = {
+      ...subject.state,
+      dirty: !!state.dirty,
+      line_count: diagnostics.line_count,
+      word_count: diagnostics.word_count,
+      heading_count: diagnostics.heading_count,
+      mermaid_block_count: diagnostics.mermaid_blocks.length,
+      unclosed_fence: diagnostics.unclosed_fence,
+    };
+    return subject;
+  }
   return createWorkbenchSubject({
     id: `file:${normalizePath(state.path)}`,
     type: 'markdown.document',

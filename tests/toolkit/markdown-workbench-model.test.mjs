@@ -72,3 +72,38 @@ test('markdown workbench exposes an AOS workbench subject descriptor', () => {
   assert.ok(subject.capabilities.includes('markdown_document.text.patch'));
   assert.ok(subject.capabilities.includes('markdown.mermaid.detect'));
 });
+
+test('markdown workbench exposes wiki-backed subjects when opened from wiki', () => {
+  const state = createMarkdownWorkbenchState();
+  openMarkdownDocument(state, {
+    type: 'markdown_document.open',
+    path: 'aos/concepts/runtime-modes.md',
+    source: {
+      kind: 'wiki',
+      path: 'aos/concepts/runtime-modes.md',
+      page: {
+        path: 'aos/concepts/runtime-modes.md',
+        frontmatter: {
+          type: 'concept',
+          name: 'Runtime Modes',
+          tags: '[infrastructure, runtime]',
+        },
+      },
+    },
+    content: '# Runtime Modes',
+  });
+
+  const save = buildMarkdownSaveRequest(state, { requestId: 'wiki-save-1' });
+  assert.equal(save.subject.id, 'wiki:aos/concepts/runtime-modes.md');
+  assert.equal(save.subject.subject_type, 'wiki.concept');
+  assert.equal(save.subject.source.kind, 'wiki');
+  assert.equal(save.source.kind, 'wiki');
+  assert.equal(save.path, 'aos/concepts/runtime-modes.md');
+  assert.equal(save.subject.state.dirty, false);
+
+  applyMarkdownTextPatch(state, {
+    type: 'markdown_document.text.patch',
+    patch: { content: '# Runtime Modes\n\nChanged.' },
+  });
+  assert.equal(buildMarkdownWorkbenchSubject(state).state.dirty, true);
+});

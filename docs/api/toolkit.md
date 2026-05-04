@@ -313,6 +313,7 @@ Launch the sample or a repo file:
 ```bash
 packages/toolkit/components/markdown-workbench/launch.sh
 packages/toolkit/components/markdown-workbench/launch.sh docs/design/aos-workbench-pattern.md
+packages/toolkit/components/markdown-workbench/launch.sh wiki:aos/concepts/runtime-modes.md
 ```
 
 Persist the current canvas state from an agent shell:
@@ -324,7 +325,8 @@ packages/toolkit/components/markdown-workbench/save-current.sh markdown-workbenc
 Accepted messages:
 
 - `markdown_document.open` with `{ path, content }` replaces the current subject
-  and clears dirty state.
+  and clears dirty state. Wiki-backed opens may include
+  `{ source: { kind: "wiki", path, page? } }`.
 - `markdown_document.text.patch` with `{ patch: { content } }` replaces the
   editable source and recomputes preview/diagnostics.
 - `markdown_document.save.result` with `{ status: "saved" | "rejected",
@@ -362,6 +364,11 @@ Current renderer support is intentionally small: frontmatter is skipped,
 headings up to depth 3 render, lists render, inline code/bold/emphasis render,
 and unsafe links are stripped. Mermaid fences are detected for diagnostics but
 not rendered yet.
+
+`save-current.sh` persists file-backed documents by writing the source file and
+wiki-backed documents by PUT-ing to the local wiki content server. The canvas
+still only emits save requests; the helper performs the privileged write and
+posts `markdown_document.save.result` back to the canvas.
 
 When enabled, the graph controls can also expose:
 
