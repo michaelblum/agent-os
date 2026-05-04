@@ -18,9 +18,13 @@ The item argument is optional. Editable subjects are discovered from
 `DEFAULT_SIGIL_RADIAL_ITEMS` and currently include `context-menu`,
 `agent-terminal`, and `wiki-graph`.
 
-`AOS_SIGIL_CONTENT_ROOT` is the AOS content-root name, not a filesystem path.
-Leave it unset unless you need a non-default key; the launch script points that
-root at the current git worktree's `apps/sigil` directory.
+`AOS_SIGIL_CONTENT_ROOT` and `AOS_TOOLKIT_CONTENT_ROOT` are AOS content-root
+names, not filesystem paths. Leave them unset unless you need stable short keys.
+On `main`, the launch script uses `sigil` and `toolkit`. On topic branches, it
+uses branch-scoped root names so a worktree launch does not overwrite the
+canonical repo roots expected by `aos ready`. If those roots are not already
+live in the content server, the script performs one repo daemon restart before
+creating the editor canvases.
 
 ## Contracts
 

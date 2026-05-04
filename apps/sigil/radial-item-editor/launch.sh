@@ -16,7 +16,24 @@ if [[ ! -x "$AOS" ]]; then
   exit 1
 fi
 
-CONTENT_ROOT="${AOS_SIGIL_CONTENT_ROOT:-sigil}"
+root_key_for() {
+  local prefix="$1"
+  local branch suffix
+  branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+  if [[ -z "$branch" || "$branch" == "main" ]]; then
+    printf '%s\n' "$prefix"
+    return
+  fi
+  suffix="$(
+    printf '%s' "$branch" \
+      | tr '[:upper:]' '[:lower:]' \
+      | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//'
+  )"
+  printf '%s_%s\n' "$prefix" "${suffix:-worktree}"
+}
+
+CONTENT_ROOT="${AOS_SIGIL_CONTENT_ROOT:-$(root_key_for sigil)}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(root_key_for toolkit)}"
 EDITOR_ID="${AOS_RADIAL_ITEM_EDITOR_ID:-sigil-radial-item-editor}"
 PANEL_ID="${AOS_OBJECT_TRANSFORM_PANEL_ID:-object-transform-panel}"
 ITEM_ID="${1:-${AOS_RADIAL_ITEM_ID:-wiki-graph}}"
@@ -26,9 +43,35 @@ PANEL_W="${AOS_OBJECT_TRANSFORM_PANEL_W:-620}"
 PANEL_H="${AOS_OBJECT_TRANSFORM_PANEL_H:-420}"
 
 "$AOS" set "content.roots.$CONTENT_ROOT" "$ROOT/apps/sigil" >/dev/null
-"$AOS" set content.roots.toolkit "$ROOT/packages/toolkit" >/dev/null
+"$AOS" set "content.roots.$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit" >/dev/null
+
+content_roots_live() {
+  "$AOS" content status --json 2>/dev/null \
+    | CONTENT_ROOT="$CONTENT_ROOT" \
+      TOOLKIT_CONTENT_ROOT="$TOOLKIT_CONTENT_ROOT" \
+      SIGIL_PATH="$ROOT/apps/sigil" \
+      TOOLKIT_PATH="$ROOT/packages/toolkit" \
+      python3 -c '
+import json, os, sys
+try:
+    roots = json.load(sys.stdin).get("roots", {})
+except Exception:
+    sys.exit(1)
+checks = (
+    (os.environ["CONTENT_ROOT"], os.environ["SIGIL_PATH"]),
+    (os.environ["TOOLKIT_CONTENT_ROOT"], os.environ["TOOLKIT_PATH"]),
+)
+sys.exit(0 if all(roots.get(name) == path for name, path in checks) else 1)
+'
+}
+
+if ! content_roots_live; then
+  echo "Refreshing repo daemon so new content roots are live: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT" >&2
+  "$AOS" service restart --mode repo >/dev/null
+fi
+
 "$AOS" content wait --root "$CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
-"$AOS" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+"$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
 
 DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
 GEOMETRY="$(
@@ -72,7 +115,7 @@ read -r EDITOR_X EDITOR_Y RESOLVED_EDITOR_W RESOLVED_EDITOR_H PANEL_X PANEL_Y RE
   --at "$PANEL_X,$PANEL_Y,$RESOLVED_PANEL_W,$RESOLVED_PANEL_H" \
   --interactive \
   --scope global \
-  --url 'aos://toolkit/components/object-transform-panel/index.html' >/dev/null
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/object-transform-panel/index.html" >/dev/null
 
 "$AOS" show wait \
   --id "$EDITOR_ID" \
@@ -86,5 +129,6 @@ read -r EDITOR_X EDITOR_Y RESOLVED_EDITOR_W RESOLVED_EDITOR_H PANEL_X PANEL_Y RE
   --timeout 5s >/dev/null
 
 echo "Sigil radial item editor launched for $ITEM_ID"
+echo "Content roots: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT"
 echo "Preview: $EDITOR_ID at ${EDITOR_X},${EDITOR_Y} (${RESOLVED_EDITOR_W}x${RESOLVED_EDITOR_H})"
 echo "Controls: $PANEL_ID at ${PANEL_X},${PANEL_Y} (${RESOLVED_PANEL_W}x${RESOLVED_PANEL_H})"
