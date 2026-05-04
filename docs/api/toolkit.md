@@ -99,12 +99,20 @@ Wiki pages can be projected from `aos wiki list/show --json` shapes with:
 import { createWikiPageSubject } from '../workbench/wiki-subject.js'
 ```
 
+Design-stage work records can be projected from schema-shaped work-record
+objects with:
+
+```js
+import { createWorkRecordSubject } from '../workbench/work-record-subject.js'
+```
+
 The current schema version is `2026-05-03`. The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
   `wiki.reference`, and `sigil.agent`
+- Work-record subjects: `aos.do_step` and `aos.recipe_health_event`
 
 Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
@@ -114,6 +122,12 @@ Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,
 namespace, plugin }`, and their persistence route is the wiki write/change-event
 handoff rather than direct canvas filesystem access.
+
+Work-record subject ids use `work-record:<id>`. They expose the natural-language
+intent, execution map, evidence artifacts, and health state as workbench views.
+The helper is a projection layer only; recording, replay, repair, and retirement
+remain owned by the work-record model in
+[`docs/design/aos-work-records-and-self-healing-recipes.md`](../design/aos-work-records-and-self-healing-recipes.md).
 
 ## Stock Components Snapshot
 
