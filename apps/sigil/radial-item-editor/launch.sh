@@ -128,6 +128,15 @@ read -r EDITOR_X EDITOR_Y RESOLVED_EDITOR_W RESOLVED_EDITOR_H PANEL_X PANEL_Y RE
   --js 'typeof window.__objectTransformPanelState === "object"' \
   --timeout 5s >/dev/null
 
+"$AOS" show eval \
+  --id "$EDITOR_ID" \
+  --js 'window.__sigilRadialItemEditor.emitRegistry(); "ok"' >/dev/null
+
+"$AOS" show wait \
+  --id "$PANEL_ID" \
+  --js 'Array.isArray(window.__objectTransformPanelState?.objects) && window.__objectTransformPanelState.objects.length > 0' \
+  --timeout 5s >/dev/null
+
 echo "Sigil radial item editor launched for $ITEM_ID"
 echo "Content roots: $CONTENT_ROOT, $TOOLKIT_CONTENT_ROOT"
 echo "Preview: $EDITOR_ID at ${EDITOR_X},${EDITOR_Y} (${RESOLVED_EDITOR_W}x${RESOLVED_EDITOR_H})"

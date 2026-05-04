@@ -18,6 +18,7 @@ const controllerId = params.get('controller-id') || 'object-transform-panel';
 const initialItemId = params.get('item') || 'wiki-graph';
 
 const status = document.getElementById('status');
+const dragHandle = document.getElementById('drag-handle');
 const toolbar = document.getElementById('toolbar');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
@@ -45,6 +46,10 @@ document.body.appendChild(renderer.domElement);
 function post(type, payload) {
     const body = payload === undefined ? { type } : { type, payload };
     window.webkit?.messageHandlers?.headsup?.postMessage(body);
+}
+
+function postRaw(message) {
+    window.webkit?.messageHandlers?.headsup?.postMessage(message);
 }
 
 function sendToController(message) {
@@ -99,6 +104,13 @@ const orbitState = {
     pointerId: null,
     lastX: 0,
     lastY: 0,
+};
+
+const windowDragState = {
+    active: false,
+    pointerId: null,
+    offsetX: 0,
+    offsetY: 0,
 };
 
 function syncOrbit() {
@@ -174,6 +186,50 @@ window.headsup.receive = function receive(b64) {
         console.error('[sigil/radial-item-editor] bridge receive failed', error);
     }
 };
+
+dragHandle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    windowDragState.active = true;
+    windowDragState.pointerId = event.pointerId;
+    windowDragState.offsetX = event.clientX;
+    windowDragState.offsetY = event.clientY;
+    dragHandle.dataset.dragging = 'true';
+    postRaw({
+        type: 'drag_start',
+        offsetX: windowDragState.offsetX,
+        offsetY: windowDragState.offsetY,
+    });
+    dragHandle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+});
+
+dragHandle.addEventListener('pointermove', (event) => {
+    if (!windowDragState.active || event.pointerId !== windowDragState.pointerId) return;
+    postRaw({
+        type: 'move_abs',
+        screenX: event.screenX,
+        screenY: event.screenY,
+        offsetX: windowDragState.offsetX,
+        offsetY: windowDragState.offsetY,
+    });
+    event.preventDefault();
+});
+
+function endWindowDrag(event) {
+    if (event.pointerId !== windowDragState.pointerId) return;
+    windowDragState.active = false;
+    windowDragState.pointerId = null;
+    delete dragHandle.dataset.dragging;
+    dragHandle.releasePointerCapture?.(event.pointerId);
+    postRaw({ type: 'drag_end' });
+}
+
+dragHandle.addEventListener('pointerup', endWindowDrag);
+dragHandle.addEventListener('pointercancel', endWindowDrag);
+dragHandle.addEventListener('lostpointercapture', (event) => {
+    if (!windowDragState.active || event.pointerId !== windowDragState.pointerId) return;
+    endWindowDrag(event);
+});
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
     orbitState.dragging = true;

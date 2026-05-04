@@ -21,6 +21,49 @@ canvas.dragging {
   cursor: grabbing;
 }
 
+.editor-titlebar {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  min-height: 30px;
+  max-width: min(360px, calc(100vw - 520px));
+  border: 1px solid rgba(122, 241, 255, 0.35);
+  border-radius: 7px;
+  background: rgba(4, 14, 18, 0.78);
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  cursor: grab;
+  pointer-events: auto;
+  user-select: none;
+  z-index: 4;
+}
+
+.editor-titlebar[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.editor-titlebar strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.editor-titlebar-grip {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 10px;
+  border-block: 2px solid rgba(183, 252, 255, 0.58);
+  opacity: 0.72;
+}
+
 .editor-toolbar {
   position: fixed;
   top: 12px;
@@ -32,6 +75,18 @@ canvas.dragging {
   pointer-events: auto;
   user-select: none;
   z-index: 3;
+}
+
+@media (max-width: 760px) {
+  .editor-titlebar {
+    max-width: calc(100vw - 24px);
+  }
+
+  .editor-toolbar {
+    top: 52px;
+    left: 12px;
+    right: auto;
+  }
 }
 
 .editor-toolbar label,

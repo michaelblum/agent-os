@@ -37,6 +37,12 @@ messages back to the editor. The editor mutates only its in-memory copy of the
 radial item config, then emits `canvas_object.transform.result` and a refreshed
 registry.
 
+The launch script opens the preview and transform controls as separate canvases,
+then replays the current registry after both surfaces are ready. That avoids a
+lost first registry message while keeping the editor and generic toolkit panel
+independent. A later workbench shell can compose the same preview and controls
+as panes in one split surface.
+
 The `Lock in` button emits `sigil.radial_item_editor.lock_in`. That payload is a
 source-ready handoff for an agent, not a browser-side file write. It names the
 source file and export to update:
