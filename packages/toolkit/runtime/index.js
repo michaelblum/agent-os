@@ -46,6 +46,11 @@ export {
   shortestAngleDelta,
 } from './radial-gesture.js'
 export {
+  MENU_ACTIVATION_SCHEMA_VERSION,
+  advanceMenuActivation,
+  createMenuActivationRequest,
+} from './menu-activation.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,
