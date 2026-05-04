@@ -21,6 +21,7 @@ function el(tag, className, textContent) {
 
 export default function MarkdownWorkbench(options = {}) {
   let host = null;
+  let initialUrlOpenStarted = false;
   const state = createMarkdownWorkbenchState(options.document || {});
   const dom = {};
 
@@ -72,16 +73,111 @@ export default function MarkdownWorkbench(options = {}) {
     window.__markdownWorkbenchState = markdownWorkbenchSnapshot(state);
   }
 
+  function parseWikiFrontmatter(raw = '') {
+    const text = String(raw ?? '');
+    if (!text.startsWith('---\n')) return {};
+    const end = text.indexOf('\n---', 4);
+    if (end < 0) return {};
+    const frontmatter = {};
+    for (const line of text.slice(4, end).split('\n')) {
+      const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+      if (!match) continue;
+      let value = match[2].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      frontmatter[match[1]] = value;
+    }
+    return frontmatter;
+  }
+
+  async function openInitialWikiFromUrl() {
+    if (initialUrlOpenStarted || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search || '');
+    const wikiPath = String(params.get('wiki') || '').replace(/^\/+/, '').trim();
+    if (!wikiPath) return;
+    initialUrlOpenStarted = true;
+    try {
+      const response = await fetch(`/wiki/${wikiPath}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`wiki fetch failed for ${wikiPath}: ${response.status}`);
+      const content = await response.text();
+      openMarkdownDocument(state, {
+        type: 'markdown_document.open',
+        path: wikiPath,
+        source: {
+          kind: 'wiki',
+          path: wikiPath,
+          page: {
+            path: wikiPath,
+            frontmatter: parseWikiFrontmatter(content),
+          },
+        },
+        content,
+      });
+      sync({ replaceEditorValue: true });
+    } catch (error) {
+      state.lastResult = {
+        type: 'markdown_document.open.result',
+        status: 'rejected',
+        path: wikiPath,
+        message: String(error?.message || error),
+      };
+      sync();
+      console.warn('[markdown-workbench] initial wiki open failed:', error);
+    }
+  }
+
   function setContent(content) {
     state.content = String(content ?? '');
     state.dirty = state.content !== state.savedContent;
     sync();
   }
 
+  async function saveWikiDocument(request) {
+    const source = request.source || request.subject?.source;
+    if (source?.kind !== 'wiki' || !source.path) {
+      throw new Error('markdown document is not wiki-backed');
+    }
+    const response = await fetch(`/wiki/${String(source.path).replace(/^\/+/, '')}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+      body: String(request.content ?? ''),
+    });
+    if (!response.ok) throw new Error(`wiki save failed for ${source.path}: ${response.status}`);
+    return {
+      type: 'markdown_document.save.result',
+      request_id: request.request_id,
+      status: 'saved',
+      path: source.path,
+      message: 'Saved to wiki',
+    };
+  }
+
   function requestSave() {
     const request = buildMarkdownSaveRequest(state);
     state.lastResult = request;
-    emit('save.requested', request);
+    if (state.source?.kind === 'wiki') {
+      void saveWikiDocument(request)
+        .then((result) => {
+          applyMarkdownSaveResult(state, result);
+          emit('save.result', result);
+          sync();
+        })
+        .catch((error) => {
+          const result = {
+            type: 'markdown_document.save.result',
+            request_id: request.request_id,
+            status: 'rejected',
+            path: request.path,
+            message: String(error?.message || error),
+          };
+          applyMarkdownSaveResult(state, result);
+          emit('save.result', result);
+          sync();
+        });
+    } else {
+      emit('save.requested', request);
+    }
     sync();
     return request;
   }
@@ -180,7 +276,7 @@ export default function MarkdownWorkbench(options = {}) {
       name: 'markdown-workbench',
       title: 'Markdown Workbench',
       accepts: ['markdown_document.open', 'markdown_document.text.patch', 'markdown_document.save.result'],
-      emits: ['markdown-workbench/save.requested'],
+      emits: ['markdown-workbench/save.requested', 'markdown-workbench/save.result'],
       channelPrefix: 'markdown-workbench',
       defaultSize: { w: 1120, h: 720 },
     },
@@ -188,7 +284,9 @@ export default function MarkdownWorkbench(options = {}) {
     render(host_) {
       host = host_;
       host.contentEl.style.overflow = 'hidden';
-      return render();
+      const root = render();
+      void openInitialWikiFromUrl();
+      return root;
     },
 
     onMessage,

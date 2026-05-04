@@ -21,6 +21,7 @@ It is split into three layers:
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake |
 | Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
+| Workbench | `packages/toolkit/workbench/` | shared subject descriptors and workbench contracts |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
 ### DesktopWorld Surface Runtime
@@ -74,6 +75,45 @@ fields marked with `data-aos-control="number-field"`. It uses the field's
 native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `change` events after a step, uses `Shift` for coarse stepping, and uses
 `Option` for fine stepping.
+
+## Workbench Contracts
+
+Workbench surfaces should describe the thing being edited with
+`aos.workbench.subject`. The descriptor is intentionally small: it names stable
+identity, subject type, owner, source, capabilities, views, controls,
+persistence, artifacts, and current state. It does not move domain ownership
+into the toolkit.
+
+Canonical schema:
+[`shared/schemas/aos-workbench-subject.schema.json`](../../shared/schemas/aos-workbench-subject.schema.json)
+
+Create descriptors with:
+
+```js
+import { createWorkbenchSubject } from '../workbench/subject.js'
+```
+
+Wiki pages can be projected from `aos wiki list/show --json` shapes with:
+
+```js
+import { createWikiPageSubject } from '../workbench/wiki-subject.js'
+```
+
+The current schema version is `2026-05-03`. The first adopters are:
+
+- Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
+- Markdown workbench subjects: `markdown.document`
+- Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
+  `wiki.reference`, and `sigil.agent`
+
+Subject descriptors are included in lock-in/save handoff payloads so agents,
+apps, and future workbench shells can reason about different editors using one
+vocabulary.
+
+Wiki subject ids use `wiki:<path>`, for example
+`wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,
+namespace, plugin }`, and their persistence route is the wiki write/change-event
+handoff rather than direct canvas filesystem access.
 
 ## Stock Components Snapshot
 
@@ -273,6 +313,7 @@ Launch the sample or a repo file:
 ```bash
 packages/toolkit/components/markdown-workbench/launch.sh
 packages/toolkit/components/markdown-workbench/launch.sh docs/design/aos-workbench-pattern.md
+packages/toolkit/components/markdown-workbench/launch.sh wiki:aos/concepts/runtime-modes.md
 ```
 
 Persist the current canvas state from an agent shell:
@@ -284,7 +325,8 @@ packages/toolkit/components/markdown-workbench/save-current.sh markdown-workbenc
 Accepted messages:
 
 - `markdown_document.open` with `{ path, content }` replaces the current subject
-  and clears dirty state.
+  and clears dirty state. Wiki-backed opens may include
+  `{ source: { kind: "wiki", path, page? } }`.
 - `markdown_document.text.patch` with `{ patch: { content } }` replaces the
   editable source and recomputes preview/diagnostics.
 - `markdown_document.save.result` with `{ status: "saved" | "rejected",
@@ -297,6 +339,14 @@ Save requests are emitted as `markdown-workbench/save.requested` with payload:
   "type": "markdown_document.save.requested",
   "schema_version": "2026-05-03",
   "request_id": "markdown-save-example",
+  "subject": {
+    "type": "aos.workbench.subject",
+    "schema_version": "2026-05-03",
+    "id": "file:docs/example.md",
+    "subject_type": "markdown.document",
+    "label": "example.md",
+    "owner": "markdown-workbench"
+  },
   "path": "docs/example.md",
   "content": "# Example\n\nUpdated body",
   "diagnostics": {
@@ -314,6 +364,11 @@ Current renderer support is intentionally small: frontmatter is skipped,
 headings up to depth 3 render, lists render, inline code/bold/emphasis render,
 and unsafe links are stripped. Mermaid fences are detected for diagnostics but
 not rendered yet.
+
+`save-current.sh` persists file-backed documents by writing the source file and
+wiki-backed documents by PUT-ing to the local wiki content server. The canvas
+still only emits save requests; the helper performs the privileged write and
+posts `markdown_document.save.result` back to the canvas.
 
 When enabled, the graph controls can also expose:
 

@@ -11,6 +11,7 @@ import {
 } from '../../apps/sigil/renderer/live-modules/radial-object-control.js'
 import {
   applyEditorObjectPatch,
+  buildRadialItemWorkbenchSubject,
   buildEditorObjectRegistry,
   buildEditorRadialSnapshot,
   createRadialItemEditorState,
@@ -177,6 +178,8 @@ test('radial item editor exports a source-ready lock-in payload for the selected
   assert.equal(payload.type, 'sigil.radial_item_editor.lock_in')
   assert.equal(payload.schema_version, '2026-05-03')
   assert.equal(payload.generated_at, '2026-05-03T12:00:00.000Z')
+  assert.equal(payload.subject.id, 'sigil.radial_menu.item:agent-terminal')
+  assert.equal(payload.subject.subject_type, 'sigil.radial_menu.item_3d')
   assert.deepEqual(payload.source, {
     kind: 'sigil.radial_menu.default_items',
     path: 'apps/sigil/renderer/radial-menu-defaults.js',
@@ -193,6 +196,23 @@ test('radial item editor exports a source-ready lock-in payload for the selected
     AGENT_TERMINAL_MODEL_OBJECT_ID,
     AGENT_TERMINAL_SCREEN_OBJECT_ID,
   ])
+})
+
+test('radial item editor exposes an AOS workbench subject descriptor', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'wiki-graph',
+    canvasId: 'preview',
+  })
+  const subject = buildRadialItemWorkbenchSubject(state)
+
+  assert.equal(subject.type, 'aos.workbench.subject')
+  assert.equal(subject.id, 'sigil.radial_menu.item:wiki-graph')
+  assert.equal(subject.subject_type, 'sigil.radial_menu.item_3d')
+  assert.equal(subject.owner, 'sigil.radial-item-editor')
+  assert.equal(subject.state.canvas_id, 'preview')
+  assert.equal(subject.state.object_count, 4)
+  assert.ok(subject.capabilities.includes('canvas_object.registry'))
+  assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
 })
 
 test('radial item editor lock-in payload is detached from later state mutation', () => {

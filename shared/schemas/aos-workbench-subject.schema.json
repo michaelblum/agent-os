@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-workbench-subject.schema.json",
+  "title": "AOS Workbench Subject",
+  "type": "object",
+  "required": ["type", "schema_version", "id", "subject_type", "label", "owner"],
+  "properties": {
+    "type": {
+      "const": "aos.workbench.subject"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^2026-05-03$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": ["object", "null"]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "views": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "controls": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "persistence": {
+      "type": ["object", "null"]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "state": {
+      "type": "object",
+      "default": {}
+    },
+    "metadata": {
+      "type": "object",
+      "default": {}
+    }
+  },
+  "additionalProperties": false
+}

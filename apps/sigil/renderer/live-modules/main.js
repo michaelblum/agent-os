@@ -39,6 +39,10 @@ import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
+    advanceMenuActivation,
+    createMenuActivationRequest,
+} from './menu-activation-runtime.js';
+import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
     applyRadialMenuObjectTransformPatch,
     buildRadialMenuObjectRegistry,
@@ -102,6 +106,7 @@ const liveJs = {
     utilityCanvases: new Map(),
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
     sessionVitality: null,
+    lastRadialActivation: null,
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
@@ -114,6 +119,10 @@ const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
 const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
 const AGENT_TERMINAL_URL = 'aos://sigil/agent-terminal/index.html?port=17761&session=sigil-agent-terminal-agent-os';
 const AGENT_TERMINAL_PARK_SCALE = 0.24;
+const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
+const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
+const WIKI_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
+const WIKI_WORKBENCH_DEFAULT_URL = `${WIKI_WORKBENCH_URL}?wiki=${encodeURIComponent(WIKI_WORKBENCH_DEFAULT_PATH)}`;
 const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
@@ -588,6 +597,7 @@ const UTILITY_CANVAS_IDS = new Set([
     'canvas-inspector',
     'sigil-interaction-trace',
     RENDER_PERFORMANCE_CANVAS_ID,
+    WIKI_WORKBENCH_CANVAS_ID,
     AGENT_TERMINAL_CANVAS_ID,
     LEGACY_CODEX_TERMINAL_CANVAS_ID,
 ]);
@@ -642,6 +652,16 @@ function utilityFrame(kind) {
             Math.round(height),
         ];
     }
+    if (kind === 'wiki-workbench') {
+        const width = Math.min(1180, Math.max(840, visible.w * 0.72));
+        const height = Math.min(760, Math.max(560, visible.h * 0.74));
+        return [
+            Math.round(visible.x + (visible.w - width) / 2),
+            Math.round(visible.y + 48),
+            Math.round(width),
+            Math.round(height),
+        ];
+    }
 
     const width = Math.min(360, Math.max(320, visible.w * 0.26));
     const height = Math.min(520, Math.max(420, visible.h * 0.55));
@@ -672,6 +692,13 @@ function utilityConfig(kind) {
         return {
             id: RENDER_PERFORMANCE_CANVAS_ID,
             url: 'aos://toolkit/components/render-performance/index.html',
+            frame: utilityFrame(kind),
+        };
+    }
+    if (kind === 'wiki-workbench') {
+        return {
+            id: WIKI_WORKBENCH_CANVAS_ID,
+            url: WIKI_WORKBENCH_DEFAULT_URL,
             frame: utilityFrame(kind),
         };
     }
@@ -979,6 +1006,92 @@ async function toggleUtilityCanvas(kind) {
     }
 }
 
+async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
+    const config = utilityConfig(kind);
+    const current = liveJs.utilityCanvases.get(config.id);
+    const frame = Array.isArray(current?.at) ? current.at : config.frame;
+    try {
+        if (current) {
+            host.canvasUpdate({ id: config.id, frame });
+            if (current.suspended === true) await host.canvasResume(config.id);
+            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
+            return { id: config.id, frame, created: false };
+        }
+        await host.canvasCreate({
+            id: config.id,
+            url: config.url,
+            frame,
+            interactive: true,
+            focus,
+        });
+        liveJs.utilityCanvases.set(config.id, {
+            id: config.id,
+            suspended: false,
+            at: frame,
+        });
+        return { id: config.id, frame, created: true };
+    } catch (error) {
+        if (!current) {
+            await host.canvasResume(config.id);
+            liveJs.utilityCanvases.set(config.id, {
+                id: config.id,
+                suspended: false,
+                at: frame,
+            });
+            return { id: config.id, frame, created: false, recovered: true };
+        }
+        throw error;
+    }
+}
+
+async function fetchWikiMarkdownDocument(path = WIKI_WORKBENCH_DEFAULT_PATH) {
+    const wikiPath = String(path || WIKI_WORKBENCH_DEFAULT_PATH).replace(/^\/+/, '');
+    const response = await fetch(`/wiki/${wikiPath}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`wiki fetch failed for ${wikiPath}: ${response.status}`);
+    const content = await response.text();
+    return {
+        type: 'markdown_document.open',
+        path: wikiPath,
+        source: {
+            kind: 'wiki',
+            path: wikiPath,
+            page: {
+                path: wikiPath,
+                frontmatter: {},
+            },
+        },
+        content,
+    };
+}
+
+function sendCanvasMessage(target, message) {
+    host.post('canvas.send', { target, message });
+}
+
+function sendActivationUpdate(activation, phase, extra = {}) {
+    const update = advanceMenuActivation(activation, phase, extra);
+    liveJs.lastRadialActivation = update;
+    host.post('sigil.radial_menu.activation', update);
+    return update;
+}
+
+async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation = null) {
+    const canvas = await ensureUtilityCanvasVisible('wiki-workbench', { focus: true });
+    const message = await fetchWikiMarkdownDocument(path);
+    if (!canvas.created) {
+        sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
+    }
+    if (activation) {
+        sendActivationUpdate(activation, 'completed', {
+            result: {
+                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
+                subject: message.source,
+            },
+        });
+    }
+    return { canvas, message };
+}
+
 function projectAvatarToScene(screenX, screenY, yOffset = 0) {
     const local = desktopWorldToSegmentLocalPoint({ x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
     const vec = new THREE.Vector3();
@@ -1118,25 +1231,62 @@ const fastTravel = createFastTravelController({
 });
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
-    onCommitItem(item) {
+    onCommitItem(item, snapshot) {
+        const activation = createMenuActivationRequest({
+            menuId: 'sigil.radial',
+            item,
+            input: snapshot?.phase === 'committed' ? 'gesture' : 'radial',
+            source: 'sigil.avatar',
+            surface: item?.action === 'wikiGraph' ? {
+                kind: 'markdown-workbench',
+                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
+                subject: {
+                    id: `wiki:${WIKI_WORKBENCH_DEFAULT_PATH}`,
+                    source: {
+                        kind: 'wiki',
+                        path: WIKI_WORKBENCH_DEFAULT_PATH,
+                    },
+                },
+            } : null,
+            transition: item?.action === 'wikiGraph' ? {
+                preset: 'wiki-brain-zoom-dissolve',
+                item: {
+                    zoom: 'fill-camera',
+                    dissolve: true,
+                },
+                menu: {
+                    dissolve: true,
+                },
+                surface: {
+                    fade: 'in',
+                },
+            } : null,
+        });
+        liveJs.lastRadialActivation = activation;
+        host.post('sigil.radial_menu.activation', activation);
         if (item?.action === 'contextMenu') {
             openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
+            sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
             return;
         }
         if (item?.action === 'agentTerminal' || item?.action === 'codexTerminal') {
             toggleUtilityCanvas('agent-terminal');
+            sendActivationUpdate(activation, 'completed', { result: { canvas_id: AGENT_TERMINAL_CANVAS_ID } });
             return;
         }
         if (item?.action === 'wikiGraph') {
-            host.post('sigil.radial_menu.action', {
-                action: 'wikiGraph',
-                status: 'stub',
+            void openWikiWorkbench(WIKI_WORKBENCH_DEFAULT_PATH, activation).catch((error) => {
+                console.warn('[sigil] wiki workbench activation failed:', error);
+                sendActivationUpdate(activation, 'failed', {
+                    error: String(error?.message || error),
+                });
             });
             return;
         }
         host.post('sigil.radial_menu.action', {
             action: item?.action || item?.id || 'unknown',
         });
+        sendActivationUpdate(activation, 'completed', { result: { action: item?.action || item?.id || 'unknown' } });
     },
 });
 let omegaTrailTravelKey = null;

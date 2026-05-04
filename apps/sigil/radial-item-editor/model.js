@@ -10,6 +10,7 @@ export const DEFAULT_EDITOR_CANVAS_ID = 'sigil-radial-item-editor';
 export const DEFAULT_EDITOR_ITEM_ID = 'wiki-graph';
 export const RADIAL_ITEM_EDITOR_LOCK_IN_TYPE = 'sigil.radial_item_editor.lock_in';
 export const RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION = '2026-05-03';
+export const WORKBENCH_SUBJECT_SCHEMA_VERSION = '2026-05-03';
 export const RADIAL_ITEM_SOURCE = Object.freeze({
     kind: 'sigil.radial_menu.default_items',
     path: 'apps/sigil/renderer/radial-menu-defaults.js',
@@ -150,10 +151,49 @@ export function exportSelectedRadialItemDefinition(state = {}, {
         type: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
         schema_version: RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION,
         generated_at: text(generatedAt, new Date().toISOString()),
+        subject: buildRadialItemWorkbenchSubject(state),
         source: cloneConfig(RADIAL_ITEM_SOURCE),
         item_id: item?.id || null,
         item: item ? cloneConfig(item) : null,
         registry: buildEditorObjectRegistry(state),
+    };
+}
+
+export function buildRadialItemWorkbenchSubject(state = {}) {
+    const item = selectedRadialItem(state);
+    const registry = buildEditorObjectRegistry(state);
+    return {
+        type: 'aos.workbench.subject',
+        schema_version: WORKBENCH_SUBJECT_SCHEMA_VERSION,
+        id: item ? `sigil.radial_menu.item:${item.id}` : 'sigil.radial_menu.item:none',
+        subject_type: 'sigil.radial_menu.item_3d',
+        label: item ? text(item.label, item.id) : 'No radial item',
+        owner: 'sigil.radial-item-editor',
+        source: cloneConfig(RADIAL_ITEM_SOURCE),
+        capabilities: [
+            'canvas_object.registry',
+            'canvas_object.transform.patch',
+            'canvas_object.visibility.patch',
+            'sigil.radial_item_editor.lock_in',
+            'sigil.radial_item.preview',
+        ],
+        views: ['3d.preview', 'object.registry', 'production.radial.preview'],
+        controls: ['object.transform', 'object.visibility', 'scene.orbit', 'lock_in'],
+        persistence: {
+            kind: 'agent_handoff',
+            request: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
+            result: 'source.patch.result',
+        },
+        state: {
+            item_id: item?.id || null,
+            canvas_id: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+            object_count: registry.objects.length,
+            dirty: true,
+        },
+        metadata: {
+            action: text(item?.action),
+            geometry_kind: geometryKind(item || {}),
+        },
     };
 }
 

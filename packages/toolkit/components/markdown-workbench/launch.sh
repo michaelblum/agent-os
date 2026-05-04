@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch.sh - Open a file-backed Markdown workbench.
+# launch.sh - Open a file-backed or wiki-backed Markdown workbench.
 
 set -euo pipefail
 
@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="${CANVAS_ID:-markdown-workbench}"
-TARGET_FILE="${1:-$DIR/sample.md}"
+TARGET="${1:-$DIR/sample.md}"
 PANEL_W="${AOS_MARKDOWN_WORKBENCH_W:-1120}"
 PANEL_H="${AOS_MARKDOWN_WORKBENCH_H:-720}"
 
@@ -35,9 +35,20 @@ if [[ ! -x "$AOS" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$TARGET_FILE" ]]; then
-  echo "Markdown file not found: $TARGET_FILE" >&2
-  exit 1
+WIKI_PATH=""
+TARGET_FILE=""
+if [[ "$TARGET" == wiki:* ]]; then
+  WIKI_PATH="${TARGET#wiki:}"
+  if [[ -z "$WIKI_PATH" ]]; then
+    echo "Wiki target must be wiki:<path>" >&2
+    exit 1
+  fi
+else
+  TARGET_FILE="$TARGET"
+  if [[ ! -f "$TARGET_FILE" ]]; then
+    echo "Markdown file not found: $TARGET_FILE" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$TOOLKIT_CONTENT_ROOT" != "toolkit" && -d "$CANONICAL_REPO_ROOT/packages/toolkit" ]]; then
@@ -103,7 +114,27 @@ read -r X Y W H <<<"$GEOMETRY"
   --js 'typeof window.__markdownWorkbenchState === "object"' \
   --timeout 5s >/dev/null
 
-CONTENT_JSON="$(TARGET_FILE="$TARGET_FILE" python3 -c '
+if [[ -n "$WIKI_PATH" ]]; then
+  PAGE_JSON="$("$AOS" wiki show "$WIKI_PATH" --json)"
+  CONTENT_JSON="$(PAGE_JSON="$PAGE_JSON" python3 -c '
+import json, os
+page = json.loads(os.environ["PAGE_JSON"])
+print(json.dumps({
+    "type": "markdown_document.open",
+    "path": page["path"],
+    "source": {
+        "kind": "wiki",
+        "path": page["path"],
+        "page": {
+            "path": page["path"],
+            "frontmatter": page.get("frontmatter") or {},
+        },
+    },
+    "content": page.get("raw") or "",
+}))
+')"
+else
+  CONTENT_JSON="$(TARGET_FILE="$TARGET_FILE" python3 -c '
 import json, os, pathlib
 path = pathlib.Path(os.environ["TARGET_FILE"]).resolve()
 print(json.dumps({
@@ -112,11 +143,16 @@ print(json.dumps({
     "content": path.read_text(encoding="utf-8"),
 }))
 ')"
+fi
 
 "$AOS" show post --id "$CANVAS_ID" --event "$CONTENT_JSON" >/dev/null
 
 echo "Markdown workbench launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"
-echo "File: $(cd "$(dirname "$TARGET_FILE")" && pwd)/$(basename "$TARGET_FILE")"
+if [[ -n "$WIKI_PATH" ]]; then
+  echo "Wiki: $WIKI_PATH"
+else
+  echo "File: $(cd "$(dirname "$TARGET_FILE")" && pwd)/$(basename "$TARGET_FILE")"
+fi
 echo "Save handoff: use window.__markdownWorkbenchState.content or the emitted markdown-workbench/save.requested event."
 echo "Agent save helper: packages/toolkit/components/markdown-workbench/save-current.sh $CANVAS_ID"
