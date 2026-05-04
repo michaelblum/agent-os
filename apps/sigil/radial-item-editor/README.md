@@ -37,6 +37,13 @@ messages back to the editor. The editor mutates only its in-memory copy of the
 radial item config, then emits `canvas_object.transform.result` and a refreshed
 registry.
 
+Object transforms stay generic. Item-specific material/content controls belong
+to the Sigil workbench shell beside the transform panel, not inside the toolkit
+panel. For example, the Agent Terminal screen is a named `parts[]` plane whose
+transform is addressable through the shared object registry, while its generated
+terminal-screen material is edited through Sigil workbench controls and exported
+in the same lock-in payload.
+
 The launch script opens the preview and transform controls as separate canvases,
 then replays the current registry after both surfaces are ready. That avoids a
 lost first registry message while keeping the editor and generic toolkit panel
@@ -76,7 +83,10 @@ exported payload is applied back to the production radial menu defaults.
 `apps/sigil/radial-item-workbench/` is the composed version of the same tool. It
 mounts the preview and toolkit object transform panel as panes in one canvas
 while keeping the same editor model, object registry, transform patch, and
-lock-in payload contracts.
+lock-in payload contracts. The workbench also hosts narrow item-specific
+controls when the selected item declares them, such as the Agent Terminal screen
+title, lines, and colors. Those controls patch the in-memory item definition and
+the preview re-renders the corresponding generated material on the next frame.
 
 ```bash
 AOS=/Users/Michael/Code/agent-os/aos \
