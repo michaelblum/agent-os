@@ -1,11 +1,12 @@
 # AOS Workbench Pattern
 
-Status: Concept and planning note, not scheduled.
+Status: Planning note with narrow contract extraction in progress.
 
 This note captures a platform direction before it leaks out of session memory.
 It is not an implementation mandate. Promote slices from this note only when a
 concrete consumer needs them and the slice can be specified with explicit
-contracts.
+contracts. The first promoted slice is the shared workbench subject descriptor
+in `packages/toolkit/workbench/subject.js`.
 
 ## Problem
 
@@ -108,6 +109,9 @@ Examples:
 - generated artifact bundle
 
 A subject needs stable identity, type, capabilities, state, and ownership.
+Current adopters publish this as `aos.workbench.subject` so a workbench shell,
+agent, or persistence adapter can inspect different subject kinds without
+knowing their private renderer internals.
 
 ### View
 
@@ -228,6 +232,13 @@ It should be able to contain:
 
 This makes a workflow a graph or DAG, not only a checklist.
 
+Workflows should also be chainable: one workflow node may reference a reusable
+sub-workflow with its own inputs, outputs, approval gates, artifacts, and
+validation state. Chaining should be modeled as subject composition, not as a
+new special-case editor. A workflow workbench can render the same subject as
+source text, JSON, a DAG, a run timeline, or an artifact gallery while patching
+the underlying graph through structured node and edge operations.
+
 Example: SPA report workflow
 
 ```text
@@ -283,6 +294,7 @@ Do not add schemas before a concrete adopter needs them.
 
 Reusable workbench components belong in `packages/toolkit/`:
 
+- subject descriptor helpers
 - workbench shell
 - subject registry viewer
 - object transform panel

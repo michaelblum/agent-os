@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   applyMarkdownSaveResult,
   applyMarkdownTextPatch,
+  buildMarkdownWorkbenchSubject,
   buildMarkdownSaveRequest,
   createMarkdownWorkbenchState,
   markdownDiagnostics,
@@ -40,6 +41,8 @@ test('markdown workbench state opens, patches, and builds save requests', () => 
 
   const save = buildMarkdownSaveRequest(state, { requestId: 'req-1' });
   assert.equal(save.request_id, 'req-1');
+  assert.equal(save.subject.id, 'file:docs/example.md');
+  assert.equal(save.subject.subject_type, 'markdown.document');
   assert.equal(save.path, 'docs/example.md');
   assert.equal(save.content, '# Example\n\nChanged.');
 
@@ -49,4 +52,23 @@ test('markdown workbench state opens, patches, and builds save requests', () => 
   });
   assert.equal(saved.status, 'saved');
   assert.equal(state.dirty, false);
+});
+
+test('markdown workbench exposes an AOS workbench subject descriptor', () => {
+  const state = createMarkdownWorkbenchState({
+    path: 'docs/example.md',
+    content: '# Example\n\n```mermaid\na-->b\n```\n',
+    dirty: true,
+  });
+  const subject = buildMarkdownWorkbenchSubject(state);
+
+  assert.equal(subject.type, 'aos.workbench.subject');
+  assert.equal(subject.id, 'file:docs/example.md');
+  assert.equal(subject.subject_type, 'markdown.document');
+  assert.equal(subject.owner, 'markdown-workbench');
+  assert.deepEqual(subject.source, { kind: 'file', path: 'docs/example.md' });
+  assert.equal(subject.state.dirty, true);
+  assert.equal(subject.state.mermaid_block_count, 1);
+  assert.ok(subject.capabilities.includes('markdown_document.text.patch'));
+  assert.ok(subject.capabilities.includes('markdown.mermaid.detect'));
 });

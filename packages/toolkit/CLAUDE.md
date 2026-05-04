@@ -13,6 +13,7 @@ aos daemon (Layer 0)           canvas.create/update/remove, subscribe streams, e
   └─ runtime/ (Layer 1a)       in-canvas helpers: bridge, subscribe, canvas mutation, manifest
        ├─ controls/            reusable app-control behavior for WKWebView surfaces
        ├─ panel/ (Layer 1b)    panel-shaped scaffolding: chrome, router, layouts (Single, Tabs)
+       ├─ workbench/           subject descriptors and reusable workbench contracts
        │    └─ components/     reusable Content units consumed by panel layouts
        └─ apps/ (Layer 3)      presence surfaces use 1a directly; panels use 1a + 1b + 2
 ```
@@ -48,6 +49,9 @@ panel/                  Layer 1b — panel primitives
   mount.js                mountPanel orchestrator
   index.js                re-exports + Content typedef
   _smoke/                 smoke harness
+
+workbench/              Layer 1c — workbench contracts
+  subject.js              shared aos.workbench.subject descriptor helpers
 
 components/             Layer 2 — reusable Content units
   _base/                  shared theme.css tokens/reset (legacy AosComponent retired)

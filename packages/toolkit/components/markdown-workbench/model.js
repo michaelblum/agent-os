@@ -1,3 +1,5 @@
+import { createWorkbenchSubject } from '../../workbench/subject.js';
+
 export const MARKDOWN_WORKBENCH_SCHEMA_VERSION = '2026-05-03';
 
 function text(value, fallback = '') {
@@ -124,6 +126,7 @@ export function buildMarkdownSaveRequest(state, {
     type: 'markdown_document.save.requested',
     schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
     request_id: requestId,
+    subject: buildMarkdownWorkbenchSubject(state),
     path: state.path,
     content: state.content,
     diagnostics: markdownDiagnostics(state.content),
@@ -151,10 +154,48 @@ export function markdownWorkbenchSnapshot(state) {
   return {
     type: 'markdown_document.snapshot',
     schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
+    subject: buildMarkdownWorkbenchSubject(state),
     path: state.path,
     content: state.content,
     dirty: state.dirty,
     diagnostics: markdownDiagnostics(state.content),
     last_result: state.lastResult,
   };
+}
+
+export function buildMarkdownWorkbenchSubject(state = {}) {
+  const diagnostics = markdownDiagnostics(state.content);
+  return createWorkbenchSubject({
+    id: `file:${normalizePath(state.path)}`,
+    type: 'markdown.document',
+    label: normalizePath(state.path).split('/').pop(),
+    owner: 'markdown-workbench',
+    source: {
+      kind: 'file',
+      path: normalizePath(state.path),
+    },
+    capabilities: [
+      'markdown.render',
+      'markdown.diagnostics',
+      'markdown.outline',
+      'markdown.mermaid.detect',
+      'markdown_document.text.patch',
+      'markdown_document.save.requested',
+    ],
+    views: ['source', 'markdown.preview', 'outline', 'diagnostics'],
+    controls: ['text.editor', 'save', 'revert'],
+    persistence: {
+      kind: 'agent_handoff',
+      request: 'markdown_document.save.requested',
+      result: 'markdown_document.save.result',
+    },
+    state: {
+      dirty: !!state.dirty,
+      line_count: diagnostics.line_count,
+      word_count: diagnostics.word_count,
+      heading_count: diagnostics.heading_count,
+      mermaid_block_count: diagnostics.mermaid_blocks.length,
+      unclosed_fence: diagnostics.unclosed_fence,
+    },
+  });
 }
