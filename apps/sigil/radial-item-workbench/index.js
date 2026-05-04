@@ -35,10 +35,12 @@ const status = document.getElementById('status');
 const dragHandle = document.getElementById('drag-handle');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
+const axesToggle = document.getElementById('axes-toggle');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
 const transformPanel = document.getElementById('transform-panel');
 const controlsTitle = document.getElementById('controls-title');
+const zoomReadout = document.getElementById('zoom-readout');
 
 const editorState = createRadialItemEditorState({
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
@@ -48,6 +50,9 @@ const editorState = createRadialItemEditorState({
 let lastLockIn = null;
 let transientStatusText = '';
 let transientStatusUntil = 0;
+
+const MIN_SCENE_ZOOM = 0.55;
+const MAX_SCENE_ZOOM = 2.2;
 
 function post(type, payload) {
     const body = payload === undefined ? { type } : { type, payload };
@@ -78,6 +83,9 @@ stage.appendChild(renderer.domElement);
 const orbit = new THREE.Group();
 scene.add(orbit);
 
+const viewScale = new THREE.Group();
+orbit.add(viewScale);
+
 function stageRect() {
     return stage.getBoundingClientRect();
 }
@@ -103,11 +111,72 @@ const visuals = createSigilRadialGestureVisuals({
     projectRadius,
     itemMotion: { modelHoverSpinSpeed: 0 },
 });
-orbit.add(visuals.group);
+viewScale.add(visuals.group);
+
+function axisMaterial(color) {
+    return new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.78,
+        depthTest: false,
+        depthWrite: false,
+    });
+}
+
+function axisLabel(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 96;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = color;
+    ctx.font = '700 56px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 48, 50);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: false,
+        depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.16, 0.16, 0.16);
+    return sprite;
+}
+
+function createAxisLine(from, to, color) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([from, to]);
+    const line = new THREE.Line(geometry, axisMaterial(color));
+    line.renderOrder = 20;
+    return line;
+}
+
+function createAxesGuide() {
+    const group = new THREE.Group();
+    group.name = 'Workbench Axes Guide';
+    group.add(createAxisLine(new THREE.Vector3(-1.25, 0, 0), new THREE.Vector3(1.25, 0, 0), 0xff6b6b));
+    group.add(createAxisLine(new THREE.Vector3(0, -1.25, 0), new THREE.Vector3(0, 1.25, 0), 0x58d68d));
+    group.add(createAxisLine(new THREE.Vector3(0, 0, -1.25), new THREE.Vector3(0, 0, 1.25), 0x5dade2));
+    const x = axisLabel('X', '#ff6b6b');
+    x.position.set(1.36, 0, 0);
+    const y = axisLabel('Y', '#58d68d');
+    y.position.set(0, 1.36, 0);
+    const z = axisLabel('Z', '#5dade2');
+    z.position.set(0, 0, 1.36);
+    group.add(x, y, z);
+    return group;
+}
+
+const axesGuide = createAxesGuide();
+viewScale.add(axesGuide);
 
 const orbitState = {
     x: 0,
     y: 0,
+    zoom: 1,
     dragging: false,
     pointerId: null,
     lastX: 0,
@@ -124,11 +193,15 @@ const windowDragState = {
 function syncOrbit() {
     orbit.rotation.x = orbitState.x;
     orbit.rotation.y = orbitState.y;
+    viewScale.scale.setScalar(orbitState.zoom);
+    axesGuide.visible = axesToggle.checked;
+    zoomReadout.textContent = `${Math.round(orbitState.zoom * 100)}%`;
 }
 
 function resetOrbit() {
     orbitState.x = 0;
     orbitState.y = 0;
+    orbitState.zoom = 1;
     syncOrbit();
 }
 
@@ -309,6 +382,12 @@ function endOrbitDrag(event) {
 renderer.domElement.addEventListener('pointerup', endOrbitDrag);
 renderer.domElement.addEventListener('pointercancel', endOrbitDrag);
 renderer.domElement.addEventListener('dblclick', resetOrbit);
+renderer.domElement.addEventListener('wheel', (event) => {
+    const next = orbitState.zoom * Math.exp(-event.deltaY * 0.0012);
+    orbitState.zoom = Math.max(MIN_SCENE_ZOOM, Math.min(MAX_SCENE_ZOOM, next));
+    syncOrbit();
+    event.preventDefault();
+}, { passive: false });
 
 itemSelect.addEventListener('change', () => {
     selectRadialItem(editorState, itemSelect.value);
@@ -320,10 +399,12 @@ spinToggle.addEventListener('change', () => {
     setSelectedItemHoverSpin(editorState, spinToggle.checked);
 });
 
+axesToggle.addEventListener('change', syncOrbit);
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
 
 syncControls();
+syncOrbit();
 syncPanelRegistry();
 post('ready', {
     name: 'sigil-radial-item-workbench',
@@ -360,7 +441,8 @@ window.__sigilRadialItemWorkbench = {
             registry: registry(),
             panel: window.__objectTransformPanelState || null,
             lastLockIn,
-            orbit: { x: orbitState.x, y: orbitState.y },
+            orbit: { x: orbitState.x, y: orbitState.y, zoom: orbitState.zoom },
+            axesVisible: axesGuide.visible,
             visuals: visuals.snapshot(),
         };
     },

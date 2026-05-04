@@ -21,6 +21,10 @@
           <input type="checkbox" id="spin-toggle">
           <span>Model spin</span>
         </label>
+        <label>
+          <input type="checkbox" id="axes-toggle" checked>
+          <span>Axes</span>
+        </label>
         <button type="button" id="lock-in">Lock in</button>
         <button type="button" id="reset-orbit">Reset view</button>
       </div>
@@ -29,6 +33,7 @@
       <section class="preview-pane" aria-label="Radial item preview">
         <div id="preview-stage"></div>
         <div class="preview-status" id="status">Loading radial item...</div>
+        <div class="zoom-readout" id="zoom-readout">100%</div>
       </section>
       <section class="controls-pane" aria-label="Object transform controls">
         <div class="controls-title" id="controls-title">Object Transform</div>
