@@ -87,6 +87,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
+- `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
 
 ### Inline Canvas Stats
 
@@ -258,6 +259,61 @@ consumer-facing fields:
 - `defaults.searchQuery`
 - `defaults.tagMatchMode` (`any` or `all`)
 - `limits.minDepth` / `limits.maxDepth`
+
+### Markdown Workbench
+
+`markdown-workbench` is the first file-backed Markdown editing surface. It owns
+the in-canvas edit state and renders a source pane, rendered preview, outline,
+and diagnostics. The canvas does not write files directly. Pressing Save emits a
+structured handoff so an agent, app, or future persistence adapter can write the
+accepted content to the correct source of truth.
+
+Launch the sample or a repo file:
+
+```bash
+packages/toolkit/components/markdown-workbench/launch.sh
+packages/toolkit/components/markdown-workbench/launch.sh docs/design/aos-workbench-pattern.md
+```
+
+Persist the current canvas state from an agent shell:
+
+```bash
+packages/toolkit/components/markdown-workbench/save-current.sh markdown-workbench
+```
+
+Accepted messages:
+
+- `markdown_document.open` with `{ path, content }` replaces the current subject
+  and clears dirty state.
+- `markdown_document.text.patch` with `{ patch: { content } }` replaces the
+  editable source and recomputes preview/diagnostics.
+- `markdown_document.save.result` with `{ status: "saved" | "rejected",
+  message? }` acknowledges a previous save request. `saved` clears dirty state.
+
+Save requests are emitted as `markdown-workbench/save.requested` with payload:
+
+```json
+{
+  "type": "markdown_document.save.requested",
+  "schema_version": "2026-05-03",
+  "request_id": "markdown-save-example",
+  "path": "docs/example.md",
+  "content": "# Example\n\nUpdated body",
+  "diagnostics": {
+    "line_count": 3,
+    "word_count": 3,
+    "heading_count": 1,
+    "headings": [{ "depth": 1, "text": "Example", "line": 1 }],
+    "mermaid_blocks": [],
+    "unclosed_fence": false
+  }
+}
+```
+
+Current renderer support is intentionally small: frontmatter is skipped,
+headings up to depth 3 render, lists render, inline code/bold/emphasis render,
+and unsafe links are stripped. Mermaid fences are detected for diagnostics but
+not rendered yet.
 
 When enabled, the graph controls can also expose:
 
