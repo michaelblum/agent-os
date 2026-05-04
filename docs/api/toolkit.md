@@ -76,6 +76,17 @@ native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `change` events after a step, uses `Shift` for coarse stepping, and uses
 `Option` for fine stepping.
 
+`defaults.css` provides the stock visual control pack for toolkit panels. It is
+optional and themeable through CSS custom properties. The first class set covers
+buttons, chip buttons, selects, text inputs, number fields, textareas,
+checkboxes, toggles, ranges, segmented controls, and selectable list rows.
+
+```html
+<link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
+<link rel="stylesheet" href="aos://toolkit/panel/defaults.css">
+<link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
+```
+
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with

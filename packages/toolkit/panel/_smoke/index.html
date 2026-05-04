@@ -2,10 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <link rel="stylesheet" href="../../components/_base/theme.css">
   <link rel="stylesheet" href="../defaults.css">
-  <style>
-    html, body { margin: 0; background: transparent; font-family: ui-monospace, monospace; font-size: 12px; color: #ddd; }
-  </style>
+  <link rel="stylesheet" href="../../controls/defaults.css">
 </head>
 <body>
 <script type="module">
@@ -21,14 +20,32 @@ function HelloContent() {
       contentEl = document.createElement('div')
       contentEl.style.cssText = 'padding:12px;line-height:1.6;'
       contentEl.innerHTML = `
-        <div>panel/_smoke — hello content</div>
-        <div>pings received: <span id="cnt">0</span></div>
-        <div>send a ping:
-          <code style="background:#333;padding:2px 6px;border-radius:3px;">
-            ./aos show post --id panel-smoke --event '{"type":"hello/ping","payload":{"n":42}}'
-          </code>
+        <div class="aos-control-stack">
+          <div>panel/_smoke - hello content</div>
+          <div>pings received: <span id="cnt">0</span></div>
+          <div class="aos-control-row">
+            <button type="button" class="aos-button primary" id="local-ping">Local ping</button>
+            <label class="aos-checkbox"><input type="checkbox"> <span>Example checkbox</span></label>
+            <select class="aos-select" aria-label="Example select">
+              <option>Alpha</option>
+              <option>Beta</option>
+            </select>
+          </div>
+          <label class="aos-control-stack">
+            <span class="aos-control-label">Number field</span>
+            <input class="aos-number-field" data-aos-control="number-field" type="text" value="1.00" step="0.05">
+          </label>
+          <div>send a ping:
+            <code style="background:#10262e;padding:2px 6px;border-radius:3px;">
+              ./aos show post --id panel-smoke --event '{"type":"hello/ping","payload":{"n":42}}'
+            </code>
+          </div>
         </div>
       `
+      contentEl.querySelector('#local-ping').addEventListener('click', () => {
+        pingCount++
+        contentEl.querySelector('#cnt').textContent = pingCount
+      })
       return contentEl
     },
     onMessage(msg, host) {
