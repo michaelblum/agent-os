@@ -64,6 +64,8 @@ components/             Layer 2 — reusable Content units
     styles.css              canonical component styles (link, don't copy)
   render-performance/     live framerate + coarse renderer telemetry panel
     styles.css              canonical component styles (link, don't copy)
+  desktop-world-stage/    shared click-through DesktopWorld visual layer stage
+    styles.css              canonical component styles (link, don't copy)
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
     styles.css              canonical component styles (link, don't copy)
   log-console/            scrolling timestamped log (driven by `aos log push`)
