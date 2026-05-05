@@ -278,7 +278,7 @@
   margin: 0;
   overflow: hidden;
   color: var(--text-secondary);
-  font: 10px var(--font-mono);
+  font: var(--aos-type-code, 10px var(--font-mono));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -354,7 +354,7 @@
   border-radius: 5px;
   background: rgba(0, 0, 0, 0.24);
   color: var(--text-primary);
-  font: 10px var(--font-mono);
+  font: var(--aos-type-code, 10px var(--font-mono));
   line-height: 1.38;
   padding: 6px 7px;
   resize: vertical;
@@ -394,13 +394,13 @@
   border-radius: 5px;
   background: rgba(0, 0, 0, 0.22);
   color: var(--text-primary);
-  font: 11px var(--font-mono);
+  font: var(--aos-type-numeric, 11px var(--font-mono));
   padding: 5px 6px;
 }
 
 .object-transform-effect-control output {
   color: var(--text-muted);
-  font: 10px var(--font-mono);
+  font: var(--aos-type-label, 10px var(--font-mono));
   text-align: right;
 }
 
@@ -468,7 +468,7 @@
   border-radius: 5px;
   background: rgba(0, 0, 0, 0.22);
   color: var(--text-primary);
-  font: 11px var(--font-mono);
+  font: var(--aos-type-code, 11px var(--font-mono));
   padding: 6px 7px;
 }
 

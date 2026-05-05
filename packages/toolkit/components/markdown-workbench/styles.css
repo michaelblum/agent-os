@@ -124,7 +124,7 @@
 .markdown-workbench-document-status,
 .markdown-workbench-outline-panel li {
   color: rgba(220, 255, 255, 0.62);
-  font: 10px/1.45 var(--font-mono);
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
 }
 
 .markdown-workbench-view-toggle {
@@ -306,7 +306,7 @@
   padding: 12px;
   border-radius: 7px;
   background: rgba(3, 8, 10, 0.82);
-  font: 12px/1.55 var(--font-mono);
+  font: var(--aos-type-code-block, 12px/1.55 var(--font-mono));
 }
 
 .markdown-workbench-preview a {

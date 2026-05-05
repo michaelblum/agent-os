@@ -106,7 +106,7 @@
 }
 
 .aos-number-field {
-  font-family: var(--font-mono, "SF Mono", "Menlo", monospace);
+  font: var(--aos-type-numeric, var(--aos-type-body-size, 12px) / var(--aos-type-body-line, 1.4) var(--font-mono, "SF Mono", "Menlo", monospace));
   font-variant-numeric: tabular-nums;
 }
 

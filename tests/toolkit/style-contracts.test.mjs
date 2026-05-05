@@ -20,6 +20,9 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-type-toolbar',
     '--aos-type-title',
     '--aos-type-window-control',
+    '--aos-type-code',
+    '--aos-type-code-block',
+    '--aos-type-numeric',
     '--aos-panel-bg',
     '--aos-panel-header-bg',
     '--aos-panel-border',
@@ -83,6 +86,7 @@ test('control defaults consume theme tokens instead of private constants', async
   const controlsCss = await repoText('packages/toolkit/controls/defaults.css');
 
   assert.match(controlsCss, /font:\s*var\(--aos-type-label/);
+  assert.match(controlsCss, /font:\s*var\(--aos-type-numeric/);
   assert.match(controlsCss, /min-height:\s*var\(--aos-control-height/);
   assert.match(controlsCss, /padding:\s*var\(--aos-control-padding/);
   assert.match(controlsCss, /border:\s*var\(--aos-control-border/);
@@ -103,4 +107,20 @@ test('workbench shell consumes shared panel chrome tokens', async () => {
   assert.match(workbenchCss, /gap:\s*var\(--aos-panel-titlebar-gap/);
   assert.match(workbenchCss, /border-block:\s*2px solid var\(--aos-panel-grip-color/);
   assert.doesNotMatch(workbenchCss, /\.aos-workbench-shell\s*\{[\s\S]*?box-shadow:\s*0 18px 46px/);
+});
+
+test('workbench and document surfaces consume shared type tokens', async () => {
+  const workbenchCss = await repoText('packages/toolkit/workbench/defaults.css');
+  const markdownCss = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
+  const workRecordCss = await repoText('packages/toolkit/components/work-record-workbench/styles.css');
+  const objectTransformCss = await repoText('packages/toolkit/components/object-transform-panel/styles.css');
+
+  assert.match(workbenchCss, /font:\s*var\(--aos-type-label/);
+  assert.match(markdownCss, /font:\s*var\(--aos-type-code/);
+  assert.match(markdownCss, /font:\s*var\(--aos-type-code-block/);
+  assert.match(workRecordCss, /font:\s*var\(--aos-type-label/);
+  assert.match(workRecordCss, /font:\s*var\(--aos-type-code/);
+  assert.match(workRecordCss, /font:\s*var\(--aos-type-code-block/);
+  assert.match(objectTransformCss, /font:\s*var\(--aos-type-code/);
+  assert.match(objectTransformCss, /font:\s*var\(--aos-type-numeric/);
 });

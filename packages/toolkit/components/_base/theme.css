@@ -25,6 +25,9 @@
   --aos-type-toolbar: 600 var(--aos-type-toolbar-size) / var(--aos-type-toolbar-line) var(--aos-font-ui);
   --aos-type-title: 680 var(--aos-type-title-size) / var(--aos-type-title-line) var(--aos-font-ui);
   --aos-type-window-control: 700 13px / 1 var(--aos-font-ui);
+  --aos-type-code: var(--aos-type-caption-size) / 1.45 var(--aos-font-mono);
+  --aos-type-code-block: var(--aos-type-body-size) / 1.55 var(--aos-font-mono);
+  --aos-type-numeric: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-mono);
   --aos-panel-bg: rgba(5, 10, 14, 0.96);
   --aos-panel-header-bg: rgba(7, 18, 23, 0.96);
   --aos-panel-content-bg: transparent;
