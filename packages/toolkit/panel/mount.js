@@ -15,13 +15,24 @@ export function mountPanel({
   draggable = true,
   close = true,
   minimize = true,
+  maximize = false,
   onClose,
   onMinimize,
+  onMaximize,
   container = document.body,
 } = {}) {
   if (!layout) throw new Error('mountPanel: layout is required')
 
-  const chrome = mountChrome(container, { title, draggable, close, minimize, onClose, onMinimize })
+  const chrome = mountChrome(container, {
+    title,
+    draggable,
+    close,
+    minimize,
+    maximize,
+    onClose,
+    onMinimize,
+    onMaximize,
+  })
 
   if (layout.kind === 'single') {
     const content = layout.instantiate()

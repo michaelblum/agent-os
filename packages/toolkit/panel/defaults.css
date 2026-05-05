@@ -120,6 +120,12 @@
   background: rgba(72, 50, 13, 0.76);
 }
 
+.aos-window-maximize:hover,
+.aos-window-maximize[data-maximized="true"] {
+  border-color: rgba(111, 232, 196, 0.58);
+  background: rgba(12, 62, 52, 0.76);
+}
+
 .aos-content {
   flex: 1;
   min-height: 0;

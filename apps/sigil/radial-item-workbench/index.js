@@ -33,6 +33,7 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
+const { createMaximizeController, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/chrome.js`);
 const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
 const stage = document.getElementById('preview-stage');
@@ -40,6 +41,7 @@ const workbenchTitle = document.getElementById('workbench-title');
 const dragHandle = document.getElementById('drag-handle');
 const closeWorkbenchButton = document.getElementById('close-workbench');
 const minimizeWorkbenchButton = document.getElementById('minimize-workbench');
+const maximizeWorkbenchButton = document.getElementById('maximize-workbench');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
 const axesToggle = document.getElementById('axes-toggle');
@@ -59,6 +61,15 @@ const editorState = createRadialItemEditorState({
 let lastLockIn = null;
 const undoStack = [];
 const redoStack = [];
+
+const maximizeController = createMaximizeController({
+    onStateChange(state) {
+        if (maximizeWorkbenchButton) syncMaximizeButton(maximizeWorkbenchButton, state);
+    },
+});
+if (maximizeWorkbenchButton) {
+    syncMaximizeButton(maximizeWorkbenchButton, maximizeController.getState());
+}
 
 const MIN_SCENE_ZOOM = 0.55;
 const MAX_SCENE_ZOOM = 2.2;
@@ -552,6 +563,12 @@ minimizeWorkbenchButton?.addEventListener('click', (event) => {
     minimizeWorkbench();
 });
 
+maximizeWorkbenchButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    maximizeController.toggle();
+});
+
 syncControls();
 syncOrbit();
 syncPanelRegistry();
@@ -566,6 +583,7 @@ window.__sigilRadialItemWorkbench = {
     visuals,
     orbit,
     orbitState,
+    maximizeController,
     registry,
     syncPanelRegistry,
     resetOrbit,

@@ -23,6 +23,7 @@ The toolkit owns reusable panel chrome for normal interactive surfaces:
 - title truncation
 - close action
 - minimize action and restore chip
+- optional maximize and restore within the current display work area
 - focus and dirty-state affordances
 - window-action slots for app-specific lifecycle controls
 - theme tokens with app override support
