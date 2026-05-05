@@ -37,6 +37,7 @@ import {
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { createSigilRadialActivationRequest } from './radial-menu-activation.js';
+import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
@@ -120,7 +121,7 @@ const AGENT_TERMINAL_PARK_SCALE = 0.24;
 const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
 const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
 const WIKI_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
-const WIKI_WORKBENCH_DEFAULT_URL = `${WIKI_WORKBENCH_URL}?wiki=${encodeURIComponent(WIKI_WORKBENCH_DEFAULT_PATH)}`;
+const WIKI_WORKBENCH_DEFAULT_URL = `${WIKI_WORKBENCH_URL}?wiki=${encodeURIComponent(WIKI_WORKBENCH_DEFAULT_PATH)}&transition=fade-in`;
 const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
@@ -1074,13 +1075,22 @@ function sendActivationUpdate(activation, phase, extra = {}) {
 }
 
 async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation = null) {
+    let currentActivation = activation;
     const canvas = await ensureUtilityCanvasVisible('wiki-workbench', { focus: true });
+    if (currentActivation) {
+        currentActivation = sendActivationUpdate(currentActivation, 'surface_transition', {
+            target_surface: currentActivation.target_surface,
+            result: {
+                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
+            },
+        });
+    }
     const message = await fetchWikiMarkdownDocument(path);
     if (!canvas.created) {
         sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
     }
-    if (activation) {
-        sendActivationUpdate(activation, 'completed', {
+    if (currentActivation) {
+        sendActivationUpdate(currentActivation, 'completed', {
             result: {
                 canvas_id: WIKI_WORKBENCH_CANVAS_ID,
                 subject: message.source,
@@ -1227,6 +1237,9 @@ const fastTravel = createFastTravelController({
     },
     canCaptureDisplayImages: isPrimarySurfaceSegment,
 });
+const radialActivationTransition = createRadialActivationTransitionController({
+    now: () => state.globalTime,
+});
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
     onCommitItem(item, snapshot, context = {}) {
@@ -1240,7 +1253,7 @@ const radialGestureMenu = createSigilRadialGestureMenu({
                 source: 'sigil.avatar',
                 pointer: context.pointer || null,
             };
-        const activation = createSigilRadialActivationRequest({
+        let activation = createSigilRadialActivationRequest({
             item,
             snapshot,
             input,
@@ -1251,6 +1264,11 @@ const radialGestureMenu = createSigilRadialGestureMenu({
         });
         liveJs.lastRadialActivation = activation;
         host.post('sigil.radial_menu.activation', activation);
+        if (radialActivationTransition.start(activation, snapshot, { startedAt: state.globalTime })) {
+            activation = sendActivationUpdate(activation, 'item_transition', {
+                transition: activation.transition,
+            });
+        }
         if (item?.action === 'contextMenu') {
             openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
             sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
@@ -2205,6 +2223,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
     }
     overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
+    radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
     visibilityTransition.draw({ avatarStagePos: null });
     fastTravel.draw();
@@ -2289,6 +2308,7 @@ function animate() {
     const visualActive = liveJs.avatarVisible
         || !!visibilityTransition.active
         || !!liveJs.travel
+        || radialActivationTransition.active()
         || state.appScale > 0.001;
     if (!visualActive) {
         clearHiddenFrame(renderAvatarPos, frameStartedAt);
@@ -2365,7 +2385,15 @@ function animate() {
         menuRingRadius: liveJs.menuRingRadius,
         dragCancelRadius: liveJs.dragCancelRadius,
     });
-    radialGestureVisuals?.update(liveJs.radialGestureMenu, { time: state.globalTime });
+    const activeRadialActivationTransition = radialActivationTransition.tick(state.globalTime);
+    radialGestureVisuals?.update(liveJs.radialGestureMenu, {
+        time: state.globalTime,
+        activationTransition: activeRadialActivationTransition,
+    });
+    if (activeRadialActivationTransition?.completed) {
+        radialActivationTransition.clear();
+        radialGestureVisuals?.reset?.();
+    }
     visibilityTransition.draw({ avatarStagePos });
     fastTravel.draw();
 
@@ -2416,6 +2444,7 @@ window.__sigilDebug = {
             fastTravel: fastTravel.exportSnapshot(),
             radialGestureMenu: liveJs.radialGestureMenu,
             radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
+            radialActivationTransition: radialActivationTransition.snapshot(),
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
             contextMenu: contextMenu?.snapshot?.(),
