@@ -87,6 +87,46 @@
     }
     .status.ready { background: #32d583; }
     .status.error { background: #ff5f57; }
+    .window-controls {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 2px;
+    }
+    .window-button {
+      appearance: none;
+      width: 28px;
+      height: 26px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 7px;
+      background: rgba(255,255,255,0.045);
+      color: #d7e0e4;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1;
+    }
+    .window-button:hover {
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .window-button:focus-visible {
+      outline: 2px solid rgba(137,220,235,0.78);
+      outline-offset: 2px;
+    }
+    .window-button.close:hover {
+      border-color: rgba(255, 95, 87, 0.7);
+      background: rgba(120, 32, 32, 0.58);
+      color: #fff;
+    }
+    .window-button.minimize:hover {
+      border-color: rgba(255, 209, 102, 0.68);
+      background: rgba(99, 72, 20, 0.52);
+      color: #fff;
+    }
     .content {
       min-height: 0;
       display: grid;
@@ -371,6 +411,10 @@
         <span id="subtitle">Agent terminal</span>
       </div>
       <span class="status" id="status"></span>
+      <span class="window-controls" aria-label="Agent terminal window controls">
+        <button class="window-button minimize" id="minimizeTerminal" type="button" aria-label="Minimize terminal to avatar" title="Minimize">-</button>
+        <button class="window-button close" id="closeTerminal" type="button" aria-label="Close agent terminal" title="Close">x</button>
+      </span>
     </header>
     <section class="content">
       <section class="terminal-wrap" aria-label="Agent terminal pane">
@@ -913,6 +957,18 @@
       event.preventDefault();
       event.stopPropagation();
       emit({ type: 'agent_terminal.avatar_toggle' });
+    });
+
+    document.getElementById('minimizeTerminal').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      emit({ type: 'agent_terminal.avatar_toggle' });
+    });
+
+    document.getElementById('closeTerminal').addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      emit({ type: 'close' });
     });
 
     document.getElementById('dragHandle').addEventListener('mousedown', (event) => {
