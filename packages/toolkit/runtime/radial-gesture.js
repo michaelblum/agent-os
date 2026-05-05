@@ -276,20 +276,20 @@ export function createRadialGestureModel(options = {}) {
       pointer = point(nextPointer)
       lastTransition = null
 
-      if (phase === 'fastTravel') {
-        phase = 'committed'
-        activeItemId = null
-        committed = { type: 'fastTravel', origin: { ...origin }, destination: { ...pointer } }
-        lastTransition = 'commit_fast_travel'
-        return snapshot()
-      }
-
-      const item = phase === 'radial' ? hitItem(pointer) : null
+      const item = hitItem(pointer)
       if (item) {
         phase = 'committed'
         activeItemId = item.id
         committed = { type: 'item', itemId: item.id, item }
         lastTransition = 'commit_item'
+        return snapshot()
+      }
+
+      if (phase === 'fastTravel') {
+        phase = 'committed'
+        activeItemId = null
+        committed = { type: 'fastTravel', origin: { ...origin }, destination: { ...pointer } }
+        lastTransition = 'commit_fast_travel'
         return snapshot()
       }
 

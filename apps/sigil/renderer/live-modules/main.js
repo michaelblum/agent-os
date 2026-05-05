@@ -1627,8 +1627,8 @@ function handleLeftMouseUp(x, y) {
                 setInteractionState('IDLE', 'radial-release-fast-travel');
                 return;
             }
-            fastTravel.clearGesture('radial-fast-travel-cancel');
-            setInteractionState('IDLE', 'radial-fast-travel-cancel');
+            fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-fast-travel-item' : 'radial-fast-travel-cancel');
+            setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-fast-travel-item' : 'radial-fast-travel-cancel');
             return;
         }
         case 'GOTO':
