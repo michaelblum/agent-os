@@ -8,6 +8,11 @@ async function repoText(path) {
   return readFile(new URL(path, repo), 'utf8');
 }
 
+function cssRule(source, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return source.match(new RegExp(`${escaped}\\s*\\{[^}]*\\}`, 's'))?.[0] || '';
+}
+
 test('markdown workbench embeds wiki graph as the primary pane', async () => {
   const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
   const css = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
@@ -31,15 +36,40 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.match(js, /collapsed:\s*true/);
   assert.match(wikiJs, /accepts:\s*\[[^\]]*'fit-view'/s);
   assert.match(wikiJs, /wiki-kb-compact-chrome/);
+  assert.match(wikiCss, /\.wiki-kb-graph-main\s*\{/);
   assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell/);
-  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell\s*\{[\s\S]*left:\s*0/);
   assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell\.collapsed\s+\.wiki-kb-controls-toggle/);
-  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-view:has\(\.wiki-kb-controls-shell:not\(\.collapsed\)\)\s+\.wiki-kb-legend/);
   assert.match(wikiCss, /\.wiki-kb-controls-panel\[hidden\]\s*\{\s*display:\s*none/);
   assert.doesNotMatch(wikiJs, /wiki-kb-graph-stats/);
+  assert.doesNotMatch(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-view:has/);
   assert.match(wikiCss, /\.wiki-kb-floating-status\s*\{[\s\S]*top:\s*10px/);
   assert.match(css, /\.markdown-workbench-main\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(0,\s*0fr\)/);
   assert.match(css, /\.markdown-workbench-root\[data-split-open="true"\]\s+\.markdown-workbench-main/);
+});
+
+test('wiki graph controls reflow the graph stage through fixed sidebar primitive', async () => {
+  const graphJs = await repoText('packages/toolkit/components/wiki-kb/views/graph.js');
+  const graphCss = await repoText('packages/toolkit/components/wiki-kb/styles.css');
+
+  assert.match(graphJs, /import \{ createFixedSidebarPane \} from '\.\.\/\.\.\/\.\.\/panel\/layouts\/split-pane\.js'/);
+  assert.match(graphJs, /createFixedSidebarPane\(\{/);
+  assert.match(graphJs, /mainPane:\s*dom\.graphMainEl/);
+  assert.match(graphJs, /sidebarPane:\s*dom\.controlsShellEl/);
+  assert.match(graphJs, /side:\s*'start'/);
+  assert.match(graphJs, /openSize:\s*304/);
+  assert.match(graphJs, /closedSize:\s*42/);
+  assert.match(graphJs, /resizeCanvasToContainer\(canvas,\s*dom\.graphMainEl \|\| rootEl\)/);
+  assert.match(graphJs, /class="wiki-kb-graph-main"/);
+  assert.match(graphJs, /class="wiki-kb-controls-shell aos-sidebar-rail"/);
+  assert.match(graphJs, /class="wiki-kb-controls-top aos-sidebar-rail-top"/);
+  assert.match(graphJs, /class="wiki-kb-controls-toggle aos-sidebar-rail-toggle"/);
+  assert.match(graphJs, /class="wiki-kb-controls-panel aos-sidebar-rail-content"/);
+  assert.match(graphCss, /\.wiki-kb-controls-shell\s*\{[^}]*background:/s);
+  assert.doesNotMatch(cssRule(graphCss, '.wiki-kb-controls-shell'), /position:\s*absolute/);
+  assert.doesNotMatch(
+    cssRule(graphCss, '.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-toggle'),
+    /position:\s*absolute/,
+  );
 });
 
 test('markdown workbench toggles source and preview in the content pane', async () => {

@@ -292,12 +292,75 @@
   background: var(--bg-panel-sidebar, rgba(9, 17, 21, 0.88));
 }
 
-.aos-fixed-sidebar[data-sidebar-side="end"] > .aos-fixed-sidebar-pane {
+.aos-fixed-sidebar[data-sidebar-orientation="horizontal"][data-sidebar-side="end"] > .aos-fixed-sidebar-pane {
   border-left: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.18));
 }
 
-.aos-fixed-sidebar[data-sidebar-side="start"] > .aos-fixed-sidebar-pane {
+.aos-fixed-sidebar[data-sidebar-orientation="horizontal"][data-sidebar-side="start"] > .aos-fixed-sidebar-pane {
   border-right: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.18));
+}
+
+.aos-fixed-sidebar[data-sidebar-orientation="vertical"][data-sidebar-side="end"] > .aos-fixed-sidebar-pane {
+  border-top: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.18));
+}
+
+.aos-fixed-sidebar[data-sidebar-orientation="vertical"][data-sidebar-side="start"] > .aos-fixed-sidebar-pane {
+  border-bottom: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.18));
+}
+
+.aos-sidebar-rail {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  background: var(--bg-panel-sidebar, rgba(9, 17, 21, 0.88));
+}
+
+.aos-sidebar-rail-top {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.12));
+}
+
+.aos-sidebar-rail-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary, #c9d3d8);
+  font-size: var(--font-size-base, 12px);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aos-sidebar-rail-toggle {
+  appearance: none;
+  width: 28px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary, #d7e0e4);
+  cursor: pointer;
+}
+
+.aos-sidebar-rail-toggle:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.aos-sidebar-rail-content {
+  min-height: 0;
+  overflow: auto;
+}
+
+.aos-fixed-sidebar[data-sidebar-open="false"] .aos-sidebar-rail-title,
+.aos-fixed-sidebar[data-sidebar-open="false"] .aos-sidebar-rail-content {
+  display: none;
 }
 
 .aos-tabs {

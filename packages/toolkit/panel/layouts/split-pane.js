@@ -52,6 +52,12 @@ function setStyle(element, name, value) {
   else element.style[name] = value
 }
 
+function removeStyle(element, name) {
+  if (!element?.style) return
+  if (name.startsWith('--') && element.style.removeProperty) element.style.removeProperty(name)
+  else element.style[name] = ''
+}
+
 function setData(element, name, value) {
   if (element?.dataset) element.dataset[name] = String(value)
 }
@@ -257,6 +263,14 @@ export function createSplitPane({
       setStyle(startEl, 'flex', `0 0 ${state.startSize}px`)
       setStyle(endEl, 'flex', `0 0 ${state.endSize}px`)
       setStyle(dividerEl, 'flex', '0 0 0px')
+      setStyle(startEl, splitAxis.minStyle, `${startOpen ? Math.max(0, finiteNumber(minStart, 0)) : closedSize}px`)
+      setStyle(endEl, splitAxis.minStyle, `${endOpen ? Math.max(0, finiteNumber(minEnd, 0)) : closedSize}px`)
+      if (!startOpen) setStyle(startEl, splitAxis.maxStyle, `${closedSize}px`)
+      else if (Number.isFinite(maxStart)) setStyle(startEl, splitAxis.maxStyle, `${maxStart}px`)
+      else removeStyle(startEl, splitAxis.maxStyle)
+      if (!endOpen) setStyle(endEl, splitAxis.maxStyle, `${closedSize}px`)
+      else if (Number.isFinite(maxEnd)) setStyle(endEl, splitAxis.maxStyle, `${maxEnd}px`)
+      else removeStyle(endEl, splitAxis.maxStyle)
       setData(rootEl, 'closedPane', state.closedPane)
       setData(rootEl, 'closedSize', closedSize)
       setData(rootEl, 'ratio', state.ratio.toFixed(4))
@@ -297,7 +311,9 @@ export function createSplitPane({
     setStyle(startEl, splitAxis.minStyle, `${Math.max(0, finiteNumber(minStart, 0))}px`)
     setStyle(endEl, splitAxis.minStyle, `${Math.max(0, finiteNumber(minEnd, 0))}px`)
     if (Number.isFinite(maxStart)) setStyle(startEl, splitAxis.maxStyle, `${maxStart}px`)
+    else removeStyle(startEl, splitAxis.maxStyle)
     if (Number.isFinite(maxEnd)) setStyle(endEl, splitAxis.maxStyle, `${maxEnd}px`)
+    else removeStyle(endEl, splitAxis.maxStyle)
 
     setData(rootEl, 'ratio', state.ratio.toFixed(4))
     setData(dividerEl, 'ratio', state.ratio.toFixed(4))
@@ -449,6 +465,7 @@ export function createFixedSidebarPane({
   sidebarPane = null,
   toggleButton = null,
   document: documentRef = null,
+  orientation = 'horizontal',
   side = 'end',
   openSize = 340,
   closedSize = 42,
@@ -468,10 +485,13 @@ export function createFixedSidebarPane({
   if (!doc?.createElement) throw new Error('createFixedSidebarPane: document with createElement is required')
 
   const sidebarSide = side === 'start' ? 'start' : 'end'
+  const layoutOrientation = normalizeOrientation(orientation)
+  const layoutAxis = axis(layoutOrientation)
   const rootEl = root || doc.createElement('div')
   const mainEl = mainPane || doc.createElement('section')
   const sidebarEl = sidebarPane || doc.createElement('aside')
-  const rootSize = positiveNumber(rootEl.getBoundingClientRect?.().width, 1000)
+  const rootRect = rootEl.getBoundingClientRect?.() || {}
+  const rootSize = positiveNumber(rootRect[layoutAxis.size], layoutOrientation === 'vertical' ? 640 : 1000)
   const sidebarOpenSize = positiveNumber(openSize, 340)
   const sidebarClosedSize = Math.max(0, finiteNumber(closedSize, 42))
   const mainMin = Math.max(1, finiteNumber(minMain, 320))
@@ -485,7 +505,7 @@ export function createFixedSidebarPane({
     startPane: sidebarSide === 'start' ? sidebarEl : mainEl,
     endPane: sidebarSide === 'start' ? mainEl : sidebarEl,
     document: doc,
-    orientation: 'horizontal',
+    orientation: layoutOrientation,
     initialRatio,
     storage,
     storageKey,
@@ -507,6 +527,7 @@ export function createFixedSidebarPane({
   addClass(sidebarEl, 'aos-fixed-sidebar-pane')
   addClass(mainEl, 'aos-fixed-sidebar-main')
   rootEl.dataset.sidebarSide = sidebarSide
+  rootEl.dataset.sidebarOrientation = layoutOrientation
 
   const toggleHandler = () => toggleSidebar()
   if (toggleButton) {

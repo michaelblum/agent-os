@@ -12,7 +12,7 @@ import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas, mutateSelf } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
-import { createSplitPane } from '../../panel/layouts/split-pane.js'
+import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
@@ -491,7 +491,7 @@ export default function CanvasInspector() {
     }
     if (listPaneEl) {
       listPaneEl.innerHTML = renderStatusBar()
-        + `<div class="canvas-list-region" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
+        + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
     }
     const nextListRegion = listPaneEl?.querySelector?.('.canvas-list-region')
     if (nextListRegion && !listCollapsed) nextListRegion.scrollTop = priorListScrollTop
@@ -634,7 +634,7 @@ export default function CanvasInspector() {
     } else if (bundleCapture?.status === 'error') {
       detail = bundleCapture.message || 'bundle failed'
     }
-    return `<div class="status-bar">`
+    return `<div class="status-bar aos-sidebar-rail-top">`
       + `<span class="event-count">${eventCount} events</span>`
       + renderCanvasListToggleButton({ collapsed: listCollapsed })
       + `<span>${detail}</span>`
@@ -705,8 +705,8 @@ export default function CanvasInspector() {
       const btn = event.target?.closest?.('button')
       if (!btn || !contentEl.contains(btn)) return
       if (btn.classList.contains('canvas-list-toggle')) {
-        splitController?.togglePane('end')
-        listCollapsed = !splitController?.isPaneOpen('end')
+        splitController?.toggleSidebar?.()
+        listCollapsed = !(splitController?.getSidebarOpen?.() ?? !listCollapsed)
         rerender()
         scheduleSelfResizeToListState()
         return
@@ -792,18 +792,18 @@ export default function CanvasInspector() {
       listPaneEl = document.createElement('section')
       splitRoot.className = 'canvas-inspector-split'
       minimapPaneEl.className = 'canvas-inspector-minimap-pane'
-      listPaneEl.className = 'canvas-inspector-list-pane'
+      listPaneEl.className = 'canvas-inspector-list-pane aos-sidebar-rail'
       contentEl.appendChild(splitRoot)
-      splitController = createSplitPane({
+      splitController = createFixedSidebarPane({
         root: splitRoot,
-        startPane: minimapPaneEl,
-        endPane: listPaneEl,
+        mainPane: minimapPaneEl,
+        sidebarPane: listPaneEl,
         orientation: 'vertical',
-        initialRatio: 0.6,
-        restoreState: { ratio: 0.6, closedPane: 'end' },
-        minStart: 150,
-        minEnd: 120,
-        closedEndSize: LIST_PANE_CLOSED_HEIGHT,
+        side: 'end',
+        openSize: LIST_PANE_OPEN_HEIGHT,
+        closedSize: LIST_PANE_CLOSED_HEIGHT,
+        minMain: 150,
+        initiallyOpen: !listCollapsed,
         dividerSize: 8,
         ariaLabel: 'Resize minimap and canvas list',
         onChange(state) {
@@ -819,8 +819,8 @@ export default function CanvasInspector() {
         requestSeeBundle,
         toggleStats,
         toggleCanvasList() {
-          splitController?.togglePane('end')
-          listCollapsed = !splitController?.isPaneOpen('end')
+          splitController?.toggleSidebar?.()
+          listCollapsed = !(splitController?.getSidebarOpen?.() ?? !listCollapsed)
           rerender()
           scheduleSelfResizeToListState()
         },
