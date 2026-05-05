@@ -29,3 +29,7 @@ packages/gateway/.env.local
 # Real @playwright/cli requires these paths to live under an allowed root
 # (CWD or ~/.playwright-cli); see src/browser/playwright-process.swift.
 .aos-browser-tmp/
+
+# Employer Brand Audit demo outputs
+Employer_Brand_Audit/artifacts/demo/
+Employer_Brand_Audit/scripts/report-data.generated.js
