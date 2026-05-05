@@ -141,5 +141,8 @@ starting point.
 8. For real-input bugs, capture or run at least one real-input verification.
 9. If the task touches runtime knowledge, check whether the AOS wiki needs to be
    read or updated in addition to repo docs or code.
-10. If a lesson should survive the session, place it using the placement rules
+10. Before building a new browser, workbench, editor, inspector, or artifact
+    panel, identify the subject's layered expressions. See
+    `docs/recipes/layered-subject-expressions.md`.
+11. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.

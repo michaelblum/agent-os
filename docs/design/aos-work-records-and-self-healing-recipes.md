@@ -22,6 +22,13 @@ AOS should record work as:
 intent + execution map + evidence + health
 ```
 
+This is the work-record specialization of the broader
+**Layered Subject Expression** pattern in
+`docs/design/aos-workbench-pattern.md`. The intent layer is the durable repair
+spine; the execution map, evidence, and health layers make that spine
+executable, inspectable, and trustworthy without turning raw replay data into
+the source of truth.
+
 ## Core Vocabulary
 
 **Trace:** immutable evidence of what happened. A trace may include `see`
@@ -66,6 +73,13 @@ The natural-language layer is not commentary. It is the repair spine. When a
 browser locator, AX ref, or canvas id fails, the agent can use the intent plus
 evidence to re-resolve the target. If the intent itself is no longer possible,
 the recipe should say so.
+
+These layers intentionally mirror other AOS subject layers: narrative
+description, structured descriptor, generated or specialized controls,
+artifacts/evidence, and health/verification. That common shape lets a wiki
+browser, radial menu editor, 3D object editor, replay timeline, and verifier
+report stay different views over one subject model instead of becoming separate
+private UI systems.
 
 ## Primitive Boundary
 

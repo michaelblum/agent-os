@@ -77,6 +77,11 @@ future app will need it too — and if so, push the solution down to the primiti
 or toolkit layer. A slow canvas toggle doesn't get a Sigil-specific workaround;
 it gets suspend/resume as a canvas lifecycle primitive.
 
+When adding a browser, workbench, editor, inspector, artifact panel, replay
+surface, or verifier view, identify the subject's Layered Subject Expression
+before creating private UI or persistence logic. See
+`docs/recipes/layered-subject-expressions.md`.
+
 New resource types (channels, state stores, etc.) inherit runtime mode isolation
 and wiki namespace conventions. Don't invent new scoping models.
 

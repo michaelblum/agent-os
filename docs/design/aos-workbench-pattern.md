@@ -147,6 +147,23 @@ useful pattern is not "raw data plus comments"; it is a layered record where
 one layer is canonical enough to survive drift and the other layers make the
 subject executable, visual, or easier to edit.
 
+Use **Layered Subject Expression** deliberately as the shared AOS name for this
+model. It connects wiki/browser subjects, workbench editors, radial menu
+artifacts, 3D object editors, workflow records, and verifier reports. The
+common stack is:
+
+```text
+narrative intent/description
+  -> structured descriptor or execution map
+  -> generated controls or specialized editor
+  -> artifacts and evidence
+  -> health or verification
+```
+
+Not every subject exposes every layer. Before adding a new browser, editor, or
+private panel, identify which layers the subject owns, which layers it consumes,
+and which layer remains the repair spine when structured references drift.
+
 The first concrete adopter is the object transform panel's
 `animation_effects` area:
 
@@ -264,6 +281,11 @@ validation status, and preview/export routes.
 Workbench surfaces can render work records, but they should not own the
 recording or replay model. The canonical design seed for recorded work is
 `docs/design/aos-work-records-and-self-healing-recipes.md`.
+
+A work record is the replay, evidence, and verification specialization of a
+Layered Subject Expression. It keeps the same subject identity visible while
+projecting intent, executable hints, evidence, repair history, and health as
+separate synchronized views.
 
 A work-record projection should keep the natural-language intent visible as the
 primary spine, while structured execution maps, evidence, repair history, and
