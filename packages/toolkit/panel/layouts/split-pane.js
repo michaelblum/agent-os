@@ -465,6 +465,7 @@ export function createFixedSidebarPane({
   sidebarPane = null,
   toggleButton = null,
   document: documentRef = null,
+  orientation = 'horizontal',
   side = 'end',
   openSize = 340,
   closedSize = 42,
@@ -484,10 +485,13 @@ export function createFixedSidebarPane({
   if (!doc?.createElement) throw new Error('createFixedSidebarPane: document with createElement is required')
 
   const sidebarSide = side === 'start' ? 'start' : 'end'
+  const layoutOrientation = normalizeOrientation(orientation)
+  const layoutAxis = axis(layoutOrientation)
   const rootEl = root || doc.createElement('div')
   const mainEl = mainPane || doc.createElement('section')
   const sidebarEl = sidebarPane || doc.createElement('aside')
-  const rootSize = positiveNumber(rootEl.getBoundingClientRect?.().width, 1000)
+  const rootRect = rootEl.getBoundingClientRect?.() || {}
+  const rootSize = positiveNumber(rootRect[layoutAxis.size], layoutOrientation === 'vertical' ? 640 : 1000)
   const sidebarOpenSize = positiveNumber(openSize, 340)
   const sidebarClosedSize = Math.max(0, finiteNumber(closedSize, 42))
   const mainMin = Math.max(1, finiteNumber(minMain, 320))
@@ -501,7 +505,7 @@ export function createFixedSidebarPane({
     startPane: sidebarSide === 'start' ? sidebarEl : mainEl,
     endPane: sidebarSide === 'start' ? mainEl : sidebarEl,
     document: doc,
-    orientation: 'horizontal',
+    orientation: layoutOrientation,
     initialRatio,
     storage,
     storageKey,
@@ -523,6 +527,7 @@ export function createFixedSidebarPane({
   addClass(sidebarEl, 'aos-fixed-sidebar-pane')
   addClass(mainEl, 'aos-fixed-sidebar-main')
   rootEl.dataset.sidebarSide = sidebarSide
+  rootEl.dataset.sidebarOrientation = layoutOrientation
 
   const toggleHandler = () => toggleSidebar()
   if (toggleButton) {

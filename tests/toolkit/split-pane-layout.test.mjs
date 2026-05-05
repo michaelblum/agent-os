@@ -400,6 +400,7 @@ test('fixed sidebar pane presets split constraints and toggle semantics', () => 
   assert.equal(mainPane.classList.contains('aos-fixed-sidebar-main'), true);
   assert.equal(sidebarPane.classList.contains('aos-fixed-sidebar-pane'), true);
   assert.equal(root.dataset.sidebarSide, 'end');
+  assert.equal(root.dataset.sidebarOrientation, 'horizontal');
   assert.equal(root.dataset.sidebarOpen, 'true');
   assert.equal(toggleButton.getAttribute('aria-label'), 'Collapse sidebar');
   assert.equal(toggleButton.textContent, '>');
@@ -421,6 +422,45 @@ test('fixed sidebar pane presets split constraints and toggle semantics', () => 
   assert.equal(root.dataset.sidebarOpen, 'true');
   assert.equal(sidebar.getSidebarOpen(), true);
   assert.equal(sidebar.getState().endSize, 340);
+});
+
+test('fixed sidebar primitive supports vertical auxiliary rails', () => {
+  const documentRef = new FakeDocument();
+  const root = documentRef.createElement('div');
+  const mainPane = documentRef.createElement('section');
+  const sidebarPane = documentRef.createElement('aside');
+  const toggleButton = documentRef.createElement('button');
+  root.rect = { left: 0, top: 0, width: 360, height: 520 };
+
+  const sidebar = createFixedSidebarPane({
+    root,
+    mainPane,
+    sidebarPane,
+    toggleButton,
+    document: documentRef,
+    orientation: 'vertical',
+    side: 'end',
+    openSize: 180,
+    closedSize: 28,
+    minMain: 220,
+    dividerSize: 8,
+  });
+
+  assert.equal(root.dataset.orientation, 'vertical');
+  assert.equal(root.dataset.sidebarOrientation, 'vertical');
+  assert.equal(root.dataset.sidebarSide, 'end');
+  assert.equal(sidebar.getState().startSize, 332);
+  assert.equal(sidebar.getState().endSize, 180);
+  assert.equal(sidebarPane.style.minHeight, '180px');
+  assert.equal(sidebarPane.style.maxHeight, '180px');
+
+  sidebar.setSidebarOpen(false);
+  assert.equal(root.dataset.sidebarOpen, 'false');
+  assert.equal(sidebar.getState().startSize, 492);
+  assert.equal(sidebar.getState().endSize, 28);
+  assert.equal(sidebarPane.style.minHeight, '28px');
+  assert.equal(sidebarPane.style.maxHeight, '28px');
+  assert.equal(toggleButton.getAttribute('aria-label'), 'Expand sidebar');
 });
 
 test('SplitPane layout mounts two content factories into start and end panes', async (t) => {
