@@ -214,6 +214,8 @@ source of truth at the interface boundary:
 ## Follow-On Detail
 
 - `ARCHITECTURE.md` for system architecture
+- `docs/design/aos-grand-unification-plan.md` for the current browser,
+  workbench, layered-subject, work-record, verifier, and playbook roadmap
 - `docs/api/aos-taxonomy.md` for classifying AOS artifact types and their
   source-of-truth homes
 - `docs/design/` for provider-neutral plans, specs, notes, and supporting
