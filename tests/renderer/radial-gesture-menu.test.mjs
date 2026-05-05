@@ -25,8 +25,8 @@ function createMenu(options = {}) {
       },
       ...options.state,
     },
-    onCommitItem(item, snapshot) {
-      commits.push({ item, snapshot })
+    onCommitItem(item, snapshot, context) {
+      commits.push({ item, snapshot, context })
     },
   })
   return { menu, commits }
@@ -46,7 +46,26 @@ test('Sigil radial menu commits configured context item on release', () => {
   assert.equal(released.committed.type, 'item')
   assert.equal(commits.length, 1)
   assert.equal(commits[0].item.action, 'contextMenu')
+  assert.deepEqual(commits[0].context.pointer, { ...contextItem.center, valid: true })
   assert.equal(menu.snapshot(), null)
+})
+
+test('Sigil radial menu preserves release context for activation adapters', () => {
+  const { menu, commits } = createMenu()
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const contextItem = started.items.find((item) => item.id === 'context-menu')
+
+  menu.move({ ...contextItem.center, valid: true })
+  menu.release({ ...contextItem.center, valid: true }, {
+    input: {
+      kind: 'click',
+      source: 'sigil.radial-target-surface',
+    },
+  })
+
+  assert.equal(commits.length, 1)
+  assert.equal(commits[0].context.input.kind, 'click')
+  assert.equal(commits[0].context.input.source, 'sigil.radial-target-surface')
 })
 
 test('Sigil radial menu config carries native wiki model geometry', () => {

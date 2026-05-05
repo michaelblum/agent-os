@@ -36,12 +36,10 @@ import {
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
+import { createSigilRadialActivationRequest } from './radial-menu-activation.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
-import {
-    advanceMenuActivation,
-    createMenuActivationRequest,
-} from './menu-activation-runtime.js';
+import { advanceMenuActivation } from './menu-activation-runtime.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
     applyRadialMenuObjectTransformPatch,
@@ -1231,36 +1229,25 @@ const fastTravel = createFastTravelController({
 });
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
-    onCommitItem(item, snapshot) {
-        const activation = createMenuActivationRequest({
-            menuId: 'sigil.radial',
+    onCommitItem(item, snapshot, context = {}) {
+        const input = context.input && typeof context.input === 'object'
+            ? {
+                ...context.input,
+                pointer: context.input.pointer || context.pointer || null,
+            }
+            : context.input || {
+                kind: 'gesture',
+                source: 'sigil.avatar',
+                pointer: context.pointer || null,
+            };
+        const activation = createSigilRadialActivationRequest({
             item,
-            input: snapshot?.phase === 'committed' ? 'gesture' : 'radial',
-            source: 'sigil.avatar',
-            surface: item?.action === 'wikiGraph' ? {
-                kind: 'markdown-workbench',
-                canvas_id: WIKI_WORKBENCH_CANVAS_ID,
-                subject: {
-                    id: `wiki:${WIKI_WORKBENCH_DEFAULT_PATH}`,
-                    source: {
-                        kind: 'wiki',
-                        path: WIKI_WORKBENCH_DEFAULT_PATH,
-                    },
-                },
-            } : null,
-            transition: item?.action === 'wikiGraph' ? {
-                preset: 'wiki-brain-zoom-dissolve',
-                item: {
-                    zoom: 'fill-camera',
-                    dissolve: true,
-                },
-                menu: {
-                    dissolve: true,
-                },
-                surface: {
-                    fade: 'in',
-                },
-            } : null,
+            snapshot,
+            input,
+            source: context.source || 'sigil.avatar',
+            agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
+            wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
+            wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
         });
         liveJs.lastRadialActivation = activation;
         host.post('sigil.radial_menu.activation', activation);
@@ -1594,14 +1581,28 @@ function handleLeftMouseUp(x, y) {
             setInteractionState('GOTO', 'press-click');
             return;
         case 'RADIAL': {
-            const result = radialGestureMenu.release({ x, y, valid: true });
+            const result = radialGestureMenu.release({ x, y, valid: true }, {
+                input: {
+                    kind: 'gesture',
+                    source: 'sigil.avatar',
+                    pointer: { x, y },
+                    state: liveJs.currentState,
+                },
+            });
             clearGestureState();
             fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-item' : 'radial-release');
             setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-release-item' : 'radial-release-cancel');
             return;
         }
         case 'FAST_TRAVEL': {
-            const result = radialGestureMenu.release({ x, y, valid: true });
+            const result = radialGestureMenu.release({ x, y, valid: true }, {
+                input: {
+                    kind: 'gesture',
+                    source: 'sigil.avatar',
+                    pointer: { x, y },
+                    state: liveJs.currentState,
+                },
+            });
             clearGestureState();
             if (result?.committed?.type === 'fastTravel') {
                 queueFastTravel(x, y);
@@ -1834,7 +1835,16 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         });
         return;
     }
-    const result = radialGestureMenu.release({ ...item.center, valid: true });
+    const result = radialGestureMenu.release({ ...item.center, valid: true }, {
+        input: {
+            kind: 'click',
+            source: 'sigil.radial-target-surface',
+            pointer: { x: item.center.x, y: item.center.y },
+            item_id: payload.itemId,
+            canvas_id: radialTargetSurface.id,
+        },
+        source: 'sigil.radial-target-surface',
+    });
     clearGestureState();
     fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
     setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
