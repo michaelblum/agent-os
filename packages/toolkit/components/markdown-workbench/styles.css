@@ -6,7 +6,7 @@
   overflow: hidden;
   color: rgba(235, 255, 255, 0.94);
   background: rgba(5, 10, 14, 0.96);
-  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: var(--aos-type-body, 12px/1.4 var(--font-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif));
 }
 
 .markdown-workbench-root[data-transition="fade-in"] {
@@ -97,7 +97,7 @@
   border-bottom-color: rgba(122, 241, 255, 0.14);
 }
 
-.markdown-workbench-document-toolbar button {
+.markdown-workbench-document-toolbar button:not(.aos-window-button, .aos-icon-button) {
   min-height: 28px;
   padding: 3px 7px;
   font-size: 11px;
@@ -184,7 +184,7 @@
   color: #ffffff;
 }
 
-.markdown-workbench-document-toolbar button:disabled {
+.markdown-workbench-document-toolbar button:not(.aos-window-button, .aos-icon-button):disabled {
   opacity: 0.42;
   cursor: default;
 }

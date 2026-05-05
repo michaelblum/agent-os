@@ -7,6 +7,27 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+  --aos-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aos-font-mono: "SF Mono", "Menlo", "Courier New", monospace;
+  --aos-type-body-size: 12px;
+  --aos-type-body-line: 1.4;
+  --aos-type-caption-size: 10px;
+  --aos-type-caption-line: 1.35;
+  --aos-type-label-size: 10px;
+  --aos-type-label-line: 1.3;
+  --aos-type-toolbar-size: 11px;
+  --aos-type-toolbar-line: 1.3;
+  --aos-type-title-size: 12px;
+  --aos-type-title-line: 1.3;
+  --aos-type-body: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-ui);
+  --aos-type-caption: 650 var(--aos-type-caption-size) / var(--aos-type-caption-line) var(--aos-font-mono);
+  --aos-type-label: 650 var(--aos-type-label-size) / var(--aos-type-label-line) var(--aos-font-mono);
+  --aos-type-toolbar: 600 var(--aos-type-toolbar-size) / var(--aos-type-toolbar-line) var(--aos-font-ui);
+  --aos-type-title: 680 var(--aos-type-title-size) / var(--aos-type-title-line) var(--aos-font-ui);
+  --aos-type-window-control: 700 13px / 1 var(--aos-font-ui);
+  --aos-control-height: 30px;
+  --aos-control-radius: 7px;
+  --aos-window-button-size: 28px;
   --bg-panel: rgba(5, 10, 14, 0.96);
   --bg-panel-header: rgba(7, 18, 23, 0.96);
   --bg-hover: rgba(7, 25, 31, 0.84);
@@ -23,11 +44,11 @@
   --accent-red: #e66;
   --accent-purple: rgba(122, 241, 255, 0.16);
   --shadow-panel: 0 18px 46px rgba(0, 0, 0, 0.34);
-  --font-mono: "SF Mono", "Menlo", "Courier New", monospace;
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-size-base: 12px;
-  --font-size-small: 10px;
-  --font-size-header: 12px;
+  --font-mono: var(--aos-font-mono);
+  --font-ui: var(--aos-font-ui);
+  --font-size-base: var(--aos-type-body-size);
+  --font-size-small: var(--aos-type-caption-size);
+  --font-size-header: var(--aos-type-title-size);
   --blur-radius: 20px;
   --radius-panel: 8px;
 }
