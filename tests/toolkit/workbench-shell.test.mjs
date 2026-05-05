@@ -10,6 +10,9 @@ async function repoText(path) {
 
 test('workbench defaults define shell, toolbar, and pane primitives', async () => {
   const css = await repoText('packages/toolkit/workbench/defaults.css');
+  const panelCss = await repoText('packages/toolkit/panel/defaults.css');
+  const panelChrome = await repoText('packages/toolkit/panel/chrome.js');
+  const themeCss = await repoText('packages/toolkit/components/_base/theme.css');
 
   for (const selector of [
     '.aos-workbench-shell',
@@ -23,6 +26,10 @@ test('workbench defaults define shell, toolbar, and pane primitives', async () =
   ]) {
     assert.match(css, new RegExp(`${selector.replace('.', '\\.')}\\s*\\{`));
   }
+  assert.match(panelChrome, /aos-panel-grip/);
+  assert.match(panelCss, /\.aos-panel-grip\s*\{/);
+  assert.match(themeCss, /--bg-panel:\s*rgba\(5,\s*10,\s*14,\s*0\.96\)/);
+  assert.match(themeCss, /--accent-blue:\s*#7af1ff/);
 });
 
 test('Sigil radial item workbench keeps editor controls out of titlebar chrome', async () => {

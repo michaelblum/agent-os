@@ -1,11 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import {
   computeMinimapLayout,
   normalizeDisplays,
   projectPointToMinimap,
   resolveCanvasFrames,
 } from '../../packages/toolkit/components/canvas-inspector/index.js';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const displays = [
   {
@@ -219,4 +224,27 @@ test('normalizeDisplays accepts display_geometry payloads', () => {
       height: 982,
     },
   ]);
+});
+
+test('Canvas Inspector consumes toolkit panel chrome and split-pane footer primitives', () => {
+  const html = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.html'), 'utf8');
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.js'), 'utf8');
+  const styles = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/styles.css'), 'utf8');
+
+  assert.match(html, /panel\/defaults\.css/);
+  assert.match(html, /mountPanel\(\{\s*title: 'Canvas Inspector'/);
+  assert.match(html, /maximize:\s*true/);
+  assert.match(html, /resizable:\s*true/);
+  assert.match(html, /minWidth:\s*300/);
+  assert.match(source, /createSplitPane/);
+  assert.match(source, /resizeFrameFromTopLeft/);
+  assert.match(source, /mutateSelf\(\{ frame: nextFrame \}\)/);
+  assert.match(source, /orientation: 'vertical'/);
+  assert.match(source, /closedEndSize: LIST_PANE_CLOSED_HEIGHT/);
+  assert.doesNotMatch(source, /request_resize/);
+  assert.doesNotMatch(source, /MIN_EXPANDED_LIST_HEIGHT/);
+  assert.match(styles, /\.canvas-inspector-split/);
+  assert.match(styles, /\.canvas-inspector-list-pane/);
+  assert.match(styles, /overflow-x:\s*hidden/);
+  assert.match(styles, /text-overflow:\s*ellipsis/);
 });

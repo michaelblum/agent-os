@@ -1,6 +1,7 @@
 // drag-transfer.js — cross-display transfer affordance for panel drags.
 
 import { emit, wireBridge } from '../runtime/bridge.js'
+import { spawnChild } from '../runtime/canvas.js'
 import { subscribe } from '../runtime/subscribe.js'
 import {
   findDisplayForPoint,
@@ -47,6 +48,28 @@ function visibleNativeBounds(display) {
   return display?.nativeVisibleBounds || display?.native_visible_bounds || display?.visibleBounds || display?.visible_bounds || display?.bounds || null
 }
 
+function boundsSize(bounds = {}) {
+  return {
+    w: Math.max(1, finiteNumber(bounds.w ?? bounds.width, 1)),
+    h: Math.max(1, finiteNumber(bounds.h ?? bounds.height, 1)),
+  }
+}
+
+function rectFullyContainedByDisplay(frame, display) {
+  const source = frameToRect(frame)
+  const bounds = visibleNativeBounds(display)
+  if (!bounds) return false
+  const size = boundsSize(bounds)
+  const minX = finiteNumber(bounds.x, 0)
+  const minY = finiteNumber(bounds.y, 0)
+  const maxX = minX + size.w
+  const maxY = minY + size.h
+  return source.x >= minX
+    && source.y >= minY
+    && source.x + source.w <= maxX
+    && source.y + source.h <= maxY
+}
+
 function clampFrameToDisplay(frame, display) {
   const source = frameToRect(frame)
   const bounds = visibleNativeBounds(display)
@@ -70,6 +93,57 @@ function pointerPoint(pointer = {}) {
     x: finiteNumber(pointer.screenX ?? pointer.x, 0),
     y: finiteNumber(pointer.screenY ?? pointer.y, 0),
   }
+}
+
+function hasPointerPoint(pointer = {}) {
+  return Number.isFinite(Number(pointer.screenX ?? pointer.x))
+    && Number.isFinite(Number(pointer.screenY ?? pointer.y))
+}
+
+const stageEnsurePromises = new Map()
+
+export function defaultDesktopWorldStageUrl() {
+  if (typeof window === 'undefined' || !window.location?.href) {
+    return 'aos://toolkit/components/desktop-world-stage/index.html'
+  }
+  try {
+    const url = new URL(window.location.href)
+    const path = url.pathname || ''
+    const componentsIndex = path.indexOf('/components/')
+    if (componentsIndex >= 0) {
+      url.pathname = `${path.slice(0, componentsIndex)}/components/desktop-world-stage/index.html`
+      url.search = ''
+      url.hash = ''
+      return url.href
+    }
+  } catch {}
+  return 'aos://toolkit/components/desktop-world-stage/index.html'
+}
+
+export function ensureDesktopWorldStage({
+  id = 'aos-desktop-world-stage',
+  url = defaultDesktopWorldStageUrl(),
+  createStage = spawnChild,
+} = {}) {
+  if (!id || typeof createStage !== 'function') return Promise.resolve(false)
+  const key = `${id}:${url}`
+  if (!stageEnsurePromises.has(key)) {
+    stageEnsurePromises.set(key, Promise.resolve().then(() => createStage({
+      id,
+      url,
+      surface: 'desktop-world',
+      scope: 'global',
+      interactive: false,
+      focus: false,
+      cascade: false,
+    })).then(() => true).catch((error) => {
+      const message = String(error?.message || error)
+      if (/already exists|exists|duplicate/i.test(message)) return false
+      console.warn('[aos-panel] desktop-world transfer stage unavailable', error)
+      return false
+    }))
+  }
+  return stageEnsurePromises.get(key)
 }
 
 export function computePanelTransfer(displays = [], {
@@ -99,11 +173,14 @@ export function computePanelTransfer(displays = [], {
     source.w,
     source.h,
   ]
+  if (rectFullyContainedByDisplay(candidate, targetDisplay)) return null
+
   const nativeFrame = clampFrameToDisplay(candidate, targetDisplay)
   const worldRect = nativeToDesktopWorldRect(frameToRect(nativeFrame), normalizedDisplays)
   if (!worldRect) return null
   const worldFrame = rectToFrame(worldRect)
   return {
+    mode: 'outline',
     targetDisplayId: targetId,
     nativeFrame,
     frame: worldFrame,
@@ -133,6 +210,9 @@ export function sendDesktopWorldStageLayer(stageCanvasId, message, { send = emit
 export function createPanelTransferController({
   enabled = false,
   stageCanvasId = 'aos-desktop-world-stage',
+  stageUrl = defaultDesktopWorldStageUrl(),
+  ensureStage = 'auto',
+  createStage = spawnChild,
   layerId = null,
   label = 'Move here',
   getDisplays = () => [],
@@ -159,15 +239,31 @@ export function createPanelTransferController({
 
   return {
     setDisplays: updateDisplays,
-    start({ frame } = {}) {
+    start({ frame, pointer } = {}) {
       if (!enabled) return null
+      const shouldEnsureStage = ensureStage === 'auto'
+        ? typeof window !== 'undefined'
+        : Boolean(ensureStage)
+      if (shouldEnsureStage) {
+        ensureDesktopWorldStage({
+          id: stageCanvasId,
+          url: stageUrl,
+          createStage,
+        })
+      }
       const freshDisplays = normalizeDisplays(getDisplays())
       if (freshDisplays.length) displays = freshDisplays
       const rect = frameToRect(frame)
+      const originPoint = hasPointerPoint(pointer)
+        ? pointerPoint(pointer)
+        : {
+          x: rect.x + Math.min(rect.w / 2, 80),
+          y: rect.y + Math.min(rect.h / 2, 44),
+        }
       const origin = findDisplayForPoint(
         displays,
-        rect.x + Math.min(rect.w / 2, 80),
-        rect.y + Math.min(rect.h / 2, 44),
+        originPoint.x,
+        originPoint.y,
         { rectKey: 'nativeVisibleBounds', nearest: true }
       )
       originDisplayId = displayID(origin)

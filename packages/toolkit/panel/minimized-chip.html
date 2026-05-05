@@ -76,23 +76,88 @@
     <button type="button" class="close" id="close" aria-label="Close panel" title="Close">x</button>
   </div>
   <script type="module">
+    import { emit, wireBridge } from '../runtime/bridge.js';
+    import { subscribe } from '../runtime/subscribe.js';
+    import {
+      cloneFrame,
+      frameFromWindow,
+      normalizePanelDisplays,
+      restoredPanelFrameForChip,
+      workAreaFromWindow,
+    } from './placement.js';
+
     const params = new URLSearchParams(location.search);
     const target = params.get('target') || '';
     const title = params.get('title') || target || 'AOS';
+    const chipId = params.get('chip') || currentCanvasId();
+    const restoreFrame = parseFrame(params.get('restoreFrame'));
+    const initialChipFrame = parseFrame(params.get('chipFrame'));
+    let currentChipFrame = initialChipFrame;
+    let panelDisplays = [];
     const chip = document.getElementById('chip');
     document.getElementById('title').textContent = title;
 
     function post(type, payload) {
-      const body = payload === undefined ? { type } : { type, payload };
-      window.webkit?.messageHandlers?.headsup?.postMessage(body);
+      emit(type, payload);
     }
 
     function removeSelf() {
       post('canvas.remove', { orphan_children: true });
     }
 
+    function currentCanvasId() {
+      return window.__aosCanvasId || window.__aosSurfaceCanvasId || null;
+    }
+
+    function finiteNumber(value, fallback = 0) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : fallback;
+    }
+
+    function parseFrame(value) {
+      if (!value) return null;
+      try {
+        const frame = JSON.parse(value);
+        if (!Array.isArray(frame) || frame.length < 4) return null;
+        return cloneFrame(frame);
+      } catch {
+        return null;
+      }
+    }
+
+    function fallbackChipFrame() {
+      return currentChipFrame || frameFromWindow(window);
+    }
+
+    function wirePlacementGeometry() {
+      wireBridge((message) => {
+        const payload = message?.payload || message?.data || message;
+        const type = message?.type || payload?.type;
+        if (type === 'display_geometry' && payload?.displays) {
+          panelDisplays = normalizePanelDisplays(payload.displays);
+          return;
+        }
+        if (type !== 'canvas_lifecycle') return;
+        const id = payload?.canvas_id || payload?.id || payload?.canvas?.id || null;
+        if (!id || id !== chipId) return;
+        const frame = payload?.at || payload?.canvas?.at || null;
+        if (Array.isArray(frame) && frame.length >= 4) currentChipFrame = cloneFrame(frame);
+      });
+      subscribe(['display_geometry', 'canvas_lifecycle'], { snapshot: true });
+    }
+
     function restore() {
-      if (target) post('canvas.resume', { id: target });
+      if (target) {
+        const chipFrame = fallbackChipFrame();
+        const frame = restoredPanelFrameForChip({
+          restoreFrame,
+          chipFrame,
+          displays: panelDisplays,
+          fallbackWorkArea: workAreaFromWindow(window, chipFrame),
+        });
+        if (frame) post('canvas.update', { id: target, frame });
+        post('canvas.resume', { id: target });
+      }
       removeSelf();
     }
 
@@ -130,6 +195,13 @@
         offsetX: drag.offsetX,
         offsetY: drag.offsetY,
       });
+      const source = fallbackChipFrame();
+      currentChipFrame = cloneFrame([
+        finiteNumber(event.screenX, source[0] + drag.offsetX) - drag.offsetX,
+        finiteNumber(event.screenY, source[1] + drag.offsetY) - drag.offsetY,
+        source[2],
+        source[3],
+      ]);
       event.preventDefault();
     });
 
@@ -145,9 +217,13 @@
     chip.addEventListener('pointerup', endDrag);
     chip.addEventListener('pointercancel', endDrag);
     chip.addEventListener('lostpointercapture', endDrag);
-    chip.addEventListener('dblclick', restore);
+    chip.addEventListener('dblclick', (event) => {
+      if (event.target?.closest?.('button')) return;
+      restore();
+    });
     document.getElementById('restore').addEventListener('click', restore);
     document.getElementById('close').addEventListener('click', closeTarget);
+    wirePlacementGeometry();
   </script>
 </body>
 </html>

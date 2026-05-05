@@ -234,6 +234,7 @@ test('createSplitPane wires existing panes with separator semantics and restored
     endSize: 400,
     availableSize: 1000,
     closedPane: null,
+    closedSize: 0,
   });
 });
 
@@ -298,6 +299,7 @@ test('split pane can close and reopen a sidebar while preserving prior ratio', (
   assert.equal(closed.closedPane, 'end');
   assert.equal(closed.startSize, 808);
   assert.equal(closed.endSize, 0);
+  assert.equal(closed.closedSize, 0);
   assert.equal(split.endPane.hidden, true);
   assert.equal(split.divider.hidden, true);
   assert.equal(split.isPaneOpen('end'), false);
@@ -308,11 +310,55 @@ test('split pane can close and reopen a sidebar while preserving prior ratio', (
   assert.equal(reopened.closedPane, null);
   assert.equal(reopened.startSize, 440);
   assert.equal(reopened.endSize, 360);
+  assert.equal(reopened.closedSize, 0);
   assert.equal(split.endPane.hidden, false);
   assert.equal(split.divider.hidden, false);
   assert.equal(split.isPaneOpen('end'), true);
   assert.equal(split.root.dataset.closedPane, undefined);
   assert.deepEqual(changes.map((state) => state.closedPane), ['end', null]);
+});
+
+test('split pane can collapse sidebars to fixed accordion rails', () => {
+  const documentRef = new FakeDocument();
+  const horizontal = createSplitPane({
+    document: documentRef,
+    initialRatio: 0.5,
+    minStart: 120,
+    minEnd: 160,
+    dividerSize: 8,
+    closedEndSize: 52,
+  });
+  horizontal.root.rect = { left: 0, top: 0, width: 808, height: 500 };
+  horizontal.setRatio(0.5, { notify: false, persist: false });
+
+  const closedEnd = horizontal.closePane('end');
+  assert.equal(horizontal.root.dataset.collapseMode, 'accordion');
+  assert.equal(horizontal.root.dataset.closedPane, 'end');
+  assert.equal(horizontal.root.dataset.closedSize, '52');
+  assert.equal(closedEnd.startSize, 756);
+  assert.equal(closedEnd.endSize, 52);
+  assert.equal(closedEnd.closedSize, 52);
+  assert.equal(horizontal.endPane.hidden, false);
+  assert.equal(horizontal.divider.hidden, true);
+
+  const vertical = createSplitPane({
+    document: documentRef,
+    orientation: 'vertical',
+    initialRatio: 0.5,
+    dividerSize: 8,
+    closedStartSize: 44,
+  });
+  vertical.root.rect = { left: 0, top: 0, width: 800, height: 608 };
+  vertical.setRatio(0.5, { notify: false, persist: false });
+
+  const closedStart = vertical.closePane('start');
+  assert.equal(vertical.root.dataset.collapseMode, 'accordion');
+  assert.equal(vertical.root.dataset.closedPane, 'start');
+  assert.equal(closedStart.startSize, 44);
+  assert.equal(closedStart.endSize, 564);
+  assert.equal(closedStart.closedSize, 44);
+  assert.equal(vertical.startPane.hidden, false);
+  assert.equal(vertical.divider.hidden, true);
 });
 
 test('SplitPane layout mounts two content factories into start and end panes', async (t) => {

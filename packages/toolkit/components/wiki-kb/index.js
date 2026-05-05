@@ -21,6 +21,13 @@ const VIEW_DEFS = [
   { id: 'mindmap', label: 'Mind Map', factory: MindmapView },
 ]
 
+function resolveViewDefs(viewIds) {
+  if (!Array.isArray(viewIds) || viewIds.length === 0) return VIEW_DEFS
+  const allowed = new Set(viewIds.map((id) => String(id)))
+  const defs = VIEW_DEFS.filter((entry) => allowed.has(entry.id))
+  return defs.length > 0 ? defs : VIEW_DEFS
+}
+
 function canonicalMessageType(type) {
   if (type === 'graph' || type === 'wiki/graph' || type === 'wiki-kb/graph') return 'graph'
   if (type === 'graph/update' || type === 'wiki/graph/update' || type === 'wiki-kb/graph/update') {
@@ -48,11 +55,13 @@ function buildRelatedNodes(state, nodeId) {
   return [...related.values()]
 }
 
-export default function WikiKB() {
+export default function WikiKB(options = {}) {
+  const chromeMode = options.chrome === 'embedded' ? 'embedded' : 'default'
+  const viewDefs = resolveViewDefs(options.views)
   let host = null
   let rootEl = null
   let contentEl = null
-  let activeViewId = 'graph'
+  let activeViewId = viewDefs[0]?.id || 'graph'
   let sidebarMode = 'markdown'
   let selectedNodeId = null
   let graphState = normalizeGraphPayload({})
@@ -244,7 +253,7 @@ export default function WikiKB() {
     const existing = viewInstances.get(id)
     if (existing) return existing
 
-    const definition = VIEW_DEFS.find((entry) => entry.id === id)
+    const definition = viewDefs.find((entry) => entry.id === id)
     if (!definition) throw new Error(`Unknown wiki-kb view '${id}'`)
 
     const instance = definition.factory({
@@ -277,7 +286,8 @@ export default function WikiKB() {
     for (const button of rootEl.querySelectorAll('.wiki-kb-view-tab')) {
       const isActive = button.dataset.view === id
       button.classList.toggle('active', isActive)
-      const view = VIEW_DEFS.find((entry) => entry.id === button.dataset.view)
+      button.setAttribute('aria-selected', String(isActive))
+      const view = viewDefs.find((entry) => entry.id === button.dataset.view)
       applyWikiKBSemanticTarget(button, {
         id: `view-tab-${button.dataset.view}`,
         role: 'AXTab',
@@ -285,6 +295,17 @@ export default function WikiKB() {
         action: 'set_view',
         aosRef: wikiKBAosRef('tab', button.dataset.view),
         selected: isActive,
+      })
+    }
+    if (dom.viewSelectEl) {
+      dom.viewSelectEl.value = id
+      const view = viewDefs.find((entry) => entry.id === id)
+      applyWikiKBSemanticTarget(dom.viewSelectEl, {
+        id: 'view-select',
+        role: 'AXPopUpButton',
+        name: 'Wiki graph view',
+        action: 'set_view',
+        value: view?.label || id,
       })
     }
     focusActiveViewOnSelection()
@@ -350,24 +371,45 @@ export default function WikiKB() {
     }
   }
 
+  function onRootChange(event) {
+    const viewSelect = event.target.closest('.wiki-kb-view-select')
+    if (viewSelect) {
+      switchView(viewSelect.value)
+    }
+  }
+
   function buildDOM() {
     rootEl.innerHTML = `
       <div class="wiki-kb-shell">
-        <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views">
-          ${VIEW_DEFS.map((view, index) => `
-            <button
-              type="button"
-              id="wiki-kb-tab-${view.id}"
-              class="wiki-kb-view-tab${index === 0 ? ' active' : ''}"
-              data-view="${view.id}"
-              role="tab"
-              aria-selected="${index === 0 ? 'true' : 'false'}"
-              aria-controls="wiki-kb-panel-${view.id}"
-            >${view.label}</button>
-          `).join('')}
-          <div class="wiki-kb-tab-spacer"></div>
-          <span class="wiki-kb-status" role="status" aria-live="polite"></span>
-        </div>
+        ${chromeMode === 'embedded' ? `
+          ${viewDefs.length > 1 ? `
+            <div class="wiki-kb-compact-chrome" aria-label="Wiki graph view controls">
+              <label class="wiki-kb-view-menu" title="Select graph view">
+                <span>View</span>
+                <select class="wiki-kb-view-select" aria-label="Wiki graph view">
+                  ${viewDefs.map((view) => `<option value="${view.id}">${view.label}</option>`).join('')}
+                </select>
+              </label>
+              <span class="wiki-kb-status" role="status" aria-live="polite"></span>
+            </div>
+          ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
+        ` : `
+          <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views">
+            ${viewDefs.map((view, index) => `
+              <button
+                type="button"
+                id="wiki-kb-tab-${view.id}"
+                class="wiki-kb-view-tab${index === 0 ? ' active' : ''}"
+                data-view="${view.id}"
+                role="tab"
+                aria-selected="${index === 0 ? 'true' : 'false'}"
+                aria-controls="wiki-kb-panel-${view.id}"
+              >${view.label}</button>
+            `).join('')}
+            <div class="wiki-kb-tab-spacer"></div>
+            <span class="wiki-kb-status" role="status" aria-live="polite"></span>
+          </div>
+        `}
         <div class="wiki-kb-body">
           <div class="wiki-kb-content"></div>
           <aside class="wiki-kb-sidebar" aria-label="Selected node details">
@@ -396,6 +438,7 @@ export default function WikiKB() {
 
     contentEl = rootEl.querySelector('.wiki-kb-content')
     dom.statusEl = rootEl.querySelector('.wiki-kb-status')
+    dom.viewSelectEl = rootEl.querySelector('.wiki-kb-view-select')
     dom.sidebarEl = rootEl.querySelector('.wiki-kb-sidebar')
     dom.sidebarTypeEl = rootEl.querySelector('.wiki-kb-sidebar-type')
     dom.sidebarNameEl = rootEl.querySelector('.wiki-kb-sidebar-name')
@@ -414,6 +457,7 @@ export default function WikiKB() {
     syncSidebarToggle()
 
     rootEl.addEventListener('click', onRootClick)
+    rootEl.addEventListener('change', onRootChange)
     updateStatus()
     switchView(activeViewId)
   }
@@ -422,7 +466,7 @@ export default function WikiKB() {
     manifest: {
       name: 'wiki-kb',
       title: 'Wiki KB',
-      accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-view'],
+      accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-view', 'fit-view'],
       emits: ['selection'],
       channelPrefix: 'wiki-kb',
       defaultSize: { w: 860, h: 580 },
@@ -432,6 +476,7 @@ export default function WikiKB() {
       host = host_
       rootEl = document.createElement('div')
       rootEl.className = 'wiki-kb-root'
+      rootEl.dataset.chrome = chromeMode
       buildDOM()
       return rootEl
     },
@@ -452,9 +497,14 @@ export default function WikiKB() {
         }
         if (msg?.type === 'set-view') {
           const view = msg?.payload?.view || msg?.payload?.id || msg?.payload
-          if (typeof view === 'string' && VIEW_DEFS.some((entry) => entry.id === view)) {
+          if (typeof view === 'string' && viewDefs.some((entry) => entry.id === view)) {
             switchView(view)
           }
+          return
+        }
+        if (msg?.type === 'fit-view') {
+          const activeView = viewInstances.get(activeViewId)
+          activeView?.instance.fit?.()
           return
         }
         return

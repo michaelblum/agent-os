@@ -9,9 +9,11 @@
 // docs/archive/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
 import { emit, esc } from '../../runtime/bridge.js'
-import { evalCanvas } from '../../runtime/canvas.js'
+import { evalCanvas, mutateSelf } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { createSplitPane } from '../../panel/layouts/split-pane.js'
+import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
   nativeToDesktopWorldPoint,
@@ -59,7 +61,8 @@ const TINT_COLORS = [
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
 const TREE_INDENT_PX = 12
 const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
-const MIN_EXPANDED_LIST_HEIGHT = 220
+const LIST_PANE_CLOSED_HEIGHT = 28
+const LIST_PANE_OPEN_HEIGHT = 240
 
 function escapeHTML(value) {
   if (value === null || value === undefined) return ''
@@ -247,8 +250,20 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function verticalMargins(element) {
+  if (!element) return 0
+  const style = window.getComputedStyle?.(element)
+  if (!style) return 0
+  return (Number.parseFloat(style.marginTop) || 0) + (Number.parseFloat(style.marginBottom) || 0)
+}
+
 export default function CanvasInspector() {
   let contentEl = null
+  let minimapPaneEl = null
+  let listPaneEl = null
+  let splitController = null
+  let currentSelfFrame = null
+  let pendingSelfResizeFrame = 0
   let displays = []
   let canvases = []
   let cursor = { x: 0, y: 0, valid: false }
@@ -267,10 +282,6 @@ export default function CanvasInspector() {
   let dynamicAnimationFrame = 0
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
   let listCollapsed = true
-  let expandedCanvasHeight = null
-  let collapsedCanvasHeight = null
-  let pendingResizeFrame = 0
-  let lastResizeRequest = null
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -357,6 +368,47 @@ export default function CanvasInspector() {
     }
   }
 
+  function currentFrameFallback() {
+    if (currentSelfFrame) return currentSelfFrame
+    return cloneFrame([
+      window.screenX ?? window.screenLeft ?? 0,
+      window.screenY ?? window.screenTop ?? 0,
+      window.outerWidth || window.innerWidth || 320,
+      window.outerHeight || window.innerHeight || 480,
+    ])
+  }
+
+  function desiredPanelHeightForListState() {
+    const panel = contentEl?.closest?.('.aos-panel')
+    const header = panel?.querySelector?.('.aos-header')
+    const headerHeight = Math.ceil(header?.getBoundingClientRect?.().height || 44)
+    const minimap = minimapPaneEl?.querySelector?.('.minimap')
+    const minimapHeight = Math.ceil(minimap?.getBoundingClientRect?.().height || 180) + verticalMargins(minimap)
+    const dividerSize = Number.parseFloat(getComputedStyle(splitController?.divider || contentEl)?.flexBasis) || 8
+    const listHeight = listCollapsed ? LIST_PANE_CLOSED_HEIGHT : LIST_PANE_OPEN_HEIGHT
+    return Math.ceil(headerHeight + minimapHeight + dividerSize + listHeight)
+  }
+
+  function resizeSelfToListState() {
+    pendingSelfResizeFrame = 0
+    const source = currentFrameFallback()
+    const height = desiredPanelHeightForListState()
+    const nextFrame = resizeFrameFromTopLeft(source, {
+      height,
+      minWidth: 280,
+      minHeight: 220,
+      maxHeight: 900,
+    })
+    if (!nextFrame || source.every((value, index) => value === nextFrame[index])) return
+    currentSelfFrame = nextFrame
+    mutateSelf({ frame: nextFrame })
+  }
+
+  function scheduleSelfResizeToListState() {
+    if (pendingSelfResizeFrame) return
+    pendingSelfResizeFrame = window.requestAnimationFrame(resizeSelfToListState)
+  }
+
   function syncInputSubscription({ snapshot = false } = {}) {
     const wantsInput = cursorTrackingEnabled || mouseEventsEnabled
     if (!wantsInput) {
@@ -431,20 +483,24 @@ export default function CanvasInspector() {
 
   function rerender() {
     if (!contentEl) return
-    const priorListRegion = contentEl.querySelector('.canvas-list-region')
+    const priorListRegion = listPaneEl?.querySelector?.('.canvas-list-region')
     const priorListScrollTop = priorListRegion?.scrollTop ?? 0
-    contentEl.innerHTML = renderMinimap(minimapCanvases())
-      + `<div class="canvas-list-region" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
-      + renderStatusBar()
-    const nextListRegion = contentEl.querySelector('.canvas-list-region')
+    if (minimapPaneEl) {
+      const minimapHTML = renderMinimap(minimapCanvases())
+      minimapPaneEl.innerHTML = minimapHTML || '<div class="empty-state">Waiting for display geometry...</div>'
+    }
+    if (listPaneEl) {
+      listPaneEl.innerHTML = renderStatusBar()
+        + `<div class="canvas-list-region" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
+    }
+    const nextListRegion = listPaneEl?.querySelector?.('.canvas-list-region')
     if (nextListRegion && !listCollapsed) nextListRegion.scrollTop = priorListScrollTop
     syncMinimapDynamicLayer()
     syncDebugState()
-    schedulePanelResize()
   }
 
   function getMinimapWidth() {
-    return Math.max(120, (contentEl?.clientWidth || 296) - 16)
+    return Math.max(120, (minimapPaneEl?.clientWidth || contentEl?.clientWidth || 296) - 16)
   }
 
   function minimapCanvases() {
@@ -464,47 +520,6 @@ export default function CanvasInspector() {
       && a.x + a.w > b.x
       && a.y < b.y + b.h
       && a.y + a.h > b.y
-  }
-
-  function desiredCanvasHeight() {
-    if (!contentEl) return null
-    if (!listCollapsed) {
-      return Number.isFinite(expandedCanvasHeight)
-        ? expandedCanvasHeight
-        : Math.max(window.innerHeight, (collapsedCanvasHeight || collapsedLayoutHeight()) + MIN_EXPANDED_LIST_HEIGHT)
-    }
-    collapsedCanvasHeight = collapsedLayoutHeight()
-    return collapsedCanvasHeight
-  }
-
-  function collapsedLayoutHeight() {
-    const panel = contentEl.closest('.aos-panel')
-    const status = contentEl.querySelector('.status-bar')
-    if (!panel || !status) return null
-    const panelTop = panel.getBoundingClientRect().top
-    const statusBottom = status.getBoundingClientRect().bottom
-    return Math.ceil(statusBottom - panelTop)
-  }
-
-  function requestPanelResize() {
-    pendingResizeFrame = 0
-    const width = Math.round(window.innerWidth)
-    const height = desiredCanvasHeight()
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return
-    if (Math.abs(height - window.innerHeight) <= 2) return
-    const next = `${width}x${height}`
-    if (lastResizeRequest === next) return
-    lastResizeRequest = next
-    window.webkit?.messageHandlers?.headsup?.postMessage({
-      type: 'request_resize',
-      width,
-      height,
-    })
-  }
-
-  function schedulePanelResize() {
-    if (pendingResizeFrame) return
-    pendingResizeFrame = window.requestAnimationFrame(requestPanelResize)
   }
 
   function renderMinimap(list) {
@@ -690,16 +705,10 @@ export default function CanvasInspector() {
       const btn = event.target?.closest?.('button')
       if (!btn || !contentEl.contains(btn)) return
       if (btn.classList.contains('canvas-list-toggle')) {
-        if (!listCollapsed) {
-          expandedCanvasHeight = Math.max(window.innerHeight, (collapsedCanvasHeight || collapsedLayoutHeight()) + MIN_EXPANDED_LIST_HEIGHT)
-        }
-        listCollapsed = !listCollapsed
-        if (!listCollapsed && !Number.isFinite(expandedCanvasHeight)) {
-          const collapsedBase = collapsedCanvasHeight || window.innerHeight
-          expandedCanvasHeight = Math.max(window.innerHeight, collapsedBase + MIN_EXPANDED_LIST_HEIGHT)
-        }
-        lastResizeRequest = null
+        splitController?.togglePane('end')
+        listCollapsed = !splitController?.isPaneOpen('end')
         rerender()
+        scheduleSelfResizeToListState()
         return
       }
       if (btn.classList.contains('cursor-toggle-btn')) {
@@ -753,6 +762,7 @@ export default function CanvasInspector() {
     const existing = canvases.find(c => c.id === id) || null
     const next = mergeCanvasLifecycleCanvas(existing, data)
     if (!next) return
+    if (id === SELF_ID) currentSelfFrame = cloneFrame(next.at)
 
     const existingIndex = canvases.findIndex(c => c.id === id)
     if (existingIndex >= 0) {
@@ -777,7 +787,29 @@ export default function CanvasInspector() {
       host.contentEl.style.overflow = 'hidden'
       contentEl = document.createElement('div')
       contentEl.className = 'canvas-inspector-body'
-      contentEl.innerHTML = '<div class="empty-state">Waiting for canvases...</div>'
+      const splitRoot = document.createElement('div')
+      minimapPaneEl = document.createElement('section')
+      listPaneEl = document.createElement('section')
+      splitRoot.className = 'canvas-inspector-split'
+      minimapPaneEl.className = 'canvas-inspector-minimap-pane'
+      listPaneEl.className = 'canvas-inspector-list-pane'
+      contentEl.appendChild(splitRoot)
+      splitController = createSplitPane({
+        root: splitRoot,
+        startPane: minimapPaneEl,
+        endPane: listPaneEl,
+        orientation: 'vertical',
+        initialRatio: 0.6,
+        restoreState: { ratio: 0.6, closedPane: 'end' },
+        minStart: 150,
+        minEnd: 120,
+        closedEndSize: LIST_PANE_CLOSED_HEIGHT,
+        dividerSize: 8,
+        ariaLabel: 'Resize minimap and canvas list',
+        onChange(state) {
+          listCollapsed = state.closedPane === 'end'
+        },
+      })
       window.__canvasInspectorDebug = {
         tintCanvas(id, color = TINT_COLORS[0]) {
           return applyTint(id, color)
@@ -786,6 +818,12 @@ export default function CanvasInspector() {
         setMouseEventsEnabled,
         requestSeeBundle,
         toggleStats,
+        toggleCanvasList() {
+          splitController?.togglePane('end')
+          listCollapsed = !splitController?.isPaneOpen('end')
+          rerender()
+          scheduleSelfResizeToListState()
+        },
       }
       bindListEvents()
       emit('canvas_inspector.request_bundle_config')
@@ -799,6 +837,8 @@ export default function CanvasInspector() {
       resizeObserver.observe(contentEl)
       window.__canvasInspectorMounted = true
       syncDebugState()
+      rerender()
+      scheduleSelfResizeToListState()
       return contentEl
     },
 

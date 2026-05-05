@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clampFrameToWorkArea,
+  chipFrameFromWindow,
   createDragController,
   createMaximizeController,
   createResizeController,
@@ -12,8 +13,14 @@ import {
   syncMaximizeButton,
   wireDrag,
   wireResize,
+  workAreaForFrameTopLeft,
   workAreaFromWindow,
 } from '../../packages/toolkit/panel/chrome.js';
+import {
+  resizeFrameFromTopLeft,
+  restoredPanelFrameForChip,
+  workAreaForPoint,
+} from '../../packages/toolkit/panel/placement.js';
 
 class FakeNode {}
 
@@ -111,6 +118,34 @@ class FakeButton {
   }
 }
 
+const panelDisplays = [
+  {
+    id: 'main',
+    native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    native_visible_bounds: { x: 0, y: 33, w: 1512, h: 949 },
+    is_main: true,
+  },
+  {
+    id: 'extended',
+    native_bounds: { x: 1512, y: 0, w: 1920, h: 1080 },
+    native_visible_bounds: { x: 1512, y: 0, w: 1920, h: 1040 },
+  },
+];
+
+const stackedDisplays = [
+  {
+    id: 'extended-bottom',
+    native_bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+    native_visible_bounds: { x: -207, y: 1012, w: 1920, h: 976 },
+  },
+  {
+    id: 'main-top',
+    native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    native_visible_bounds: { x: 0, y: 33, w: 1512, h: 949 },
+    is_main: true,
+  },
+];
+
 test('frame and work area helpers normalize current window geometry', () => {
   const view = {
     screenX: 22.3,
@@ -134,6 +169,71 @@ test('frame and work area helpers normalize current window geometry', () => {
     innerHeight: 320,
     screen: { availWidth: 1200, availHeight: 800 },
   }), [300, 140, 1200, 800]);
+});
+
+test('chip frame helper avoids menu bar and clamps to available work area', () => {
+  assert.deepEqual(chipFrameFromWindow({
+    screenX: 0,
+    screenY: 0,
+    innerWidth: 1200,
+    innerHeight: 760,
+    screen: {
+      availLeft: 0,
+      availTop: 33,
+      availWidth: 1512,
+      availHeight: 949,
+    },
+  }), [10, 43, 280, 38]);
+
+  assert.deepEqual(chipFrameFromWindow({
+    screenX: 1500,
+    screenY: 1016,
+    innerWidth: 400,
+    innerHeight: 240,
+    screen: {
+      availLeft: -207,
+      availTop: 1012,
+      availWidth: 1920,
+      availHeight: 976,
+    },
+  }), [1500, 1022, 180, 38]);
+});
+
+test('panel work area inference uses the frame top-left display', () => {
+  assert.deepEqual(
+    workAreaForFrameTopLeft([1510, 80, 640, 420], panelDisplays, [0, 0, 1, 1]),
+    [0, 33, 1512, 949],
+  );
+  assert.deepEqual(
+    workAreaForFrameTopLeft([1512, 80, 640, 420], panelDisplays, [0, 0, 1, 1]),
+    [1512, 0, 1920, 1040],
+  );
+});
+
+test('pointer work area inference keeps stacked-display drags on the cursor display', () => {
+  assert.deepEqual(
+    workAreaForFrameTopLeft([100, 980, 320, 480], stackedDisplays, [0, 0, 1, 1]),
+    [0, 33, 1512, 949],
+  );
+  assert.deepEqual(
+    workAreaForPoint({ x: 120, y: 2050 }, stackedDisplays, [0, 0, 1, 1]),
+    [-207, 1012, 1920, 976],
+  );
+});
+
+test('chip frame helper uses top-left display inference when display geometry is available', () => {
+  assert.deepEqual(chipFrameFromWindow({
+    screenX: 1520,
+    screenY: 5,
+    innerWidth: 500,
+    innerHeight: 240,
+    screen: {
+      availLeft: 0,
+      availTop: 33,
+      availWidth: 1512,
+      availHeight: 949,
+    },
+  }, { displays: panelDisplays }), [1522, 10, 210, 38]);
 });
 
 test('createMaximizeController toggles work-area frame and restores previous frame', () => {
@@ -168,6 +268,73 @@ test('createMaximizeController toggles work-area frame and restores previous fra
     [40, 70, 500, 360],
   ]);
   assert.deepEqual(states.at(-1), { maximized: false, restoreFrame: null });
+});
+
+test('createMaximizeController can use top-left inferred display work area', () => {
+  let frame = [1520, 80, 600, 420];
+  const controller = createMaximizeController({
+    getFrame: () => frame,
+    getWorkArea: () => workAreaForFrameTopLeft(frame, panelDisplays),
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+    },
+  });
+
+  assert.deepEqual(controller.maximize(), {
+    maximized: true,
+    restoreFrame: [1520, 80, 600, 420],
+  });
+  assert.deepEqual(frame, [1512, 0, 1920, 1040]);
+  controller.restore();
+  assert.deepEqual(frame, [1520, 80, 600, 420]);
+});
+
+test('minimized chip restore keeps saved frame when chip and panel share a display', () => {
+  assert.deepEqual(
+    restoredPanelFrameForChip({
+      restoreFrame: [40, 70, 500, 360],
+      chipFrame: [42, 80, 220, 38],
+      displays: panelDisplays,
+    }),
+    [40, 70, 500, 360],
+  );
+});
+
+test('minimized chip restore follows the chip display when moved across displays', () => {
+  assert.deepEqual(
+    restoredPanelFrameForChip({
+      restoreFrame: [40, 70, 500, 360],
+      chipFrame: [1520, 80, 220, 38],
+      displays: panelDisplays,
+    }),
+    [1520, 80, 500, 360],
+  );
+});
+
+test('minimized chip restore clamps to the chip display visible work area', () => {
+  assert.deepEqual(
+    restoredPanelFrameForChip({
+      restoreFrame: [40, 70, 500, 360],
+      chipFrame: [3390, 1020, 220, 38],
+      displays: panelDisplays,
+    }),
+    [2932, 680, 500, 360],
+  );
+});
+
+test('resizeFrameFromTopLeft preserves panel origin and clamps resized frame', () => {
+  assert.deepEqual(
+    resizeFrameFromTopLeft([40, 70, 500, 360], { height: 620 }),
+    [40, 70, 500, 620],
+  );
+  assert.deepEqual(
+    resizeFrameFromTopLeft([40, 70, 500, 360], {
+      height: 2000,
+      maxHeight: 900,
+      workArea: [0, 33, 1512, 949],
+    }),
+    [40, 70, 500, 900],
+  );
 });
 
 test('resize geometry handles edges, corners, constraints, and work-area clamp', () => {
@@ -222,6 +389,33 @@ test('drag geometry derives pointer frames and clamps final placement', () => {
   assert.deepEqual(updates.at(-1), [560, 440, 240, 160]);
   assert.deepEqual(frame, [560, 440, 240, 160]);
   assert.deepEqual(states.map((state) => state.phase), ['start', 'move', 'end']);
+});
+
+test('drag end clamps to the cursor display instead of a seam-adjacent top-left display', () => {
+  let frame = [100, 980, 320, 480];
+  const updates = [];
+  const controller = createDragController({
+    move(screenX, screenY, offsetX, offsetY) {
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
+    },
+    getFrame: () => frame,
+    getWorkArea: (nextFrame) => workAreaForFrameTopLeft(nextFrame, stackedDisplays),
+    getDragWorkArea: (nextFrame, pointer) => (
+      workAreaForPoint(pointer, stackedDisplays, workAreaForFrameTopLeft(nextFrame, stackedDisplays))
+    ),
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+      updates.push(nextFrame);
+    },
+    clampOnEnd: true,
+  });
+
+  controller.start({ pointerId: 1, clientX: 20, clientY: 1070, screenX: 120, screenY: 1000 });
+  controller.move({ pointerId: 1, screenX: 120, screenY: 2050 });
+  controller.end({ pointerId: 1, screenX: 120, screenY: 2050 });
+
+  assert.deepEqual(updates.at(-1), [100, 1012, 320, 480]);
+  assert.deepEqual(frame, [100, 1012, 320, 480]);
 });
 
 test('createResizeController updates frames from pointer deltas', () => {
@@ -293,6 +487,7 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   const controls = new FakeElement();
   const moves = [];
   const controller = wireDrag(header, controls, {
+    globalInput: false,
     move(screenX, screenY, offsetX, offsetY) {
       moves.push({ screenX, screenY, offsetX, offsetY });
     },
@@ -351,6 +546,7 @@ test('wireDrag ignores pointerdown events originating from controls', async (t) 
   const controls = new FakeElement();
   const moves = [];
   wireDrag(header, controls, {
+    globalInput: false,
     move(...args) {
       moves.push(args);
     },
@@ -367,6 +563,66 @@ test('wireDrag ignores pointerdown events originating from controls', async (t) 
   assert.equal(moves.length, 0);
   assert.equal('dragging' in header.dataset, false);
   assert.equal(emitted.length, 0);
+});
+
+test('wireDrag follows daemon input events while the cursor leaves the canvas', async (t) => {
+  const previousNode = globalThis.Node;
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.Node = FakeNode;
+  const emitted = [];
+  globalThis.window = {
+    headsup: {},
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            emitted.push(message);
+          },
+        },
+      },
+    },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.Node = previousNode;
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const header = new FakeElement();
+  const controls = new FakeElement();
+  const moves = [];
+  const controller = wireDrag(header, controls, {
+    move(screenX, screenY, offsetX, offsetY) {
+      moves.push({ screenX, screenY, offsetX, offsetY });
+    },
+  });
+
+  header.dispatch('pointerdown', {
+    button: 0,
+    pointerId: 7,
+    clientX: 24,
+    clientY: 10,
+    target: header,
+  });
+  assert.equal(controller.getState().active, true);
+
+  const sendInput = (message) => {
+    window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
+  };
+  sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 500, y: 1040 } });
+  assert.deepEqual(moves, [{ screenX: 500, screenY: 1040, offsetX: 24, offsetY: 10 }]);
+
+  sendInput({ type: 'input_event', payload: { type: 'left_mouse_up', x: 500, y: 1040 } });
+  assert.equal(controller.getState().active, false);
+  assert.equal('dragging' in header.dataset, false);
+  assert.deepEqual(emitted.map((message) => message.type), [
+    'drag_start',
+    'subscribe',
+    'drag_end',
+    'unsubscribe',
+  ]);
 });
 
 test('wireResize creates edge handles and emits resize lifecycle messages', async (t) => {

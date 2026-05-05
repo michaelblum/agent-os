@@ -329,6 +329,7 @@ export default function GraphView({ onSelectNode }) {
     dom.controlsPanelEl?.toggleAttribute('hidden', !controlsOpen)
     if (dom.controlsToggleEl) {
       dom.controlsToggleEl.textContent = controlsOpen ? 'Hide Controls' : 'Show Controls'
+      dom.controlsToggleEl.title = controlsOpen ? 'Hide graph controls' : 'Show graph controls'
       applyGraphSemanticTarget(dom.controlsToggleEl, 'controls-toggle', {
         name: controlsOpen ? 'Hide graph controls' : 'Show graph controls',
         action: 'toggle_graph_controls',
@@ -535,7 +536,9 @@ export default function GraphView({ onSelectNode }) {
       }
     }
 
-    dom.summaryEl.textContent = `${filteredGraph.stats.visibleNodes}/${filteredGraph.stats.totalNodes} nodes · ${filteredGraph.stats.visibleLinks}/${filteredGraph.stats.totalLinks} links`
+    if (dom.summaryEl) {
+      dom.summaryEl.textContent = `${filteredGraph.stats.visibleNodes}/${filteredGraph.stats.totalNodes} nodes · ${filteredGraph.stats.visibleLinks}/${filteredGraph.stats.totalLinks} links`
+    }
     dom.isolatedToggleRowEl.toggleAttribute('hidden', !graphViewConfig.features.isolated)
     dom.showIsolatedInput.checked = showIsolated
     applyGraphSemanticTarget(dom.showIsolatedInput, 'show-isolated', {
@@ -686,7 +689,7 @@ export default function GraphView({ onSelectNode }) {
   function fitGraph() {
     const bounds = simulation.bounds()
     if (!bounds) return
-    viewport.fitBounds(size.width, size.height, bounds, { padding: 36 })
+    viewport.fitBounds(size.width, size.height, bounds, { padding: 54 })
     draw()
   }
 
@@ -1061,7 +1064,6 @@ export default function GraphView({ onSelectNode }) {
           <div class="wiki-kb-controls-panel">
             <div class="wiki-kb-controls-header">
               <span class="wiki-kb-controls-title">Graph Controls</span>
-              <span class="wiki-kb-controls-summary"></span>
             </div>
             <div class="wiki-kb-controls-section wiki-kb-controls-section-search">
               <label class="wiki-kb-controls-label" for="wiki-kb-search-input">Search</label>
@@ -1244,6 +1246,10 @@ export default function GraphView({ onSelectNode }) {
         renderControls()
         draw()
       }
+    },
+
+    fit() {
+      fitGraph()
     },
 
     onActivate() {
