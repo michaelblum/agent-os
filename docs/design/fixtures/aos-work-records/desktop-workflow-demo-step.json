@@ -1,0 +1,77 @@
+{
+  "type": "aos.do_step",
+  "schema_version": "draft-2026-05-04",
+  "id": "open-workflow-launcher",
+  "surface": "desktop",
+  "intent": {
+    "nl": "Open the workflow launcher and show the employer-brand competitor audit entry.",
+    "purpose": "workflow_demo",
+    "acceptance": "The launcher is visible and the target workflow entry can be inspected."
+  },
+  "precondition": {
+    "see": "AOS can inspect the foreground app and accessibility tree.",
+    "target": "ax:com.agent-os.launcher",
+    "state_id": "see_desktop000001"
+  },
+  "action": {
+    "verb": "press",
+    "target": "ax:com.agent-os.launcher/workflow-entry-employer-brand",
+    "state_id": "see_desktop000001",
+    "args": {
+      "role": "AXButton",
+      "title": "Employer Brand Competitor Audit"
+    }
+  },
+  "postcondition": {
+    "see": "The workflow detail pane or queued job confirmation is visible.",
+    "assertions": [
+      {
+        "kind": "ax_tree",
+        "role": "AXStaticText",
+        "title_contains": "Employer Brand"
+      }
+    ]
+  },
+  "execution_map": {
+    "desktop": {
+      "target_grammar": "ax:<bundle-or-pid>/<ref>",
+      "ax_candidates": [
+        {
+          "bundle_id": "com.agent-os.launcher",
+          "role": "AXButton",
+          "title": "Employer Brand Competitor Audit"
+        }
+      ],
+      "coordinate_fallback": {
+        "frame": "display:main",
+        "point": {
+          "x": 480,
+          "y": 320
+        },
+        "source": "last_successful_capture"
+      }
+    }
+  },
+  "evidence": {
+    "execution": {
+      "strategy": "ax_press",
+      "backend": "ax",
+      "fallback_used": false,
+      "state_id": "see_desktop000001"
+    },
+    "artifacts": [
+      {
+        "kind": "before_see",
+        "path": "artifacts/workflow-demo/before.json"
+      },
+      {
+        "kind": "after_see",
+        "path": "artifacts/workflow-demo/after.json"
+      }
+    ]
+  },
+  "health": {
+    "state": "repairable",
+    "reason": "desktop_target_unverified"
+  }
+}

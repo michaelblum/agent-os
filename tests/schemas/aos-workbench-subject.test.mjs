@@ -6,12 +6,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
+import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
+import { createWikiWorkflowSubject } from '../../packages/toolkit/workbench/workflow-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
+import { buildWorkRecordWorkbenchSubject, createWorkRecordWorkbenchState } from '../../packages/toolkit/components/work-record-workbench/model.js';
 import { buildRadialItemWorkbenchSubject, createRadialItemEditorState } from '../../apps/sigil/radial-item-editor/model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
+const workRecordFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json',
+);
+const workflowMapMarkdownPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
 
 async function validate(instance) {
   const result = spawnSync(
@@ -66,4 +74,49 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     plugin: 'self-check',
     tags: ['diagnostics', 'runtime'],
   }));
+  await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
+  await validate(createWikiWorkflowSubject({
+    root: {
+      path: 'aos/concepts/employer-brand-workflow-map.md',
+      type: 'concept',
+      name: 'Employer Brand Workflow Map',
+      tags: ['employer-brand', 'workflow', 'process'],
+    },
+    pages: [
+      {
+        path: 'aos/plugins/employer-brand-profile-intake/SKILL.md',
+        type: 'workflow',
+        name: 'employer-brand-profile-intake',
+      },
+      {
+        path: 'aos/plugins/employer-brand-artifact-collection-planner/SKILL.md',
+        type: 'workflow',
+        name: 'employer-brand-artifact-collection-planner',
+      },
+      {
+        path: 'aos/concepts/normalize-employer-brand-evidence.md',
+        type: 'concept',
+        name: 'Normalize Employer Brand Evidence',
+      },
+      {
+        path: 'aos/plugins/employer-brand-profile-synthesis/SKILL.md',
+        type: 'workflow',
+        name: 'employer-brand-profile-synthesis',
+      },
+      {
+        path: 'aos/plugins/employer-brand-competitor-comparison/SKILL.md',
+        type: 'workflow',
+        name: 'employer-brand-competitor-comparison',
+      },
+      {
+        path: 'aos/plugins/employer-brand-report-generation/SKILL.md',
+        type: 'workflow',
+        name: 'employer-brand-report-generation',
+      },
+    ],
+    markdown: await fs.readFile(workflowMapMarkdownPath, 'utf8'),
+  }));
+  await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
+    record: JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8')),
+  })));
 });

@@ -315,6 +315,7 @@ struct CaptureSurfaceJSON: Encodable {
 
 struct SuccessResponse: Encodable {
     let status = "success"
+    var state_id: String?
     var files: [String]?
     var base64: [String]?
     var cursor: CursorJSON?
@@ -330,12 +331,13 @@ struct SuccessResponse: Encodable {
     var perceptions: [CapturePerceptionJSON]?
 
     enum CodingKeys: String, CodingKey {
-        case status, files, base64, cursor, bounds, click_x, click_y, warning, elements, semantic_targets, annotations, window, surfaces, perceptions
+        case status, state_id, files, base64, cursor, bounds, click_x, click_y, warning, elements, semantic_targets, annotations, window, surfaces, perceptions
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(status, forKey: .status)
+        if let id = state_id { try c.encode(id, forKey: .state_id) }
         if let f = files { try c.encode(f, forKey: .files) }
         if let b = base64 { try c.encode(b, forKey: .base64) }
         if let cur = cursor { try c.encode(cur, forKey: .cursor) }

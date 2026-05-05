@@ -1,0 +1,27 @@
+{
+  "type": "aos.recipe_health_event",
+  "schema_version": "draft-2026-05-04",
+  "id": "indeed-benefits-section-retired",
+  "recipe_id": "employer-brand/collect-indeed-benefits-section",
+  "previous_health": {
+    "state": "repairable",
+    "reason": "target_not_found"
+  },
+  "next_health": {
+    "state": "impossible",
+    "reason": "intent_no_longer_supported"
+  },
+  "intent": {
+    "nl": "Collect the benefits section from the company's Indeed profile.",
+    "acceptance": "A page section explicitly describing employee benefits is captured."
+  },
+  "evidence": {
+    "last_trace": "artifacts/indeed-benefits/trace-2026-05-04.jsonl",
+    "last_observation": "The current page no longer exposes a benefits section or equivalent heading."
+  },
+  "retirement": {
+    "automatic_replay_allowed": false,
+    "replacement_recipe_id": null,
+    "note": "Keep the intent searchable, but do not replay until a human or agent defines a new source."
+  }
+}

@@ -19,9 +19,16 @@ func cliSessionState(args: [String]) -> SessionState {
 }
 
 /// Print a v1-compatible legacy response to stdout.
-func cliPrintLegacy(action: String, backend: String, target: LegacyTargetInfo, detail: String? = nil, dryRun: Bool) {
+func cliPrintLegacy(action: String, backend: String, target: LegacyTargetInfo, detail: String? = nil, dryRun: Bool, stateID: String? = nil) {
     var resp = LegacySuccessResponse(status: dryRun ? "dry_run" : "success", action: action, backend: backend, target: target)
     resp.detail = detail
+    let normalizedAction = action.replacingOccurrences(of: "-", with: "_")
+    resp.execution = ActionExecutionMetadata(
+        strategy: dryRun ? "dry_run_\(normalizedAction)" : "\(backend)_\(normalizedAction)",
+        backend: backend,
+        fallback_used: false,
+        state_id: stateID
+    )
     writeJSONLine(resp)
 }
 
@@ -64,7 +71,8 @@ private func positionalArgs(_ args: [String]) -> [String] {
             let valuedFlags = ["--pid", "--role", "--title", "--label", "--identifier",
                                "--index", "--near", "--match", "--depth", "--timeout",
                                "--profile", "--value", "--to", "--dy", "--dx", "--window",
-                               "--delay", "--variance", "--dwell", "--steps", "--speed"]
+                               "--delay", "--variance", "--dwell", "--steps", "--speed",
+                               "--state-id"]
             if valuedFlags.contains(arg) { skipNext = true }
             continue
         }
@@ -304,6 +312,7 @@ func cliClick(args: [String]) {
         return
     }
     let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
@@ -326,7 +335,7 @@ func cliClick(args: [String]) {
         var detail: String? = nil
         if isRight { detail = "right-click" }
         if isDouble { detail = "double-click" }
-        cliPrintLegacy(action: "click", backend: "cgevent", target: target, detail: detail, dryRun: true)
+        cliPrintLegacy(action: "click", backend: "cgevent", target: target, detail: detail, dryRun: true, stateID: stateID)
         return
     }
 
@@ -334,13 +343,14 @@ func cliClick(args: [String]) {
         action: "click",
         x: coords.0, y: coords.1,
         button: isRight ? "right" : "left",
-        count: isDouble ? 2 : 1
+        count: isDouble ? 2 : 1,
+        state_id: stateID
     )
     let resp = handleClick(req, state: state)
     if resp.status == "error" {
         exitError(resp.error ?? "click failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "click", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "click", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
 }
 
 /// `aos do hover` — move cursor to coordinates.
@@ -352,6 +362,7 @@ func cliHover(args: [String]) {
         return
     }
     let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
@@ -363,16 +374,16 @@ func cliHover(args: [String]) {
     target.y = coords.1
 
     if dryRun {
-        cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: true)
+        cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: true, stateID: stateID)
         return
     }
 
-    let req = ActionRequest(action: "move", x: coords.0, y: coords.1)
+    let req = ActionRequest(action: "move", x: coords.0, y: coords.1, state_id: stateID)
     let resp = handleMove(req, state: state)
     if resp.status == "error" {
         exitError(resp.error ?? "hover failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "hover", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
 }
 
 /// `aos do drag` — drag from one point to another.
@@ -398,7 +409,7 @@ func cliDrag(args: [String]) {
                 withTempFilename: false
             ))
             try requireSuccess(r, action: "drag")
-            emitDoResult(r)
+            emitDoResult(r, backend: "playwright", strategy: "playwright_drag", stateID: getArg(args, "--state-id"))
             return
         } catch BrowserTargetError.invalid(let msg) {
             exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
@@ -411,6 +422,7 @@ func cliDrag(args: [String]) {
         }
     }
     let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
 
     guard positional.count >= 2,
@@ -431,20 +443,21 @@ func cliDrag(args: [String]) {
     target.y2 = to.1
 
     if dryRun {
-        cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: true)
+        cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: true, stateID: stateID)
         return
     }
 
     let req = ActionRequest(
         action: "drag",
         x: to.0, y: to.1,
-        from: CursorPosition(x: from.0, y: from.1)
+        from: CursorPosition(x: from.0, y: from.1),
+        state_id: stateID
     )
     let resp = handleDrag(req, state: state)
     if resp.status == "error" {
         exitError(resp.error ?? "drag failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
 }
 
 /// `aos do scroll` — scroll at coordinates.
@@ -456,6 +469,7 @@ func cliScroll(args: [String]) {
         return
     }
     let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
@@ -477,20 +491,21 @@ func cliScroll(args: [String]) {
         var detail = "scroll"
         if let dy = dy { detail += " dy=\(Int(dy))" }
         if let dx = dx { detail += " dx=\(Int(dx))" }
-        cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, detail: detail, dryRun: true)
+        cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, detail: detail, dryRun: true, stateID: stateID)
         return
     }
 
     let req = ActionRequest(
         action: "scroll",
         x: coords.0, y: coords.1,
-        dx: dx, dy: dy
+        dx: dx, dy: dy,
+        state_id: stateID
     )
     let resp = handleScroll(req, state: state)
     if resp.status == "error" {
         exitError(resp.error ?? "scroll failed", code: resp.code ?? "UNKNOWN")
     }
-    cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, dryRun: false)
+    cliPrintLegacy(action: "scroll", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
 }
 
 /// `aos do type` — type text string.
@@ -668,7 +683,7 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
                 // playwright's dblclick verb.
                 let r = try doVerb("dblclick", target: t)
                 try requireSuccess(r, action: "dblclick")
-                emitDoResult(r)
+                emitDoResult(r, backend: "playwright", strategy: "playwright_dblclick", stateID: getArg(flags, "--state-id"))
                 return
             }
         case "type", "press":
@@ -696,7 +711,7 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
         }
         let r = try doVerb(pwVerb, target: t, extraArgs: extra)
         try requireSuccess(r, action: pwVerb)
-        emitDoResult(r)
+        emitDoResult(r, backend: "playwright", strategy: "playwright_\(pwVerb)", stateID: getArg(flags, "--state-id"))
     } catch BrowserTargetError.invalid(let msg) {
         exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
     } catch BrowserTargetError.missingSession {
@@ -712,9 +727,22 @@ func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [St
 
 /// Emit the `{status, result}` JSON payload for a PlaywrightResult from a
 /// browser-target `do` verb.
-func emitDoResult(_ r: PlaywrightResult) {
-    struct Payload: Encodable { let status: String; let result: PlaywrightResult }
-    let payload = Payload(status: r.exit_code == 0 ? "success" : "error", result: r)
+func emitDoResult(_ r: PlaywrightResult, backend: String = "playwright", strategy: String = "playwright_do", stateID: String? = nil) {
+    struct Payload: Encodable {
+        let status: String
+        let result: PlaywrightResult
+        let execution: ActionExecutionMetadata
+    }
+    let payload = Payload(
+        status: r.exit_code == 0 ? "success" : "error",
+        result: r,
+        execution: ActionExecutionMetadata(
+            strategy: strategy,
+            backend: backend,
+            fallback_used: false,
+            state_id: stateID
+        )
+    )
     let enc = JSONEncoder()
     enc.outputFormatting = [.sortedKeys]
     print(String(data: try! enc.encode(payload), encoding: .utf8)!)

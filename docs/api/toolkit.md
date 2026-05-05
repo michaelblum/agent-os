@@ -124,12 +124,28 @@ Wiki pages can be projected from `aos wiki list/show --json` shapes with:
 import { createWikiPageSubject } from '../workbench/wiki-subject.js'
 ```
 
+Design-stage work records can be projected from schema-shaped work-record
+objects with:
+
+```js
+import { createWorkRecordSubject } from '../workbench/work-record-subject.js'
+```
+
+Wiki workflow maps can be projected into a chain descriptor without creating a
+workflow engine:
+
+```js
+import { createWikiWorkflowSubject } from '../workbench/workflow-subject.js'
+```
+
 The current schema version is `2026-05-03`. The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
   `wiki.reference`, and `sigil.agent`
+- Workflow chain subjects: `wiki.workflow_chain`
+- Work-record subjects: `aos.do_step` and `aos.recipe_health_event`
 
 Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
@@ -139,6 +155,34 @@ Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,
 namespace, plugin }`, and their persistence route is the wiki write/change-event
 handoff rather than direct canvas filesystem access.
+
+Workflow chain subjects use `workflow:<root-wiki-path>`. They project a wiki
+workflow page or concept workflow map into ordered steps, child workflow refs,
+artifact refs, outputs, approval-gate placeholders, and validation state. The
+first projection reads the employer-brand workflow map's stage-contract table
+and resolves linked wiki pages into `wiki:<path>` child subjects. This is a
+view/model contract only: invocation stays with existing `aos wiki invoke` or
+agent-driven workflow instructions, and run/evidence/repair layers attach later
+through the work-record model.
+
+Work-record subject ids use `work-record:<id>`. They expose the natural-language
+intent, execution map, evidence artifacts, and health state as workbench views.
+The helper is a projection layer only; recording, replay, repair, and retirement
+remain owned by the work-record model in
+[`docs/design/aos-work-records-and-self-healing-recipes.md`](../design/aos-work-records-and-self-healing-recipes.md).
+
+The stock work-record workbench lives at:
+
+- `aos://toolkit/components/work-record-workbench/index.html`
+
+It accepts `work_record.open` and `work_record.patch.result`, emits
+`work-record-workbench/patch.requested`, and intentionally stays manual-first:
+it edits the NL intent and execution-map JSON while displaying health and
+evidence. `work_record.open` may include a file `source`, which is preserved in
+snapshots and patch requests. The companion
+`packages/toolkit/components/work-record-workbench/save-current.sh` helper can
+persist the current edited record JSON back to that file source or an explicit
+output path. It does not record, replay, repair, or retire recipes by itself.
 
 ## Stock Components Snapshot
 

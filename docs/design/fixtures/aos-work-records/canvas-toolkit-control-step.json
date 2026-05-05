@@ -1,0 +1,75 @@
+{
+  "type": "aos.do_step",
+  "schema_version": "draft-2026-05-04",
+  "id": "toggle-workbench-axis-visibility",
+  "surface": "canvas",
+  "intent": {
+    "nl": "Toggle the workbench preview axes so the user can visually align 3D objects.",
+    "purpose": "toolkit_control",
+    "acceptance": "The axes visibility state changes and the workbench reports the accepted patch."
+  },
+  "precondition": {
+    "see": "The workbench canvas is open and publishes semantic controls.",
+    "target": "canvas:sigil-radial-item-workbench/control.axes-visible",
+    "state_id": "see_canvas000001"
+  },
+  "action": {
+    "verb": "press",
+    "target": "canvas:sigil-radial-item-workbench/control.axes-visible",
+    "state_id": "see_canvas000001",
+    "args": {
+      "expected_role": "checkbox"
+    }
+  },
+  "postcondition": {
+    "see": "The axes checkbox state and preview state agree.",
+    "assertions": [
+      {
+        "kind": "canvas_state",
+        "path": [
+          "controls",
+          "axesVisible"
+        ],
+        "changed": true
+      }
+    ]
+  },
+  "execution_map": {
+    "canvas": {
+      "target_grammar": "canvas:<canvas-id>/<semantic-ref>",
+      "semantic_candidates": [
+        {
+          "canvas_id": "sigil-radial-item-workbench",
+          "role": "checkbox",
+          "label": "Axes"
+        }
+      ],
+      "message_hints": [
+        "canvas_object.registry",
+        "canvas_object.patch.result"
+      ]
+    }
+  },
+  "evidence": {
+    "execution": {
+      "strategy": "canvas_semantic_press",
+      "backend": "canvas",
+      "fallback_used": false,
+      "state_id": "see_canvas000001"
+    },
+    "artifacts": [
+      {
+        "kind": "before_canvas_state",
+        "path": "artifacts/workbench-axis/before.json"
+      },
+      {
+        "kind": "after_canvas_state",
+        "path": "artifacts/workbench-axis/after.json"
+      }
+    ]
+  },
+  "health": {
+    "state": "valid",
+    "reason": "schema_shaped_example"
+  }
+}

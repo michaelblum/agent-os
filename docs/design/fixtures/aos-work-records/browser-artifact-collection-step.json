@@ -1,0 +1,84 @@
+{
+  "type": "aos.do_step",
+  "schema_version": "draft-2026-05-04",
+  "id": "collect-company-careers-page",
+  "surface": "browser",
+  "intent": {
+    "nl": "Open the company's careers page and capture the initial employer-brand message.",
+    "purpose": "collect_source_artifact",
+    "acceptance": "A screenshot, page text, and page source are attached to the evidence registry."
+  },
+  "precondition": {
+    "see": "A browser session exists and can navigate.",
+    "target": "browser:employer-brand",
+    "state_id": "see_browser000001"
+  },
+  "action": {
+    "verb": "navigate",
+    "target": "browser:employer-brand",
+    "state_id": "see_browser000001",
+    "args": {
+      "url": "https://example.com/careers"
+    }
+  },
+  "postcondition": {
+    "see": "The page has loaded enough to extract a title, visible text, and screenshot.",
+    "assertions": [
+      {
+        "kind": "page_state",
+        "field": "url",
+        "contains": "/careers"
+      }
+    ]
+  },
+  "execution_map": {
+    "browser": {
+      "target_grammar": "browser:<session>[/<ref>]",
+      "locator_candidates": [
+        {
+          "kind": "role",
+          "role": "heading",
+          "name": "Careers"
+        }
+      ],
+      "wait_hints": [
+        {
+          "kind": "selector",
+          "value": "main"
+        }
+      ],
+      "playwright_hints": {
+        "codegen_export": null,
+        "trace_artifact": null
+      }
+    }
+  },
+  "evidence": {
+    "request_id": "example-careers-home",
+    "capture_job_id": "capture-job-0001",
+    "execution": {
+      "strategy": "playwright_goto",
+      "backend": "playwright",
+      "fallback_used": false,
+      "state_id": "see_browser000001"
+    },
+    "artifacts": [
+      {
+        "kind": "screenshot",
+        "path": "artifacts/example-careers-home/screenshot.png"
+      },
+      {
+        "kind": "page_text",
+        "path": "artifacts/example-careers-home/page.txt"
+      },
+      {
+        "kind": "page_source",
+        "path": "artifacts/example-careers-home/page.html"
+      }
+    ]
+  },
+  "health": {
+    "state": "stale",
+    "reason": "example_fixture_not_executed"
+  }
+}
