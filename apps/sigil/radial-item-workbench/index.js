@@ -33,9 +33,10 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
-const { createMaximizeController, createSplitPane, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/index.js`);
+const { createMaximizeController, createSplitPane, syncMaximizeButton, wireResize } = await import(`/${toolkitRoot}/panel/index.js`);
 const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
+const workbenchShell = document.querySelector('.aos-workbench-shell');
 const workbenchMain = document.getElementById('workbench-main');
 const previewPane = document.getElementById('preview-pane');
 const controlsPane = document.getElementById('controls-pane');
@@ -90,6 +91,16 @@ const maximizeController = createMaximizeController({
 if (maximizeWorkbenchButton) {
     syncMaximizeButton(maximizeWorkbenchButton, maximizeController.getState());
 }
+
+const resizeController = workbenchShell
+    ? wireResize(workbenchShell, {
+        minWidth: 760,
+        minHeight: 520,
+        onStart() {
+            if (maximizeController.getState().maximized) maximizeController.restore();
+        },
+    })
+    : null;
 
 const MIN_SCENE_ZOOM = 0.55;
 const MAX_SCENE_ZOOM = 2.2;
@@ -617,6 +628,7 @@ window.__sigilRadialItemWorkbench = {
     orbit,
     orbitState,
     maximizeController,
+    resizeController,
     registry,
     syncPanelRegistry,
     resetOrbit,

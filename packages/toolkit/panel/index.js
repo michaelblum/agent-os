@@ -21,10 +21,15 @@
 
 export { mountPanel } from './mount.js'
 export {
+  clampFrameToWorkArea,
   createMaximizeController,
+  createResizeController,
   frameFromWindow,
   mountChrome,
+  normalizeResizeEdge,
+  resizeFrame,
   syncMaximizeButton,
+  wireResize,
   workAreaFromWindow,
 } from './chrome.js'
 export { Single } from './layouts/single.js'

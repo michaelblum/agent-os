@@ -12,6 +12,8 @@ export function mountChrome(container, {
   close = true,
   minimize = true,
   maximize = false,
+  resizable = false,
+  resize = {},
   onClose = defaultClose,
   onMinimize = null,
   onMaximize = null,
@@ -108,6 +110,15 @@ export function mountChrome(container, {
   container.appendChild(panel)
 
   if (draggable) wireDrag(header, controlsEl)
+  const resizeController = resizable
+    ? wireResize(panel, {
+      ...resize,
+      onStart(edge, event, controller) {
+        resize.onStart?.(edge, event, controller)
+        if (maximizeController?.getState().maximized) maximizeController.restore()
+      },
+    })
+    : null
 
   return {
     panelEl: panel,
@@ -118,6 +129,7 @@ export function mountChrome(container, {
     windowControlsEl,
     contentEl: content,
     maximizeController,
+    resizeController,
     setTitle(text) { titleEl.textContent = text },
     setControls(html) { customControlsEl.innerHTML = html },
   }
@@ -159,6 +171,175 @@ export function workAreaFromWindow(view = window) {
   const width = positiveNumber(screen.availWidth || screen.width, fallbackFrame[2])
   const height = positiveNumber(screen.availHeight || screen.height, fallbackFrame[3])
   return cloneFrame([x, y, width, height])
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function finiteLimit(value, fallback) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+export function clampFrameToWorkArea(frame, {
+  workArea = null,
+  minVisibleWidth = 120,
+  minVisibleHeight = 44,
+} = {}) {
+  const next = cloneFrame(frame)
+  if (!workArea) return next
+  const area = cloneFrame(workArea)
+  const areaRight = area[0] + area[2]
+  const areaBottom = area[1] + area[3]
+  next[2] = Math.min(next[2], area[2])
+  next[3] = Math.min(next[3], area[3])
+  const maxX = Math.max(area[0], areaRight - next[2])
+  const maxY = Math.max(area[1], areaBottom - next[3])
+  if (next[2] <= area[2]) next[0] = clamp(next[0], area[0], maxX)
+  else next[0] = clamp(next[0], area[0] - next[2] + minVisibleWidth, areaRight - minVisibleWidth)
+  if (next[3] <= area[3]) next[1] = clamp(next[1], area[1], maxY)
+  else next[1] = clamp(next[1], area[1] - next[3] + minVisibleHeight, areaBottom - minVisibleHeight)
+  return cloneFrame(next)
+}
+
+export function normalizeResizeEdge(edge = '') {
+  const value = String(edge || '').toLowerCase()
+  const vertical = value.includes('north') || value.includes('top') || value === 'n' || value.startsWith('n')
+    ? 'n'
+    : value.includes('south') || value.includes('bottom') || value === 's' || value.startsWith('s')
+      ? 's'
+      : ''
+  const horizontal = value.includes('west') || value.includes('left') || value === 'w' || value.endsWith('w')
+    ? 'w'
+    : value.includes('east') || value.includes('right') || value === 'e' || value.endsWith('e')
+      ? 'e'
+      : ''
+  return `${vertical}${horizontal}` || 'se'
+}
+
+export function resizeFrame(frame, edge, deltaX = 0, deltaY = 0, {
+  minWidth = 240,
+  minHeight = 160,
+  maxWidth = Infinity,
+  maxHeight = Infinity,
+  workArea = null,
+  minVisibleWidth = 120,
+  minVisibleHeight = 44,
+} = {}) {
+  const source = cloneFrame(frame)
+  const next = cloneFrame(source)
+  const normalizedEdge = normalizeResizeEdge(edge)
+  const right = source[0] + source[2]
+  const bottom = source[1] + source[3]
+  const minW = positiveNumber(minWidth, 1)
+  const minH = positiveNumber(minHeight, 1)
+  let maxW = Math.max(minW, finiteLimit(maxWidth, Infinity))
+  let maxH = Math.max(minH, finiteLimit(maxHeight, Infinity))
+
+  if (workArea) {
+    const area = cloneFrame(workArea)
+    const areaRight = area[0] + area[2]
+    const areaBottom = area[1] + area[3]
+    if (normalizedEdge.includes('e')) maxW = Math.min(maxW, Math.max(minW, areaRight - source[0]))
+    if (normalizedEdge.includes('w')) maxW = Math.min(maxW, Math.max(minW, right - area[0]))
+    if (normalizedEdge.includes('s')) maxH = Math.min(maxH, Math.max(minH, areaBottom - source[1]))
+    if (normalizedEdge.includes('n')) maxH = Math.min(maxH, Math.max(minH, bottom - area[1]))
+  }
+
+  if (normalizedEdge.includes('e')) next[2] = source[2] + finiteNumber(deltaX, 0)
+  if (normalizedEdge.includes('s')) next[3] = source[3] + finiteNumber(deltaY, 0)
+  if (normalizedEdge.includes('w')) {
+    next[0] = source[0] + finiteNumber(deltaX, 0)
+    next[2] = source[2] - finiteNumber(deltaX, 0)
+  }
+  if (normalizedEdge.includes('n')) {
+    next[1] = source[1] + finiteNumber(deltaY, 0)
+    next[3] = source[3] - finiteNumber(deltaY, 0)
+  }
+
+  next[2] = clamp(next[2], minW, maxW)
+  next[3] = clamp(next[3], minH, maxH)
+  if (normalizedEdge.includes('w')) next[0] = right - next[2]
+  if (normalizedEdge.includes('n')) next[1] = bottom - next[3]
+
+  return clampFrameToWorkArea(next, { workArea, minVisibleWidth, minVisibleHeight })
+}
+
+export function createResizeController({
+  getFrame = () => frameFromWindow(),
+  getWorkArea = () => workAreaFromWindow(),
+  updateFrame = (frame) => mutateSelf({ frame }),
+  minWidth = 240,
+  minHeight = 160,
+  maxWidth = Infinity,
+  maxHeight = Infinity,
+  onStateChange = null,
+} = {}) {
+  let active = null
+  let frame = cloneFrame(getFrame())
+
+  function state(extra = {}) {
+    return {
+      active: Boolean(active),
+      edge: active?.edge || null,
+      frame: cloneFrame(frame),
+      ...extra,
+    }
+  }
+
+  function apply(nextFrame, extra = {}) {
+    frame = cloneFrame(nextFrame)
+    updateFrame(frame)
+    const snapshot = state(extra)
+    onStateChange?.(snapshot)
+    return snapshot
+  }
+
+  return {
+    start(edge, pointer = {}) {
+      active = {
+        edge: normalizeResizeEdge(edge),
+        startX: finiteNumber(pointer.screenX, 0),
+        startY: finiteNumber(pointer.screenY, 0),
+        frame: cloneFrame(getFrame()),
+      }
+      frame = cloneFrame(active.frame)
+      const snapshot = state({ phase: 'start' })
+      onStateChange?.(snapshot)
+      return snapshot
+    },
+    move(pointer = {}) {
+      if (!active) return state({ phase: 'idle' })
+      const dx = finiteNumber(pointer.screenX, active.startX) - active.startX
+      const dy = finiteNumber(pointer.screenY, active.startY) - active.startY
+      return apply(resizeFrame(active.frame, active.edge, dx, dy, {
+        minWidth,
+        minHeight,
+        maxWidth,
+        maxHeight,
+        workArea: getWorkArea(),
+      }), { phase: 'move' })
+    },
+    end() {
+      active = null
+      const snapshot = state({ phase: 'end' })
+      onStateChange?.(snapshot)
+      return snapshot
+    },
+    resize(edge, deltaX = 0, deltaY = 0) {
+      return apply(resizeFrame(getFrame(), edge, deltaX, deltaY, {
+        minWidth,
+        minHeight,
+        maxWidth,
+        maxHeight,
+        workArea: getWorkArea(),
+      }), { phase: 'resize', edge: normalizeResizeEdge(edge) })
+    },
+    getState() {
+      return state()
+    },
+  }
 }
 
 export function createMaximizeController({
@@ -318,4 +499,58 @@ export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
     header.addEventListener('pointercancel', onUp)
     header.addEventListener('lostpointercapture', onUp)
   })
+}
+
+export function wireResize(panel, {
+  edges = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'],
+  controller = null,
+  onStart = null,
+  ...controllerOptions
+} = {}) {
+  const resizeController = controller || createResizeController(controllerOptions)
+  const handles = []
+  for (const edge of edges) {
+    const normalizedEdge = normalizeResizeEdge(edge)
+    const handle = document.createElement('div')
+    handle.className = `aos-resize-handle aos-resize-${normalizedEdge}`
+    handle.dataset.edge = normalizedEdge
+    handle.setAttribute('aria-hidden', 'true')
+    panel.appendChild(handle)
+    handles.push(handle)
+
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return
+      const pointerId = event.pointerId
+      event.preventDefault()
+      event.stopPropagation?.()
+      emit('resize_start', { edge: normalizedEdge })
+      onStart?.(normalizedEdge, event, resizeController)
+      resizeController.start(normalizedEdge, event)
+      try { handle.setPointerCapture(pointerId) } catch {}
+
+      const onMove = (moveEvent) => {
+        if (moveEvent.pointerId !== pointerId) return
+        resizeController.move(moveEvent)
+      }
+
+      const onUp = (upEvent) => {
+        if (upEvent && upEvent.pointerId !== pointerId) return
+        handle.removeEventListener('pointermove', onMove)
+        handle.removeEventListener('pointerup', onUp)
+        handle.removeEventListener('pointercancel', onUp)
+        handle.removeEventListener('lostpointercapture', onUp)
+        try {
+          if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
+        } catch {}
+        resizeController.end()
+        emit('resize_end', { edge: normalizedEdge })
+      }
+
+      handle.addEventListener('pointermove', onMove)
+      handle.addEventListener('pointerup', onUp)
+      handle.addEventListener('pointercancel', onUp)
+      handle.addEventListener('lostpointercapture', onUp)
+    })
+  }
+  return { controller: resizeController, handles }
 }

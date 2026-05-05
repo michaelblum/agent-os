@@ -58,7 +58,13 @@ function HelloContent() {
   }
 }
 
-mountPanel({ title: 'panel/_smoke', layout: Single(HelloContent), maximize: true })
+mountPanel({
+  title: 'panel/_smoke',
+  layout: Single(HelloContent),
+  maximize: true,
+  resizable: true,
+  resize: { minWidth: 320, minHeight: 220 },
+})
 </script>
 </body>
 </html>
