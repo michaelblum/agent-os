@@ -21,6 +21,12 @@
 
 export { mountPanel } from './mount.js'
 export {
+  computePanelTransfer,
+  createPanelTransferController,
+  sendDesktopWorldStageLayer,
+  wirePanelTransferDisplayGeometry,
+} from './drag-transfer.js'
+export {
   clampFrameToWorkArea,
   createDragController,
   createMaximizeController,

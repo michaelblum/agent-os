@@ -59,6 +59,7 @@ test('Sigil radial item workbench is focused on object transforms only', async (
   assert.match(js, /wireDrag/);
   assert.match(js, /wireResize/);
   assert.match(js, /clampOnEnd: true/);
+  assert.match(js, /transfer: true/);
   assert.match(js, /minWidth: 760/);
   assert.doesNotMatch(js, /postRaw\(\{ type: 'move_abs'/);
 });

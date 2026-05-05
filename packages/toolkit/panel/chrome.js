@@ -5,6 +5,7 @@
 
 import { emit } from '../runtime/bridge.js'
 import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { createPanelTransferController, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
 
 export function mountChrome(container, {
   title = 'AOS',
@@ -110,8 +111,19 @@ export function mountChrome(container, {
   panel.appendChild(content)
   container.appendChild(panel)
 
+  const { onStateChange: onDragStateChange, ...dragOptions } = drag
   const dragController = draggable
-    ? wireDrag(header, controlsEl, { clampOnEnd: true, ...drag })
+    ? wireDrag(header, controlsEl, {
+      clampOnEnd: true,
+      transfer: true,
+      ...dragOptions,
+      onStateChange(state) {
+        const transferActive = Boolean(state.transferActive)
+        panel.classList.toggle('aos-panel-transfer-active', transferActive)
+        panel.dataset.transferActive = String(transferActive)
+        onDragStateChange?.(state)
+      },
+    })
     : null
   const resizeController = resizable
     ? wireResize(panel, {
@@ -229,17 +241,26 @@ export function createDragController({
   getWorkArea = () => workAreaFromWindow(),
   updateFrame = (frame) => mutateSelf({ frame }),
   clampOnEnd = false,
+  transfer = false,
+  transferController = null,
   minVisibleWidth = 160,
   minVisibleHeight = 44,
   onStateChange = null,
 } = {}) {
   let active = null
   let frame = cloneFrame(getFrame())
+  const transferOptions = transfer && typeof transfer === 'object' ? transfer : {}
+  const panelTransfer = transferController || (transfer
+    ? createPanelTransferController({ enabled: true, ...transferOptions })
+    : null)
+  if (panelTransfer && !transferController) wirePanelTransferDisplayGeometry(panelTransfer)
 
   function state(extra = {}) {
+    const transferActive = Boolean(panelTransfer?.getState?.().active)
     return {
       active: Boolean(active),
       frame: cloneFrame(frame),
+      transferActive,
       ...extra,
     }
   }
@@ -259,6 +280,7 @@ export function createDragController({
         frame: cloneFrame(getFrame()),
       }
       frame = cloneFrame(active.frame)
+      panelTransfer?.start({ frame })
       return notify({ phase: 'start' })
     },
     move(pointer = {}) {
@@ -270,13 +292,23 @@ export function createDragController({
         active.offsetY
       )
       frame = dragFrameFromPointer(pointer, active.offsetX, active.offsetY, active.frame)
+      panelTransfer?.move({
+        frame: active.frame,
+        pointer,
+        offsetX: active.offsetX,
+        offsetY: active.offsetY,
+      })
       return notify({ phase: 'move' })
     },
     end() {
       if (!active) return state({ phase: 'idle' })
       active = null
-      frame = cloneFrame(getFrame())
-      if (clampOnEnd) {
+      const transferResult = panelTransfer?.end()
+      if (transferResult?.nativeFrame) {
+        frame = cloneFrame(transferResult.nativeFrame)
+        updateFrame(frame)
+      } else if (clampOnEnd) {
+        frame = cloneFrame(getFrame())
         const clamped = clampFrameToWorkArea(frame, {
           workArea: getWorkArea(),
           minVisibleWidth,
@@ -286,6 +318,8 @@ export function createDragController({
           frame = clamped
           updateFrame(clamped)
         }
+      } else {
+        frame = cloneFrame(getFrame())
       }
       return notify({ phase: 'end' })
     },

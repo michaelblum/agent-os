@@ -443,8 +443,14 @@ window.headsup.receive = function receive(b64) {
 const dragController = dragHandle
     ? wireDrag(dragHandle, workbenchShell?.querySelector('.aos-window-controls'), {
         clampOnEnd: true,
+        transfer: true,
         onStart() {
             if (maximizeController.getState().maximized) maximizeController.restore();
+        },
+        onStateChange(state) {
+            const transferActive = Boolean(state.transferActive);
+            workbenchShell?.classList.toggle('aos-workbench-transfer-active', transferActive);
+            if (workbenchShell) workbenchShell.dataset.transferActive = String(transferActive);
         },
     })
     : null;
