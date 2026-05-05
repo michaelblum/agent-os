@@ -12,7 +12,7 @@ Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md)
 aos daemon (Layer 0)           canvas.create/update/remove, subscribe streams, eval, content server
   └─ runtime/ (Layer 1a)       in-canvas helpers: bridge, subscribe, canvas mutation, manifest
        ├─ controls/            reusable app-control behavior for WKWebView surfaces
-       ├─ panel/ (Layer 1b)    panel-shaped scaffolding: chrome, router, layouts (Single, Tabs)
+       ├─ panel/ (Layer 1b)    panel-shaped scaffolding: chrome, router, layouts (Single, SplitPane, Tabs)
        ├─ workbench/           subject descriptors and reusable workbench contracts
        │    └─ components/     reusable Content units consumed by panel layouts
        └─ apps/ (Layer 3)      presence surfaces use 1a directly; panels use 1a + 1b + 2
@@ -45,6 +45,7 @@ panel/                  Layer 1b — panel primitives
   router.js               createRouter — manifest-prefix dispatch
   layouts/
     single.js             Single(Content)
+    split-pane.js         SplitPane(start, end) + createSplitPane DOM controller
     tabs.js               Tabs([Content...])
   mount.js                mountPanel orchestrator
   index.js                re-exports + Content typedef

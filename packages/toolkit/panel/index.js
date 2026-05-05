@@ -28,4 +28,9 @@ export {
   workAreaFromWindow,
 } from './chrome.js'
 export { Single } from './layouts/single.js'
+export {
+  clampSplitPaneState,
+  createSplitPane,
+  SplitPane,
+} from './layouts/split-pane.js'
 export { Tabs } from './layouts/tabs.js'

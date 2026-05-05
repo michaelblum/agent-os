@@ -691,8 +691,8 @@ animation/effects. The animation/effects area has three views: natural-language
 description, editable JSON control definitions, and a rendered mini-form driven
 by that JSON. Single-object transform editing is the current behavior.
 Multi-select, grouped edits over arbitrary subsets, and dockable/collapsible
-object-list panes belong to the follow-on split-pane and docking work rather
-than the control contract itself.
+object-list panes belong to the split-pane/docking surface layer rather than
+the control contract itself.
 
 Default launcher:
 
@@ -949,10 +949,12 @@ Public entrypoint:
 
 ```js
 import {
+  createSplitPane,
   createMaximizeController,
   mountPanel,
   mountChrome,
   Single,
+  SplitPane,
   Tabs,
 } from 'aos://toolkit/panel/index.js'
 ```
@@ -1064,6 +1066,74 @@ The controller state is:
 ### `Single(factoryOrContent)`
 
 Wraps one content unit.
+
+### `createSplitPane(options?)`
+
+Builds or wires a two-pane DOM layout with a draggable accessible separator.
+This helper is for custom workbench shells that already own their HTML.
+
+```js
+const split = createSplitPane({
+  root: document.querySelector('.workbench-main'),
+  startPane: document.querySelector('.preview-pane'),
+  endPane: document.querySelector('.controls-pane'),
+  orientation: 'horizontal',
+  initialRatio: 0.58,
+  minStart: 360,
+  minEnd: 320,
+  storageKey: 'my-workbench.split',
+})
+```
+
+Options:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `root` | `HTMLElement` | existing root to wire; created when omitted |
+| `startPane` / `endPane` | `HTMLElement` | existing panes to wire; created when omitted |
+| `divider` | `HTMLElement` | existing separator; created when omitted |
+| `orientation` | `'horizontal' \| 'vertical'` | left-right or top-bottom split, default `horizontal` |
+| `initialRatio` | `number` | start pane ratio before restore, default `0.5` |
+| `restoreState` | `object \| number` | explicit restored state or ratio |
+| `storageKey` | `string` | optional localStorage-backed ratio persistence |
+| `minStart` / `minEnd` | `number` | minimum start/end pane size in pixels |
+| `maxStart` / `maxEnd` | `number` | optional maximum start/end pane size in pixels |
+| `keyboardStep` | `number` | arrow-key resize step in pixels |
+| `ariaLabel` | `string` | accessible separator label |
+| `onChange` | `function` | called with `{ orientation, ratio, startSize, endSize, availableSize }` |
+
+The returned controller exposes:
+
+| Field / method | Meaning |
+| --- | --- |
+| `root`, `startPane`, `endPane`, `divider` | wired DOM nodes |
+| `getState()` | current normalized split state |
+| `setRatio(ratio, options?)` | update by ratio |
+| `setStartSize(px, options?)` | update by start pane pixels |
+| `destroy()` | remove controller event listeners |
+
+The separator uses `role="separator"`, `aria-orientation`, `aria-valuenow`,
+and pointer/keyboard semantics. Apps should treat `.aos-split-pane*` classes as
+styling hooks and the controller state as the behavior contract.
+
+### `SplitPane(startFactoryOrContent, endFactoryOrContent, options?)`
+
+Wraps two content units in a toolkit split-pane layout for `mountPanel`.
+
+```js
+mountPanel({
+  title: 'Workbench',
+  layout: SplitPane(PreviewContent, ControlsContent, {
+    initialRatio: 0.6,
+    minStart: 320,
+    minEnd: 280,
+  }),
+})
+```
+
+`SplitPane` accepts the same geometry options as `createSplitPane`. It emits
+`split-pane/resized` and declares a panel manifest with the two pane contents.
+Individual content units are routed by their existing `manifest.channelPrefix`.
 
 ### `Tabs(factoriesOrContents, options?)`
 
