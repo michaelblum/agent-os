@@ -42,6 +42,7 @@ test('Sigil radial item workbench keeps editor controls out of titlebar chrome',
 
   assert.match(toolbar, /id="item-select"/);
   assert.match(toolbar, /id="axes-toggle"/);
+  assert.match(toolbar, /id="toggle-controls-pane"/);
   assert.match(toolbar, /id="lock-in"/);
   assert.doesNotMatch(toolbar, /id="pulse-control"/);
 });

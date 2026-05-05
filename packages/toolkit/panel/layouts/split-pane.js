@@ -56,6 +56,14 @@ function setData(element, name, value) {
   if (element?.dataset) element.dataset[name] = String(value)
 }
 
+function removeData(element, name) {
+  if (element?.dataset) delete element.dataset[name]
+}
+
+function normalizePane(value) {
+  return value === 'start' || value === 'end' ? value : null
+}
+
 function cloneState(state) {
   return {
     orientation: state.orientation,
@@ -63,6 +71,7 @@ function cloneState(state) {
     startSize: state.startSize,
     endSize: state.endSize,
     availableSize: state.availableSize,
+    closedPane: state.closedPane,
   }
 }
 
@@ -79,7 +88,13 @@ function stateFromSource(source = null) {
       return null
     }
   }
-  if (source && typeof source === 'object') return { ratio: source.ratio }
+  if (source && typeof source === 'object') {
+    return {
+      ratio: source.ratio,
+      restoreRatio: source.restoreRatio,
+      closedPane: normalizePane(source.closedPane),
+    }
+  }
   return null
 }
 
@@ -95,7 +110,10 @@ function readStoredState(storage, storageKey) {
 function writeStoredState(storage, storageKey, state) {
   if (!storage || !storageKey) return
   try {
-    storage.setItem(storageKey, JSON.stringify({ ratio: state.ratio }))
+    storage.setItem(storageKey, JSON.stringify({
+      ratio: state.ratio,
+      closedPane: state.closedPane,
+    }))
   } catch {}
 }
 
@@ -196,6 +214,8 @@ export function createSplitPane({
   const state = {
     orientation: splitOrientation,
     ratio: normalizeRatio(restored.ratio, initialRatio),
+    restoreRatio: normalizeRatio(restored.restoreRatio ?? restored.ratio, initialRatio),
+    closedPane: normalizePane(restored.closedPane),
     startSize: 0,
     endSize: 0,
     availableSize: 0,
@@ -207,8 +227,41 @@ export function createSplitPane({
 
   function apply(nextRatio, { notify = true, persist = true } = {}) {
     const rect = bounds()
+    state.ratio = normalizeRatio(nextRatio, state.ratio)
+
+    if (state.closedPane) {
+      state.restoreRatio = state.ratio
+      const fullSize = positiveNumber(rect[splitAxis.size], 1)
+      const startOpen = state.closedPane !== 'start'
+      const endOpen = state.closedPane !== 'end'
+      state.startSize = startOpen ? fullSize : 0
+      state.endSize = endOpen ? fullSize : 0
+      state.availableSize = fullSize
+
+      startEl.hidden = !startOpen
+      endEl.hidden = !endOpen
+      dividerEl.hidden = true
+      setStyle(startEl, 'flex', startOpen ? '1 1 0' : '0 0 0px')
+      setStyle(endEl, 'flex', endOpen ? '1 1 0' : '0 0 0px')
+      setStyle(dividerEl, 'flex', '0 0 0px')
+      setData(rootEl, 'closedPane', state.closedPane)
+      setData(rootEl, 'ratio', state.ratio.toFixed(4))
+      dividerEl.setAttribute('aria-valuemin', '0')
+      dividerEl.setAttribute('aria-valuemax', '100')
+      dividerEl.setAttribute('aria-valuenow', String(Math.round(state.ratio * 100)))
+
+      const closedSnapshot = cloneState(state)
+      if (persist) writeStoredState(resolvedStorage, storageKey, closedSnapshot)
+      if (notify) onChange?.(closedSnapshot)
+      return closedSnapshot
+    }
+
+    startEl.hidden = false
+    endEl.hidden = false
+    dividerEl.hidden = false
+    removeData(rootEl, 'closedPane')
     const next = clampSplitPaneState({
-      ratio: nextRatio,
+      ratio: state.ratio,
       size: rect[splitAxis.size],
       dividerSize,
       minStart,
@@ -217,6 +270,7 @@ export function createSplitPane({
       maxEnd,
     })
     state.ratio = next.ratio
+    state.restoreRatio = next.ratio
     state.startSize = next.startSize
     state.endSize = next.endSize
     state.availableSize = next.availableSize
@@ -248,6 +302,31 @@ export function createSplitPane({
   function setStartSize(nextSize, options = {}) {
     const available = Math.max(1, state.availableSize || (bounds()[splitAxis.size] - positiveNumber(dividerSize, 8)))
     return apply(finiteNumber(nextSize, state.startSize) / available, options)
+  }
+
+  function closePane(pane = 'end', options = {}) {
+    const targetPane = normalizePane(pane) || 'end'
+    if (state.closedPane === targetPane) return cloneState(state)
+    if (!state.closedPane) state.restoreRatio = state.ratio
+    state.closedPane = targetPane
+    return apply(state.ratio, options)
+  }
+
+  function openPane(pane = state.closedPane, options = {}) {
+    const targetPane = normalizePane(pane) || state.closedPane
+    if (!state.closedPane || (targetPane && state.closedPane !== targetPane)) return cloneState(state)
+    state.closedPane = null
+    return apply(state.restoreRatio ?? state.ratio, options)
+  }
+
+  function togglePane(pane = 'end', options = {}) {
+    const targetPane = normalizePane(pane) || 'end'
+    return state.closedPane === targetPane ? openPane(targetPane, options) : closePane(targetPane, options)
+  }
+
+  function isPaneOpen(pane = 'end') {
+    const targetPane = normalizePane(pane) || 'end'
+    return state.closedPane !== targetPane
   }
 
   let pointerId = null
@@ -332,6 +411,10 @@ export function createSplitPane({
     },
     setRatio,
     setStartSize,
+    closePane,
+    openPane,
+    togglePane,
+    isPaneOpen,
     destroy() {
       dividerEl.removeEventListener?.('pointerdown', pointerDown)
       dividerEl.removeEventListener?.('pointermove', pointerMove)

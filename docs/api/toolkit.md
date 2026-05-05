@@ -1094,13 +1094,13 @@ Options:
 | `divider` | `HTMLElement` | existing separator; created when omitted |
 | `orientation` | `'horizontal' \| 'vertical'` | left-right or top-bottom split, default `horizontal` |
 | `initialRatio` | `number` | start pane ratio before restore, default `0.5` |
-| `restoreState` | `object \| number` | explicit restored state or ratio |
-| `storageKey` | `string` | optional localStorage-backed ratio persistence |
+| `restoreState` | `object \| number` | explicit restored state or ratio; objects may include `closedPane` |
+| `storageKey` | `string` | optional localStorage-backed ratio and closed-pane persistence |
 | `minStart` / `minEnd` | `number` | minimum start/end pane size in pixels |
 | `maxStart` / `maxEnd` | `number` | optional maximum start/end pane size in pixels |
 | `keyboardStep` | `number` | arrow-key resize step in pixels |
 | `ariaLabel` | `string` | accessible separator label |
-| `onChange` | `function` | called with `{ orientation, ratio, startSize, endSize, availableSize }` |
+| `onChange` | `function` | called with `{ orientation, ratio, startSize, endSize, availableSize, closedPane }` |
 
 The returned controller exposes:
 
@@ -1110,6 +1110,10 @@ The returned controller exposes:
 | `getState()` | current normalized split state |
 | `setRatio(ratio, options?)` | update by ratio |
 | `setStartSize(px, options?)` | update by start pane pixels |
+| `closePane('start' \| 'end')` | close one pane and let the other fill the split root |
+| `openPane('start' \| 'end')` | reopen a closed pane and restore the last ratio |
+| `togglePane('start' \| 'end')` | close/open one pane |
+| `isPaneOpen('start' \| 'end')` | return whether a pane is currently open |
 | `destroy()` | remove controller event listeners |
 
 The separator uses `role="separator"`, `aria-orientation`, `aria-valuenow`,

@@ -48,6 +48,7 @@ const maximizeWorkbenchButton = document.getElementById('maximize-workbench');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
 const axesToggle = document.getElementById('axes-toggle');
+const toggleControlsPaneButton = document.getElementById('toggle-controls-pane');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
 const undoButton = document.getElementById('undo-change');
@@ -68,6 +69,7 @@ const splitPane = createSplitPane({
     ariaLabel: 'Resize preview and controls panes',
     onChange() {
         syncPreviewSize();
+        syncControlsPaneToggle();
     },
 });
 
@@ -325,6 +327,14 @@ function clearHistory() {
     updateHistoryButtons();
 }
 
+function syncControlsPaneToggle() {
+    if (!toggleControlsPaneButton) return;
+    const isOpen = splitPane.isPaneOpen('end');
+    toggleControlsPaneButton.setAttribute('aria-pressed', String(isOpen));
+    toggleControlsPaneButton.dataset.open = String(isOpen);
+    toggleControlsPaneButton.title = isOpen ? 'Hide transform controls' : 'Show transform controls';
+}
+
 function applyPatch(message, { recordHistory = true } = {}) {
     const before = recordHistory ? objectSnapshot(message.target) : null;
     const result = applyEditorObjectPatch(editorState, message);
@@ -527,6 +537,10 @@ spinToggle.addEventListener('change', () => {
 });
 
 axesToggle.addEventListener('change', syncOrbit);
+toggleControlsPaneButton?.addEventListener('click', () => {
+    splitPane.togglePane('end');
+    syncControlsPaneToggle();
+});
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
 undoButton.addEventListener('click', undoChange);
@@ -588,6 +602,7 @@ maximizeWorkbenchButton?.addEventListener('click', (event) => {
 });
 
 syncControls();
+syncControlsPaneToggle();
 syncOrbit();
 syncPanelRegistry();
 post('ready', {
@@ -632,6 +647,7 @@ window.__sigilRadialItemWorkbench = {
             history: { undo: undoStack.length, redo: redoStack.length },
             orbit: { x: orbitState.x, y: orbitState.y, zoom: orbitState.zoom },
             splitPane: splitPane.getState(),
+            controlsPaneOpen: splitPane.isPaneOpen('end'),
             axesVisible: axesGuide.visible,
             visuals: visuals.snapshot(),
         };
