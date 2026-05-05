@@ -74,11 +74,14 @@ export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
         };
     }
 
-    function release(pointer) {
+    function release(pointer, context = {}) {
         if (!model) return null;
         snapshot = decorateSnapshot(model.release(pointer));
         if (snapshot.committed?.type === 'item') {
-            onCommitItem?.(snapshot.committed.item, snapshot);
+            onCommitItem?.(snapshot.committed.item, snapshot, {
+                ...context,
+                pointer,
+            });
         }
         const result = snapshot;
         model = null;
