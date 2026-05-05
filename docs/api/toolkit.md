@@ -109,6 +109,40 @@ list rows.
 <link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
 ```
 
+## Theme Tokens
+
+`components/_base/theme.css` is the shared visual contract for toolkit surfaces.
+Consumers should override these custom properties after importing `theme.css`
+instead of copying stock CSS or hardcoding parallel values.
+
+Token groups:
+
+- typography: `--aos-font-ui`, `--aos-font-mono`, `--aos-type-body`,
+  `--aos-type-caption`, `--aos-type-label`, `--aos-type-toolbar`,
+  `--aos-type-title`, `--aos-type-window-control`, `--aos-type-code`,
+  `--aos-type-code-block`, `--aos-type-micro`, `--aos-type-micro-label`,
+  and `--aos-type-numeric`
+- panel chrome: `--aos-panel-bg`, `--aos-panel-header-bg`,
+  `--aos-panel-border`, `--aos-panel-border-subtle`,
+  `--aos-panel-radius`, `--aos-panel-shadow`,
+  `--aos-panel-titlebar-min-height`, `--aos-panel-titlebar-padding`,
+  `--aos-panel-titlebar-gap`, `--aos-panel-control-gap`, and
+  `--aos-panel-grip-color`
+- controls: `--aos-control-height`, `--aos-control-padding`,
+  `--aos-control-gap`, `--aos-control-radius`, `--aos-control-border`,
+  `--aos-control-bg`, `--aos-control-bg-hover`,
+  `--aos-control-compact-padding`, `--aos-control-compact-radius`,
+  `--aos-control-compact-bg`, `--aos-control-compact-bg-active`,
+  `--aos-icon-button-size`, and `--aos-focus-ring`
+- window buttons: `--aos-window-button-size`,
+  `--aos-window-button-border`, `--aos-window-button-bg`,
+  `--aos-window-button-color`, plus hover state tokens for close, minimize,
+  and maximize
+
+Legacy aliases such as `--font-ui`, `--font-mono`, `--bg-panel`,
+`--border-panel`, `--radius-panel`, and `--shadow-panel` remain available for
+older surfaces, but new toolkit CSS should use the `--aos-*` contract.
+
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with
