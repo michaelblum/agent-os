@@ -22,6 +22,8 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-type-window-control',
     '--aos-type-code',
     '--aos-type-code-block',
+    '--aos-type-micro',
+    '--aos-type-micro-label',
     '--aos-type-numeric',
     '--aos-panel-bg',
     '--aos-panel-header-bg',
@@ -40,6 +42,10 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-control-radius',
     '--aos-control-border',
     '--aos-control-bg',
+    '--aos-control-compact-padding',
+    '--aos-control-compact-radius',
+    '--aos-control-compact-bg',
+    '--aos-control-compact-bg-active',
     '--aos-focus-ring',
     '--aos-icon-button-size',
     '--aos-window-button-size',
@@ -123,4 +129,17 @@ test('workbench and document surfaces consume shared type tokens', async () => {
   assert.match(workRecordCss, /font:\s*var\(--aos-type-code-block/);
   assert.match(objectTransformCss, /font:\s*var\(--aos-type-code/);
   assert.match(objectTransformCss, /font:\s*var\(--aos-type-numeric/);
+});
+
+test('wiki graph controls consume compact toolkit tokens', async () => {
+  const wikiCss = await repoText('packages/toolkit/components/wiki-kb/styles.css');
+
+  assert.match(wikiCss, /font:\s*var\(--aos-type-micro/);
+  assert.match(wikiCss, /font:\s*var\(--aos-type-micro-label/);
+  assert.match(wikiCss, /padding:\s*var\(--aos-control-compact-padding/);
+  assert.match(wikiCss, /border-radius:\s*var\(--aos-control-compact-radius/);
+  assert.match(wikiCss, /background:\s*var\(--aos-control-compact-bg/);
+  assert.match(wikiCss, /background:\s*var\(--aos-control-compact-bg-active/);
+  assert.doesNotMatch(wikiCss, /font-size:\s*9px/);
+  assert.doesNotMatch(wikiCss, /background:\s*rgba\(18,\s*18,\s*28,\s*0\.78\)/);
 });

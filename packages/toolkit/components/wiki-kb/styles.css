@@ -37,7 +37,7 @@
   gap: 6px;
   min-width: 0;
   color: rgba(220, 255, 255, 0.68);
-  font: 650 9px/1.3 var(--font-mono);
+  font: var(--aos-type-micro-label, 650 9px/1.3 var(--font-mono));
   text-transform: uppercase;
 }
 
@@ -66,7 +66,7 @@
   border-radius: 6px;
   background: rgba(4, 14, 18, 0.52);
   color: rgba(220, 255, 255, 0.42);
-  font: 650 9px/1.3 var(--font-mono);
+  font: var(--aos-type-micro-label, 650 9px/1.3 var(--font-mono));
   backdrop-filter: blur(8px);
   pointer-events: none;
 }
@@ -89,8 +89,7 @@
   padding: 3px 10px;
   background: transparent;
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -103,7 +102,7 @@
 
 .wiki-kb-view-tab.active {
   color: var(--text-primary);
-  background: rgba(60, 60, 90, 0.22);
+  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
   border-color: rgba(138, 180, 255, 0.35);
 }
 
@@ -113,8 +112,7 @@
 
 .wiki-kb-status {
   color: var(--text-header);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -158,7 +156,7 @@
 }
 
 .wiki-kb-controls-toggle {
-  font-family: var(--font-mono);
+  font-family: var(--aos-font-mono, var(--font-mono));
 }
 
 .wiki-kb-controls-toggle:hover {
@@ -190,8 +188,7 @@
 
 .wiki-kb-controls-title {
   color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font: var(--aos-type-label, 650 10px/1.3 var(--font-mono));
   letter-spacing: 0.45px;
   text-transform: uppercase;
 }
@@ -199,9 +196,7 @@
 .wiki-kb-controls-caption,
 .wiki-kb-controls-empty {
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  line-height: 1.4;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
 }
 
 .wiki-kb-controls-section {
@@ -212,8 +207,7 @@
 
 .wiki-kb-controls-label {
   color: var(--text-header);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro-label, 650 9px/1.3 var(--font-mono));
   letter-spacing: 0.45px;
   text-transform: uppercase;
 }
@@ -225,8 +219,7 @@
   border-radius: 4px;
   background: rgba(18, 18, 28, 0.88);
   color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
   outline: none;
   backdrop-filter: blur(8px);
 }
@@ -248,33 +241,17 @@
 }
 
 .wiki-kb-scope-button,
-.wiki-kb-filter {
-  appearance: none;
-  padding: 2px 6px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 3px;
-  background: rgba(18, 18, 28, 0.78);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.wiki-kb-scope-button,
+.wiki-kb-filter,
 .wiki-kb-mini-action,
 .wiki-kb-action-button,
 .wiki-kb-tag-filter {
   appearance: none;
-  padding: 2px 6px;
+  padding: var(--aos-control-compact-padding, 2px 6px);
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
-  background: rgba(18, 18, 28, 0.78);
+  border-radius: var(--aos-control-compact-radius, 3px);
+  background: var(--aos-control-compact-bg, rgba(18, 18, 28, 0.78));
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   text-transform: uppercase;
   letter-spacing: 0.4px;
   cursor: pointer;
@@ -302,7 +279,7 @@
 .wiki-kb-mini-action.active,
 .wiki-kb-mini-action:hover,
 .wiki-kb-action-button:hover {
-  background: rgba(60, 60, 90, 0.22);
+  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
   color: var(--text-primary);
 }
 
@@ -315,7 +292,7 @@
 .wiki-kb-mini-action:disabled:hover,
 .wiki-kb-action-button:disabled:hover {
   color: var(--text-muted);
-  background: rgba(18, 18, 28, 0.78);
+  background: var(--aos-control-compact-bg, rgba(18, 18, 28, 0.78));
 }
 
 .wiki-kb-controls-range-row {
@@ -326,8 +303,7 @@
 
 .wiki-kb-controls-value {
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
 }
 
 .wiki-kb-depth-range {
@@ -358,8 +334,7 @@
   align-items: center;
   gap: 8px;
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
 }
 
 .wiki-kb-check-row input {
@@ -385,8 +360,7 @@
 .wiki-kb-hint {
   position: absolute;
   z-index: 10;
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
 }
 
 .wiki-kb-legend {
@@ -453,11 +427,10 @@
 .wiki-kb-sidebar-type {
   flex-shrink: 0;
   padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(60, 60, 90, 0.22);
+  border-radius: var(--aos-control-compact-radius, 3px);
+  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -479,8 +452,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -488,13 +460,11 @@
 .wiki-kb-sidebar-close {
   appearance: none;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--aos-control-compact-radius, 3px);
   padding: 2px 5px;
   background: transparent;
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1;
+  font: var(--aos-type-window-control, 700 13px/1 var(--font-ui));
   cursor: pointer;
 }
 
@@ -512,7 +482,7 @@
   display: inline-flex;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: var(--aos-control-compact-radius, 3px);
 }
 
 .wiki-kb-toggle-button {
@@ -522,8 +492,7 @@
   padding: 3px 8px;
   background: transparent;
   color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   letter-spacing: 0.4px;
   text-transform: uppercase;
   cursor: pointer;
@@ -538,7 +507,7 @@
 }
 
 .wiki-kb-toggle-button.active {
-  background: rgba(60, 60, 90, 0.22);
+  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
   color: var(--text-primary);
 }
 
@@ -546,9 +515,7 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  line-height: 1.5;
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
 }
 
 .wiki-kb-sidebar-tags {
@@ -562,11 +529,10 @@
 .wiki-kb-tag {
   padding: 1px 5px;
   border: 1px solid var(--border-subtle);
-  border-radius: 3px;
+  border-radius: var(--aos-control-compact-radius, 3px);
   background: rgba(60, 60, 90, 0.24);
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
 }
 
 .wiki-kb-sidebar-body {
@@ -575,9 +541,7 @@
   overflow: auto;
   padding: 10px;
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
-  line-height: 1.6;
+  font: var(--aos-type-code, 10px/1.6 var(--font-mono));
 }
 
 .wiki-kb-sidebar-raw {
@@ -615,8 +579,7 @@
   border-radius: 2px;
   background: rgba(60, 60, 90, 0.3);
   color: var(--accent-blue);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
 }
 
 .wiki-kb-sidebar-markdown strong {
@@ -656,8 +619,7 @@
 .wiki-kb-sidebar-related-label {
   margin-bottom: 5px;
   color: var(--text-header);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -674,11 +636,10 @@
   gap: 6px;
   padding: 3px 4px;
   border: none;
-  border-radius: 3px;
+  border-radius: var(--aos-control-compact-radius, 3px);
   background: transparent;
   color: var(--accent-blue);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-small);
+  font: var(--aos-type-code, 10px/1.45 var(--font-mono));
   text-align: left;
   cursor: pointer;
 }
