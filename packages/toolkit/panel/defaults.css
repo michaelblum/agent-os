@@ -62,6 +62,14 @@
   cursor: grabbing;
 }
 
+.aos-panel-grip {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 10px;
+  border-block: 2px solid rgba(183, 252, 255, 0.58);
+  opacity: 0.72;
+}
+
 .aos-title {
   min-width: 0;
   flex: 1;
@@ -226,6 +234,10 @@
 .aos-split-pane-pane[hidden],
 .aos-split-pane-divider[hidden] {
   display: none !important;
+}
+
+.aos-split-pane[data-collapse-mode="accordion"][data-closed-pane] > .aos-split-pane-pane {
+  overflow: hidden;
 }
 
 .aos-split-pane-divider {

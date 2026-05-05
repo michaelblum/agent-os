@@ -62,19 +62,11 @@ body {
 <script type="module">
 window.headsup = window.headsup || {};
 
-const TOOLKIT_SEMANTIC_SPECIFIER = (
-    typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/semantic-targets.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/semantic-targets.js'
-        : '../../../packages/toolkit/runtime/semantic-targets.js';
+import { toolkitSpecifier } from './live-modules/content-roots.js';
 
-const { applySemanticTargetAttributes } = await import(TOOLKIT_SEMANTIC_SPECIFIER);
+const { applySemanticTargetAttributes } = await import(toolkitSpecifier('runtime/semantic-targets.js', {
+    local: '../../../packages/toolkit/runtime/semantic-targets.js',
+}));
 
 const PARAMS = new URLSearchParams(window.location.search);
 const PARENT_ID = PARAMS.get('parent') || 'avatar-main';

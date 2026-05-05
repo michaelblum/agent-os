@@ -1,8 +1,8 @@
 # Worktree Session Scope Idea Capture
 
 **Date:** 2026-05-02
-**Status:** Idea capture and diagnostic guidance. This is not an implementation
-plan and should not add command surface by itself.
+**Status:** Design guidance with one active implementation slice. This is not a
+full session-control-plane plan and should not add command surface by itself.
 
 ## Prompt
 
@@ -61,6 +61,24 @@ The useful non-disruptive work is smaller:
   obscured/covered canvas where possible.
 - Treat `show to-front` help/implementation mismatch as a separate small fix if
   it still exists.
+
+## Active Content-Root Slice
+
+The first implemented slice is scoped content roots:
+
+- `scripts/aos-content-scope.sh` derives branch-scoped root names such as
+  `sigil_codex_example` and `toolkit_codex_example`.
+- Sigil renderer code resolves sibling toolkit URLs from the Sigil root it was
+  loaded from, or from explicit `toolkit-root` / `sigil-root` query parameters.
+- Topic worktree launchers should register scoped roots and open surfaces from
+  those roots instead of overwriting canonical `toolkit` and `sigil`.
+
+This does not solve every parallel-session problem. Canvas IDs, status-item
+ownership, cleanup policy, and TTL-backed session records remain separate
+session-scope concerns. It does prevent the common bug where a canvas opened
+from one worktree silently imports HTML, JS, or CSS from another checkout.
+
+Follow-up issue: #260 tracks the daemon-level scope-aware content router.
 
 ## Relationship To Current Work
 

@@ -124,6 +124,11 @@ Canvas Inspector and future surface managers.
 Panels and workbenches should be single-display surfaces at rest. They should
 not become desktop-world canvases by default.
 
+The detailed placement ownership boundary and migration plan live in
+[`aos-panel-window-placement-contract.md`](./aos-panel-window-placement-contract.md).
+That note is the handoff source for reconciling toolkit chrome, minimized chips,
+app-owned drag code, daemon frame movement, and DesktopWorld transfer visuals.
+
 During drag, AOS should preserve macOS-like transfer behavior:
 
 1. Dragging within the origin display moves the live canvas normally.

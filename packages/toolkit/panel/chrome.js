@@ -3,9 +3,27 @@
 // Knows nothing about messaging or contents. Just builds the visual frame
 // and reports absolute drag updates through the runtime canvas helper.
 
-import { emit } from '../runtime/bridge.js'
+import { emit, wireBridge } from '../runtime/bridge.js'
 import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
+import { subscribe, unsubscribe } from '../runtime/subscribe.js'
 import { createPanelTransferController, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
+import {
+  chipFrameForPanelFrame,
+  clampFrameToWorkArea as placementClampFrameToWorkArea,
+  cloneFrame as placementCloneFrame,
+  finiteNumber,
+  frameFromWindow as placementFrameFromWindow,
+  normalizePanelDisplays,
+  positiveNumber,
+  workAreaForFrameTopLeft as placementWorkAreaForFrameTopLeft,
+  workAreaForPoint as placementWorkAreaForPoint,
+  workAreaFromWindow as placementWorkAreaFromWindow,
+} from './placement.js'
+
+let displayGeometryWired = false
+let panelDisplays = []
+let currentPanelFrame = null
 
 export function mountChrome(container, {
   title = 'AOS',
@@ -30,6 +48,10 @@ export function mountChrome(container, {
   header.className = 'aos-header'
   header.dataset.draggable = String(draggable)
 
+  const gripEl = document.createElement('span')
+  gripEl.className = 'aos-panel-grip'
+  gripEl.setAttribute('aria-hidden', 'true')
+
   const titleEl = document.createElement('span')
   titleEl.className = 'aos-title'
   titleEl.textContent = title
@@ -42,6 +64,7 @@ export function mountChrome(container, {
 
   const windowControlsEl = document.createElement('span')
   windowControlsEl.className = 'aos-window-controls'
+  wirePanelDisplayGeometry()
 
   let maximizeController = null
   if (maximize) {
@@ -101,6 +124,7 @@ export function mountChrome(container, {
   controlsEl.appendChild(customControlsEl)
   controlsEl.appendChild(windowControlsEl)
 
+  header.appendChild(gripEl)
   header.appendChild(titleEl)
   header.appendChild(controlsEl)
 
@@ -110,6 +134,15 @@ export function mountChrome(container, {
   panel.appendChild(header)
   panel.appendChild(content)
   container.appendChild(panel)
+
+  if (maximizeController) {
+    header.addEventListener('dblclick', (event) => {
+      const NodeCtor = globalThis.Node
+      if ((!NodeCtor || event.target instanceof NodeCtor) && controlsEl?.contains?.(event.target)) return
+      event.preventDefault()
+      maximizeController.toggle()
+    })
+  }
 
   const { onStateChange: onDragStateChange, ...dragOptions } = drag
   const dragController = draggable
@@ -151,42 +184,16 @@ export function mountChrome(container, {
   }
 }
 
-function finiteNumber(value, fallback = null) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : fallback
-}
-
-function positiveNumber(value, fallback = 1) {
-  const number = finiteNumber(value, fallback)
-  return Math.max(1, number)
-}
-
-function cloneFrame(frame) {
-  return [
-    Math.round(finiteNumber(frame?.[0], 0)),
-    Math.round(finiteNumber(frame?.[1], 0)),
-    Math.round(positiveNumber(frame?.[2], 1)),
-    Math.round(positiveNumber(frame?.[3], 1)),
-  ]
-}
+const cloneFrame = placementCloneFrame
 
 export function frameFromWindow(view = window) {
-  return cloneFrame([
-    finiteNumber(view.screenX ?? view.screenLeft, 0),
-    finiteNumber(view.screenY ?? view.screenTop, 0),
-    positiveNumber(view.outerWidth || view.innerWidth || view.document?.documentElement?.clientWidth, 1),
-    positiveNumber(view.outerHeight || view.innerHeight || view.document?.documentElement?.clientHeight, 1),
-  ])
+  return placementFrameFromWindow(view, {
+    currentFrame: typeof window !== 'undefined' && view === window ? currentPanelFrame : null,
+  })
 }
 
 export function workAreaFromWindow(view = window) {
-  const screen = view.screen || {}
-  const fallbackFrame = frameFromWindow(view)
-  const x = finiteNumber(screen.availLeft ?? screen.left, fallbackFrame[0])
-  const y = finiteNumber(screen.availTop ?? screen.top, fallbackFrame[1])
-  const width = positiveNumber(screen.availWidth || screen.width, fallbackFrame[2])
-  const height = positiveNumber(screen.availHeight || screen.height, fallbackFrame[3])
-  return cloneFrame([x, y, width, height])
+  return placementWorkAreaFromWindow(view, frameFromWindow(view))
 }
 
 function clamp(value, min, max) {
@@ -198,26 +205,26 @@ function finiteLimit(value, fallback) {
   return Number.isFinite(number) ? number : fallback
 }
 
-export function clampFrameToWorkArea(frame, {
-  workArea = null,
-  minVisibleWidth = 120,
-  minVisibleHeight = 44,
-} = {}) {
-  const next = cloneFrame(frame)
-  if (!workArea) return next
-  const area = cloneFrame(workArea)
-  const areaRight = area[0] + area[2]
-  const areaBottom = area[1] + area[3]
-  next[2] = Math.min(next[2], area[2])
-  next[3] = Math.min(next[3], area[3])
-  const maxX = Math.max(area[0], areaRight - next[2])
-  const maxY = Math.max(area[1], areaBottom - next[3])
-  if (next[2] <= area[2]) next[0] = clamp(next[0], area[0], maxX)
-  else next[0] = clamp(next[0], area[0] - next[2] + minVisibleWidth, areaRight - minVisibleWidth)
-  if (next[3] <= area[3]) next[1] = clamp(next[1], area[1], maxY)
-  else next[1] = clamp(next[1], area[1] - next[3] + minVisibleHeight, areaBottom - minVisibleHeight)
-  return cloneFrame(next)
+export function workAreaForFrameTopLeft(frame = frameFromWindow(), displays = panelDisplays, fallback = null) {
+  return placementWorkAreaForFrameTopLeft(frame, displays, fallback)
 }
+
+export function workAreaForWindowTopLeft(view = window, displays = panelDisplays) {
+  return workAreaForFrameTopLeft(frameFromWindow(view), displays, workAreaFromWindow(view))
+}
+
+function screenPoint(pointer = null) {
+  const x = finiteNumber(pointer?.screenX ?? pointer?.x, null)
+  const y = finiteNumber(pointer?.screenY ?? pointer?.y, null)
+  return x == null || y == null ? null : { x, y }
+}
+
+function updateSelfFrame(frame) {
+  currentPanelFrame = cloneFrame(frame)
+  mutateSelf({ frame: currentPanelFrame })
+}
+
+export const clampFrameToWorkArea = placementClampFrameToWorkArea
 
 function framesEqual(lhs, rhs) {
   const a = cloneFrame(lhs)
@@ -238,8 +245,11 @@ export function dragFrameFromPointer(pointer = {}, offsetX = 0, offsetY = 0, fra
 export function createDragController({
   move = moveAbsolute,
   getFrame = () => frameFromWindow(),
-  getWorkArea = () => workAreaFromWindow(),
-  updateFrame = (frame) => mutateSelf({ frame }),
+  getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
+  getDragWorkArea = (frame = frameFromWindow(), pointer = null) => (
+    placementWorkAreaForPoint(pointer, panelDisplays, getWorkArea(frame))
+  ),
+  updateFrame = updateSelfFrame,
   clampOnEnd = false,
   transfer = false,
   transferController = null,
@@ -273,18 +283,32 @@ export function createDragController({
 
   return {
     start(pointer = {}) {
+      const startPoint = screenPoint(pointer)
       active = {
         pointerId: pointer.pointerId ?? null,
         offsetX: finiteNumber(pointer.clientX, 0),
         offsetY: finiteNumber(pointer.clientY, 0),
         frame: cloneFrame(getFrame()),
+        lastPointer: startPoint,
       }
       frame = cloneFrame(active.frame)
-      panelTransfer?.start({ frame })
+      panelTransfer?.start({ frame, pointer })
       return notify({ phase: 'start' })
     },
     move(pointer = {}) {
       if (!active) return state({ phase: 'idle' })
+      active.lastPointer = screenPoint(pointer) || active.lastPointer
+      const transferResult = panelTransfer?.move({
+        frame: active.frame,
+        pointer,
+        offsetX: active.offsetX,
+        offsetY: active.offsetY,
+      })
+      if (transferResult?.mode === 'outline') {
+        frame = cloneFrame(active.frame)
+        return notify({ phase: 'move' })
+      }
+
       move(
         finiteNumber(pointer.screenX, active.frame[0] + active.offsetX),
         finiteNumber(pointer.screenY, active.frame[1] + active.offsetY),
@@ -292,25 +316,20 @@ export function createDragController({
         active.offsetY
       )
       frame = dragFrameFromPointer(pointer, active.offsetX, active.offsetY, active.frame)
-      panelTransfer?.move({
-        frame: active.frame,
-        pointer,
-        offsetX: active.offsetX,
-        offsetY: active.offsetY,
-      })
       return notify({ phase: 'move' })
     },
-    end() {
+    end(pointer = {}) {
       if (!active) return state({ phase: 'idle' })
+      const releasePointer = screenPoint(pointer) || active.lastPointer
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
         frame = cloneFrame(transferResult.nativeFrame)
         updateFrame(frame)
       } else if (clampOnEnd) {
-        frame = cloneFrame(getFrame())
+        frame = cloneFrame(frame)
         const clamped = clampFrameToWorkArea(frame, {
-          workArea: getWorkArea(),
+          workArea: getDragWorkArea(frame, releasePointer),
           minVisibleWidth,
           minVisibleHeight,
         })
@@ -394,8 +413,8 @@ export function resizeFrame(frame, edge, deltaX = 0, deltaY = 0, {
 
 export function createResizeController({
   getFrame = () => frameFromWindow(),
-  getWorkArea = () => workAreaFromWindow(),
-  updateFrame = (frame) => mutateSelf({ frame }),
+  getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
+  updateFrame = updateSelfFrame,
   minWidth = 240,
   minHeight = 160,
   maxWidth = Infinity,
@@ -444,7 +463,7 @@ export function createResizeController({
         minHeight,
         maxWidth,
         maxHeight,
-        workArea: getWorkArea(),
+        workArea: getWorkArea(active.frame),
       }), { phase: 'move' })
     },
     end() {
@@ -459,7 +478,7 @@ export function createResizeController({
         minHeight,
         maxWidth,
         maxHeight,
-        workArea: getWorkArea(),
+        workArea: getWorkArea(getFrame()),
       }), { phase: 'resize', edge: normalizeResizeEdge(edge) })
     },
     getState() {
@@ -470,8 +489,8 @@ export function createResizeController({
 
 export function createMaximizeController({
   getFrame = () => frameFromWindow(),
-  getWorkArea = () => workAreaFromWindow(),
-  updateFrame = (frame) => mutateSelf({ frame }),
+  getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
+  updateFrame = updateSelfFrame,
   onStateChange = null,
 } = {}) {
   let maximized = false
@@ -492,7 +511,7 @@ export function createMaximizeController({
     if (maximized) return state()
     restoreFrame = cloneFrame(getFrame())
     maximized = true
-    updateFrame(cloneFrame(getWorkArea()))
+    updateFrame(cloneFrame(getWorkArea(restoreFrame)))
     notify()
     return state()
   }
@@ -537,30 +556,44 @@ function defaultClose() {
 }
 
 function chipFrame() {
-  const x = Number(window.screenX ?? window.screenLeft ?? 80)
-  const y = Number(window.screenY ?? window.screenTop ?? 80)
-  const width = Math.min(280, Math.max(180, Number(window.innerWidth || 240) * 0.42))
-  return [
-    Math.round(Number.isFinite(x) ? x : 80),
-    Math.round(Number.isFinite(y) ? y : 80),
-    Math.round(width),
-    38,
-  ]
+  return chipFrameFromWindow(window)
 }
 
-function chipUrl({ target, title }) {
-  const url = new URL(window.location.href)
+export function chipFrameFromWindow(view = window, {
+  margin = 10,
+  minWidth = 180,
+  maxWidth = 280,
+  height = 38,
+  displays = panelDisplays,
+} = {}) {
+  const frame = frameFromWindow(view)
+  return chipFrameForPanelFrame(frame, {
+    displays,
+    fallbackWorkArea: workAreaFromWindow(view),
+    sourceWidth: view.innerWidth || frame[2],
+    margin,
+    minWidth,
+    maxWidth,
+    height,
+  })
+}
+
+function chipUrl({ target, title, restoreFrame, chipId = null, chipFrame = null }) {
+  let url = new URL(window.location.href)
   const path = url.pathname || ''
   if (path.includes('/panel/')) {
     url.pathname = `${path.slice(0, path.indexOf('/panel/') + '/panel/'.length)}minimized-chip.html`
   } else if (path.includes('/components/')) {
     url.pathname = `${path.slice(0, path.indexOf('/components/'))}/panel/minimized-chip.html`
   } else {
-    return new URL('./minimized-chip.html', window.location.href).href
+    url = new URL('./minimized-chip.html', window.location.href)
   }
   url.hash = ''
   url.searchParams.set('target', target)
   url.searchParams.set('title', title)
+  if (restoreFrame) url.searchParams.set('restoreFrame', JSON.stringify(cloneFrame(restoreFrame)))
+  if (chipId) url.searchParams.set('chip', chipId)
+  if (chipFrame) url.searchParams.set('chipFrame', JSON.stringify(cloneFrame(chipFrame)))
   return url.href
 }
 
@@ -571,10 +604,12 @@ function defaultMinimize({ title = 'AOS' } = {}) {
     return
   }
   const chipId = `aos-chip-${target}-${Date.now().toString(36)}`
+  const restoreFrame = frameFromWindow(window)
+  const minimizedFrame = chipFrame()
   spawnChild({
     id: chipId,
-    url: chipUrl({ target, title }),
-    frame: chipFrame(),
+    url: chipUrl({ target, title, restoreFrame, chipId, chipFrame: minimizedFrame }),
+    frame: minimizedFrame,
     interactive: true,
     focus: false,
     parent: target,
@@ -586,19 +621,68 @@ function defaultMinimize({ title = 'AOS' } = {}) {
     })
 }
 
+function wirePanelDisplayGeometry() {
+  if (displayGeometryWired || typeof window === 'undefined') return
+  displayGeometryWired = true
+  wireBridge((message) => {
+    const payload = message?.payload || message?.data || message
+    const type = message?.type || payload?.type
+    if (type === 'display_geometry' && payload?.displays) {
+      panelDisplays = normalizePanelDisplays(payload.displays)
+      return
+    }
+    if (type !== 'canvas_lifecycle') return
+    const id = payload?.canvas_id || payload?.id || payload?.canvas?.id || null
+    if (!id || id !== currentCanvasId()) return
+    const frame = payload?.at || payload?.canvas?.at || null
+    if (Array.isArray(frame) && frame.length >= 4) currentPanelFrame = cloneFrame(frame)
+  })
+  subscribe(['display_geometry', 'canvas_lifecycle'], { snapshot: true })
+}
+
 export function wireDrag(header, controlsEl, {
   controller = null,
   move = moveAbsolute,
+  globalInput = true,
   onStart = null,
   onEnd = null,
   ...controllerOptions
 } = {}) {
   const dragController = controller || createDragController({ move, ...controllerOptions })
+  let activePointerId = null
+  let finishDrag = null
+  let inputBridgeInstalled = false
+
+  function installInputBridge() {
+    if (inputBridgeInstalled || !globalInput) return
+    inputBridgeInstalled = true
+    wireBridge((message) => {
+      if (!finishDrag) return
+      const input = normalizeCanvasInputMessage(message)
+      if (!input) return
+      const eventType = input.type || input.eventKind || input.sourceEvent
+      const x = Number(input.x)
+      const y = Number(input.y)
+      if ((eventType === 'left_mouse_dragged' || eventType === 'mouse_moved') && Number.isFinite(x) && Number.isFinite(y)) {
+        dragController.move({
+          pointerId: activePointerId,
+          screenX: x,
+          screenY: y,
+        })
+        return
+      }
+      if (eventType === 'left_mouse_up' || eventType === 'pointer_cancel' || eventType === 'mouse_cancel') {
+        finishDrag({ pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' })
+      }
+    })
+  }
+
   header.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return
     const NodeCtor = globalThis.Node
     if ((!NodeCtor || e.target instanceof NodeCtor) && controlsEl?.contains?.(e.target)) return
     const pointerId = e.pointerId
+    activePointerId = pointerId
     header.dataset.dragging = 'true'
     e.preventDefault()
     // Drag lifecycle matters to the daemon: mixed-DPI seam placement keeps a
@@ -607,6 +691,8 @@ export function wireDrag(header, controlsEl, {
     emit('drag_start')
     onStart?.(e, dragController)
     dragController.start(e)
+    installInputBridge()
+    if (globalInput) subscribe(['input_event'])
 
     try { header.setPointerCapture(pointerId) } catch {}
 
@@ -617,23 +703,36 @@ export function wireDrag(header, controlsEl, {
 
     const onUp = (ev) => {
       if (ev && ev.pointerId !== pointerId) return
+      finishDrag?.(ev)
+    }
+
+    const onLostPointerCapture = (ev) => {
+      if (globalInput) return
+      onUp(ev)
+    }
+
+    finishDrag = (ev) => {
+      if (!finishDrag) return
       delete header.dataset.dragging
       header.removeEventListener('pointermove', onMove)
       header.removeEventListener('pointerup', onUp)
       header.removeEventListener('pointercancel', onUp)
-      header.removeEventListener('lostpointercapture', onUp)
+      header.removeEventListener('lostpointercapture', onLostPointerCapture)
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
       dragController.end(ev)
       emit('drag_end')
+      if (globalInput) unsubscribe(['input_event'])
+      activePointerId = null
+      finishDrag = null
       onEnd?.(ev, dragController)
     }
 
     header.addEventListener('pointermove', onMove)
     header.addEventListener('pointerup', onUp)
     header.addEventListener('pointercancel', onUp)
-    header.addEventListener('lostpointercapture', onUp)
+    header.addEventListener('lostpointercapture', onLostPointerCapture)
   })
   return dragController
 }

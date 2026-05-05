@@ -1,0 +1,179 @@
+// placement.js — shared panel/window placement policy.
+//
+// The daemon owns display geometry and canvas frames. Toolkit chrome consumes
+// that truth here so panels, chips, maximize, resize, and restore do not each
+// invent their own display ownership rules.
+
+import { findDisplayForPoint, normalizeDisplays } from '../runtime/spatial.js'
+
+export function finiteNumber(value, fallback = null) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+export function positiveNumber(value, fallback = 1) {
+  const number = finiteNumber(value, fallback)
+  return Math.max(1, number)
+}
+
+export function cloneFrame(frame) {
+  return [
+    Math.round(finiteNumber(frame?.[0], 0)),
+    Math.round(finiteNumber(frame?.[1], 0)),
+    Math.round(positiveNumber(frame?.[2], 1)),
+    Math.round(positiveNumber(frame?.[3], 1)),
+  ]
+}
+
+export function frameFromRect(rect = {}) {
+  return cloneFrame([rect.x, rect.y, rect.w ?? rect.width, rect.h ?? rect.height])
+}
+
+export function frameFromWindow(view = window, { currentFrame = null } = {}) {
+  if (currentFrame) return cloneFrame(currentFrame)
+  return cloneFrame([
+    finiteNumber(view.screenX ?? view.screenLeft, 0),
+    finiteNumber(view.screenY ?? view.screenTop, 0),
+    positiveNumber(view.outerWidth || view.innerWidth || view.document?.documentElement?.clientWidth, 1),
+    positiveNumber(view.outerHeight || view.innerHeight || view.document?.documentElement?.clientHeight, 1),
+  ])
+}
+
+export function workAreaFromWindow(view = window, fallbackFrame = frameFromWindow(view)) {
+  const screen = view.screen || {}
+  const x = finiteNumber(screen.availLeft ?? screen.left, fallbackFrame[0])
+  const y = finiteNumber(screen.availTop ?? screen.top, fallbackFrame[1])
+  const width = positiveNumber(screen.availWidth || screen.width, fallbackFrame[2])
+  const height = positiveNumber(screen.availHeight || screen.height, fallbackFrame[3])
+  return cloneFrame([x, y, width, height])
+}
+
+export function normalizePanelDisplays(displays = []) {
+  return normalizeDisplays(Array.isArray(displays) ? displays : [])
+}
+
+export function displayOwnerForTopLeft(frame = [0, 0, 1, 1], displays = []) {
+  const source = cloneFrame(frame)
+  const normalized = normalizePanelDisplays(displays)
+  if (normalized.length === 0) return null
+  return findDisplayForPoint(normalized, source[0], source[1], {
+    rectKey: 'nativeBounds',
+    nearest: true,
+  })
+}
+
+export function displayOwnerForPoint(point = null, displays = [], { rectKey = 'nativeBounds', nearest = true } = {}) {
+  const x = finiteNumber(point?.x, null)
+  const y = finiteNumber(point?.y, null)
+  const normalized = normalizePanelDisplays(displays)
+  if (x == null || y == null || normalized.length === 0) return null
+  return findDisplayForPoint(normalized, x, y, { rectKey, nearest })
+}
+
+export function sameDisplay(lhs, rhs) {
+  if (!lhs || !rhs) return false
+  const lhsID = lhs.id ?? lhs.display_id
+  const rhsID = rhs.id ?? rhs.display_id
+  if (lhsID === undefined || rhsID === undefined) return false
+  return String(lhsID) === String(rhsID)
+}
+
+export function workAreaForFrameTopLeft(frame = [0, 0, 1, 1], displays = [], fallback = null) {
+  const owner = displayOwnerForTopLeft(frame, displays)
+  if (owner?.nativeVisibleBounds) return frameFromRect(owner.nativeVisibleBounds)
+  if (owner?.native_visible_bounds) return frameFromRect(owner.native_visible_bounds)
+  return fallback ? cloneFrame(fallback) : null
+}
+
+export function workAreaForPoint(point = null, displays = [], fallback = null) {
+  const owner = displayOwnerForPoint(point, displays)
+  if (owner?.nativeVisibleBounds) return frameFromRect(owner.nativeVisibleBounds)
+  if (owner?.native_visible_bounds) return frameFromRect(owner.native_visible_bounds)
+  return fallback ? cloneFrame(fallback) : null
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+export function clampFrameToWorkArea(frame, {
+  workArea = null,
+  minVisibleWidth = 120,
+  minVisibleHeight = 44,
+} = {}) {
+  const next = cloneFrame(frame)
+  if (!workArea) return next
+  const area = cloneFrame(workArea)
+  const areaRight = area[0] + area[2]
+  const areaBottom = area[1] + area[3]
+  next[2] = Math.min(next[2], area[2])
+  next[3] = Math.min(next[3], area[3])
+  const maxX = Math.max(area[0], areaRight - next[2])
+  const maxY = Math.max(area[1], areaBottom - next[3])
+  if (next[2] <= area[2]) next[0] = clamp(next[0], area[0], maxX)
+  else next[0] = clamp(next[0], area[0] - next[2] + minVisibleWidth, areaRight - minVisibleWidth)
+  if (next[3] <= area[3]) next[1] = clamp(next[1], area[1], maxY)
+  else next[1] = clamp(next[1], area[1] - next[3] + minVisibleHeight, areaBottom - minVisibleHeight)
+  return cloneFrame(next)
+}
+
+export function resizeFrameFromTopLeft(frame, {
+  width = null,
+  height = null,
+  minWidth = 1,
+  minHeight = 1,
+  maxWidth = Infinity,
+  maxHeight = Infinity,
+  workArea = null,
+} = {}) {
+  const source = cloneFrame(frame)
+  const nextWidth = width == null
+    ? source[2]
+    : Math.max(finiteNumber(minWidth, 1), Math.min(finiteNumber(maxWidth, Infinity), positiveNumber(width, source[2])))
+  const nextHeight = height == null
+    ? source[3]
+    : Math.max(finiteNumber(minHeight, 1), Math.min(finiteNumber(maxHeight, Infinity), positiveNumber(height, source[3])))
+  return clampFrameToWorkArea([source[0], source[1], nextWidth, nextHeight], { workArea })
+}
+
+export function chipFrameForPanelFrame(frame, {
+  displays = [],
+  fallbackWorkArea = null,
+  sourceWidth = null,
+  margin = 10,
+  minWidth = 180,
+  maxWidth = 280,
+  height = 38,
+} = {}) {
+  const source = cloneFrame(frame)
+  const area = workAreaForFrameTopLeft(source, displays, fallbackWorkArea) || cloneFrame(source)
+  const widthSource = positiveNumber(sourceWidth ?? source[2], minWidth)
+  const width = Math.min(maxWidth, Math.max(minWidth, widthSource * 0.42))
+  const minX = area[0] + margin
+  const minY = area[1] + margin
+  const maxX = area[0] + area[2] - width - margin
+  const maxY = area[1] + area[3] - height - margin
+  return [
+    Math.round(clamp(source[0], Math.min(minX, maxX), Math.max(minX, maxX))),
+    Math.round(clamp(source[1], Math.min(minY, maxY), Math.max(minY, maxY))),
+    Math.round(width),
+    Math.round(height),
+  ]
+}
+
+export function restoredPanelFrameForChip({
+  restoreFrame = null,
+  chipFrame = [0, 0, 280, 38],
+  displays = [],
+  fallbackWorkArea = null,
+} = {}) {
+  const chip = cloneFrame(chipFrame)
+  const saved = restoreFrame ? cloneFrame(restoreFrame) : [chip[0], chip[1], 640, 420]
+  const chipOwner = displayOwnerForTopLeft(chip, displays)
+  const restoreOwner = displayOwnerForTopLeft(saved, displays)
+  const desired = chipOwner && restoreOwner && sameDisplay(chipOwner, restoreOwner)
+    ? saved
+    : [chip[0], chip[1], saved[2], saved[3]]
+  const area = workAreaForFrameTopLeft(chip, displays, fallbackWorkArea)
+  return clampFrameToWorkArea(desired, { workArea: area })
+}

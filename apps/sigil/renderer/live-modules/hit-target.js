@@ -1,17 +1,6 @@
-const TOOLKIT_SURFACE_SPECIFIER = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/interaction-surface.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/interaction-surface.js'
-        : '../../../../packages/toolkit/runtime/interaction-surface.js';
+import { toolkitSpecifier } from './content-roots.js';
 
-const { createInteractionSurface } = await import(TOOLKIT_SURFACE_SPECIFIER);
+const { createInteractionSurface } = await import(toolkitSpecifier('runtime/interaction-surface.js'));
 
 function frameFor(center, size) {
     const half = size / 2;

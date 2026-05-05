@@ -330,6 +330,11 @@ export default function MindmapView({ onSelectNode }) {
       draw()
     },
 
+    fit() {
+      viewport.reset()
+      draw()
+    },
+
     onActivate() {
       resize()
     },

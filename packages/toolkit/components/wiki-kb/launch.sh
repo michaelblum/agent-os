@@ -5,9 +5,11 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
+source "$ROOT/scripts/aos-content-scope.sh"
 AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="${CANVAS_ID:-wiki-kb-demo}"
 EVENT_FILE="${EVENT_FILE:-$DIR/sample-graph.event.json}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 
 if [[ ! -x "$AOS" ]]; then
   echo "aos binary not found at $AOS" >&2
@@ -21,8 +23,8 @@ fi
 
 "$AOS" show remove --id "$CANVAS_ID" 2>/dev/null || true
 
-"$AOS" set content.roots.toolkit packages/toolkit >/dev/null
-"$AOS" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+aos_ensure_content_roots_live "$AOS" \
+  "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
 
 DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"displays":[]}')"
 GEOMETRY="$(
@@ -57,7 +59,7 @@ Y=$((DISPLAY_Y + (DISPLAY_H - PANEL_H) / 2))
   --at "$X,$Y,$PANEL_W,$PANEL_H" \
   --interactive \
   --focus \
-  --url 'aos://toolkit/components/wiki-kb/index.html' >/dev/null
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/wiki-kb/index.html" >/dev/null
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \

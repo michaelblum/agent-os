@@ -42,6 +42,13 @@ import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
 import {
+    currentSigilRoot,
+    currentToolkitRoot,
+    sigilUrl,
+    toolkitUrl,
+    withQuery,
+} from './content-roots.js';
+import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
     applyRadialMenuObjectTransformPatch,
     buildRadialMenuObjectRegistry,
@@ -64,13 +71,13 @@ const desktopWorldSurface = (
 const overlay = createInteractionOverlay();
 const hitTarget = createHitTargetController({
     runtime: host,
-    url: 'aos://sigil/renderer/hit-area.html',
+    url: sigilUrl('renderer/hit-area.html'),
     size: state.avatarHitRadius * 2,
     id: 'sigil-hit-avatar-main',
 });
 const radialTargetSurface = createRadialMenuTargetSurface({
     runtime: host,
-    url: 'aos://sigil/renderer/radial-menu-surface.html',
+    url: sigilUrl('renderer/radial-menu-surface.html'),
     id: 'sigil-radial-menu-avatar-main',
 });
 
@@ -116,12 +123,22 @@ const liveJs = {
 };
 const AGENT_TERMINAL_CANVAS_ID = 'sigil-agent-terminal';
 const LEGACY_CODEX_TERMINAL_CANVAS_ID = 'sigil-codex-terminal';
-const AGENT_TERMINAL_URL = 'aos://sigil/agent-terminal/index.html?port=17761&session=sigil-agent-terminal-agent-os';
+const AGENT_TERMINAL_URL = sigilUrl('agent-terminal/index.html', {
+    query: {
+        port: 17761,
+        session: 'sigil-agent-terminal-agent-os',
+    },
+});
 const AGENT_TERMINAL_PARK_SCALE = 0.24;
 const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
 const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
-const WIKI_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
-const WIKI_WORKBENCH_DEFAULT_URL = `${WIKI_WORKBENCH_URL}?wiki=${encodeURIComponent(WIKI_WORKBENCH_DEFAULT_PATH)}&transition=fade-in`;
+const SIGIL_CONTENT_ROOT = currentSigilRoot();
+const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
+const WIKI_WORKBENCH_URL = toolkitUrl('components/markdown-workbench/index.html');
+const WIKI_WORKBENCH_DEFAULT_URL = withQuery(WIKI_WORKBENCH_URL, {
+    wiki: WIKI_WORKBENCH_DEFAULT_PATH,
+    transition: 'fade-in',
+});
 const RENDER_PERFORMANCE_CANVAS_ID = 'sigil-render-performance';
 const STATUS_PARK_SCALE = 0.2;
 
@@ -676,21 +693,21 @@ function utilityConfig(kind) {
     if (kind === 'log-console') {
         return {
             id: '__log__',
-            url: 'aos://toolkit/components/log-console/index.html',
+            url: toolkitUrl('components/log-console/index.html'),
             frame: utilityFrame(kind),
         };
     }
     if (kind === 'sigil-interaction-trace') {
         return {
             id: 'sigil-interaction-trace',
-            url: 'aos://sigil/diagnostics/interaction-trace/index.html',
+            url: sigilUrl('diagnostics/interaction-trace/index.html'),
             frame: utilityFrame(kind),
         };
     }
     if (kind === 'render-performance') {
         return {
             id: RENDER_PERFORMANCE_CANVAS_ID,
-            url: 'aos://toolkit/components/render-performance/index.html',
+            url: toolkitUrl('components/render-performance/index.html'),
             frame: utilityFrame(kind),
         };
     }
@@ -720,7 +737,7 @@ function utilityConfig(kind) {
     }
     return {
         id: 'canvas-inspector',
-        url: 'aos://toolkit/components/canvas-inspector/index.html',
+        url: toolkitUrl('components/canvas-inspector/index.html'),
         frame: utilityFrame(kind),
     };
 }
@@ -2435,6 +2452,14 @@ window.__sigilDebug = {
         return {
             runtime: {
                 ...SIGIL_RENDERER_RUNTIME,
+                contentRoots: {
+                    sigil: SIGIL_CONTENT_ROOT,
+                    toolkit: TOOLKIT_CONTENT_ROOT,
+                },
+                utilityUrls: {
+                    wikiWorkbench: WIKI_WORKBENCH_DEFAULT_URL,
+                    agentTerminal: AGENT_TERMINAL_URL,
+                },
                 bootFirstFrameAt: window.__sigilBootFirstFrameAt,
                 bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
             },
@@ -2471,6 +2496,12 @@ window.__sigilDebug = {
     },
     avatarDefinition,
     importAvatarDefinitionText,
+    utilityConfig(kind) {
+        return utilityConfig(kind);
+    },
+    openWikiWorkbench(path) {
+        return openWikiWorkbench(path || WIKI_WORKBENCH_DEFAULT_PATH);
+    },
     fastTravelPreview() {
         return fastTravel.preview();
     },
@@ -2478,6 +2509,10 @@ window.__sigilDebug = {
         return interactionTrace.snapshot({
             runtime: {
                 ...SIGIL_RENDERER_RUNTIME,
+                contentRoots: {
+                    sigil: SIGIL_CONTENT_ROOT,
+                    toolkit: TOOLKIT_CONTENT_ROOT,
+                },
                 bootFirstFrameAt: window.__sigilBootFirstFrameAt,
                 bootTraceFirstAt: window.__sigilBootTrace?.[0]?.ts ?? null,
             },

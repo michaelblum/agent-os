@@ -23,11 +23,14 @@ export { mountPanel } from './mount.js'
 export {
   computePanelTransfer,
   createPanelTransferController,
+  defaultDesktopWorldStageUrl,
+  ensureDesktopWorldStage,
   sendDesktopWorldStageLayer,
   wirePanelTransferDisplayGeometry,
 } from './drag-transfer.js'
 export {
   clampFrameToWorkArea,
+  chipFrameFromWindow,
   createDragController,
   createMaximizeController,
   createResizeController,
@@ -38,8 +41,18 @@ export {
   resizeFrame,
   syncMaximizeButton,
   wireResize,
+  workAreaForFrameTopLeft,
+  workAreaForWindowTopLeft,
   workAreaFromWindow,
 } from './chrome.js'
+export {
+  chipFrameForPanelFrame,
+  resizeFrameFromTopLeft,
+  displayOwnerForTopLeft,
+  normalizePanelDisplays,
+  restoredPanelFrameForChip,
+  workAreaForPoint,
+} from './placement.js'
 export { Single } from './layouts/single.js'
 export {
   clampSplitPaneState,

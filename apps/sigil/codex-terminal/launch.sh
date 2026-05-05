@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$REPO_ROOT/scripts/aos-content-scope.sh"
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"
 CANVAS_ID="${CANVAS_ID:-sigil-agent-terminal}"
@@ -16,6 +17,8 @@ AGENT_COMMAND="${AGENT_COMMAND:-${CODEX_COMMAND:-codex --no-alt-screen}}"
 STATE_DIR="${HOME}/.config/aos/${MODE}/sigil"
 BRIDGE_LOG="${STATE_DIR}/agent-terminal-bridge.log"
 BRIDGE_SESSION="${BRIDGE_SESSION:-sigil-agent-bridge-${PORT}}"
+SIGIL_CONTENT_ROOT="${AOS_SIGIL_CONTENT_ROOT:-$(aos_content_root_key_for sigil "$REPO_ROOT")}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$REPO_ROOT")}"
 
 usage() {
   printf 'Usage: %s [--new|--new-codex|--new-claude|--pick|--last|--restart]\n' "$0"
@@ -61,8 +64,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 ensure_content_roots() {
-  "$AOS" set content.roots.toolkit "$REPO_ROOT/packages/toolkit" >/dev/null
-  "$AOS" set content.roots.sigil "$REPO_ROOT/apps/sigil" >/dev/null
+  aos_ensure_content_roots_live "$AOS" \
+    "$TOOLKIT_CONTENT_ROOT" "$REPO_ROOT/packages/toolkit" \
+    "$SIGIL_CONTENT_ROOT" "$REPO_ROOT/apps/sigil"
 }
 
 bridge_running() {
@@ -163,13 +167,12 @@ PY
 main() {
   ensure_content_roots
   "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
-  "$AOS" content wait --root toolkit --root sigil --timeout 10s >/dev/null
   start_bridge
   ensure_bridge_session
 
   if ! "$AOS" show exists --id "$AVATAR_ID" >/dev/null 2>&1; then
     "$AOS" show create --id "$AVATAR_ID" \
-      --url 'aos://sigil/renderer/index.html' \
+      --url "aos://$SIGIL_CONTENT_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_CONTENT_ROOT" \
       --track union >/dev/null
   fi
 
@@ -185,7 +188,7 @@ main() {
     --at "$frame" \
     --interactive \
     --focus \
-    --url "aos://sigil/agent-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}" >/dev/null
+    --url "aos://$SIGIL_CONTENT_ROOT/agent-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}&toolkit-root=$TOOLKIT_CONTENT_ROOT" >/dev/null
 
   echo "Sigil Agent terminal launched."
   echo "  canvas:  $CANVAS_ID ($frame)"

@@ -10,18 +10,7 @@ const NONANT_CELLS = {
     'bottom-right': [5 / 6, 5 / 6],
 };
 
-const TOOLKIT_SPATIAL_SPECIFIER = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/spatial.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/spatial.js'
-        : '../../../../packages/toolkit/runtime/spatial.js';
+import { toolkitSpecifier } from './content-roots.js';
 
 const {
     computeDesktopWorldBounds: toolkitComputeDesktopWorldBounds,
@@ -32,7 +21,7 @@ const {
     nativeToDesktopWorldPoint: toolkitNativeToDesktopWorldPoint,
     desktopWorldToNativePoint: toolkitDesktopWorldToNativePoint,
     globalToUnionLocalPoint: toolkitGlobalToUnionLocalPoint,
-} = await import(TOOLKIT_SPATIAL_SPECIFIER);
+} = await import(toolkitSpecifier('runtime/spatial.js'));
 
 function visibleBoundsRect(display = {}) {
     return display.visible_bounds ?? display.visibleBounds ?? display.bounds ?? { x: 0, y: 0, w: 0, h: 0 };

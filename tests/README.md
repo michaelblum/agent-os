@@ -14,7 +14,7 @@ For the repo-wide entry-path model behind these choices, see
 
 ## Rebuild `./aos` First
 
-Rebuild with `./aos dev build --no-restart` when both of these are true:
+Rebuild with `./aos dev build` when both of these are true:
 
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`

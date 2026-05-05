@@ -5,6 +5,7 @@ import { createDragController } from '../../packages/toolkit/panel/chrome.js'
 import {
   computePanelTransfer,
   createPanelTransferController,
+  ensureDesktopWorldStage,
 } from '../../packages/toolkit/panel/drag-transfer.js'
 
 const displays = [
@@ -52,6 +53,16 @@ test('computePanelTransfer is inactive while pointer remains on the origin displ
   }), null)
 })
 
+test('computePanelTransfer is inactive once the whole panel fits on the destination display', () => {
+  assert.equal(computePanelTransfer(displays, {
+    frame: [100, 80, 500, 360],
+    pointer: { screenX: 1600, screenY: 80 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'main',
+  }), null)
+})
+
 test('createPanelTransferController upserts outline layers and returns release frame', () => {
   const sent = []
   const controller = createPanelTransferController({
@@ -80,10 +91,57 @@ test('createPanelTransferController upserts outline layers and returns release f
   ])
 })
 
+test('ensureDesktopWorldStage creates the shared non-interactive desktop-world stage', async () => {
+  const created = []
+  const result = await ensureDesktopWorldStage({
+    id: 'stage-test',
+    url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
+    createStage(payload) {
+      created.push(payload)
+      return Promise.resolve({ id: payload.id })
+    },
+  })
+
+  assert.equal(result, true)
+  assert.deepEqual(created, [{
+    id: 'stage-test',
+    url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
+    surface: 'desktop-world',
+    scope: 'global',
+    interactive: false,
+    focus: false,
+    cascade: false,
+  }])
+})
+
+test('createPanelTransferController can ensure the shared transfer stage on drag start', async () => {
+  const created = []
+  const controller = createPanelTransferController({
+    enabled: true,
+    stageCanvasId: 'stage-start-test',
+    stageUrl: 'aos://toolkit/components/desktop-world-stage/index.html',
+    ensureStage: true,
+    createStage(payload) {
+      created.push(payload)
+      return Promise.resolve({ id: payload.id })
+    },
+    getDisplays: () => displays,
+    sendStageMessage() {},
+  })
+
+  controller.start({ frame: [100, 80, 500, 360] })
+  await Promise.resolve()
+
+  assert.equal(created.length, 1)
+  assert.equal(created[0].id, 'stage-start-test')
+  assert.equal(created[0].surface, 'desktop-world')
+})
+
 test('createDragController applies transfer release frame before fallback clamp', () => {
   let frame = [100, 80, 500, 360]
   const updates = []
   const states = []
+  const moves = []
   const transferController = createPanelTransferController({
     enabled: true,
     layerId: 'outline',
@@ -98,6 +156,7 @@ test('createDragController applies transfer release frame before fallback clamp'
       updates.push(nextFrame)
     },
     move(screenX, screenY, offsetX, offsetY) {
+      moves.push({ screenX, screenY, offsetX, offsetY })
       frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]]
     },
     clampOnEnd: true,
@@ -109,10 +168,42 @@ test('createDragController applies transfer release frame before fallback clamp'
 
   controller.start({ pointerId: 1, clientX: 80, clientY: 20 })
   controller.move({ pointerId: 1, screenX: 1500, screenY: 40 })
+  assert.deepEqual(moves, [])
   controller.end()
 
   assert.deepEqual(updates.at(-1), [1440, 20, 500, 360])
   assert.deepEqual(frame, [1440, 20, 500, 360])
   assert.equal(states.find((state) => state.phase === 'move')?.transferActive, true)
   assert.equal(states.at(-1)?.transferActive, false)
+})
+
+test('createDragController resumes direct drag once the destination display can contain the panel', () => {
+  let frame = [100, 80, 500, 360]
+  const moves = []
+  const transferController = createPanelTransferController({
+    enabled: true,
+    layerId: 'outline',
+    getDisplays: () => displays,
+    sendStageMessage() {},
+  })
+  const controller = createDragController({
+    getFrame: () => frame,
+    getWorkArea: () => [1440, 0, 1280, 900],
+    updateFrame(nextFrame) {
+      frame = nextFrame
+    },
+    move(screenX, screenY, offsetX, offsetY) {
+      moves.push({ screenX, screenY, offsetX, offsetY })
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]]
+    },
+    clampOnEnd: true,
+    transferController,
+  })
+
+  controller.start({ pointerId: 1, clientX: 80, clientY: 20 })
+  controller.move({ pointerId: 1, screenX: 1600, screenY: 80 })
+  controller.end()
+
+  assert.deepEqual(moves, [{ screenX: 1600, screenY: 80, offsetX: 80, offsetY: 20 }])
+  assert.deepEqual(frame, [1520, 60, 500, 360])
 })

@@ -210,6 +210,10 @@ body {
   background: rgba(183, 252, 255, 0.42);
 }
 
+.aos-workbench-main.aos-split-pane[data-collapse-mode="accordion"][data-closed-pane] > .aos-split-pane-pane {
+  overflow: hidden;
+}
+
 .aos-workbench-preview-pane {
   min-width: 0;
   min-height: 0;

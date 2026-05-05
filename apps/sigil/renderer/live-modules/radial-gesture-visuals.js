@@ -1,4 +1,5 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
+import { currentSigilRoot } from './content-roots.js';
 import {
     DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
@@ -1124,7 +1125,7 @@ function resolveGeometryUrl(src) {
         && typeof location !== 'undefined'
         && /^https?:$/.test(location.protocol)
     ) {
-        return trimmed.replace(/^aos:\/\/sigil\//, '/sigil/');
+        return trimmed.replace(/^aos:\/\/sigil\//, `/${currentSigilRoot()}/`);
     }
     try {
         return new URL(trimmed, import.meta.url).href;

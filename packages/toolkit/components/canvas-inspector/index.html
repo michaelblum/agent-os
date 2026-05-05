@@ -11,7 +11,13 @@
 import { mountPanel, Single } from '../../panel/index.js'
 import CanvasInspector from './index.js'
 
-mountPanel({ title: 'Canvas Inspector', layout: Single(CanvasInspector) })
+mountPanel({
+  title: 'Canvas Inspector',
+  layout: Single(CanvasInspector),
+  maximize: true,
+  resizable: true,
+  resize: { minWidth: 300, minHeight: 220 },
+})
 </script>
 </body>
 </html>

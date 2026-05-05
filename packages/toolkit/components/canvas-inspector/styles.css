@@ -2,12 +2,43 @@
  * Canonical source for canvas-inspector visual presentation.
  * Host pages <link> this file; override via cascade as needed. */
 
- .canvas-inspector-body {
+.canvas-inspector-body {
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.canvas-inspector-split {
+  flex: 1;
+  min-height: 0;
+}
+
+.canvas-inspector-minimap-pane,
+.canvas-inspector-list-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-inspector-minimap-pane {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.canvas-inspector-list-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-inspector-split[data-closed-pane="end"] .canvas-inspector-list-pane {
+  overflow: hidden;
+}
+
+.canvas-inspector-split[data-closed-pane="end"] .canvas-list-region {
+  display: none;
 }
 
 /* Minimap */
@@ -155,7 +186,8 @@
 .canvas-list-region {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .canvas-list-region[hidden] {
   display: none;
@@ -195,8 +227,14 @@
   border-bottom: 5px solid currentColor;
 }
 
-.canvas-list { padding: 0 0 8px; }
+.canvas-list {
+  min-width: 0;
+  padding: 0 0 8px;
+}
 .tree-row {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -279,7 +317,14 @@
   background: var(--accent-purple);
   opacity: 0.95;
 }
-.canvas-id { color: var(--accent-blue); font-weight: 600; flex-shrink: 0; }
+.canvas-id {
+  min-width: 0;
+  color: var(--accent-blue);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .canvas-kind {
   color: var(--accent-green);
   font-family: var(--font-mono);
@@ -293,9 +338,14 @@
   flex-shrink: 0;
 }
 .canvas-dims {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .seg-index { color: var(--text-muted); flex-shrink: 0; }
 .seg-display { color: var(--text-secondary); flex-shrink: 0; }
@@ -346,6 +396,8 @@
 .status-bar {
   position: relative;
   padding: 4px 10px;
+  min-height: 28px;
+  box-sizing: border-box;
   font-size: 8px;
   color: var(--text-header);
   text-transform: uppercase;

@@ -1,0 +1,92 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const repo = new URL('../../', import.meta.url);
+
+async function repoText(path) {
+  return readFile(new URL(path, repo), 'utf8');
+}
+
+test('markdown workbench embeds wiki graph as the primary pane', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+  const css = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
+  const html = await repoText('packages/toolkit/components/markdown-workbench/index.html');
+  const wikiJs = await repoText('packages/toolkit/components/wiki-kb/index.js');
+  const wikiCss = await repoText('packages/toolkit/components/wiki-kb/styles.css');
+
+  assert.match(js, /import WikiKB from '\.\.\/wiki-kb\/index\.js'/);
+  assert.match(html, /\.\.\/wiki-kb\/styles\.css/);
+  assert.match(html, /maximize:\s*true/);
+  assert.match(html, /resizable:\s*true/);
+  assert.match(html, /minWidth:\s*760/);
+  assert.match(js, /class="aos-workbench-preview-pane markdown-workbench-graph-pane"/);
+  assert.match(js, /data-role="graph"/);
+  assert.match(js, /WikiKB\(\{ chrome: 'embedded', views: \['graph'\] \}\)/);
+  assert.match(js, /collapseEmbeddedGraphControls/);
+  assert.match(js, /scheduleEmbeddedGraphFit/);
+  assert.match(js, /type:\s*'fit-view'/);
+  assert.match(js, /embeddedWikiGraphPayload/);
+  assert.match(js, /labelMode:\s*'hover'/);
+  assert.match(js, /collapsed:\s*true/);
+  assert.match(wikiJs, /accepts:\s*\[[^\]]*'fit-view'/s);
+  assert.match(wikiJs, /wiki-kb-compact-chrome/);
+  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell/);
+  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell\s*\{[\s\S]*left:\s*0/);
+  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell\.collapsed\s+\.wiki-kb-controls-toggle/);
+  assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-view:has\(\.wiki-kb-controls-shell:not\(\.collapsed\)\)\s+\.wiki-kb-legend/);
+  assert.match(wikiCss, /\.wiki-kb-controls-panel\[hidden\]\s*\{\s*display:\s*none/);
+  assert.doesNotMatch(wikiJs, /wiki-kb-graph-stats/);
+  assert.match(wikiCss, /\.wiki-kb-floating-status\s*\{[\s\S]*top:\s*10px/);
+  assert.match(css, /\.markdown-workbench-main\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(0,\s*0fr\)/);
+  assert.match(css, /\.markdown-workbench-root\[data-split-open="true"\]\s+\.markdown-workbench-main/);
+});
+
+test('markdown workbench toggles source and preview in the content pane', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+
+  const documentPane = js.match(/<section class="aos-workbench-controls-pane markdown-workbench-document-pane"[\s\S]*?<\/section>\s*<\/main>/)?.[0] || '';
+
+  assert.match(js, /data-view-mode="preview"/);
+  assert.match(js, /data-view-mode="source"/);
+  assert.match(js, /aria-label="Preview" title="Preview"/);
+  assert.match(js, /aria-label="Edit" title="Edit"/);
+  assert.match(js, /markdown-workbench-mode-icon/);
+  assert.match(js, /markdown-workbench-code-icon/);
+  assert.match(js, /class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index"/);
+  assert.match(documentPane, /data-role="path"/);
+  assert.doesNotMatch(documentPane, /data-role="dirty"/);
+  assert.match(js, /dom\.saveButton\.disabled = !state\.dirty/);
+  assert.match(documentPane, /markdown-workbench-document-toolbar/);
+  assert.match(js, /syncViewMode/);
+  assert.match(js, /dom\.previewPane\.hidden = !previewActive/);
+  assert.match(js, /dom\.sourcePane\.hidden = previewActive/);
+  assert.doesNotMatch(js, /markdown-workbench-toolbar/);
+  assert.doesNotMatch(js, /markdown-workbench-pane-toolbar/);
+});
+
+test('markdown workbench folds index into the content pane and can close it', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+  const css = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
+
+  assert.match(js, /class="markdown-workbench-outline-panel"/);
+  assert.match(js, /data-action="toggle-outline"/);
+  assert.match(js, /data-action="close-content"/);
+  assert.match(js, /class="aos-window-button aos-window-close markdown-workbench-close-content"/);
+  assert.match(js, /splitOpen = false/);
+  assert.match(css, /\.markdown-workbench-outline-panel\s*\{/);
+  assert.doesNotMatch(js, /markdown-workbench-inspector/);
+});
+
+test('markdown source editor leaves native undo and redo key chords alone', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+  const keydownBody = js.match(/function handleEditorKeydown\(event\) \{[\s\S]*?\n  \}/)?.[0] || '';
+
+  assert.match(js, /<textarea spellcheck="true" aria-label="Markdown source editor"><\/textarea>/);
+  assert.match(keydownBody, /key === 's'/);
+  assert.match(keydownBody, /event\.key !== 'Tab'/);
+  assert.doesNotMatch(keydownBody, /key === 'z'/);
+  assert.doesNotMatch(keydownBody, /key === 'y'/);
+  assert.doesNotMatch(keydownBody, /undo/i);
+  assert.doesNotMatch(keydownBody, /redo/i);
+});

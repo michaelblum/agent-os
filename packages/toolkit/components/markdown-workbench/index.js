@@ -1,4 +1,5 @@
 import { renderMarkdown } from '../../markdown/render.js';
+import WikiKB from '../wiki-kb/index.js';
 import {
   indentMarkdownSelection,
   outdentMarkdownSelection,
@@ -22,6 +23,13 @@ function el(tag, className, textContent) {
 export default function MarkdownWorkbench(options = {}) {
   let host = null;
   let initialUrlOpenStarted = false;
+  let viewMode = options.viewMode === 'source' ? 'source' : 'preview';
+  let outlineOpen = false;
+  let splitOpen = Boolean(options.openContent);
+  let graphHost = null;
+  let graphWorkbench = null;
+  let graphLoadTimer = null;
+  let graphFitTimers = [];
   const state = createMarkdownWorkbenchState(options.document || {});
   const dom = {};
 
@@ -30,7 +38,8 @@ export default function MarkdownWorkbench(options = {}) {
   }
 
   function syncTitle() {
-    host?.setTitle?.(`Markdown - ${state.path}${state.dirty ? ' *' : ''}`);
+    const prefix = state.source?.kind === 'wiki' ? 'Wiki / Workbench' : 'Markdown / Workbench';
+    host?.setTitle?.(`${prefix}${state.dirty ? ' *' : ''}`);
   }
 
   function syncDiagnostics() {
@@ -57,6 +66,55 @@ export default function MarkdownWorkbench(options = {}) {
     dom.preview.innerHTML = renderMarkdown(state.content);
   }
 
+  function syncViewMode() {
+    dom.root.dataset.viewMode = viewMode;
+    const previewActive = viewMode === 'preview';
+    dom.previewPane.hidden = !previewActive;
+    dom.sourcePane.hidden = previewActive;
+    for (const button of dom.root.querySelectorAll('[data-view-mode]')) {
+      const active = button.dataset.viewMode === viewMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
+  }
+
+  function syncOutline() {
+    dom.outlinePanel.hidden = !outlineOpen;
+    dom.outlineToggle.setAttribute('aria-expanded', String(outlineOpen));
+    dom.outlineToggle.classList.toggle('active', outlineOpen);
+  }
+
+  function syncSplit() {
+    dom.root.dataset.splitOpen = String(splitOpen);
+    dom.documentPane.setAttribute('aria-hidden', String(!splitOpen));
+    dom.closeContentButton.hidden = !splitOpen;
+  }
+
+  function syncGraphStatus(text) {
+    if (dom.graphStatus) dom.graphStatus.textContent = text;
+  }
+
+  function collapseEmbeddedGraphControls() {
+    const toggle = dom.graph?.querySelector?.('.wiki-kb-controls-toggle');
+    if (!toggle || !/hide controls/i.test(toggle.textContent || '')) return;
+    toggle.click();
+  }
+
+  function scheduleEmbeddedGraphFit(delays = [80]) {
+    if (!graphWorkbench || !graphHost || typeof window === 'undefined') return;
+    for (const timer of graphFitTimers) window.clearTimeout(timer);
+    graphFitTimers = [];
+
+    const fitDelays = Array.isArray(delays) ? delays : [delays];
+    for (const delay of fitDelays) {
+      const timer = window.setTimeout(() => {
+        graphFitTimers = graphFitTimers.filter((entry) => entry !== timer);
+        graphWorkbench?.onMessage?.({ type: 'fit-view' }, graphHost);
+      }, Math.max(0, Number(delay) || 0));
+      graphFitTimers.push(timer);
+    }
+  }
+
   function sync({ replaceEditorValue = false } = {}) {
     dom.path.textContent = state.path;
     // Reassigning textarea.value during native input clears WKWebView/browser
@@ -65,11 +123,14 @@ export default function MarkdownWorkbench(options = {}) {
     if (replaceEditorValue && dom.editor.value !== state.content) {
       dom.editor.value = state.content;
     }
-    dom.dirty.textContent = state.dirty ? 'Unsaved changes' : 'Saved';
-    dom.dirty.dataset.dirty = state.dirty ? 'true' : 'false';
+    dom.saveButton.disabled = !state.dirty;
+    dom.saveButton.setAttribute('aria-disabled', String(!state.dirty));
     syncTitle();
     syncDiagnostics();
     syncPreview();
+    syncViewMode();
+    syncOutline();
+    syncSplit();
     window.__markdownWorkbenchState = markdownWorkbenchSnapshot(state);
   }
 
@@ -91,40 +152,113 @@ export default function MarkdownWorkbench(options = {}) {
     return frontmatter;
   }
 
+  function embeddedWikiGraphPayload(payload = {}) {
+    const config = payload.config && typeof payload.config === 'object' ? payload.config : {};
+    const graphView = config.graphView && typeof config.graphView === 'object' ? config.graphView : {};
+    return {
+      ...payload,
+      config: {
+        ...config,
+        graphView: {
+          ...graphView,
+          controls: {
+            ...(graphView.controls || {}),
+            collapsed: true,
+          },
+          defaults: {
+            ...(graphView.defaults || {}),
+            labelMode: 'hover',
+          },
+        },
+      },
+    };
+  }
+
+  async function openWikiPath(wikiPath, { syncEditor = true, openContent = false } = {}) {
+    const path = String(wikiPath || '').replace(/^\/+/, '').trim();
+    if (!path) return null;
+    try {
+      const response = await fetch(`/wiki/${path}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`wiki fetch failed for ${path}: ${response.status}`);
+      const content = await response.text();
+      openMarkdownDocument(state, {
+        type: 'markdown_document.open',
+        path,
+        source: {
+          kind: 'wiki',
+          path,
+          page: {
+            path,
+            frontmatter: parseWikiFrontmatter(content),
+          },
+        },
+        content,
+      });
+      splitOpen = Boolean(openContent);
+      sync({ replaceEditorValue: syncEditor });
+      void loadWikiGraph({ revealCurrent: splitOpen });
+      return markdownWorkbenchSnapshot(state);
+    } catch (error) {
+      state.lastResult = {
+        type: 'markdown_document.open.result',
+        status: 'rejected',
+        path,
+        message: String(error?.message || error),
+      };
+      sync();
+      console.warn('[markdown-workbench] initial wiki open failed:', error);
+      return null;
+    }
+  }
+
   async function openInitialWikiFromUrl() {
     if (initialUrlOpenStarted || typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search || '');
     const wikiPath = String(params.get('wiki') || '').replace(/^\/+/, '').trim();
     if (!wikiPath) return;
     initialUrlOpenStarted = true;
-    try {
-      const response = await fetch(`/wiki/${wikiPath}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`wiki fetch failed for ${wikiPath}: ${response.status}`);
-      const content = await response.text();
-      openMarkdownDocument(state, {
-        type: 'markdown_document.open',
-        path: wikiPath,
-        source: {
-          kind: 'wiki',
-          path: wikiPath,
-          page: {
-            path: wikiPath,
-            frontmatter: parseWikiFrontmatter(content),
-          },
-        },
-        content,
-      });
-      sync({ replaceEditorValue: true });
-    } catch (error) {
-      state.lastResult = {
-        type: 'markdown_document.open.result',
-        status: 'rejected',
-        path: wikiPath,
-        message: String(error?.message || error),
-      };
-      sync();
-      console.warn('[markdown-workbench] initial wiki open failed:', error);
+    await openWikiPath(wikiPath, { syncEditor: true });
+  }
+
+  function revealCurrentWikiNode() {
+    if (state.source?.kind !== 'wiki' || !state.source.path || !graphWorkbench) return;
+    graphWorkbench.onMessage?.({
+      type: 'reveal',
+      payload: {
+        path: state.source.path,
+        view: 'graph',
+      },
+    }, graphHost);
+  }
+
+  async function loadWikiGraph({ revealCurrent = false } = {}) {
+    if (!graphWorkbench || !graphHost) return;
+    if (state.source?.kind !== 'wiki') {
+      syncGraphStatus('Open a wiki page to load graph');
+      return;
     }
+    syncGraphStatus('Loading graph...');
+    try {
+      const response = await fetch('/wiki/.graph?raw=1', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`wiki graph request failed: ${response.status}`);
+      const payload = embeddedWikiGraphPayload(await response.json());
+      graphWorkbench.onMessage?.({ type: 'graph', payload }, graphHost);
+      collapseEmbeddedGraphControls();
+      syncGraphStatus('Wiki graph');
+      if (revealCurrent) revealCurrentWikiNode();
+      scheduleEmbeddedGraphFit([80, 360, 900]);
+    } catch (error) {
+      syncGraphStatus('Graph unavailable');
+      console.warn('[markdown-workbench] wiki graph load failed:', error);
+    }
+  }
+
+  function scheduleGraphReload() {
+    if (graphLoadTimer) window.clearTimeout(graphLoadTimer);
+    graphLoadTimer = window.setTimeout(() => {
+      graphLoadTimer = null;
+      void loadWikiGraph({ revealCurrent: splitOpen });
+    }, 150);
   }
 
   function setContent(content) {
@@ -208,51 +342,124 @@ export default function MarkdownWorkbench(options = {}) {
 
   function render() {
     const root = el('div', 'markdown-workbench-root');
+    dom.root = root;
     const params = typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search || '')
       : new URLSearchParams();
     const transition = String(options.transition || params.get('transition') || '').trim();
     if (transition === 'fade-in') root.dataset.transition = 'fade-in';
     root.innerHTML = `
-      <header class="markdown-workbench-toolbar">
-        <div class="markdown-workbench-file">
-          <strong data-role="path"></strong>
-          <span data-role="dirty"></span>
-        </div>
-        <div class="markdown-workbench-actions">
-          <button type="button" data-action="revert">Revert</button>
-          <button type="button" data-action="save">Save</button>
-        </div>
-      </header>
-      <main class="markdown-workbench-main">
-        <section class="markdown-workbench-source" aria-label="Markdown source">
-          <textarea spellcheck="true" aria-label="Markdown source editor"></textarea>
+      <main class="aos-workbench-main markdown-workbench-main">
+        <section class="aos-workbench-preview-pane markdown-workbench-graph-pane" aria-label="Wiki graph">
+          <div class="markdown-workbench-graph" data-role="graph"></div>
         </section>
-        <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview">
-          <div class="markdown-workbench-preview"></div>
+        <section class="aos-workbench-controls-pane markdown-workbench-document-pane" aria-label="Wiki page content">
+          <header class="aos-workbench-toolbar markdown-workbench-document-toolbar" data-density="compact" role="toolbar" aria-label="Document tools">
+            <div class="markdown-workbench-file" title="Current document">
+              <strong data-role="path"></strong>
+            </div>
+            <div class="markdown-workbench-view-toggle" role="group" aria-label="Document view">
+              <button type="button" class="active" data-view-mode="preview" aria-label="Preview" title="Preview" aria-pressed="true">
+                <svg class="markdown-workbench-mode-icon" aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M2.5 10s2.7-4.8 7.5-4.8S17.5 10 17.5 10 14.8 14.8 10 14.8 2.5 10 2.5 10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <circle cx="10" cy="10" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                </svg>
+              </button>
+              <button type="button" data-view-mode="source" aria-label="Edit" title="Edit" aria-pressed="false">
+                <span class="markdown-workbench-code-icon" aria-hidden="true">&lt;/&gt;</span>
+              </button>
+            </div>
+            <div class="markdown-workbench-actions">
+              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index" aria-expanded="false">
+                <svg aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M5 5.5h10M5 10h10M5 14.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                  <circle cx="2.8" cy="5.5" r="0.9" fill="currentColor"/>
+                  <circle cx="2.8" cy="10" r="0.9" fill="currentColor"/>
+                  <circle cx="2.8" cy="14.5" r="0.9" fill="currentColor"/>
+                </svg>
+              </button>
+              <button type="button" data-action="revert">Revert</button>
+              <button type="button" data-action="save">Save</button>
+            </div>
+            <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view">x</button>
+          </header>
+          <div class="markdown-workbench-document-body">
+            <section class="markdown-workbench-source" aria-label="Markdown source">
+              <textarea spellcheck="true" aria-label="Markdown source editor"></textarea>
+            </section>
+            <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview">
+              <div class="markdown-workbench-preview"></div>
+            </section>
+            <aside class="markdown-workbench-outline-panel" aria-label="Document index" hidden>
+              <div class="markdown-workbench-outline-title">Index</div>
+              <ol data-role="outline"></ol>
+            </aside>
+            <footer class="markdown-workbench-document-status" aria-label="Document status">
+              <span data-role="stats"></span>
+              <span data-role="mermaid"></span>
+              <span class="markdown-workbench-warning" data-role="warning" hidden>Unclosed fenced code block</span>
+            </footer>
+          </div>
         </section>
-        <aside class="markdown-workbench-inspector" aria-label="Markdown diagnostics">
-          <strong>Diagnostics</strong>
-          <p data-role="stats"></p>
-          <p data-role="mermaid"></p>
-          <p class="markdown-workbench-warning" data-role="warning" hidden>Unclosed fenced code block</p>
-          <strong>Outline</strong>
-          <ol data-role="outline"></ol>
-        </aside>
       </main>
     `;
     dom.path = root.querySelector('[data-role="path"]');
-    dom.dirty = root.querySelector('[data-role="dirty"]');
     dom.editor = root.querySelector('textarea');
+    dom.sourcePane = root.querySelector('.markdown-workbench-source');
+    dom.previewPane = root.querySelector('.markdown-workbench-preview-pane');
     dom.preview = root.querySelector('.markdown-workbench-preview');
     dom.stats = root.querySelector('[data-role="stats"]');
     dom.mermaid = root.querySelector('[data-role="mermaid"]');
     dom.warning = root.querySelector('[data-role="warning"]');
     dom.outline = root.querySelector('[data-role="outline"]');
+    dom.outlinePanel = root.querySelector('.markdown-workbench-outline-panel');
+    dom.outlineToggle = root.querySelector('[data-action="toggle-outline"]');
+    dom.documentPane = root.querySelector('.markdown-workbench-document-pane');
+    dom.closeContentButton = root.querySelector('[data-action="close-content"]');
+    dom.saveButton = root.querySelector('[data-action="save"]');
+    dom.graph = root.querySelector('[data-role="graph"]');
+    dom.graphStatus = root.querySelector('[data-role="graph-status"]');
+
+    graphWorkbench = WikiKB({ chrome: 'embedded', views: ['graph'] });
+    graphHost = {
+      contentEl: dom.graph,
+      setTitle() {},
+      emit(type, payload) {
+        if (type === 'selection' && payload?.path && payload.path !== state.source?.path) {
+          void openWikiPath(payload.path, { syncEditor: true, openContent: true });
+        } else if (type === 'selection' && payload?.path) {
+          splitOpen = true;
+          sync();
+          scheduleEmbeddedGraphFit([260, 520]);
+        }
+        emit(`graph.${type}`, payload);
+      },
+    };
+    const graphRoot = graphWorkbench.render(graphHost);
+    dom.graph.replaceChildren(graphRoot);
+    requestAnimationFrame(collapseEmbeddedGraphControls);
 
     dom.editor.addEventListener('input', () => setContent(dom.editor.value));
     dom.editor.addEventListener('keydown', handleEditorKeydown);
-    root.querySelector('[data-action="save"]').addEventListener('click', requestSave);
+    for (const button of root.querySelectorAll('[data-view-mode]')) {
+      button.addEventListener('click', () => {
+        viewMode = button.dataset.viewMode === 'source' ? 'source' : 'preview';
+        syncViewMode();
+        if (viewMode === 'source') dom.editor.focus();
+      });
+    }
+    dom.outlineToggle.addEventListener('click', () => {
+      outlineOpen = !outlineOpen;
+      syncOutline();
+    });
+    dom.closeContentButton.addEventListener('click', () => {
+      splitOpen = false;
+      outlineOpen = false;
+      graphWorkbench?.onMessage?.({ type: 'clear-selection' }, graphHost);
+      sync();
+      scheduleEmbeddedGraphFit([260, 520]);
+    });
+    dom.saveButton.addEventListener('click', requestSave);
     root.querySelector('[data-action="revert"]').addEventListener('click', () => {
       state.content = state.savedContent;
       state.dirty = false;
@@ -266,13 +473,25 @@ export default function MarkdownWorkbench(options = {}) {
     const type = message.type || message.payload?.type;
     if (type === 'markdown_document.open') {
       openMarkdownDocument(state, message);
+      splitOpen = true;
       sync({ replaceEditorValue: true });
+      void loadWikiGraph({ revealCurrent: true });
     } else if (type === 'markdown_document.text.patch') {
       applyMarkdownTextPatch(state, message);
       sync({ replaceEditorValue: true });
     } else if (type === 'markdown_document.save.result') {
       applyMarkdownSaveResult(state, message);
       sync();
+    } else if (type === 'wiki_page_changed') {
+      scheduleGraphReload();
+    } else if (type === 'set-view') {
+      const nextMode = message?.payload?.view || message?.payload?.mode || message?.view || message?.mode;
+      if (nextMode === 'source' || nextMode === 'preview') {
+        viewMode = nextMode;
+        syncViewMode();
+      }
+    } else {
+      graphWorkbench?.onMessage?.(message, graphHost);
     }
   }
 
@@ -284,6 +503,7 @@ export default function MarkdownWorkbench(options = {}) {
       emits: ['markdown-workbench/save.requested', 'markdown-workbench/save.result'],
       channelPrefix: 'markdown-workbench',
       defaultSize: { w: 1120, h: 720 },
+      requires: ['wiki_page_changed'],
     },
 
     render(host_) {

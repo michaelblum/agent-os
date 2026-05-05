@@ -32,7 +32,7 @@ first move.
 
 Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
 changes through the manifest-backed developer workflow before choosing a build,
-test, canvas reload, or readiness loop. Use `./aos dev build --no-restart`
+test, canvas reload, or readiness loop. Use `./aos dev build`
 instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
 itself under repair.
 
@@ -135,7 +135,7 @@ Typical consumer loop:
 ./aos dev classify --json
 ./aos dev recommend --json
 ./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
-./aos dev build --no-restart
+./aos dev build
 ```
 
 `classify` reports changed files, matched rules, classes, actions, and whether
@@ -162,6 +162,10 @@ aos show remove --id demo
 ```
 
 ### 3. Load Toolkit Content Through the Content Server
+
+Use the canonical `toolkit` root for `main` or installed examples. Topic
+worktrees should use branch-scoped root names so one singleton daemon can serve
+multiple sessions without root collisions.
 
 ```bash
 aos set content.roots.toolkit packages/toolkit
@@ -778,6 +782,10 @@ Minimal setup:
 ```bash
 aos set content.roots.toolkit packages/toolkit
 ```
+
+In topic worktrees, use `scripts/aos-content-scope.sh` or a branch-aware launch
+script to derive a root such as `toolkit_codex_example` instead of overwriting
+canonical `toolkit`.
 
 Then:
 

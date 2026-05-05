@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <link rel="stylesheet" href="../_base/theme.css">
 <link rel="stylesheet" href="../../panel/defaults.css">
+<link rel="stylesheet" href="../../workbench/defaults.css">
+<link rel="stylesheet" href="../wiki-kb/styles.css">
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -11,7 +13,19 @@
 import { mountPanel, Single } from '../../panel/index.js'
 import MarkdownWorkbench from './index.js'
 
-mountPanel({ title: 'Markdown Workbench', layout: Single(MarkdownWorkbench) })
+try {
+  mountPanel({
+    title: 'Wiki Workbench',
+    layout: Single(MarkdownWorkbench),
+    maximize: true,
+    resizable: true,
+    resize: { minWidth: 760, minHeight: 520 },
+  })
+} catch (error) {
+  document.body.dataset.mountError = String(error?.message || error)
+  document.body.innerHTML = `<pre style="padding:12px;color:#ffd166;background:#050a0e;height:100%;overflow:auto">${String(error?.stack || error)}</pre>`
+  throw error
+}
 </script>
 </body>
 </html>

@@ -72,6 +72,7 @@ function cloneState(state) {
     endSize: state.endSize,
     availableSize: state.availableSize,
     closedPane: state.closedPane,
+    closedSize: state.closedSize,
   }
 }
 
@@ -171,6 +172,8 @@ export function createSplitPane({
   minEnd = 160,
   maxStart = Infinity,
   maxEnd = Infinity,
+  closedStartSize = 0,
+  closedEndSize = 0,
   keyboardStep = 24,
   ariaLabel = 'Resize panes',
   onChange = null,
@@ -198,6 +201,13 @@ export function createSplitPane({
   setStyle(rootEl, '--aos-split-divider-size', `${positiveNumber(dividerSize, 8)}px`)
   setStyle(rootEl, '--aos-split-min-start', `${Math.max(0, finiteNumber(minStart, 0))}px`)
   setStyle(rootEl, '--aos-split-min-end', `${Math.max(0, finiteNumber(minEnd, 0))}px`)
+  const accordionStartSize = Math.max(0, finiteNumber(closedStartSize, 0))
+  const accordionEndSize = Math.max(0, finiteNumber(closedEndSize, 0))
+  if (accordionStartSize > 0 || accordionEndSize > 0) {
+    rootEl.dataset.collapseMode = 'accordion'
+    setStyle(rootEl, '--aos-split-closed-start-size', `${accordionStartSize}px`)
+    setStyle(rootEl, '--aos-split-closed-end-size', `${accordionEndSize}px`)
+  }
 
   dividerEl.setAttribute('role', 'separator')
   dividerEl.setAttribute('tabindex', '0')
@@ -219,6 +229,7 @@ export function createSplitPane({
     startSize: 0,
     endSize: 0,
     availableSize: 0,
+    closedSize: 0,
   }
 
   function bounds() {
@@ -232,19 +243,22 @@ export function createSplitPane({
     if (state.closedPane) {
       state.restoreRatio = state.ratio
       const fullSize = positiveNumber(rect[splitAxis.size], 1)
+      const closedSize = state.closedPane === 'start' ? accordionStartSize : accordionEndSize
       const startOpen = state.closedPane !== 'start'
       const endOpen = state.closedPane !== 'end'
-      state.startSize = startOpen ? fullSize : 0
-      state.endSize = endOpen ? fullSize : 0
+      state.closedSize = closedSize
+      state.startSize = startOpen ? Math.max(0, fullSize - closedSize) : closedSize
+      state.endSize = endOpen ? Math.max(0, fullSize - closedSize) : closedSize
       state.availableSize = fullSize
 
-      startEl.hidden = !startOpen
-      endEl.hidden = !endOpen
+      startEl.hidden = !startOpen && closedSize === 0
+      endEl.hidden = !endOpen && closedSize === 0
       dividerEl.hidden = true
-      setStyle(startEl, 'flex', startOpen ? '1 1 0' : '0 0 0px')
-      setStyle(endEl, 'flex', endOpen ? '1 1 0' : '0 0 0px')
+      setStyle(startEl, 'flex', `0 0 ${state.startSize}px`)
+      setStyle(endEl, 'flex', `0 0 ${state.endSize}px`)
       setStyle(dividerEl, 'flex', '0 0 0px')
       setData(rootEl, 'closedPane', state.closedPane)
+      setData(rootEl, 'closedSize', closedSize)
       setData(rootEl, 'ratio', state.ratio.toFixed(4))
       dividerEl.setAttribute('aria-valuemin', '0')
       dividerEl.setAttribute('aria-valuemax', '100')
@@ -259,7 +273,9 @@ export function createSplitPane({
     startEl.hidden = false
     endEl.hidden = false
     dividerEl.hidden = false
+    state.closedSize = 0
     removeData(rootEl, 'closedPane')
+    removeData(rootEl, 'closedSize')
     const next = clampSplitPaneState({
       ratio: state.ratio,
       size: rect[splitAxis.size],

@@ -8,10 +8,67 @@
 }
 
 .wiki-kb-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+.wiki-kb-compact-chrome {
+  position: absolute;
+  top: 10px;
+  right: 54px;
+  z-index: 11;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, calc(100% - 72px));
+  padding: 4px 6px;
+  border: 1px solid rgba(122, 241, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(4, 14, 18, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.wiki-kb-view-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(220, 255, 255, 0.68);
+  font: 650 9px/1.3 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.wiki-kb-view-menu select {
+  min-width: 94px;
+  border: 1px solid rgba(122, 241, 255, 0.22);
+  border-radius: 5px;
+  background: rgba(1, 8, 11, 0.86);
+  color: rgba(235, 255, 255, 0.9);
+  padding: 3px 6px;
+  font: inherit;
+}
+
+.wiki-kb-view-static {
+  color: rgba(235, 255, 255, 0.82);
+  font: inherit;
+}
+
+.wiki-kb-floating-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 10;
+  padding: 3px 6px;
+  border: 1px solid rgba(122, 241, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(4, 14, 18, 0.52);
+  color: rgba(220, 255, 255, 0.42);
+  font: 650 9px/1.3 var(--font-mono);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
 .wiki-kb-tab-strip {
@@ -133,6 +190,10 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
 }
 
+.wiki-kb-controls-panel[hidden] {
+  display: none;
+}
+
 .wiki-kb-controls-header,
 .wiki-kb-controls-label-row {
   display: flex;
@@ -149,7 +210,6 @@
   text-transform: uppercase;
 }
 
-.wiki-kb-controls-summary,
 .wiki-kb-controls-caption,
 .wiki-kb-controls-empty {
   color: var(--text-muted);
@@ -646,4 +706,69 @@
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-shell {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+  max-width: min(356px, 72%);
+  pointer-events: none;
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-toggle {
+  position: absolute;
+  z-index: 2;
+  left: 18px;
+  top: 18px;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  color: transparent;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-shell.collapsed .wiki-kb-controls-toggle {
+  position: relative;
+  left: auto;
+  top: auto;
+  margin: 10px 0 0 10px;
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-toggle::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 10px;
+  width: 14px;
+  height: 10px;
+  border-block: 2px solid rgba(220, 255, 255, 0.82);
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-toggle::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 16px;
+  width: 14px;
+  height: 2px;
+  background: rgba(220, 255, 255, 0.82);
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-controls-panel {
+  width: min(304px, calc(100vw - 96px));
+  max-height: calc(100% - 20px);
+  margin: 10px 0 10px 10px;
+  padding-top: 52px;
+  pointer-events: auto;
+}
+
+.wiki-kb-root[data-chrome="embedded"] .wiki-kb-graph-view:has(.wiki-kb-controls-shell:not(.collapsed)) .wiki-kb-legend {
+  left: min(326px, calc(100% - 136px));
 }

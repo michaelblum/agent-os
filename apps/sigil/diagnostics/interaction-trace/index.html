@@ -2,14 +2,26 @@
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="/toolkit/components/_base/theme.css">
-<link rel="stylesheet" href="/toolkit/panel/defaults.css">
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <script type="module">
-import { mountPanel, Single } from '/toolkit/panel/index.js'
+import { toolkitSpecifier, toolkitUrl } from '../../renderer/live-modules/content-roots.js'
 import InteractionTrace from './index.js'
+
+for (const href of [
+  toolkitUrl('components/_base/theme.css'),
+  toolkitUrl('panel/defaults.css'),
+]) {
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = href
+  document.head.insertBefore(link, document.querySelector('link[href="./styles.css"]'))
+}
+
+const { mountPanel, Single } = await import(toolkitSpecifier('panel/index.js', {
+  local: '../../../../packages/toolkit/panel/index.js',
+}))
 
 mountPanel({ title: 'Sigil Interaction Trace', layout: Single(InteractionTrace) })
 </script>
