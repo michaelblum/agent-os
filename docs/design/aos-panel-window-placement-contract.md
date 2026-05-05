@@ -122,8 +122,9 @@ The next implementable slice should be small and testable:
 
 - one public toolkit API for panel/window placement policy;
 - minimized chip restore routed through that API;
-- Agent Terminal and Sigil chat migrated off private drag/chrome or wrapped by
-  the shared controller;
+- Agent Terminal migrated off private drag/chrome;
+- legacy Sigil chat marked parked, with any future "Sigil Chat 2" rebuilt from
+  Agent Terminal/toolkit primitives instead of extending the old private shell;
 - tests covering stacked displays, side-by-side displays, mixed-DPI displays,
   off-left/off-right/off-bottom drops, minimize/restore across displays, and
   maximize work-area clamping;
