@@ -843,8 +843,41 @@ import {
   emitReady,
   emitLifecycleComplete,
   onReady,
+  MENU_ACTIVATION_PHASES,
+  createMenuActivationRequest,
+  advanceMenuActivation,
 } from 'aos://toolkit/runtime/index.js'
 ```
+
+### Menu Activation Model
+
+`packages/toolkit/runtime/menu-activation.js` defines the provider-neutral
+activation envelope for menu-like surfaces. It is intentionally independent of
+radial geometry, 3D rendering, and Sigil-specific actions.
+
+Canonical phases are:
+
+```js
+[
+  'requested',
+  'item_transition',
+  'menu_transition',
+  'surface_transition',
+  'completed',
+  'cancelled',
+  'failed',
+]
+```
+
+Use `createMenuActivationRequest({ menuId, item, input, source, targetSurface,
+transition })` when a menu item commits. The request keeps legacy
+`input` / `source` string fields, but also includes `input_source` for richer
+click, gesture, keyboard, or accessibility metadata. `surface` and
+`target_surface` are aliases for the requested destination surface descriptor.
+
+Use `advanceMenuActivation(request, phase, extra?)` to move through the
+lifecycle. Unknown phases throw, so provider or app mismatches fail loudly
+instead of creating ad-hoc status names.
 
 ### `wireBridge(handler)`
 

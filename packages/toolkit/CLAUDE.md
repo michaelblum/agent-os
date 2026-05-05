@@ -31,6 +31,7 @@ runtime/                Layer 1a — universal canvas runtime
   subscribe.js            subscribe, unsubscribe to daemon streams
   canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas
   manifest.js             declareManifest, emitReady, emitLifecycleComplete, onReady
+  menu-activation.js      provider-neutral menu activation lifecycle envelope
   index.js                re-exports
   _smoke/                 smoke harness
   vendor/                 vendored third-party runtime modules and licenses
