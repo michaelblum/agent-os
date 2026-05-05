@@ -47,8 +47,16 @@ export {
 } from './radial-gesture.js'
 export {
   MENU_ACTIVATION_SCHEMA_VERSION,
+  MENU_ACTIVATION_PHASES,
+  MENU_ACTIVATION_TERMINAL_PHASES,
   advanceMenuActivation,
   createMenuActivationRequest,
+  isMenuActivationPhase,
+  isTerminalMenuActivationPhase,
+  normalizeMenuActivationInput,
+  normalizeMenuActivationPhase,
+  normalizeMenuActivationSurface,
+  normalizeMenuActivationTransition,
 } from './menu-activation.js'
 export {
   createStackMenu,
