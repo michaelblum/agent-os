@@ -145,6 +145,12 @@ workbench use `wireDrag(..., { clampOnEnd: true })` for final single-display
 placement recovery. Cross-display destination outlines remain the next transfer
 affordance slice.
 
+The first shared DesktopWorld visual stage now lives at
+`aos://toolkit/components/desktop-world-stage/index.html`. It is a
+click-through `--surface desktop-world` canvas that accepts layer
+upsert/remove/replace/clear messages. Normal forms, editors, and workbenches
+still belong on ordinary panel canvases.
+
 ## Surface Capabilities
 
 AOS should not recreate macOS window management. It should expose the small set

@@ -1,0 +1,47 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+
+.desktop-world-stage-root {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.desktop-world-stage-layer {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  opacity: var(--stage-opacity, 1);
+  color: var(--stage-color, rgba(122, 241, 255, 0.95));
+}
+
+.desktop-world-stage-outline,
+.desktop-world-stage-rect {
+  border: var(--stage-stroke-width, 2px) solid var(--stage-color, rgba(122, 241, 255, 0.95));
+  background: var(--stage-fill, rgba(122, 241, 255, 0.08));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42), 0 14px 40px rgba(0, 0, 0, 0.24);
+}
+
+.desktop-world-stage-label {
+  position: absolute;
+  left: 8px;
+  top: 7px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: currentColor;
+  font: 650 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}

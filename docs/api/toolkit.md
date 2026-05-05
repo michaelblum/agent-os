@@ -43,6 +43,27 @@ to a local root node.
 orthographic camera helpers, and a BroadcastChannel-backed state replication
 hook for Three.js consumers.
 
+The stock shared stage lives at
+`aos://toolkit/components/desktop-world-stage/index.html`. It should be launched
+as `--surface desktop-world` and stays non-interactive. Consumers update it with
+`canvas.send` messages:
+
+```json
+{
+  "type": "desktop_world_stage.layer.upsert",
+  "payload": {
+    "id": "panel-transfer-outline",
+    "kind": "outline",
+    "frame": [1920, 64, 720, 520],
+    "label": "Move here"
+  }
+}
+```
+
+Accepted stage messages are `desktop_world_stage.layer.upsert`,
+`desktop_world_stage.layer.remove`, `desktop_world_stage.layers.replace`, and
+`desktop_world_stage.clear`.
+
 ## Import / Hosting Model
 
 Toolkit files are normally served through the AOS content server:
@@ -197,6 +218,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
+- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines
 
 ### Inline Canvas Stats
 
