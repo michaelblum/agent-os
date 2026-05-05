@@ -21,27 +21,12 @@
     }
     .shell {
       position: relative;
-      height: 100vh;
+      height: 100%;
       display: grid;
-      grid-template-rows: 42px 1fr;
+      grid-template-rows: 1fr;
       background: rgba(8, 11, 13, 0.99);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 10px;
-      box-shadow: 0 18px 56px rgba(0,0,0,0.42);
       overflow: hidden;
     }
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 0 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      background: rgba(34, 38, 42, 0.92);
-      cursor: grab;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    .header:active { cursor: grabbing; }
     .avatar {
       position: relative;
       width: 22px;
@@ -58,26 +43,6 @@
       content: "";
       display: none;
     }
-    .title {
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      flex: 1;
-    }
-    .title strong {
-      font-size: 13px;
-      font-weight: 650;
-      line-height: 1.1;
-    }
-    .title span {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      color: #9aa6ad;
-      font-size: 11px;
-      line-height: 1.1;
-    }
     .status {
       width: 8px;
       height: 8px;
@@ -87,54 +52,9 @@
     }
     .status.ready { background: #32d583; }
     .status.error { background: #ff5f57; }
-    .window-controls {
-      flex: 0 0 auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-left: 2px;
-    }
-    .window-button {
-      appearance: none;
-      width: 28px;
-      height: 26px;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid rgba(255,255,255,0.13);
-      border-radius: 7px;
-      background: rgba(255,255,255,0.045);
-      color: #d7e0e4;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 750;
-      line-height: 1;
-    }
-    .window-button:hover {
-      background: rgba(255,255,255,0.09);
-      border-color: rgba(255,255,255,0.2);
-    }
-    .window-button:focus-visible {
-      outline: 2px solid rgba(137,220,235,0.78);
-      outline-offset: 2px;
-    }
-    .window-button.close:hover {
-      border-color: rgba(255, 95, 87, 0.7);
-      background: rgba(120, 32, 32, 0.58);
-      color: #fff;
-    }
-    .window-button.minimize:hover {
-      border-color: rgba(255, 209, 102, 0.68);
-      background: rgba(99, 72, 20, 0.52);
-      color: #fff;
-    }
     .content {
       min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
       background: #050708;
-    }
-    .shell.rail-collapsed .content {
-      grid-template-columns: minmax(0, 1fr) 42px;
     }
     .terminal-wrap {
       min-width: 0;
@@ -201,8 +121,8 @@
       gap: 8px;
       padding: 8px;
     }
-    .shell.rail-collapsed .rail-title,
-    .shell.rail-collapsed .rail-content {
+    .content[data-sidebar-open="false"] .rail-title,
+    .content[data-sidebar-open="false"] .rail-content {
       display: none;
     }
     .new-actions {
@@ -404,18 +324,6 @@
 </head>
 <body>
   <main class="shell" id="shell">
-    <header class="header" id="dragHandle">
-      <button class="avatar" id="avatarButton" title="Return to avatar" aria-label="Return to avatar"></button>
-      <div class="title">
-        <strong>Sigil</strong>
-        <span id="subtitle">Agent terminal</span>
-      </div>
-      <span class="status" id="status"></span>
-      <span class="window-controls" aria-label="Agent terminal window controls">
-        <button class="window-button minimize" id="minimizeTerminal" type="button" aria-label="Minimize terminal to avatar" title="Minimize">-</button>
-        <button class="window-button close" id="closeTerminal" type="button" aria-label="Close agent terminal" title="Close">x</button>
-      </span>
-    </header>
     <section class="content">
       <section class="terminal-wrap" aria-label="Agent terminal pane">
         <div id="terminal"></div>
@@ -457,23 +365,78 @@
 
   <script src="./node_modules/@xterm/xterm/lib/xterm.js"></script>
   <script src="./node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
-  <script>
+  <script type="module">
+    import { toolkitSpecifier, toolkitUrl } from '../renderer/live-modules/content-roots.js';
+
+    for (const href of [
+      toolkitUrl('components/_base/theme.css'),
+      toolkitUrl('panel/defaults.css'),
+    ]) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      document.head.append(link);
+    }
+
+    const { createFixedSidebarPane, mountChrome } = await import(toolkitSpecifier('panel/index.js', {
+      local: '../../../../packages/toolkit/panel/index.js',
+    }));
+
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
     const session = params.get('session') || 'sigil-agent-terminal-agent-os';
     let currentCwd = params.get('cwd') || '';
     let activeLabel = 'Agent terminal';
     const shell = document.getElementById('shell');
-    const subtitle = document.getElementById('subtitle');
-    const statusDot = document.getElementById('status');
+    const chrome = mountChrome(document.body, {
+      title: 'Sigil / Agent Terminal',
+      draggable: true,
+      drag: { clampOnEnd: true, transfer: true },
+      close: true,
+      minimize: true,
+      maximize: true,
+      resizable: true,
+      resize: { minWidth: 720, minHeight: 420 },
+      onMinimize() {
+        emit({ type: 'agent_terminal.avatar_toggle' });
+      },
+    });
+    chrome.contentEl.append(shell);
+    const content = shell.querySelector('.content');
+    const terminalPane = shell.querySelector('.terminal-wrap');
+    const railPane = shell.querySelector('.rail');
+
+    const avatarButton = document.createElement('button');
+    avatarButton.type = 'button';
+    avatarButton.className = 'avatar';
+    avatarButton.title = 'Return to avatar';
+    avatarButton.setAttribute('aria-label', 'Return to avatar');
+    const statusDot = document.createElement('span');
+    statusDot.className = 'status';
+    statusDot.id = 'status';
+    chrome.customControlsEl.append(avatarButton, statusDot);
+
     const sessionList = document.getElementById('sessionList');
     const sessionInspector = document.getElementById('sessionInspector');
     const providerFilter = document.getElementById('providerFilter');
     const sessionSort = document.getElementById('sessionSort');
     const railToggle = document.getElementById('railToggle');
-    let dragging = false;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
+    const railController = createFixedSidebarPane({
+      root: content,
+      mainPane: terminalPane,
+      sidebarPane: railPane,
+      toggleButton: railToggle,
+      side: 'end',
+      openSize: 340,
+      closedSize: 42,
+      minMain: 360,
+      dividerSize: 0,
+      expandedLabel: 'Collapse sessions rail',
+      collapsedLabel: 'Expand sessions rail',
+      onChange() {
+        scheduleRefit();
+      },
+    });
     let terminal = null;
     let fitAddon = null;
     let socket = null;
@@ -493,7 +456,7 @@
 
     function setStatus(kind, text) {
       statusDot.className = `status ${kind || ''}`;
-      subtitle.textContent = text;
+      chrome.setTitle(`Sigil / Agent Terminal - ${text}`);
     }
 
     function resizeTerminal() {
@@ -945,62 +908,18 @@
 
     sessionSort.addEventListener('change', renderSessions);
 
-    railToggle.addEventListener('click', () => {
-      const collapsed = shell.classList.toggle('rail-collapsed');
-      railToggle.textContent = collapsed ? '<' : '>';
-      railToggle.setAttribute('aria-expanded', String(!collapsed));
-      railToggle.setAttribute('aria-label', collapsed ? 'Expand sessions rail' : 'Collapse sessions rail');
-      scheduleRefit();
-    });
-
-    document.getElementById('avatarButton').addEventListener('click', (event) => {
+    avatarButton.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       emit({ type: 'agent_terminal.avatar_toggle' });
-    });
-
-    document.getElementById('minimizeTerminal').addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      emit({ type: 'agent_terminal.avatar_toggle' });
-    });
-
-    document.getElementById('closeTerminal').addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      emit({ type: 'close' });
-    });
-
-    document.getElementById('dragHandle').addEventListener('mousedown', (event) => {
-      if (event.target.closest('button, select')) return;
-      dragging = true;
-      dragOffsetX = event.clientX;
-      dragOffsetY = event.clientY;
-      emit({ type: 'drag_start', offsetX: dragOffsetX, offsetY: dragOffsetY });
-      event.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (event) => {
-      if (!dragging) return;
-      emit({
-        type: 'move_abs',
-        screenX: event.screenX,
-        screenY: event.screenY,
-        offsetX: dragOffsetX,
-        offsetY: dragOffsetY,
-      });
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (!dragging) return;
-      dragging = false;
-      emit({ type: 'drag_end' });
     });
 
     window.addEventListener('resize', resizeTerminal);
     new ResizeObserver(scheduleRefit).observe(document.getElementById('terminal'));
     window.headsup = window.headsup || {};
+    const previousHeadsupReceive = window.headsup.receive;
     window.headsup.receive = function receive(b64) {
+      previousHeadsupReceive?.(b64);
       let msg = null;
       try { msg = JSON.parse(atob(b64)); } catch (_) {}
       if (msg?.type === 'lifecycle' && msg.action === 'resume') {
@@ -1026,7 +945,7 @@
       payload: {
         name: 'agent-terminal',
         accepts: ['keyboard', 'agent_terminal.refresh_sessions'],
-        emits: ['ready', 'close', 'drag_start', 'move_abs', 'drag_end'],
+        emits: ['ready', 'agent_terminal.avatar_toggle'],
       },
     });
 

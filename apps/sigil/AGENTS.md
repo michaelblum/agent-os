@@ -60,7 +60,7 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 | `agent-terminal/` | Canonical Agent Terminal entrypoint. Launch with `apps/sigil/agent-terminal/launch.sh`; the implementation currently delegates through the historical `codex-terminal/` path for compatibility. |
 | `codex-terminal/` | Compatibility implementation path for the Agent Terminal evolved from the Codex-only MVP. A Sigil canvas fronts a named tmux session through a dependency-free local bridge, lists local Codex/Claude Code sessions, and resumes provider CLI commands into the terminal carrier. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
-| `chat/` | Bidirectional conversational canvas (see Chat Canvas Protocol below). |
+| `chat/` | Legacy conversational canvas prototype. Do not extend it as the product chat path; a future Sigil Chat 2 should be rebuilt from Agent Terminal/toolkit primitives instead. See Chat Canvas Legacy Notes below. |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
 | `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. Exposes the avatar as an AOS semantic target via `aos see capture --canvas <hit-id> --xray`. |
 | `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see capture --canvas <radial-id> --xray` can discover labeled item targets and `aos do` can act on them. |
@@ -151,9 +151,25 @@ the singleton daemon without loading each other's HTML, JS, or CSS.
 - **AOS daemon** (`aos serve`) — canvas management, IPC, pub/sub, content server
 - **Three.js r128** — 3D rendering engine. Vendored at `renderer/vendor/three.min.js` (loaded by `renderer/index.html` and `tests/appearance-roundtrip.html`). No CDN at boot.
 
-## Chat Canvas Protocol
+## Chat Canvas Legacy Notes
 
-The chat canvas (`chat/index.html`) is a bidirectional conversational surface. Agents project into it — the canvas does not run its own Claude API client.
+The historical chat canvas (`chat/index.html`) is a bidirectional conversational
+prototype. Agents projected into it; the canvas did not run its own Claude API
+client. That surface is superseded for current product work by the Agent
+Terminal direction.
+
+Do not keep evolving `apps/sigil/chat/` as a second, competing shell. If Sigil
+needs a chat-native surface again, build "Sigil Chat 2" as a new consumer of
+the shared pieces extracted for Agent Terminal:
+
+- toolkit panel/window chrome;
+- fixed sidebar or split-pane primitives;
+- session catalog and provider adapter plumbing;
+- shared transcript/message rendering if and when that becomes a durable
+  contract.
+
+The legacy protocol below is kept only so agents can understand old canvases,
+tests, and archived plans without mistaking them for the forward path.
 
 ### Sending to canvas
 

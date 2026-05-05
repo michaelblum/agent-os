@@ -56,6 +56,7 @@ export {
 export { Single } from './layouts/single.js'
 export {
   clampSplitPaneState,
+  createFixedSidebarPane,
   createSplitPane,
   SplitPane,
 } from './layouts/split-pane.js'
