@@ -1,5 +1,11 @@
-import { esc } from '/toolkit/runtime/bridge.js'
-import { evalCanvas } from '/toolkit/runtime/canvas.js'
+import { toolkitSpecifier } from '../../renderer/live-modules/content-roots.js'
+
+const { esc } = await import(toolkitSpecifier('runtime/bridge.js', {
+  local: '../../../../packages/toolkit/runtime/bridge.js',
+}))
+const { evalCanvas } = await import(toolkitSpecifier('runtime/canvas.js', {
+  local: '../../../../packages/toolkit/runtime/canvas.js',
+}))
 
 const AVATAR_ID = 'avatar-main'
 const POLL_MS = 250

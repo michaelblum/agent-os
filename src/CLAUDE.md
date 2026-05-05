@@ -7,7 +7,7 @@ Unified binary for macOS perception, display, action, and voice.
 ## Build
 
 ```bash
-./aos dev build --no-restart
+./aos dev build
 ```
 
 Only rebuild when you changed Swift in `src/` or `shared/swift/ipc/`, or when
@@ -243,6 +243,10 @@ aos content wait --root sigil             # Wait until the daemon is serving tha
 aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifest are live
 ```
 
+Use canonical root names only on `main`. Topic worktrees should use
+branch-scoped sibling roots via `scripts/aos-content-scope.sh` so parallel
+sessions do not make the daemon serve another checkout's content.
+
 Canvases load via URL: `aos://sigil/studio/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 
 ### Wiki (aos wiki)
@@ -296,4 +300,5 @@ State is scoped per runtime mode at `~/.config/aos/{repo|installed}/`.
 
 ### Spec
 
-See `docs/superpowers/specs/2026-04-05-aos-unified-architecture-and-perception-daemon.md`
+See `ARCHITECTURE.md` for the live architecture overview. Historical context is
+archived under `docs/archive/superpowers/`.

@@ -5,15 +5,20 @@
 
 set -euo pipefail
 
-AOS="${AOS:-./aos}"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
+source "$ROOT/scripts/aos-content-scope.sh"
+
+AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="canvas-inspector"
 PANEL_W="${AOS_CANVAS_INSPECTOR_W:-320}"
 PANEL_H="${AOS_CANVAS_INSPECTOR_H:-480}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
 
-$AOS set content.roots.toolkit packages/toolkit >/dev/null
-$AOS content wait --root toolkit --auto-start --timeout 15s >/dev/null
+aos_ensure_content_roots_live "$AOS" \
+  "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
 
 # Position flush bottom-right of the main display's visible bounds for operator
 # convenience. This panel placement does not define DesktopWorld.
@@ -40,7 +45,7 @@ $AOS show create --id "$CANVAS_ID" \
   --at "$X,$Y,$PANEL_W,$PANEL_H" \
   --interactive \
   --scope global \
-  --url 'aos://toolkit/components/canvas-inspector/index.html'
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/canvas-inspector/index.html"
 
 $AOS show wait --id "$CANVAS_ID" --manifest canvas-inspector --timeout 5s >/dev/null
 

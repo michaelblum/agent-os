@@ -23,7 +23,7 @@ assert "docs-only" in summary["rule_ids"], summary
 assert summary["requires_swift_build"] is True, summary
 assert summary["tcc_identity_sensitive"] is True, summary
 assert summary["hot_swappable"] is False, summary
-assert any(item["command"] == "./aos dev build --no-restart" for item in summary["commands"]), summary
+assert any(item["command"] == "./aos dev build" for item in summary["commands"]), summary
 assert any(item["command"] == "./aos ready" for item in summary["verification"]), summary
 PY
 then

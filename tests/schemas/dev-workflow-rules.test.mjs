@@ -80,7 +80,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.equal(rules.get('swift-core')?.tcc_identity_sensitive, true);
   assert.equal(
     rules.get('swift-core')?.commands?.[0]?.command,
-    './aos dev build --no-restart',
+    './aos dev build',
   );
   assert.equal(
     rules.get('command-contract-docs')?.commands?.[0]?.command,

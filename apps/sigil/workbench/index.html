@@ -3,12 +3,6 @@
 <head>
 <meta charset="utf-8">
 <title>SIGIL</title>
-<link rel="stylesheet" href="/toolkit/components/_base/theme.css">
-<link rel="stylesheet" href="/toolkit/panel/defaults.css">
-<link rel="stylesheet" href="/toolkit/components/canvas-inspector/styles.css">
-<link rel="stylesheet" href="/toolkit/components/log-console/styles.css">
-<link rel="stylesheet" href="/toolkit/components/integration-hub/styles.css">
-<link rel="stylesheet" href="/toolkit/components/wiki-kb/styles.css">
 <style>
 /* Iframe surfaces — workbench-specific content for Studio + Chat tabs */
 .surface-shell {
@@ -57,13 +51,41 @@
 </head>
 <body>
 <script type="module">
-  import { mountPanel, Tabs } from '/toolkit/panel/index.js'
-  import { evalCanvas, subscribe, wireBridge } from '/toolkit/runtime/index.js'
-  import CanvasInspector from '/toolkit/components/canvas-inspector/index.js'
-  import IntegrationHub from '/toolkit/components/integration-hub/index.js'
-  import LogConsole from '/toolkit/components/log-console/index.js'
-  import WikiKB from '/toolkit/components/wiki-kb/index.js'
-  import { resolveBirthplace } from '/sigil/renderer/birthplace-resolver.js'
+  import { toolkitSpecifier, toolkitUrl, sigilUrl } from '../renderer/live-modules/content-roots.js'
+  import { resolveBirthplace } from '../renderer/birthplace-resolver.js'
+
+  for (const href of [
+    toolkitUrl('components/_base/theme.css'),
+    toolkitUrl('panel/defaults.css'),
+    toolkitUrl('components/canvas-inspector/styles.css'),
+    toolkitUrl('components/log-console/styles.css'),
+    toolkitUrl('components/integration-hub/styles.css'),
+    toolkitUrl('components/wiki-kb/styles.css'),
+  ]) {
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    document.head.append(link)
+  }
+
+  const { mountPanel, Tabs } = await import(toolkitSpecifier('panel/index.js', {
+    local: '../../../packages/toolkit/panel/index.js',
+  }))
+  const { evalCanvas, subscribe, wireBridge } = await import(toolkitSpecifier('runtime/index.js', {
+    local: '../../../packages/toolkit/runtime/index.js',
+  }))
+  const { default: CanvasInspector } = await import(toolkitSpecifier('components/canvas-inspector/index.js', {
+    local: '../../../packages/toolkit/components/canvas-inspector/index.js',
+  }))
+  const { default: IntegrationHub } = await import(toolkitSpecifier('components/integration-hub/index.js', {
+    local: '../../../packages/toolkit/components/integration-hub/index.js',
+  }))
+  const { default: LogConsole } = await import(toolkitSpecifier('components/log-console/index.js', {
+    local: '../../../packages/toolkit/components/log-console/index.js',
+  }))
+  const { default: WikiKB } = await import(toolkitSpecifier('components/wiki-kb/index.js', {
+    local: '../../../packages/toolkit/components/wiki-kb/index.js',
+  }))
 
   const AVATAR_ID = 'avatar-main'
   const workbenchState = {
@@ -314,13 +336,13 @@
     iframeContent({
       name: 'sigil-studio',
       title: 'Studio',
-      src: '/sigil/studio/index.html',
+      src: sigilUrl('studio/index.html'),
       description: 'Roster, geometry, color, effects, agent state.',
     }),
     iframeContent({
       name: 'sigil-chat',
       title: 'Chat',
-      src: '/sigil/chat/index.html',
+      src: sigilUrl('chat/index.html'),
       description: 'Conversation surface.',
     }),
     () => IntegrationHub({ brokerUrl: 'http://127.0.0.1:47231' }),

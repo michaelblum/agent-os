@@ -43,7 +43,7 @@
       "commands": [
         {
           "id": "dev-build",
-          "command": "./aos dev build --no-restart",
+          "command": "./aos dev build",
           "reason": "Swift source changes require a current repo-mode ./aos binary. The dev wrapper preserves the signing/TCC warning surface."
         }
       ],

@@ -8,16 +8,20 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$REPO_ROOT/scripts/aos-content-scope.sh"
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"
 WORKBENCH_ID="${WORKBENCH_ID:-sigil-workbench}"
 AVATAR_ID="${AVATAR_ID:-avatar-main}"
+SIGIL_CONTENT_ROOT="${AOS_SIGIL_CONTENT_ROOT:-$(aos_content_root_key_for sigil "$REPO_ROOT")}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$REPO_ROOT")}"
 
 # --- helpers ----------------------------------------------------------------
 
 ensure_content_roots() {
-  "$AOS" set content.roots.toolkit packages/toolkit >/dev/null
-  "$AOS" set content.roots.sigil apps/sigil >/dev/null
+  aos_ensure_content_roots_live "$AOS" \
+    "$TOOLKIT_CONTENT_ROOT" "$REPO_ROOT/packages/toolkit" \
+    "$SIGIL_CONTENT_ROOT" "$REPO_ROOT/apps/sigil"
 }
 
 # --- geometry ---------------------------------------------------------------
@@ -88,9 +92,9 @@ bootstrap_tabs() {
 main() {
   ensure_content_roots
   "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
-  if ! "$AOS" content wait --root toolkit --root sigil --timeout 10s >/dev/null 2>&1; then
+  if ! "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --root "$SIGIL_CONTENT_ROOT" --timeout 10s >/dev/null 2>&1; then
     echo "The running daemon does not have live toolkit+sigil content roots." >&2
-    echo "Restart the daemon to apply content.roots.toolkit and content.roots.sigil, then rerun launch.sh." >&2
+    echo "Restart the daemon to apply scoped toolkit+sigil roots, then rerun launch.sh." >&2
     return 1
   fi
   "$REPO_ROOT/apps/sigil/sigilctl-seed.sh" --mode "$MODE" >/dev/null
@@ -105,11 +109,11 @@ main() {
   avatar_home="$(echo "$geometry" | tail -1)"
 
   "$AOS" show create --id "$AVATAR_ID" \
-    --url 'aos://sigil/renderer/index.html' --track union >/dev/null
+    --url "aos://$SIGIL_CONTENT_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_CONTENT_ROOT" --track union >/dev/null
 
   "$AOS" show create --id "$WORKBENCH_ID" \
     --at "$frame" --interactive --focus \
-    --url 'aos://sigil/workbench/index.html' >/dev/null
+    --url "aos://$SIGIL_CONTENT_ROOT/workbench/index.html?toolkit-root=$TOOLKIT_CONTENT_ROOT" >/dev/null
 
   "$AOS" show wait --id "$AVATAR_ID" --js 'typeof window.liveJs === "object"' --timeout 5s >/dev/null \
     || { echo "Avatar canvas did not finish mounting." >&2; return 1; }

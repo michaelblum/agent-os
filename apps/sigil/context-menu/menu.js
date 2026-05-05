@@ -1,15 +1,8 @@
-const TOOLKIT_RUNTIME_BASE = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime'
-        : '../../../packages/toolkit/runtime';
+import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
+
+const TOOLKIT_RUNTIME_BASE = toolkitSpecifier('runtime', {
+    local: '../../../packages/toolkit/runtime',
+});
 
 const { createStackMenu } = await import(`${TOOLKIT_RUNTIME_BASE}/stack-menu.js`);
 const { createDesktopWorldInteractionRouter } = await import(`${TOOLKIT_RUNTIME_BASE}/interaction-region.js`);

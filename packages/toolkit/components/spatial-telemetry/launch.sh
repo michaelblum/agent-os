@@ -3,10 +3,15 @@
 
 set -euo pipefail
 
-AOS="${AOS:-./aos}"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
+source "$ROOT/scripts/aos-content-scope.sh"
+
+AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="${AOS_SPATIAL_TELEMETRY_ID:-spatial-telemetry}"
 PANEL_W="${AOS_SPATIAL_TELEMETRY_W:-920}"
 PANEL_H="${AOS_SPATIAL_TELEMETRY_H:-620}"
+TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 
 wait_for_eval() {
   local js="$1"
@@ -28,8 +33,8 @@ raise SystemExit(0 if result in (True, 1, "1", "true") else 1)
   return 1
 }
 
-$AOS set content.roots.toolkit packages/toolkit >/dev/null
-$AOS content wait --root toolkit --auto-start --timeout 15s >/dev/null
+aos_ensure_content_roots_live "$AOS" \
+  "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
 
 DISPLAY_JSON="$($AOS graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
 read -r X Y <<EOF
@@ -55,7 +60,7 @@ $AOS show create --id "$CANVAS_ID" \
   --at "$X,$Y,$PANEL_W,$PANEL_H" \
   --interactive \
   --scope global \
-  --url 'aos://toolkit/components/spatial-telemetry/index.html'
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/spatial-telemetry/index.html"
 
 wait_for_eval 'typeof window.__spatialTelemetryState === "object"' \
   || { echo "FAIL: spatial telemetry canvas did not initialize" >&2; exit 1; }

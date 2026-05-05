@@ -1,45 +1,8 @@
-const TOOLKIT_SURFACE_SPECIFIER = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/interaction-surface.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/interaction-surface.js'
-        : '../../../../packages/toolkit/runtime/interaction-surface.js';
+import { toolkitSpecifier } from './content-roots.js';
 
-const TOOLKIT_SPATIAL_SPECIFIER = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/spatial.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/spatial.js'
-        : '../../../../packages/toolkit/runtime/spatial.js';
-
-const TOOLKIT_SEMANTIC_SPECIFIER = (
-    typeof window !== 'undefined'
-    && typeof location !== 'undefined'
-    && /^https?:$/.test(location.protocol)
-)
-    ? '/toolkit/runtime/semantic-targets.js'
-    : (
-        typeof location !== 'undefined'
-        && location.protocol === 'aos:'
-    )
-        ? 'aos://toolkit/runtime/semantic-targets.js'
-        : '../../../../packages/toolkit/runtime/semantic-targets.js';
-
-const { createInteractionSurface } = await import(TOOLKIT_SURFACE_SPECIFIER);
-const { desktopWorldToNativePoint } = await import(TOOLKIT_SPATIAL_SPECIFIER);
-const { normalizeSemanticTarget } = await import(TOOLKIT_SEMANTIC_SPECIFIER);
+const { createInteractionSurface } = await import(toolkitSpecifier('runtime/interaction-surface.js'));
+const { desktopWorldToNativePoint } = await import(toolkitSpecifier('runtime/spatial.js'));
+const { normalizeSemanticTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js'));
 
 const DEFAULT_TARGET_MIN_SIZE = 56;
 const DEFAULT_FRAME_PADDING = 10;

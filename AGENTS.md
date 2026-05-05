@@ -8,9 +8,9 @@ creating separate workflows.
 
 - Keep this root file limited to repo-wide rules and methods.
 - Put specialized guidance in the nearest subtree-specific markdown file.
-- Prefer provider-neutral docs when adding new instructions. During migration,
-  some subtree-specific details still live in nearby `CLAUDE.md` files; treat
-  those as local detail, not root policy.
+- Prefer provider-neutral docs when adding new instructions. Historical
+  `CLAUDE.md` files are compatibility pointers for tools that still discover
+  that filename; keep subtree-specific detail in nearby `AGENTS.md` files.
 
 ## Repo Model
 
@@ -54,9 +54,10 @@ path change before using the new layer.
 Durable lessons should be recorded at the right boundary instead of scattered as
 session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
 files for local contracts, `tests/README.md` for verification mechanics,
-`docs/recipes/` for reusable SOPs, and `shared/schemas/`, `docs/api/`, or
-`ARCHITECTURE.md` for cross-tool contracts. Prefer measured, provider-neutral
-guidance over reactive warnings. See
+`docs/recipes/` for reusable SOPs, `docs/design/` for provider-neutral plans
+and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
+cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
+warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
 
 ## Design Principle: Primitives First
@@ -136,9 +137,11 @@ design context is archived at
 - Do not default to rebuilding before every test or verification step.
   Rebuild `./aos` only when the work changes Swift sources in `src/` or
   `shared/swift/ipc/`, or when the command/test you are about to run executes
-  `./aos` directly. Use `./aos dev build --no-restart` for repo builds so the
-  signing/TCC implication stays visible; call `bash build.sh` directly only when
-  `./aos` cannot run or you are fixing the build surface itself.
+  `./aos` directly.
+- Use `./aos dev build` for repo `./aos` rebuilds. It is the canonical
+  developer build control surface because it wraps signing-aware `build.sh` and
+  prints the macOS permission/TCC implication. Do not call `bash build.sh`
+  directly unless you are fixing the build surface itself or `./aos` cannot run.
 - Pure Node/TypeScript/package workflows should stay in their local loop unless
   they explicitly depend on a fresh `./aos` binary. Examples: `packages/gateway`
   build/test, `packages/host` test, and pure `node --test` suites under
@@ -159,11 +162,22 @@ design context is archived at
   of trying to fully re-verify it yourself.
 - If display work starts from stale daemons or orphaned canvases, run
   `./aos clean` first and report what was cleaned.
-- Default repo work to `main` unless the user explicitly asks for branch-based
-  work. Temporary worktrees or helper branches are fine when they materially
-  reduce risk or enable parallelism, but they should stay temporary: land the
-  final state back on `main`, then remove the transient worktree/branch refs
-  before handing the repo back.
+- Treat `main` as the integration branch, not the default work surface. For
+  substantive feature, bug, docs, or governance work, create or use a named
+  topic branch/worktree unless the user explicitly asks for direct-on-main
+  editing or the change is a tiny repo-local hygiene fix already in progress on
+  `main`. Keep branch names descriptive and short, such as
+  `codex/supervised-run-harness` or `owner/sigil-visuals`.
+- Worktree sessions share one singleton repo daemon. Do not overwrite canonical
+  `content.roots.toolkit` or `content.roots.sigil` from a topic worktree unless
+  the task explicitly targets canonical main. Use branch-scoped root names from
+  `scripts/aos-content-scope.sh`, pass explicit `toolkit-root`/`sigil-root`
+  query parameters when a surface crosses app/package roots, and prefer launch
+  scripts that preserve sibling root scope.
+- Before creating a branch, inspect the current worktree. If unrelated dirty
+  changes are present, either choose a separate worktree/branch that preserves
+  them or make a scoped path-only commit when the user has asked for the change.
+  Never discard or move user changes just to satisfy branch hygiene.
 - Before treating grep hits, old paths, or old commands as live, check for
   retirement or supersession notes in the nearest subtree docs, active plans,
   and open issues. Retired code can remain in-tree for a while after the live
@@ -195,7 +209,11 @@ source of truth at the interface boundary:
 ## Follow-On Detail
 
 - `ARCHITECTURE.md` for system architecture
+- `docs/api/aos-taxonomy.md` for classifying AOS artifact types and their
+  source-of-truth homes
+- `docs/design/` for provider-neutral plans, specs, notes, and supporting
+  design artifacts
 - nearest subtree markdown file for package or app specifics
 - `docs/recipes/aos-app-accessibility-surfaces.md` for AOS app and toolkit
   accessibility surface contracts
-- today, many of those local files are still named `CLAUDE.md`
+- historical `CLAUDE.md` files remain only as compatibility pointers
