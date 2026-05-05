@@ -147,7 +147,7 @@ of capabilities needed by agent-created canvases and workbenches:
 
 - surface states: normal, minimized, maximized within the current display work
   area, and restored
-- surface geometry: drag, clamp, min/max size, later edge and corner resize
+- surface geometry: drag, clamp, min/max size, and edge/corner resize
 - workbench layout: split panes, draggable divider, min/max pane sizes, and
   pane open/closed docking
 - surface lifecycle: owner-aware close, suspend, resume, restore, and cleanup

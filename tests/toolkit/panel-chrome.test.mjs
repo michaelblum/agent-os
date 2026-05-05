@@ -1,10 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  clampFrameToWorkArea,
   createMaximizeController,
+  createResizeController,
   frameFromWindow,
+  normalizeResizeEdge,
+  resizeFrame,
   syncMaximizeButton,
   wireDrag,
+  wireResize,
   workAreaFromWindow,
 } from '../../packages/toolkit/panel/chrome.js';
 
@@ -14,8 +19,24 @@ class FakeElement extends FakeNode {
   constructor() {
     super();
     this.dataset = {};
+    this.children = [];
+    this.attributes = new Map();
     this.listeners = new Map();
     this.capturedPointers = new Set();
+    this.className = '';
+  }
+
+  appendChild(child) {
+    this.children.push(child);
+    return child;
+  }
+
+  setAttribute(name, value) {
+    this.attributes.set(name, String(value));
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(name);
   }
 
   addEventListener(type, handler) {
@@ -62,6 +83,12 @@ class FakeElement extends FakeNode {
       handler(event);
     }
     return event;
+  }
+}
+
+class FakeDocument {
+  createElement() {
+    return new FakeElement();
   }
 }
 
@@ -139,6 +166,47 @@ test('createMaximizeController toggles work-area frame and restores previous fra
     [40, 70, 500, 360],
   ]);
   assert.deepEqual(states.at(-1), { maximized: false, restoreFrame: null });
+});
+
+test('resize geometry handles edges, corners, constraints, and work-area clamp', () => {
+  assert.equal(normalizeResizeEdge('bottom-right'), 'se');
+  assert.deepEqual(resizeFrame([100, 100, 400, 300], 'se', 50, 60), [100, 100, 450, 360]);
+  assert.deepEqual(resizeFrame([100, 100, 400, 300], 'nw', 80, 40), [180, 140, 320, 260]);
+  assert.deepEqual(resizeFrame([100, 100, 400, 300], 'w', 390, 0, {
+    minWidth: 240,
+  }), [260, 100, 240, 300]);
+  assert.deepEqual(resizeFrame([100, 100, 400, 300], 'e', 1000, 0, {
+    workArea: [0, 0, 800, 600],
+  }), [100, 100, 700, 300]);
+  assert.deepEqual(clampFrameToWorkArea([740, 560, 200, 120], {
+    workArea: [0, 0, 800, 600],
+  }), [600, 480, 200, 120]);
+});
+
+test('createResizeController updates frames from pointer deltas', () => {
+  let frame = [100, 100, 400, 300];
+  const updates = [];
+  const states = [];
+  const controller = createResizeController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 0, 900, 700],
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+      updates.push(nextFrame);
+    },
+    onStateChange(state) {
+      states.push(state);
+    },
+  });
+
+  controller.start('se', { screenX: 10, screenY: 10 });
+  assert.equal(controller.getState().active, true);
+  controller.move({ screenX: 60, screenY: 80 });
+  assert.deepEqual(updates.at(-1), [100, 100, 450, 370]);
+  controller.end();
+
+  assert.equal(controller.getState().active, false);
+  assert.deepEqual(states.map((state) => state.phase), ['start', 'move', 'end']);
 });
 
 test('syncMaximizeButton reports maximize and restore state accessibly', () => {
@@ -256,4 +324,54 @@ test('wireDrag ignores pointerdown events originating from controls', async (t) 
   assert.equal(moves.length, 0);
   assert.equal('dragging' in header.dataset, false);
   assert.equal(emitted.length, 0);
+});
+
+test('wireResize creates edge handles and emits resize lifecycle messages', async (t) => {
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = new FakeDocument();
+  const emitted = [];
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            emitted.push(message);
+          },
+        },
+      },
+    },
+  };
+  t.after(() => {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+  });
+
+  let frame = [100, 100, 400, 300];
+  const panel = new FakeElement();
+  const resize = wireResize(panel, {
+    edges: ['se'],
+    controller: createResizeController({
+      getFrame: () => frame,
+      getWorkArea: () => [0, 0, 900, 700],
+      updateFrame(nextFrame) {
+        frame = nextFrame;
+      },
+    }),
+  });
+
+  assert.equal(resize.handles.length, 1);
+  const handle = resize.handles[0];
+  assert.equal(handle.dataset.edge, 'se');
+  assert.equal(handle.getAttribute('aria-hidden'), 'true');
+
+  handle.dispatch('pointerdown', { pointerId: 11, screenX: 10, screenY: 10 });
+  handle.dispatch('pointermove', { pointerId: 11, screenX: 50, screenY: 60 });
+  assert.deepEqual(frame, [100, 100, 440, 350]);
+  handle.dispatch('pointerup', { pointerId: 11 });
+
+  assert.deepEqual(emitted, [
+    { type: 'resize_start', payload: { edge: 'se' } },
+    { type: 'resize_end', payload: { edge: 'se' } },
+  ]);
 });

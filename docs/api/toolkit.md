@@ -949,13 +949,16 @@ Public entrypoint:
 
 ```js
 import {
+  createResizeController,
   createSplitPane,
   createMaximizeController,
   mountPanel,
   mountChrome,
+  resizeFrame,
   Single,
   SplitPane,
   Tabs,
+  wireResize,
 } from 'aos://toolkit/panel/index.js'
 ```
 
@@ -979,6 +982,8 @@ Options:
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
+| `resizable` | `boolean` | whether to add stock edge/corner resize handles, default `false` |
+| `resize` | `object` | optional resize controller settings such as min/max width and height |
 | `onClose` | `function` | optional close override |
 | `onMinimize` | `function` | optional minimize override |
 | `onMaximize` | `function` | optional maximize/restore override; receives the maximize controller |
@@ -995,6 +1000,7 @@ Returns an object with:
 | `windowControlsEl` | stock lifecycle controls slot element |
 | `contentEl` | content mount element |
 | `maximizeController` | controller when `maximize: true`, otherwise `null` |
+| `resizeController` | controller wrapper when `resizable: true`, otherwise `null` |
 | `setTitle(text)` | update the title slot |
 | `setControls(html)` | replace controls slot contents with HTML |
 
@@ -1008,6 +1014,9 @@ Notes:
 - when maximize is enabled, the stock controller stores the current canvas frame,
   updates the canvas to the current display work area, and restores the stored
   frame on the next toggle
+- when resize is enabled, stock handles emit `resize_start` / `resize_end`,
+  resize through `canvas.update`, and use the same frame/work-area helpers as
+  maximize/restore
 
 ### `mountPanel(options)`
 
@@ -1032,6 +1041,8 @@ Options:
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
+| `resizable` | `boolean` | whether to add stock edge/corner resize handles, default `false` |
+| `resize` | `object` | optional resize controller settings |
 | `container` | `HTMLElement` | mount target, default `document.body` |
 
 ### `createMaximizeController(options?)`
@@ -1062,6 +1073,41 @@ The controller state is:
   restoreFrame: [x, y, width, height]
 }
 ```
+
+### `createResizeController(options?)`
+
+Creates the toolkit-owned edge/corner resize state used by stock panel chrome.
+
+```js
+const controller = createResizeController({
+  minWidth: 320,
+  minHeight: 220,
+})
+controller.resize('se', 24, 16)
+```
+
+Supported edges are `n`, `s`, `e`, `w`, `ne`, `nw`, `se`, and `sw`. The helper
+also accepts common words such as `top`, `left`, and `bottom-right`.
+
+Options:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `getFrame` | `function` | current `[x, y, width, height]`, default current window frame |
+| `getWorkArea` | `function` | current display work area, default `window.screen.avail*` |
+| `updateFrame` | `function` | frame writer, default `canvas.update` |
+| `minWidth` / `minHeight` | `number` | minimum surface size |
+| `maxWidth` / `maxHeight` | `number` | optional maximum surface size |
+| `onStateChange` | `function` | receives resize state snapshots |
+
+`resizeFrame(frame, edge, dx, dy, constraints?)` is the pure geometry helper
+behind the controller. It preserves the opposite edge for north/west resizes,
+enforces min/max dimensions, and clamps to the supplied work area so panel
+chrome remains reachable.
+
+`wireResize(panelEl, options?)` appends stock edge/corner handles to a custom
+panel or workbench shell and returns `{ controller, handles }`. `mountChrome`
+uses this internally when `resizable: true`.
 
 ### `Single(factoryOrContent)`
 
