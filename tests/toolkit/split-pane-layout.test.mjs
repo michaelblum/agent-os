@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clampSplitPaneState,
+  createFixedSidebarPane,
   createSplitPane,
   SplitPane,
 } from '../../packages/toolkit/panel/layouts/split-pane.js';
@@ -359,6 +360,60 @@ test('split pane can collapse sidebars to fixed accordion rails', () => {
   assert.equal(closedStart.closedSize, 44);
   assert.equal(vertical.startPane.hidden, false);
   assert.equal(vertical.divider.hidden, true);
+});
+
+test('fixed sidebar pane presets split constraints and toggle semantics', () => {
+  const documentRef = new FakeDocument();
+  const root = documentRef.createElement('main');
+  const mainPane = documentRef.createElement('section');
+  const sidebarPane = documentRef.createElement('aside');
+  const toggleButton = documentRef.createElement('button');
+  root.appendChild(mainPane);
+  root.appendChild(sidebarPane);
+  root.rect = { left: 0, top: 0, width: 1000, height: 640 };
+
+  const changes = [];
+  const sidebar = createFixedSidebarPane({
+    root,
+    mainPane,
+    sidebarPane,
+    toggleButton,
+    document: documentRef,
+    side: 'end',
+    openSize: 340,
+    closedSize: 42,
+    minMain: 360,
+    dividerSize: 0,
+    onChange(state) {
+      changes.push(state);
+    },
+  });
+
+  assert.equal(root.classList.contains('aos-fixed-sidebar'), true);
+  assert.equal(mainPane.classList.contains('aos-fixed-sidebar-main'), true);
+  assert.equal(sidebarPane.classList.contains('aos-fixed-sidebar-pane'), true);
+  assert.equal(root.dataset.sidebarSide, 'end');
+  assert.equal(root.dataset.sidebarOpen, 'true');
+  assert.equal(toggleButton.getAttribute('aria-label'), 'Collapse sidebar');
+  assert.equal(toggleButton.textContent, '>');
+  assert.equal(sidebar.getState().startSize, 660);
+  assert.equal(sidebar.getState().endSize, 340);
+
+  toggleButton.dispatch('click');
+
+  assert.equal(root.dataset.sidebarOpen, 'false');
+  assert.equal(sidebarPane.dataset.sidebarOpen, 'false');
+  assert.equal(toggleButton.getAttribute('aria-label'), 'Expand sidebar');
+  assert.equal(toggleButton.textContent, '<');
+  assert.equal(sidebar.getState().startSize, 958);
+  assert.equal(sidebar.getState().endSize, 42);
+  assert.equal(sidebar.divider.hidden, true);
+  assert.equal(changes.at(-1).closedPane, 'end');
+
+  sidebar.setSidebarOpen(true);
+  assert.equal(root.dataset.sidebarOpen, 'true');
+  assert.equal(sidebar.getSidebarOpen(), true);
+  assert.equal(sidebar.getState().endSize, 340);
 });
 
 test('SplitPane layout mounts two content factories into start and end panes', async (t) => {

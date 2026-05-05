@@ -54,12 +54,7 @@
     .status.error { background: #ff5f57; }
     .content {
       min-height: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
       background: #050708;
-    }
-    .shell.rail-collapsed .content {
-      grid-template-columns: minmax(0, 1fr) 42px;
     }
     .terminal-wrap {
       min-width: 0;
@@ -126,8 +121,8 @@
       gap: 8px;
       padding: 8px;
     }
-    .shell.rail-collapsed .rail-title,
-    .shell.rail-collapsed .rail-content {
+    .content[data-sidebar-open="false"] .rail-title,
+    .content[data-sidebar-open="false"] .rail-content {
       display: none;
     }
     .new-actions {
@@ -383,7 +378,7 @@
       document.head.append(link);
     }
 
-    const { mountChrome } = await import(toolkitSpecifier('panel/index.js', {
+    const { createFixedSidebarPane, mountChrome } = await import(toolkitSpecifier('panel/index.js', {
       local: '../../../../packages/toolkit/panel/index.js',
     }));
 
@@ -407,6 +402,9 @@
       },
     });
     chrome.contentEl.append(shell);
+    const content = shell.querySelector('.content');
+    const terminalPane = shell.querySelector('.terminal-wrap');
+    const railPane = shell.querySelector('.rail');
 
     const avatarButton = document.createElement('button');
     avatarButton.type = 'button';
@@ -423,6 +421,22 @@
     const providerFilter = document.getElementById('providerFilter');
     const sessionSort = document.getElementById('sessionSort');
     const railToggle = document.getElementById('railToggle');
+    const railController = createFixedSidebarPane({
+      root: content,
+      mainPane: terminalPane,
+      sidebarPane: railPane,
+      toggleButton: railToggle,
+      side: 'end',
+      openSize: 340,
+      closedSize: 42,
+      minMain: 360,
+      dividerSize: 0,
+      expandedLabel: 'Collapse sessions rail',
+      collapsedLabel: 'Expand sessions rail',
+      onChange() {
+        scheduleRefit();
+      },
+    });
     let terminal = null;
     let fitAddon = null;
     let socket = null;
@@ -893,14 +907,6 @@
     });
 
     sessionSort.addEventListener('change', renderSessions);
-
-    railToggle.addEventListener('click', () => {
-      const collapsed = shell.classList.toggle('rail-collapsed');
-      railToggle.textContent = collapsed ? '<' : '>';
-      railToggle.setAttribute('aria-expanded', String(!collapsed));
-      railToggle.setAttribute('aria-label', collapsed ? 'Expand sessions rail' : 'Collapse sessions rail');
-      scheduleRefit();
-    });
 
     avatarButton.addEventListener('click', (event) => {
       event.preventDefault();

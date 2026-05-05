@@ -7,6 +7,7 @@ const html = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', 
 test('Agent Terminal opts into toolkit panel chrome', () => {
   assert.match(html, /import \{ toolkitSpecifier, toolkitUrl \}/)
   assert.match(html, /await import\(toolkitSpecifier\('panel\/index\.js'/)
+  assert.match(html, /createFixedSidebarPane/)
   assert.match(html, /mountChrome\(document\.body/)
   assert.match(html, /draggable:\s*true/)
   assert.match(html, /minimize:\s*true/)
@@ -22,6 +23,18 @@ test('Agent Terminal no longer owns private drag or close controls', () => {
   assert.doesNotMatch(html, /type:\s*'move_abs'/)
   assert.doesNotMatch(html, /addEventListener\('mousemove'/)
   assert.doesNotMatch(html, /addEventListener\('mouseup'/)
+})
+
+test('Agent Terminal sessions rail uses toolkit fixed sidebar behavior', () => {
+  assert.match(html, /createFixedSidebarPane\(\{/)
+  assert.match(html, /root:\s*content/)
+  assert.match(html, /mainPane:\s*terminalPane/)
+  assert.match(html, /sidebarPane:\s*railPane/)
+  assert.match(html, /toggleButton:\s*railToggle/)
+  assert.match(html, /openSize:\s*340/)
+  assert.match(html, /closedSize:\s*42/)
+  assert.doesNotMatch(html, /classList\.toggle\('rail-collapsed'\)/)
+  assert.doesNotMatch(html, /shell\.rail-collapsed/)
 })
 
 test('Agent Terminal keeps avatar-toggle minimize behavior as a toolkit override', () => {

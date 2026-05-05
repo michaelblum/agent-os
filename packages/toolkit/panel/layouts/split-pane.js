@@ -443,6 +443,119 @@ export function createSplitPane({
   }
 }
 
+export function createFixedSidebarPane({
+  root = null,
+  mainPane = null,
+  sidebarPane = null,
+  toggleButton = null,
+  document: documentRef = null,
+  side = 'end',
+  openSize = 340,
+  closedSize = 42,
+  minMain = 320,
+  dividerSize = 0,
+  storageKey = '',
+  storage = null,
+  initiallyOpen = true,
+  ariaLabel = 'Resize main and sidebar panes',
+  expandedLabel = 'Collapse sidebar',
+  collapsedLabel = 'Expand sidebar',
+  expandedText = '>',
+  collapsedText = '<',
+  onChange = null,
+} = {}) {
+  const doc = documentRef || root?.ownerDocument || globalThis.document
+  if (!doc?.createElement) throw new Error('createFixedSidebarPane: document with createElement is required')
+
+  const sidebarSide = side === 'start' ? 'start' : 'end'
+  const rootEl = root || doc.createElement('div')
+  const mainEl = mainPane || doc.createElement('section')
+  const sidebarEl = sidebarPane || doc.createElement('aside')
+  const rootSize = positiveNumber(rootEl.getBoundingClientRect?.().width, 1000)
+  const sidebarOpenSize = positiveNumber(openSize, 340)
+  const sidebarClosedSize = Math.max(0, finiteNumber(closedSize, 42))
+  const mainMin = Math.max(1, finiteNumber(minMain, 320))
+  const initialMainSize = Math.max(mainMin, rootSize - sidebarOpenSize - Math.max(0, finiteNumber(dividerSize, 0)))
+  const initialRatio = sidebarSide === 'start'
+    ? sidebarOpenSize / rootSize
+    : initialMainSize / rootSize
+
+  const split = createSplitPane({
+    root: rootEl,
+    startPane: sidebarSide === 'start' ? sidebarEl : mainEl,
+    endPane: sidebarSide === 'start' ? mainEl : sidebarEl,
+    document: doc,
+    orientation: 'horizontal',
+    initialRatio,
+    storage,
+    storageKey,
+    dividerSize,
+    minStart: sidebarSide === 'start' ? sidebarOpenSize : mainMin,
+    maxStart: sidebarSide === 'start' ? sidebarOpenSize : Infinity,
+    minEnd: sidebarSide === 'start' ? mainMin : sidebarOpenSize,
+    maxEnd: sidebarSide === 'start' ? Infinity : sidebarOpenSize,
+    closedStartSize: sidebarSide === 'start' ? sidebarClosedSize : 0,
+    closedEndSize: sidebarSide === 'end' ? sidebarClosedSize : 0,
+    ariaLabel,
+    onChange(state) {
+      syncSidebarState()
+      onChange?.(state)
+    },
+  })
+
+  addClass(rootEl, 'aos-fixed-sidebar')
+  addClass(sidebarEl, 'aos-fixed-sidebar-pane')
+  addClass(mainEl, 'aos-fixed-sidebar-main')
+  rootEl.dataset.sidebarSide = sidebarSide
+
+  const toggleHandler = () => toggleSidebar()
+  if (toggleButton) {
+    toggleButton.setAttribute('type', toggleButton.getAttribute?.('type') || 'button')
+    toggleButton.addEventListener('click', toggleHandler)
+  }
+
+  function syncSidebarState() {
+    const open = split.isPaneOpen(sidebarSide)
+    rootEl.dataset.sidebarOpen = String(open)
+    sidebarEl.dataset.sidebarOpen = String(open)
+    if (toggleButton) {
+      toggleButton.textContent = open ? expandedText : collapsedText
+      toggleButton.setAttribute('aria-expanded', String(open))
+      toggleButton.setAttribute('aria-label', open ? expandedLabel : collapsedLabel)
+      toggleButton.title = open ? expandedLabel : collapsedLabel
+    }
+    return open
+  }
+
+  function setSidebarOpen(open, options = {}) {
+    const result = open ? split.openPane(sidebarSide, options) : split.closePane(sidebarSide, options)
+    syncSidebarState()
+    return result
+  }
+
+  function toggleSidebar(options = {}) {
+    return setSidebarOpen(!split.isPaneOpen(sidebarSide), options)
+  }
+
+  setSidebarOpen(Boolean(initiallyOpen), { notify: false, persist: false })
+
+  return {
+    ...split,
+    mainPane: mainEl,
+    sidebarPane: sidebarEl,
+    toggleButton,
+    getSidebarOpen() {
+      return split.isPaneOpen(sidebarSide)
+    },
+    setSidebarOpen,
+    toggleSidebar,
+    destroy() {
+      if (toggleButton) toggleButton.removeEventListener?.('click', toggleHandler)
+      split.destroy()
+    },
+  }
+}
+
 export function SplitPane(startFactory, endFactory, options = {}) {
   if (!startFactory || !endFactory) {
     throw new Error('SplitPane: requires start and end content factories')
