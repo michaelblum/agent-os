@@ -949,15 +949,18 @@ Public entrypoint:
 
 ```js
 import {
+  createDragController,
   createResizeController,
   createSplitPane,
   createMaximizeController,
+  dragFrameFromPointer,
   mountPanel,
   mountChrome,
   resizeFrame,
   Single,
   SplitPane,
   Tabs,
+  wireDrag,
   wireResize,
 } from 'aos://toolkit/panel/index.js'
 ```
@@ -979,6 +982,7 @@ Options:
 | --- | --- | --- |
 | `title` | `string` | header title |
 | `draggable` | `boolean` | whether header drag emits absolute move updates plus `drag_start` / `drag_end` lifecycle messages |
+| `drag` | `object` | optional drag controller settings; stock chrome clamps final placement by default |
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
@@ -1000,6 +1004,7 @@ Returns an object with:
 | `windowControlsEl` | stock lifecycle controls slot element |
 | `contentEl` | content mount element |
 | `maximizeController` | controller when `maximize: true`, otherwise `null` |
+| `dragController` | controller when `draggable: true`, otherwise `null` |
 | `resizeController` | controller wrapper when `resizable: true`, otherwise `null` |
 | `setTitle(text)` | update the title slot |
 | `setControls(html)` | replace controls slot contents with HTML |
@@ -1011,6 +1016,9 @@ Notes:
 - when draggable, the stock header emits `drag_start` once on primary-button
   pointerdown, drives window movement through absolute drag updates, then emits
   `drag_end` on pointerup / cancel / lost capture
+- stock chrome clamps final drag placement to the current display work area so
+  titlebars and window controls remain reachable; custom surfaces can call
+  `wireDrag(..., { clampOnEnd: true })` to opt into the same behavior
 - when maximize is enabled, the stock controller stores the current canvas frame,
   updates the canvas to the current display work area, and restores the stored
   frame on the next toggle
@@ -1038,12 +1046,48 @@ Options:
 | `title` | `string` | header title |
 | `layout` | layout object | required |
 | `draggable` | `boolean` | whether the mounted stock header emits absolute drag updates plus `drag_start` / `drag_end` lifecycle messages |
+| `drag` | `object` | optional drag controller settings |
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
 | `resizable` | `boolean` | whether to add stock edge/corner resize handles, default `false` |
 | `resize` | `object` | optional resize controller settings |
 | `container` | `HTMLElement` | mount target, default `document.body` |
+
+### `createDragController(options?)`
+
+Creates the toolkit-owned panel drag state used by stock panel chrome and custom
+workbench titlebars.
+
+```js
+const controller = createDragController({ clampOnEnd: true })
+```
+
+By default the controller sends absolute drag updates through `move_abs`. When
+`clampOnEnd` is true, it reads the current window frame at drag completion,
+clamps it to the current display work area, and writes the corrected frame
+through `canvas.update` only when the panel would otherwise be stranded.
+
+Options:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `move` | `function` | absolute drag writer, default `move_abs` |
+| `getFrame` | `function` | current `[x, y, width, height]`, default current window frame |
+| `getWorkArea` | `function` | current display work area, default `window.screen.avail*` |
+| `updateFrame` | `function` | frame writer for final clamp, default `canvas.update` |
+| `clampOnEnd` | `boolean` | whether to clamp final drag placement, default `false` |
+| `minVisibleWidth` / `minVisibleHeight` | `number` | visible affordance retained when clamping oversized frames |
+| `onStateChange` | `function` | receives drag state snapshots |
+
+`dragFrameFromPointer(pointer, offsetX, offsetY, frame?)` is the pure geometry
+helper for tests and custom hosts.
+
+`wireDrag(headerEl, controlsEl, options?)` wires primary-button titlebar dragging
+to a DOM element. It ignores events originating inside `controlsEl`, emits
+`drag_start` / `drag_end`, returns the drag controller, and accepts
+`onStart` / `onEnd` hooks for custom surfaces such as workbenches that need to
+restore from maximized state before moving.
 
 ### `createMaximizeController(options?)`
 
