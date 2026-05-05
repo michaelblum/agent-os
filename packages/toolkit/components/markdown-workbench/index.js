@@ -208,6 +208,11 @@ export default function MarkdownWorkbench(options = {}) {
 
   function render() {
     const root = el('div', 'markdown-workbench-root');
+    const params = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search || '')
+      : new URLSearchParams();
+    const transition = String(options.transition || params.get('transition') || '').trim();
+    if (transition === 'fade-in') root.dataset.transition = 'fade-in';
     root.innerHTML = `
       <header class="markdown-workbench-toolbar">
         <div class="markdown-workbench-file">

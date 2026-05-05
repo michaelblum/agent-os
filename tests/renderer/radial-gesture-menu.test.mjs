@@ -226,6 +226,29 @@ test('Sigil radial menu reports fast-travel handoff and reentry', () => {
   assert.equal(reentered.snapshot.phase, 'radial')
 })
 
+test('Sigil radial menu commits item when release lands on item after fast-travel handoff', () => {
+  const { menu, commits } = createMenu()
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const wikiItem = started.items.find((item) => item.id === 'wiki-graph')
+
+  const handoff = menu.move({ x: 390, y: 200, valid: true })
+  assert.equal(handoff.enteredFastTravel, true)
+  assert.equal(handoff.snapshot.phase, 'fastTravel')
+
+  const released = menu.release({ ...wikiItem.center, valid: true }, {
+    input: {
+      kind: 'gesture',
+      source: 'sigil.avatar',
+    },
+  })
+  assert.equal(released.phase, 'committed')
+  assert.equal(released.committed.type, 'item')
+  assert.equal(released.committed.itemId, 'wiki-graph')
+  assert.equal(commits.length, 1)
+  assert.equal(commits[0].item.action, 'wikiGraph')
+  assert.deepEqual(commits[0].context.pointer, { ...wikiItem.center, valid: true })
+})
+
 test('Sigil radial menu commits fast travel only outside the handoff radius', () => {
   const { menu, commits } = createMenu()
   menu.start({ x: 0, y: 0, valid: true })

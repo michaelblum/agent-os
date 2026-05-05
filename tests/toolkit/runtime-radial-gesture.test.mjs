@@ -91,6 +91,24 @@ test('release over a radial item commits that item', () => {
   assert.equal(released.lastTransition, 'commit_item')
 })
 
+test('release over a radial item after fast-travel handoff commits that item', () => {
+  const gesture = model()
+  const started = gesture.start({ x: 200, y: 200 })
+  const target = started.items.find((item) => item.id === 'wiki-graph').center
+
+  const handoff = gesture.move({ x: 390, y: 200 })
+  assert.equal(handoff.phase, 'fastTravel')
+  assert.equal(handoff.activeItemId, null)
+
+  const released = gesture.release(target)
+  assert.equal(released.phase, 'committed')
+  assert.deepEqual(
+    { type: released.committed.type, itemId: released.committed.itemId },
+    { type: 'item', itemId: 'wiki-graph' }
+  )
+  assert.equal(released.lastTransition, 'commit_item')
+})
+
 test('radial item pointer metrics classify outward and inward exits', () => {
   const gesture = model()
   const started = gesture.start({ x: 200, y: 200 })

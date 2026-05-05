@@ -1720,6 +1720,37 @@ function updateMaterialHighlight(material, { active, progress }) {
     });
 }
 
+function activationDisplayForItem(activationTransition, itemId) {
+    if (!activationTransition?.item_id) return null;
+    const active = activationTransition.item_id === itemId;
+    if (active) {
+        return {
+            active,
+            opacity: finite(activationTransition.item?.opacity, 1),
+            focusMode: activationTransition.item?.focus?.mode || null,
+            eased: finite(activationTransition.item?.eased, activationTransition.eased),
+        };
+    }
+    return {
+        active,
+        opacity: finite(activationTransition.menu?.opacity, 1),
+        focusMode: null,
+        eased: finite(activationTransition.menu?.eased, activationTransition.eased),
+    };
+}
+
+function applyGlyphDisplayOpacity(glyph, opacity = 1) {
+    const multiplier = clamp01(opacity);
+    if (multiplier >= 0.999) return;
+    glyph.traverse((child) => {
+        forEachMaterial(child.material, (mat) => {
+            if (typeof mat.opacity !== 'number') return;
+            mat.transparent = true;
+            mat.opacity *= multiplier;
+        });
+    });
+}
+
 function setManagedShellOpacity(glyph, opacity, display = 1) {
     const shellOpacity = clamp01(opacity);
     const displayOpacity = clamp01(display);
@@ -1902,10 +1933,12 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         }
     }
 
-    function update(radial, { time = 0 } = {}) {
+    function update(radial, { time = 0, activationTransition = null } = {}) {
         const dt = lastUpdateTime == null ? 1 / 60 : Math.min(0.08, Math.max(0, time - lastUpdateTime));
         lastUpdateTime = time;
-        const visualRadial = radial?.phase === 'radial' || radial?.phase === 'fastTravel' ? radial : null;
+        const transitionRadial = activationTransition?.radial || null;
+        const radialSource = transitionRadial || radial;
+        const visualRadial = radialSource?.phase === 'radial' || radialSource?.phase === 'fastTravel' ? radialSource : null;
         const activeRadial = radial?.phase === 'radial' ? radial : null;
         if (visualRadial) lastRadial = visualRadial;
         const source = visualRadial || lastRadial;
@@ -1951,7 +1984,17 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             const sceneRadius = projectRadius?.(item.center, itemRadius) ?? 0.24;
             const baseRadius = finite(glyph.userData.baseRadius, 0.25);
             const radiusScale = finite(item.geometry?.radiusScale ?? item.radiusScale, 1);
-            const targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (1 + hoverProgress * 0.08) * progress;
+            let targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (1 + hoverProgress * 0.08) * progress;
+            const activationDisplay = activationDisplayForItem(activationTransition, item.id || 'item');
+            if (activationDisplay?.active && activationDisplay.focusMode === 'fill-camera') {
+                const viewportWidth = finite(globalThis.window?.innerWidth, 800);
+                const viewportHeight = finite(globalThis.window?.innerHeight, 600);
+                const fillRadius = projectRadius?.(item.center, Math.min(viewportWidth, viewportHeight) * 0.56);
+                const fillMultiplier = Number.isFinite(fillRadius) && sceneRadius > 0
+                    ? Math.max(1, fillRadius / Math.max(0.001, sceneRadius))
+                    : 1;
+                targetScale *= 1 + ((fillMultiplier - 1) * clamp01(activationDisplay.eased));
+            }
             glyph.scale.setScalar(targetScale);
             applyRadialItemModelConfig(glyph);
             const effectState = updateRadialEffect(glyph, item, {
@@ -1983,13 +2026,23 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             glyph.rotation.x = nativeGeometry ? hoverProgress * 0.12 : 0.08 + (hoverProgress * 0.04);
             glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + glyph.userData.hoverSpin;
             glyph.rotation.z = hoverProgress * 0.055;
+            if (activationDisplay) {
+                applyGlyphDisplayOpacity(glyph, activationDisplay.opacity);
+            }
         }
 
         lastState = {
             visible: true,
             count: items.length,
             itemIds: [...glyphs.keys()],
-            activeItemId: activeRadial ? (source.activeItemId || null) : null,
+            activeItemId: activeRadial || activationTransition ? (source.activeItemId || null) : null,
+            activationTransition: activationTransition ? {
+                activation_id: activationTransition.activation_id,
+                item_id: activationTransition.item_id,
+                preset: activationTransition.preset,
+                progress: activationTransition.progress,
+                completed: activationTransition.completed,
+            } : null,
             scales,
             geometry,
             effects,

@@ -8,6 +8,22 @@
   background: rgba(9, 11, 16, 0.96);
 }
 
+.markdown-workbench-root[data-transition="fade-in"] {
+  animation: markdown-workbench-fade-in 260ms ease-out both;
+}
+
+@keyframes markdown-workbench-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
 .markdown-workbench-toolbar {
   flex: 0 0 auto;
   display: flex;
