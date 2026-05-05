@@ -20,6 +20,17 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-type-toolbar',
     '--aos-type-title',
     '--aos-type-window-control',
+    '--aos-panel-bg',
+    '--aos-panel-header-bg',
+    '--aos-panel-border',
+    '--aos-panel-border-subtle',
+    '--aos-panel-radius',
+    '--aos-panel-shadow',
+    '--aos-panel-titlebar-min-height',
+    '--aos-panel-titlebar-padding',
+    '--aos-panel-titlebar-gap',
+    '--aos-panel-control-gap',
+    '--aos-panel-grip-color',
     '--aos-control-height',
     '--aos-control-padding',
     '--aos-control-gap',
@@ -29,12 +40,18 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-focus-ring',
     '--aos-icon-button-size',
     '--aos-window-button-size',
+    '--aos-window-button-border',
+    '--aos-window-button-bg',
+    '--aos-window-button-color',
   ]) {
     assert.match(theme, new RegExp(`${token}\\s*:`), `${token} should be part of the public theme contract`);
   }
 
   assert.match(theme, /--font-ui:\s*var\(--aos-font-ui\)/);
   assert.match(theme, /--font-mono:\s*var\(--aos-font-mono\)/);
+  assert.match(theme, /--bg-panel:\s*var\(--aos-panel-bg\)/);
+  assert.match(theme, /--border-panel:\s*var\(--aos-panel-border\)/);
+  assert.match(theme, /--radius-panel:\s*var\(--aos-panel-radius\)/);
 });
 
 test('workbench toolbar defaults do not restyle protected button primitives', async () => {
@@ -54,7 +71,10 @@ test('window button primitive owns its own alignment contract', async () => {
 
   assert.match(rule, /display:\s*grid/);
   assert.match(rule, /place-items:\s*center/);
+  assert.match(rule, /width:\s*var\(--aos-window-button-size/);
   assert.match(rule, /padding:\s*0/);
+  assert.match(rule, /border:\s*var\(--aos-window-button-border/);
+  assert.match(rule, /background:\s*var\(--aos-window-button-bg/);
   assert.match(rule, /font:\s*var\(--aos-type-window-control/);
   assert.match(rule, /line-height:\s*1/);
 });
@@ -69,4 +89,18 @@ test('control defaults consume theme tokens instead of private constants', async
   assert.match(controlsCss, /background:\s*var\(--aos-control-bg/);
   assert.match(controlsCss, /width:\s*var\(--aos-icon-button-size/);
   assert.match(controlsCss, /outline:\s*var\(--aos-focus-ring/);
+});
+
+test('workbench shell consumes shared panel chrome tokens', async () => {
+  const workbenchCss = await repoText('packages/toolkit/workbench/defaults.css');
+
+  assert.match(workbenchCss, /border:\s*1px solid var\(--border-panel/);
+  assert.match(workbenchCss, /border-radius:\s*var\(--radius-panel/);
+  assert.match(workbenchCss, /background:\s*var\(--bg-panel/);
+  assert.match(workbenchCss, /box-shadow:\s*var\(--shadow-panel/);
+  assert.match(workbenchCss, /min-height:\s*var\(--aos-panel-titlebar-min-height/);
+  assert.match(workbenchCss, /padding:\s*var\(--aos-panel-titlebar-padding/);
+  assert.match(workbenchCss, /gap:\s*var\(--aos-panel-titlebar-gap/);
+  assert.match(workbenchCss, /border-block:\s*2px solid var\(--aos-panel-grip-color/);
+  assert.doesNotMatch(workbenchCss, /\.aos-workbench-shell\s*\{[\s\S]*?box-shadow:\s*0 18px 46px/);
 });

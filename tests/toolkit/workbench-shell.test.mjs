@@ -28,7 +28,8 @@ test('workbench defaults define shell, toolbar, and pane primitives', async () =
   }
   assert.match(panelChrome, /aos-panel-grip/);
   assert.match(panelCss, /\.aos-panel-grip\s*\{/);
-  assert.match(themeCss, /--bg-panel:\s*rgba\(5,\s*10,\s*14,\s*0\.96\)/);
+  assert.match(themeCss, /--aos-panel-bg:\s*rgba\(5,\s*10,\s*14,\s*0\.96\)/);
+  assert.match(themeCss, /--bg-panel:\s*var\(--aos-panel-bg\)/);
   assert.match(themeCss, /--accent-blue:\s*#7af1ff/);
 });
 
