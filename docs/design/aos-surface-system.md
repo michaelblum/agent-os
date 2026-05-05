@@ -141,9 +141,8 @@ The temporary outline can initially be a short-lived canvas. Later it can become
 a layer on the desktop-world stage.
 
 Current implementation status: toolkit panel chrome and the Sigil radial item
-workbench use `wireDrag(..., { clampOnEnd: true })` for final single-display
-placement recovery. Cross-display destination outlines remain the next transfer
-affordance slice.
+workbench use `wireDrag(..., { clampOnEnd: true, transfer: true })` for final
+single-display placement recovery and cross-display destination outlines.
 
 The first shared DesktopWorld visual stage now lives at
 `aos://toolkit/components/desktop-world-stage/index.html`. It is a

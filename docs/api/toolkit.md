@@ -972,6 +972,7 @@ Public entrypoint:
 ```js
 import {
   createDragController,
+  createPanelTransferController,
   createResizeController,
   createSplitPane,
   createMaximizeController,
@@ -983,6 +984,7 @@ import {
   SplitPane,
   Tabs,
   wireDrag,
+  wirePanelTransferDisplayGeometry,
   wireResize,
 } from 'aos://toolkit/panel/index.js'
 ```
@@ -1004,7 +1006,7 @@ Options:
 | --- | --- | --- |
 | `title` | `string` | header title |
 | `draggable` | `boolean` | whether header drag emits absolute move updates plus `drag_start` / `drag_end` lifecycle messages |
-| `drag` | `object` | optional drag controller settings; stock chrome clamps final placement by default |
+| `drag` | `object` | optional drag controller settings; stock chrome clamps final placement and enables cross-display transfer by default |
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
@@ -1040,7 +1042,8 @@ Notes:
   `drag_end` on pointerup / cancel / lost capture
 - stock chrome clamps final drag placement to the current display work area so
   titlebars and window controls remain reachable; custom surfaces can call
-  `wireDrag(..., { clampOnEnd: true })` to opt into the same behavior
+  `wireDrag(..., { clampOnEnd: true, transfer: true })` to opt into the same
+  cross-display behavior
 - when maximize is enabled, the stock controller stores the current canvas frame,
   updates the canvas to the current display work area, and restores the stored
   frame on the next toggle
@@ -1107,9 +1110,20 @@ helper for tests and custom hosts.
 
 `wireDrag(headerEl, controlsEl, options?)` wires primary-button titlebar dragging
 to a DOM element. It ignores events originating inside `controlsEl`, emits
-`drag_start` / `drag_end`, returns the drag controller, and accepts
-`onStart` / `onEnd` hooks for custom surfaces such as workbenches that need to
-restore from maximized state before moving.
+`drag_start` / `drag_end`, returns the drag controller, and accepts `onStart` /
+`onEnd` hooks for custom surfaces such as workbenches that need to restore from
+maximized state before moving. When `transfer: true`, the controller subscribes
+to `display_geometry`, sends destination-outline layers to the shared
+DesktopWorld stage, reports `state.transferActive` while that outline is active,
+and on release moves the panel to the destination outline frame. Stock panel and
+workbench styles dim the origin surface to `0.75` opacity during transfer. The
+stage is best-effort: if it is not running, release placement still uses the
+computed destination display frame.
+
+`createPanelTransferController(options?)` is the lower-level transfer state
+machine used by `createDragController`. It computes destination display outlines
+from daemon display geometry and sends `desktop_world_stage.layer.upsert/remove`
+messages to the shared stage.
 
 ### `createMaximizeController(options?)`
 
