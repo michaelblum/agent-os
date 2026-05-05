@@ -48,12 +48,23 @@ private struct DevWorkflowStep: Decodable {
     let reason: String
 }
 
+private enum DevWorkflowManifestReadResult {
+    case success(DevWorkflowManifest)
+    case failure(String)
+}
+
 private struct DevOptions {
     var json = false
     var repo: String?
     var base: String?
     var manifest: String?
     var files: [String] = []
+}
+
+private struct DevAuditOptions {
+    var json = false
+    var repo: String?
+    var manifest: String?
 }
 
 private struct DevClassifiedFile {
@@ -80,6 +91,34 @@ private struct DevAggregatedStep {
     }
 }
 
+private struct DevAuditClaim {
+    let id: String
+    let claim: String
+    let status: String
+    let expected: String
+    let observed: String
+    let evidence: [String]
+    let next: String?
+
+    func toJSON() -> [String: Any] {
+        var out: [String: Any] = [
+            "id": id,
+            "claim": claim,
+            "status": status,
+            "expected": expected,
+            "observed": observed,
+            "evidence": evidence,
+        ]
+        if let next, !next.isEmpty {
+            out["next"] = next
+        }
+        return out
+    }
+}
+
+private let devWorkflowDefaultManifestRelativePath = "docs/dev/workflow-rules.json"
+private let devWorkflowRuleID = "dev-workflow-manifest"
+
 func devCommand(args: [String]) {
     guard let sub = args.first else {
         printCommandHelp(["dev"], json: false)
@@ -104,6 +143,8 @@ func devCommand(args: [String]) {
         devRecommendCommand(args: subArgs)
     case "build":
         devBuildCommand(args: subArgs)
+    case "audit":
+        devAuditCommand(args: subArgs)
     default:
         exitError("Unknown dev subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -128,6 +169,20 @@ private func devRecommendCommand(args: [String]) {
     } else {
         printDevRecommendationText(result)
     }
+}
+
+private func devAuditCommand(args: [String]) {
+    let options = parseDevAuditOptions(args)
+    let result = buildDevAudit(options: options)
+    if options.json {
+        printDevJSON(result)
+    } else {
+        printDevAuditText(result)
+    }
+
+    let summary = result["summary"] as? [String: Any] ?? [:]
+    let failed = summary["failed"] as? Int ?? 0
+    exit(failed == 0 ? 0 : 1)
 }
 
 private func devBuildCommand(args: [String]) {
@@ -272,6 +327,34 @@ private func parseDevOptions(_ args: [String]) -> DevOptions {
     return options
 }
 
+private func parseDevAuditOptions(_ args: [String]) -> DevAuditOptions {
+    var options = DevAuditOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--manifest":
+            guard i + 1 < args.count else {
+                exitError("--manifest requires a path", code: "MISSING_ARG")
+            }
+            options.manifest = args[i + 1]
+            i += 2
+        default:
+            exitError("Unknown dev audit flag: \(arg)", code: "UNKNOWN_FLAG")
+        }
+    }
+    return options
+}
+
 private func buildDevClassification(options: DevOptions) -> [String: Any] {
     let repoRoot = resolveRepoRoot(options.repo)
     let manifestPath = resolveManifestPath(options.manifest, repoRoot: repoRoot)
@@ -279,16 +362,7 @@ private func buildDevClassification(options: DevOptions) -> [String: Any] {
     let changed = resolveChangedFiles(options: options, repoRoot: repoRoot)
     let files = uniquePreservingOrder(changed.files.map { normalizeRepoRelativePath($0, repoRoot: repoRoot) })
         .filter { !$0.isEmpty }
-
-    let classified = files.map { path -> DevClassifiedFile in
-        let matches = manifest.rules.filter { rule in
-            rule.patterns.contains { globMatches(pattern: $0, path: path) }
-        }
-        if matches.isEmpty, let fallback = manifest.fallback {
-            return DevClassifiedFile(path: path, rules: [fallback])
-        }
-        return DevClassifiedFile(path: path, rules: matches)
-    }
+    let classified = classifyDevFiles(files, manifest: manifest, repoRoot: repoRoot)
 
     let aggregate = aggregateDevWorkflow(classified)
     return [
@@ -311,7 +385,7 @@ private func buildDevRecommendation(from classification: [String: Any]) -> [Stri
 
     return [
         "status": "success",
-        "manifest": classification["manifest"] ?? "docs/dev/workflow-rules.json",
+        "manifest": classification["manifest"] ?? devWorkflowDefaultManifestRelativePath,
         "repo": classification["repo"] ?? FileManager.default.currentDirectoryPath,
         "diff_base": classification["diff_base"] ?? NSNull(),
         "changed_files": classification["changed_files"] ?? [],
@@ -319,6 +393,100 @@ private func buildDevRecommendation(from classification: [String: Any]) -> [Stri
         "verification": verification,
         "notes": notes,
         "summary": summary,
+    ]
+}
+
+private func buildDevAudit(options: DevAuditOptions) -> [String: Any] {
+    let repoRoot = resolveRepoRoot(options.repo)
+    let defaultManifestPath = resolveManifestPath(nil, repoRoot: repoRoot)
+    let selectedManifestPath = resolveManifestPath(options.manifest, repoRoot: repoRoot)
+    let selectedManifestRelative = normalizeRepoRelativePath(selectedManifestPath, repoRoot: repoRoot)
+
+    var claims: [DevAuditClaim] = []
+
+    let defaultManifestRelative = normalizeRepoRelativePath(defaultManifestPath, repoRoot: repoRoot)
+    claims.append(auditClaim(
+        id: "dev-default-manifest-path",
+        claim: "The dev workflow router default manifest path is canonical.",
+        passed: defaultManifestRelative == devWorkflowDefaultManifestRelativePath,
+        expected: devWorkflowDefaultManifestRelativePath,
+        observed: defaultManifestRelative,
+        evidence: ["src/commands/dev.swift:resolveManifestPath"],
+        next: "Update resolveManifestPath to use \(devWorkflowDefaultManifestRelativePath)."))
+
+    let manifestExists = FileManager.default.fileExists(atPath: selectedManifestPath)
+    claims.append(auditClaim(
+        id: "dev-manifest-readable",
+        claim: "The selected dev workflow manifest exists on disk.",
+        passed: manifestExists,
+        expected: "exists=true at \(selectedManifestRelative)",
+        observed: "exists=\(manifestExists)",
+        evidence: [selectedManifestRelative],
+        next: "Restore the manifest or pass --manifest <path> to a valid rules file."))
+
+    let manifestResult = readDevWorkflowManifest(path: selectedManifestPath)
+    let manifest: DevWorkflowManifest?
+    switch manifestResult {
+    case .success(let decoded):
+        manifest = decoded
+        claims.append(auditClaim(
+            id: "dev-manifest-decodes",
+            claim: "The selected dev workflow manifest decodes as schema version 1.",
+            passed: decoded.schemaVersion == 1,
+            expected: "schema_version=1",
+            observed: "schema_version=\(decoded.schemaVersion)",
+            evidence: [selectedManifestRelative, "shared/schemas/dev-workflow-rules.schema.json"],
+            next: "Run node --test tests/schemas/dev-workflow-rules.test.mjs."))
+    case .failure(let error):
+        manifest = nil
+        claims.append(auditClaim(
+            id: "dev-manifest-decodes",
+            claim: "The selected dev workflow manifest decodes as schema version 1.",
+            passed: false,
+            expected: "valid schema_version=1 manifest",
+            observed: error,
+            evidence: [selectedManifestRelative, "shared/schemas/dev-workflow-rules.schema.json"],
+            next: "Run node --test tests/schemas/dev-workflow-rules.test.mjs."))
+    }
+
+    claims.append(contentsOf: auditCommandRegistryClaims())
+
+    if let manifest {
+        claims.append(contentsOf: auditDevWorkflowManifestClaims(manifest))
+        claims.append(contentsOf: auditExplicitRecommendationClaims(manifest: manifest, repoRoot: repoRoot))
+    } else {
+        claims.append(auditClaim(
+            id: "dev-workflow-self-routes",
+            claim: "The dev workflow manifest routes its own command, registry, and tests.",
+            passed: false,
+            expected: "decoded manifest with \(devWorkflowRuleID) rule",
+            observed: "manifest did not decode",
+            evidence: [selectedManifestRelative],
+            next: "Fix the manifest before trusting dev workflow routing."))
+        claims.append(auditClaim(
+            id: "dev-recommend-explicit-files",
+            claim: "The router can classify explicit docs-only file input without runtime work.",
+            passed: false,
+            expected: "docs-only route with no commands or verification",
+            observed: "manifest did not decode",
+            evidence: [selectedManifestRelative],
+            next: "Fix the manifest before trusting dev recommend."))
+    }
+
+    let passed = claims.filter { $0.status == "passed" }.count
+    let failed = claims.count - passed
+    return [
+        "status": failed == 0 ? "success" : "failed",
+        "subject": "dev-grammar",
+        "repo": repoRoot,
+        "manifest": selectedManifestRelative,
+        "claims": claims.map { $0.toJSON() },
+        "summary": [
+            "total": claims.count,
+            "passed": passed,
+            "failed": failed,
+        ],
+        "next": failed == 0 ? "No dev grammar repair needed." : "./aos dev build --force --no-restart && bash tests/dev-audit.sh",
     ]
 }
 
@@ -405,17 +573,224 @@ private func resolveManifestPath(_ requested: String?, repoRoot: String) -> Stri
         }
         return NSString(string: (repoRoot as NSString).appendingPathComponent(expanded)).standardizingPath
     }
-    return (repoRoot as NSString).appendingPathComponent("docs/dev/workflow-rules.json")
+    return (repoRoot as NSString).appendingPathComponent(devWorkflowDefaultManifestRelativePath)
 }
 
 private func loadDevWorkflowManifest(path: String) -> DevWorkflowManifest {
+    switch readDevWorkflowManifest(path: path) {
+    case .success(let manifest):
+        return manifest
+    case .failure(let error):
+        if error.hasPrefix("missing:") {
+            exitError("Missing dev workflow manifest: \(path)", code: "MISSING_MANIFEST")
+        }
+        exitError("Invalid dev workflow manifest \(path): \(error)", code: "INVALID_MANIFEST")
+    }
+}
+
+private func readDevWorkflowManifest(path: String) -> DevWorkflowManifestReadResult {
     guard let data = FileManager.default.contents(atPath: path) else {
-        exitError("Missing dev workflow manifest: \(path)", code: "MISSING_MANIFEST")
+        return .failure("missing: \(path)")
     }
     do {
-        return try JSONDecoder().decode(DevWorkflowManifest.self, from: data)
+        return .success(try JSONDecoder().decode(DevWorkflowManifest.self, from: data))
     } catch {
-        exitError("Invalid dev workflow manifest \(path): \(error)", code: "INVALID_MANIFEST")
+        return .failure("\(error)")
+    }
+}
+
+private func auditCommandRegistryClaims() -> [DevAuditClaim] {
+    guard let dev = findCommand(path: ["dev"]) else {
+        return [auditClaim(
+            id: "dev-help-registry-present",
+            claim: "The command registry exposes the dev command.",
+            passed: false,
+            expected: "command path dev",
+            observed: "missing",
+            evidence: ["src/shared/command-registry-data.swift"],
+            next: "Register the dev command before trusting parser/help alignment.")]
+    }
+
+    var claims: [DevAuditClaim] = []
+    let forms = Dictionary(uniqueKeysWithValues: dev.forms.map { ($0.id, $0) })
+    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-audit"]
+    let observedForms = dev.forms.map { $0.id }.sorted()
+    claims.append(auditClaim(
+        id: "dev-help-forms",
+        claim: "Help registry exposes the complete dev command surface.",
+        passed: Set(expectedForms).isSubset(of: Set(observedForms)),
+        expected: expectedForms.sorted().joined(separator: ","),
+        observed: observedForms.joined(separator: ","),
+        evidence: ["src/shared/command-registry-data.swift", "./aos help dev --json"],
+        next: "Add the missing dev InvocationForm so agents can discover the command."))
+
+    let workflowFlags = ["--paths", "--files", "--manifest", "--base", "--repo", "--json"]
+    claims.append(auditFormFlagClaim(
+        id: "dev-classify-help-flags",
+        form: forms["dev-classify"],
+        expectedFlags: workflowFlags,
+        defaultManifestRequired: true))
+    claims.append(auditFormFlagClaim(
+        id: "dev-recommend-help-flags",
+        form: forms["dev-recommend"],
+        expectedFlags: workflowFlags,
+        defaultManifestRequired: true))
+    claims.append(auditFormFlagClaim(
+        id: "dev-audit-help-flags",
+        form: forms["dev-audit"],
+        expectedFlags: ["--manifest", "--repo", "--json"],
+        defaultManifestRequired: true))
+    return claims
+}
+
+private func auditFormFlagClaim(
+    id: String,
+    form: InvocationForm?,
+    expectedFlags: [String],
+    defaultManifestRequired: Bool
+) -> DevAuditClaim {
+    guard let form else {
+        return auditClaim(
+            id: id,
+            claim: "The help registry exposes required flags for \(id).",
+            passed: false,
+            expected: expectedFlags.joined(separator: ","),
+            observed: "missing form",
+            evidence: ["src/shared/command-registry-data.swift"],
+            next: "Restore the missing help form.")
+    }
+
+    let tokens = Set(form.args.compactMap { $0.token })
+    let hasFlags = Set(expectedFlags).isSubset(of: tokens)
+    let manifestDefault = form.args.first { $0.token == "--manifest" }?.defaultValue?.toJSON() as? String
+    let hasManifestDefault = !defaultManifestRequired || manifestDefault == devWorkflowDefaultManifestRelativePath
+    let observed = Array(tokens).sorted().joined(separator: ",")
+        + "; manifest_default=\(manifestDefault ?? "nil")"
+    return auditClaim(
+        id: id,
+        claim: "The help registry exposes required flags and defaults for \(form.id).",
+        passed: hasFlags && hasManifestDefault,
+        expected: expectedFlags.sorted().joined(separator: ",")
+            + (defaultManifestRequired ? "; manifest_default=\(devWorkflowDefaultManifestRelativePath)" : ""),
+        observed: observed,
+        evidence: ["src/shared/command-registry-data.swift", "./aos help dev --json"],
+        next: "Align InvocationForm args with the parser in src/commands/dev.swift.")
+}
+
+private func auditDevWorkflowManifestClaims(_ manifest: DevWorkflowManifest) -> [DevAuditClaim] {
+    guard let rule = manifest.rules.first(where: { $0.id == devWorkflowRuleID }) else {
+        return [auditClaim(
+            id: "dev-workflow-self-routes",
+            claim: "The dev workflow manifest routes its own command, registry, and tests.",
+            passed: false,
+            expected: devWorkflowRuleID,
+            observed: "missing",
+            evidence: [devWorkflowDefaultManifestRelativePath],
+            next: "Add a \(devWorkflowRuleID) rule to the workflow manifest.")]
+    }
+
+    let expectedPatterns = [
+        "docs/dev/workflow-rules.json",
+        "src/commands/dev.swift",
+        "src/shared/command-registry-data.swift",
+        "tests/dev-workflow-router.sh",
+        "tests/dev-audit.sh",
+        "tests/schemas/dev-workflow-rules.test.mjs",
+    ]
+    let observedPatterns = Set(rule.patterns)
+    let expectedCommands = [
+        "node --test tests/schemas/dev-workflow-rules.test.mjs",
+        "bash tests/dev-workflow-router.sh",
+        "bash tests/dev-audit.sh",
+    ]
+    let observedCommands = Set((rule.commands ?? []).map { $0.command })
+
+    return [
+        auditClaim(
+            id: "dev-workflow-self-routes",
+            claim: "The dev workflow manifest routes its own command, registry, and tests.",
+            passed: Set(expectedPatterns).isSubset(of: observedPatterns),
+            expected: expectedPatterns.sorted().joined(separator: ","),
+            observed: Array(observedPatterns).sorted().joined(separator: ","),
+            evidence: [devWorkflowDefaultManifestRelativePath],
+            next: "Add missing dev workflow source/test patterns to \(devWorkflowDefaultManifestRelativePath)."),
+        auditClaim(
+            id: "dev-workflow-self-verifies",
+            claim: "The dev workflow rule recommends schema, router, and audit verification.",
+            passed: Set(expectedCommands).isSubset(of: observedCommands),
+            expected: expectedCommands.sorted().joined(separator: ","),
+            observed: Array(observedCommands).sorted().joined(separator: ","),
+            evidence: [devWorkflowDefaultManifestRelativePath],
+            next: "Add missing verification commands to the \(devWorkflowRuleID) rule.")
+    ]
+}
+
+private func auditExplicitRecommendationClaims(manifest: DevWorkflowManifest, repoRoot: String) -> [DevAuditClaim] {
+    let classified = classifyDevFiles(["docs/recipes/example.md"], manifest: manifest, repoRoot: repoRoot)
+    let summary = aggregateDevWorkflow(classified)
+    let ruleIDs = summary["rule_ids"] as? [String] ?? []
+    let commands = summary["commands"] as? [[String: Any]] ?? []
+    let verification = summary["verification"] as? [[String: Any]] ?? []
+    let passed = ruleIDs == ["docs-only"] && commands.isEmpty && verification.isEmpty
+    return [auditClaim(
+        id: "dev-recommend-explicit-files",
+        claim: "The router can classify explicit docs-only file input without runtime work.",
+        passed: passed,
+        expected: "rule_ids=docs-only; commands=0; verification=0",
+        observed: "rule_ids=\(ruleIDs.joined(separator: ",")); commands=\(commands.count); verification=\(verification.count)",
+        evidence: ["./aos dev recommend --json --files docs/recipes/example.md"],
+        next: "Fix dev workflow matching so explicit file input does not trigger unrelated runtime loops.")]
+}
+
+private func classifyDevFiles(_ files: [String], manifest: DevWorkflowManifest, repoRoot: String) -> [DevClassifiedFile] {
+    return uniquePreservingOrder(files.map { normalizeRepoRelativePath($0, repoRoot: repoRoot) })
+        .filter { !$0.isEmpty }
+        .map { path -> DevClassifiedFile in
+            let matches = manifest.rules.filter { rule in
+                rule.patterns.contains { globMatches(pattern: $0, path: path) }
+            }
+            if matches.isEmpty, let fallback = manifest.fallback {
+                return DevClassifiedFile(path: path, rules: [fallback])
+            }
+            return DevClassifiedFile(path: path, rules: matches)
+        }
+}
+
+private func auditClaim(
+    id: String,
+    claim: String,
+    passed: Bool,
+    expected: String,
+    observed: String,
+    evidence: [String],
+    next: String?
+) -> DevAuditClaim {
+    DevAuditClaim(
+        id: id,
+        claim: claim,
+        status: passed ? "passed" : "failed",
+        expected: expected,
+        observed: observed,
+        evidence: evidence,
+        next: passed ? nil : next)
+}
+
+private func printDevAuditText(_ payload: [String: Any]) {
+    let status = payload["status"] as? String ?? "unknown"
+    let summary = payload["summary"] as? [String: Any] ?? [:]
+    let failed = summary["failed"] as? Int ?? 0
+    print("dev audit: \(status)")
+    for claim in payload["claims"] as? [[String: Any]] ?? [] {
+        let marker = (claim["status"] as? String) == "passed" ? "PASS" : "FAIL"
+        let id = claim["id"] as? String ?? "unknown"
+        let text = claim["claim"] as? String ?? ""
+        print("\(marker) \(id) - \(text)")
+        if marker == "FAIL", let next = claim["next"] as? String {
+            print("  Next: \(next)")
+        }
+    }
+    if failed > 0, let next = payload["next"] as? String {
+        print("Next: \(next)")
     }
 }
 

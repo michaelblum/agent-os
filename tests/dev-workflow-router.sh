@@ -107,12 +107,16 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-audit"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
-assert "--paths" in tokens, tokens
+assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
+recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
+assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= recommend_tokens, recommend_tokens
+audit_tokens = {arg.get("token") for arg in forms["dev-audit"]["args"]}
+assert {"--manifest", "--repo", "--json"} <= audit_tokens, audit_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build"
+    pass "dev help exposes classify/recommend/build/audit"
 else
     fail "dev help missing workflow router forms"
 fi
