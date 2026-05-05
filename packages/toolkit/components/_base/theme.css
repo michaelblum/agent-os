@@ -26,7 +26,15 @@
   --aos-type-title: 680 var(--aos-type-title-size) / var(--aos-type-title-line) var(--aos-font-ui);
   --aos-type-window-control: 700 13px / 1 var(--aos-font-ui);
   --aos-control-height: 30px;
+  --aos-control-padding: 4px 9px;
+  --aos-control-gap: 7px;
   --aos-control-radius: 7px;
+  --aos-control-border: 1px solid rgba(122, 241, 255, 0.26);
+  --aos-control-border-hover: rgba(122, 241, 255, 0.48);
+  --aos-control-bg: rgba(4, 14, 18, 0.78);
+  --aos-control-bg-hover: rgba(16, 38, 46, 0.82);
+  --aos-focus-ring: 2px solid rgba(122, 241, 255, 0.68);
+  --aos-icon-button-size: 31px;
   --aos-window-button-size: 28px;
   --bg-panel: rgba(5, 10, 14, 0.96);
   --bg-panel-header: rgba(7, 18, 23, 0.96);

@@ -118,14 +118,14 @@ body {
 .aos-workbench-toolbar :where(label, button:not(.aos-window-button, .aos-icon-button)),
 .aos-workbench-pane-toolbar :where(label, button:not(.aos-window-button, .aos-icon-button)) {
   min-height: var(--aos-control-height, 30px);
-  border: 1px solid rgba(122, 241, 255, 0.28);
+  border: var(--aos-control-border, 1px solid rgba(122, 241, 255, 0.28));
   border-radius: var(--aos-control-radius, 7px);
-  background: rgba(4, 14, 18, 0.78);
+  background: var(--aos-control-bg, rgba(4, 14, 18, 0.78));
   color: inherit;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 9px;
+  gap: var(--aos-control-gap, 8px);
+  padding: var(--aos-control-padding, 4px 9px);
 }
 
 .aos-workbench-actions button:not(.aos-window-button, .aos-icon-button),
@@ -156,8 +156,8 @@ body {
 .aos-workbench-toolbar label:hover,
 .aos-workbench-pane-toolbar button:not(.aos-window-button, .aos-icon-button):hover,
 .aos-workbench-pane-toolbar label:hover {
-  border-color: rgba(122, 241, 255, 0.48);
-  background: rgba(7, 25, 31, 0.84);
+  border-color: var(--aos-control-border-hover, rgba(122, 241, 255, 0.48));
+  background: var(--aos-control-bg-hover, rgba(7, 25, 31, 0.84));
 }
 
 .aos-workbench-actions select,

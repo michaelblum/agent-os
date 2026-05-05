@@ -21,7 +21,13 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-type-title',
     '--aos-type-window-control',
     '--aos-control-height',
+    '--aos-control-padding',
+    '--aos-control-gap',
     '--aos-control-radius',
+    '--aos-control-border',
+    '--aos-control-bg',
+    '--aos-focus-ring',
+    '--aos-icon-button-size',
     '--aos-window-button-size',
   ]) {
     assert.match(theme, new RegExp(`${token}\\s*:`), `${token} should be part of the public theme contract`);
@@ -51,4 +57,16 @@ test('window button primitive owns its own alignment contract', async () => {
   assert.match(rule, /padding:\s*0/);
   assert.match(rule, /font:\s*var\(--aos-type-window-control/);
   assert.match(rule, /line-height:\s*1/);
+});
+
+test('control defaults consume theme tokens instead of private constants', async () => {
+  const controlsCss = await repoText('packages/toolkit/controls/defaults.css');
+
+  assert.match(controlsCss, /font:\s*var\(--aos-type-label/);
+  assert.match(controlsCss, /min-height:\s*var\(--aos-control-height/);
+  assert.match(controlsCss, /padding:\s*var\(--aos-control-padding/);
+  assert.match(controlsCss, /border:\s*var\(--aos-control-border/);
+  assert.match(controlsCss, /background:\s*var\(--aos-control-bg/);
+  assert.match(controlsCss, /width:\s*var\(--aos-icon-button-size/);
+  assert.match(controlsCss, /outline:\s*var\(--aos-focus-ring/);
 });

@@ -19,7 +19,7 @@
 
 .aos-control-label {
   color: rgba(220, 255, 255, 0.72);
-  font: 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace);
+  font: var(--aos-type-label, 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace));
   text-transform: uppercase;
 }
 
@@ -30,9 +30,9 @@
 .aos-textarea,
 .aos-chip-button {
   min-width: 0;
-  border: 1px solid rgba(122, 241, 255, 0.26);
-  border-radius: 7px;
-  background: rgba(4, 14, 18, 0.78);
+  border: var(--aos-control-border, 1px solid rgba(122, 241, 255, 0.26));
+  border-radius: var(--aos-control-radius, 7px);
+  background: var(--aos-control-bg, rgba(4, 14, 18, 0.78));
   color: var(--text-primary, #e0e0e0);
   font: inherit;
 }
@@ -45,23 +45,23 @@
 
 .aos-button,
 .aos-chip-button {
-  min-height: 30px;
+  min-height: var(--aos-control-height, 30px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 4px 9px;
+  gap: var(--aos-control-gap, 7px);
+  padding: var(--aos-control-padding, 4px 9px);
 }
 
 .aos-icon-button {
-  width: 31px;
-  height: 31px;
-  min-width: 31px;
+  width: var(--aos-icon-button-size, 31px);
+  height: var(--aos-icon-button-size, 31px);
+  min-width: var(--aos-icon-button-size, 31px);
   display: inline-grid;
   place-items: center;
-  border: 1px solid rgba(122, 241, 255, 0.26);
-  border-radius: 7px;
-  background: rgba(4, 14, 18, 0.78);
+  border: var(--aos-control-border, 1px solid rgba(122, 241, 255, 0.26));
+  border-radius: var(--aos-control-radius, 7px);
+  background: var(--aos-control-bg, rgba(4, 14, 18, 0.78));
   color: var(--text-primary, #e0e0e0);
   cursor: pointer;
 }
@@ -85,8 +85,8 @@
 .aos-chip-button:hover,
 .aos-select:hover,
 .aos-icon-button:not(:disabled):hover {
-  border-color: rgba(122, 241, 255, 0.48);
-  background: rgba(16, 38, 46, 0.82);
+  border-color: var(--aos-control-border-hover, rgba(122, 241, 255, 0.48));
+  background: var(--aos-control-bg-hover, rgba(16, 38, 46, 0.82));
 }
 
 .aos-button.primary {
@@ -95,13 +95,13 @@
 }
 
 .aos-select {
-  min-height: 30px;
+  min-height: var(--aos-control-height, 30px);
   padding: 3px 28px 3px 8px;
 }
 
 .aos-text-input,
 .aos-number-field {
-  min-height: 30px;
+  min-height: var(--aos-control-height, 30px);
   padding: 4px 8px;
 }
 
@@ -120,7 +120,7 @@
 .aos-checkbox,
 .aos-toggle,
 .aos-range {
-  min-height: 30px;
+  min-height: var(--aos-control-height, 30px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -140,7 +140,7 @@
 .aos-range output {
   min-width: 34px;
   color: rgba(220, 255, 255, 0.78);
-  font: 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace);
+  font: var(--aos-type-label, 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace));
   text-align: right;
 }
 
@@ -149,7 +149,7 @@
   align-items: center;
   overflow: hidden;
   border: 1px solid rgba(122, 241, 255, 0.24);
-  border-radius: 7px;
+  border-radius: var(--aos-control-radius, 7px);
   background: rgba(1, 8, 11, 0.58);
 }
 
@@ -160,7 +160,7 @@
   border-right: 1px solid rgba(122, 241, 255, 0.18);
   background: transparent;
   color: rgba(220, 255, 255, 0.68);
-  padding: 4px 9px;
+  padding: var(--aos-control-padding, 4px 9px);
   font: inherit;
   cursor: pointer;
 }
@@ -218,6 +218,6 @@
 .aos-range input:focus-visible,
 .aos-segmented button:focus-visible,
 .aos-list-row:focus-visible {
-  outline: 2px solid rgba(122, 241, 255, 0.68);
+  outline: var(--aos-focus-ring, 2px solid rgba(122, 241, 255, 0.68));
   outline-offset: 2px;
 }
