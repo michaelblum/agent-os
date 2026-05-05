@@ -5,6 +5,7 @@ import {
   sigilRadialTargetSurfaceForItem,
   sigilRadialTransitionForItem,
 } from '../../apps/sigil/renderer/live-modules/radial-menu-activation.js'
+import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/radial-menu-defaults.js'
 
 const snapshot = {
   phase: 'committed',
@@ -17,11 +18,10 @@ const snapshot = {
 }
 
 test('Sigil radial activation maps wiki item to generic menu activation request', () => {
+  const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
   const request = createSigilRadialActivationRequest({
     item: {
-      id: 'wiki-graph',
-      label: 'Wiki Graph',
-      action: 'wikiGraph',
+      ...wikiItem,
       center: { x: 160, y: 120 },
     },
     snapshot,
@@ -44,6 +44,9 @@ test('Sigil radial activation maps wiki item to generic menu activation request'
   assert.equal(request.target_surface.canvas_id, 'wiki-canvas')
   assert.equal(request.target_surface.subject.id, 'wiki:aos/concepts/example.md')
   assert.equal(request.transition.preset, 'wiki-brain-zoom-dissolve')
+  assert.equal(request.transition.item.focus.mode, 'fill-camera')
+  assert.equal(request.transition.menu.dissolve, true)
+  assert.equal(request.transition.surface.starts, 'with-item')
   assert.deepEqual(request.metadata.radial, {
     phase: 'committed',
     active_item_id: 'wiki-graph',
@@ -80,7 +83,8 @@ test('Sigil radial activation preserves target-surface click input metadata', ()
   assert.equal(request.source, 'sigil.radial-target-surface')
   assert.equal(request.input_source.canvas_id, 'sigil-radial-menu-avatar-main')
   assert.equal(request.target_surface.kind, 'sigil-context-menu')
-  assert.equal(request.transition, null)
+  assert.equal(request.transition.preset, 'radial-3d-vanilla')
+  assert.equal(request.transition.menu.hold_active_item, true)
 })
 
 test('Sigil radial target and transition helpers keep item behavior declarative', () => {
@@ -94,6 +98,10 @@ test('Sigil radial target and transition helpers keep item behavior declarative'
     canvas_id: 'agent-canvas',
   })
 
-  assert.equal(sigilRadialTransitionForItem({ id: 'agent-terminal', action: 'agentTerminal' }), null)
-  assert.equal(sigilRadialTransitionForItem({ id: 'wiki-graph', action: 'wikiGraph' }).preset, 'wiki-brain-zoom-dissolve')
+  assert.equal(sigilRadialTransitionForItem({ id: 'agent-terminal', action: 'agentTerminal' }).preset, 'radial-3d-vanilla')
+  assert.equal(sigilRadialTransitionForItem({
+    id: 'wiki-graph',
+    action: 'wikiGraph',
+    activationTransition: { preset: 'wiki-brain-zoom-dissolve' },
+  }).preset, 'wiki-brain-zoom-dissolve')
 })

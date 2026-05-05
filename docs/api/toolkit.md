@@ -879,6 +879,15 @@ Use `advanceMenuActivation(request, phase, extra?)` to move through the
 lifecycle. Unknown phases throw, so provider or app mismatches fail loudly
 instead of creating ad-hoc status names.
 
+`packages/toolkit/runtime/radial-item-transition.js` defines the companion
+transition contract for 3D radial menu items. The vanilla preset,
+`radial-3d-vanilla`, describes item focus/zoom/hold, menu fade/dissolve, incoming
+surface fade, and cancel restore slots. Consumers can put an
+`activationTransition` object on a radial item to override those slots without
+mixing transition state into static geometry tuning data. Use
+`resolveRadialItemActivationTransition(item)` before attaching the result to a
+menu activation request.
+
 ### `wireBridge(handler)`
 
 Installs an inbound message handler for daemon-to-canvas messages.

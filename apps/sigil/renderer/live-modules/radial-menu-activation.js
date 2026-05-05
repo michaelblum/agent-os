@@ -1,4 +1,5 @@
 import { createMenuActivationRequest } from './menu-activation-runtime.js';
+import { resolveRadialItemActivationTransition } from './radial-transition-runtime.js';
 
 export const SIGIL_RADIAL_MENU_ID = 'sigil.radial';
 
@@ -48,20 +49,7 @@ export function sigilRadialTargetSurfaceForItem(item = {}, {
 }
 
 export function sigilRadialTransitionForItem(item = {}) {
-    if (actionForItem(item) !== 'wikiGraph') return null;
-    return {
-        preset: 'wiki-brain-zoom-dissolve',
-        item: {
-            zoom: 'fill-camera',
-            dissolve: true,
-        },
-        menu: {
-            dissolve: true,
-        },
-        surface: {
-            fade: 'in',
-        },
-    };
+    return resolveRadialItemActivationTransition(item);
 }
 
 export function sigilRadialActivationMetadata(item = {}, snapshot = {}, context = {}) {

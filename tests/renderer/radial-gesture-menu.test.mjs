@@ -94,6 +94,10 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.equal(wikiItem.geometry.normalizedRadius, 0.28)
   assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
   assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
+  assert.equal(wikiItem.geometry.activationTransition, undefined)
+  assert.equal(wikiItem.activationTransition.preset, 'wiki-brain-zoom-dissolve')
+  assert.equal(wikiItem.activationTransition.item.focus.mode, 'fill-camera')
+  assert.equal(wikiItem.activationTransition.menu.dissolve, true)
   assert.deepEqual(wikiItem.geometry.radialEffect, {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
@@ -137,6 +141,8 @@ test('Sigil radial menu normalizes stale wiki brain item geometry from saved con
   assert.equal(wikiItem.geometry.radiusScale, 1.1502)
   assert.equal(wikiItem.geometry.hoverSpinSpeed, undefined)
   assert.equal(wikiItem.geometry.hoverYawDegrees, undefined)
+  assert.equal(wikiItem.geometry.activationTransition, undefined)
+  assert.equal(wikiItem.activationTransition.preset, 'wiki-brain-zoom-dissolve')
   assert.deepEqual(wikiItem.geometry.radialEffect, {
     kind: 'nested-neural-tree',
     holdExitDirection: 'outward',
