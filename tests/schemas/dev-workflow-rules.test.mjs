@@ -88,5 +88,15 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
+  assert.deepEqual(
+    rules.get('dev-workflow-manifest')?.commands?.map((step) => step.command),
+    [
+      'node --test tests/schemas/dev-workflow-rules.test.mjs',
+      'bash tests/dev-workflow-router.sh',
+      'bash tests/dev-audit.sh',
+    ],
+  );
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/commands/dev.swift'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/shared/command-registry-data.swift'));
   assert.ok(rules.get('app-subtree-local-contract')?.notes?.[0]?.includes('nearest subtree AGENTS.md'));
 });

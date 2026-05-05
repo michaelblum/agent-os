@@ -139,8 +139,12 @@
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [
         "docs/dev/workflow-rules.json",
+        "src/commands/dev.swift",
+        "src/shared/command-registry-data.swift",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
+        "tests/dev-workflow-router.sh",
+        "tests/dev-audit.sh",
         "tests/schemas/dev-workflow-rules.test.mjs"
       ],
       "classes": [
@@ -157,6 +161,16 @@
           "id": "dev-workflow-schema-test",
           "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
           "reason": "Validate the router manifest and fixtures against the schema."
+        },
+        {
+          "id": "dev-workflow-router-test",
+          "command": "bash tests/dev-workflow-router.sh",
+          "reason": "Verify the router parser, help registry, and manifest-backed recommendations agree."
+        },
+        {
+          "id": "dev-audit-test",
+          "command": "bash tests/dev-audit.sh",
+          "reason": "Verify the dev grammar verifier reports evidence-backed pass and fail claims."
         }
       ],
       "verification": []

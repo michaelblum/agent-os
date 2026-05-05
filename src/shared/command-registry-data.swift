@@ -1079,7 +1079,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── dev ───────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["dev"], summary: "Repo development workflow router and build surface", forms: [
-        InvocationForm(id: "dev-classify", usage: "aos dev classify [--paths <path,...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
+        InvocationForm(id: "dev-classify", usage: "aos dev classify [--paths <path,...> | --files <path...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
             args: [
                 flag("paths", "--paths", "Comma-separated changed paths to classify"),
                 flag("files", "--files", "Space-separated changed paths to classify", variadic: true),
@@ -1096,7 +1096,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev classify --json",
                 "aos dev classify --paths src/main.swift,packages/toolkit/runtime/canvas.js --json"
             ]),
-        InvocationForm(id: "dev-recommend", usage: "aos dev recommend [--paths <path,...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
+        InvocationForm(id: "dev-recommend", usage: "aos dev recommend [--paths <path,...> | --files <path...>] [--manifest <path>] [--base <ref>] [--json] [path...]",
             args: [
                 flag("paths", "--paths", "Comma-separated changed paths to classify before recommending"),
                 flag("files", "--files", "Space-separated changed paths to classify before recommending", variadic: true),
@@ -1123,7 +1123,17 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execMutating(),
             output: outJSONFlag,
-            examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"])
+            examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"]),
+        InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
+            args: [
+                flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),
+                flag("repo", "--repo", "Repository root path"),
+                flag("json", "--json", "Emit machine-readable evidence-backed audit report", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos dev audit --json"])
     ]))
 
     // ── status ────────────────────────────────────────────
