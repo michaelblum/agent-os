@@ -6,7 +6,9 @@
   "oneOf": [
     { "$ref": "#/$defs/registrySnapshot" },
     { "$ref": "#/$defs/transformPatch" },
-    { "$ref": "#/$defs/transformResult" }
+    { "$ref": "#/$defs/transformResult" },
+    { "$ref": "#/$defs/effectsPatch" },
+    { "$ref": "#/$defs/effectsResult" }
   ],
   "$defs": {
     "schemaVersion": {
@@ -99,9 +101,61 @@
         }
       }
     },
+    "descriptors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "geometry": { "type": "string" },
+        "animation_effects": { "type": "string" }
+      }
+    },
+    "effectControlValue": {
+      "type": ["number", "string", "boolean"]
+    },
+    "effectControl": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "type", "value"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "label": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["range", "number", "checkbox"]
+        },
+        "value": { "$ref": "#/$defs/effectControlValue" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number" },
+        "unit": { "type": "string" },
+        "tooltip": { "type": "string" }
+      }
+    },
+    "effectControlGroups": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "animation_effects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/effectControl" }
+        }
+      }
+    },
+    "effectPatchValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controls"],
+      "properties": {
+        "controls": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/$defs/effectControlValue" }
+        }
+      }
+    },
     "capability": {
       "type": "string",
-      "enum": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"]
+      "enum": ["transform.read", "transform.patch", "visibility.read", "visibility.patch", "effects.read", "effects.patch"]
     },
     "registryObject": {
       "type": "object",
@@ -109,6 +163,7 @@
       "required": ["object_id", "name", "kind", "capabilities", "transform", "units"],
       "properties": {
         "object_id": { "$ref": "#/$defs/nonEmptyString" },
+        "parent_object_id": { "$ref": "#/$defs/nonEmptyString" },
         "name": { "$ref": "#/$defs/nonEmptyString" },
         "kind": {
           "type": "string",
@@ -123,6 +178,8 @@
         "transform": { "$ref": "#/$defs/transform" },
         "units": { "$ref": "#/$defs/units" },
         "visible": { "type": "boolean" },
+        "descriptors": { "$ref": "#/$defs/descriptors" },
+        "controls": { "$ref": "#/$defs/effectControlGroups" },
         "metadata": { "$ref": "#/$defs/jsonObject" }
       }
     },
@@ -201,6 +258,69 @@
         "message": { "type": "string" },
         "transform": { "$ref": "#/$defs/transform" },
         "visible": { "type": "boolean" }
+      }
+    },
+    "effectsPatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "request_id", "target", "patch"],
+      "properties": {
+        "type": { "const": "canvas_object.effects.patch" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "request_id": { "$ref": "#/$defs/nonEmptyString" },
+        "source_id": { "$ref": "#/$defs/nonEmptyString" },
+        "target": { "$ref": "#/$defs/address" },
+        "patch": { "$ref": "#/$defs/effectPatchValues" }
+      }
+    },
+    "effectsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "request_id", "target", "status"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": { "const": "applied" }
+            }
+          },
+          "then": { "required": ["controls"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["rejected", "stale"] }
+            }
+          },
+          "then": { "required": ["reason"] }
+        }
+      ],
+      "properties": {
+        "type": { "const": "canvas_object.effects.result" },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "request_id": { "$ref": "#/$defs/nonEmptyString" },
+        "source_id": { "$ref": "#/$defs/nonEmptyString" },
+        "target": { "$ref": "#/$defs/address" },
+        "status": {
+          "type": "string",
+          "enum": ["applied", "rejected", "stale"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "unknown_object",
+            "unsupported_capability",
+            "invalid_patch",
+            "not_ready",
+            "owner_rejected",
+            "contract_mismatch"
+          ]
+        },
+        "message": { "type": "string" },
+        "controls": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/effectControlValue" }
+        }
       }
     }
   }

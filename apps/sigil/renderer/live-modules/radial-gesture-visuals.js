@@ -8,6 +8,8 @@ import {
     resolveRadialItemPartTransform,
     resolveRadialItemPartVisibility,
     resolveNestedFiberBloomTransform,
+    resolveNestedFiberOpticsTransform,
+    resolveNestedFiberPulse,
     resolveNestedFiberStemTransform,
     resolveNestedFractalPulse,
     resolveNestedFractalTreeTransform,
@@ -27,6 +29,8 @@ export {
     resolveRadialItemPartTransform,
     resolveRadialItemPartVisibility,
     resolveNestedFiberBloomTransform,
+    resolveNestedFiberOpticsTransform,
+    resolveNestedFiberPulse,
     resolveNestedFiberStemTransform,
     resolveNestedFractalPulse,
     resolveNestedFractalTreeTransform,
@@ -266,9 +270,11 @@ function effectConfig(item = {}) {
     };
     merged.visibility = resolveNestedVisibility(merged);
     merged.shellTransform = resolveNestedShellTransform(merged);
+    merged.fiberOpticsTransform = resolveNestedFiberOpticsTransform(merged);
     merged.fiberStemTransform = resolveNestedFiberStemTransform(merged);
     merged.fiberBloomTransform = resolveNestedFiberBloomTransform(merged);
     merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
+    merged.fiberPulse = resolveNestedFiberPulse(merged);
     merged.fractalPulse = resolveNestedFractalPulse(merged);
     return merged;
 }
@@ -370,20 +376,23 @@ function createNestedNeuralTreePart(name, geometry, renderOrder = 22) {
     return group;
 }
 
-function updateNestedNeuralTreePart(part, progress, time) {
+function updateNestedNeuralTreePart(part, progress, time, pulseConfig = {}) {
     if (!part) return;
+    const pulse = resolveNestedFiberPulse({ fiberPulse: pulseConfig });
+    const intensity = pulse.intensity;
+    const sparkDensity = pulse.sparkDensity;
     const lineMaterial = part.userData.lineMaterial;
     const sparkMaterial = part.userData.sparkMaterial;
     if (lineMaterial?.uniforms) {
         lineMaterial.uniforms.u_growth.value = progress;
-        lineMaterial.uniforms.u_opacity.value = Math.pow(progress, 0.82) * 0.88;
-        lineMaterial.uniforms.u_brightness.value = 0.75 + (progress * 2.2);
+        lineMaterial.uniforms.u_opacity.value = Math.pow(progress, 0.82) * 0.88 * intensity;
+        lineMaterial.uniforms.u_brightness.value = 0.75 + (progress * 2.2 * intensity);
     }
     if (sparkMaterial?.uniforms) {
         sparkMaterial.uniforms.u_growth.value = progress;
-        sparkMaterial.uniforms.u_opacity.value = progress;
-        sparkMaterial.uniforms.u_density.value = progress;
-        sparkMaterial.uniforms.u_brightness.value = 0.8 + (progress * 2.8);
+        sparkMaterial.uniforms.u_opacity.value = progress * sparkDensity;
+        sparkMaterial.uniforms.u_density.value = progress * sparkDensity;
+        sparkMaterial.uniforms.u_brightness.value = 0.8 + (progress * 2.8 * intensity);
         sparkMaterial.uniforms.u_time.value = time;
     }
     part.visible = progress > 0.015;
@@ -485,13 +494,13 @@ function createNestedNeuralTreeEffect() {
     return group;
 }
 
-function updateNestedNeuralTreeEffect(effect, progress, dt) {
+function updateNestedNeuralTreeEffect(effect, progress, dt, pulseConfig = {}) {
     if (!effect) return;
     const p = clamp01(progress);
     effect.visible = p > 0.015;
     effect.userData.time = finite(effect.userData.time, 0) + dt;
     for (const part of effect.userData.parts || []) {
-        updateNestedNeuralTreePart(part, p, effect.userData.time);
+        updateNestedNeuralTreePart(part, p, effect.userData.time, pulseConfig);
     }
 }
 
@@ -1520,6 +1529,8 @@ function createRadialEffectHost(group, item = {}) {
 
     const composite = new THREE.Group();
     composite.name = `${item.id || 'radial-item'}-effect-composite`;
+    applyObjectTransform(composite, resolveRadialItemModelTransform(item), DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
+    composite.visible = resolveRadialItemModelVisibility(item);
     const fiberEffect = createNestedNeuralTreeEffect();
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fiberStemEffect = fiberEffect.userData.stem;
@@ -1527,6 +1538,7 @@ function createRadialEffectHost(group, item = {}) {
     const fractalTreeEffect = createFractalBrainTreeEffect(effect.fractalPulse);
     fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
     applyNestedShellTransform(modelHost, effect.shellTransform);
+    applyObjectTransform(fiberEffect, effect.fiberOpticsTransform, DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
     applyNestedFiberStemTransform(fiberStemEffect, effect.fiberStemTransform);
     applyNestedFiberBloomTransform(fiberBloomEffect, effect.fiberBloomTransform);
     applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
@@ -1540,9 +1552,11 @@ function createRadialEffectHost(group, item = {}) {
     group.userData.radialEffectFiberBloom = fiberBloomEffect;
     group.userData.radialEffectFractalTree = fractalTreeEffect;
     group.userData.radialEffectShellTransform = effect.shellTransform;
+    group.userData.radialEffectFiberOpticsTransform = effect.fiberOpticsTransform;
     group.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
     group.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    group.userData.radialEffectFiberPulse = effect.fiberPulse;
     group.userData.radialEffectFractalPulse = effect.fractalPulse;
     group.userData.radialEffectVisibility = effect.visibility;
     group.userData.radialEffectState = {
@@ -1562,10 +1576,14 @@ function syncRadialEffectConfig(glyph, item = {}) {
     const effect = effectConfig(item);
     if (!effect) return;
     glyph.userData.radialEffectConfig = effect;
+    glyph.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
+    glyph.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
     glyph.userData.radialEffectShellTransform = effect.shellTransform;
+    glyph.userData.radialEffectFiberOpticsTransform = effect.fiberOpticsTransform;
     glyph.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
     glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
     glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
+    glyph.userData.radialEffectFiberPulse = effect.fiberPulse;
     glyph.userData.radialEffectFractalPulse = effect.fractalPulse;
     glyph.userData.radialEffectVisibility = effect.visibility;
 }
@@ -1732,6 +1750,7 @@ function updateRadialEffect(glyph, item, {
     const fiberStem = glyph.userData.radialEffectFiberStem;
     const fiberBloom = glyph.userData.radialEffectFiberBloom;
     const fractalTree = glyph.userData.radialEffectFractalTree;
+    const composite = glyph.userData.radialEffectComposite;
     if (!config || !state || !tree) return null;
 
     const metrics = visualRadial ? radialItemPointerMetrics(visualRadial, item) : null;
@@ -1770,23 +1789,42 @@ function updateRadialEffect(glyph, item, {
 
     const display = clamp01(progress);
     const visibility = glyph.userData.radialEffectVisibility || config.visibility || DEFAULT_NESTED_TREE_EFFECT.visibility;
+    if (composite) {
+        applyObjectTransform(
+            composite,
+            glyph.userData.radialItemModelTransform,
+            DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+        );
+        composite.visible = glyph.userData.radialItemModelVisible !== false;
+    }
     applyNestedShellTransform(modelHost, glyph.userData.radialEffectShellTransform || config.shellTransform);
     if (modelHost) modelHost.visible = visibility.shell !== false;
     setManagedShellOpacity(glyph, state.shellOpacity * display, display);
-    updateNestedNeuralTreeEffect(tree, state.treeProgress * display, dt);
+    applyObjectTransform(
+        tree,
+        glyph.userData.radialEffectFiberOpticsTransform || config.fiberOpticsTransform,
+        DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+    );
+    updateNestedNeuralTreeEffect(
+        tree,
+        state.treeProgress * display,
+        dt,
+        glyph.userData.radialEffectFiberPulse || config.fiberPulse
+    );
+    tree.visible = visibility.fiberOptics !== false && tree.visible;
     if (fiberStem) {
         applyNestedFiberStemTransform(
             fiberStem,
             glyph.userData.radialEffectFiberStemTransform || config.fiberStemTransform
         );
-        fiberStem.visible = visibility.fiberStem !== false && fiberStem.visible;
+        fiberStem.visible = visibility.fiberOptics !== false && visibility.fiberStem !== false && fiberStem.visible;
     }
     if (fiberBloom) {
         applyNestedFiberBloomTransform(
             fiberBloom,
             glyph.userData.radialEffectFiberBloomTransform || config.fiberBloomTransform
         );
-        fiberBloom.visible = visibility.fiberBloom !== false && fiberBloom.visible;
+        fiberBloom.visible = visibility.fiberOptics !== false && visibility.fiberBloom !== false && fiberBloom.visible;
     }
     if (fractalTree) {
         state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (

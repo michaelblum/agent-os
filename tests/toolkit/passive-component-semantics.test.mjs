@@ -205,7 +205,7 @@ test('ObjectTransformPanel exposes root region, object list, and triplet fields'
     canvas_id: 'avatar-main',
     objects: [{
       object_id: 'radial.wiki-brain.tree',
-      name: 'Wiki Brain Tree',
+      name: 'Tree',
       kind: 'three.object3d',
       capabilities: ['transform.read', 'transform.patch'],
       transform: {
@@ -227,5 +227,5 @@ test('ObjectTransformPanel exposes root region, object list, and triplet fields'
   assert.match(root.innerHTML, /data-aos-action="toggle_visibility"/)
   assert.match(root.innerHTML, /aria-checked="true"/)
   assert.match(root.innerHTML, /data-aos-control="number-field"/)
-  assert.match(root.innerHTML, /aria-label="scale x for Wiki Brain Tree"/)
+  assert.match(root.innerHTML, /aria-label="scale x for Tree"/)
 })

@@ -21,7 +21,7 @@ It is split into three layers:
 | Runtime | `packages/toolkit/runtime/` | bridge, subscriptions, canvas mutation helpers, manifest handshake |
 | Controls | `packages/toolkit/controls/` | reusable app-control behavior for WKWebView surfaces |
 | Panel | `packages/toolkit/panel/` | structure and composition primitives (`mountPanel`, `Single`, `Tabs`) |
-| Workbench | `packages/toolkit/workbench/` | shared subject descriptors and workbench contracts |
+| Workbench | `packages/toolkit/workbench/` | shared subject descriptors, workbench contracts, and stock workbench shell styling |
 | Components | `packages/toolkit/components/` | reusable content units and optional stock styles |
 
 ### DesktopWorld Surface Runtime
@@ -76,6 +76,18 @@ native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `change` events after a step, uses `Shift` for coarse stepping, and uses
 `Option` for fine stepping.
 
+`defaults.css` provides the stock visual control pack for toolkit panels. It is
+optional and themeable through CSS custom properties. The first class set covers
+buttons, chip buttons, selects, text inputs, number fields, textareas,
+checkboxes, toggles, ranges, segmented controls, icon buttons, and selectable
+list rows.
+
+```html
+<link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
+<link rel="stylesheet" href="aos://toolkit/panel/defaults.css">
+<link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
+```
+
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with
@@ -83,6 +95,19 @@ Workbench surfaces should describe the thing being edited with
 identity, subject type, owner, source, capabilities, views, controls,
 persistence, artifacts, and current state. It does not move domain ownership
 into the toolkit.
+
+`workbench/defaults.css` provides the stock dual-pane workbench shell used when
+a surface needs a rich preview/editor composition instead of a plain panel body.
+It covers the draggable titlebar, grip, optional window-action strip, workbench
+toolbar, pane toolbar, stage action strip, preview pane, controls pane, pane
+title, form band, and scrollable work area. Domain editors still own their
+subject model and renderer; the shell only normalizes the frame.
+
+```html
+<link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
+<link rel="stylesheet" href="aos://toolkit/workbench/defaults.css">
+<link rel="stylesheet" href="aos://toolkit/controls/defaults.css">
+```
 
 Canonical schema:
 [`shared/schemas/aos-workbench-subject.schema.json`](../../shared/schemas/aos-workbench-subject.schema.json)
@@ -489,12 +514,13 @@ receive the daemon's fan-out.
 
 ### Addressable Canvas Object Control
 
-`canvas_object.registry`, `canvas_object.transform.patch`, and
-`canvas_object.transform.result` define the addressable object control contract
-for reusable transform editors. This is a control contract, not a replacement
-for `canvas_object.marks`: marks are visual/debug telemetry, while registry and
-transform messages describe objects that a canvas owner explicitly exposes for
-remote control.
+`canvas_object.registry`, `canvas_object.transform.patch`,
+`canvas_object.transform.result`, `canvas_object.effects.patch`, and
+`canvas_object.effects.result` define the addressable object control contract
+for reusable transform/effect editors. This is a control contract, not a
+replacement for `canvas_object.marks`: marks are visual/debug telemetry, while
+registry, transform, and effect messages describe objects that a canvas owner
+explicitly exposes for remote control.
 
 The schema source of truth is
 [`shared/schemas/canvas-object-control.schema.json`](../../shared/schemas/canvas-object-control.schema.json)
@@ -510,13 +536,16 @@ Addresses use `canvas_id + object_id`:
 }
 ```
 
-Sigil's wiki-brain adopter currently exposes the outer shell, the fiber-optic
-filament layer, and the fractal tree layer as separate objects so transform
-controllers can tune their overlap independently.
+Sigil's wiki-brain adopter currently exposes a group object for the whole menu
+item composition plus the outer shell, a nested fiber-optics group, the
+fiber-optic stem, fiber-optic bloom, and fractal tree layers as separate
+objects. Transform controllers can tune the whole composition relative to the
+radial menu item orbit path or tune each layer independently.
 
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
-and capabilities:
+parent links, optional natural-language descriptors, optional JSON-declared
+effect controls, and capabilities:
 
 ```json
 {
@@ -525,26 +554,37 @@ and capabilities:
   "canvas_id": "avatar-main",
   "objects": [
     {
-      "object_id": "radial.wiki-brain.tree",
-      "name": "Wiki Brain Fiber Optics",
+      "object_id": "radial.wiki-brain.group",
+      "name": "Wiki Brain",
       "kind": "three.object3d",
-      "capabilities": ["transform.read", "transform.patch"],
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch"],
       "transform": {
-        "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
-        "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
-        "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 },
+        "rotation_degrees": { "x": 0, "y": 0, "z": 0 }
       },
       "units": {
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "visible": true,
+      "descriptors": {
+        "geometry": "Complete wiki-graph menu item composition made from shell, fiber, and fractal-tree layers.",
+        "animation_effects": "Whole composition scales and reveals against the radial menu item orbit path."
+      },
+      "metadata": {
+        "role": "group",
+        "target": "item-composition",
+        "frame": "radial-item-orbit"
       }
     },
     {
       "object_id": "radial.wiki-brain.fractal-tree",
-      "name": "Wiki Brain Fractal Tree",
+      "parent_object_id": "radial.wiki-brain.group",
+      "name": "Fractal Tree",
       "kind": "three.object3d",
-      "capabilities": ["transform.read", "transform.patch"],
+      "capabilities": ["transform.read", "transform.patch", "visibility.read", "visibility.patch", "effects.read", "effects.patch"],
       "transform": {
         "position": { "x": 0.008, "y": -0.018, "z": 0.012 },
         "scale": { "x": 1.26, "y": 1.34, "z": 1.16 },
@@ -554,9 +594,48 @@ and capabilities:
         "position": "scene",
         "scale": "multiplier",
         "rotation": "degrees"
+      },
+      "visible": true,
+      "descriptors": {
+        "geometry": "Recursive neural tree nested inside the glass brain shell.",
+        "animation_effects": "Tree growth, glow, and branch-travel particles react to reveal pressure."
+      },
+      "controls": {
+        "animation_effects": [
+          {
+            "id": "fractalPulse.intensity",
+            "label": "Tree pulse",
+            "type": "range",
+            "value": 1,
+            "min": 0,
+            "max": 3,
+            "step": 0.05,
+            "tooltip": "Scale branch-travel particle pulse intensity"
+          }
+        ]
       }
     }
   ]
+}
+```
+
+Effect patches are commands for JSON-declared controls. Controllers send changed
+control values by id and correlate the owner response by `request_id`:
+
+```json
+{
+  "type": "canvas_object.effects.patch",
+  "schema_version": "2026-05-03",
+  "request_id": "req-effects-42",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.fractal-tree"
+  },
+  "patch": {
+    "controls": {
+      "fractalPulse.intensity": 1.35
+    }
+  }
 }
 ```
 
@@ -583,7 +662,7 @@ V0 routing uses existing AOS canvas plumbing:
 - owners emit registry snapshots through toolkit `emit()` and daemon fan-out to
   canvases subscribed to `canvas_object.registry`
 - transform editors subscribe through toolkit `subscribe()`
-- transform patches are delivered to the owning `canvas_id` with existing
+- transform/effects patches are delivered to the owning `canvas_id` with existing
   canvas message delivery
 - owner results are direct replies or subscribed result messages, depending on
   the controller surface
@@ -596,10 +675,24 @@ mutating requests. Do not introduce a general AOS bus for this contract.
 
 `object-transform-panel` is the reusable controller for the addressable canvas
 object control contract. It subscribes to `canvas_object.registry` and
-`canvas_object.transform.result`, renders advertised objects by
-`canvas_id + object_id`, and emits transform and visibility edits through
-existing `canvas.send` routing to the owning canvas. The panel does not inspect
-another canvas or assume the object is backed by Three.js.
+`canvas_object.transform.result`/`canvas_object.effects.result`, renders
+advertised objects by `canvas_id + object_id`, and emits transform, visibility,
+and JSON-declared effect edits through existing `canvas.send` routing to the
+owning canvas. The panel does not inspect another canvas or assume the object is
+backed by Three.js.
+
+The object list is intentionally layer-like: rows represent the addressable
+objects that collectively make up a larger visual composition. A group object
+uses `metadata.role = "group"` and child objects use `parent_object_id` to form
+a nested list. The checkbox is the object's advertised visibility; group rows
+can show a mixed visual state when child visibility is split. The editor pane
+also exposes optional local natural-language descriptors for geometry and
+animation/effects. The animation/effects area has three views: natural-language
+description, editable JSON control definitions, and a rendered mini-form driven
+by that JSON. Single-object transform editing is the current behavior.
+Multi-select, grouped edits over arbitrary subsets, and dockable/collapsible
+object-list panes belong to the follow-on split-pane and docking work rather
+than the control contract itself.
 
 Default launcher:
 

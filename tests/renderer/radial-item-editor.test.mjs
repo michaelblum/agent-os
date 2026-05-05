@@ -5,11 +5,14 @@ import {
   AGENT_TERMINAL_MODEL_OBJECT_ID,
   AGENT_TERMINAL_SCREEN_OBJECT_ID,
   WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
+  WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
   WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
   WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+  WIKI_BRAIN_GROUP_OBJECT_ID,
   WIKI_BRAIN_SHELL_OBJECT_ID,
 } from '../../apps/sigil/renderer/live-modules/radial-object-control.js'
 import {
+  applyEditorEffectsPatch,
   applyEditorObjectPatch,
   buildRadialItemWorkbenchSubject,
   buildEditorObjectRegistry,
@@ -41,7 +44,9 @@ test('radial item editor defaults to the wiki brain subject and advertises its o
   assert.equal(selectedRadialItem(state).id, 'wiki-graph')
   assert.equal(registry.canvas_id, 'preview')
   assert.deepEqual(registry.objects.map((object) => object.object_id), [
+    WIKI_BRAIN_GROUP_OBJECT_ID,
     WIKI_BRAIN_SHELL_OBJECT_ID,
+    WIKI_BRAIN_FIBER_OPTICS_GROUP_OBJECT_ID,
     WIKI_BRAIN_FIBER_STEM_OBJECT_ID,
     WIKI_BRAIN_FIBER_BLOOM_OBJECT_ID,
     WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
@@ -150,6 +155,29 @@ test('radial item editor exposes wiki brain fractal pulse intensity as lock-in s
   assert.equal(exportSelectedRadialItemDefinition(state).item.geometry.radialEffect.fractalPulse.intensity, 1.65)
 })
 
+test('radial item editor applies effects patches through the selected subject', () => {
+  const state = createRadialItemEditorState({ itemId: 'wiki-graph', canvasId: 'preview' })
+
+  const result = applyEditorEffectsPatch(state, {
+    type: 'canvas_object.effects.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-editor-effects',
+    target: {
+      canvas_id: 'preview',
+      object_id: WIKI_BRAIN_FRACTAL_TREE_OBJECT_ID,
+    },
+    patch: {
+      controls: {
+        'fractalPulse.intensity': 1.8,
+      },
+    },
+  })
+
+  assert.equal(result.status, 'applied')
+  assert.deepEqual(result.controls, { 'fractalPulse.intensity': 1.8 })
+  assert.equal(selectedRadialItem(state).geometry.radialEffect.fractalPulse.intensity, 1.8)
+})
+
 test('radial item editor exports a source-ready lock-in payload for the selected item', () => {
   const state = createRadialItemEditorState({
     itemId: 'agent-terminal',
@@ -210,8 +238,9 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.equal(subject.subject_type, 'sigil.radial_menu.item_3d')
   assert.equal(subject.owner, 'sigil.radial-item-editor')
   assert.equal(subject.state.canvas_id, 'preview')
-  assert.equal(subject.state.object_count, 4)
+  assert.equal(subject.state.object_count, 6)
   assert.ok(subject.capabilities.includes('canvas_object.registry'))
+  assert.ok(subject.capabilities.includes('canvas_object.effects.patch'))
   assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
 })
 

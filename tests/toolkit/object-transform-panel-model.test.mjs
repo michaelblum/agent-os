@@ -2,15 +2,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyRegistryMessage,
+  applyEffectsResultMessage,
   applyTransformResultMessage,
+  buildEffectsPatchMessage,
   buildTripletPatchMessage,
   buildVisibilityPatchMessage,
   createObjectTransformState,
+  effectsJsonForEntry,
   objectAddressKey,
   patchDeliveryForTarget,
   selectObject,
   selectedObject,
   sortedObjectEntries,
+  treeObjectEntries,
+  updateEntryDescriptorDraft,
+  updateEntryEffectsJsonDraft,
 } from '../../packages/toolkit/components/object-transform-panel/model.js';
 
 function registry(canvasId = 'avatar-main') {
@@ -21,10 +27,25 @@ function registry(canvasId = 'avatar-main') {
     objects: [
       {
         object_id: 'radial.wiki-brain.tree',
-        name: 'Wiki Brain Tree',
+        name: 'Tree',
         kind: 'three.object3d',
-        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch', 'effects.read', 'effects.patch'],
         visible: true,
+        controls: {
+          animation_effects: [
+            {
+              id: 'fractalPulse.intensity',
+              label: 'Tree pulse',
+              type: 'range',
+              value: 1,
+              min: 0,
+              max: 3,
+              step: 0.05,
+              tooltip: 'Scale branch-travel particles',
+            },
+          ],
+          notes: { owner: 'test' },
+        },
         transform: {
           position: { x: 0.018, y: -0.035, z: 0.018 },
           scale: { x: 1.32, y: 1.42, z: 1.2 },
@@ -38,7 +59,7 @@ function registry(canvasId = 'avatar-main') {
       },
       {
         object_id: 'radial.wiki-brain.shell',
-        name: 'Wiki Brain Shell',
+        name: 'Shell',
         kind: 'three.object3d',
         capabilities: ['transform.read'],
         transform: {
@@ -62,8 +83,135 @@ test('registry ingest stores advertised objects and selects the first object', (
 
   assert.equal(result.ok, true);
   assert.equal(sortedObjectEntries(state).length, 2);
-  assert.equal(selectedObject(state).name, 'Wiki Brain Shell');
+  assert.equal(selectedObject(state).name, 'Shell');
   assert.deepEqual(selectedObject(state).transform.scale, { x: 1, y: 1, z: 1 });
+});
+
+test('registry ingest sorts group entries before layer entries', () => {
+  const state = createObjectTransformState();
+  const result = applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      ...registry().objects,
+      {
+        object_id: 'radial.wiki-brain.group',
+        name: 'Wiki Brain',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'transform.patch'],
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(sortedObjectEntries(state)[0].object_id, 'radial.wiki-brain.group');
+  assert.equal(selectedObject(state).object_id, 'radial.wiki-brain.group');
+});
+
+test('registry ingest builds nested object tree rows and descriptor drafts', () => {
+  const state = createObjectTransformState();
+  const result = applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      {
+        object_id: 'radial.wiki-brain.group',
+        name: 'Wiki Brain',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        descriptors: {
+          geometry: 'Whole composition',
+          animation_effects: 'Reveals on hover',
+        },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+      },
+      {
+        ...registry().objects[0],
+        name: 'Tree',
+        parent_object_id: 'radial.wiki-brain.group',
+        visible: false,
+      },
+      {
+        ...registry().objects[1],
+        name: 'Shell',
+        parent_object_id: 'radial.wiki-brain.group',
+        visible: true,
+      },
+    ],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(treeObjectEntries(state).map((row) => [row.entry.name, row.depth, row.visibility.mixed]), [
+    ['Wiki Brain', 0, true],
+    ['Tree', 1, false],
+    ['Shell', 1, false],
+  ]);
+
+  const selected = selectedObject(state);
+  const updated = updateEntryDescriptorDraft(selected, 'geometry', 'Updated group geometry');
+  assert.equal(updated.descriptors.geometry, 'Updated group geometry');
+  assert.equal(updated.descriptors.animation_effects, 'Reveals on hover');
+});
+
+test('registry tree rows support nested groups and descendant mixed visibility', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, {
+    ...registry(),
+    objects: [
+      {
+        object_id: 'group.root',
+        name: 'Root Group',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+        units: { position: 'scene', scale: 'multiplier', rotation: 'degrees' },
+      },
+      {
+        object_id: 'group.child',
+        parent_object_id: 'group.root',
+        name: 'Child Group',
+        kind: 'three.object3d',
+        capabilities: ['transform.read', 'visibility.patch'],
+        visible: true,
+        metadata: { role: 'group' },
+        transform: {
+          position: { x: 0, y: 0, z: 0 },
+          scale: { x: 1, y: 1, z: 1 },
+          rotation_degrees: { x: 0, y: 0, z: 0 },
+        },
+        units: { position: 'scene', scale: 'multiplier', rotation: 'degrees' },
+      },
+      {
+        ...registry().objects[0],
+        object_id: 'mesh.hidden',
+        parent_object_id: 'group.child',
+        name: 'Hidden Mesh',
+        visible: false,
+      },
+    ],
+  });
+
+  assert.deepEqual(treeObjectEntries(state).map((row) => [row.entry.name, row.depth, row.visibility.mixed]), [
+    ['Root Group', 0, true],
+    ['Child Group', 1, false],
+    ['Hidden Mesh', 2, false],
+  ]);
 });
 
 test('selection targets one advertised object without assuming renderer internals', () => {
@@ -154,6 +302,75 @@ test('visibility edits build a visibility patch and update local state from owne
 
   assert.equal(result.ok, true);
   assert.equal(selectedObject(state).visible, false);
+});
+
+test('effect control edits build effects patch messages and preserve editable json data', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+
+  const entry = selectedObject(state);
+  const patch = buildEffectsPatchMessage(entry, 'fractalPulse.intensity', '1.75', { requestId: 'req-effects' });
+
+  assert.deepEqual(patch, {
+    type: 'canvas_object.effects.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    patch: {
+      controls: {
+        'fractalPulse.intensity': 1.75,
+      },
+    },
+  });
+
+  const updated = updateEntryEffectsJsonDraft(entry, JSON.stringify({
+    animation_effects: [
+      {
+        id: 'fractalPulse.intensity',
+        label: 'Tree pulse',
+        type: 'range',
+        value: 2.1,
+        min: 0,
+        max: 3,
+        step: 0.05,
+      },
+    ],
+    notes: { owner: 'user-editable-json' },
+  }));
+
+  assert.equal(updated.ok, true);
+  assert.equal(updated.entry.controls.animation_effects[0].value, 2.1);
+  assert.deepEqual(updated.entry.controls.notes, { owner: 'user-editable-json' });
+  assert.match(effectsJsonForEntry(updated.entry), /user-editable-json/);
+});
+
+test('owner effects results update local control values and clear pending requests', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  state.pendingByRequest.set('req-effects', { key: state.selectedKey });
+
+  const result = applyEffectsResultMessage(state, {
+    type: 'canvas_object.effects.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'applied',
+    controls: {
+      'fractalPulse.intensity': 1.9,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(state.pendingByRequest.has('req-effects'), false);
+  assert.equal(selectedObject(state).controls.animation_effects[0].value, 1.9);
 });
 
 test('non-patchable advertised objects reject transform patch construction', () => {

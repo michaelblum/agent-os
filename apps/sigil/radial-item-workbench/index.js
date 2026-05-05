@@ -1,6 +1,7 @@
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../renderer/radial-menu-defaults.js';
 import { createSigilRadialGestureVisuals } from '../renderer/live-modules/radial-gesture-visuals.js';
 import {
+    applyEditorEffectsPatch,
     applyEditorObjectPatch,
     buildEditorObjectRegistry,
     buildEditorRadialSnapshot,
@@ -8,51 +9,47 @@ import {
     editableRadialItems,
     exportSelectedRadialItemDefinition,
     selectRadialItem,
-    selectedItemFractalPulse,
     selectedRadialItem,
-    patchSelectedTerminalScreenMaterial,
-    setSelectedItemFractalPulseIntensity,
     setSelectedItemHoverSpin,
-    selectedTerminalScreenMaterial,
 } from '../radial-item-editor/model.js';
 
 const params = new URLSearchParams(window.location.search);
 const canvasId = window.__aosSurfaceCanvasId || params.get('canvas-id') || 'sigil-radial-item-workbench';
 const initialItemId = params.get('item') || 'wiki-graph';
 const toolkitRoot = (params.get('toolkit-root') || 'toolkit').replace(/[^a-zA-Z0-9_-]/g, '');
+const appStylesheet = document.querySelector('link[href="./styles.css"]');
 
-function addStylesheet(href) {
+function addStylesheet(href, { before = null } = {}) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = href;
-    document.head.appendChild(link);
+    document.head.insertBefore(link, before);
 }
 
-addStylesheet(`/${toolkitRoot}/components/_base/theme.css`);
-addStylesheet(`/${toolkitRoot}/panel/defaults.css`);
-addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`);
+addStylesheet(`/${toolkitRoot}/components/_base/theme.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/workbench/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/panel/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet });
+addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
+const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
 const stage = document.getElementById('preview-stage');
-const status = document.getElementById('status');
+const workbenchTitle = document.getElementById('workbench-title');
 const dragHandle = document.getElementById('drag-handle');
+const closeWorkbenchButton = document.getElementById('close-workbench');
+const minimizeWorkbenchButton = document.getElementById('minimize-workbench');
 const itemSelect = document.getElementById('item-select');
 const spinToggle = document.getElementById('spin-toggle');
 const axesToggle = document.getElementById('axes-toggle');
-const pulseControl = document.getElementById('pulse-control');
-const pulseIntensity = document.getElementById('pulse-intensity');
-const pulseIntensityReadout = document.getElementById('pulse-intensity-readout');
 const lockInButton = document.getElementById('lock-in');
 const resetOrbitButton = document.getElementById('reset-orbit');
+const undoButton = document.getElementById('undo-change');
+const redoButton = document.getElementById('redo-change');
 const transformPanel = document.getElementById('transform-panel');
 const controlsTitle = document.getElementById('controls-title');
 const zoomReadout = document.getElementById('zoom-readout');
-const materialControls = document.getElementById('material-controls');
-const screenTitle = document.getElementById('screen-title');
-const screenLines = document.getElementById('screen-lines');
-const screenAccent = document.getElementById('screen-accent');
-const screenColor = document.getElementById('screen-color');
 
 const editorState = createRadialItemEditorState({
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
@@ -60,8 +57,8 @@ const editorState = createRadialItemEditorState({
     canvasId,
 });
 let lastLockIn = null;
-let transientStatusText = '';
-let transientStatusUntil = 0;
+const undoStack = [];
+const redoStack = [];
 
 const MIN_SCENE_ZOOM = 0.55;
 const MAX_SCENE_ZOOM = 2.2;
@@ -244,20 +241,10 @@ function syncControls() {
     }));
     const item = selectedRadialItem(editorState);
     spinToggle.checked = Number(item?.geometry?.hoverSpinSpeed) > 0;
-    const isWikiBrain = item?.geometry?.radialEffect?.kind === 'nested-neural-tree';
-    pulseControl.hidden = !isWikiBrain;
-    pulseIntensity.disabled = !isWikiBrain;
-    const pulse = selectedItemFractalPulse(editorState);
-    pulseIntensity.value = String(pulse.intensity);
-    pulseIntensityReadout.textContent = pulse.intensity.toFixed(2);
-    const screen = selectedTerminalScreenMaterial(editorState);
-    materialControls.hidden = !screen;
-    if (screen) {
-        screenTitle.value = screen.title || 'AGENT TERM';
-        screenLines.value = (Array.isArray(screen.lines) ? screen.lines : []).join('\n');
-        screenAccent.value = screen.accent || '#68f7ff';
-        screenColor.value = screen.color || '#071318';
-    }
+    workbenchTitle.textContent = item
+        ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
+        : 'Sigil / Radial Menu / Item Editor';
+    updateHistoryButtons();
 }
 
 function syncPanelRegistry() {
@@ -267,10 +254,73 @@ function syncPanelRegistry() {
     return snapshot;
 }
 
-function applyPatch(message) {
+function objectSnapshot(target = {}) {
+    const snapshot = registry();
+    return snapshot.objects.find((object) => (
+        object.object_id === target.object_id
+        && snapshot.canvas_id === target.canvas_id
+    )) || null;
+}
+
+function patchFromSnapshot(entry, requestId) {
+    if (!entry) return null;
+    return {
+        type: 'canvas_object.transform.patch',
+        schema_version: '2026-05-03',
+        request_id: requestId,
+        target: {
+            canvas_id: entry.canvas_id || canvasId,
+            object_id: entry.object_id,
+        },
+        patch: {
+            position: { ...entry.transform.position },
+            scale: { ...entry.transform.scale },
+            rotation_degrees: { ...entry.transform.rotation_degrees },
+            visible: entry.visible !== false,
+        },
+    };
+}
+
+function historyRequestId(prefix) {
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function updateHistoryButtons() {
+    undoButton.disabled = undoStack.length === 0;
+    redoButton.disabled = redoStack.length === 0;
+}
+
+function clearHistory() {
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateHistoryButtons();
+}
+
+function applyPatch(message, { recordHistory = true } = {}) {
+    const before = recordHistory ? objectSnapshot(message.target) : null;
     const result = applyEditorObjectPatch(editorState, message);
+    const after = recordHistory && result.status === 'applied'
+        ? objectSnapshot(result.target || message.target)
+        : null;
+    if (before && after) {
+        undoStack.push({
+            undo: patchFromSnapshot(before, historyRequestId('undo')),
+            redo: patchFromSnapshot(after, historyRequestId('redo')),
+        });
+        redoStack.length = 0;
+        while (undoStack.length > 80) undoStack.shift();
+    }
     panelContent.onMessage(result, panelHost);
     post('canvas_object.transform.result', result);
+    syncPanelRegistry();
+    updateHistoryButtons();
+    return result;
+}
+
+function applyEffectsPatch(message) {
+    const result = applyEditorEffectsPatch(editorState, message);
+    panelContent.onMessage(result, panelHost);
+    post('canvas_object.effects.result', result);
     syncPanelRegistry();
     return result;
 }
@@ -283,6 +333,9 @@ function handlePanelDelivery(delivery = {}) {
     const message = delivery.payload?.message;
     if (message?.type === 'canvas_object.transform.patch') {
         return applyPatch(message);
+    }
+    if (message?.type === 'canvas_object.effects.patch') {
+        return applyEffectsPatch(message);
     }
     return null;
 }
@@ -298,17 +351,30 @@ const renderedPanel = panelContent.render(panelHost);
 if (renderedPanel instanceof Node) transformPanel.appendChild(renderedPanel);
 else if (typeof renderedPanel === 'string') transformPanel.innerHTML = renderedPanel;
 
-function setTransientStatus(text, durationMs = 2400) {
-    transientStatusText = text;
-    transientStatusUntil = performance.now() + durationMs;
-}
-
 function lockIn() {
     lastLockIn = exportSelectedRadialItemDefinition(editorState);
     post(lastLockIn.type, lastLockIn);
-    const item = selectedRadialItem(editorState);
-    setTransientStatus(`${item?.label || item?.id || 'Radial item'} lock-in payload emitted`);
     return lastLockIn;
+}
+
+function undoChange() {
+    const entry = undoStack.pop();
+    if (!entry?.undo) return null;
+    const result = applyPatch(entry.undo, { recordHistory: false });
+    if (result.status === 'applied') redoStack.push(entry);
+    else undoStack.push(entry);
+    updateHistoryButtons();
+    return result;
+}
+
+function redoChange() {
+    const entry = redoStack.pop();
+    if (!entry?.redo) return null;
+    const result = applyPatch(entry.redo, { recordHistory: false });
+    if (result.status === 'applied') undoStack.push(entry);
+    else redoStack.push(entry);
+    updateHistoryButtons();
+    return result;
 }
 
 function unwrapIncoming(message = {}) {
@@ -317,8 +383,13 @@ function unwrapIncoming(message = {}) {
 
 function handleMessage(message = {}) {
     const payload = unwrapIncoming(message);
-    if (payload?.type !== 'canvas_object.transform.patch') return;
-    applyPatch(payload);
+    if (payload?.type === 'canvas_object.transform.patch') {
+        applyPatch(payload);
+        return;
+    }
+    if (payload?.type === 'canvas_object.effects.patch') {
+        applyEffectsPatch(payload);
+    }
 }
 
 window.headsup = window.headsup || {};
@@ -417,6 +488,7 @@ renderer.domElement.addEventListener('wheel', (event) => {
 
 itemSelect.addEventListener('change', () => {
     selectRadialItem(editorState, itemSelect.value);
+    clearHistory();
     syncControls();
     syncPanelRegistry();
 });
@@ -426,28 +498,67 @@ spinToggle.addEventListener('change', () => {
 });
 
 axesToggle.addEventListener('change', syncOrbit);
-pulseIntensity.addEventListener('input', () => {
-    const pulse = setSelectedItemFractalPulseIntensity(editorState, pulseIntensity.value);
-    pulseIntensityReadout.textContent = pulse?.intensity?.toFixed?.(2) || '1.00';
-});
-materialControls.addEventListener('input', () => {
-    patchSelectedTerminalScreenMaterial(editorState, {
-        title: screenTitle.value,
-        lines: screenLines.value,
-        accent: screenAccent.value,
-        color: screenColor.value,
-    });
-});
 lockInButton.addEventListener('click', lockIn);
 resetOrbitButton.addEventListener('click', resetOrbit);
+undoButton.addEventListener('click', undoChange);
+redoButton.addEventListener('click', redoChange);
+
+function chipFrame() {
+    const x = Number(window.screenX ?? window.screenLeft ?? 80);
+    const y = Number(window.screenY ?? window.screenTop ?? 80);
+    const width = Math.min(280, Math.max(180, Number(window.innerWidth || 240) * 0.42));
+    return [
+        Math.round(Number.isFinite(x) ? x : 80),
+        Math.round(Number.isFinite(y) ? y : 80),
+        Math.round(width),
+        38,
+    ];
+}
+
+function minimizeWorkbench() {
+    const target = window.__aosCanvasId || window.__aosSurfaceCanvasId || canvasId;
+    const item = selectedRadialItem(editorState);
+    const title = item
+        ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
+        : 'Sigil / Radial Menu / Item Editor';
+    const chipId = `aos-chip-${target}-${Date.now().toString(36)}`;
+    const url = `/${toolkitRoot}/panel/minimized-chip.html?target=${encodeURIComponent(target)}&title=${encodeURIComponent(title)}`;
+    spawnChild({
+        id: chipId,
+        url,
+        frame: chipFrame(),
+        interactive: true,
+        focus: false,
+        parent: target,
+        cascade: false,
+    })
+        .then(() => suspendCanvas(target))
+        .catch((error) => {
+            console.warn('[sigil/radial-item-workbench] minimize failed', error);
+        });
+}
+
+closeWorkbenchButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    removeSelf({ orphan_children: true }).catch((error) => {
+        console.warn('[sigil/radial-item-workbench] close failed', error);
+    });
+});
+
+minimizeWorkbenchButton?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    minimizeWorkbench();
+});
 
 syncControls();
 syncOrbit();
 syncPanelRegistry();
 post('ready', {
     name: 'sigil-radial-item-workbench',
-    accepts: ['canvas_object.transform.patch'],
-    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'sigil.radial_item_editor.lock_in'],
+    accepts: ['canvas_object.transform.patch', 'canvas_object.effects.patch'],
+    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result', 'sigil.radial_item_editor.lock_in'],
 });
 
 window.__sigilRadialItemWorkbench = {
@@ -465,6 +576,9 @@ window.__sigilRadialItemWorkbench = {
         return item;
     },
     applyPatch,
+    applyEffectsPatch,
+    undoChange,
+    redoChange,
     exportItemDefinition(options) {
         return exportSelectedRadialItemDefinition(editorState, options);
     },
@@ -479,6 +593,7 @@ window.__sigilRadialItemWorkbench = {
             registry: registry(),
             panel: window.__objectTransformPanelState || null,
             lastLockIn,
+            history: { undo: undoStack.length, redo: redoStack.length },
             orbit: { x: orbitState.x, y: orbitState.y, zoom: orbitState.zoom },
             axesVisible: axesGuide.visible,
             visuals: visuals.snapshot(),
@@ -495,14 +610,6 @@ function frame(now) {
         height: rect.height,
     });
     visuals.update(radial, { time: t });
-    const snapshot = visuals.snapshot();
-    const item = selectedRadialItem(editorState);
-    const geometry = item ? snapshot.geometry?.[item.id] : null;
-    status.textContent = now < transientStatusUntil
-        ? transientStatusText
-        : geometry?.status === 'ready'
-        ? `${item.label || item.id} editor`
-        : `Loading ${geometry?.status || item?.label || 'radial item'}...`;
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
 }

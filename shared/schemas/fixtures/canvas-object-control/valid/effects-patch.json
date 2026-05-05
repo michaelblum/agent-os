@@ -1,0 +1,15 @@
+{
+  "type": "canvas_object.effects.patch",
+  "schema_version": "2026-05-03",
+  "request_id": "req-effects-1",
+  "source_id": "object-transform-panel",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.fractal-tree"
+  },
+  "patch": {
+    "controls": {
+      "fractalPulse.intensity": 1.35
+    }
+  }
+}

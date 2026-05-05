@@ -6,7 +6,7 @@
 //
 // Consumer-published object marks ride on canvas_object.marks — see
 // packages/toolkit/components/canvas-inspector/marks/ and
-// docs/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
+// docs/archive/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
 import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas } from '../../runtime/canvas.js'

@@ -4,9 +4,16 @@
 // and reports absolute drag updates through the runtime canvas helper.
 
 import { emit } from '../runtime/bridge.js'
-import { moveAbsolute } from '../runtime/canvas.js'
+import { moveAbsolute, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
 
-export function mountChrome(container, { title = 'AOS', draggable = true } = {}) {
+export function mountChrome(container, {
+  title = 'AOS',
+  draggable = true,
+  close = true,
+  minimize = true,
+  onClose = defaultClose,
+  onMinimize = null,
+} = {}) {
   container.innerHTML = ''
   container.classList.add('aos-panel-root')
 
@@ -23,6 +30,46 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
 
   const controlsEl = document.createElement('span')
   controlsEl.className = 'aos-controls'
+
+  const customControlsEl = document.createElement('span')
+  customControlsEl.className = 'aos-custom-controls'
+
+  const windowControlsEl = document.createElement('span')
+  windowControlsEl.className = 'aos-window-controls'
+
+  if (minimize) {
+    const minimizeButton = document.createElement('button')
+    minimizeButton.type = 'button'
+    minimizeButton.className = 'aos-window-button aos-window-minimize'
+    minimizeButton.setAttribute('aria-label', 'Minimize panel')
+    minimizeButton.title = 'Minimize'
+    minimizeButton.textContent = '-'
+    minimizeButton.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const action = onMinimize || (() => defaultMinimize({ title: titleEl.textContent || title }))
+      action?.()
+    })
+    windowControlsEl.appendChild(minimizeButton)
+  }
+
+  if (close) {
+    const closeButton = document.createElement('button')
+    closeButton.type = 'button'
+    closeButton.className = 'aos-window-button aos-window-close'
+    closeButton.setAttribute('aria-label', 'Close panel')
+    closeButton.title = 'Close'
+    closeButton.textContent = 'x'
+    closeButton.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      onClose?.()
+    })
+    windowControlsEl.appendChild(closeButton)
+  }
+
+  controlsEl.appendChild(customControlsEl)
+  controlsEl.appendChild(windowControlsEl)
 
   header.appendChild(titleEl)
   header.appendChild(controlsEl)
@@ -41,10 +88,72 @@ export function mountChrome(container, { title = 'AOS', draggable = true } = {})
     headerEl: header,
     titleEl,
     controlsEl,
+    customControlsEl,
+    windowControlsEl,
     contentEl: content,
     setTitle(text) { titleEl.textContent = text },
-    setControls(html) { controlsEl.innerHTML = html },
+    setControls(html) { customControlsEl.innerHTML = html },
   }
+}
+
+function currentCanvasId() {
+  return window.__aosCanvasId || window.__aosSurfaceCanvasId || null
+}
+
+function defaultClose() {
+  removeSelf({ orphan_children: true }).catch((error) => {
+    console.warn('[aos-panel] close failed', error)
+  })
+}
+
+function chipFrame() {
+  const x = Number(window.screenX ?? window.screenLeft ?? 80)
+  const y = Number(window.screenY ?? window.screenTop ?? 80)
+  const width = Math.min(280, Math.max(180, Number(window.innerWidth || 240) * 0.42))
+  return [
+    Math.round(Number.isFinite(x) ? x : 80),
+    Math.round(Number.isFinite(y) ? y : 80),
+    Math.round(width),
+    38,
+  ]
+}
+
+function chipUrl({ target, title }) {
+  const url = new URL(window.location.href)
+  const path = url.pathname || ''
+  if (path.includes('/panel/')) {
+    url.pathname = `${path.slice(0, path.indexOf('/panel/') + '/panel/'.length)}minimized-chip.html`
+  } else if (path.includes('/components/')) {
+    url.pathname = `${path.slice(0, path.indexOf('/components/'))}/panel/minimized-chip.html`
+  } else {
+    return new URL('./minimized-chip.html', window.location.href).href
+  }
+  url.hash = ''
+  url.searchParams.set('target', target)
+  url.searchParams.set('title', title)
+  return url.href
+}
+
+function defaultMinimize({ title = 'AOS' } = {}) {
+  const target = currentCanvasId()
+  if (!target) {
+    console.warn('[aos-panel] minimize failed: missing canvas id')
+    return
+  }
+  const chipId = `aos-chip-${target}-${Date.now().toString(36)}`
+  spawnChild({
+    id: chipId,
+    url: chipUrl({ target, title }),
+    frame: chipFrame(),
+    interactive: true,
+    focus: false,
+    parent: target,
+    cascade: false,
+  })
+    .then(() => suspendCanvas(target))
+    .catch((error) => {
+      console.warn('[aos-panel] minimize failed', error)
+    })
 }
 
 export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {

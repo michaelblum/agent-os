@@ -1,0 +1,223 @@
+/* defaults.css — stock visual controls for AOS toolkit panels.
+ *
+ * These classes are optional. Components may use them directly, override theme
+ * tokens, or replace them with app-specific styles.
+ */
+
+.aos-control-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aos-control-stack {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.aos-control-label {
+  color: rgba(220, 255, 255, 0.72);
+  font: 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace);
+  text-transform: uppercase;
+}
+
+.aos-button,
+.aos-select,
+.aos-text-input,
+.aos-number-field,
+.aos-textarea,
+.aos-chip-button {
+  min-width: 0;
+  border: 1px solid rgba(122, 241, 255, 0.26);
+  border-radius: 7px;
+  background: rgba(4, 14, 18, 0.78);
+  color: var(--text-primary, #e0e0e0);
+  font: inherit;
+}
+
+.aos-button,
+.aos-select,
+.aos-chip-button {
+  cursor: pointer;
+}
+
+.aos-button,
+.aos-chip-button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 4px 9px;
+}
+
+.aos-icon-button {
+  width: 31px;
+  height: 31px;
+  min-width: 31px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(122, 241, 255, 0.26);
+  border-radius: 7px;
+  background: rgba(4, 14, 18, 0.78);
+  color: var(--text-primary, #e0e0e0);
+  cursor: pointer;
+}
+
+.aos-icon-button svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.aos-icon-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.aos-button:hover,
+.aos-chip-button:hover,
+.aos-select:hover,
+.aos-icon-button:not(:disabled):hover {
+  border-color: rgba(122, 241, 255, 0.48);
+  background: rgba(16, 38, 46, 0.82);
+}
+
+.aos-button.primary {
+  border-color: rgba(122, 241, 255, 0.48);
+  background: rgba(30, 88, 100, 0.58);
+}
+
+.aos-select {
+  min-height: 30px;
+  padding: 3px 28px 3px 8px;
+}
+
+.aos-text-input,
+.aos-number-field {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.aos-number-field {
+  font-family: var(--font-mono, "SF Mono", "Menlo", monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.aos-textarea {
+  min-height: 76px;
+  resize: vertical;
+  padding: 7px 8px;
+  line-height: 1.35;
+}
+
+.aos-checkbox,
+.aos-toggle,
+.aos-range {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary, #e0e0e0);
+}
+
+.aos-checkbox input,
+.aos-toggle input {
+  accent-color: #7af1ff;
+}
+
+.aos-range input[type="range"] {
+  width: 96px;
+  accent-color: #7af1ff;
+}
+
+.aos-range output {
+  min-width: 34px;
+  color: rgba(220, 255, 255, 0.78);
+  font: 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace);
+  text-align: right;
+}
+
+.aos-segmented {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(122, 241, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(1, 8, 11, 0.58);
+}
+
+.aos-segmented button {
+  appearance: none;
+  min-height: 28px;
+  border: 0;
+  border-right: 1px solid rgba(122, 241, 255, 0.18);
+  background: transparent;
+  color: rgba(220, 255, 255, 0.68);
+  padding: 4px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.aos-segmented button:last-child {
+  border-right: 0;
+}
+
+.aos-segmented button[aria-pressed="true"],
+.aos-segmented button.active {
+  background: rgba(30, 88, 100, 0.5);
+  color: var(--text-primary, #fff);
+}
+
+.aos-list {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.aos-list-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #999);
+}
+
+.aos-list-row:hover {
+  background: var(--bg-hover, rgba(60, 60, 90, 0.15));
+  color: var(--text-primary, #e0e0e0);
+}
+
+.aos-list-row.selected,
+.aos-list-row[aria-selected="true"] {
+  border-color: rgba(138, 180, 255, 0.35);
+  background: rgba(138, 180, 255, 0.10);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.aos-button:focus-visible,
+.aos-chip-button:focus-visible,
+.aos-icon-button:focus-visible,
+.aos-select:focus-visible,
+.aos-text-input:focus-visible,
+.aos-number-field:focus-visible,
+.aos-textarea:focus-visible,
+.aos-checkbox input:focus-visible,
+.aos-toggle input:focus-visible,
+.aos-range input:focus-visible,
+.aos-segmented button:focus-visible,
+.aos-list-row:focus-visible {
+  outline: 2px solid rgba(122, 241, 255, 0.68);
+  outline-offset: 2px;
+}

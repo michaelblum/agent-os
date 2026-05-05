@@ -8,61 +8,54 @@
   <script src="../renderer/vendor/GLTFLoader.js"></script>
 </head>
 <body>
-  <div class="workbench-shell">
-    <header class="workbench-titlebar" id="drag-handle">
-      <span class="workbench-grip" aria-hidden="true"></span>
-      <strong>Sigil Radial Item Workbench</strong>
-      <div class="workbench-actions">
-        <label>
+  <div class="aos-workbench-shell">
+    <header class="aos-workbench-titlebar" data-draggable="true" id="drag-handle">
+      <span class="aos-workbench-grip" aria-hidden="true"></span>
+      <strong class="aos-workbench-title" id="workbench-title">Sigil / Radial Menu / Item Editor</strong>
+      <div class="aos-window-controls" aria-label="Window controls">
+        <button type="button" class="aos-window-button aos-window-minimize" id="minimize-workbench" aria-label="Minimize workbench" title="Minimize">-</button>
+        <button type="button" class="aos-window-button aos-window-close" id="close-workbench" aria-label="Close workbench" title="Close">x</button>
+      </div>
+    </header>
+    <div class="aos-workbench-toolbar" role="toolbar" aria-label="Radial item tools">
+      <div class="aos-workbench-toolbar-section">
+        <label title="Select radial menu item">
           <span>Item</span>
           <select id="item-select"></select>
         </label>
-        <label>
+        <label title="Enable production hover spin in the radial menu">
           <input type="checkbox" id="spin-toggle">
           <span>Model spin</span>
         </label>
-        <label>
+        <label title="Show preview axes">
           <input type="checkbox" id="axes-toggle" checked>
           <span>Axes</span>
         </label>
-        <label class="workbench-range" id="pulse-control">
-          <span>Pulse</span>
-          <input type="range" id="pulse-intensity" min="0" max="3" step="0.05">
-          <output id="pulse-intensity-readout">1.00</output>
-        </label>
-        <button type="button" id="lock-in">Lock in</button>
-        <button type="button" id="reset-orbit">Reset view</button>
+        <button type="button" id="lock-in" title="Export the current item definition">Lock in</button>
+        <button type="button" id="reset-orbit" title="Reset preview orbit and zoom">Reset view</button>
       </div>
-    </header>
-    <main class="workbench-main">
-      <section class="preview-pane" aria-label="Radial item preview">
-        <div id="preview-stage"></div>
-        <div class="preview-status" id="status">Loading radial item...</div>
-        <div class="zoom-readout" id="zoom-readout">100%</div>
+    </div>
+    <main class="aos-workbench-main">
+      <section class="aos-workbench-preview-pane" aria-label="Radial item preview">
+        <div class="aos-workbench-stage" id="preview-stage"></div>
+        <div class="aos-workbench-stage-actions" role="toolbar" aria-label="Preview history">
+          <button type="button" class="aos-icon-button" id="undo-change" aria-label="Undo transform change" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 7H4v5"></path>
+              <path d="M5 11a8 8 0 1 0 2.2-5.5L4 7"></path>
+            </svg>
+          </button>
+          <button type="button" class="aos-icon-button" id="redo-change" aria-label="Redo transform change" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 7h5v5"></path>
+              <path d="M19 11a8 8 0 1 1-2.2-5.5L20 7"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="aos-workbench-readout" id="zoom-readout">100%</div>
       </section>
-      <section class="controls-pane" aria-label="Object transform controls">
-        <div class="controls-title" id="controls-title">Object Transform</div>
-        <form class="material-controls" id="material-controls" hidden>
-          <div class="material-controls-title">Part Material</div>
-          <label>
-            <span>Title</span>
-            <input type="text" id="screen-title" maxlength="18" autocomplete="off">
-          </label>
-          <label>
-            <span>Lines</span>
-            <textarea id="screen-lines" rows="5" maxlength="160" spellcheck="false"></textarea>
-          </label>
-          <div class="material-colors">
-            <label>
-              <span>Accent</span>
-              <input type="color" id="screen-accent">
-            </label>
-            <label>
-              <span>Back</span>
-              <input type="color" id="screen-color">
-            </label>
-          </div>
-        </form>
+      <section class="aos-workbench-controls-pane" aria-label="Object transform controls">
+        <div class="aos-workbench-pane-title" id="controls-title">Object Transform</div>
         <div id="transform-panel"></div>
       </section>
     </main>

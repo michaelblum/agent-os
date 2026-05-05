@@ -9,10 +9,19 @@ import { evalCanvas, spawnChild } from '../runtime/canvas.js'
 import { declareManifest, emitLifecycleComplete, emitReady } from '../runtime/manifest.js'
 import { createRouter } from './router.js'
 
-export function mountPanel({ title = 'AOS', layout, draggable = true, container = document.body } = {}) {
+export function mountPanel({
+  title = 'AOS',
+  layout,
+  draggable = true,
+  close = true,
+  minimize = true,
+  onClose,
+  onMinimize,
+  container = document.body,
+} = {}) {
   if (!layout) throw new Error('mountPanel: layout is required')
 
-  const chrome = mountChrome(container, { title, draggable })
+  const chrome = mountChrome(container, { title, draggable, close, minimize, onClose, onMinimize })
 
   if (layout.kind === 'single') {
     const content = layout.instantiate()

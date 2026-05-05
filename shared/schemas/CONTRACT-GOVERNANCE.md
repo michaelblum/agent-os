@@ -43,8 +43,8 @@ should follow it.
 
 ## Where this rule was established
 
-- Spec: `docs/superpowers/specs/2026-04-24-input-tap-readiness-contract-design.md`
-- Plan: `docs/superpowers/plans/2026-04-24-input-tap-readiness-contract.md`
+- Spec: `docs/archive/superpowers/specs/2026-04-24-input-tap-readiness-contract-design.md`
+- Plan: `docs/archive/superpowers/plans/2026-04-24-input-tap-readiness-contract.md`
 - Tracking: GitHub issue #109
 
 ## Out of scope (intentionally)
