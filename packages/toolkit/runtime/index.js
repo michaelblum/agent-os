@@ -59,6 +59,14 @@ export {
   normalizeMenuActivationTransition,
 } from './menu-activation.js'
 export {
+  DEFAULT_RADIAL_ITEM_ACTIVATION_TRANSITION_PRESET,
+  RADIAL_ITEM_ACTIVATION_TRANSITION_PRESETS,
+  RADIAL_ITEM_ACTIVATION_TRANSITION_SCHEMA_VERSION,
+  normalizeRadialItemActivationTransition,
+  radialItemActivationTransitionPreset,
+  resolveRadialItemActivationTransition,
+} from './radial-item-transition.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,

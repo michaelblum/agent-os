@@ -115,6 +115,38 @@ export const DEFAULT_SIGIL_RADIAL_ITEMS = [
         label: 'Wiki Graph',
         action: 'wikiGraph',
         geometry: WIKI_BRAIN_HOLOGRAM_MODEL,
+        activationTransition: {
+            preset: 'wiki-brain-zoom-dissolve',
+            item: {
+                focus: {
+                    mode: 'fill-camera',
+                    zoom: 'fill-camera',
+                    scale: 1.0,
+                },
+                dissolve: true,
+                duration_ms: 460,
+                easing: 'ease-in-out',
+            },
+            menu: {
+                dissolve: true,
+                fade: {
+                    from: 1,
+                    to: 0,
+                },
+                duration_ms: 320,
+                easing: 'ease-in-out',
+            },
+            surface: {
+                fade: 'in',
+                starts: 'with-item',
+                opacity: {
+                    from: 0,
+                    to: 1,
+                },
+                duration_ms: 320,
+                easing: 'ease-in-out',
+            },
+        },
     },
 ];
 

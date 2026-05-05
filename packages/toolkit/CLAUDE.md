@@ -32,6 +32,7 @@ runtime/                Layer 1a — universal canvas runtime
   canvas.js               spawnChild, mutateSelf, removeSelf, setInteractive, evalCanvas
   manifest.js             declareManifest, emitReady, emitLifecycleComplete, onReady
   menu-activation.js      provider-neutral menu activation lifecycle envelope
+  radial-item-transition.js vanilla 3D radial item activation transition presets and overrides
   index.js                re-exports
   _smoke/                 smoke harness
   vendor/                 vendored third-party runtime modules and licenses
