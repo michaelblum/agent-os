@@ -40,6 +40,7 @@ export {
   normalizeResizeEdge,
   resizeFrame,
   syncMaximizeButton,
+  wireDrag,
   wireResize,
   workAreaForFrameTopLeft,
   workAreaForWindowTopLeft,
