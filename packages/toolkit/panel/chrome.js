@@ -4,15 +4,17 @@
 // and reports absolute drag updates through the runtime canvas helper.
 
 import { emit } from '../runtime/bridge.js'
-import { moveAbsolute, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
 
 export function mountChrome(container, {
   title = 'AOS',
   draggable = true,
   close = true,
   minimize = true,
+  maximize = false,
   onClose = defaultClose,
   onMinimize = null,
+  onMaximize = null,
 } = {}) {
   container.innerHTML = ''
   container.classList.add('aos-panel-root')
@@ -36,6 +38,30 @@ export function mountChrome(container, {
 
   const windowControlsEl = document.createElement('span')
   windowControlsEl.className = 'aos-window-controls'
+
+  let maximizeController = null
+  if (maximize) {
+    const maximizeButton = document.createElement('button')
+    maximizeButton.type = 'button'
+    maximizeButton.className = 'aos-window-button aos-window-maximize'
+    maximizeButton.setAttribute('aria-label', 'Maximize panel')
+    maximizeButton.setAttribute('aria-pressed', 'false')
+    maximizeButton.title = 'Maximize'
+    maximizeButton.textContent = '+'
+    maximizeController = createMaximizeController({
+      onStateChange(state) {
+        syncMaximizeButton(maximizeButton, state)
+      },
+    })
+    syncMaximizeButton(maximizeButton, maximizeController.getState())
+    maximizeButton.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (onMaximize) onMaximize(maximizeController, event)
+      else maximizeController.toggle()
+    })
+    windowControlsEl.appendChild(maximizeButton)
+  }
 
   if (minimize) {
     const minimizeButton = document.createElement('button')
@@ -91,9 +117,106 @@ export function mountChrome(container, {
     customControlsEl,
     windowControlsEl,
     contentEl: content,
+    maximizeController,
     setTitle(text) { titleEl.textContent = text },
     setControls(html) { customControlsEl.innerHTML = html },
   }
+}
+
+function finiteNumber(value, fallback = null) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+function positiveNumber(value, fallback = 1) {
+  const number = finiteNumber(value, fallback)
+  return Math.max(1, number)
+}
+
+function cloneFrame(frame) {
+  return [
+    Math.round(finiteNumber(frame?.[0], 0)),
+    Math.round(finiteNumber(frame?.[1], 0)),
+    Math.round(positiveNumber(frame?.[2], 1)),
+    Math.round(positiveNumber(frame?.[3], 1)),
+  ]
+}
+
+export function frameFromWindow(view = window) {
+  return cloneFrame([
+    finiteNumber(view.screenX ?? view.screenLeft, 0),
+    finiteNumber(view.screenY ?? view.screenTop, 0),
+    positiveNumber(view.outerWidth || view.innerWidth || view.document?.documentElement?.clientWidth, 1),
+    positiveNumber(view.outerHeight || view.innerHeight || view.document?.documentElement?.clientHeight, 1),
+  ])
+}
+
+export function workAreaFromWindow(view = window) {
+  const screen = view.screen || {}
+  const fallbackFrame = frameFromWindow(view)
+  const x = finiteNumber(screen.availLeft ?? screen.left, fallbackFrame[0])
+  const y = finiteNumber(screen.availTop ?? screen.top, fallbackFrame[1])
+  const width = positiveNumber(screen.availWidth || screen.width, fallbackFrame[2])
+  const height = positiveNumber(screen.availHeight || screen.height, fallbackFrame[3])
+  return cloneFrame([x, y, width, height])
+}
+
+export function createMaximizeController({
+  getFrame = () => frameFromWindow(),
+  getWorkArea = () => workAreaFromWindow(),
+  updateFrame = (frame) => mutateSelf({ frame }),
+  onStateChange = null,
+} = {}) {
+  let maximized = false
+  let restoreFrame = null
+
+  function state() {
+    return {
+      maximized,
+      restoreFrame: restoreFrame ? cloneFrame(restoreFrame) : null,
+    }
+  }
+
+  function notify() {
+    onStateChange?.(state())
+  }
+
+  function maximizePanel() {
+    if (maximized) return state()
+    restoreFrame = cloneFrame(getFrame())
+    maximized = true
+    updateFrame(cloneFrame(getWorkArea()))
+    notify()
+    return state()
+  }
+
+  function restorePanel() {
+    if (!maximized || !restoreFrame) return state()
+    const frame = cloneFrame(restoreFrame)
+    maximized = false
+    restoreFrame = null
+    updateFrame(frame)
+    notify()
+    return state()
+  }
+
+  return {
+    maximize: maximizePanel,
+    restore: restorePanel,
+    toggle() {
+      return maximized ? restorePanel() : maximizePanel()
+    },
+    getState: state,
+  }
+}
+
+export function syncMaximizeButton(button, state = {}) {
+  const maximized = Boolean(state.maximized)
+  button.setAttribute('aria-label', maximized ? 'Restore panel' : 'Maximize panel')
+  button.setAttribute('aria-pressed', String(maximized))
+  button.title = maximized ? 'Restore' : 'Maximize'
+  button.textContent = maximized ? '[]' : '+'
+  button.dataset.maximized = String(maximized)
 }
 
 function currentCanvasId() {

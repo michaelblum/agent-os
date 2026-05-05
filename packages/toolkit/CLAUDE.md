@@ -40,7 +40,7 @@ controls/               Layer 1a — reusable app-control behavior for WKWebView
   index.js                re-exports
 
 panel/                  Layer 1b — panel primitives
-  chrome.js               mountChrome — pure DOM scaffold + drag_start/drag_end lifecycle + absolute drag updates
+  chrome.js               mountChrome — pure DOM scaffold + drag_start/drag_end lifecycle + absolute drag updates + optional maximize/restore state
   defaults.css            optional stock panel visuals (opt-in)
   router.js               createRouter — manifest-prefix dispatch
   layouts/

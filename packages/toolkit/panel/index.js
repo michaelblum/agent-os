@@ -20,6 +20,12 @@
 // @property {(state: unknown, host: ContentHost) => void} [restore]
 
 export { mountPanel } from './mount.js'
-export { mountChrome } from './chrome.js'
+export {
+  createMaximizeController,
+  frameFromWindow,
+  mountChrome,
+  syncMaximizeButton,
+  workAreaFromWindow,
+} from './chrome.js'
 export { Single } from './layouts/single.js'
 export { Tabs } from './layouts/tabs.js'

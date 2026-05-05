@@ -948,7 +948,13 @@ Convenience hook for inbound `ready` events.
 Public entrypoint:
 
 ```js
-import { mountPanel, mountChrome, Single, Tabs } from 'aos://toolkit/panel/index.js'
+import {
+  createMaximizeController,
+  mountPanel,
+  mountChrome,
+  Single,
+  Tabs,
+} from 'aos://toolkit/panel/index.js'
 ```
 
 ### `mountChrome(container, options?)`
@@ -968,6 +974,12 @@ Options:
 | --- | --- | --- |
 | `title` | `string` | header title |
 | `draggable` | `boolean` | whether header drag emits absolute move updates plus `drag_start` / `drag_end` lifecycle messages |
+| `close` | `boolean` | whether to show the stock close control, default `true` |
+| `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
+| `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
+| `onClose` | `function` | optional close override |
+| `onMinimize` | `function` | optional minimize override |
+| `onMaximize` | `function` | optional maximize/restore override; receives the maximize controller |
 
 Returns an object with:
 
@@ -977,7 +989,10 @@ Returns an object with:
 | `headerEl` | header element |
 | `titleEl` | title slot element |
 | `controlsEl` | controls slot element |
+| `customControlsEl` | app controls slot element |
+| `windowControlsEl` | stock lifecycle controls slot element |
 | `contentEl` | content mount element |
+| `maximizeController` | controller when `maximize: true`, otherwise `null` |
 | `setTitle(text)` | update the title slot |
 | `setControls(html)` | replace controls slot contents with HTML |
 
@@ -988,6 +1003,9 @@ Notes:
 - when draggable, the stock header emits `drag_start` once on primary-button
   pointerdown, drives window movement through absolute drag updates, then emits
   `drag_end` on pointerup / cancel / lost capture
+- when maximize is enabled, the stock controller stores the current canvas frame,
+  updates the canvas to the current display work area, and restores the stored
+  frame on the next toggle
 
 ### `mountPanel(options)`
 
@@ -1009,7 +1027,39 @@ Options:
 | `title` | `string` | header title |
 | `layout` | layout object | required |
 | `draggable` | `boolean` | whether the mounted stock header emits absolute drag updates plus `drag_start` / `drag_end` lifecycle messages |
+| `close` | `boolean` | whether to show the stock close control, default `true` |
+| `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
+| `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
 | `container` | `HTMLElement` | mount target, default `document.body` |
+
+### `createMaximizeController(options?)`
+
+Creates the toolkit-owned maximize/restore state used by stock panel chrome and
+by custom workbench titlebars that need the same behavior.
+
+```js
+const controller = createMaximizeController()
+controller.maximize()
+controller.restore()
+controller.toggle()
+```
+
+By default the controller reads `window.screenX/screenY` and
+`window.innerWidth/innerHeight` for the restore frame, reads
+`window.screen.avail*` for the current display work area, and updates the
+calling canvas through `canvas.update`. If the browser does not expose a display
+origin, the helper keeps the current window origin as the safest fallback. Tests
+and custom hosts can override `getFrame`, `getWorkArea`, `updateFrame`, and
+`onStateChange`.
+
+The controller state is:
+
+```js
+{
+  maximized: true,
+  restoreFrame: [x, y, width, height]
+}
+```
 
 ### `Single(factoryOrContent)`
 
