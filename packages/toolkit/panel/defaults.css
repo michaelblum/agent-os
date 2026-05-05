@@ -156,6 +156,11 @@
   overflow: auto;
 }
 
+.aos-split-pane-pane[hidden],
+.aos-split-pane-divider[hidden] {
+  display: none !important;
+}
+
 .aos-split-pane-divider {
   flex: 0 0 var(--aos-split-divider-size, 8px);
   position: relative;

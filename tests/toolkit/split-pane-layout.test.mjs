@@ -233,6 +233,7 @@ test('createSplitPane wires existing panes with separator semantics and restored
     startSize: 600,
     endSize: 400,
     availableSize: 1000,
+    closedPane: null,
   });
 });
 
@@ -264,7 +265,7 @@ test('split pane pointer and keyboard updates emit constrained persisted ratios'
   assert.equal(split.divider.dataset.dragging, undefined);
   assert.equal(split.getState().startSize, 600);
   assert.equal(changes.at(-1).startSize, 600);
-  assert.deepEqual(JSON.parse(storage.getItem('split')), { ratio: 0.75 });
+  assert.deepEqual(JSON.parse(storage.getItem('split')), { ratio: 0.75, closedPane: null });
 
   split.divider.dispatch('keydown', { key: 'ArrowLeft' });
   assert.equal(split.getState().startSize, 560);
@@ -272,6 +273,46 @@ test('split pane pointer and keyboard updates emit constrained persisted ratios'
   assert.equal(split.getState().startSize, 120);
   split.divider.dispatch('keydown', { key: 'End' });
   assert.equal(split.getState().startSize, 640);
+});
+
+test('split pane can close and reopen a sidebar while preserving prior ratio', () => {
+  const documentRef = new FakeDocument();
+  const storage = new FakeStorage();
+  const changes = [];
+  const split = createSplitPane({
+    document: documentRef,
+    storage,
+    storageKey: 'dock',
+    initialRatio: 0.55,
+    minStart: 120,
+    minEnd: 160,
+    dividerSize: 8,
+    onChange(state) {
+      changes.push(state);
+    },
+  });
+  split.root.rect = { left: 0, top: 0, width: 808, height: 500 };
+  split.setRatio(0.55, { notify: false, persist: false });
+
+  const closed = split.closePane('end');
+  assert.equal(closed.closedPane, 'end');
+  assert.equal(closed.startSize, 808);
+  assert.equal(closed.endSize, 0);
+  assert.equal(split.endPane.hidden, true);
+  assert.equal(split.divider.hidden, true);
+  assert.equal(split.isPaneOpen('end'), false);
+  assert.equal(split.root.dataset.closedPane, 'end');
+  assert.deepEqual(JSON.parse(storage.getItem('dock')), { ratio: 0.55, closedPane: 'end' });
+
+  const reopened = split.openPane('end');
+  assert.equal(reopened.closedPane, null);
+  assert.equal(reopened.startSize, 440);
+  assert.equal(reopened.endSize, 360);
+  assert.equal(split.endPane.hidden, false);
+  assert.equal(split.divider.hidden, false);
+  assert.equal(split.isPaneOpen('end'), true);
+  assert.equal(split.root.dataset.closedPane, undefined);
+  assert.deepEqual(changes.map((state) => state.closedPane), ['end', null]);
 });
 
 test('SplitPane layout mounts two content factories into start and end panes', async (t) => {
