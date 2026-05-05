@@ -2,8 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   clampFrameToWorkArea,
+  createDragController,
   createMaximizeController,
   createResizeController,
+  dragFrameFromPointer,
   frameFromWindow,
   normalizeResizeEdge,
   resizeFrame,
@@ -183,6 +185,45 @@ test('resize geometry handles edges, corners, constraints, and work-area clamp',
   }), [600, 480, 200, 120]);
 });
 
+test('drag geometry derives pointer frames and clamps final placement', () => {
+  assert.deepEqual(dragFrameFromPointer(
+    { screenX: 640, screenY: 420 },
+    40,
+    20,
+    [100, 100, 360, 240],
+  ), [600, 400, 360, 240]);
+
+  let frame = [700, 560, 240, 160];
+  const updates = [];
+  const moves = [];
+  const states = [];
+  const controller = createDragController({
+    move(screenX, screenY, offsetX, offsetY) {
+      moves.push({ screenX, screenY, offsetX, offsetY });
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
+    },
+    getFrame: () => frame,
+    getWorkArea: () => [0, 0, 800, 600],
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+      updates.push(nextFrame);
+    },
+    clampOnEnd: true,
+    onStateChange(state) {
+      states.push(state);
+    },
+  });
+
+  controller.start({ pointerId: 1, clientX: 40, clientY: 20 });
+  controller.move({ pointerId: 1, screenX: 770, screenY: 620 });
+  assert.deepEqual(moves, [{ screenX: 770, screenY: 620, offsetX: 40, offsetY: 20 }]);
+  controller.end();
+
+  assert.deepEqual(updates.at(-1), [560, 440, 240, 160]);
+  assert.deepEqual(frame, [560, 440, 240, 160]);
+  assert.deepEqual(states.map((state) => state.phase), ['start', 'move', 'end']);
+});
+
 test('createResizeController updates frames from pointer deltas', () => {
   let frame = [100, 100, 400, 300];
   const updates = [];
@@ -251,11 +292,12 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   const header = new FakeElement();
   const controls = new FakeElement();
   const moves = [];
-  wireDrag(header, controls, {
+  const controller = wireDrag(header, controls, {
     move(screenX, screenY, offsetX, offsetY) {
       moves.push({ screenX, screenY, offsetX, offsetY });
     },
   });
+  assert.equal(controller.getState().active, false);
 
   const down = header.dispatch('pointerdown', {
     button: 0,
@@ -279,6 +321,7 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
 
   header.dispatch('pointerup', { pointerId: 7 });
   assert.equal('dragging' in header.dataset, false);
+  assert.equal(controller.getState().active, false);
   assert.equal(header.hasPointerCapture(7), false);
   assert.deepEqual(emitted, [{ type: 'drag_start' }, { type: 'drag_end' }]);
 });

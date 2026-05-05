@@ -9,6 +9,7 @@ import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from 
 export function mountChrome(container, {
   title = 'AOS',
   draggable = true,
+  drag = {},
   close = true,
   minimize = true,
   maximize = false,
@@ -109,7 +110,9 @@ export function mountChrome(container, {
   panel.appendChild(content)
   container.appendChild(panel)
 
-  if (draggable) wireDrag(header, controlsEl)
+  const dragController = draggable
+    ? wireDrag(header, controlsEl, { clampOnEnd: true, ...drag })
+    : null
   const resizeController = resizable
     ? wireResize(panel, {
       ...resize,
@@ -129,6 +132,7 @@ export function mountChrome(container, {
     windowControlsEl,
     contentEl: content,
     maximizeController,
+    dragController,
     resizeController,
     setTitle(text) { titleEl.textContent = text },
     setControls(html) { customControlsEl.innerHTML = html },
@@ -201,6 +205,94 @@ export function clampFrameToWorkArea(frame, {
   if (next[3] <= area[3]) next[1] = clamp(next[1], area[1], maxY)
   else next[1] = clamp(next[1], area[1] - next[3] + minVisibleHeight, areaBottom - minVisibleHeight)
   return cloneFrame(next)
+}
+
+function framesEqual(lhs, rhs) {
+  const a = cloneFrame(lhs)
+  const b = cloneFrame(rhs)
+  return a.every((value, index) => value === b[index])
+}
+
+export function dragFrameFromPointer(pointer = {}, offsetX = 0, offsetY = 0, frame = frameFromWindow()) {
+  const source = cloneFrame(frame)
+  return cloneFrame([
+    finiteNumber(pointer.screenX, source[0] + finiteNumber(offsetX, 0)) - finiteNumber(offsetX, 0),
+    finiteNumber(pointer.screenY, source[1] + finiteNumber(offsetY, 0)) - finiteNumber(offsetY, 0),
+    source[2],
+    source[3],
+  ])
+}
+
+export function createDragController({
+  move = moveAbsolute,
+  getFrame = () => frameFromWindow(),
+  getWorkArea = () => workAreaFromWindow(),
+  updateFrame = (frame) => mutateSelf({ frame }),
+  clampOnEnd = false,
+  minVisibleWidth = 160,
+  minVisibleHeight = 44,
+  onStateChange = null,
+} = {}) {
+  let active = null
+  let frame = cloneFrame(getFrame())
+
+  function state(extra = {}) {
+    return {
+      active: Boolean(active),
+      frame: cloneFrame(frame),
+      ...extra,
+    }
+  }
+
+  function notify(extra = {}) {
+    const snapshot = state(extra)
+    onStateChange?.(snapshot)
+    return snapshot
+  }
+
+  return {
+    start(pointer = {}) {
+      active = {
+        pointerId: pointer.pointerId ?? null,
+        offsetX: finiteNumber(pointer.clientX, 0),
+        offsetY: finiteNumber(pointer.clientY, 0),
+        frame: cloneFrame(getFrame()),
+      }
+      frame = cloneFrame(active.frame)
+      return notify({ phase: 'start' })
+    },
+    move(pointer = {}) {
+      if (!active) return state({ phase: 'idle' })
+      move(
+        finiteNumber(pointer.screenX, active.frame[0] + active.offsetX),
+        finiteNumber(pointer.screenY, active.frame[1] + active.offsetY),
+        active.offsetX,
+        active.offsetY
+      )
+      frame = dragFrameFromPointer(pointer, active.offsetX, active.offsetY, active.frame)
+      return notify({ phase: 'move' })
+    },
+    end() {
+      if (!active) return state({ phase: 'idle' })
+      active = null
+      frame = cloneFrame(getFrame())
+      if (clampOnEnd) {
+        const clamped = clampFrameToWorkArea(frame, {
+          workArea: getWorkArea(),
+          minVisibleWidth,
+          minVisibleHeight,
+        })
+        if (!framesEqual(frame, clamped)) {
+          frame = clamped
+          updateFrame(clamped)
+        }
+      }
+      return notify({ phase: 'end' })
+    },
+    getState() {
+      return state()
+    },
+  }
 }
 
 export function normalizeResizeEdge(edge = '') {
@@ -460,25 +552,33 @@ function defaultMinimize({ title = 'AOS' } = {}) {
     })
 }
 
-export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
+export function wireDrag(header, controlsEl, {
+  controller = null,
+  move = moveAbsolute,
+  onStart = null,
+  onEnd = null,
+  ...controllerOptions
+} = {}) {
+  const dragController = controller || createDragController({ move, ...controllerOptions })
   header.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return
-    if (e.target instanceof Node && controlsEl.contains(e.target)) return
+    const NodeCtor = globalThis.Node
+    if ((!NodeCtor || e.target instanceof NodeCtor) && controlsEl?.contains?.(e.target)) return
     const pointerId = e.pointerId
-    const offsetX = e.clientX
-    const offsetY = e.clientY
     header.dataset.dragging = 'true'
     e.preventDefault()
     // Drag lifecycle matters to the daemon: mixed-DPI seam placement keeps a
     // direct path during active drags and only falls back to re-home behavior
     // for non-drag placements.
     emit('drag_start')
+    onStart?.(e, dragController)
+    dragController.start(e)
 
     try { header.setPointerCapture(pointerId) } catch {}
 
     const onMove = (ev) => {
       if (ev.pointerId !== pointerId) return
-      move(ev.screenX, ev.screenY, offsetX, offsetY)
+      dragController.move(ev)
     }
 
     const onUp = (ev) => {
@@ -491,7 +591,9 @@ export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
+      dragController.end(ev)
       emit('drag_end')
+      onEnd?.(ev, dragController)
     }
 
     header.addEventListener('pointermove', onMove)
@@ -499,6 +601,7 @@ export function wireDrag(header, controlsEl, { move = moveAbsolute } = {}) {
     header.addEventListener('pointercancel', onUp)
     header.addEventListener('lostpointercapture', onUp)
   })
+  return dragController
 }
 
 export function wireResize(panel, {

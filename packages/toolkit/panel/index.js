@@ -22,8 +22,10 @@
 export { mountPanel } from './mount.js'
 export {
   clampFrameToWorkArea,
+  createDragController,
   createMaximizeController,
   createResizeController,
+  dragFrameFromPointer,
   frameFromWindow,
   mountChrome,
   normalizeResizeEdge,

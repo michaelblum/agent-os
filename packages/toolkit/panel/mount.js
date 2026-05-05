@@ -13,6 +13,7 @@ export function mountPanel({
   title = 'AOS',
   layout,
   draggable = true,
+  drag = {},
   close = true,
   minimize = true,
   maximize = false,
@@ -28,6 +29,7 @@ export function mountPanel({
   const chrome = mountChrome(container, {
     title,
     draggable,
+    drag,
     close,
     minimize,
     maximize,

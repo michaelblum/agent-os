@@ -140,6 +140,11 @@ During drag, AOS should preserve macOS-like transfer behavior:
 The temporary outline can initially be a short-lived canvas. Later it can become
 a layer on the desktop-world stage.
 
+Current implementation status: toolkit panel chrome and the Sigil radial item
+workbench use `wireDrag(..., { clampOnEnd: true })` for final single-display
+placement recovery. Cross-display destination outlines remain the next transfer
+affordance slice.
+
 ## Surface Capabilities
 
 AOS should not recreate macOS window management. It should expose the small set

@@ -56,8 +56,11 @@ test('Sigil radial item workbench is focused on object transforms only', async (
   assert.match(html, /id="undo-change"/);
   assert.match(html, /id="redo-change"/);
   const js = await repoText('apps/sigil/radial-item-workbench/index.js');
+  assert.match(js, /wireDrag/);
   assert.match(js, /wireResize/);
+  assert.match(js, /clampOnEnd: true/);
   assert.match(js, /minWidth: 760/);
+  assert.doesNotMatch(js, /postRaw\(\{ type: 'move_abs'/);
 });
 
 test('workbench shell smoke does not masquerade as the Sigil editor', async () => {

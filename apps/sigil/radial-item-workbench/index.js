@@ -33,7 +33,7 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
-const { createMaximizeController, createSplitPane, syncMaximizeButton, wireResize } = await import(`/${toolkitRoot}/panel/index.js`);
+const { createMaximizeController, createSplitPane, syncMaximizeButton, wireDrag, wireResize } = await import(`/${toolkitRoot}/panel/index.js`);
 const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
 const workbenchShell = document.querySelector('.aos-workbench-shell');
@@ -108,10 +108,6 @@ const MAX_SCENE_ZOOM = 2.2;
 function post(type, payload) {
     const body = payload === undefined ? { type } : { type, payload };
     window.webkit?.messageHandlers?.headsup?.postMessage(body);
-}
-
-function postRaw(message) {
-    window.webkit?.messageHandlers?.headsup?.postMessage(message);
 }
 
 const scene = new THREE.Scene();
@@ -232,13 +228,6 @@ const orbitState = {
     pointerId: null,
     lastX: 0,
     lastY: 0,
-};
-
-const windowDragState = {
-    active: false,
-    pointerId: null,
-    offsetX: 0,
-    offsetY: 0,
 };
 
 function syncOrbit() {
@@ -451,50 +440,14 @@ window.headsup.receive = function receive(b64) {
     }
 };
 
-dragHandle.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    if (event.target?.closest?.('button, select, input, label')) return;
-    windowDragState.active = true;
-    windowDragState.pointerId = event.pointerId;
-    windowDragState.offsetX = event.clientX;
-    windowDragState.offsetY = event.clientY;
-    dragHandle.dataset.dragging = 'true';
-    postRaw({
-        type: 'drag_start',
-        offsetX: windowDragState.offsetX,
-        offsetY: windowDragState.offsetY,
-    });
-    dragHandle.setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-});
-
-dragHandle.addEventListener('pointermove', (event) => {
-    if (!windowDragState.active || event.pointerId !== windowDragState.pointerId) return;
-    postRaw({
-        type: 'move_abs',
-        screenX: event.screenX,
-        screenY: event.screenY,
-        offsetX: windowDragState.offsetX,
-        offsetY: windowDragState.offsetY,
-    });
-    event.preventDefault();
-});
-
-function endWindowDrag(event) {
-    if (event.pointerId !== windowDragState.pointerId) return;
-    windowDragState.active = false;
-    windowDragState.pointerId = null;
-    delete dragHandle.dataset.dragging;
-    dragHandle.releasePointerCapture?.(event.pointerId);
-    postRaw({ type: 'drag_end' });
-}
-
-dragHandle.addEventListener('pointerup', endWindowDrag);
-dragHandle.addEventListener('pointercancel', endWindowDrag);
-dragHandle.addEventListener('lostpointercapture', (event) => {
-    if (!windowDragState.active || event.pointerId !== windowDragState.pointerId) return;
-    endWindowDrag(event);
-});
+const dragController = dragHandle
+    ? wireDrag(dragHandle, workbenchShell?.querySelector('.aos-window-controls'), {
+        clampOnEnd: true,
+        onStart() {
+            if (maximizeController.getState().maximized) maximizeController.restore();
+        },
+    })
+    : null;
 
 renderer.domElement.addEventListener('pointerdown', (event) => {
     orbitState.dragging = true;
@@ -628,6 +581,7 @@ window.__sigilRadialItemWorkbench = {
     orbit,
     orbitState,
     maximizeController,
+    dragController,
     resizeController,
     registry,
     syncPanelRegistry,
