@@ -27,6 +27,11 @@ test('Agent Terminal no longer owns private drag or close controls', () => {
 
 test('Agent Terminal sessions rail uses toolkit fixed sidebar behavior', () => {
   assert.match(html, /createFixedSidebarPane\(\{/)
+  assert.match(html, /class="rail aos-sidebar-rail"/)
+  assert.match(html, /class="rail-top aos-sidebar-rail-top"/)
+  assert.match(html, /class="rail-title aos-sidebar-rail-title"/)
+  assert.match(html, /class="rail-toggle aos-sidebar-rail-toggle"/)
+  assert.match(html, /class="rail-content aos-sidebar-rail-content"/)
   assert.match(html, /root:\s*content/)
   assert.match(html, /mainPane:\s*terminalPane/)
   assert.match(html, /sidebarPane:\s*railPane/)

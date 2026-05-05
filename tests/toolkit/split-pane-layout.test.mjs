@@ -340,7 +340,12 @@ test('split pane can collapse sidebars to fixed accordion rails', () => {
   assert.equal(closedEnd.endSize, 52);
   assert.equal(closedEnd.closedSize, 52);
   assert.equal(horizontal.endPane.hidden, false);
+  assert.equal(horizontal.endPane.style.minWidth, '52px');
+  assert.equal(horizontal.endPane.style.maxWidth, '52px');
   assert.equal(horizontal.divider.hidden, true);
+  horizontal.openPane('end');
+  assert.equal(horizontal.endPane.style.minWidth, '160px');
+  assert.equal(horizontal.endPane.style.maxWidth, '');
 
   const vertical = createSplitPane({
     document: documentRef,
@@ -359,6 +364,8 @@ test('split pane can collapse sidebars to fixed accordion rails', () => {
   assert.equal(closedStart.endSize, 564);
   assert.equal(closedStart.closedSize, 44);
   assert.equal(vertical.startPane.hidden, false);
+  assert.equal(vertical.startPane.style.minHeight, '44px');
+  assert.equal(vertical.startPane.style.maxHeight, '44px');
   assert.equal(vertical.divider.hidden, true);
 });
 

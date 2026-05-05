@@ -16,6 +16,7 @@ import {
   applyWikiKBSemanticTarget,
   wikiKBAosRef,
 } from '../semantics.js'
+import { createFixedSidebarPane } from '../../../panel/layouts/split-pane.js'
 
 const COLORS = {
   edge: 'rgba(100, 100, 160, 0.35)',
@@ -195,6 +196,7 @@ export default function GraphView({ onSelectNode }) {
   let canvas = null
   let ctx = null
   let resizeObserver = null
+  let controlsSplit = null
   let pointerDown = null
   let dragNode = null
   let isActive = false
@@ -325,10 +327,11 @@ export default function GraphView({ onSelectNode }) {
       controlsOpen = Boolean(nextOpen)
     }
 
+    controlsSplit?.setSidebarOpen?.(controlsOpen, { notify: false, persist: false })
     dom.controlsShellEl?.classList.toggle('collapsed', !controlsOpen)
     dom.controlsPanelEl?.toggleAttribute('hidden', !controlsOpen)
     if (dom.controlsToggleEl) {
-      dom.controlsToggleEl.textContent = controlsOpen ? 'Hide Controls' : 'Show Controls'
+      dom.controlsToggleEl.textContent = controlsOpen ? '<' : '>'
       dom.controlsToggleEl.title = controlsOpen ? 'Hide graph controls' : 'Show graph controls'
       applyGraphSemanticTarget(dom.controlsToggleEl, 'controls-toggle', {
         name: controlsOpen ? 'Hide graph controls' : 'Show graph controls',
@@ -827,7 +830,7 @@ export default function GraphView({ onSelectNode }) {
 
   function resize() {
     if (!rootEl || !canvas) return
-    const resized = resizeCanvasToContainer(canvas, rootEl)
+    const resized = resizeCanvasToContainer(canvas, dom.graphMainEl || rootEl)
     size = { width: resized.width, height: resized.height }
     ctx = resized.ctx
     simulation.setSize(size.width, size.height)
@@ -934,11 +937,6 @@ export default function GraphView({ onSelectNode }) {
   function onRootClick(event) {
     const target = event.target.closest('button')
     if (!target) return
-
-    if (target.classList.contains('wiki-kb-controls-toggle')) {
-      setControlsOpen(!controlsOpen)
-      return
-    }
 
     if (target.classList.contains('wiki-kb-scope-button')) {
       mode = target.dataset.mode === 'local' ? 'local' : 'global'
@@ -1058,10 +1056,12 @@ export default function GraphView({ onSelectNode }) {
       rootEl.className = 'wiki-kb-graph-view'
       rootEl.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
       rootEl.innerHTML = `
-        <canvas style="display:block;width:100%;height:100%"></canvas>
-        <div class="wiki-kb-controls-shell">
-          <button type="button" class="wiki-kb-controls-toggle" aria-pressed="true">Hide Controls</button>
-          <div class="wiki-kb-controls-panel">
+        <div class="wiki-kb-controls-shell aos-sidebar-rail">
+          <div class="wiki-kb-controls-top aos-sidebar-rail-top">
+            <span class="wiki-kb-controls-rail-title aos-sidebar-rail-title">Graph</span>
+            <button type="button" class="wiki-kb-controls-toggle aos-sidebar-rail-toggle" aria-pressed="true" aria-label="Hide graph controls" title="Hide graph controls">&lt;</button>
+          </div>
+          <div class="wiki-kb-controls-panel aos-sidebar-rail-content">
             <div class="wiki-kb-controls-header">
               <span class="wiki-kb-controls-title">Graph Controls</span>
             </div>
@@ -1143,8 +1143,11 @@ export default function GraphView({ onSelectNode }) {
             </div>
           </div>
         </div>
-        <div class="wiki-kb-legend"></div>
-        <div class="wiki-kb-hint">drag nodes · scroll to zoom · click to inspect</div>
+        <div class="wiki-kb-graph-main">
+          <canvas style="display:block;width:100%;height:100%"></canvas>
+          <div class="wiki-kb-legend"></div>
+          <div class="wiki-kb-hint">drag nodes · scroll to zoom · click to inspect</div>
+        </div>
       `
 
       canvas = rootEl.querySelector('canvas')
@@ -1152,6 +1155,28 @@ export default function GraphView({ onSelectNode }) {
       dom.controlsShellEl = rootEl.querySelector('.wiki-kb-controls-shell')
       dom.controlsToggleEl = rootEl.querySelector('.wiki-kb-controls-toggle')
       dom.controlsPanelEl = rootEl.querySelector('.wiki-kb-controls-panel')
+      dom.graphMainEl = rootEl.querySelector('.wiki-kb-graph-main')
+      controlsSplit = createFixedSidebarPane({
+        root: rootEl,
+        mainPane: dom.graphMainEl,
+        sidebarPane: dom.controlsShellEl,
+        toggleButton: dom.controlsToggleEl,
+        side: 'start',
+        openSize: 304,
+        closedSize: 42,
+        minMain: 260,
+        dividerSize: 0,
+        initiallyOpen: controlsOpen,
+        expandedLabel: 'Hide graph controls',
+        collapsedLabel: 'Show graph controls',
+        expandedText: '<',
+        collapsedText: '>',
+        onChange() {
+          controlsOpen = controlsSplit?.getSidebarOpen?.() ?? controlsOpen
+          setControlsOpen(controlsOpen)
+          resize()
+        },
+      })
       dom.summaryEl = rootEl.querySelector('.wiki-kb-controls-summary')
       dom.searchInput = rootEl.querySelector('.wiki-kb-search')
       dom.searchSectionEl = rootEl.querySelector('.wiki-kb-controls-section-search')
@@ -1200,7 +1225,7 @@ export default function GraphView({ onSelectNode }) {
 
       simulation.onTick = draw
       resizeObserver = new ResizeObserver(resize)
-      resizeObserver.observe(rootEl)
+      resizeObserver.observe(dom.graphMainEl || rootEl)
       resize()
       renderControls()
       return rootEl

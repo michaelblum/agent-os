@@ -75,30 +75,8 @@
       scrollbar-color: rgba(255,255,255,0.18) transparent;
     }
     .rail {
-      min-width: 0;
-      min-height: 0;
-      display: grid;
-      grid-template-rows: 36px 1fr;
-      border-left: 1px solid rgba(255,255,255,0.11);
       background: #0d1113;
     }
-    .rail-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-      padding: 6px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-    .rail-title {
-      color: #c9d3d8;
-      font-size: 12px;
-      font-weight: 650;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-    .rail-toggle,
     .icon-button {
       width: 28px;
       height: 24px;
@@ -110,20 +88,14 @@
       color: #d7e0e4;
       cursor: pointer;
     }
-    .rail-toggle:hover,
     .icon-button:hover {
       background: rgba(255,255,255,0.09);
     }
     .rail-content {
-      min-height: 0;
       display: grid;
       grid-template-rows: auto auto minmax(108px, 1fr) minmax(168px, 0.9fr);
       gap: 8px;
       padding: 8px;
-    }
-    .content[data-sidebar-open="false"] .rail-title,
-    .content[data-sidebar-open="false"] .rail-content {
-      display: none;
     }
     .new-actions {
       display: grid;
@@ -328,12 +300,12 @@
       <section class="terminal-wrap" aria-label="Agent terminal pane">
         <div id="terminal"></div>
       </section>
-      <aside class="rail" aria-label="Agent sessions">
-        <div class="rail-top">
-          <span class="rail-title">Sessions</span>
-          <button class="rail-toggle" id="railToggle" aria-label="Collapse sessions rail" aria-expanded="true">&gt;</button>
+      <aside class="rail aos-sidebar-rail" aria-label="Agent sessions">
+        <div class="rail-top aos-sidebar-rail-top">
+          <span class="rail-title aos-sidebar-rail-title">Sessions</span>
+          <button class="rail-toggle aos-sidebar-rail-toggle" id="railToggle" aria-label="Collapse sessions rail" aria-expanded="true">&gt;</button>
         </div>
-        <div class="rail-content">
+        <div class="rail-content aos-sidebar-rail-content">
           <div class="new-actions">
             <button id="newCodex" type="button">New Codex</button>
             <button id="newClaude" type="button">New Claude Code</button>
