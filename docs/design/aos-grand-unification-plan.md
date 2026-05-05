@@ -222,6 +222,9 @@ Chosen defaults:
 - Browser recording and grammar: `docs/design/see-do-grammar-trace-connections.md`
 - Pi lessons: `docs/design/pi-computer-use-lessons-for-aos-see-do.md`
 - Open Design comparison: `docs/design/open-design-workbench-cross-reference.md`
+- Local reference checkouts:
+  - `/Users/Michael/Code/pi-computer-use`
+  - `/Users/Michael/Code/open-design`
 - External references:
   - https://github.com/injaneity/pi-computer-use
   - https://github.com/nexu-io/open-design
