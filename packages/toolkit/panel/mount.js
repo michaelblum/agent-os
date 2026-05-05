@@ -39,6 +39,8 @@ export function mountPanel({
     mountSingle(chrome, content)
   } else if (layout.kind === 'tabs') {
     layout.mount(chrome)
+  } else if (layout.kind === 'split-pane') {
+    layout.mount(chrome)
   } else {
     throw new Error(`mountPanel: unknown layout kind '${layout.kind}'`)
   }

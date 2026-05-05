@@ -33,9 +33,12 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
-const { createMaximizeController, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/chrome.js`);
+const { createMaximizeController, createSplitPane, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/index.js`);
 const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
 
+const workbenchMain = document.getElementById('workbench-main');
+const previewPane = document.getElementById('preview-pane');
+const controlsPane = document.getElementById('controls-pane');
 const stage = document.getElementById('preview-stage');
 const workbenchTitle = document.getElementById('workbench-title');
 const dragHandle = document.getElementById('drag-handle');
@@ -52,6 +55,21 @@ const redoButton = document.getElementById('redo-change');
 const transformPanel = document.getElementById('transform-panel');
 const controlsTitle = document.getElementById('controls-title');
 const zoomReadout = document.getElementById('zoom-readout');
+
+const splitPane = createSplitPane({
+    root: workbenchMain,
+    startPane: previewPane,
+    endPane: controlsPane,
+    orientation: 'horizontal',
+    initialRatio: 0.58,
+    minStart: 360,
+    minEnd: 360,
+    storageKey: 'sigil.radial-item-workbench.split',
+    ariaLabel: 'Resize preview and controls panes',
+    onChange() {
+        syncPreviewSize();
+    },
+});
 
 const editorState = createRadialItemEditorState({
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
@@ -613,6 +631,7 @@ window.__sigilRadialItemWorkbench = {
             lastLockIn,
             history: { undo: undoStack.length, redo: redoStack.length },
             orbit: { x: orbitState.x, y: orbitState.y, zoom: orbitState.zoom },
+            splitPane: splitPane.getState(),
             axesVisible: axesGuide.visible,
             visuals: visuals.snapshot(),
         };

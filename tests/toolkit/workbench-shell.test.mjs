@@ -19,6 +19,7 @@ test('workbench defaults define shell, toolbar, and pane primitives', async () =
     '.aos-workbench-stage-actions',
     '.aos-workbench-preview-pane',
     '.aos-workbench-controls-pane',
+    '.aos-workbench-main.aos-split-pane',
   ]) {
     assert.match(css, new RegExp(`${selector.replace('.', '\\.')}\\s*\\{`));
   }
@@ -34,6 +35,9 @@ test('Sigil radial item workbench keeps editor controls out of titlebar chrome',
   assert.match(titlebar, /id="minimize-workbench"/);
   assert.match(titlebar, /id="maximize-workbench"/);
   assert.match(titlebar, /id="close-workbench"/);
+  assert.match(html, /id="workbench-main"/);
+  assert.match(html, /id="preview-pane"/);
+  assert.match(html, /id="controls-pane"/);
   assert.doesNotMatch(titlebar, /id="item-select"|id="axes-toggle"|id="lock-in"/);
 
   assert.match(toolbar, /id="item-select"/);

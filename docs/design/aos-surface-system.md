@@ -62,6 +62,12 @@ left, a right controls pane, and inside that controls pane an object/layer list
 beside transform triplets. The same primitive should later support Markdown
 preview/source, workflow graph/source, and report/slides workbenches.
 
+The first promoted slice is `createSplitPane` / `SplitPane` in
+`packages/toolkit/panel/`: a reusable draggable separator with min/max pane
+constraints, keyboard semantics, and optional ratio restore. Docking,
+collapsing, and breakout behavior build on top of this primitive instead of
+being separate editor-specific layout code.
+
 The object/layer list should treat grouped scene objects as a tree, not a flat
 bag. A whole-composition group can own child meshes, and later it can own
 bespoke effects, reveal thresholds, cursor-coupled animation, particles, and

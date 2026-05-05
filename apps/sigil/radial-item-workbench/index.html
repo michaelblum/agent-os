@@ -36,8 +36,8 @@
         <button type="button" id="reset-orbit" title="Reset preview orbit and zoom">Reset view</button>
       </div>
     </div>
-    <main class="aos-workbench-main">
-      <section class="aos-workbench-preview-pane" aria-label="Radial item preview">
+    <main class="aos-workbench-main" id="workbench-main">
+      <section class="aos-workbench-preview-pane" id="preview-pane" aria-label="Radial item preview">
         <div class="aos-workbench-stage" id="preview-stage"></div>
         <div class="aos-workbench-stage-actions" role="toolbar" aria-label="Preview history">
           <button type="button" class="aos-icon-button" id="undo-change" aria-label="Undo transform change" disabled>
@@ -55,7 +55,7 @@
         </div>
         <div class="aos-workbench-readout" id="zoom-readout">100%</div>
       </section>
-      <section class="aos-workbench-controls-pane" aria-label="Object transform controls">
+      <section class="aos-workbench-controls-pane" id="controls-pane" aria-label="Object transform controls">
         <div class="aos-workbench-pane-title" id="controls-title">Object Transform</div>
         <div id="transform-panel"></div>
       </section>
