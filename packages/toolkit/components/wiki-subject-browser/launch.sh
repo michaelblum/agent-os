@@ -13,6 +13,7 @@ TARGET="${1:-}"
 PANEL_W="${AOS_WIKI_SUBJECT_BROWSER_W:-1220}"
 PANEL_H="${AOS_WIKI_SUBJECT_BROWSER_H:-760}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
+WORK_RECORD_FIXTURE="${WORK_RECORD_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json}"
 
 if [[ ! -x "$AOS" ]]; then
   echo "aos binary not found at $AOS" >&2
@@ -78,6 +79,39 @@ read -r X Y W H <<<"$GEOMETRY"
   --js 'document.querySelector(".wiki-kb-status")?.textContent?.includes("nodes")' \
   --timeout 10s >/dev/null || true
 
+if [[ -f "$WORK_RECORD_FIXTURE" ]]; then
+  CATALOG_JSON="$(ROOT="$ROOT" WORK_RECORD_FIXTURE="$WORK_RECORD_FIXTURE" node --input-type=module <<'NODE'
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+const root = process.env.ROOT;
+const fixturePath = process.env.WORK_RECORD_FIXTURE;
+const {
+  SUBJECT_CATALOG_LOAD_TYPE,
+  createWorkRecordSubjectCatalogEntry,
+} = await import(pathToFileURL(`${root}/packages/toolkit/workbench/subject-catalog.js`).href);
+const record = JSON.parse(readFileSync(fixturePath, 'utf8'));
+const entry = createWorkRecordSubjectCatalogEntry(record, {
+  source: {
+    kind: 'fixture',
+    path: fixturePath,
+    read_only: true,
+  },
+});
+console.log(JSON.stringify({
+  type: SUBJECT_CATALOG_LOAD_TYPE,
+  entries: [entry],
+}));
+NODE
+)"
+  "$AOS" show post --id "$CANVAS_ID" --event "$CATALOG_JSON" >/dev/null
+  "$AOS" show wait \
+    --id "$CANVAS_ID" \
+    --manifest wiki-subject-browser-v0 \
+    --js 'window.__wikiSubjectBrowserState?.catalog_entries?.length > 0 && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06\"]")' \
+    --timeout 5s >/dev/null || true
+fi
+
 if [[ -n "$WIKI_PATH" ]]; then
   PAGE_JSON="$("$AOS" wiki show "$WIKI_PATH" --json)"
   CONTENT_JSON="$(PAGE_JSON="$PAGE_JSON" python3 -c '
@@ -103,6 +137,9 @@ fi
 echo "Wiki Subject Browser V0 launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"
 echo "URL: aos://$TOOLKIT_CONTENT_ROOT/components/wiki-subject-browser/index.html"
+if [[ -f "$WORK_RECORD_FIXTURE" ]]; then
+  echo "Catalog Work Record: $WORK_RECORD_FIXTURE"
+fi
 if [[ -n "$WIKI_PATH" ]]; then
   echo "Wiki: $WIKI_PATH"
 fi

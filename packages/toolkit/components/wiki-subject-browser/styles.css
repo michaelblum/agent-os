@@ -3,8 +3,101 @@
   min-height: 0;
   overflow: hidden;
   background: rgba(5, 10, 14, 0.96);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 1px;
 }
 
-.wiki-subject-browser-root > .markdown-workbench-root {
+.wiki-subject-browser-workbench-region {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wiki-subject-browser-workbench-region > .markdown-workbench-root {
   height: 100%;
+}
+
+.wiki-subject-browser-catalog {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(9, 15, 22, 0.92);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.wiki-subject-browser-catalog header {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.wiki-subject-browser-catalog header strong {
+  font: var(--aos-type-label);
+}
+
+.wiki-subject-browser-catalog header span {
+  min-height: 14px;
+  font: var(--aos-type-caption);
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.wiki-subject-browser-catalog [data-role="catalog-list"] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.wiki-subject-browser-catalog-empty {
+  margin: 0;
+  color: rgba(148, 163, 184, 0.86);
+  font: var(--aos-type-caption);
+}
+
+.wiki-subject-browser-catalog-entry {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 32, 0.86);
+}
+
+.wiki-subject-browser-catalog-entry + .wiki-subject-browser-catalog-entry {
+  margin-top: 8px;
+}
+
+.wiki-subject-browser-catalog-title {
+  display: grid;
+  gap: 2px;
+}
+
+.wiki-subject-browser-catalog-title strong {
+  font: var(--aos-type-label);
+  color: rgba(248, 250, 252, 0.94);
+}
+
+.wiki-subject-browser-catalog-title span,
+.wiki-subject-browser-catalog-meta {
+  font: var(--aos-type-caption);
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.wiki-subject-browser-catalog-entry button {
+  height: 28px;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: 6px;
+  background: rgba(14, 116, 144, 0.24);
+  color: rgba(224, 242, 254, 0.96);
+  font: var(--aos-type-label);
+}
+
+.wiki-subject-browser-catalog-entry button:disabled {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(71, 85, 105, 0.22);
+  color: rgba(148, 163, 184, 0.7);
 }

@@ -218,9 +218,13 @@ when reading descriptors:
   `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable`.
 - `subjectContracts(subject)` returns top-level `contracts[]` plus legacy
   dotted operation/event strings still present in `capabilities[]`.
+- `subjectCanonicalContracts(subject)` returns only live top-level
+  `contracts[]` and does not read legacy dotted raw capabilities.
 - `subjectReferences(subject)` reads top-level `subject_references[]`; it also
   contains the only legacy fallback for archived descriptors that stored
   references under `metadata.subject_references[]`.
+- `subjectCanonicalReferences(subject)` returns only live top-level
+  `subject_references[]`.
 - `subjectFacets(subject)` and `subjectHosts(subject)` expose canonical
   projections and Host entries. `subjectLegacyViews(subject)` and
   `subjectLegacyControls(subject)` are legacy adapter helpers only; do not use
@@ -310,11 +314,16 @@ The shell manifest name is `wiki-subject-browser-v0`. It is a browser-hosted
 composition surface over the existing Wiki KB graph and Markdown Workbench, not
 a new `aos` command and not a new wiki persistence owner. It starts graph-first:
 the Wiki KB graph is the primary pane and the Markdown Workbench content pane is
-closed until a wiki subject selection opens a page. The shell sets
+closed until a wiki subject selection opens a page. It also accepts a small
+canonical Subject Catalog payload for non-wiki Subjects and can open a
+read-only Work Record through the existing Work Record Workbench. The shell sets
 `window.__wikiSubjectBrowserState` for inspection and exposes stable refs such
 as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
 `markdown-workbench:content-pane`, `markdown-workbench:content-close`, and
-`markdown-workbench:source-editor`.
+`markdown-workbench:source-editor`. Catalog refs include
+`wiki-subject-browser-v0:subject-catalog`,
+`wiki-subject-browser-v0:subject-catalog-status`, and
+`wiki-subject-browser-v0:subject-catalog:open:<catalog-key>`.
 
 V0 event contract:
 
@@ -323,6 +332,15 @@ V0 event contract:
 - `wiki_subject.open.requested` carries the normalized open request created via
   `createWikiSubjectOpenRequest(selection)` after the selection is known to be
   openable through its canonical Markdown Facet, Host, and contracts.
+- `subject_catalog.load` carries `{ entries: [...] }` where each entry is an
+  `aos.subject_catalog.entry` built from an `aos.workbench.subject` descriptor
+  plus the owner-provided open payload needed by the target workbench.
+- `subject.open.requested` carries the selected catalog entry handle, Subject
+  descriptor, selected Facet, selected Host entry, opener metadata, and the
+  workbench-specific `open_message`.
+- `subject.open.result` reports the status of the V0 handoff. For Work Records,
+  it includes the opened record id, child Work Record Workbench canvas id, and
+  whether the `work_record.open` message was posted to the child.
 - `markdown_document.open`, `markdown_document.text.patch`, and
   `markdown_document.save.result` remain Markdown Workbench messages.
 - `markdown-workbench/save.requested` and `markdown-workbench/save.result`
@@ -337,6 +355,49 @@ V0 boundaries:
 - The shell does not write wiki pages directly. Wiki-backed open/save stays with
   Markdown Workbench and its existing `markdown_document.open` /
   `markdown_document.save.requested` behavior.
+- The shell does not add a second Work Record viewer. V0 Work Record catalog
+  opens spawn the stock `work-record-workbench` and post its existing
+  `work_record.open` message.
+- Catalog/open decisions use high-level `capabilities[]`, live `contracts[]`,
+  `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`.
+  `views[]`, `controls[]`, and dotted raw `capabilities[]` are not live
+  catalog/open dependencies.
+
+### Subject Catalog And Opening V0
+
+The canonical catalog/open helper lives at:
+
+```js
+import {
+  createSubjectCatalogEntry,
+  createWorkRecordSubjectCatalogEntry,
+  createSubjectOpenRequestFromCatalogEntry,
+} from '../workbench/subject-catalog.js'
+```
+
+An `aos.subject_catalog.entry` is a browser/workbench navigation record, not a
+new source of truth for the Subject. It contains the canonical Subject
+descriptor, a Subject Entry Handle, normalized high-level capabilities, live
+contracts, top-level Subject References, Facets, derived affordances, and an
+owner-provided `open_payload`. The open payload is intentionally separate from
+the descriptor because a descriptor says what can be opened, while the owner
+still supplies the data needed by the target workbench.
+
+V0 supports the first non-wiki route: Work Record descriptors with an
+`inspectable` capability, canonical `work_record.*` contracts, and a
+`work-record-workbench` Host entry can produce a `subject.open.requested`
+message whose `open_message` is the existing `work_record.open` payload. This
+opens the stock read-only Work Record Workbench path for schema-v0 records.
+
+V0 boundaries:
+
+- no new public `aos` command surface;
+- no broad Subject graph rewrite;
+- no replay, repair, macro playback, live browser execution, or background
+  loop;
+- no generic Playbook execution UI;
+- no dependency on legacy `views[]`, `controls[]`, or dotted raw
+  `capabilities[]` summaries.
 
 ### Playbook Workbench V0
 

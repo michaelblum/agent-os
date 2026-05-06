@@ -5,10 +5,18 @@ import {
   WIKI_SUBJECT_OPEN_SCHEMA_VERSION,
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js';
+import {
+  createSubjectCatalogEntries,
+  createSubjectOpenRequestFromCatalogEntry,
+  SUBJECT_CATALOG_LOAD_TYPE,
+  SUBJECT_CATALOG_SCHEMA_VERSION,
+  SUBJECT_OPEN_REQUEST_TYPE,
+} from '../../workbench/subject-catalog.js';
 
 export const WIKI_SUBJECT_BROWSER_SURFACE = 'wiki-subject-browser-v0';
 export const WIKI_SUBJECT_BROWSER_URL = 'aos://toolkit/components/wiki-subject-browser/index.html';
 export const WIKI_SUBJECT_BROWSER_SCHEMA_VERSION = '2026-05-06';
+export const WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID = 'wiki-subject-browser-v0-work-record';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -27,8 +35,14 @@ export function createWikiSubjectBrowserState({
   selected_path = selectedPath,
   contentOpen = false,
   content_open = contentOpen,
+  catalogEntries = [],
+  catalog_entries = catalogEntries,
   lastOpenRequest = null,
   last_open_request = lastOpenRequest,
+  lastSubjectOpenRequest = null,
+  last_subject_open_request = lastSubjectOpenRequest,
+  subjectOpenResult = null,
+  subject_open_result = subjectOpenResult,
   lastEvent = null,
   last_event = lastEvent,
 } = {}) {
@@ -40,7 +54,10 @@ export function createWikiSubjectBrowserState({
     content_open: Boolean(content_open),
     selected_path: text(selected_path),
     selected_subject: selected_subject ? cloneJson(selected_subject) : null,
+    catalog_entries: createSubjectCatalogEntries(catalog_entries),
     last_open_request: last_open_request ? cloneJson(last_open_request) : null,
+    last_subject_open_request: last_subject_open_request ? cloneJson(last_subject_open_request) : null,
+    subject_open_result: subject_open_result ? cloneJson(subject_open_result) : null,
     last_event: last_event ? cloneJson(last_event) : null,
   };
 }
@@ -86,6 +103,49 @@ export function applyWikiSubjectOpenRequested(state, request = null) {
 export function createWikiSubjectBrowserOpenRequestFromSelection(selection = {}) {
   if (!wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection)) return null;
   return createWikiSubjectOpenRequest(selection);
+}
+
+export function applySubjectCatalogLoad(state, message = {}) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  const payload = message?.payload && typeof message.payload === 'object' ? message.payload : message;
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  state.catalog_entries = createSubjectCatalogEntries(entries);
+  state.last_event = {
+    type: SUBJECT_CATALOG_LOAD_TYPE,
+    schema_version: SUBJECT_CATALOG_SCHEMA_VERSION,
+    entry_count: state.catalog_entries.length,
+  };
+  return state.last_event;
+}
+
+export function createWikiSubjectBrowserOpenRequestFromCatalogEntry(entry = {}) {
+  return createSubjectOpenRequestFromCatalogEntry(entry);
+}
+
+export function applySubjectOpenRequested(state, request = null) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  if (!request) return null;
+  state.last_subject_open_request = cloneJson(request);
+  state.last_event = {
+    type: SUBJECT_OPEN_REQUEST_TYPE,
+    schema_version: SUBJECT_CATALOG_SCHEMA_VERSION,
+    payload: cloneJson(request),
+  };
+  return state.last_event;
+}
+
+export function applySubjectOpenResult(state, result = null) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  if (!result) return null;
+  state.subject_open_result = cloneJson(result);
+  state.last_event = cloneJson(result);
+  return state.subject_open_result;
 }
 
 export function wikiSubjectBrowserSnapshot(state = {}) {

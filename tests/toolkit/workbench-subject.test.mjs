@@ -6,6 +6,8 @@ import {
   isWorkbenchSubjectCapability,
   normalizeWorkbenchSubjectDescriptor,
   subjectCapabilities,
+  subjectCanonicalContracts,
+  subjectCanonicalReferences,
   subjectContracts,
   subjectFacets,
   subjectHosts,
@@ -109,12 +111,17 @@ test('subject compatibility helpers split high-level capabilities from archived 
   assert.equal(isWorkbenchSubjectCapability('editable'), true);
   assert.equal(isWorkbenchSubjectCapability('wiki.read'), false);
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
+  assert.deepEqual(subjectCanonicalContracts(subject), [
+    'wiki.invoke',
+    'markdown_document.text.patch',
+  ]);
   assert.deepEqual(subjectContracts(subject), [
     'wiki.invoke',
     'markdown_document.text.patch',
     'wiki.read',
   ]);
   assert.equal(subjectReferences(subject).length, 1);
+  assert.equal(subjectCanonicalReferences(subject).length, 1);
   assert.equal(subjectFacets(subject)[0].key, 'wiki-markdown');
   assert.equal(subjectHosts(subject)[0].entry.value, 'aos://toolkit/components/markdown-workbench/index.html');
   assert.deepEqual(subjectLegacyViews(subject), ['markdown.source', 'markdown.preview']);
@@ -158,9 +165,11 @@ test('subject compatibility helpers read legacy descriptors without v-next field
   };
 
   assert.deepEqual(subjectCapabilities(legacy), []);
+  assert.deepEqual(subjectCanonicalContracts(legacy), []);
   assert.deepEqual(subjectContracts(legacy), ['wiki.read', 'markdown_document.text.patch']);
   assert.equal(subjectSupports(legacy, 'markdown_document.text.patch'), true);
   assert.equal(subjectReferences(legacy)[0].id, 'legacy-source');
+  assert.deepEqual(subjectCanonicalReferences(legacy), []);
   assert.deepEqual(subjectLegacyViews(legacy), ['markdown.source']);
   assert.deepEqual(subjectLegacyControls(legacy), ['text.editor']);
 

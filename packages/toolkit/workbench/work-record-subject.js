@@ -181,6 +181,33 @@ function workRecordSource(record) {
   };
 }
 
+function referenceHandle(value = '') {
+  const ref = text(value);
+  if (!ref || /^https?:\/\//i.test(ref)) return '';
+  return ref.includes(':') ? ref : '';
+}
+
+function workRecordSubjectReferences(record) {
+  return record.references.map((reference, index) => {
+    const ref = text(reference.handle || reference.ref || reference.subject_id);
+    const handle = referenceHandle(ref);
+    return {
+      id: text(reference.id, `work-record-reference-${index + 1}`),
+      relationship: text(reference.relationship, 'references'),
+      ...(handle ? { handle } : {}),
+      ...(ref ? { subject_id: ref } : {}),
+      ...(text(reference.subject_type) ? { subject_type: text(reference.subject_type) } : {}),
+      ...(text(reference.facet_key) ? { facet_key: text(reference.facet_key) } : {}),
+      ...(text(reference.layer) ? { layer: text(reference.layer) } : {}),
+      ...(text(reference.role) ? { role: text(reference.role) } : {}),
+      metadata: {
+        source: 'work_record.references',
+        ...(ref ? { ref } : {}),
+      },
+    };
+  }).filter((reference) => text(reference.id) && text(reference.relationship));
+}
+
 export function createWorkRecordSubject(record = {}) {
   const id = workRecordId(record);
   const normalized = normalizeWorkRecord(record);
@@ -194,6 +221,7 @@ export function createWorkRecordSubject(record = {}) {
     source: workRecordSource(normalized),
     capabilities: workRecordCapabilities(normalized),
     contracts: workRecordContracts(normalized),
+    subject_references: workRecordSubjectReferences(normalized),
     facets: workRecordFacets(normalized),
     persistence: normalized.readOnly ? null : {
       kind: 'agent_handoff',

@@ -9,6 +9,7 @@ import {
 } from '../../packages/toolkit/workbench/work-record-subject.js';
 import {
   subjectCapabilities,
+  subjectCanonicalReferences,
   subjectContracts,
   subjectFacets,
   subjectHosts,
@@ -86,6 +87,11 @@ test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
   assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.claims'));
   assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.claim_results'));
   assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.verifier_report'));
+  assert.ok(subjectCanonicalReferences(subject).some((reference) => (
+    reference.id === 'subject-under-test'
+      && reference.handle === 'wiki:Sigil'
+      && reference.relationship === 'input_to'
+  )));
   assert.equal('views' in subject, false);
   assert.equal('controls' in subject, false);
   assert.equal(subject.metadata.claim_count, 2);

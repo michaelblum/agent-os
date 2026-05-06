@@ -72,11 +72,26 @@ export function subjectContracts(subject = {}) {
   ]);
 }
 
+export function subjectCanonicalContracts(subject = {}) {
+  return uniqueTextList(subject.contracts);
+}
+
+export function subjectCanonicalReferences(subject = {}) {
+  return uniqueObjects(
+    objectList(subject.subject_references),
+    (reference) => [
+      text(reference.id),
+      text(reference.relationship),
+      text(reference.handle || reference.subject_id),
+    ].join('|'),
+  );
+}
+
 export function subjectReferences(subject = {}) {
   const metadataReferences = objectList(subject.metadata?.subject_references);
   return uniqueObjects(
     [
-      ...objectList(subject.subject_references),
+      ...subjectCanonicalReferences(subject),
       ...metadataReferences,
     ],
     (reference) => [
