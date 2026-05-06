@@ -1068,6 +1068,13 @@ Consumer override:
 }
 ```
 
+Graph `nodes[].type` is a wiki page kind for the force graph and mind map
+legend. It is intentionally separate from Workbench Subject `subject_type`.
+The V0 page-kind vocabulary is `page`, `concept`, `entity`, `workflow`, and
+`reference`; incoming compatibility payloads normalize legacy `agent` to
+`entity` and plugin reference pages to `reference` before deriving available
+types or legend entries.
+
 Incremental updates go to `wiki-kb/graph/update` and may include:
 
 - `nodes`, `links`, `raw` for upserts

@@ -5,7 +5,8 @@ set -euo pipefail
 # Requires: ./aos built, no existing wiki (or will be reset)
 
 AOS="./aos"
-WIKI_DIR=$(${AOS} wiki reindex --json 2>/dev/null | grep -o '"wiki_dir":"[^"]*"' | cut -d'"' -f4 || echo "$HOME/.config/aos/repo/wiki")
+STATE_ROOT=${AOS_STATE_ROOT:-"$HOME/.config/aos"}
+WIKI_DIR="$STATE_ROOT/repo/wiki"
 PASS=0
 FAIL=0
 
@@ -66,8 +67,27 @@ echo "$OUTPUT" | grep -q "gateway" && pass "search finds gateway" || fail "searc
 # Test: graph
 echo ""
 echo "--- graph ---"
+mkdir -p "$WIKI_DIR/aos/entities"
+cat > "$WIKI_DIR/aos/entities/agent-frontmatter-compat.md" <<'EOF'
+---
+type: agent
+name: Taxonomy Alignment Test Agent
+tags: [taxonomy, compatibility]
+---
+
+# Taxonomy Alignment Test Agent
+EOF
+$AOS wiki reindex > /dev/null
 OUTPUT=$($AOS wiki graph --json)
 echo "$OUTPUT" | grep -q '"graphView"' && echo "$OUTPUT" | grep -q 'gateway.md' && pass "graph payload" || fail "graph payload"
+echo "$OUTPUT" | python3 -c '
+import json, sys
+graph = json.load(sys.stdin)
+node = next((n for n in graph.get("nodes", []) if n.get("path") == "aos/entities/agent-frontmatter-compat.md"), None)
+if node and node.get("type") == "entity" and all(n.get("type") != "agent" for n in graph.get("nodes", [])):
+    sys.exit(0)
+sys.exit(1)
+' && pass "graph normalizes agent frontmatter compatibility input" || fail "graph normalizes agent frontmatter compatibility input"
 
 # Test: graph --raw
 OUTPUT=$($AOS wiki graph --raw --json)

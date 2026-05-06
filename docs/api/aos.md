@@ -606,6 +606,13 @@ Primary public verbs for knowledge-base consumers:
 - optional `raw` page bodies when `--raw` is requested
 - `config` for default graph-view behavior
 
+`nodes[].type` is the wiki graph page kind, not a Workbench Subject
+`subject_type` and not arbitrary raw frontmatter. The V0 page-kind vocabulary is
+`page`, `concept`, `entity`, `workflow`, and `reference`. Compatibility
+normalization maps legacy Sigil agent wiki documents such as
+`sigil/agents/default.md` and frontmatter `type: agent` to `entity`; plugin
+pages under `references/` map to `reference`.
+
 ## Auxiliary Consumer Surfaces
 
 These are still public, but they are more specialized:

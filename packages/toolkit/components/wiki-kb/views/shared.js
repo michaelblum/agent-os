@@ -7,8 +7,11 @@ export {
 } from '../../../markdown/render.js'
 
 const NODE_COLORS = Object.freeze({
+  page: '#8a8a9f',
   entity: '#8ab4ff',
   concept: '#6a9966',
+  workflow: '#d7b74f',
+  reference: '#ddaa66',
   plugin: '#ddaa66',
 })
 
@@ -86,6 +89,28 @@ function normalizeId(value) {
 function normalizeText(value) {
   if (value == null) return ''
   return String(value).trim()
+}
+
+function normalizePath(value) {
+  return normalizeText(value).replace(/^\/+/, '')
+}
+
+export function normalizeWikiPageKind(value, { path = '', plugin = '' } = {}) {
+  const type = normalizeText(value).toLowerCase()
+  const pagePath = normalizePath(path)
+  const hasPlugin = Boolean(normalizeText(plugin))
+
+  if (pagePath.endsWith('/SKILL.md')) return 'workflow'
+  if (pagePath.startsWith('sigil/agents/') || type === 'agent') return 'entity'
+  if (
+    (pagePath.includes('/plugins/') || pagePath.startsWith('plugins/'))
+    && pagePath.includes('/references/')
+  ) return 'reference'
+  if (hasPlugin && type === 'concept') return 'reference'
+  if (['page', 'concept', 'entity', 'workflow', 'reference'].includes(type)) return type
+  if (hasPlugin && !pagePath.endsWith('/SKILL.md')) return 'reference'
+  if (type === 'plugin') return 'reference'
+  return 'page'
 }
 
 function normalizeBoolean(value, fallback) {
@@ -293,9 +318,12 @@ function normalizeNodesInput(nodes = []) {
 
     const node = {
       id,
-      path: normalizeText(candidate?.path ?? id) || id,
+      path: normalizePath(candidate?.path ?? id) || id,
       name: normalizeText(candidate?.name ?? candidate?.title ?? id) || id,
-      type: normalizeText(candidate?.type) || 'concept',
+      type: normalizeWikiPageKind(candidate?.type, {
+        path: candidate?.path ?? id,
+        plugin: candidate?.plugin,
+      }),
       description: normalizeText(candidate?.description ?? candidate?.summary),
       tags: normalizeTags(candidate?.tags),
       plugin: normalizeText(candidate?.plugin) || '',

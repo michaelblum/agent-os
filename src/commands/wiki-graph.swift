@@ -115,7 +115,16 @@ private struct WikiPathContext {
     let pluginName: String?
     let inferredType: String
     let isSkill: Bool
+    let isReference: Bool
 }
+
+private let wikiGraphPageKinds: Set<String> = [
+    "page",
+    "concept",
+    "entity",
+    "workflow",
+    "reference",
+]
 
 func wikiDbPath(forWikiRoot wikiRoot: String) -> String {
     "\(wikiRoot)/wiki.db"
@@ -145,7 +154,7 @@ func buildWikiGraphSnapshot(wikiRoot: String, includeRaw: Bool) -> WikiGraphSnap
         WikiGraphNode(
             id: page.path,
             path: page.path,
-            type: page.type,
+            type: wikiGraphPageKind(path: page.path, type: page.type, plugin: page.plugin),
             name: page.name,
             description: page.description,
             tags: page.tags,
@@ -242,21 +251,48 @@ private func wikiPathContext(for relativePath: String, frontmatter: WikiFrontmat
         let pluginName = segments[pluginStart]
         let remainder = Array(segments.dropFirst(pluginStart + 1))
         if remainder == ["SKILL.md"] {
-            return WikiPathContext(pluginName: pluginName, inferredType: "workflow", isSkill: true)
+            return WikiPathContext(pluginName: pluginName, inferredType: "workflow", isSkill: true, isReference: false)
         }
         if remainder.first == "references" {
-            return WikiPathContext(pluginName: pluginName, inferredType: frontmatter?.type ?? "concept", isSkill: false)
+            return WikiPathContext(pluginName: pluginName, inferredType: frontmatter?.type ?? "concept", isSkill: false, isReference: true)
         }
-        return WikiPathContext(pluginName: pluginName, inferredType: frontmatter?.type ?? "concept", isSkill: false)
+        return WikiPathContext(pluginName: pluginName, inferredType: frontmatter?.type ?? "concept", isSkill: false, isReference: false)
     }
 
     if wikiEntitySegmentStart(segments: segments) != nil {
-        return WikiPathContext(pluginName: nil, inferredType: "entity", isSkill: false)
+        return WikiPathContext(pluginName: nil, inferredType: "entity", isSkill: false, isReference: false)
     }
     if wikiConceptSegmentStart(segments: segments) != nil {
-        return WikiPathContext(pluginName: nil, inferredType: "concept", isSkill: false)
+        return WikiPathContext(pluginName: nil, inferredType: "concept", isSkill: false, isReference: false)
     }
-    return WikiPathContext(pluginName: nil, inferredType: frontmatter?.type ?? "concept", isSkill: false)
+    return WikiPathContext(pluginName: nil, inferredType: frontmatter?.type ?? "concept", isSkill: false, isReference: false)
+}
+
+private func wikiGraphPageKind(path relativePath: String, type rawType: String?, plugin: String?) -> String {
+    let frontmatter = rawType.map {
+        WikiFrontmatter(
+            type: $0,
+            name: nil,
+            description: nil,
+            tags: [],
+            version: nil,
+            author: nil,
+            triggers: [],
+            requires: [],
+            plugin: plugin,
+            raw: [:]
+        )
+    }
+    let context = wikiPathContext(for: relativePath, frontmatter: frontmatter)
+    let raw = (rawType ?? context.inferredType)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+
+    if context.isSkill { return "workflow" }
+    if context.isReference { return "reference" }
+    if relativePath.hasPrefix("sigil/agents/") || raw == "agent" { return "entity" }
+    if wikiGraphPageKinds.contains(raw) { return raw }
+    return "page"
 }
 
 private func wikiPluginSegmentStart(segments: [String]) -> Int? {

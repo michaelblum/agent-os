@@ -42,6 +42,7 @@ import {
 } from '../../packages/toolkit/workbench/wiki-subject-opening.js';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
+import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 
 const repo = new URL('../../', import.meta.url);
 
@@ -293,6 +294,38 @@ test('wiki subject browser derives graph-index filter options from canonical fie
   assert.deepEqual(options.health.map((option) => [option.value, option.count]), [['valid', 1]]);
   assert.equal(snapshot.subject_index_filter_count, 0);
   assert.equal(snapshot.subject_index_filters_active, false);
+});
+
+test('wiki subject browser keeps canonical domain subject filters separate from wiki page kinds', () => {
+  const wikiAgentSubject = createWikiPageSubject({
+    path: 'sigil/agents/default.md',
+    type: 'agent',
+    name: 'Default Agent',
+  });
+  const sigilAgentSubject = createSigilAgentSubject({
+    path: 'sigil/agents/default.md',
+    type: 'agent',
+    name: 'Default Agent',
+  });
+  const snapshot = createWikiSubjectBrowserState({
+    selected_subject: wikiAgentSubject,
+    catalog_entries: [
+      createSubjectCatalogEntry({ subject: sigilAgentSubject }),
+    ],
+  });
+
+  assert.deepEqual(
+    snapshot.subject_index_filter_options.subject_types.map((option) => [option.value, option.count]),
+    [
+      ['sigil.agent', 1],
+      ['wiki.entity', 1],
+    ],
+  );
+  assert.deepEqual(
+    snapshot.subject_index_entries.map((entry) => entry.subject_type),
+    ['sigil.agent', 'wiki.entity'],
+  );
+  assert.ok(!snapshot.subject_index_filter_options.subject_types.some((option) => option.value === 'agent'));
 });
 
 test('wiki subject browser composes search and graph-index filters deterministically', async () => {

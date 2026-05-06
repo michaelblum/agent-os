@@ -7,6 +7,7 @@ import {
   findShortestPath,
   normalizeGraphViewConfig,
   normalizeGraphPayload,
+  normalizeWikiPageKind,
   pickPrimaryNodeId,
   renderMarkdown,
   safeExternalHref,
@@ -80,7 +81,7 @@ test('applyGraphUpdate supports upserts and removals', () => {
 
   assert.deepEqual(updated.nodes, [
     { id: 'beta', path: 'beta', name: 'Beta', type: 'concept', description: '', tags: [], plugin: '' },
-    { id: 'gamma', path: 'gamma', name: 'Gamma', type: 'plugin', description: '', tags: [], plugin: '' },
+    { id: 'gamma', path: 'gamma', name: 'Gamma', type: 'reference', description: '', tags: [], plugin: '' },
   ]);
   assert.deepEqual(updated.links, [
     { source: 'beta', target: 'gamma' },
@@ -96,6 +97,35 @@ test('renderMarkdown escapes HTML and strips unsafe links', () => {
   assert.match(html, /href="https:\/\/example\.com"/);
   assert.doesNotMatch(html, /javascript:/);
   assert.match(html, />bad</);
+});
+
+test('normalizeGraphPayload canonicalizes wiki graph page kinds', () => {
+  const graph = normalizeGraphPayload({
+    nodes: [
+      { id: 'sigil/agents/default.md', name: 'Default', type: 'agent' },
+      {
+        id: 'aos/plugins/demo/references/readme.md',
+        name: 'Plugin Reference',
+        type: 'concept',
+        plugin: 'demo',
+      },
+      { id: 'custom/page.md', name: 'Custom', type: 'bespoke' },
+    ],
+  });
+
+  assert.deepEqual(
+    graph.nodes.map((node) => [node.id, node.type]),
+    [
+      ['sigil/agents/default.md', 'entity'],
+      ['aos/plugins/demo/references/readme.md', 'reference'],
+      ['custom/page.md', 'page'],
+    ],
+  );
+  assert.deepEqual(
+    deriveGraphViewData(graph).availableTypes,
+    ['entity', 'page', 'reference'],
+  );
+  assert.equal(normalizeWikiPageKind('plugin'), 'reference');
 });
 
 test('safeExternalHref allows explicit safe protocols only', () => {
@@ -193,7 +223,7 @@ test('deriveGraphViewData supports local depth, tag filters, and isolated-node h
     anchorId: 'beta',
     depth: 1,
     showIsolated: false,
-    activeTypes: ['entity', 'concept', 'plugin'],
+    activeTypes: ['entity', 'concept', 'reference'],
     activeTags: ['docs'],
   });
 
