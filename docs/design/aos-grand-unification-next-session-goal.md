@@ -1,37 +1,48 @@
 # AOS Grand Unification Next Session Goal
 
-**Status:** handoff goal for continuing the foundation-hardening workstream
+**Status:** handoff goal for continuing the browser-first workbench stream
 **Date:** 2026-05-06
 
 ## Goal
 
-Create a browser-hosted Wiki Subject Browser V0 shell.
+Create a browser-hosted Playbook Workbench V0 shell.
 
-The previous slice landed on `main` at `b2b9622`. AOS now has the explicit
-Wiki Subject opening bridge: Wiki KB emits `wiki.subject.selection` /
-`wiki_subject.open.requested`, Markdown Workbench opens wiki selections through
-Workbench Subject compatibility readers, and wiki-backed open/save behavior
-already exists. The next step is to turn that bridge into a small named
-browser-hosted surface that a user or agent can launch, see, and operate.
+The previous slice landed on `main` at `3c5fcdb`. AOS now has a named
+browser-hosted Wiki Subject Browser V0 shell that composes Wiki KB and
+Markdown Workbench through the explicit subject-opening bridge. The next
+practical step is to do the same kind of lived composition for the browser
+Playbook prototype: turn the proven model-only bridge into a launchable
+browser-hosted toolkit surface without adding replay, repair, macro playback,
+or new public CLI surface.
 
-The immediate next workstream is tracked in GitHub issue #279:
+The immediate next workstream is tracked in GitHub issue #280:
 
 ```text
-https://github.com/michaelblum/agent-os/issues/279
+https://github.com/michaelblum/agent-os/issues/280
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/wiki-subject-browser-v0
+codex/playbook-workbench-v0
 ```
 
-The trust gap now is lived composition. The selection/open contract is tested,
-but there is not yet a named Wiki Subject Browser V0 shell with a clear launch
-path, graph-first layout, semantic controls, and live AOS verification. This
-slice should stay small: compose existing Wiki KB and wiki-backed Markdown
-Workbench through the landed bridge rather than inventing a broad new browser,
-router, or persistence system.
+The trust gap now is the Playbook workbench loop. The pure toolkit prototype
+already proves:
+
+```text
+createBrowserPlaybookPrototype()
+  -> runBrowserPlaybookPrototype()
+  -> runOneStepPlaybookHarness()
+  -> Playbook-origin Work Record v0
+  -> work_record.open message for the existing Work Record workbench model
+```
+
+What does not yet exist is a named browser-hosted Playbook Workbench V0 surface
+that a user or agent can launch, inspect with `./aos see`, gate explicitly,
+simulate exactly one saved-evidence browser step, see the report-only verifier
+result, and open the emitted Work Record through the existing read-only Work
+Record workbench path.
 
 ## Required Rediscovery
 
@@ -55,7 +66,7 @@ Before selecting verification commands, run:
 Use focused `--files` arguments after editing so the router sees the intended
 slice instead of the whole branch diff.
 
-Inspect GitHub issue #279 after local state is known. An open issue or PR is not
+Inspect GitHub issue #280 after local state is known. An open issue or PR is not
 automatically current.
 
 ## Read First
@@ -65,27 +76,29 @@ Read the fresh-session primer and live entry-path recipe:
 - `docs/recipes/fresh-session-continuation-primer.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 
-Then read the current subject and workbench sources:
+Then read the current Playbook, Work Record, and toolkit surface sources:
 
 - `CONTEXT.md`
 - `docs/design/aos-grand-unification-plan.md`
-- `docs/design/aos-workbench-pattern.md`
+- `docs/design/browser-playbook-prototype.md`
 - `docs/api/toolkit.md`
-- `packages/toolkit/workbench/wiki-subject-opening.js`
-- `packages/toolkit/workbench/wiki-subject.js`
-- `packages/toolkit/workbench/subject.js`
-- `packages/toolkit/components/wiki-kb/index.js`
-- `packages/toolkit/components/wiki-kb/styles.css`
-- `packages/toolkit/components/markdown-workbench/index.js`
-- `packages/toolkit/components/markdown-workbench/index.html`
-- `packages/toolkit/components/markdown-workbench/model.js`
-- `packages/toolkit/components/markdown-workbench/launch.sh`
-- `packages/toolkit/components/markdown-workbench/save-current.sh`
+- `shared/schemas/aos-playbook-step-v0.md`
+- `shared/schemas/aos-work-record-v0.md`
+- `shared/schemas/fixtures/aos-playbook-step-v0/valid/browser-click-status.json`
+- `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
+- `packages/toolkit/workbench/browser-playbook-prototype.js`
+- `packages/toolkit/workbench/playbook-step-harness.js`
+- `packages/toolkit/workbench/work-record-capture.js`
+- `packages/toolkit/workbench/work-record-verifier.js`
+- `packages/toolkit/components/work-record-workbench/model.js`
+- `packages/toolkit/components/work-record-workbench/index.js`
+- `packages/toolkit/components/wiki-subject-browser/launch.sh`
+- `packages/toolkit/components/wiki-subject-browser/index.js`
 - `packages/toolkit/panel/layouts/split-pane.js`
 - `packages/toolkit/panel/mount.js`
-- `tests/toolkit/wiki-subject-opening.test.mjs`
-- `tests/toolkit/wiki-kb*.test.mjs`
-- `tests/toolkit/markdown-workbench*.test.mjs`
+- `tests/toolkit/browser-playbook-prototype.test.mjs`
+- `tests/toolkit/playbook-step-harness.test.mjs`
+- `tests/toolkit/work-record-workbench-model.test.mjs`
 - adjacent tests selected by `./aos dev recommend`
 
 Local reference checkouts should exist adjacent to this repo and are research
@@ -96,89 +109,100 @@ inputs only:
 
 ## Current Checkpoint
 
-At this handoff, `main` is expected to be at `b2b9622`, and
-`codex/wiki-subject-browser-v0` should be created from that commit.
+At this handoff, `main` is expected to be at `3c5fcdb`, and
+`codex/playbook-workbench-v0` should be created from that commit.
 
 Recent foundation commits include:
 
+- `3c5fcdb feat: add wiki subject browser v0 shell`
 - `b2b9622 feat: add wiki subject opening bridge`
 - `60ef457 feat: move subject writers to contracts`
 - `851263a feat: emit concrete subject facets`
 - `7361920 feat: add workbench subject vnext compatibility`
-- `d56a44a feat: split wiki and sigil subject helpers`
 - `1b26ba6 docs: document work record evidence adapter boundary`
 
 Treat these as orientation only. Rediscover before editing.
 
 ## Immediate Work Plan
 
-1. Audit the current Markdown Workbench graph integration and the new
-   `wiki-subject-opening.js` bridge before adding a surface.
+1. Audit the browser Playbook prototype, one-step harness, Work Record workbench
+   model, and current toolkit launch patterns before adding UI.
 2. Add the smallest named browser-hosted surface or launch path that can
-   honestly be called Wiki Subject Browser V0. Prefer composition over new
+   honestly be called Playbook Workbench V0. Prefer composition over new
    infrastructure.
-3. Preserve graph-first behavior: the graph is primary initially; opening a
-   subject reveals or populates the Markdown Workbench content pane.
-4. Use the existing `wiki.subject.selection` / `wiki_subject.open.requested`
-   bridge and Workbench Subject compatibility readers. Do not bypass them with
-   private ad hoc state.
-5. Use existing wiki-backed Markdown Workbench open/save behavior. Do not add a
-   new wiki persistence path.
-6. Expose stable semantic controls/refs so `./aos see` can inspect the surface
-   and `./aos do` can operate at least one minimal open path where practical.
-7. Add focused tests for:
-   - the named shell/surface initial graph-first state;
-   - selection/open bridge integration into the content pane;
+3. Keep V0 fixture-backed and report-only. It should simulate exactly one
+   browser-compatible Playbook step from saved evidence behind an explicit
+   workflow gate ref/token.
+4. Use `createBrowserPlaybookPrototype()`, `runBrowserPlaybookPrototype()`,
+   `runOneStepPlaybookHarness()`, and the existing Work Record workbench open
+   path. Do not bypass them with private ad hoc state.
+5. Show the Playbook step descriptor, target/ref summary, gate status, verifier
+   status, diagnostics, and emitted Work Record summary.
+6. Open the emitted Work Record through the existing read-only Work Record
+   workbench model instead of inventing another Work Record view.
+7. Expose stable semantic controls/refs so `./aos see` can inspect the surface
+   and `./aos do` can operate the minimal gate/simulate/open path where
+   practical.
+8. Add focused tests for:
+   - named shell/surface initial state;
+   - gate rejection and gated simulation;
+   - Work Record open handoff;
    - semantic refs or message payloads needed by agents;
-   - legacy Wiki KB and Markdown Workbench behavior remaining intact.
-8. Update docs/API with the launch path, event contract, and V0 boundaries.
-9. Run the workflow router with focused `--files`, then run focused toolkit
-   tests, `bash tests/help-contract.sh` if public command docs or CLI contracts
-   changed, `git diff --check`, and `./aos ready`.
-10. Perform one live AOS verification:
+   - no replay, repair, macro, background-loop, or broad-CLI controls.
+9. Update docs/API with the launch path, event/message contract, and V0
+   boundaries.
+10. Run the workflow router with focused `--files`, then run focused toolkit
+    tests, `bash tests/help-contract.sh` if public command docs or CLI
+    contracts changed, `git diff --check`, and `./aos ready`.
+11. Perform one live AOS verification:
     - launch the V0 shell through its repo-mode launch path;
     - use `./aos show wait` if there is a canvas id;
     - use `./aos see` to confirm the surface is visible/inspectable;
-    - exercise one graph-selection/open path if stable controls are available;
+    - exercise one gate/simulate/open path if stable controls are available;
+    - confirm the emitted Work Record opens read-only;
     - clean up created canvases;
     - record exact commands/results in the final response.
-11. Commit in focused reversible slices.
+12. Commit in focused reversible slices.
 
 ## Acceptance Criteria
 
-- There is a named browser-hosted Wiki Subject Browser V0 surface or launch
-  path.
-- The surface starts graph-first and opens a selected wiki subject into a
-  neighboring Markdown Workbench content/editor pane.
-- The flow uses explicit subject-opening messages and Workbench Subject
-  descriptors/compatibility readers.
-- Wiki KB remains generic and Markdown Workbench continues to own wiki-backed
-  open/save behavior.
-- Focused tests cover the shell and the selection/open flow.
-- One live AOS verification confirms the surface can be launched and perceived.
-- No broad Playbook UI, autonomous replay, repair, macro playback, or new `aos`
-  command surface is added.
+- There is a named browser-hosted Playbook Workbench V0 surface or launch path.
+- The surface starts inspectable and exposes the known browser Playbook
+  prototype state.
+- The flow requires an explicit workflow gate ref/token before simulation.
+- The flow simulates exactly one saved-evidence browser Playbook step and emits
+  a Playbook-origin Work Record v0.
+- The emitted Work Record opens through the existing read-only Work Record
+  workbench path.
+- Focused tests cover the shell, gate behavior, simulation, Work Record handoff,
+  and forbidden controls.
+- One live AOS verification confirms the surface can be launched, perceived,
+  operated, and cleaned up.
+- No public `aos playbook`, `aos verify`, `aos audit`, recorder, replay, repair,
+  macro playback, background loop, or live browser execution is added.
 
 ## Guardrails
 
 - Use `./aos` primitives and repo CLI. Do not use the Computer Use plugin for
   this repo.
 - Do not use AppleScript as a shortcut for AOS-owned behavior.
-- Do not add `aos verify`, `aos audit`, or another broad command surface.
-- Do not duplicate the canonical graph projection work tracked by #72.
-- Do not add a new wiki persistence path; use existing Markdown Workbench
-  wiki-backed open/save behavior.
-- Keep schema changes optional and backward-compatible unless the task explicitly
-  includes a migration with fixtures, adapters, and docs.
+- Do not add `aos playbook`, `aos verify`, `aos audit`, or another broad command
+  surface.
+- Do not add autonomous replay or repair.
+- Do not add macro playback, background loops, or live browser execution in this
+  slice.
+- Do not create a second Work Record viewer. Use the existing Work Record
+  workbench model and read-only opening path.
+- Keep schema changes optional and backward-compatible unless the task
+  explicitly includes a migration with fixtures, adapters, and docs.
 - Keep worktree/canonical content-root rules from `AGENTS.md` in force. The
   singleton daemon is shared across worktrees.
 
-## Next Milestones After Wiki Subject Browser V0
+## Next Milestones After Playbook Workbench V0
 
-1. Promote the browser Playbook prototype into a browser-hosted Playbook
-   workbench after subject opening and evidence-adapter diagnostics prove
-   stable.
-2. Start replacing legacy `views[]`/`controls[]` consumers with the compatibility
-   API where the composed subject browser proves the contract.
-3. Extend the browser-hosted Subject Browser beyond wiki pages only after the V0
-   wiki path is stable and verified.
+1. Start replacing legacy `views[]`/`controls[]` consumers with the
+   compatibility API where the composed browser surfaces prove the contract.
+2. Extend the browser-hosted Subject Browser beyond wiki pages only after the
+   V0 wiki and Playbook paths are stable and verified.
+3. Add live browser execution only behind a separate Workflow-gated design and
+   verifier plan.
