@@ -289,6 +289,53 @@ Subject descriptor. Markdown Workbench remains responsible for fetching,
 opening, editing, and saving wiki-backed Markdown through its existing
 `markdown_document.open` and `markdown_document.save.requested` behavior.
 
+### Wiki Subject Browser V0
+
+The named V0 shell lives at:
+
+```text
+aos://toolkit/components/wiki-subject-browser/index.html
+```
+
+Launch it in repo mode with:
+
+```bash
+packages/toolkit/components/wiki-subject-browser/launch.sh
+packages/toolkit/components/wiki-subject-browser/launch.sh wiki:aos/concepts/runtime-modes.md
+```
+
+The shell manifest name is `wiki-subject-browser-v0`. It is a browser-hosted
+composition surface over the existing Wiki KB graph and Markdown Workbench, not
+a new `aos` command and not a new wiki persistence owner. It starts graph-first:
+the Wiki KB graph is the primary pane and the Markdown Workbench content pane is
+closed until a wiki subject selection opens a page. The shell sets
+`window.__wikiSubjectBrowserState` for inspection and exposes stable refs such
+as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
+`markdown-workbench:content-pane`, `markdown-workbench:content-close`, and
+`markdown-workbench:source-editor`.
+
+V0 event contract:
+
+- `wiki.subject.selection` carries the selected wiki path, entry handle, and
+  `aos.workbench.subject` descriptor from Wiki KB.
+- `wiki_subject.open.requested` carries the normalized open request created via
+  `createWikiSubjectOpenRequest(selection)` after the selection is known to be
+  openable through the Workbench Subject compatibility readers.
+- `markdown_document.open`, `markdown_document.text.patch`, and
+  `markdown_document.save.result` remain Markdown Workbench messages.
+- `markdown-workbench/save.requested` and `markdown-workbench/save.result`
+  remain the Markdown Workbench save handoff messages.
+
+V0 boundaries:
+
+- The shell does not add Playbook UI, replay, repair, macro playback, or a new
+  CLI surface.
+- The shell does not replace the graph projection work tracked separately by
+  #72; it composes the current Wiki KB graph.
+- The shell does not write wiki pages directly. Wiki-backed open/save stays with
+  Markdown Workbench and its existing `markdown_document.open` /
+  `markdown_document.save.requested` behavior.
+
 Before migration, older helper output often looked like this:
 
 ```json
@@ -421,6 +468,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+- `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
 - `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines

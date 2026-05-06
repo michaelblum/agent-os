@@ -1,0 +1,10 @@
+.wiki-subject-browser-root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: rgba(5, 10, 14, 0.96);
+}
+
+.wiki-subject-browser-root > .markdown-workbench-root {
+  height: 100%;
+}

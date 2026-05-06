@@ -1,6 +1,8 @@
 import { renderMarkdown } from '../../markdown/render.js';
 import {
   createMarkdownOpenRequestFromWikiSelection,
+  createWikiSubjectOpenRequest,
+  WIKI_SUBJECT_OPEN_REQUEST_TYPE,
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js';
 import WikiKB from '../wiki-kb/index.js';
@@ -218,6 +220,7 @@ export default function MarkdownWorkbench(options = {}) {
   async function openWikiSubjectSelection(selection) {
     const request = createMarkdownOpenRequestFromWikiSelection(selection);
     if (!request) return null;
+    emit(WIKI_SUBJECT_OPEN_REQUEST_TYPE, createWikiSubjectOpenRequest(selection));
     return openWikiPath(request.path, { syncEditor: true, openContent: true });
   }
 
@@ -243,7 +246,7 @@ export default function MarkdownWorkbench(options = {}) {
 
   async function loadWikiGraph({ revealCurrent = false } = {}) {
     if (!graphWorkbench || !graphHost) return;
-    if (state.source?.kind !== 'wiki') {
+    if (state.source?.kind !== 'wiki' && !options.loadGraphOnStart) {
       syncGraphStatus('Open a wiki page to load graph');
       return;
     }
@@ -255,7 +258,7 @@ export default function MarkdownWorkbench(options = {}) {
       graphWorkbench.onMessage?.({ type: 'graph', payload }, graphHost);
       collapseEmbeddedGraphControls();
       syncGraphStatus('Wiki graph');
-      if (revealCurrent) revealCurrentWikiNode();
+      if (revealCurrent && state.source?.kind === 'wiki') revealCurrentWikiNode();
       scheduleEmbeddedGraphFit([80, 360, 900]);
     } catch (error) {
       syncGraphStatus('Graph unavailable');
@@ -352,6 +355,11 @@ export default function MarkdownWorkbench(options = {}) {
 
   function render() {
     const root = el('div', 'markdown-workbench-root');
+    root.setAttribute('role', 'group');
+    root.setAttribute('aria-label', 'Markdown Workbench');
+    root.dataset.aosRef = 'markdown-workbench:root';
+    root.dataset.aosSurface = 'markdown-workbench';
+    root.dataset.semanticTargetId = 'root';
     dom.root = root;
     const params = typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search || '')
@@ -360,27 +368,27 @@ export default function MarkdownWorkbench(options = {}) {
     if (transition === 'fade-in') root.dataset.transition = 'fade-in';
     root.innerHTML = `
       <main class="aos-workbench-main markdown-workbench-main">
-        <section class="aos-workbench-preview-pane markdown-workbench-graph-pane" aria-label="Wiki graph">
-          <div class="markdown-workbench-graph" data-role="graph"></div>
+        <section class="aos-workbench-preview-pane markdown-workbench-graph-pane" aria-label="Wiki graph" data-aos-ref="markdown-workbench:wiki-graph" data-aos-surface="markdown-workbench" data-semantic-target-id="wiki-graph">
+          <div class="markdown-workbench-graph" data-role="graph" data-aos-ref="markdown-workbench:graph-host" data-aos-surface="markdown-workbench" data-semantic-target-id="graph-host"></div>
         </section>
-        <section class="aos-workbench-controls-pane markdown-workbench-document-pane" aria-label="Wiki page content">
+        <section class="aos-workbench-controls-pane markdown-workbench-document-pane" aria-label="Wiki page content" data-aos-ref="markdown-workbench:content-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="content-pane">
           <header class="aos-workbench-toolbar markdown-workbench-document-toolbar" data-density="compact" role="toolbar" aria-label="Document tools">
             <div class="markdown-workbench-file" title="Current document">
-              <strong data-role="path"></strong>
+              <strong data-role="path" data-aos-ref="markdown-workbench:current-path" data-aos-surface="markdown-workbench" data-semantic-target-id="current-path"></strong>
             </div>
             <div class="markdown-workbench-view-toggle" role="group" aria-label="Document view">
-              <button type="button" class="active" data-view-mode="preview" aria-label="Preview" title="Preview" aria-pressed="true">
+              <button type="button" class="active" data-view-mode="preview" aria-label="Preview" title="Preview" aria-pressed="true" data-aos-ref="markdown-workbench:view-preview" data-aos-action="set_preview" data-aos-surface="markdown-workbench" data-semantic-target-id="view-preview">
                 <svg class="markdown-workbench-mode-icon" aria-hidden="true" viewBox="0 0 20 20">
                   <path d="M2.5 10s2.7-4.8 7.5-4.8S17.5 10 17.5 10 14.8 14.8 10 14.8 2.5 10 2.5 10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
                   <circle cx="10" cy="10" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
                 </svg>
               </button>
-              <button type="button" data-view-mode="source" aria-label="Edit" title="Edit" aria-pressed="false">
+              <button type="button" data-view-mode="source" aria-label="Edit" title="Edit" aria-pressed="false" data-aos-ref="markdown-workbench:view-source" data-aos-action="set_source" data-aos-surface="markdown-workbench" data-semantic-target-id="view-source">
                 <span class="markdown-workbench-code-icon" aria-hidden="true">&lt;/&gt;</span>
               </button>
             </div>
             <div class="markdown-workbench-actions">
-              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index" aria-expanded="false">
+              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index" aria-expanded="false" data-aos-ref="markdown-workbench:outline-toggle" data-aos-action="toggle_outline" data-aos-surface="markdown-workbench" data-semantic-target-id="outline-toggle">
                 <svg aria-hidden="true" viewBox="0 0 20 20">
                   <path d="M5 5.5h10M5 10h10M5 14.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
                   <circle cx="2.8" cy="5.5" r="0.9" fill="currentColor"/>
@@ -388,17 +396,17 @@ export default function MarkdownWorkbench(options = {}) {
                   <circle cx="2.8" cy="14.5" r="0.9" fill="currentColor"/>
                 </svg>
               </button>
-              <button type="button" data-action="revert">Revert</button>
-              <button type="button" data-action="save">Save</button>
+              <button type="button" data-action="revert" data-aos-ref="markdown-workbench:revert" data-aos-action="revert_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="revert">Revert</button>
+              <button type="button" data-action="save" data-aos-ref="markdown-workbench:save" data-aos-action="save_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="save">Save</button>
             </div>
-            <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view">x</button>
+            <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view" data-aos-ref="markdown-workbench:content-close" data-aos-action="close_content" data-aos-surface="markdown-workbench" data-semantic-target-id="content-close">x</button>
           </header>
           <div class="markdown-workbench-document-body">
             <section class="markdown-workbench-source" aria-label="Markdown source">
-              <textarea spellcheck="true" aria-label="Markdown source editor"></textarea>
+              <textarea spellcheck="true" aria-label="Markdown source editor" data-aos-ref="markdown-workbench:source-editor" data-aos-action="edit_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="source-editor"></textarea>
             </section>
-            <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview">
-              <div class="markdown-workbench-preview"></div>
+            <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview" data-aos-ref="markdown-workbench:preview-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="preview-pane">
+              <div class="markdown-workbench-preview" data-aos-ref="markdown-workbench:preview" data-aos-surface="markdown-workbench" data-semantic-target-id="preview"></div>
             </section>
             <aside class="markdown-workbench-outline-panel" aria-label="Document index" hidden>
               <div class="markdown-workbench-outline-title">Index</div>
@@ -488,6 +496,11 @@ export default function MarkdownWorkbench(options = {}) {
       splitOpen = true;
       sync({ replaceEditorValue: true });
       void loadWikiGraph({ revealCurrent: true });
+    } else if (type === WIKI_SUBJECT_SELECTION_TYPE) {
+      const selection = Object.prototype.hasOwnProperty.call(message, 'payload')
+        ? message.payload
+        : message;
+      void openWikiSubjectSelection(selection);
     } else if (type === 'markdown_document.text.patch') {
       applyMarkdownTextPatch(state, message);
       sync({ replaceEditorValue: true });
@@ -503,7 +516,10 @@ export default function MarkdownWorkbench(options = {}) {
         syncViewMode();
       }
     } else {
-      graphWorkbench?.onMessage?.(message, graphHost);
+      const graphMessage = type.startsWith('wiki-kb/')
+        ? { ...message, type: type.slice('wiki-kb/'.length) }
+        : message;
+      graphWorkbench?.onMessage?.(graphMessage, graphHost);
     }
   }
 
@@ -511,8 +527,8 @@ export default function MarkdownWorkbench(options = {}) {
     manifest: {
       name: 'markdown-workbench',
       title: 'Markdown Workbench',
-      accepts: ['markdown_document.open', 'markdown_document.text.patch', 'markdown_document.save.result'],
-      emits: ['markdown-workbench/save.requested', 'markdown-workbench/save.result'],
+      accepts: [WIKI_SUBJECT_SELECTION_TYPE, 'markdown_document.open', 'markdown_document.text.patch', 'markdown_document.save.result'],
+      emits: ['markdown-workbench/save.requested', 'markdown-workbench/save.result', WIKI_SUBJECT_OPEN_REQUEST_TYPE],
       channelPrefix: 'markdown-workbench',
       defaultSize: { w: 1120, h: 720 },
       requires: ['wiki_page_changed'],
@@ -523,6 +539,7 @@ export default function MarkdownWorkbench(options = {}) {
       host.contentEl.style.overflow = 'hidden';
       const root = render();
       void openInitialWikiFromUrl();
+      if (options.loadGraphOnStart) void loadWikiGraph();
       return root;
     },
 

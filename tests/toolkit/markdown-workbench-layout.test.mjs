@@ -119,7 +119,7 @@ test('markdown source editor leaves native undo and redo key chords alone', asyn
   const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
   const keydownBody = js.match(/function handleEditorKeydown\(event\) \{[\s\S]*?\n  \}/)?.[0] || '';
 
-  assert.match(js, /<textarea spellcheck="true" aria-label="Markdown source editor"><\/textarea>/);
+  assert.match(js, /<textarea spellcheck="true" aria-label="Markdown source editor"[^>]*><\/textarea>/);
   assert.match(keydownBody, /key === 's'/);
   assert.match(keydownBody, /event\.key !== 'Tab'/);
   assert.doesNotMatch(keydownBody, /key === 'z'/);
