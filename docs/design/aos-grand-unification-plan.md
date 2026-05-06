@@ -14,8 +14,8 @@ see -> decide -> do -> see -> record -> verify
 AOS remains the canonical control plane. `pi-computer-use` supplies
 semantic-first computer-use lessons, `playwright-cli` remains the browser
 backend under AOS `browser:<session>/<ref>` targets, Open Design informs
-browser-compatible artifact workbenches, the wiki becomes the subject browser,
-and work records become the durable evidence/replay/verifier substrate.
+browser-compatible artifact workbenches, the wiki becomes the first Subject
+Browser, and work records become the durable evidence/replay/verifier substrate.
 
 Chosen defaults:
 
@@ -30,6 +30,9 @@ Chosen defaults:
   - `aos do click browser:<session>/<ref>`
   - `aos do fill browser:<session>/<ref> <text>`
   - `aos show create --anchor-browser browser:<session>/<ref>`
+- Treat `--anchor-browser browser:<session>/<ref>` as the current CLI role flag
+  for using a browser Target-with-Ref as a `show` Anchor. It is not a separate
+  target dialect; resolution produces the display Anchor Binding.
 - Keep target dialects explicit:
   - `browser:<session>/<ref>`: Playwright-backed DOM/ARIA targets.
   - `canvas:<canvas-id>/<ref>`: AOS canvas semantic targets.
@@ -101,11 +104,13 @@ Chosen defaults:
   - Wiki Markdown links can resolve to subjects.
   - Subjects can link to source files, schemas, workbench facets, and child
     subjects.
-- Add one real vertical subject chain:
+- Add one real Navigation Trail of Subject Entry Handles:
   - `wiki:Sigil`
   - `sigil.radial_menu:default`
   - `sigil.radial_menu.item:wiki-graph`
   - `canvas_object:radial.wiki-brain.shell`
+  - Each handle resolves to a Subject plus entry Facet; this is not a literal
+    chain of Subjects.
 
 ### Phase 4: Browser-Hosted Wiki Subject Browser
 
@@ -115,13 +120,15 @@ Chosen defaults:
 - Make the wiki graph/browser run cleanly in a real browser session as the
   default compatible host.
 - Keep AOS canvas hosting available for runtime-integrated surfaces, but do not
-  require dual-hosting for every editor.
+  require every editor Facet to ship both Browser-Host and Canvas-Host
+  implementations.
 - The browser-hosted wiki browser must support:
   - graph browsing
   - markdown facet viewing
   - followable subject links
   - stable semantic controls for `aos see/do browser:<session>/<ref>`
-  - opening editor facets by subject capability
+  - opening controls/editor-layer facets when the Subject advertises an
+    `editable` capability
 - Use the titlebar/path idea only as a locator/trail, not as graph ontology:
   - `*` means return to graph origin.
   - `/` means followed exploration path.

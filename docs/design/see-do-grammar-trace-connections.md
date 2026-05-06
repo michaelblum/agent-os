@@ -206,10 +206,11 @@ Playwright's `fill` and `goto`. Anything not wrapped, such as tracing, codegen,
 tab operations, check/select/upload, reload/back, and arbitrary page scripts,
 remains a raw `playwright-cli` escape hatch.
 
-For `show`, `--anchor-browser` resolves a browser ref to a static window anchor
-and offset. It follows Chrome window movement through the existing
-`anchor_window` substrate, but it does not follow page scroll, zoom,
-navigation, or DOM mutation. The agent must re-anchor.
+For `show`, `--anchor-browser browser:<session>/<ref>` is the current CLI role
+flag for using a browser Target-with-Ref as an Anchor. The CLI resolves that
+input to an Anchor Binding (`anchor_window` plus offset). It follows Chrome
+window movement through the existing `anchor_window` substrate, but it does not
+follow page scroll, zoom, navigation, or DOM mutation. The agent must re-anchor.
 
 ## Gaps And Contradictions Worth Tracking
 

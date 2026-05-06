@@ -124,7 +124,7 @@ Examples:
 browser:<session>/<ref>
 ax:<pid>/<ref>
 canvas:<canvas-id>/<object-ref>
-screen:<frame-id>/<x,y>
+screen:<state-id>/<x,y>
 ```
 
 The exact grammar can harden later. The important point is that target strings

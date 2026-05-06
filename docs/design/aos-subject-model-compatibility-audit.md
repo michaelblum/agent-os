@@ -84,10 +84,10 @@ Migration direction:
 - keep historical evidence immutable and patch only execution-map or reusable
   execution knowledge.
 
-### 5. The grand plan still uses old navigation shorthand
+### 5. The grand plan used old navigation shorthand
 
-`docs/design/aos-grand-unification-plan.md` still says "vertical subject chain"
-for the example:
+At audit time, `docs/design/aos-grand-unification-plan.md` still said "vertical
+subject chain" for the example:
 
 ```text
 wiki:Sigil
@@ -101,11 +101,14 @@ Handles, not a chain of Subjects.
 
 Migration direction:
 
-- rewrite this section during the schema pass;
+- rewrite this section as a Navigation Trail of Subject Entry Handles;
 - keep the example handles if they remain useful, but label them as entry
   handles and clarify which Subject each handle resolves to.
 
-### 6. Anchor wording is mostly correct in code, but docs need role language
+Cleanup status: the plan now uses Navigation Trail wording. Schema work still
+needs to define the handle shape.
+
+### 6. Anchor wording was mostly correct in code, but docs needed role language
 
 The CLI legitimately exposes `--anchor-browser`, `--anchor-window`, and
 `--anchor-channel`. ADR-0004 clarifies that Anchor is a role and that
@@ -120,17 +123,23 @@ Migration direction:
 - do not replace `--anchor-browser` with a generic `--anchor <target>` until the
   window/channel/browser resolvers share one contract.
 
-### 7. State ID docs have one older target example
+Cleanup status: the grand plan and browser trace note now use Anchor role and
+Anchor Binding wording while preserving the current `--anchor-browser` CLI.
 
-`docs/design/aos-work-records-and-self-healing-recipes.md` still gives the
-screen dialect as `screen:<frame-id>/<x,y>`. ADR-0006 and the grand plan use
-`screen:<state-id>/<x,y>` for coordinate fallback with a perception-state guard.
+### 7. State ID docs had one older target example
+
+At audit time, `docs/design/aos-work-records-and-self-healing-recipes.md` still
+gave the screen dialect as `screen:<frame-id>/<x,y>`. ADR-0006 and the grand
+plan use `screen:<state-id>/<x,y>` for coordinate fallback with a
+perception-state guard.
 
 Migration direction:
 
 - update docs to `screen:<state-id>/<x,y>`;
 - keep enforcement language honest: current AOS echoes/correlates state ids but
   does not reject stale coordinate actions yet.
+
+Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
 
 ## Recommended Migration Order
 
