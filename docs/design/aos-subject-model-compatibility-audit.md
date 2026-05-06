@@ -12,12 +12,12 @@ instead of turning legacy behavior into a new contract.
 
 ## Findings
 
-### 1. Wiki helpers still mint domain subject types
+### 1. Wiki helpers minted domain subject types at audit time
 
-`packages/toolkit/workbench/wiki-subject.js` still maps
+At audit time, `packages/toolkit/workbench/wiki-subject.js` mapped
 `sigil/agents/*` paths or wiki pages with `type: agent` to
-`subject_type: sigil.agent`. `tests/toolkit/wiki-subject.test.mjs` asserts that
-behavior, and `docs/api/toolkit.md` lists `sigil.agent` under wiki page
+`subject_type: sigil.agent`. `tests/toolkit/wiki-subject.test.mjs` asserted
+that behavior, and `docs/api/toolkit.md` listed `sigil.agent` under wiki page
 subjects.
 
 This conflicts with ADR-0007. In the target model, a wiki document remains a
@@ -32,6 +32,12 @@ Migration direction:
 - represent the relationship through Subject References, not a context-dependent
   `subject_type`;
 - update the tests and `docs/api/toolkit.md` together.
+
+Migration status: the focused helper slice now keeps Sigil agent wiki documents
+as `wiki.entity` Subjects and adds `createSigilAgentSubject()` for the separate
+`sigil.agent` domain Subject. The live schema remains `2026-05-03`, so the
+helper stores the Subject Reference under `metadata.subject_references[]` as a
+backward-compatible bridge to the v-next top-level field.
 
 ### 2. `capabilities[]` mixes high-level capabilities and operation contracts
 

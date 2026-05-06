@@ -184,6 +184,13 @@ Wiki pages can be projected from `aos wiki list/show --json` shapes with:
 import { createWikiPageSubject } from '../workbench/wiki-subject.js'
 ```
 
+Sigil agent domain Subjects can be projected from their source wiki document
+shape with:
+
+```js
+import { createSigilAgentSubject } from '../workbench/sigil-subject.js'
+```
+
 Design-stage work records can be projected from schema-shaped work-record
 objects with:
 
@@ -203,8 +210,8 @@ The current schema version is `2026-05-03`. The first adopters are:
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
-  `wiki.reference`, plus legacy app-specialized projections such as
-  `sigil.agent`
+  `wiki.reference`, and `wiki.page`
+- Sigil agent domain subjects: `sigil.agent`
 - Workflow chain subjects: `wiki.workflow_chain`
 - Work-record subjects: `aos.do_step` and `aos.recipe_health_event`
 
@@ -214,9 +221,12 @@ vocabulary.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For
-example, a `sigil.agent` Subject should reference a `wiki.entity` Subject as the
-source of its narrative Facet rather than deriving `subject_type: sigil.agent`
-from the wiki page path itself.
+example, `createWikiPageSubject({ path: "sigil/agents/default.md" })` emits a
+wiki document Subject, while `createSigilAgentSubject()` emits the separate
+`sigil.agent` domain Subject. Because the live `2026-05-03` schema does not yet
+allow top-level `subject_references[]`, the Sigil helper stores the
+backward-compatible Subject Reference shape under
+`metadata.subject_references[]` until the v-next field is promoted.
 
 Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,

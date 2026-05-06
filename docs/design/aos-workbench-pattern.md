@@ -120,10 +120,11 @@ that Subject. A domain Subject such as `sigil.agent` may *reference* the wiki
 document as the source of its narrative-Layer Facet, but the domain Subject
 has its own stable identity and `subject_type` — the wiki document does not
 "become" `sigil.agent` when it is referenced. See `CONTEXT.md` (Subject
-Reference) and ADR-0007 for the full model. Some current helpers/tests still
-emit app-specialized subject types directly from wiki paths (e.g. minting a
-`sigil.agent` descriptor whose source is a wiki path); that is legacy
-projection behavior to unwind, not the target model.
+Reference) and ADR-0007 for the full model. The live toolkit bridge keeps
+`createWikiPageSubject` wiki-oriented and uses `createSigilAgentSubject` when a
+consumer needs the separate `sigil.agent` domain descriptor; until the v-next
+schema field is promoted, that helper carries the Subject Reference in
+`metadata.subject_references[]`.
 
 ### View
 

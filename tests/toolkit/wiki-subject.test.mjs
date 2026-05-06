@@ -11,7 +11,8 @@ test('wikiSubjectType maps canonical wiki page types', () => {
   assert.equal(wikiSubjectType({ path: 'aos/entities/daemon.md', type: 'entity' }), 'wiki.entity');
   assert.equal(wikiSubjectType({ path: 'aos/plugins/self-check/SKILL.md', type: 'workflow' }), 'wiki.workflow');
   assert.equal(wikiSubjectType({ path: 'aos/plugins/foo/references/bar.md', type: 'concept', plugin: 'foo' }), 'wiki.reference');
-  assert.equal(wikiSubjectType({ path: 'sigil/agents/default.md', type: 'agent' }), 'sigil.agent');
+  assert.equal(wikiSubjectType({ path: 'sigil/agents/default.md', type: 'agent' }), 'wiki.entity');
+  assert.equal(wikiSubjectType({ path: 'sigil/agents/default.md' }), 'wiki.entity');
 });
 
 test('createWikiPageSubject builds a concept subject from wiki list shape', () => {
@@ -60,7 +61,7 @@ test('createWikiPageSubject preserves plugin workflow capabilities', () => {
   assert.ok(subject.controls.includes('invoke'));
 });
 
-test('createWikiPageSubject preserves Sigil agent specialization', () => {
+test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
   const subject = createWikiPageSubject({
     path: 'sigil/agents/default.md',
     type: 'agent',
@@ -68,10 +69,11 @@ test('createWikiPageSubject preserves Sigil agent specialization', () => {
     tags: ['sigil', 'orchestrator'],
   });
 
-  assert.equal(subject.subject_type, 'sigil.agent');
+  assert.equal(subject.subject_type, 'wiki.entity');
   assert.equal(subject.owner, 'sigil');
-  assert.ok(subject.capabilities.includes('sigil.agent.preview'));
-  assert.ok(subject.views.includes('sigil.avatar.preview'));
+  assert.equal(subject.metadata.wiki_type, 'agent');
+  assert.ok(!subject.capabilities.includes('sigil.agent.preview'));
+  assert.ok(!subject.views.includes('sigil.avatar.preview'));
 });
 
 test('createWikiPageSubjects maps arrays and rejects missing path', () => {

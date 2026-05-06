@@ -35,11 +35,12 @@ function frontmatterValue(page = {}, key = '') {
 export function wikiSubjectType(page = {}) {
   const path = pathText(page.path);
   const pageType = text(frontmatterValue(page, 'type')).toLowerCase();
-  if (path.startsWith('sigil/agents/') || pageType === 'agent') return 'sigil.agent';
   if (pageType === 'workflow' || path.includes('/plugins/') && basename(path) === 'SKILL.md') {
     return 'wiki.workflow';
   }
-  if (pageType === 'entity') return 'wiki.entity';
+  if (pageType === 'entity' || pageType === 'agent' || path.startsWith('sigil/agents/')) {
+    return 'wiki.entity';
+  }
   if (pageType === 'concept') return page.plugin ? 'wiki.reference' : 'wiki.concept';
   return 'wiki.page';
 }
@@ -66,12 +67,6 @@ export function createWikiPageSubject(page = {}) {
     capabilities.push('wiki.invoke', 'workflow.project');
     views.push('workflow.graph', 'workflow.source');
     controls.push('invoke');
-  }
-
-  if (subjectType === 'sigil.agent') {
-    capabilities.push('sigil.agent.preview', 'sigil.agent.appearance');
-    views.push('sigil.avatar.preview');
-    controls.push('appearance.controls');
   }
 
   return createWorkbenchSubject({

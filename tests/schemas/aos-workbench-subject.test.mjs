@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
+import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
 import { createWikiWorkflowSubject } from '../../packages/toolkit/workbench/workflow-subject.js';
@@ -77,6 +78,13 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     name: 'self-check',
     plugin: 'self-check',
     tags: ['diagnostics', 'runtime'],
+  }));
+  await validate(createSigilAgentSubject({
+    path: 'sigil/agents/default.md',
+    type: 'agent',
+    id: 'default',
+    name: 'Default',
+    tags: ['sigil', 'orchestrator'],
   }));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8'))));
