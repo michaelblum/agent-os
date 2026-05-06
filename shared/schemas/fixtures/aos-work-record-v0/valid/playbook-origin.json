@@ -1,0 +1,353 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:playbook-open-wiki-sigil-2026-05-05",
+  "label": "Open Sigil in the Browser-Hosted Wiki Subject Browser",
+  "created_at": "2026-05-05T16:20:00Z",
+  "origin": {
+    "kind": "playbook",
+    "ref": "playbook:browser-hosted-wiki-open-sigil",
+    "run_id": "run:browser-hosted-wiki-open-sigil:2026-05-05T16-20-00Z",
+    "version": "v0",
+    "subject_type": "aos.playbook",
+    "description": "Reusable browser playbook for opening the Sigil Subject through the wiki Subject Browser."
+  },
+  "references": [
+    {
+      "id": "origin-playbook-subject",
+      "relationship": "origin_subject",
+      "ref": "playbook:browser-hosted-wiki-open-sigil",
+      "subject_type": "aos.playbook",
+      "layer": "execution_map",
+      "role": "emitter"
+    },
+    {
+      "id": "guided-by-browser-first-plan",
+      "relationship": "guided_by",
+      "ref": "repo:docs/design/aos-grand-unification-plan.md",
+      "subject_type": "docs.design_note",
+      "layer": "narrative",
+      "role": "design_guidance"
+    },
+    {
+      "id": "subject-under-test",
+      "relationship": "input_to",
+      "ref": "wiki:Sigil",
+      "subject_type": "wiki.entity",
+      "facet_key": "wiki",
+      "layer": "narrative",
+      "role": "subject_entry_handle"
+    }
+  ],
+  "intent": {
+    "summary": "Open the Sigil wiki Subject through the Browser-Hosted Wiki Subject Browser and verify the resulting page state.",
+    "purpose": "browser_playbook_verification",
+    "acceptance": "The after-capture shows the Sigil Subject heading and the Work Record contains before, action, and after evidence.",
+    "constraints": [
+      "Use AOS browser target refs instead of raw Playwright-only selectors.",
+      "Treat any replay or repair as gated workflow work."
+    ],
+    "claim_refs": [
+      "claim:sigil-subject-opened",
+      "claim:before-action-after-evidence-captured"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:wiki-browser",
+        "target": "browser:wiki-browser",
+        "dialect": "browser",
+        "state_id": "see_browser000010",
+        "description": "Browser-hosted wiki Subject Browser session."
+      },
+      {
+        "id": "target:sigil-entry-ref",
+        "target": "browser:wiki-browser/subject-link.sigil",
+        "dialect": "browser",
+        "state_id": "see_browser000010",
+        "description": "Semantic ref for the Sigil Subject entry link.",
+        "candidates": [
+          {
+            "kind": "role",
+            "role": "link",
+            "name": "Sigil"
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:see-wiki-browser",
+        "intent": "Capture the wiki browser before acting.",
+        "action": {
+          "verb": "see",
+          "target": "browser:wiki-browser",
+          "state_id": "see_browser000010",
+          "args": {
+            "xray": true
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:before-see-captured"
+        ]
+      },
+      {
+        "id": "step:open-sigil-subject",
+        "intent": "Activate the Sigil Subject entry handle.",
+        "action": {
+          "verb": "click",
+          "target": "browser:wiki-browser/subject-link.sigil",
+          "state_id": "see_browser000010",
+          "args": {
+            "expected_role": "link"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:sigil-heading-visible"
+        ]
+      },
+      {
+        "id": "step:see-after-open",
+        "intent": "Capture the browser state after opening the Subject.",
+        "action": {
+          "verb": "see",
+          "target": "browser:wiki-browser",
+          "state_id": "see_browser000011",
+          "args": {
+            "xray": true
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:after-see-captured"
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:before-see-captured",
+        "kind": "browser_capture",
+        "description": "The Work Record contains a before-capture evidence item for the browser session.",
+        "target": "browser:wiki-browser",
+        "state_id": "see_browser000010",
+        "check": {
+          "kind": "evidence_present",
+          "expected": "evidence:before-see"
+        },
+        "evidence_refs": [
+          "evidence:before-see"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch the evidence route if capture artifact storage changes."
+        }
+      },
+      {
+        "id": "postcondition:sigil-heading-visible",
+        "kind": "browser_dom",
+        "description": "The after-capture exposes a visible Sigil subject heading.",
+        "target": "browser:wiki-browser/heading.sigil",
+        "state_id": "see_browser000011",
+        "check": {
+          "kind": "text_contains",
+          "ref": "heading.sigil",
+          "expected": "Sigil"
+        },
+        "evidence_refs": [
+          "evidence:after-see"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch the ref or locator candidates if the browser facet changes."
+        }
+      },
+      {
+        "id": "postcondition:after-see-captured",
+        "kind": "browser_capture",
+        "description": "The Work Record contains an after-capture evidence item for the browser session.",
+        "target": "browser:wiki-browser",
+        "state_id": "see_browser000011",
+        "check": {
+          "kind": "evidence_present",
+          "expected": "evidence:after-see"
+        },
+        "evidence_refs": [
+          "evidence:after-see"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch the evidence route if capture artifact storage changes."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:before-see",
+        "kind": "see_capture",
+        "destination": "artifacts/work-records/playbook-open-wiki-sigil/before-see.json",
+        "evidence_ref": "evidence:before-see"
+      },
+      {
+        "id": "artifact-route:after-see",
+        "kind": "see_capture",
+        "destination": "artifacts/work-records/playbook-open-wiki-sigil/after-see.json",
+        "evidence_ref": "evidence:after-see"
+      }
+    ],
+    "replay_policy": {
+      "mode": "workflow_gate_required",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [
+        "workflow-gate:browser-playbook-replay-approval"
+      ],
+      "notes": "The origin is reusable, but this record does not authorize autonomous replay."
+    },
+    "repair_history": []
+  },
+  "evidence": [
+    {
+      "id": "evidence:before-see",
+      "kind": "see_capture",
+      "created_at": "2026-05-05T16:20:05Z",
+      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/before-see.json",
+      "state_id": "see_browser000010",
+      "target": "browser:wiki-browser",
+      "immutable": true,
+      "summary": "Before-capture with the Sigil Subject entry link visible."
+    },
+    {
+      "id": "evidence:click-sigil",
+      "kind": "do_envelope",
+      "created_at": "2026-05-05T16:20:10Z",
+      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/do-click.json",
+      "state_id": "see_browser000010",
+      "target": "browser:wiki-browser/subject-link.sigil",
+      "immutable": true,
+      "summary": "AOS browser click envelope for the Sigil Subject entry link."
+    },
+    {
+      "id": "evidence:after-see",
+      "kind": "see_capture",
+      "created_at": "2026-05-05T16:20:15Z",
+      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/after-see.json",
+      "state_id": "see_browser000011",
+      "target": "browser:wiki-browser",
+      "immutable": true,
+      "summary": "After-capture with the Sigil Subject heading visible."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:sigil-subject-opened",
+      "text": "The Sigil wiki Subject was opened in the Browser-Hosted Wiki Subject Browser.",
+      "scope": "run",
+      "acceptance": "The browser after-capture exposes a visible Sigil Subject heading.",
+      "postcondition_refs": [
+        "postcondition:sigil-heading-visible"
+      ]
+    },
+    {
+      "id": "claim:before-action-after-evidence-captured",
+      "text": "The Work Record captured before, action, and after evidence for the playbook run.",
+      "scope": "run",
+      "acceptance": "Evidence includes a before see capture, do envelope, and after see capture.",
+      "postcondition_refs": [
+        "postcondition:before-see-captured",
+        "postcondition:after-see-captured"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:sigil-subject-opened",
+      "claim_id": "claim:sigil-subject-opened",
+      "status": "verified",
+      "confidence": 0.96,
+      "reason": "The after-capture evidence shows the expected Sigil heading.",
+      "evidence_refs": [
+        "evidence:after-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:sigil-heading-visible",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:after-see"
+          ],
+          "reason": "The expected heading was present in the browser capture."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:before-action-after-evidence-captured",
+      "claim_id": "claim:before-action-after-evidence-captured",
+      "status": "verified",
+      "confidence": 0.94,
+      "reason": "The evidence set contains the required before and after captures plus the action envelope.",
+      "evidence_refs": [
+        "evidence:before-see",
+        "evidence:click-sigil",
+        "evidence:after-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:before-see-captured",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:before-see"
+          ],
+          "reason": "Before-capture evidence exists."
+        },
+        {
+          "postcondition_id": "postcondition:after-see-captured",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:after-see"
+          ],
+          "reason": "After-capture evidence exists."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:playbook-open-wiki-sigil",
+    "generated_at": "2026-05-05T16:22:00Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0",
+      "kind": "schema-example",
+      "version": "v0"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:sigil-subject-opened",
+        "claim:before-action-after-evidence-captured"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:before-see",
+      "evidence:click-sigil",
+      "evidence:after-see"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "All run Claims verified against immutable evidence.",
+    "evaluated_at": "2026-05-05T16:22:00Z",
+    "verifier_report_id": "verifier-report:playbook-open-wiki-sigil",
+    "confidence": 0.95,
+    "repair_gate_refs": [
+      "workflow-gate:browser-playbook-replay-approval"
+    ],
+    "replay_gate_refs": [
+      "workflow-gate:browser-playbook-replay-approval"
+    ]
+  },
+  "metadata": {
+    "example_kind": "playbook_origin"
+  }
+}

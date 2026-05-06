@@ -1,0 +1,48 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:invalid-ad-hoc-origin-with-ref",
+  "label": "Invalid ad-hoc origin with reusable ref",
+  "created_at": "2026-05-05T17:00:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": "playbook:should-not-be-here"
+  },
+  "references": [],
+  "intent": {
+    "summary": "Invalid fixture."
+  },
+  "execution_map": {
+    "postconditions": [],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true
+    }
+  },
+  "evidence": [],
+  "claims": [],
+  "claim_results": [],
+  "verifier_report": {
+    "id": "verifier-report:invalid",
+    "generated_at": "2026-05-05T17:00:00Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0",
+      "kind": "schema-example"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "stale",
+    "reason": "Invalid fixture.",
+    "evaluated_at": "2026-05-05T17:00:00Z",
+    "verifier_report_id": "verifier-report:invalid"
+  }
+}

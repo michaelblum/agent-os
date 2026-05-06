@@ -76,7 +76,7 @@ Schema-design status:
 `facets[]`, `facets[].hosts[]`, `subject_references[]`, and `contracts[]` while
 preserving `views[]` and `controls[]` as legacy summaries.
 
-### 4. Work-record origin, references, claims, and verifier output are still design-only
+### 4. Work-record origin, references, claims, and verifier output have a v0 sketch
 
 Work-record fixtures and helpers still center on `intent`, `precondition`,
 `action`, `postcondition`, `execution_map`, `evidence`, and `health`. The
@@ -87,12 +87,18 @@ currently exposes `source.recipe_id` rather than an `origin` object.
 
 Migration direction:
 
-- sketch a work-record v0 schema before touching helpers;
-- add optional `origin: { kind, ref }` and `references[]` fixtures first;
-- add claim/postcondition examples after the Playbook step promotion grammar is
-  written;
+- use the Work Record v0 sketch as the migration target before touching helpers;
+- add optional `origin: { kind, ref }`, `references[]`, Claims,
+  Postconditions, Claim Results, and verifier-report fixtures first;
+- keep Playbook step promotion grammar separate before runtime replay work;
 - keep historical evidence immutable and patch only execution-map or reusable
   execution knowledge.
+
+Schema-design status: `shared/schemas/aos-work-record-v0.md` now sketches the
+Work Record v0 payload with a validating JSON Schema, ad-hoc and
+Playbook-origin examples, `origin`, `references[]`, Claims,
+`execution_map.postconditions[]`, `claim_results[]`, `verifier_report`, and
+Verifier Health. Runtime helpers and UI surfaces are intentionally unchanged.
 
 ### 5. The grand plan used old navigation shorthand
 
@@ -158,8 +164,9 @@ Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
 2. Add schema sketches for Subject References, Facets, Hosts, Capabilities,
    operation contracts, Work Record origin/references, and verifier reports.
    Subject References, Facets, Hosts, Capabilities, and operation contracts now
-   have initial sketches; Work Record origin/references and verifier reports
-   still need their dedicated pass.
+   have initial sketches; Work Record origin/references, Claims,
+   Postconditions, Claim Results, verifier reports, and Verifier Health now have
+   an initial v0 sketch in `shared/schemas/aos-work-record-v0.md`.
 3. Add a capability registry document and decide whether operation contracts stay
    in `capabilities[]` or move to `contracts[]`. The registry now recommends
    `contracts[]`, with a migration period where consumers read both locations.

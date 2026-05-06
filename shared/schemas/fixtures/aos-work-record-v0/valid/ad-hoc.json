@@ -1,0 +1,233 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:ad-hoc-schema-pointer-update-2026-05-05",
+  "label": "Ad-hoc Work Record schema pointer update",
+  "created_at": "2026-05-05T15:40:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "One-off schema and documentation edit without a reusable execution artifact."
+  },
+  "references": [
+    {
+      "id": "guided-by-entry-path-recipe",
+      "relationship": "guided_by",
+      "ref": "repo:docs/recipes/agent-entry-paths-and-verification.md",
+      "subject_type": "docs.recipe",
+      "layer": "narrative",
+      "role": "operator_guidance"
+    }
+  ],
+  "intent": {
+    "summary": "Create a schema-backed Work Record v0 sketch and point the context docs at it.",
+    "purpose": "foundation_hardening",
+    "acceptance": "The schema sketch, examples, and pointer docs exist without changing live toolkit helpers.",
+    "constraints": [
+      "Do not migrate work-record helper runtime behavior in this slice.",
+      "Keep replay and repair gated by explicit workflows."
+    ],
+    "claim_refs": [
+      "claim:schema-sketch-present",
+      "claim:pointer-docs-updated"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:work-record-schema-doc",
+        "target": "repo:shared/schemas/aos-work-record-v0.md",
+        "dialect": "repo",
+        "description": "Design note for the Work Record v0 sketch."
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:create-schema-sketch",
+        "intent": "Create the Work Record v0 sketch under shared/schemas.",
+        "action": {
+          "verb": "edit",
+          "target": "repo:shared/schemas/aos-work-record-v0.md",
+          "args": {
+            "operation": "add"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:schema-sketch-present"
+        ]
+      },
+      {
+        "id": "step:update-pointer-docs",
+        "intent": "Point CONTEXT.md and the compatibility audit at the new sketch.",
+        "action": {
+          "verb": "edit",
+          "target": "repo:CONTEXT.md",
+          "args": {
+            "operation": "patch"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:pointer-docs-updated"
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:schema-sketch-present",
+        "kind": "repo_file",
+        "description": "The Work Record v0 schema sketch exists under shared/schemas.",
+        "target": "repo:shared/schemas/aos-work-record-v0.md",
+        "check": {
+          "kind": "file_exists",
+          "expected": true
+        },
+        "evidence_refs": [
+          "evidence:schema-validation"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "If the path moves, patch the target path here rather than changing the Claim."
+        }
+      },
+      {
+        "id": "postcondition:pointer-docs-updated",
+        "kind": "repo_text",
+        "description": "The glossary and compatibility audit point at the new Work Record sketch.",
+        "target": "repo:CONTEXT.md",
+        "check": {
+          "kind": "text_mentions",
+          "expected": "shared/schemas/aos-work-record-v0.md"
+        },
+        "evidence_refs": [
+          "evidence:schema-validation"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch the target docs or search text if the pointer location changes."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:schema-doc",
+        "kind": "repo_file",
+        "destination": "shared/schemas/aos-work-record-v0.md",
+        "evidence_ref": "evidence:schema-validation"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "No autonomous replay or repair loop is allowed for this ad-hoc record."
+    },
+    "repair_history": []
+  },
+  "evidence": [
+    {
+      "id": "evidence:schema-validation",
+      "kind": "command_result",
+      "created_at": "2026-05-05T15:50:00Z",
+      "uri": "command:node --test tests/schemas/aos-work-record-v0.test.mjs",
+      "immutable": true,
+      "summary": "The schema examples validate and internal references resolve."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:schema-sketch-present",
+      "text": "The Work Record v0 schema sketch exists under shared/schemas.",
+      "scope": "run",
+      "acceptance": "The schema sketch and validating JSON Schema are present.",
+      "postcondition_refs": [
+        "postcondition:schema-sketch-present"
+      ]
+    },
+    {
+      "id": "claim:pointer-docs-updated",
+      "text": "The context docs identify the new Work Record schema sketch as the next design reference.",
+      "scope": "run",
+      "acceptance": "CONTEXT.md and the compatibility audit point to the schema sketch without changing runtime helpers.",
+      "postcondition_refs": [
+        "postcondition:pointer-docs-updated"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:schema-sketch-present",
+      "claim_id": "claim:schema-sketch-present",
+      "status": "verified",
+      "confidence": 0.92,
+      "reason": "The schema validation evidence includes the sketch and fixture files.",
+      "evidence_refs": [
+        "evidence:schema-validation"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:schema-sketch-present",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:schema-validation"
+          ],
+          "reason": "The schema sketch file is present."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:pointer-docs-updated",
+      "claim_id": "claim:pointer-docs-updated",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "The pointer docs mention the Work Record v0 sketch.",
+      "evidence_refs": [
+        "evidence:schema-validation"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:pointer-docs-updated",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:schema-validation"
+          ],
+          "reason": "The documentation pointer check passed."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:ad-hoc-schema-pointer-update",
+    "generated_at": "2026-05-05T15:52:00Z",
+    "verifier": {
+      "id": "aos.schema-sketch.example",
+      "kind": "schema-fixture",
+      "version": "v0"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:schema-sketch-present",
+        "claim:pointer-docs-updated"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:schema-validation"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "All declared Claims are verified by immutable schema validation evidence.",
+    "evaluated_at": "2026-05-05T15:52:00Z",
+    "verifier_report_id": "verifier-report:ad-hoc-schema-pointer-update",
+    "confidence": 0.91,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "example_kind": "ad_hoc"
+  }
+}

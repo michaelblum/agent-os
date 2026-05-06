@@ -1,0 +1,689 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-work-record-v0.schema.json",
+  "title": "AOS Work Record v0",
+  "description": "Design-schema sketch for the durable AOS Work Record artifact. This is not wired to live toolkit helpers yet.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "created_at",
+    "origin",
+    "references",
+    "intent",
+    "execution_map",
+    "evidence",
+    "claims",
+    "claim_results",
+    "verifier_report",
+    "health"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.work_record"
+    },
+    "schema_version": {
+      "const": "2026-05-work-record-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "created_at": {
+      "$ref": "#/$defs/date_time"
+    },
+    "origin": {
+      "$ref": "#/$defs/origin"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      },
+      "default": []
+    },
+    "intent": {
+      "$ref": "#/$defs/intent"
+    },
+    "execution_map": {
+      "$ref": "#/$defs/execution_map"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      },
+      "default": []
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim"
+      },
+      "default": []
+    },
+    "claim_results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/claim_result"
+      },
+      "default": []
+    },
+    "verifier_report": {
+      "$ref": "#/$defs/verifier_report"
+    },
+    "health": {
+      "$ref": "#/$defs/verifier_health"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "date_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "default": []
+    },
+    "layer": {
+      "enum": [
+        "narrative",
+        "descriptor",
+        "execution_map",
+        "controls",
+        "editor",
+        "artifacts",
+        "evidence",
+        "health",
+        "verification"
+      ]
+    },
+    "origin": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "properties": {
+            "kind": {
+              "const": "ad_hoc"
+            },
+            "ref": {
+              "type": "null"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "properties": {
+            "kind": {
+              "enum": ["recipe", "playbook", "workflow"]
+            },
+            "ref": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "subject_type": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reference": {
+      "type": "object",
+      "required": ["id", "relationship", "ref"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "relationship": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "ref": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "subject_type": {
+          "type": "string"
+        },
+        "facet_key": {
+          "type": "string"
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        },
+        "role": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "intent": {
+      "type": "object",
+      "required": ["summary"],
+      "properties": {
+        "summary": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "acceptance": {
+          "type": "string"
+        },
+        "constraints": {
+          "$ref": "#/$defs/string_array"
+        },
+        "claim_refs": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution_map": {
+      "type": "object",
+      "required": ["postconditions", "replay_policy"],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/target_hint"
+          },
+          "default": []
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/execution_step"
+          },
+          "default": []
+        },
+        "postconditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/postcondition"
+          },
+          "default": []
+        },
+        "artifact_routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact_route"
+          },
+          "default": []
+        },
+        "replay_policy": {
+          "$ref": "#/$defs/replay_policy"
+        },
+        "repair_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "target_hint": {
+      "type": "object",
+      "required": ["id", "target"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "dialect": {
+          "enum": ["browser", "canvas", "screen", "ax", "repo", "command"]
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution_step": {
+      "type": "object",
+      "required": ["id", "intent", "action", "postcondition_refs"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "intent": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "precondition_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "action": {
+          "type": "object",
+          "required": ["verb"],
+          "properties": {
+            "verb": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "state_id": {
+              "type": "string"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "postcondition_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "repair_hints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "postcondition": {
+      "type": "object",
+      "required": ["id", "kind", "description", "check", "repair_policy"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "check": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "expected": {},
+            "path": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "repair_policy": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "enum": ["patch_execution_map", "manual_review", "not_repairable"]
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_route": {
+      "type": "object",
+      "required": ["id", "kind", "destination"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "destination": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "evidence_ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "replay_policy": {
+      "type": "object",
+      "required": [
+        "mode",
+        "replay_requires_workflow_gate",
+        "repair_requires_workflow_gate"
+      ],
+      "properties": {
+        "mode": {
+          "enum": ["report_only", "manual_only", "workflow_gate_required", "disabled"]
+        },
+        "replay_requires_workflow_gate": {
+          "const": true
+        },
+        "repair_requires_workflow_gate": {
+          "const": true
+        },
+        "gate_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["id", "kind", "created_at", "uri", "immutable"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "created_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "uri": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        },
+        "immutable": {
+          "const": true
+        },
+        "summary": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "claim": {
+      "type": "object",
+      "required": ["id", "text", "postcondition_refs"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "text": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "scope": {
+          "enum": ["run", "step", "artifact", "subject"]
+        },
+        "acceptance": {
+          "type": "string"
+        },
+        "postcondition_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "claim_result": {
+      "type": "object",
+      "required": [
+        "id",
+        "claim_id",
+        "status",
+        "confidence",
+        "reason",
+        "evidence_refs",
+        "postcondition_results"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "claim_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "enum": ["verified", "failed", "unverified"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reason": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "postcondition_results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/postcondition_result"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "postcondition_result": {
+      "type": "object",
+      "required": ["postcondition_id", "status", "evidence_refs", "reason"],
+      "properties": {
+        "postcondition_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "enum": ["passed", "failed", "unchecked"]
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "reason": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "verifier_report": {
+      "type": "object",
+      "required": [
+        "id",
+        "generated_at",
+        "verifier",
+        "claim_results_ref",
+        "derived_indexes",
+        "evidence_refs",
+        "feedback"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "generated_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "verifier": {
+          "type": "object",
+          "required": ["id", "kind"],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "kind": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "claim_results_ref": {
+          "const": "claim_results"
+        },
+        "claims_digest": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["claim_id", "digest"],
+            "properties": {
+              "claim_id": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "digest": {
+                "$ref": "#/$defs/non_empty_string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "derived_indexes": {
+          "type": "object",
+          "required": ["verified", "failed", "unverified"],
+          "properties": {
+            "verified": {
+              "$ref": "#/$defs/string_array"
+            },
+            "failed": {
+              "$ref": "#/$defs/string_array"
+            },
+            "unverified": {
+              "$ref": "#/$defs/string_array"
+            }
+          },
+          "additionalProperties": false
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "feedback": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "verifier_health": {
+      "type": "object",
+      "required": ["verdict", "reason", "evaluated_at", "verifier_report_id"],
+      "properties": {
+        "verdict": {
+          "enum": [
+            "valid",
+            "stale",
+            "repairable",
+            "blocked",
+            "impossible",
+            "superseded",
+            "retired"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "evaluated_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "verifier_report_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "repair_gate_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "replay_gate_refs": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
