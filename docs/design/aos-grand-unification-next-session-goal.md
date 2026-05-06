@@ -5,34 +5,33 @@
 
 ## Goal
 
-Add backward-compatible v-next fields and compatibility helpers for
-`aos.workbench.subject`.
+Emit concrete Facets and Host entries from selected live
+`aos.workbench.subject` helpers.
 
-The previous slice landed on `main` at `d56a44a`. AOS now has stable wiki
-document Subjects, a separate Sigil agent domain Subject helper, and an explicit
-compatibility bridge where Sigil domain Subjects reference their source wiki
-document through `metadata.subject_references[]` because the live
-`2026-05-03` schema does not yet allow a top-level Subject Reference field.
+The previous slice landed on `main` at `7361920`. AOS now has optional schema
+support for `contracts[]`, `subject_references[]`, `facets[]`, and
+`facets[].hosts[]`, plus compatibility readers that preserve legacy
+`views[]`, `controls[]`, and dotted operation/event strings in
+`capabilities[]`. The next step is to make those v-next fields useful in real
+descriptors instead of leaving them as schema-only scaffolding.
 
-The immediate next workstream is tracked in GitHub issue #276:
+The immediate next workstream is tracked in GitHub issue #277:
 
 ```text
-https://github.com/michaelblum/agent-os/issues/276
+https://github.com/michaelblum/agent-os/issues/277
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/workbench-subject-vnext-fields
+codex/workbench-subject-facets-hosts
 ```
 
-The trust gap now is schema compatibility. The ADR/glossary pass defines the
-target subject descriptor shape (`subject_references[]`, `facets[]`,
-`facets[].hosts[]`, and `contracts[]`), but live helpers still emit the older
-shape with `views[]`, `controls[]`, and dotted operation/event contracts mixed
-into `capabilities[]`. The next slice should add optional v-next fields and
-reader/writer compatibility helpers without breaking existing `2026-05-03`
-descriptors or forcing the full Wiki Subject Browser into scope.
+The trust gap now is projection quality. Consumers can technically read Facets
+and Host entries, but most live helpers still communicate projections through
+legacy `views[]` / `controls[]` summaries. The next slice should migrate a small
+representative set of helpers to emit concrete Facets with Layer membership,
+operation contracts, and Host entries while preserving all legacy summaries.
 
 ## Required Rediscovery
 
@@ -56,7 +55,7 @@ Before selecting verification commands, run:
 Use focused `--files` arguments after editing so the router sees the intended
 slice instead of the whole branch diff.
 
-Inspect GitHub issue #276 after local state is known. An open issue or PR is not
+Inspect GitHub issue #277 after local state is known. An open issue or PR is not
 automatically current.
 
 ## Read First
@@ -89,6 +88,8 @@ Then read the current subject-model sources:
 - `tests/toolkit/workbench-subject.test.mjs`
 - `tests/toolkit/wiki-subject.test.mjs`
 - `tests/toolkit/sigil-subject.test.mjs`
+- `tests/toolkit/work-record-subject.test.mjs`
+- `tests/toolkit/workflow-subject.test.mjs`
 - `tests/renderer/radial-item-editor.test.mjs`
 - adjacent workbench subject tests selected by `./aos dev recommend`
 
@@ -100,67 +101,68 @@ inputs only:
 
 ## Current Checkpoint
 
-At this handoff, `main` is expected to be at `d56a44a`, and
-`codex/workbench-subject-vnext-fields` should be created from that commit.
+At this handoff, `main` is expected to be at `7361920`, and
+`codex/workbench-subject-facets-hosts` should be created from that commit.
 
 Recent foundation commits include:
 
+- `7361920 feat: add workbench subject vnext compatibility`
 - `d56a44a feat: split wiki and sigil subject helpers`
 - `1b26ba6 docs: document work record evidence adapter boundary`
 - `c7f0939 feat: add work record evidence adapters`
 - `f0ad3e4 feat: add browser playbook prototype bridge`
 - `18b7ea6 feat: add gated playbook step harness`
-- `034ecce feat: classify work record verifier diagnostics`
 
 Treat these as orientation only. Rediscover before editing.
 
 ## Immediate Work Plan
 
-1. Audit the active schema and subject helpers for the legacy fields:
-   `capabilities[]`, `views[]`, `controls[]`, and
-   `metadata.subject_references[]`.
-2. Add optional schema support for v-next fields where safe:
-   `subject_references[]`, `facets[]`, `facets[].hosts[]`, and `contracts[]`.
-   Keep required identity fields and current descriptors backward-compatible.
-3. Add toolkit compatibility helpers that normalize both legacy and v-next
-   descriptors. The helpers should make it easy for consumers to read:
-   high-level capabilities, dotted operation/event contracts, Subject
-   References, Facets, Host entries, legacy views, and legacy controls.
-4. Preserve `views[]` and `controls[]` as legacy summaries. Do not force
-   consumers to derive all UI affordances from Facets in this slice.
-5. Treat dotted strings currently in `capabilities[]` as legacy operation
-   contracts. Add `contracts[]` for new writers while preserving reader
-   compatibility for older descriptors.
-6. Move or bridge `createSigilAgentSubject()` from
-   `metadata.subject_references[]` to top-level `subject_references[]` once the
-   schema allows it. Keep a tested compatibility fallback if older consumers
-   still inspect metadata.
-7. Add representative schema/helper tests for:
-   - wiki document Subjects;
-   - Sigil domain Subjects;
-   - Work Record Subjects;
-   - radial item Subjects;
-   - legacy descriptors with dotted strings only in `capabilities[]`;
-   - v-next descriptors with `contracts[]`, `subject_references[]`, and Facets.
-8. Update docs/API wording to define the reader/writer migration policy.
-9. Run the workflow router with focused `--files`, then run focused schema and
-   toolkit tests, `bash tests/help-contract.sh` if public command docs or CLI
-   contracts changed, `git diff --check`, and `./aos ready`.
-10. Commit in focused reversible slices.
+1. Audit the current helper outputs and tests for existing `views[]`,
+   `controls[]`, `contracts[]`, and source/persistence information.
+2. Add Facets and Host entries only where the shape is obvious and already
+   implied by existing descriptor fields. Prefer a small high-confidence set
+   over broad speculative modeling.
+3. Start with these representative helpers:
+   - wiki document Subjects from `wiki-subject.js`;
+   - Sigil agent domain Subjects from `sigil-subject.js`;
+   - Work Record Subjects from `work-record-subject.js`;
+   - radial item Subjects from `apps/sigil/radial-item-editor/model.js`.
+4. For wiki document Subjects, model markdown narrative/source, markdown preview,
+   and graph/outline-style projections where existing legacy views already name
+   them.
+5. For Sigil agent domain Subjects, model the narrative Facet backed by its
+   Subject Reference plus Sigil preview/control Facets where existing legacy
+   views/controls already name them.
+6. For Work Record and radial item Subjects, add Facets only for stable
+   descriptor, controls, artifacts/evidence, health, or preview projections that
+   current helpers already expose.
+7. Host entries should describe Browser Host or Canvas Host assumptions and
+   target dialects, but must not invent runtime routes or launch behavior that
+   does not exist. Use documented `aos://...` entries only when there is a real
+   component URL or current helper/source to support it.
+8. Preserve `views[]`, `controls[]`, legacy dotted `capabilities[]`, and
+   existing `contracts[]` output. This slice is additive.
+9. Use the compatibility readers in tests: `subjectFacets()`, `subjectHosts()`,
+   `subjectContracts()`, `subjectReferences()`, `subjectLegacyViews()`, and
+   `subjectLegacyControls()`.
+10. Update docs/API migration wording with concrete helper examples and the
+    boundary between descriptive Host metadata and actual runtime launch.
+11. Run the workflow router with focused `--files`, then run focused schema and
+    toolkit/renderer tests, `bash tests/help-contract.sh` if public command docs
+    or CLI contracts changed, `git diff --check`, and `./aos ready`.
+12. Commit in focused reversible slices.
 
 ## Acceptance Criteria
 
-- Schema validation accepts optional v-next fields without rejecting current
-  `2026-05-03` descriptors.
-- Toolkit helpers expose a clear compatibility API for capabilities,
-  contracts, Subject References, Facets, Host entries, legacy views, and legacy
-  controls.
-- `createSigilAgentSubject()` uses top-level `subject_references[]` or a tested
-  top-level-plus-metadata bridge.
-- Legacy dotted operation/event strings remain readable from `capabilities[]`,
-  while new descriptors can use `contracts[]`.
-- Existing wiki, markdown, work-record, radial item, Playbook, verifier, and
-  evidence-adapter tests continue to pass when selected by the router.
+- At least wiki document, Sigil domain, Work Record, and radial item Subject
+  helpers emit useful Facets with `key`, `layer`, `contracts`, and `hosts[]`
+  where applicable.
+- Facet Host entries distinguish Browser Host and Canvas Host assumptions
+  without inventing new runtime behavior.
+- Tests prove compatibility readers see coherent Facets, Hosts, Contracts,
+  Subject References, legacy Views, and legacy Controls.
+- Existing schema, toolkit, renderer, Playbook, verifier, and evidence-adapter
+  tests continue to pass when selected by the router.
 - No full Wiki Subject Browser, browser UI, autonomous replay, repair, macro
   playback, or new `aos` command surface is added.
 
@@ -178,14 +180,15 @@ Treat these as orientation only. Rediscover before editing.
 - Keep worktree/canonical content-root rules from `AGENTS.md` in force. The
   singleton daemon is shared across worktrees.
 
-## Next Milestones After V-Next Subject Fields
+## Next Milestones After Facet/Host Emission
 
-1. Migrate selected live helpers to emit Facets and Host entries where the shape
-   is obvious and well-tested.
-2. Move legacy dotted operation/event strings from `capabilities[]` toward
-   `contracts[]` in individual helpers once all readers use the compatibility
+1. Move legacy dotted operation/event strings from `capabilities[]` toward
+   `contracts[]` in individual helpers once all consumers use the compatibility
    API.
-3. Promote the browser prototype into a browser-hosted Playbook workbench only
-   after subject references and evidence-adapter diagnostics prove stable.
+2. Add a small browser-hosted subject opening prototype only after the helper
+   Facets and Host entries prove stable in tests.
+3. Promote the browser Playbook prototype into a browser-hosted Playbook
+   workbench only after subject references and evidence-adapter diagnostics
+   prove stable.
 4. Implement the Browser-Hosted Wiki Subject Browser only after Work Record,
    Playbook, verifier, and subject descriptor contracts are stable.
