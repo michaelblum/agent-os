@@ -1,0 +1,69 @@
+{
+  "type": "aos.playbook_step",
+  "schema_version": "2026-05-playbook-step-v0",
+  "id": "playbook-step:missing-target-resolution",
+  "label": "Invalid step without target resolution",
+  "playbook_ref": "playbook:invalid",
+  "version": "v0",
+  "target_dialect": "browser",
+  "intent": {
+    "summary": "This fixture is missing the reusable target-resolution strategy."
+  },
+  "workflow_gates": {
+    "mode": "report_only",
+    "replay_requires_workflow_gate": true,
+    "repair_requires_workflow_gate": true,
+    "gate_refs": []
+  },
+  "preconditions": [
+    {
+      "id": "precondition:ready",
+      "kind": "browser_xray_text",
+      "description": "A browser state exists.",
+      "target": "browser:invalid/status",
+      "check": {
+        "kind": "semantic_target_present",
+        "ref": "status"
+      },
+      "repair_policy": {
+        "mode": "manual_review"
+      }
+    }
+  ],
+  "action": {
+    "verb": "click",
+    "target": "browser:invalid/button",
+    "command_template": "./aos do click {{target_with_ref}}"
+  },
+  "postconditions": [
+    {
+      "id": "postcondition:changed",
+      "kind": "browser_xray_text",
+      "description": "The browser state changed.",
+      "target": "browser:invalid/status",
+      "check": {
+        "kind": "semantic_target_value_contains",
+        "ref": "status",
+        "expected": "Changed"
+      },
+      "repair_policy": {
+        "mode": "manual_review"
+      }
+    }
+  ],
+  "repair_hints": [
+    {
+      "kind": "manual_review",
+      "note": "Review the invalid fixture."
+    }
+  ],
+  "claim_promotions": [
+    {
+      "id": "claim-promotion:changed",
+      "postcondition_ref": "postcondition:changed",
+      "claim_text": "The browser state changed.",
+      "scope": "run",
+      "acceptance": "The changed postcondition passes."
+    }
+  ]
+}
