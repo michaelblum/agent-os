@@ -298,6 +298,28 @@ before/action/after receipts, State IDs, selected Target-with-Ref, Claim
 Results, Verifier Report, and Health. This bridge does not execute or replay
 the Playbook step.
 
+The first harness layer above that bridge is
+`runOneStepPlaybookHarness()` in
+`packages/toolkit/workbench/playbook-step-harness.js`. It is intentionally a
+module API above the daemon instead of a broad public CLI. Its boundary is:
+
+- **Playbook step template:** reusable execution knowledge: target-resolution,
+  preconditions, action shape, postconditions, repair hints, and Claim
+  promotions.
+- **Harness run:** one explicit Workflow-gated attempt to simulate from saved
+  evidence or call a caller-supplied adapter that returns saved AOS action
+  evidence. The harness rejects missing or undeclared gates before action code
+  runs.
+- **Work Record evidence:** immutable before/action/after receipts and the
+  selected Target-with-Ref for what actually happened during the run.
+- **Verifier diagnostics:** report-only classifications such as target/ref
+  drift, precondition failure, action failure, postcondition failure, evidence
+  ref drift, and State ID inconsistency. Diagnostics do not mutate the Work
+  Record.
+- **Future replay/repair:** separate Workflow-gated work that may produce a new
+  run or an explicit execution-map patch. It is not performed by the v0 harness
+  or the report-only verifier.
+
 ## Examples
 
 The canonical examples for this sketch are JSON fixtures:

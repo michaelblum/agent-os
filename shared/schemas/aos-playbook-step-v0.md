@@ -99,6 +99,34 @@ immutable evidence refs, keeps replay and repair workflow-gated, and reuses
 The bridge remains saved-evidence only. It does not execute the step, replay a
 macro, repair refs, or add a broad CLI command surface.
 
+## One-Step Harness Boundary
+
+The first explicit-gate harness is
+`runOneStepPlaybookHarness()` in
+`packages/toolkit/workbench/playbook-step-harness.js`. It is a toolkit module
+above the daemon, not a new `aos playbook` command. The harness accepts exactly
+one `aos.playbook_step` descriptor and either simulates a run from one saved AOS
+action evidence source or calls one caller-supplied execution adapter that
+returns the same evidence shape.
+
+The harness checks the Workflow gate before it reaches either path. A run must
+provide both a gate ref declared in `workflow_gates.gate_refs[]` and an explicit
+gate token. Ungated simulation or execution is rejected without producing a Work
+Record and, for execute mode, before the adapter can run.
+
+A gated harness run still does not make the Playbook step the evidence log. The
+Playbook step supplies reusable intent, target-resolution, precondition,
+postcondition, repair-hint, and Claim-promotion metadata. The harness supplies
+the run boundary and gate. The Work Record emitted through
+`buildWorkRecordV0FromPlaybookStepEvidence()` owns the immutable before/action/
+after evidence, Claim Results, Verifier Report, and Health for that run.
+
+Verifier diagnostics remain report-only. They classify drift or failure in the
+Work Record without replaying the action, repairing refs, mutating historical
+evidence, or patching the Playbook template. Future replay or repair work must
+use a separate Workflow-gated path that creates a new run or an explicit
+execution-map patch.
+
 ## Examples
 
 - [`valid/browser-click-status.json`](fixtures/aos-playbook-step-v0/valid/browser-click-status.json)
