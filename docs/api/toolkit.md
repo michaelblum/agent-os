@@ -337,7 +337,20 @@ graph/index inspection refs are `wiki-subject-browser-v0:subject-index` and
 `wiki-subject-browser-v0:subject-list`,
 `wiki-subject-browser-v0:subject-list-status`,
 `wiki-subject-browser-v0:subject-list:entry:<subject-key>`,
+`wiki-subject-browser-v0:subject-list:inspect:<subject-key>`,
 `wiki-subject-browser-v0:subject-list:open:<subject-key>`,
+`wiki-subject-browser-v0:subject-details`,
+`wiki-subject-browser-v0:subject-details-status`,
+`wiki-subject-browser-v0:subject-details-body`,
+`wiki-subject-browser-v0:subject-details:subject:<subject-key>`,
+`wiki-subject-browser-v0:subject-details:facet:<subject-key>:<facet-key>`,
+`wiki-subject-browser-v0:subject-details:host:<subject-key>:<host-key>`,
+`wiki-subject-browser-v0:subject-details:outgoing:reference:<edge-key>`,
+`wiki-subject-browser-v0:subject-details:incoming:reference:<edge-key>`,
+`wiki-subject-browser-v0:subject-details:related:target:<subject-key>`,
+`wiki-subject-browser-v0:subject-details:related:open:<subject-key>`,
+`wiki-subject-browser-v0:subject-details:related:unresolved:<target-key>`,
+`wiki-subject-browser-v0:subject-details:clear`,
 `wiki-subject-browser-v0:navigation-trail`,
 `wiki-subject-browser-v0:navigation-trail-status`,
 `wiki-subject-browser-v0:navigation-trail-list`, and
@@ -402,6 +415,68 @@ id. Each entry has this shape:
   "open_ref": "wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06"
 }
 ```
+
+The Subject index also exposes a separate Inspect action for each row. Inspect
+does not open a page or spawn a child workbench; it stores the focused Subject
+identity and recomputes `focused_subject_details` from the same
+`subject_graph_index` snapshot. `focused_subject_details` is `null` until a row
+is focused, and then has this shape:
+
+```json
+{
+  "type": "aos.subject_browser.focused_subject_details",
+  "schema_version": "2026-05-06",
+  "key": "work-record-aos-browser-click-status-2026-05-06",
+  "subject_node_id": "subject:work-record:aos-browser-click-status-2026-05-06",
+  "subject_id": "work-record:aos-browser-click-status-2026-05-06",
+  "subject_type": "aos.work_record",
+  "label": "Browser Click Status",
+  "entry_handle": "work-record:aos-browser-click-status-2026-05-06",
+  "source_kind": "catalog_entry",
+  "catalog_entry_id": "subject-catalog:work-record-aos-browser-click-status-2026-05-06",
+  "wiki_path": null,
+  "index_entry": {},
+  "facets": [],
+  "hosts": [],
+  "outgoing_references": [],
+  "incoming_references": [],
+  "summary": {
+    "outgoing_reference_count": 1,
+    "incoming_reference_count": 0,
+    "reference_count": 1,
+    "resolved_reference_count": 0,
+    "unresolved_reference_count": 1,
+    "facet_count": 8,
+    "host_count": 8
+  },
+  "semantic_ref": "wiki-subject-browser-v0:subject-details:subject:work-record-aos-browser-click-status-2026-05-06",
+  "clear_ref": "wiki-subject-browser-v0:subject-details:clear"
+}
+```
+
+The details object is a graph-neighborhood projection, not a second graph
+index. `facets[]` mirrors the focused Subject's
+`subject_graph_index.facet_summaries[]` rows and adds a stable `semantic_ref`.
+`hosts[]` mirrors matching `subject_graph_index.host_references[]` rows and
+adds a stable `semantic_ref`. `outgoing_references[]` and
+`incoming_references[]` contain `subject_reference` and
+`facet_source_reference` edges only; `has_facet` and `hosted_by` edges stay in
+the graph index and are summarized through the Facet and Host sections.
+
+Each reference summary includes a `related_subject` record. When the related
+endpoint resolves to an indexed Subject node, `related_subject.resolved` is
+`true`, `index_entry` carries the same normalized Subject index entry shape used
+by the list, and `open_ref` is populated. When the endpoint does not resolve,
+the relationship remains visible with cached handle/type/layer metadata,
+`resolved` is `false`, and `open_ref` / `index_entry` are `null`; UI open
+controls must render disabled for those unresolved targets.
+
+Related open actions reuse the existing Subject Browser opening paths. Wiki
+targets open through the current wiki/Markdown Workbench selection flow, and
+catalog targets open only when their loaded catalog entry advertises an
+openable canonical opener. Related navigation does not add a URL router, public
+`aos` command, replay/repair path, macro playback, live browser execution, or a
+replacement for the existing Wiki KB graph projection.
 
 Opening a wiki Subject or catalog Subject appends a compact navigation entry to
 `navigation_history[]`; `navigation_trail[]` is the last five unique handles
