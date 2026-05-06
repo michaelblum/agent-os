@@ -103,10 +103,65 @@
   box-shadow: var(--aos-focus-ring);
 }
 
+.wiki-subject-browser-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wiki-subject-browser-filters label {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.wiki-subject-browser-filters label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--aos-type-micro-label);
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.wiki-subject-browser-filters select,
+.wiki-subject-browser-filters button {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+  background: rgba(15, 23, 32, 0.9);
+  color: rgba(248, 250, 252, 0.92);
+  font: var(--aos-type-caption);
+}
+
+.wiki-subject-browser-filters select {
+  padding: 0 6px;
+}
+
+.wiki-subject-browser-filters button {
+  grid-column: 1 / -1;
+  color: rgba(224, 242, 254, 0.96);
+  background: rgba(14, 116, 144, 0.2);
+}
+
+.wiki-subject-browser-filters select:focus,
+.wiki-subject-browser-filters button:focus {
+  border-color: rgba(125, 211, 252, 0.62);
+  box-shadow: var(--aos-focus-ring);
+  outline: none;
+}
+
+.wiki-subject-browser-filters button:disabled {
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(71, 85, 105, 0.18);
+  color: rgba(148, 163, 184, 0.66);
+}
+
 .wiki-subject-browser-subject-list {
   display: grid;
   gap: 8px;
-  max-height: 210px;
+  max-height: 160px;
   overflow: auto;
 }
 

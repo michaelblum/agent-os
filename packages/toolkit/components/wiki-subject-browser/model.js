@@ -26,6 +26,13 @@ export const SUBJECT_BROWSER_INDEX_ENTRY_TYPE = 'aos.subject_browser.index_entry
 export const SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE = 'aos.subject_browser.navigation_entry';
 export const SUBJECT_BROWSER_NAVIGATION_HISTORY_LIMIT = 8;
 export const SUBJECT_BROWSER_NAVIGATION_TRAIL_LIMIT = 5;
+export const SUBJECT_BROWSER_INDEX_FILTER_KEYS = Object.freeze([
+  'subject_type',
+  'relationship_type',
+  'layer',
+  'capability',
+  'health',
+]);
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -135,16 +142,183 @@ function compareIndexEntries(left = {}, right = {}) {
     || text(left.subject_id).localeCompare(text(right.subject_id));
 }
 
+function healthStatus(health = null) {
+  const value = objectValue(health);
+  return text(value.verdict || value.status || value.verifier_status);
+}
+
+function subjectFilterOptionRef(filterKey = '', value = '') {
+  return ref('subject-filters', filterKey, navKey(value, 'all'));
+}
+
+function createFilterOption(filterKey = '', value = '', subjectIds = new Set()) {
+  const normalizedValue = text(value);
+  return {
+    value: normalizedValue,
+    label: normalizedValue,
+    count: subjectIds instanceof Set ? subjectIds.size : Number(subjectIds || 0),
+    semantic_ref: subjectFilterOptionRef(filterKey, normalizedValue),
+  };
+}
+
+function addSubjectValue(map, value = '', subjectId = '') {
+  const normalizedValue = text(value);
+  const normalizedSubjectId = text(subjectId);
+  if (!normalizedValue || !normalizedSubjectId) return;
+  if (!map.has(normalizedValue)) map.set(normalizedValue, new Set());
+  map.get(normalizedValue).add(normalizedSubjectId);
+}
+
+function filterOptionsFromMap(filterKey = '', valuesBySubject = new Map()) {
+  return [...valuesBySubject.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([value, subjectIds]) => createFilterOption(filterKey, value, subjectIds));
+}
+
+function createSubjectGraphFilterLookup(subjectGraphIndex = {}) {
+  const subjectIds = new Set();
+  const relationshipTypesBySubjectId = new Map();
+  const layersBySubjectId = new Map();
+  const capabilitiesBySubjectId = new Map();
+
+  function ensureSubject(subjectId = '') {
+    const normalizedSubjectId = text(subjectId);
+    if (!normalizedSubjectId || !subjectIds.has(normalizedSubjectId)) return null;
+    return normalizedSubjectId;
+  }
+
+  function addToSubjectMap(map, subjectId = '', value = '') {
+    const normalizedSubjectId = ensureSubject(subjectId);
+    const normalizedValue = text(value);
+    if (!normalizedSubjectId || !normalizedValue) return;
+    if (!map.has(normalizedSubjectId)) map.set(normalizedSubjectId, new Set());
+    map.get(normalizedSubjectId).add(normalizedValue);
+  }
+
+  for (const node of arrayValue(subjectGraphIndex.nodes)) {
+    if (text(node.kind) !== 'subject') continue;
+    const subjectId = text(node.subject_id);
+    if (!subjectId) continue;
+    subjectIds.add(subjectId);
+  }
+
+  for (const node of arrayValue(subjectGraphIndex.nodes)) {
+    if (text(node.kind) !== 'subject') continue;
+    const subjectId = text(node.subject_id);
+    for (const capability of uniqueTextList(node.capabilities)) {
+      addToSubjectMap(capabilitiesBySubjectId, subjectId, capability);
+    }
+  }
+
+  for (const facet of arrayValue(subjectGraphIndex.facet_summaries)) {
+    const subjectId = text(facet.subject_id);
+    addToSubjectMap(layersBySubjectId, subjectId, facet.layer);
+    for (const capability of uniqueTextList(facet.capabilities)) {
+      addToSubjectMap(capabilitiesBySubjectId, subjectId, capability);
+    }
+  }
+
+  for (const edge of arrayValue(subjectGraphIndex.edges)) {
+    const relationship = text(edge.relationship);
+    addToSubjectMap(relationshipTypesBySubjectId, edge.source_subject_id, relationship);
+    addToSubjectMap(relationshipTypesBySubjectId, edge.target_subject_id, relationship);
+  }
+
+  return {
+    relationshipTypesBySubjectId,
+    layersBySubjectId,
+    capabilitiesBySubjectId,
+  };
+}
+
+function subjectHasLookupValue(map = new Map(), subjectId = '', value = '') {
+  const normalizedValue = text(value);
+  if (!normalizedValue) return true;
+  return map.get(text(subjectId))?.has(normalizedValue) === true;
+}
+
+function normalizedFilterKey(key = '') {
+  const value = text(key);
+  if (value === 'type') return 'subject_type';
+  if (value === 'relationship') return 'relationship_type';
+  return SUBJECT_BROWSER_INDEX_FILTER_KEYS.includes(value) ? value : '';
+}
+
+export function createSubjectIndexFilters(filters = {}) {
+  const value = objectValue(filters);
+  return {
+    subject_type: text(value.subject_type || value.subjectType),
+    relationship_type: text(value.relationship_type || value.relationshipType || value.relationship),
+    layer: text(value.layer),
+    capability: text(value.capability),
+    health: text(value.health),
+  };
+}
+
+export function subjectIndexFilterCount(filters = {}) {
+  return SUBJECT_BROWSER_INDEX_FILTER_KEYS.reduce((count, key) => (
+    text(filters[key]) ? count + 1 : count
+  ), 0);
+}
+
+export function deriveSubjectIndexFilterOptions(subjectGraphIndex = {}) {
+  const subjectTypes = new Map();
+  const relationshipTypes = new Map();
+  const layers = new Map();
+  const capabilities = new Map();
+  const health = new Map();
+  const lookup = createSubjectGraphFilterLookup(subjectGraphIndex);
+
+  for (const node of arrayValue(subjectGraphIndex.nodes)) {
+    if (text(node.kind) !== 'subject') continue;
+    const subjectId = text(node.subject_id);
+    addSubjectValue(subjectTypes, node.subject_type, subjectId);
+    for (const value of lookup.relationshipTypesBySubjectId.get(subjectId) || []) {
+      addSubjectValue(relationshipTypes, value, subjectId);
+    }
+    for (const value of lookup.layersBySubjectId.get(subjectId) || []) {
+      addSubjectValue(layers, value, subjectId);
+    }
+    for (const value of lookup.capabilitiesBySubjectId.get(subjectId) || []) {
+      addSubjectValue(capabilities, value, subjectId);
+    }
+    addSubjectValue(health, healthStatus(node.health), subjectId);
+  }
+
+  return {
+    subject_types: filterOptionsFromMap('subject_type', subjectTypes),
+    relationship_types: filterOptionsFromMap('relationship_type', relationshipTypes),
+    layers: filterOptionsFromMap('layer', layers),
+    capabilities: filterOptionsFromMap('capability', capabilities),
+    health: filterOptionsFromMap('health', health),
+  };
+}
+
+function subjectIndexEntryMatchesFilters(entry = {}, filters = {}, lookup = {}) {
+  const normalized = createSubjectIndexFilters(filters);
+  const subjectId = text(entry.subject_id);
+  if (normalized.subject_type && text(entry.subject_type) !== normalized.subject_type) return false;
+  if (normalized.health && healthStatus(entry.health) !== normalized.health) return false;
+  if (!subjectHasLookupValue(lookup.relationshipTypesBySubjectId, subjectId, normalized.relationship_type)) return false;
+  if (!subjectHasLookupValue(lookup.layersBySubjectId, subjectId, normalized.layer)) return false;
+  if (!subjectHasLookupValue(lookup.capabilitiesBySubjectId, subjectId, normalized.capability)) return false;
+  return true;
+}
+
 export function createSubjectIndexNavigationEntries(subjectGraphIndex = {}, {
   query = '',
+  filters = {},
 } = {}) {
   const normalizedQuery = text(query).toLowerCase();
+  const normalizedFilters = createSubjectIndexFilters(filters);
+  const lookup = createSubjectGraphFilterLookup(subjectGraphIndex);
   const entries = arrayValue(subjectGraphIndex.nodes)
     .filter((node) => text(node.kind) === 'subject')
     .map((node) => createSubjectIndexEntry(node));
-  const filtered = normalizedQuery
-    ? entries.filter((entry) => subjectIndexSearchText(entry).includes(normalizedQuery))
-    : entries;
+  const filtered = entries.filter((entry) => (
+    subjectIndexEntryMatchesFilters(entry, normalizedFilters, lookup)
+      && (!normalizedQuery || subjectIndexSearchText(entry).includes(normalizedQuery))
+  ));
   return filtered.sort(compareIndexEntries);
 }
 
@@ -265,6 +439,27 @@ export function applySubjectNavigationQuery(state, query = '') {
   return state.subject_search_query;
 }
 
+export function applySubjectIndexFilter(state, key = '', value = '') {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  const filterKey = normalizedFilterKey(key);
+  if (!filterKey) throw new TypeError(`unknown subject index filter: ${key}`);
+  state.subject_index_filters = createSubjectIndexFilters({
+    ...state.subject_index_filters,
+    [filterKey]: text(value),
+  });
+  return state.subject_index_filters;
+}
+
+export function resetSubjectIndexFilters(state) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  state.subject_index_filters = createSubjectIndexFilters();
+  return state.subject_index_filters;
+}
+
 export function createWikiSubjectBrowserState({
   selectedSubject = null,
   selected_subject = selectedSubject,
@@ -282,6 +477,8 @@ export function createWikiSubjectBrowserState({
   subject_open_result = subjectOpenResult,
   subjectSearchQuery = '',
   subject_search_query = subjectSearchQuery,
+  subjectIndexFilters = {},
+  subject_index_filters = subjectIndexFilters,
   navigationHistory = [],
   navigation_history = navigationHistory,
   navigationTrail = [],
@@ -303,9 +500,13 @@ export function createWikiSubjectBrowserState({
     Math.max(max, sequenceNumber(entry.opened_at_sequence))
   ), 0);
   const normalizedQuery = text(subject_search_query);
+  const normalizedFilters = createSubjectIndexFilters(subject_index_filters);
+  const subjectIndexFilterOptions = deriveSubjectIndexFilterOptions(subjectGraphIndex);
   const subjectIndexEntries = createSubjectIndexNavigationEntries(subjectGraphIndex, {
     query: normalizedQuery,
+    filters: normalizedFilters,
   });
+  const filterCount = subjectIndexFilterCount(normalizedFilters);
 
   return {
     type: 'wiki_subject_browser.snapshot',
@@ -319,6 +520,10 @@ export function createWikiSubjectBrowserState({
     subject_graph_index: subjectGraphIndex,
     subject_graph_summary: summarizeSubjectGraphIndex(subjectGraphIndex),
     subject_search_query: normalizedQuery,
+    subject_index_filters: normalizedFilters,
+    subject_index_filter_options: subjectIndexFilterOptions,
+    subject_index_filter_count: filterCount,
+    subject_index_filters_active: filterCount > 0,
     subject_index_entries: subjectIndexEntries,
     subject_index_result_count: subjectIndexEntries.length,
     navigation_sequence: Math.max(sequenceNumber(navigation_sequence), maxHistorySequence),

@@ -4,12 +4,15 @@ import test from 'node:test';
 import MarkdownWorkbench from '../../packages/toolkit/components/markdown-workbench/index.js';
 import WikiSubjectBrowser from '../../packages/toolkit/components/wiki-subject-browser/index.js';
 import {
+  applySubjectIndexFilter,
   applySubjectNavigationQuery,
   applySubjectCatalogLoad,
   applySubjectOpenRequested,
   applyWikiSubjectOpenRequested,
   applyWikiSubjectSelection,
   createSubjectIndexNavigationEntries,
+  deriveSubjectIndexFilterOptions,
+  resetSubjectIndexFilters,
   createWikiSubjectBrowserOpenRequestFromCatalogEntry,
   createWikiSubjectBrowserOpenRequestFromSelection,
   createWikiSubjectBrowserState,
@@ -43,6 +46,29 @@ async function repoJson(path) {
   return JSON.parse(await repoText(path));
 }
 
+async function subjectBrowserFixtureState() {
+  const record = await repoJson(
+    'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
+  );
+  const wikiSubject = createWikiPageSubject({
+    path: 'aos/concepts/runtime-modes.md',
+    frontmatter: {
+      type: 'concept',
+      name: 'Runtime Modes',
+    },
+  });
+  const catalogEntry = createWorkRecordSubjectCatalogEntry(record);
+  return {
+    record,
+    wikiSubject,
+    catalogEntry,
+    state: createWikiSubjectBrowserState({
+      selected_subject: wikiSubject,
+      catalog_entries: [catalogEntry],
+    }),
+  };
+}
+
 test('wiki subject browser state starts graph-first with no content pane open', () => {
   const state = createWikiSubjectBrowserState();
 
@@ -53,6 +79,22 @@ test('wiki subject browser state starts graph-first with no content pane open', 
   assert.equal(state.selected_subject, null);
   assert.equal(state.subject_graph_index.type, 'aos.subject_graph.index');
   assert.equal(state.subject_search_query, '');
+  assert.deepEqual(state.subject_index_filters, {
+    subject_type: '',
+    relationship_type: '',
+    layer: '',
+    capability: '',
+    health: '',
+  });
+  assert.deepEqual(state.subject_index_filter_options, {
+    subject_types: [],
+    relationship_types: [],
+    layers: [],
+    capabilities: [],
+    health: [],
+  });
+  assert.equal(state.subject_index_filter_count, 0);
+  assert.equal(state.subject_index_filters_active, false);
   assert.deepEqual(state.subject_index_entries, []);
   assert.equal(state.subject_index_result_count, 0);
   assert.deepEqual(state.navigation_history, []);
@@ -69,21 +111,7 @@ test('wiki subject browser state starts graph-first with no content pane open', 
 });
 
 test('wiki subject browser derives deterministic search entries from subject graph index', async () => {
-  const record = await repoJson(
-    'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
-  );
-  const wikiSubject = createWikiPageSubject({
-    path: 'aos/concepts/runtime-modes.md',
-    frontmatter: {
-      type: 'concept',
-      name: 'Runtime Modes',
-    },
-  });
-  const catalogEntry = createWorkRecordSubjectCatalogEntry(record);
-  const state = createWikiSubjectBrowserState({
-    selected_subject: wikiSubject,
-    catalog_entries: [catalogEntry],
-  });
+  const { catalogEntry, state } = await subjectBrowserFixtureState();
 
   assert.deepEqual(state.subject_index_entries.map((entry) => entry.subject_id), [
     'work-record:aos-browser-click-status-2026-05-06',
@@ -146,6 +174,100 @@ test('wiki subject browser derives deterministic search entries from subject gra
   assert.doesNotMatch(JSON.stringify(legacySnapshot.subject_graph_index), /legacy\.hidden\.match|hidden\.view|hidden-control/);
 });
 
+test('wiki subject browser derives graph-index filter options from canonical fields', async () => {
+  const { state } = await subjectBrowserFixtureState();
+  const snapshot = wikiSubjectBrowserSnapshot(state);
+  const options = deriveSubjectIndexFilterOptions(snapshot.subject_graph_index);
+
+  assert.deepEqual(snapshot.subject_index_filter_options, options);
+  assert.deepEqual(
+    options.subject_types.map((option) => [option.value, option.count]),
+    [
+      ['aos.work_record', 1],
+      ['wiki.concept', 1],
+    ],
+  );
+  assert.ok(options.relationship_types.some((option) => (
+    option.value === 'origin_subject'
+      && option.count === 1
+      && option.semantic_ref === 'wiki-subject-browser-v0:subject-filters:relationship_type:origin-subject'
+  )));
+  assert.ok(options.layers.some((option) => option.value === 'descriptor' && option.count === 2));
+  assert.ok(options.capabilities.some((option) => option.value === 'inspectable' && option.count === 2));
+  assert.deepEqual(options.health.map((option) => [option.value, option.count]), [['valid', 1]]);
+  assert.equal(snapshot.subject_index_filter_count, 0);
+  assert.equal(snapshot.subject_index_filters_active, false);
+});
+
+test('wiki subject browser composes search and graph-index filters deterministically', async () => {
+  const { state } = await subjectBrowserFixtureState();
+  const index = state.subject_graph_index;
+
+  assert.deepEqual(
+    createSubjectIndexNavigationEntries(index, {
+      filters: { subject_type: 'wiki.concept' },
+    }).map((entry) => entry.subject_id),
+    ['wiki:aos/concepts/runtime-modes.md'],
+  );
+  assert.deepEqual(
+    createSubjectIndexNavigationEntries(index, {
+      filters: { relationship_type: 'origin_subject' },
+    }).map((entry) => entry.subject_id),
+    ['work-record:aos-browser-click-status-2026-05-06'],
+  );
+  assert.deepEqual(
+    createSubjectIndexNavigationEntries(index, {
+      query: 'browser',
+      filters: { health: 'valid' },
+    }).map((entry) => entry.subject_id),
+    ['work-record:aos-browser-click-status-2026-05-06'],
+  );
+  assert.deepEqual(
+    createSubjectIndexNavigationEntries(index, {
+      query: 'runtime',
+      filters: { health: 'valid' },
+    }),
+    [],
+  );
+  assert.deepEqual(
+    createSubjectIndexNavigationEntries(index, {
+      filters: { capability: 'exportable', subject_type: 'wiki.concept' },
+    }),
+    [],
+  );
+});
+
+test('wiki subject browser resets filters and keeps stable no-match state', async () => {
+  const { state } = await subjectBrowserFixtureState();
+
+  applySubjectIndexFilter(state, 'health', 'valid');
+  assert.equal(wikiSubjectBrowserSnapshot(state).subject_index_result_count, 1);
+
+  applySubjectIndexFilter(state, 'subject_type', 'wiki.concept');
+  let snapshot = wikiSubjectBrowserSnapshot(state);
+  assert.equal(snapshot.subject_index_filter_count, 2);
+  assert.equal(snapshot.subject_index_filters_active, true);
+  assert.deepEqual(snapshot.subject_index_entries, []);
+
+  resetSubjectIndexFilters(state);
+  snapshot = wikiSubjectBrowserSnapshot(state);
+  assert.deepEqual(snapshot.subject_index_filters, {
+    subject_type: '',
+    relationship_type: '',
+    layer: '',
+    capability: '',
+    health: '',
+  });
+  assert.equal(snapshot.subject_index_filter_count, 0);
+  assert.equal(snapshot.subject_index_filters_active, false);
+  assert.equal(snapshot.subject_index_result_count, 2);
+
+  applySubjectIndexFilter(state, 'relationship', 'does_not_exist');
+  snapshot = wikiSubjectBrowserSnapshot(state);
+  assert.equal(snapshot.subject_index_filter_count, 1);
+  assert.deepEqual(snapshot.subject_index_entries, []);
+});
+
 test('wiki subject browser bridges wiki selection to open-request payloads', () => {
   const selection = createWikiSubjectSelectionPayload({
     id: 'aos/concepts/runtime-modes.md',
@@ -188,6 +310,7 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
     type: SUBJECT_CATALOG_LOAD_TYPE,
     entries: [entry],
   });
+  applySubjectIndexFilter(state, 'health', 'valid');
   const request = createWikiSubjectBrowserOpenRequestFromCatalogEntry(state.catalog_entries[0]);
   applySubjectOpenRequested(state, request);
   const snapshot = wikiSubjectBrowserSnapshot(state);
@@ -208,6 +331,7 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
   assert.equal(request.open_message.type, 'work_record.open');
   assert.equal(request.open_message.record.id, 'work-record:aos-browser-click-status-2026-05-06');
   assert.equal(snapshot.last_subject_open_request.opener.id, 'work-record-workbench');
+  assert.equal(snapshot.subject_index_filter_count, 1);
   assert.equal(snapshot.navigation_history.length, 1);
   assert.equal(snapshot.navigation_trail[0].source_kind, 'catalog');
   assert.equal(snapshot.navigation_trail[0].catalog_entry_id, entry.id);
@@ -233,12 +357,18 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.ok(shell.manifest.emits.includes(WIKI_SUBJECT_OPEN_REQUEST_TYPE));
   assert.ok(shell.manifest.emits.includes(SUBJECT_OPEN_REQUEST_TYPE));
   assert.match(indexHtml, /Wiki Subject Browser V0/);
+  assert.match(indexHtml, /index\.js\?subject-browser-index-filters-v0/);
   assert.match(indexJs, /loadGraphOnStart:\s*true/);
   assert.match(indexJs, /applyWikiSubjectBrowserSemanticTarget/);
   assert.match(indexJs, /wikiSubjectBrowserAosRef\('root'\)/);
   assert.match(indexJs, /subject-index-status/);
   assert.match(indexJs, /subjectIndexMarkup/);
   assert.match(indexJs, /subject-search/);
+  assert.match(indexJs, /subject-filters/);
+  assert.match(indexJs, /subject-filter-subject-type/);
+  assert.match(indexJs, /subject-filter-relationship-type/);
+  assert.match(indexJs, /subject-filters-reset/);
+  assert.match(indexJs, /subjectFiltersMarkup/);
   assert.match(indexJs, /subject-list/);
   assert.match(indexJs, /navigation-trail/);
   assert.match(indexJs, /subject-catalog-open/);
@@ -246,9 +376,13 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /work-record-workbench/);
   assert.match(indexJs, /subject_graph_summary/);
   assert.match(indexJs, /subject_index_entries/);
+  assert.match(indexJs, /subject_index_filter_options/);
+  assert.match(indexJs, /wikiSubjectBrowserAosRef\('subject-filter', role\)/);
   assert.match(launch, /--manifest wiki-subject-browser-v0/);
   assert.match(launch, /SUBJECT_CATALOG_LOAD_TYPE/);
   assert.match(launch, /wiki-subject-browser-v0:subject-search/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-filters/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-filter:health/);
   assert.match(launch, /wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);

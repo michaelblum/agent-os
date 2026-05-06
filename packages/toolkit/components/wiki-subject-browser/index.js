@@ -10,10 +10,13 @@ import {
 } from '../../workbench/wiki-subject-opening.js';
 import MarkdownWorkbench from '../markdown-workbench/index.js';
 import {
+  SUBJECT_BROWSER_INDEX_FILTER_KEYS,
+  applySubjectIndexFilter,
   applySubjectNavigationQuery,
   applySubjectCatalogLoad,
   applySubjectOpenRequested,
   applySubjectOpenResult,
+  resetSubjectIndexFilters,
   applyWikiSubjectOpenRequested,
   applyWikiSubjectSelection,
   createWikiSubjectBrowserOpenRequestFromSelection,
@@ -81,9 +84,13 @@ function subjectIndexSummaryText(snapshot = {}) {
 
 function subjectListStatusText(snapshot = {}) {
   const query = text(snapshot.subject_search_query);
+  const filterCount = Number(snapshot.subject_index_filter_count || 0);
   const total = Number(snapshot.subject_graph_summary?.subject_count || 0);
   const shown = Array.isArray(snapshot.subject_index_entries) ? snapshot.subject_index_entries.length : 0;
-  if (query) return `${shown} of ${total} indexed`;
+  if (query || filterCount > 0) {
+    const suffix = filterCount > 0 ? ` · ${filterCount} filter${filterCount === 1 ? '' : 's'}` : '';
+    return `${shown} of ${total} indexed${suffix}`;
+  }
   return `${shown} indexed`;
 }
 
@@ -94,6 +101,34 @@ function subjectEntryMetaText(entry = {}) {
   return `${entry.subject_type || 'subject'} · ${facets} facets · ${hosts} hosts · ${refs} refs`;
 }
 
+function subjectFilterOptions(snapshot = {}, filterKey = '') {
+  const options = objectValue(snapshot.subject_index_filter_options);
+  if (filterKey === 'subject_type') return Array.isArray(options.subject_types) ? options.subject_types : [];
+  if (filterKey === 'relationship_type') return Array.isArray(options.relationship_types) ? options.relationship_types : [];
+  if (filterKey === 'layer') return Array.isArray(options.layers) ? options.layers : [];
+  if (filterKey === 'capability') return Array.isArray(options.capabilities) ? options.capabilities : [];
+  if (filterKey === 'health') return Array.isArray(options.health) ? options.health : [];
+  return [];
+}
+
+function subjectFilterAllLabel(filterKey = '') {
+  if (filterKey === 'subject_type') return 'All types';
+  if (filterKey === 'relationship_type') return 'All relations';
+  if (filterKey === 'layer') return 'All layers';
+  if (filterKey === 'capability') return 'All capabilities';
+  if (filterKey === 'health') return 'All health';
+  return 'All';
+}
+
+function subjectFilterName(filterKey = '') {
+  if (filterKey === 'subject_type') return 'Type';
+  if (filterKey === 'relationship_type') return 'Relation';
+  if (filterKey === 'layer') return 'Layer';
+  if (filterKey === 'capability') return 'Capability';
+  if (filterKey === 'health') return 'Health';
+  return 'Filter';
+}
+
 export default function WikiSubjectBrowser(options = {}) {
   let host = null;
   let rootEl = null;
@@ -102,6 +137,9 @@ export default function WikiSubjectBrowser(options = {}) {
   let subjectIndexStatusEl = null;
   let subjectIndexSummaryEl = null;
   let subjectSearchEl = null;
+  let subjectFiltersEl = null;
+  const subjectFilterEls = new Map();
+  let subjectFiltersResetEl = null;
   let subjectListEl = null;
   let subjectListStatusEl = null;
   let navigationTrailEl = null;
@@ -387,6 +425,7 @@ export default function WikiSubjectBrowser(options = {}) {
     if (subjectSearchEl && subjectSearchEl.value !== snapshot.subject_search_query) {
       subjectSearchEl.value = snapshot.subject_search_query || '';
     }
+    renderSubjectFilters(snapshot);
     if (subjectListStatusEl) subjectListStatusEl.textContent = subjectListStatusText(snapshot);
     if (subjectListEl) {
       const entries = Array.isArray(snapshot.subject_index_entries) ? snapshot.subject_index_entries : [];
@@ -394,7 +433,9 @@ export default function WikiSubjectBrowser(options = {}) {
       if (entries.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'wiki-subject-browser-empty';
-        empty.textContent = snapshot.subject_search_query ? 'No indexed Subjects match' : 'No indexed Subjects loaded';
+        empty.textContent = snapshot.subject_search_query || snapshot.subject_index_filters_active
+          ? 'No indexed Subjects match search and filters'
+          : 'No indexed Subjects loaded';
         subjectListEl.appendChild(empty);
       } else {
         for (const entry of entries) {
@@ -452,6 +493,33 @@ export default function WikiSubjectBrowser(options = {}) {
       }
     }
     renderNavigationTrail(snapshot);
+  }
+
+  function renderSubjectFilters(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    if (!subjectFiltersEl) return;
+    const activeFilters = objectValue(snapshot.subject_index_filters);
+    for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
+      const select = subjectFilterEls.get(filterKey);
+      if (!select) continue;
+      const selected = text(activeFilters[filterKey]);
+      const options = subjectFilterOptions(snapshot, filterKey);
+      select.replaceChildren();
+      const all = document.createElement('option');
+      all.value = '';
+      all.textContent = subjectFilterAllLabel(filterKey);
+      select.appendChild(all);
+      for (const option of options) {
+        const item = document.createElement('option');
+        item.value = option.value;
+        item.textContent = `${option.label} (${option.count})`;
+        item.dataset.aosRef = option.semantic_ref;
+        select.appendChild(item);
+      }
+      select.value = options.some((option) => option.value === selected) ? selected : '';
+    }
+    if (subjectFiltersResetEl) {
+      subjectFiltersResetEl.disabled = snapshot.subject_index_filters_active !== true;
+    }
   }
 
   function renderNavigationTrail(snapshot = wikiSubjectBrowserSnapshot(state)) {
@@ -576,6 +644,29 @@ export default function WikiSubjectBrowser(options = {}) {
               <span>Search</span>
               <input data-role="subject-search" type="search" autocomplete="off" spellcheck="false">
             </label>
+            <div class="wiki-subject-browser-filters" data-role="subject-filters" aria-label="Subject index filters">
+              <label>
+                <span>Type</span>
+                <select data-role="subject-filter-subject-type"></select>
+              </label>
+              <label>
+                <span>Relation</span>
+                <select data-role="subject-filter-relationship-type"></select>
+              </label>
+              <label>
+                <span>Layer</span>
+                <select data-role="subject-filter-layer"></select>
+              </label>
+              <label>
+                <span>Capability</span>
+                <select data-role="subject-filter-capability"></select>
+              </label>
+              <label>
+                <span>Health</span>
+                <select data-role="subject-filter-health"></select>
+              </label>
+              <button type="button" data-role="subject-filters-reset">Reset</button>
+            </div>
             <div class="wiki-subject-browser-list-status" data-role="subject-list-status"></div>
             <div class="wiki-subject-browser-subject-list" data-role="subject-list"></div>
           </section>
@@ -615,6 +706,7 @@ export default function WikiSubjectBrowser(options = {}) {
       subjectIndexStatusEl = subjectIndexEl.querySelector('[data-role="subject-index-status"]');
       subjectIndexSummaryEl = subjectIndexEl.querySelector('[data-role="subject-index-summary"]');
       subjectSearchEl = subjectIndexEl.querySelector('[data-role="subject-search"]');
+      subjectFiltersEl = subjectIndexEl.querySelector('[data-role="subject-filters"]');
       subjectListStatusEl = subjectIndexEl.querySelector('[data-role="subject-list-status"]');
       subjectListEl = subjectIndexEl.querySelector('[data-role="subject-list"]');
       applyWikiSubjectBrowserSemanticTarget(subjectIndexStatusEl, {
@@ -633,6 +725,41 @@ export default function WikiSubjectBrowser(options = {}) {
         role: 'AXSearchField',
         action: 'filter_subjects',
         aosRef: wikiSubjectBrowserAosRef('subject-search'),
+      });
+      const subjectFiltersMarkup = subjectFiltersEl.innerHTML;
+      applyWikiSubjectBrowserSemanticTarget(subjectFiltersEl, {
+        id: 'subject-filters',
+        name: 'Subject index filters',
+        aosRef: wikiSubjectBrowserAosRef('subject-filters'),
+      });
+      subjectFiltersEl.innerHTML = subjectFiltersMarkup;
+      for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
+        const role = filterKey.replaceAll('_', '-');
+        const select = subjectIndexEl.querySelector(`[data-role="subject-filter-${role}"]`);
+        subjectFilterEls.set(filterKey, select);
+        applyWikiSubjectBrowserSemanticTarget(select, {
+          id: `subject-filter-${role}`,
+          name: `${subjectFilterName(filterKey)} filter`,
+          role: 'AXPopUpButton',
+          action: 'filter_subjects',
+          aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
+        });
+        select?.addEventListener('change', () => {
+          applySubjectIndexFilter(state, filterKey, select.value);
+          syncSnapshot();
+        });
+      }
+      subjectFiltersResetEl = subjectIndexEl.querySelector('[data-role="subject-filters-reset"]');
+      applyWikiSubjectBrowserSemanticTarget(subjectFiltersResetEl, {
+        id: 'subject-filters-reset',
+        name: 'Reset Subject index filters',
+        role: 'AXButton',
+        action: 'reset_subject_filters',
+        aosRef: wikiSubjectBrowserAosRef('subject-filters', 'reset'),
+      });
+      subjectFiltersResetEl?.addEventListener('click', () => {
+        resetSubjectIndexFilters(state);
+        syncSnapshot();
       });
       applyWikiSubjectBrowserSemanticTarget(subjectListStatusEl, {
         id: 'subject-list-status',

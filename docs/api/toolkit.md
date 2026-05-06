@@ -327,6 +327,13 @@ as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
 graph/index inspection refs are `wiki-subject-browser-v0:subject-index` and
 `wiki-subject-browser-v0:subject-index-status`. Search/navigation refs include
 `wiki-subject-browser-v0:subject-search`,
+`wiki-subject-browser-v0:subject-filters`,
+`wiki-subject-browser-v0:subject-filter:subject-type`,
+`wiki-subject-browser-v0:subject-filter:relationship-type`,
+`wiki-subject-browser-v0:subject-filter:layer`,
+`wiki-subject-browser-v0:subject-filter:capability`,
+`wiki-subject-browser-v0:subject-filter:health`,
+`wiki-subject-browser-v0:subject-filters:reset`,
 `wiki-subject-browser-v0:subject-list`,
 `wiki-subject-browser-v0:subject-list-status`,
 `wiki-subject-browser-v0:subject-list:entry:<subject-key>`,
@@ -337,10 +344,40 @@ graph/index inspection refs are `wiki-subject-browser-v0:subject-index` and
 `wiki-subject-browser-v0:navigation-trail:open:<subject-key>`.
 
 The V0 navigation state is intentionally compact and derived from the local
-Subject Graph Index snapshot. `subject_search_query` stores the current query.
-`subject_index_entries[]` is the deterministic filtered list derived from
-`subject_graph_index.nodes[]`, sorted by label, Subject type, then Subject id.
-Each entry has this shape:
+Subject Graph Index snapshot. `subject_search_query` stores the current query,
+and `subject_index_filters` stores the selected graph-index filters:
+
+```json
+{
+  "subject_type": "aos.work_record",
+  "relationship_type": "origin_subject",
+  "layer": "descriptor",
+  "capability": "inspectable",
+  "health": "valid"
+}
+```
+
+All filter values are optional strings; an empty string means "all". The V0
+filters are derived from canonical graph/index fields only:
+
+- `subject_type` reads `subject_graph_index.nodes[].subject_type`.
+- `relationship_type` reads `subject_graph_index.edges[].relationship` and
+  matches indexed Subjects that participate in that relationship.
+- `layer` reads `subject_graph_index.facet_summaries[].layer` and matches
+  Subjects with a Facet in that layer.
+- `capability` reads canonical node and Facet `capabilities[]`.
+- `health` reads the node health summary status, verdict, or verifier status.
+
+`subject_index_filter_options` exposes deterministic option lists with
+`value`, `label`, `count`, and `semantic_ref` fields for `subject_types`,
+`relationship_types`, `layers`, `capabilities`, and `health`. Counts represent
+the number of indexed Subjects that would match that option. The selected
+filters compose with text search; reset clears selected filters without
+changing the current search query.
+
+`subject_index_entries[]` is the deterministic search-and-filtered list derived
+from `subject_graph_index.nodes[]`, sorted by label, Subject type, then Subject
+id. Each entry has this shape:
 
 ```json
 {
@@ -390,11 +427,13 @@ use Subject Entry Handles instead of route state:
 }
 ```
 
-The search/list affordance does not read Wiki KB `nodes[]` or `links[]`
-internals. It only filters `subject_graph_index.nodes[]`, which is derived from
-canonical Workbench Subject descriptors and loaded Subject Catalog entries. The
-trail is a lightweight recent-open history, not a URL router, breadcrumb
-ontology, replay log, or repair surface.
+The search/list/filter affordance does not read Wiki KB `nodes[]` or `links[]`
+internals. It only filters the local `subject_graph_index`, which is derived
+from canonical Workbench Subject descriptors and loaded Subject Catalog entries.
+The filters are an index navigation aid, not a graph derivation algorithm, not a
+replacement for the existing wiki graph projection, and not a URL router,
+breadcrumb ontology, replay log, repair surface, or macro playback surface. The
+trail is a lightweight recent-open history.
 
 V0 event contract:
 
