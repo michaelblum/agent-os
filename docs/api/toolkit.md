@@ -325,7 +325,76 @@ as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
 `wiki-subject-browser-v0:subject-catalog-status`, and
 `wiki-subject-browser-v0:subject-catalog:open:<catalog-key>`. The small
 graph/index inspection refs are `wiki-subject-browser-v0:subject-index` and
-`wiki-subject-browser-v0:subject-index-status`.
+`wiki-subject-browser-v0:subject-index-status`. Search/navigation refs include
+`wiki-subject-browser-v0:subject-search`,
+`wiki-subject-browser-v0:subject-list`,
+`wiki-subject-browser-v0:subject-list-status`,
+`wiki-subject-browser-v0:subject-list:entry:<subject-key>`,
+`wiki-subject-browser-v0:subject-list:open:<subject-key>`,
+`wiki-subject-browser-v0:navigation-trail`,
+`wiki-subject-browser-v0:navigation-trail-status`,
+`wiki-subject-browser-v0:navigation-trail-list`, and
+`wiki-subject-browser-v0:navigation-trail:open:<subject-key>`.
+
+The V0 navigation state is intentionally compact and derived from the local
+Subject Graph Index snapshot. `subject_search_query` stores the current query.
+`subject_index_entries[]` is the deterministic filtered list derived from
+`subject_graph_index.nodes[]`, sorted by label, Subject type, then Subject id.
+Each entry has this shape:
+
+```json
+{
+  "type": "aos.subject_browser.index_entry",
+  "schema_version": "2026-05-06",
+  "key": "work-record-aos-browser-click-status-2026-05-06",
+  "subject_node_id": "subject:work-record:aos-browser-click-status-2026-05-06",
+  "subject_id": "work-record:aos-browser-click-status-2026-05-06",
+  "subject_type": "aos.work_record",
+  "label": "Browser Click Status",
+  "owner": "aos-work-record",
+  "entry_handle": "work-record:aos-browser-click-status-2026-05-06",
+  "source_kind": "catalog_entry",
+  "catalog_entry_id": "subject-catalog:work-record-aos-browser-click-status-2026-05-06",
+  "wiki_path": null,
+  "capabilities": ["inspectable", "verifier-target", "exportable"],
+  "contracts": ["work_record.intent.view"],
+  "facet_count": 8,
+  "host_count": 8,
+  "reference_count": 1,
+  "semantic_ref": "wiki-subject-browser-v0:subject-list:entry:work-record-aos-browser-click-status-2026-05-06",
+  "open_ref": "wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06"
+}
+```
+
+Opening a wiki Subject or catalog Subject appends a compact navigation entry to
+`navigation_history[]`; `navigation_trail[]` is the last five unique handles
+from that history. Duplicate handles move to the latest position. Trail entries
+use Subject Entry Handles instead of route state:
+
+```json
+{
+  "type": "aos.subject_browser.navigation_entry",
+  "schema_version": "2026-05-06",
+  "key": "wiki-aos-concepts-runtime-modes-md",
+  "label": "Runtime Modes",
+  "subject_id": "wiki:aos/concepts/runtime-modes.md",
+  "subject_type": "wiki.concept",
+  "entry_handle": "wiki:aos/concepts/runtime-modes.md",
+  "source_kind": "wiki",
+  "wiki_path": "aos/concepts/runtime-modes.md",
+  "catalog_entry_id": null,
+  "opener_id": null,
+  "opened_at_sequence": 1,
+  "semantic_ref": "wiki-subject-browser-v0:navigation-trail:entry:wiki-aos-concepts-runtime-modes-md",
+  "open_ref": "wiki-subject-browser-v0:navigation-trail:open:wiki-aos-concepts-runtime-modes-md"
+}
+```
+
+The search/list affordance does not read Wiki KB `nodes[]` or `links[]`
+internals. It only filters `subject_graph_index.nodes[]`, which is derived from
+canonical Workbench Subject descriptors and loaded Subject Catalog entries. The
+trail is a lightweight recent-open history, not a URL router, breadcrumb
+ontology, replay log, or repair surface.
 
 V0 event contract:
 
@@ -366,9 +435,10 @@ V0 boundaries:
   catalog/open dependencies.
 - The shell derives a local Subject Graph Index V0 snapshot for inspection from
   the selected wiki Subject and loaded catalog entries. It exposes the full
-  payload on `window.__wikiSubjectBrowserState.subject_graph_index` and a
-  compact count/type summary in the right sidebar. This is not a replacement for
-  the embedded Wiki KB graph.
+  payload on `window.__wikiSubjectBrowserState.subject_graph_index`, a
+  filtered `subject_index_entries[]` list, and compact navigation history/trail
+  arrays in the right sidebar. This is not a replacement for the embedded Wiki
+  KB graph.
 
 ### Subject Catalog And Opening V0
 
