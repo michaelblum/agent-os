@@ -64,6 +64,37 @@ If a change spans both Swift and JS/package surfaces:
 2. Rebuild once before the first `./aos`-backed verification step.
 3. Reuse that binary for the remaining `./aos` checks until Swift changes again.
 
+## Wiki And Content State Safety
+
+Wiki tests that create, delete, seed, reindex, or otherwise rewrite wiki files
+must run against an isolated state root. Prefer tests that allocate and export
+their own temporary `AOS_STATE_ROOT`, then remove that root on exit. The
+destructive wiki integration suite is safe to run directly:
+
+```bash
+bash tests/wiki-integration.sh
+```
+
+It allocates a temporary state root by default and refuses to run when its
+computed wiki directory is the canonical repo wiki at
+`~/.config/aos/repo/wiki`. Use the guard test when changing that isolation
+contract:
+
+```bash
+bash tests/wiki-integration-isolation.sh
+```
+
+FSEvents-backed wiki watcher tests may need a repo-local ignored state root
+under `.aos-test-tmp/`; system temp roots under `/var/folders` can miss file
+watch events on macOS even though they are isolated.
+
+Content-server tests under `tests/content/` may exercise the live repo daemon
+when they are explicitly testing HTTP wiki endpoints. Those tests must use
+unique test page names, register cleanup before writing, and delete every page
+they create on both success and failure. Do not run live wiki/content HTTP tests
+concurrently unless the test documents that it is isolated; shared daemon state
+can create false failures and leave runtime contamination.
+
 ## Situational Hardware Tests
 
 Some display tests depend on real hardware topology and OS permissions. Those

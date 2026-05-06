@@ -1,20 +1,44 @@
 #!/usr/bin/env bash
 # wiki-change-events.sh — verify wiki_page_changed events via FSEvents watcher
-# Requires: ./aos built and daemon running (launchd or manual 'aos serve')
+# Requires: ./aos built. Starts an isolated daemon.
 set -euo pipefail
 
+source "$(dirname "$0")/lib/isolated-daemon.sh"
+
+PREFIX="aos-wiki-change-events"
+SCRATCH_PARENT="${AOS_TEST_STATE_PARENT:-$(pwd -P)/.aos-test-tmp}"
+mkdir -p "$SCRATCH_PARENT"
+while IFS= read -r stale_root; do
+    [[ -n "$stale_root" ]] || continue
+    aos_test_kill_root "$stale_root"
+    rm -rf "$stale_root"
+done < <(find "$SCRATCH_PARENT" -maxdepth 1 -type d -name "${PREFIX}.*" -print 2>/dev/null)
+
+ROOT="$(mktemp -d "$SCRATCH_PARENT/${PREFIX}.XXXXXX")"
+export AOS_STATE_ROOT="$ROOT"
+
 AOS_BIN="${AOS_BIN:-$(dirname "$0")/../aos}"
-SOCKET="${HOME}/.config/aos/repo/sock"
-TEST_FILE="${HOME}/.config/aos/repo/wiki/test/fs-edit.md"
+SOCKET="$ROOT/repo/sock"
+TEST_FILE="$ROOT/repo/wiki/test/fs-edit.md"
 PIPE=$(mktemp -u)
 mkfifo "$PIPE"
+LISTENER_PID=""
 
 cleanup() {
-    kill "$LISTENER_PID" 2>/dev/null || true
+    if [[ -n "$LISTENER_PID" ]]; then
+        kill "$LISTENER_PID" 2>/dev/null || true
+        wait "$LISTENER_PID" 2>/dev/null || true
+    fi
     rm -f "$PIPE"
-    rm -f "$TEST_FILE"
+    aos_test_kill_root "$ROOT"
+    rm -rf "$ROOT"
 }
 trap cleanup EXIT
+
+mkdir -p "$(dirname "$TEST_FILE")"
+
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
+    || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 # Subscribe to daemon event stream via Python (reads NDJSON, filters wiki events)
 python3 - "$SOCKET" "$PIPE" <<'PYEOF' &
@@ -58,7 +82,6 @@ LISTENER_PID=$!
 sleep 0.4
 
 # Create the test file
-mkdir -p "$(dirname "$TEST_FILE")"
 printf -- '---\ntype: test\n---\nx\n' > "$TEST_FILE"
 
 # Read one event from the pipe (timeout 3s)

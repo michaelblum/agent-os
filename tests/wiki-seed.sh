@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WIKI="$HOME/.config/aos/repo/wiki"
+PREFIX="aos-wiki-seed"
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
+ROOT="$(cd "$ROOT" && pwd -P)"
+export AOS_STATE_ROOT="$ROOT"
+trap 'rm -rf "$ROOT"' EXIT
+
+WIKI="$ROOT/repo/wiki"
 TESTDIR="$WIKI/seed-test"
 rm -rf "$TESTDIR"
 

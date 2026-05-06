@@ -9,26 +9,61 @@ if [[ -z "$PORT" ]]; then
   echo "SKIP: aos daemon not running (content root not ready)"; exit 0
 fi
 
+TEST_ID="wiki-list-test-$$"
+ALPHA_PATH="sigil/agents/${TEST_ID}-alpha.md"
+BETA_PATH="sigil/agents/${TEST_ID}-beta.md"
+HIDDEN_PATH="sigil/agents/.${TEST_ID}-hidden.md"
+
+cleanup() {
+  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$ALPHA_PATH" > /dev/null || true
+  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$BETA_PATH" > /dev/null || true
+  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$HIDDEN_PATH" > /dev/null || true
+}
+trap cleanup EXIT
+
 # Seed two agent docs via PUT
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
-  --data-binary $'---\ntype: agent\nid: alpha\nname: Alpha\ntags: [sigil]\n---\n\n```json\n{}\n```\n' \
-  "http://127.0.0.1:$PORT/wiki/sigil/agents/alpha.md" > /dev/null
+  --data-binary "---
+type: agent
+id: ${TEST_ID}-alpha
+name: ${TEST_ID} Alpha
+tags: [sigil]
+---
+
+\`\`\`json
+{}
+\`\`\`
+" \
+  "http://127.0.0.1:$PORT/wiki/$ALPHA_PATH" > /dev/null
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
-  --data-binary $'---\ntype: agent\nid: beta\nname: Beta\ntags: [sigil]\n---\n\n```json\n{}\n```\n' \
-  "http://127.0.0.1:$PORT/wiki/sigil/agents/beta.md" > /dev/null
+  --data-binary "---
+type: agent
+id: ${TEST_ID}-beta
+name: ${TEST_ID} Beta
+tags: [sigil]
+---
+
+\`\`\`json
+{}
+\`\`\`
+" \
+  "http://127.0.0.1:$PORT/wiki/$BETA_PATH" > /dev/null
 
 # Seed a hidden file — must NOT appear in listing
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary $'hidden\n' \
-  "http://127.0.0.1:$PORT/wiki/sigil/agents/.hidden.md" > /dev/null
+  "http://127.0.0.1:$PORT/wiki/$HIDDEN_PATH" > /dev/null
 
 # List the directory
 BODY=$(curl -sf "http://127.0.0.1:$PORT/wiki/sigil/agents/")
-echo "$BODY" | grep -q '"name":"alpha.md"' || { echo "FAIL: alpha.md not listed"; echo "$BODY"; exit 1; }
-echo "$BODY" | grep -q '"name":"beta.md"' || { echo "FAIL: beta.md not listed"; echo "$BODY"; exit 1; }
+ALPHA_NAME="${TEST_ID}-alpha.md"
+BETA_NAME="${TEST_ID}-beta.md"
+HIDDEN_NAME=".${TEST_ID}-hidden.md"
+echo "$BODY" | grep -q "\"name\":\"$ALPHA_NAME\"" || { echo "FAIL: $ALPHA_NAME not listed"; echo "$BODY"; exit 1; }
+echo "$BODY" | grep -q "\"name\":\"$BETA_NAME\"" || { echo "FAIL: $BETA_NAME not listed"; echo "$BODY"; exit 1; }
 
 # Hidden files must be absent from the listing
-echo "$BODY" | grep -q '"name":".hidden.md"' && { echo "FAIL: .hidden.md appeared in listing"; exit 1; } || true
+echo "$BODY" | grep -q "\"name\":\"$HIDDEN_NAME\"" && { echo "FAIL: $HIDDEN_NAME appeared in listing"; exit 1; } || true
 
 # Path field must have no trailing slash (JSONEncoder may escape / as \/)
 echo "$BODY" | grep -qE '"path":"sigil\\?/agents"' || { echo "FAIL: path has trailing slash or wrong value"; echo "$BODY"; exit 1; }
@@ -52,10 +87,5 @@ MISSING_STATUS=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/
 # --path-as-is prevents curl from normalizing /../ before sending.
 STATUS=$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/wiki/../etc/passwd/")
 [[ "$STATUS" == "400" || "$STATUS" == "403" ]] || { echo "FAIL: traversal returned $STATUS"; exit 1; }
-
-# Cleanup
-curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/sigil/agents/alpha.md" > /dev/null
-curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/sigil/agents/beta.md" > /dev/null
-curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/sigil/agents/.hidden.md" > /dev/null
 
 echo "OK: wiki directory listing works"

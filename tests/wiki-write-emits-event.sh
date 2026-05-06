@@ -2,25 +2,44 @@
 # wiki-write-emits-event.sh — integration: PUT/DELETE via content server
 # emit wiki_page_changed events through the daemon pub/sub bus.
 #
-# Requires: ./aos built and daemon running (launchd or manual 'aos serve')
+# Requires: ./aos built. Starts an isolated daemon.
 set -euo pipefail
 
+source "$(dirname "$0")/lib/isolated-daemon.sh"
+
+PREFIX="aos-wiki-write-emits-event"
+aos_test_cleanup_prefix "$PREFIX"
+
+ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
+ROOT="$(cd "$ROOT" && pwd -P)"
+export AOS_STATE_ROOT="$ROOT"
+
 AOS_BIN="${AOS_BIN:-$(dirname "$0")/../aos}"
-SOCKET="${HOME}/.config/aos/repo/sock"
+SOCKET="$ROOT/repo/sock"
 REL_PATH="test/api-emit.md"
-TEST_FILE="${HOME}/.config/aos/repo/wiki/${REL_PATH}"
+TEST_FILE="$ROOT/repo/wiki/${REL_PATH}"
 PIPE=$(mktemp -u)
 mkfifo "$PIPE"
+exec 3<>"$PIPE"
+LISTENER_PID=""
 
 cleanup() {
-    kill "$LISTENER_PID" 2>/dev/null || true
+    if [[ -n "$LISTENER_PID" ]]; then
+        kill "$LISTENER_PID" 2>/dev/null || true
+        wait "$LISTENER_PID" 2>/dev/null || true
+    fi
+    exec 3<&- 2>/dev/null || true
     rm -f "$PIPE"
-    rm -f "$TEST_FILE"
+    aos_test_kill_root "$ROOT"
+    rm -rf "$ROOT"
 }
 trap cleanup EXIT
 
-# Resolve the content server's actual port via the canonical readiness path.
-PORT=$("$AOS_BIN" content wait --timeout 5s --json | python3 -c "import sys, json; print(json.load(sys.stdin)['port'])")
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
+    || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
+
+# Resolve the isolated content server's actual port via the canonical readiness path.
+PORT=$("$AOS_BIN" content wait --root toolkit --timeout 5s --json | python3 -c "import sys, json; print(json.load(sys.stdin)['port'])")
 URL="http://127.0.0.1:${PORT}/wiki/${REL_PATH}"
 
 # Subscribe to wiki_page_changed via daemon socket.
@@ -62,7 +81,7 @@ while True:
 PYEOF
 LISTENER_PID=$!
 
-if ! read -t 2 READY < "$PIPE" || [ "$READY" != "__READY__" ]; then
+if ! read -t 2 READY <&3 || [ "$READY" != "__READY__" ]; then
     echo "FAIL: subscriber did not become ready"
     exit 1
 fi
@@ -83,7 +102,7 @@ x' >/dev/null
 # need at least one event mentioning the PUT path with a non-deleted op.
 saw_put_event=0
 for _ in 1 2; do
-    if read -t 2 LINE < "$PIPE"; then
+    if read -t 2 LINE <&3; then
         if echo "$LINE" | python3 -c "import sys, json; d=json.load(sys.stdin); data=d.get('data',{}); assert data.get('path')=='${REL_PATH}' and data.get('op') in ('created','updated')" 2>/dev/null; then
             saw_put_event=1
             break
@@ -103,7 +122,7 @@ curl -sf -X DELETE "$URL" >/dev/null
 
 saw_delete_event=0
 for _ in 1 2 3; do
-    if read -t 2 LINE < "$PIPE"; then
+    if read -t 2 LINE <&3; then
         if echo "$LINE" | python3 -c "import sys, json; d=json.load(sys.stdin); data=d.get('data',{}); assert data.get('path')=='${REL_PATH}' and data.get('op')=='deleted'" 2>/dev/null; then
             saw_delete_event=1
             break

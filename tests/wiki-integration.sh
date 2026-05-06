@@ -2,18 +2,52 @@
 set -euo pipefail
 
 # wiki-integration.sh — end-to-end test of aos wiki commands
-# Requires: ./aos built, no existing wiki (or will be reset)
+# Requires: ./aos built. Runs in an isolated AOS_STATE_ROOT by default.
 
-AOS="./aos"
-STATE_ROOT=${AOS_STATE_ROOT:-"$HOME/.config/aos"}
-WIKI_DIR="$STATE_ROOT/repo/wiki"
+AOS="${AOS:-./aos}"
+TEMP_STATE_ROOT=""
+
+canonicalize_path() {
+  python3 - "$1" <<'PY'
+import pathlib
+import sys
+
+print(pathlib.Path(sys.argv[1]).expanduser().resolve(strict=False))
+PY
+}
+
+CANONICAL_WIKI_DIR="$(canonicalize_path "$HOME/.config/aos/repo/wiki")"
+
+if [[ -z "${AOS_STATE_ROOT:-}" ]]; then
+  TEMP_STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-wiki-integration.XXXXXX")"
+  export AOS_STATE_ROOT="$TEMP_STATE_ROOT"
+else
+  export AOS_STATE_ROOT
+fi
+
+cleanup_state_root() {
+  if [[ -n "$TEMP_STATE_ROOT" ]]; then
+    rm -rf "$TEMP_STATE_ROOT"
+  fi
+}
+trap cleanup_state_root EXIT
+
+STATE_ROOT="$(canonicalize_path "$AOS_STATE_ROOT")"
+WIKI_DIR="$(canonicalize_path "$STATE_ROOT/repo/wiki")"
 PASS=0
 FAIL=0
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
+if [[ "$WIKI_DIR" == "$CANONICAL_WIKI_DIR" || "$WIKI_DIR" == "$CANONICAL_WIKI_DIR/"* ]]; then
+  echo "ERROR: refusing to run destructive wiki integration test against live repo wiki: $WIKI_DIR" >&2
+  echo "Set AOS_STATE_ROOT to a temporary directory outside ~/.config/aos, or omit it and let this test allocate one." >&2
+  exit 1
+fi
+
 echo "=== aos wiki integration tests ==="
+echo "State root: $STATE_ROOT"
 echo "Wiki dir: $WIKI_DIR"
 
 # Clean slate
