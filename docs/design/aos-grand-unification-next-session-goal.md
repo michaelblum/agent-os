@@ -53,10 +53,9 @@ is known. An open issue or PR is not automatically current.
 
 ## Read First
 
-The previously referenced `docs/recipes/fresh-session-continuation-primer.md`
-does not exist in this worktree as of this handoff. Use the live entry-path
-recipe instead:
+Read the fresh-session primer and live entry-path recipe:
 
+- `docs/recipes/fresh-session-continuation-primer.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 
 Then read the current workstream sources:
