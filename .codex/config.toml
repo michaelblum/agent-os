@@ -14,6 +14,7 @@ multi_agent = true
 js_repl = true
 guardian_approval = true
 prevent_idle_sleep = true
+goals=true
 
 [tui]
 status_line = ["model-with-reasoning", "context-remaining", "current-dir", "context-used", "project-root", "git-branch", "context-window-size"]
