@@ -336,6 +336,73 @@ V0 boundaries:
   Markdown Workbench and its existing `markdown_document.open` /
   `markdown_document.save.requested` behavior.
 
+### Playbook Workbench V0
+
+The named V0 shell lives at:
+
+```text
+aos://toolkit/components/playbook-workbench/index.html
+```
+
+Launch the fixture-backed shell in repo mode with:
+
+```bash
+packages/toolkit/components/playbook-workbench/launch.sh
+```
+
+The shell manifest name is `playbook-workbench-v0`. It is a browser-hosted,
+fixture-backed, report-only shell around the existing browser Playbook
+prototype APIs. It uses `createBrowserPlaybookPrototype()`,
+`runBrowserPlaybookPrototype()`, `runOneStepPlaybookHarness()`, and the existing
+read-only Work Record workbench open model. It simulates exactly one saved AOS
+browser action evidence source only after an explicit workflow gate ref and
+token are provided.
+
+The launch script loads:
+
+- `shared/schemas/fixtures/aos-playbook-step-v0/valid/browser-click-status.json`
+- `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
+
+The shell sets `window.__playbookWorkbenchState` for inspection and exposes
+stable refs such as `playbook-workbench-v0:root`,
+`playbook-workbench-v0:gate-ref`, `playbook-workbench-v0:gate-token`,
+`playbook-workbench-v0:simulate`, `playbook-workbench-v0:verifier-status`,
+`playbook-workbench-v0:diagnostics`,
+`playbook-workbench-v0:work-record-summary`, and
+`playbook-workbench-v0:open-work-record`.
+
+V0 message contract:
+
+- `playbook_workbench.load` carries `{ playbook_step, evidence_source,
+  work_record_workbench_url?, work_record_canvas_id? }` and loads the fixture
+  payloads into the shell.
+- `playbook_workbench.workflow_gate.set` carries `{ ref, token }` and records
+  the explicit workflow gate candidate without running the harness.
+- `playbook_workbench.simulate.requested` runs the existing prototype in
+  `simulate` mode. Missing tokens or undeclared refs are rejected before a Work
+  Record is emitted.
+- `playbook_workbench.simulate.result` reports harness status, reason, verifier
+  status, diagnostics, and the emitted Work Record id when present.
+- `playbook_workbench.work_record.open.requested` creates a `work_record.open`
+  payload with `source.kind: "browser_playbook_prototype"` and opens it through
+  the existing Work Record workbench model. The UI also attempts to spawn the
+  stock `work-record-workbench` canvas and post the same `work_record.open`
+  message to it.
+- `playbook_workbench.work_record.open.result` reports the read-only handoff
+  status, Work Record id, and child Work Record workbench canvas id.
+
+V0 boundaries:
+
+- The shell is not a general Playbook UI and does not list, edit, or execute
+  arbitrary Playbooks.
+- The shell does not add `aos playbook`, `aos verify`, `aos audit`, recorder,
+  replay, repair, or macro command surfaces.
+- The shell does not perform live browser execution, autonomous replay,
+  autonomous repair, macro playback, or a background loop.
+- The shell does not create a second Work Record viewer. It shows only an
+  emitted-record summary and hands off the full record to the existing
+  read-only Work Record workbench path.
+
 Before migration, older helper output often looked like this:
 
 ```json
@@ -469,6 +536,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 - `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
+- `aos://toolkit/components/playbook-workbench/index.html` - Playbook Workbench V0 shell that gates one saved-evidence browser Playbook simulation and hands off the emitted Work Record read-only
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
 - `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines

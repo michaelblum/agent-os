@@ -69,6 +69,22 @@ the open subject has no patch persistence and no patch controls. The verifier
 report remains inspectable through the existing `work_record.verifier_report`
 view.
 
+## Playbook Workbench V0 Shell
+
+The browser-hosted V0 shell lives at
+`aos://toolkit/components/playbook-workbench/index.html` and launches through
+`packages/toolkit/components/playbook-workbench/launch.sh`. It is a thin
+surface over this prototype contract: the launch path loads the existing
+browser click/status step fixture and saved evidence fixture, the shell requires
+an explicit workflow gate ref and token before calling
+`runBrowserPlaybookPrototype()` in `simulate` mode, and the emitted Work Record
+is handed to the existing read-only Work Record workbench open path.
+
+The shell remains fixture-backed, report-only, and one-step-only. It exposes
+semantic refs for inspection and operation, but it does not add live browser
+execution, autonomous replay, repair, macro playback, background loops, broad
+CLI commands, or a second Work Record viewer.
+
 ## Non-Goals
 
 This is not the Browser-Hosted Wiki Subject Browser. It does not navigate wiki
