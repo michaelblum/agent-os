@@ -31,6 +31,7 @@ diagnostics.
       "canvas_id": "sigil-radial-menu",
       "id": "wiki-graph",
       "ref": "sigil-radial-item-wiki-graph",
+      "do_target": "canvas:sigil-radial-menu/sigil-radial-item-wiki-graph",
       "role": "button",
       "name": "Wiki Graph",
       "action": "wiki-graph",
@@ -53,6 +54,12 @@ diagnostics.
 id.
 
 `ref` is the canonical AOS object reference from `data-aos-ref`.
+
+`do_target` is the canonical target-with-ref string accepted by
+`aos do click`. It is emitted only when both `canvas_id` and `ref` are present,
+and agents may pass it directly to `aos do click` without reconstructing the
+target string. `canvas_id` and `ref` remain present for structured querying and
+filtering.
 
 `role` is the explicit DOM role when present, otherwise the closest native
 control role.

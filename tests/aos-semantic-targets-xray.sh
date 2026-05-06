@@ -31,6 +31,7 @@ echo "$OUT" | jq -e --arg canvas "$CANVAS_ID" '
       .canvas_id == $canvas
       and .id == "primary"
       and .ref == "contract.primary"
+      and .do_target == ("canvas:" + $canvas + "/contract.primary")
       and .role == "button"
       and .name == "Primary Action"
       and .action == "commit"

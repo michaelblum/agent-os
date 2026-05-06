@@ -79,6 +79,7 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return null;
         const id = data(el, 'semanticTargetId') || attr(el, 'data-semantic-target-id') || attr(el, 'id');
         const ref = data(el, 'aosRef') || attr(el, 'data-aos-ref');
+        const doTarget = canvasId && ref ? `canvas:${canvasId}/${ref}` : null;
         const disabled = el.matches?.(':disabled') || attr(el, 'aria-disabled') === 'true';
         const bounds = {
           x: Math.round(rect.left * scale),
@@ -90,6 +91,7 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
           canvas_id: canvasId,
           id: id || null,
           ref: ref || null,
+          do_target: doTarget,
           role: attr(el, 'role') || nativeRole(el),
           name: targetName(el, id, ref) || null,
           action: data(el, 'aosAction') || attr(el, 'data-aos-action') || null,

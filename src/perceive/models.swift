@@ -249,6 +249,7 @@ struct AOSSemanticTargetJSON: Codable {
     let canvas_id: String?
     let id: String?
     let ref: String?
+    let do_target: String?
     let role: String
     let name: String?
     let action: String?

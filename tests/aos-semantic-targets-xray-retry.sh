@@ -31,6 +31,7 @@ echo "$OUT" | jq -e --arg canvas "$CANVAS_ID" '
       .canvas_id == $canvas
       and .id == "retry"
       and .ref == "contract.retry"
+      and .do_target == ("canvas:" + $canvas + "/contract.retry")
       and .role == "button"
       and .name == "Retry Action"
       and .action == "retry"

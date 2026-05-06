@@ -66,11 +66,26 @@ STATE_ID="$(printf '%s' "$CAPTURE" | jq -r '.state_id')"
 
 printf '%s' "$CAPTURE" | jq -e --arg canvas "$CANVAS_ID" '
   .semantic_targets
-  | map(select(.canvas_id == $canvas and .ref == "contract.primary" and .enabled == true))
+  | map(select(
+      .canvas_id == $canvas
+      and .ref == "contract.primary"
+      and .do_target == ("canvas:" + $canvas + "/contract.primary")
+      and .enabled == true
+    ))
   | length == 1
 ' >/dev/null
 
-DRY_RUN="$(./aos do click "canvas:${CANVAS_ID}/contract.primary" --dry-run --state-id "$STATE_ID")"
+DO_TARGET="$(printf '%s' "$CAPTURE" | jq -r --arg canvas "$CANVAS_ID" '
+  .semantic_targets
+  | map(select(.canvas_id == $canvas and .ref == "contract.primary" and .enabled == true))
+  | if length == 1 then .[0].do_target else empty end
+')"
+if [ "$DO_TARGET" != "canvas:${CANVAS_ID}/contract.primary" ]; then
+  echo "FAIL: expected do_target canvas:${CANVAS_ID}/contract.primary, got '$DO_TARGET'" >&2
+  exit 1
+fi
+
+DRY_RUN="$(./aos do click "$DO_TARGET" --dry-run --state-id "$STATE_ID")"
 printf '%s' "$DRY_RUN" | jq -e --arg canvas "$CANVAS_ID" --arg state "$STATE_ID" '
   .status == "dry_run"
   and .backend == "cgevent"
@@ -113,7 +128,7 @@ else
   printf '%s' "$ERR" | jq -e '.code == "UNSUPPORTED_SURFACE"' >/dev/null
 fi
 
-./aos do click "canvas:${CANVAS_ID}/contract.primary" --state-id "$STATE_ID" >/dev/null
+./aos do click "$DO_TARGET" --state-id "$STATE_ID" >/dev/null
 sleep 0.2
 
 CLICKED="$(./aos show eval --id "$CANVAS_ID" --js 'document.body.dataset.clicked || "0"' | jq -r '.result')"
