@@ -42,6 +42,19 @@ function geometryKind(item = {}) {
     return typeof item.geometry?.type === 'string' ? item.geometry.type.toLowerCase() : '';
 }
 
+function radialEditorCanvasHost(canvasId = DEFAULT_EDITOR_CANVAS_ID, { preferred = false, facet = '' } = {}) {
+    return {
+        kind: 'canvas',
+        target_dialect: 'canvas',
+        entry: {
+            kind: 'canvas-id',
+            value: text(canvasId, DEFAULT_EDITOR_CANVAS_ID),
+            ...(facet ? { facet } : {}),
+        },
+        ...(preferred ? { preferred: true } : {}),
+    };
+}
+
 export function editableRadialItems(items = DEFAULT_SIGIL_RADIAL_ITEMS) {
     const source = Array.isArray(items) ? items : [];
     return source
@@ -191,15 +204,7 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
                 capabilities: ['inspectable'],
                 contracts: ['canvas_object.registry'],
                 hosts: [
-                    {
-                        kind: 'canvas',
-                        target_dialect: 'canvas',
-                        entry: {
-                            kind: 'canvas-id',
-                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
-                        },
-                        preferred: true,
-                    },
+                    radialEditorCanvasHost(state.canvasId, { preferred: true, facet: 'object-registry' }),
                 ],
             },
             {
@@ -211,16 +216,10 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
                     'canvas_object.transform.patch',
                     'canvas_object.effects.patch',
                     'canvas_object.visibility.patch',
+                    'sigil.radial_item_editor.lock_in',
                 ],
                 hosts: [
-                    {
-                        kind: 'canvas',
-                        target_dialect: 'canvas',
-                        entry: {
-                            kind: 'canvas-id',
-                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
-                        },
-                    },
+                    radialEditorCanvasHost(state.canvasId, { facet: 'object-controls' }),
                 ],
             },
             {
@@ -230,14 +229,7 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
                 capabilities: ['inspectable'],
                 contracts: ['sigil.radial_item.preview'],
                 hosts: [
-                    {
-                        kind: 'canvas',
-                        target_dialect: 'canvas',
-                        entry: {
-                            kind: 'canvas-id',
-                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
-                        },
-                    },
+                    radialEditorCanvasHost(state.canvasId, { facet: 'radial-preview' }),
                 ],
             },
         ],

@@ -1,5 +1,8 @@
 import { createWorkbenchSubject } from './subject.js';
 
+const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
+const WIKI_KB_URL = 'aos://toolkit/components/wiki-kb/index.html';
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
@@ -30,6 +33,19 @@ function normalizeTags(value = []) {
 function frontmatterValue(page = {}, key = '') {
   const frontmatter = page.frontmatter && typeof page.frontmatter === 'object' ? page.frontmatter : {};
   return page[key] ?? frontmatter[key];
+}
+
+function canvasComponentHost(value, { preferred = false, facet = '' } = {}) {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value,
+      ...(facet ? { facet } : {}),
+    },
+    ...(preferred ? { preferred: true } : {}),
+  };
 }
 
 export function wikiSubjectType(page = {}) {
@@ -81,25 +97,39 @@ export function createWikiPageSubject(page = {}) {
     {
       key: 'wiki-markdown',
       layer: 'narrative',
-      label: 'Markdown',
+      label: 'Markdown Source',
       source,
       capabilities: ['inspectable', 'editable'],
       contracts: [
         'wiki.read',
-        'wiki.markdown.render',
         'markdown_document.text.patch',
         'markdown_document.save.requested',
       ],
       hosts: [
-        {
-          kind: 'canvas',
-          target_dialect: 'canvas',
-          entry: {
-            kind: 'aos-url',
-            value: 'aos://toolkit/components/markdown-workbench/index.html',
-          },
-          preferred: true,
-        },
+        canvasComponentHost(MARKDOWN_WORKBENCH_URL, { preferred: true, facet: 'source' }),
+      ],
+    },
+    {
+      key: 'markdown-preview',
+      layer: 'narrative',
+      label: 'Rendered Markdown Preview',
+      source,
+      capabilities: ['inspectable'],
+      contracts: ['wiki.markdown.render'],
+      hosts: [
+        canvasComponentHost(MARKDOWN_WORKBENCH_URL, { facet: 'preview' }),
+      ],
+    },
+    {
+      key: 'wiki-graph',
+      layer: 'descriptor',
+      label: 'Wiki Graph',
+      source,
+      capabilities: ['inspectable'],
+      contracts: ['wiki.read'],
+      hosts: [
+        canvasComponentHost(MARKDOWN_WORKBENCH_URL, { facet: 'graph' }),
+        canvasComponentHost(WIKI_KB_URL, { facet: 'graph' }),
       ],
     },
   ];
@@ -113,14 +143,7 @@ export function createWikiPageSubject(page = {}) {
       capabilities: ['inspectable', 'replayable'],
       contracts: ['workflow.project', 'wiki.invoke'],
       hosts: [
-        {
-          kind: 'canvas',
-          target_dialect: 'canvas',
-          entry: {
-            kind: 'aos-url',
-            value: 'aos://toolkit/components/wiki-kb/index.html',
-          },
-        },
+        canvasComponentHost(WIKI_KB_URL, { facet: 'workflow' }),
       ],
     });
   }

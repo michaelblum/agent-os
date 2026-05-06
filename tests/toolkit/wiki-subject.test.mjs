@@ -50,8 +50,15 @@ test('createWikiPageSubject builds a concept subject from wiki list shape', () =
   assert.ok(subject.capabilities.includes('wiki.read'));
   assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
   assert.ok(subjectContracts(subject).includes('markdown_document.text.patch'));
-  assert.equal(subjectFacets(subject)[0].key, 'wiki-markdown');
-  assert.equal(subjectHosts(subject)[0].entry.value, 'aos://toolkit/components/markdown-workbench/index.html');
+  const facets = subjectFacets(subject);
+  assert.deepEqual(facets.map((facet) => facet.key), ['wiki-markdown', 'markdown-preview', 'wiki-graph']);
+  assert.equal(facets.find((facet) => facet.key === 'wiki-markdown').layer, 'narrative');
+  assert.ok(facets.find((facet) => facet.key === 'markdown-preview').contracts.includes('wiki.markdown.render'));
+  assert.equal(facets.find((facet) => facet.key === 'wiki-graph').layer, 'descriptor');
+  const hosts = subjectHosts(subject);
+  assert.ok(hosts.every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'));
+  assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/markdown-workbench/index.html'));
+  assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-kb/index.html'));
   assert.ok(subjectLegacyViews(subject).includes('wiki.graph'));
   assert.ok(subjectLegacyControls(subject).includes('save'));
 });
@@ -73,9 +80,10 @@ test('createWikiPageSubject preserves plugin workflow capabilities', () => {
   assert.ok(subjectCapabilities(subject).includes('replayable'));
   assert.ok(subject.capabilities.includes('wiki.invoke'));
   assert.ok(subjectContracts(subject).includes('workflow.project'));
-  assert.ok(subjectFacets(subject).some((facet) => facet.key === 'workflow-projection'));
-  assert.ok(subject.views.includes('workflow.graph'));
-  assert.ok(subject.controls.includes('invoke'));
+  const facets = subjectFacets(subject);
+  assert.ok(facets.some((facet) => facet.key === 'workflow-projection'));
+  assert.ok(subjectLegacyViews(subject).includes('workflow.graph'));
+  assert.ok(subjectLegacyControls(subject).includes('invoke'));
 });
 
 test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
@@ -90,7 +98,7 @@ test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
   assert.equal(subject.owner, 'sigil');
   assert.equal(subject.metadata.wiki_type, 'agent');
   assert.ok(!subject.capabilities.includes('sigil.agent.preview'));
-  assert.ok(!subject.views.includes('sigil.avatar.preview'));
+  assert.ok(!subjectLegacyViews(subject).includes('sigil.avatar.preview'));
 });
 
 test('createWikiPageSubjects maps arrays and rejects missing path', () => {

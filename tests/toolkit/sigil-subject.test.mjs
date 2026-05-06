@@ -5,6 +5,9 @@ import {
   subjectCapabilities,
   subjectContracts,
   subjectFacets,
+  subjectHosts,
+  subjectLegacyControls,
+  subjectLegacyViews,
   subjectReferences,
 } from '../../packages/toolkit/workbench/subject.js';
 
@@ -36,8 +39,8 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
   assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
   assert.ok(subject.capabilities.includes('sigil.agent.preview'));
   assert.ok(subjectContracts(subject).includes('sigil.agent.appearance'));
-  assert.ok(subject.views.includes('sigil.avatar.preview'));
-  assert.ok(subject.controls.includes('appearance.controls'));
+  assert.ok(subjectLegacyViews(subject).includes('sigil.avatar.preview'));
+  assert.ok(subjectLegacyControls(subject).includes('appearance.controls'));
 
   assert.deepEqual(subject.metadata.wiki_subject, {
     id: 'wiki:sigil/agents/default.md',
@@ -51,7 +54,7 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
       handle: 'wiki:sigil/agents/default.md',
       subject_id: 'wiki:sigil/agents/default.md',
       subject_type: 'wiki.entity',
-      facet_key: 'wiki',
+      facet_key: 'wiki-markdown',
       layer: 'narrative',
       role: 'source',
     },
@@ -63,6 +66,11 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
     'avatar-preview',
     'appearance-controls',
   ]);
+  const hosts = subjectHosts(subject);
+  assert.ok(hosts.every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'));
+  assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/markdown-workbench/index.html'));
+  assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/renderer/index.html'));
+  assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/studio/index.html'));
 });
 
 test('createSigilAgentSubject derives identity from the source wiki path', () => {

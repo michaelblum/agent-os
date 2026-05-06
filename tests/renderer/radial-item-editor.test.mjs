@@ -33,6 +33,8 @@ import {
   subjectContracts,
   subjectFacets,
   subjectHosts,
+  subjectLegacyControls,
+  subjectLegacyViews,
 } from '../../packages/toolkit/workbench/subject.js'
 
 test('editableRadialItems exposes the current glTF radial item subjects', () => {
@@ -250,12 +252,17 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.ok(subject.capabilities.includes('canvas_object.effects.patch'))
   assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
   assert.ok(subjectContracts(subject).includes('canvas_object.transform.patch'))
-  assert.deepEqual(subjectFacets(subject).map((facet) => facet.key), [
+  const facets = subjectFacets(subject)
+  assert.deepEqual(facets.map((facet) => facet.key), [
     'object-registry',
     'object-controls',
     'radial-preview',
   ])
+  assert.ok(facets.find((facet) => facet.key === 'object-controls').contracts.includes('sigil.radial_item_editor.lock_in'))
+  assert.ok(subjectHosts(subject).every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'))
   assert.equal(subjectHosts(subject)[0].entry.value, 'preview')
+  assert.ok(subjectLegacyViews(subject).includes('production.radial.preview'))
+  assert.ok(subjectLegacyControls(subject).includes('lock_in'))
 })
 
 test('radial item editor lock-in payload is detached from later state mutation', () => {

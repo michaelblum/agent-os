@@ -251,6 +251,34 @@ and add `contracts[]`, `subject_references[]`, and `facets[]` where the mapping
 is already clear. Do not remove the legacy fields until all readers use the
 compatibility helpers.
 
+Concrete helper examples:
+
+- `createWikiPageSubject()` keeps a wiki document as a wiki-oriented Subject and
+  emits separate Facets for Markdown source, rendered Markdown preview, and the
+  wiki graph projection. These Facets are currently Canvas-Host entries for the
+  existing `markdown-workbench` and `wiki-kb` components.
+- `createSigilAgentSubject()` emits a separate `sigil.agent` domain Subject with
+  a `subject_references[]` narrative source pointing back to the wiki document's
+  `wiki-markdown` Facet. Its avatar preview and appearance controls are
+  Canvas-Host entries because the live Sigil renderer and studio are AOS canvas
+  surfaces.
+- `createWorkRecordSubject()` maps Work Record intent, execution-map, evidence,
+  claims/verifier, and health views into Facets backed by the existing
+  `work-record-workbench` Canvas Host. Recording, replay, repair, and retirement
+  remain Work Record model responsibilities, not Host behavior.
+- `buildRadialItemWorkbenchSubject()` describes the selected radial item's
+  object registry, object controls, and radial preview as Facets hosted by the
+  current editor canvas id. The `canvas-id` entry is a runtime assumption about
+  an already running editor canvas, not a command to create one.
+
+Host metadata is descriptive. A Host entry says which target dialect and known
+component or canvas assumption can render a Facet; it does not launch a browser
+session, create an AOS canvas, focus a window, or choose policy. Add Browser
+Host entries only when a real browser route or session surface exists. Add
+Canvas Host `aos-url` entries only for existing AOS components, and use
+`canvas-id` entries only when the helper is describing a live canvas it already
+owns or was handed.
+
 Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,
 namespace, plugin }`, and their persistence route is the wiki write/change-event

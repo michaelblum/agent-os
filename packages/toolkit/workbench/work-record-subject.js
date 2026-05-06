@@ -95,13 +95,44 @@ function layerForWorkRecordView(view = '') {
   return 'descriptor';
 }
 
-function workRecordWorkbenchHost(preferred = false) {
+function uniqueTextList(values = []) {
+  return [...new Set(values.map((value) => text(value)).filter(Boolean))];
+}
+
+function contractsForWorkRecordView(view = '') {
+  const contracts = [];
+  if (view.includes('intent')) contracts.push('work_record.intent.view');
+  if (view.includes('execution_map')) contracts.push('work_record.execution_map.view');
+  if (view.includes('timeline')) contracts.push('work_record.do_step.inspect');
+  if (view.includes('evidence')) contracts.push('work_record.evidence.view');
+  if (view.includes('claims')) contracts.push('work_record.claims.view');
+  if (view.includes('claim_results')) contracts.push('work_record.claim_results.view');
+  if (view.includes('verifier_report')) contracts.push('work_record.verifier_report.view');
+  if (view.includes('health')) contracts.push('work_record.health.view');
+  if (view.includes('retirement')) contracts.push('work_record.retirement.inspect');
+  return uniqueTextList(contracts);
+}
+
+function workRecordControlContracts(record) {
+  if (record.readOnly) return [];
+  const contracts = ['work_record.intent.edit'];
+  if (workRecordViews(record).some((view) => view.includes('execution_map'))) {
+    contracts.push('work_record.execution_map.edit');
+  }
+  if (record.type === 'aos.recipe_health_event') {
+    contracts.push('work_record.retirement.inspect');
+  }
+  return uniqueTextList(contracts);
+}
+
+function workRecordWorkbenchHost(preferred = false, facet = '') {
   return {
     kind: 'canvas',
     target_dialect: 'canvas',
     entry: {
       kind: 'aos-url',
       value: 'aos://toolkit/components/work-record-workbench/index.html',
+      ...(facet ? { facet } : {}),
     },
     ...(preferred ? { preferred: true } : {}),
   };
@@ -113,16 +144,16 @@ function workRecordFacets(record) {
     layer: layerForWorkRecordView(view),
     label: labelFromKey(view),
     capabilities: ['inspectable'],
-    contracts: [],
-    hosts: [workRecordWorkbenchHost(index === 0)],
+    contracts: contractsForWorkRecordView(view),
+    hosts: [workRecordWorkbenchHost(index === 0, view)],
   }));
   const controlFacets = record.readOnly ? [] : [{
     key: 'work_record.controls',
     layer: 'controls',
     label: 'Work Record Controls',
     capabilities: ['editable'],
-    contracts: workRecordControls(record),
-    hosts: [workRecordWorkbenchHost()],
+    contracts: workRecordControlContracts(record),
+    hosts: [workRecordWorkbenchHost(false, 'controls')],
   }];
   return [...viewFacets, ...controlFacets];
 }

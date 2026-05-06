@@ -1,6 +1,10 @@
 import { createWorkbenchSubject } from './subject.js';
 import { createWikiPageSubject } from './wiki-subject.js';
 
+const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
+const SIGIL_RENDERER_URL = 'aos://sigil/renderer/index.html';
+const SIGIL_STUDIO_URL = 'aos://sigil/studio/index.html';
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
@@ -31,9 +35,22 @@ function createNarrativeSourceReference(wikiSubject, { id = 'sigil-agent-narrati
     handle: wikiSubject.id,
     subject_id: wikiSubject.id,
     subject_type: wikiSubject.subject_type,
-    facet_key: 'wiki',
+    facet_key: 'wiki-markdown',
     layer: 'narrative',
     role: 'source',
+  };
+}
+
+function canvasComponentHost(value, { preferred = false, facet = '' } = {}) {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value,
+      ...(facet ? { facet } : {}),
+    },
+    ...(preferred ? { preferred: true } : {}),
   };
 }
 
@@ -88,15 +105,7 @@ export function createSigilAgentSubject(page = {}, options = {}) {
           'markdown_document.save.requested',
         ],
         hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: 'aos://toolkit/components/markdown-workbench/index.html',
-            },
-            preferred: true,
-          },
+          canvasComponentHost(MARKDOWN_WORKBENCH_URL, { preferred: true, facet: 'source' }),
         ],
       },
       {
@@ -106,14 +115,7 @@ export function createSigilAgentSubject(page = {}, options = {}) {
         capabilities: ['inspectable'],
         contracts: ['sigil.agent.preview'],
         hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: 'aos://sigil/renderer/index.html',
-            },
-          },
+          canvasComponentHost(SIGIL_RENDERER_URL, { facet: 'avatar-preview' }),
         ],
       },
       {
@@ -123,14 +125,7 @@ export function createSigilAgentSubject(page = {}, options = {}) {
         capabilities: ['editable'],
         contracts: ['sigil.agent.appearance'],
         hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: 'aos://sigil/studio/index.html',
-            },
-          },
+          canvasComponentHost(SIGIL_STUDIO_URL, { facet: 'appearance-controls' }),
         ],
       },
     ],
