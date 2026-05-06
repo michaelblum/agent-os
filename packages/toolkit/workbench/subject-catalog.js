@@ -1,5 +1,9 @@
 import { createWorkRecordSubject } from './work-record-subject.js';
 import {
+  ARTIFACT_BUNDLE_WORKBENCH_URL,
+  createArtifactBundleSubject,
+} from './artifact-bundle-subject.js';
+import {
   subjectCapabilities,
   subjectCanonicalContracts,
   subjectCanonicalReferences,
@@ -13,6 +17,7 @@ export const SUBJECT_OPEN_RESULT_TYPE = 'subject.open.result';
 
 export const WORK_RECORD_WORKBENCH_URL = 'aos://toolkit/components/work-record-workbench/index.html';
 export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
+export { ARTIFACT_BUNDLE_WORKBENCH_URL };
 
 const COMPONENT_OPENERS = Object.freeze([
   {
@@ -28,6 +33,13 @@ const COMPONENT_OPENERS = Object.freeze([
     subject_types: ['aos.playbook_prototype'],
     required_contract_prefix: 'playbook_step.',
     message_types: [SUBJECT_CATALOG_LOAD_TYPE, 'playbook_workbench.load'],
+  },
+  {
+    id: 'artifact-bundle-workbench',
+    component_url: ARTIFACT_BUNDLE_WORKBENCH_URL,
+    subject_types: ['aos.artifact_bundle'],
+    required_contract_prefix: 'artifact_bundle.',
+    message_types: ['artifact_bundle.open'],
   },
 ]);
 
@@ -214,6 +226,38 @@ export function createWorkRecordSubjectCatalogEntry(record = {}, {
       source: normalizedSource,
       record: cloneJson(record),
     },
+  });
+}
+
+export function createArtifactBundleSubjectCatalogEntry(bundle = {}, {
+  id = '',
+  key = '',
+  source = null,
+  content_root = null,
+  contentRoot = content_root,
+} = {}) {
+  const subject = createArtifactBundleSubject(bundle);
+  const normalizedSource = source && typeof source === 'object'
+    ? cloneJson(source)
+    : {
+      kind: 'subject_browser_catalog',
+      path: subject.source?.path || null,
+      read_only: true,
+    };
+  const openMessage = {
+    type: 'artifact_bundle.open',
+    source: normalizedSource,
+    subject: cloneJson(subject),
+  };
+  if (contentRoot && typeof contentRoot === 'object') {
+    openMessage.content_root = cloneJson(contentRoot);
+  }
+  return createSubjectCatalogEntry({
+    id,
+    key,
+    subject,
+    entry_handle: subject.id,
+    open_payload: openMessage,
   });
 }
 

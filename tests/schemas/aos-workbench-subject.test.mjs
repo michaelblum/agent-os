@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
+import { createArtifactBundleSubject } from '../../packages/toolkit/workbench/artifact-bundle-subject.js';
 import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-record-subject.js';
@@ -25,6 +26,10 @@ const v0WorkRecordFixturePath = path.join(
   'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-origin.json',
 );
 const workflowMapMarkdownPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
+const artifactBundleFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
+);
 
 async function validate(instance) {
   const result = spawnSync(
@@ -227,4 +232,5 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
   await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
     record: JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8')),
   })));
+  await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(artifactBundleFixturePath, 'utf8'))));
 });

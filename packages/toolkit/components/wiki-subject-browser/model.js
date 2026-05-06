@@ -22,6 +22,7 @@ export const WIKI_SUBJECT_BROWSER_SURFACE = 'wiki-subject-browser-v0';
 export const WIKI_SUBJECT_BROWSER_URL = 'aos://toolkit/components/wiki-subject-browser/index.html';
 export const WIKI_SUBJECT_BROWSER_SCHEMA_VERSION = '2026-05-06';
 export const WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID = 'wiki-subject-browser-v0-work-record';
+export const WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID = 'wiki-subject-browser-v0-artifact-bundle';
 export const SUBJECT_BROWSER_INDEX_ENTRY_TYPE = 'aos.subject_browser.index_entry';
 export const SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE = 'aos.subject_browser.navigation_entry';
 export const SUBJECT_BROWSER_FOCUS_EVENT_TYPE = 'subject_browser.focus.requested';

@@ -337,6 +337,100 @@ source for its narrative Facet.
 The repo paths above are illustrative schema examples. A live helper must use
 the actual source-of-truth path for the descriptor it emits.
 
+## Example: Artifact Bundle Subject
+
+Artifact bundles adapt generated-output workspaces to the Workbench Subject
+model without adding a generation runner, exporter, renderer registry, or
+separate project daemon.
+
+```json
+{
+  "type": "aos.workbench.subject",
+  "schema_version": "2026-05-next",
+  "id": "artifact-bundle:example-design-pass",
+  "subject_type": "aos.artifact_bundle",
+  "label": "Example Design Pass",
+  "owner": "aos-artifact-workbench",
+  "source": {
+    "kind": "repo_folder",
+    "path": "docs/design/fixtures/aos-artifacts/example-design-pass",
+    "entry": "subject.json"
+  },
+  "capabilities": ["inspectable", "exportable", "verifier-target"],
+  "contracts": [
+    "artifact_bundle.gallery.view",
+    "artifact_bundle.preview.view",
+    "artifact_bundle.source.view",
+    "artifact_bundle.exports.view",
+    "artifact_bundle.provenance.view",
+    "artifact_bundle.validation.view"
+  ],
+  "subject_references": [
+    {
+      "id": "origin-work-record",
+      "relationship": "generated_by",
+      "handle": "work-record:example-design-pass-generation",
+      "subject_type": "aos.work_record",
+      "facet_key": "work_record.evidence",
+      "layer": "artifacts",
+      "role": "provenance"
+    }
+  ],
+  "facets": [
+    {
+      "key": "artifact_bundle.gallery",
+      "layer": "artifacts",
+      "label": "Artifact Gallery",
+      "capabilities": ["inspectable", "exportable"],
+      "contracts": ["artifact_bundle.gallery.view"],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html"
+          },
+          "preferred": true
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "html-prototype",
+      "kind": "html",
+      "entry": "prototype/index.html",
+      "renderer": {
+        "id": "aos.renderer.html.preview"
+      },
+      "files": [
+        { "path": "prototype/index.html", "role": "entry" },
+        { "path": "prototype/styles.css", "role": "supporting" }
+      ],
+      "exports": [
+        { "kind": "html", "path": "prototype/index.html", "status": "available" }
+      ],
+      "provenance": {
+        "work_record_id": "work-record:example-design-pass-generation"
+      },
+      "validation": {
+        "state": "unchecked"
+      }
+    }
+  ],
+  "state": {
+    "artifact_count": 2,
+    "validation_state": "unchecked",
+    "read_only": true
+  }
+}
+```
+
+The live V0 fixture uses the current `2026-05-03` schema version and the same
+canonical fields. It intentionally omits `views[]`, `controls[]`, and dotted
+raw `capabilities[]`.
+
 ## Open Schema Decisions
 
 - Whether `contracts[]` should stay a string list or become structured records

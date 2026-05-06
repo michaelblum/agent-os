@@ -1,0 +1,332 @@
+{
+  "type": "aos.workbench.subject",
+  "schema_version": "2026-05-03",
+  "id": "artifact-bundle:example-design-pass",
+  "subject_type": "aos.artifact_bundle",
+  "label": "Example Design Pass",
+  "owner": "aos-artifact-workbench",
+  "source": {
+    "kind": "repo_folder",
+    "path": "docs/design/fixtures/aos-artifacts/example-design-pass",
+    "entry": "subject.json"
+  },
+  "capabilities": [
+    "inspectable",
+    "exportable",
+    "verifier-target"
+  ],
+  "contracts": [
+    "artifact_bundle.gallery.view",
+    "artifact_bundle.preview.view",
+    "artifact_bundle.source.view",
+    "artifact_bundle.exports.view",
+    "artifact_bundle.provenance.view",
+    "artifact_bundle.validation.view",
+    "work_record.evidence.view"
+  ],
+  "subject_references": [
+    {
+      "id": "origin-work-record",
+      "relationship": "generated_by",
+      "handle": "work-record:example-design-pass-generation",
+      "subject_id": "work-record:example-design-pass-generation",
+      "subject_type": "aos.work_record",
+      "facet_key": "work_record.evidence",
+      "layer": "artifacts",
+      "role": "provenance",
+      "metadata": {
+        "evidence_artifact_ids": [
+          "html-prototype",
+          "markdown-report"
+        ]
+      }
+    },
+    {
+      "id": "source-workflow",
+      "relationship": "generated_from",
+      "handle": "workflow:example-design-pass",
+      "subject_id": "workflow:example-design-pass",
+      "subject_type": "aos.workflow",
+      "facet_key": "workflow.descriptor",
+      "layer": "descriptor",
+      "role": "source"
+    }
+  ],
+  "facets": [
+    {
+      "key": "artifact_bundle.gallery",
+      "layer": "artifacts",
+      "label": "Artifact Gallery",
+      "capabilities": [
+        "inspectable",
+        "exportable"
+      ],
+      "contracts": [
+        "artifact_bundle.gallery.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.gallery"
+          },
+          "preferred": true
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.preview",
+      "layer": "artifacts",
+      "label": "Preview",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.preview.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.preview"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.source",
+      "layer": "descriptor",
+      "label": "Source Files",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.source.view",
+        "artifact_bundle.exports.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.source"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.provenance",
+      "layer": "descriptor",
+      "label": "Provenance",
+      "source_ref": "origin-work-record",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.provenance.view",
+        "work_record.evidence.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.provenance"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.validation",
+      "layer": "health",
+      "label": "Validation",
+      "capabilities": [
+        "inspectable",
+        "verifier-target"
+      ],
+      "contracts": [
+        "artifact_bundle.validation.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.validation"
+          }
+        }
+      ]
+    }
+  ],
+  "persistence": null,
+  "artifacts": [
+    {
+      "id": "html-prototype",
+      "kind": "html",
+      "label": "HTML Prototype",
+      "entry": "prototype/index.html",
+      "renderer": {
+        "id": "aos.renderer.html.preview",
+        "kind": "html",
+        "host": "browser",
+        "sandbox": true
+      },
+      "files": [
+        {
+          "path": "prototype/index.html",
+          "role": "entry",
+          "media_type": "text/html"
+        },
+        {
+          "path": "prototype/styles.css",
+          "role": "supporting",
+          "media_type": "text/css"
+        }
+      ],
+      "exports": [
+        {
+          "id": "html-source",
+          "kind": "html",
+          "path": "prototype/index.html",
+          "status": "available",
+          "renderer_id": "aos.renderer.html.preview"
+        },
+        {
+          "id": "prototype-zip",
+          "kind": "zip",
+          "path": "exports/example-design-pass.zip",
+          "status": "not_generated",
+          "reason": "V0 records export metadata but does not execute exports."
+        }
+      ],
+      "provenance": {
+        "source_kind": "generated_artifact",
+        "source_subject_id": "workflow:example-design-pass",
+        "work_record_id": "work-record:example-design-pass-generation",
+        "guided_by": [
+          "docs/design/open-design-workbench-cross-reference.md"
+        ]
+      },
+      "work_record": {
+        "subject_id": "work-record:example-design-pass-generation",
+        "evidence_refs": [
+          "artifact:docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html"
+        ]
+      },
+      "validation": {
+        "state": "unchecked",
+        "last_checked_at": null,
+        "checks": [
+          {
+            "id": "html-entry-present",
+            "kind": "file_presence",
+            "target": "prototype/index.html",
+            "status": "unchecked"
+          }
+        ]
+      }
+    },
+    {
+      "id": "markdown-report",
+      "kind": "markdown",
+      "label": "Design Pass Report",
+      "entry": "report.md",
+      "renderer": {
+        "id": "aos.renderer.markdown.report",
+        "kind": "markdown",
+        "host": "browser"
+      },
+      "files": [
+        {
+          "path": "report.md",
+          "role": "entry",
+          "media_type": "text/markdown"
+        },
+        {
+          "path": "prototype/index.html",
+          "role": "referenced_artifact",
+          "media_type": "text/html"
+        }
+      ],
+      "exports": [
+        {
+          "id": "report-markdown",
+          "kind": "markdown",
+          "path": "report.md",
+          "status": "available",
+          "renderer_id": "aos.renderer.markdown.report"
+        },
+        {
+          "id": "report-pdf",
+          "kind": "pdf",
+          "path": "exports/example-design-pass-report.pdf",
+          "status": "not_generated",
+          "reason": "V0 records export metadata but does not execute exports."
+        }
+      ],
+      "provenance": {
+        "source_kind": "generated_report",
+        "source_subject_id": "workflow:example-design-pass",
+        "work_record_id": "work-record:example-design-pass-generation",
+        "guided_by": [
+          "docs/design/open-design-workbench-cross-reference.md"
+        ]
+      },
+      "work_record": {
+        "subject_id": "work-record:example-design-pass-generation",
+        "evidence_refs": [
+          "artifact:docs/design/fixtures/aos-artifacts/example-design-pass/report.md"
+        ]
+      },
+      "validation": {
+        "state": "unchecked",
+        "last_checked_at": null,
+        "checks": [
+          {
+            "id": "report-entry-present",
+            "kind": "file_presence",
+            "target": "report.md",
+            "status": "unchecked"
+          }
+        ]
+      }
+    }
+  ],
+  "state": {
+    "artifact_count": 2,
+    "artifact_kinds": [
+      "html",
+      "markdown"
+    ],
+    "renderer_ids": [
+      "aos.renderer.html.preview",
+      "aos.renderer.markdown.report"
+    ],
+    "export_count": 4,
+    "validation_state": "unchecked",
+    "read_only": true
+  },
+  "metadata": {
+    "fixture": "example-design-pass",
+    "scope": "artifact_bundle_subject_v0",
+    "open_design_adaptation": true,
+    "non_goals": [
+      "generation",
+      "export_execution",
+      "save_or_lock_in",
+      "renderer_registry"
+    ]
+  }
+}

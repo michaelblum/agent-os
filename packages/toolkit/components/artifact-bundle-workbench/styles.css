@@ -1,0 +1,193 @@
+.artifact-bundle-root {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  color: var(--aos-text, #e8f0f2);
+  background: var(--aos-panel-bg, #10171d);
+}
+
+.artifact-bundle-toolbar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+}
+
+.artifact-bundle-toolbar div {
+  min-width: 0;
+}
+
+.artifact-bundle-toolbar strong,
+.artifact-bundle-toolbar span,
+.artifact-bundle-toolbar em {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.artifact-bundle-toolbar span,
+.artifact-bundle-toolbar em {
+  color: var(--aos-muted, #9aa7af);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.artifact-bundle-main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(360px, 1.5fr) minmax(300px, 0.9fr);
+}
+
+.artifact-bundle-gallery,
+.artifact-bundle-preview,
+.artifact-bundle-inspector {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+}
+
+.artifact-bundle-inspector {
+  border-right: 0;
+}
+
+.artifact-bundle-gallery header,
+.artifact-bundle-preview header,
+.artifact-bundle-inspector section > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+  color: var(--aos-text-strong, #ffffff);
+}
+
+.artifact-bundle-gallery-entry {
+  width: calc(100% - 20px);
+  margin: 0 10px 10px;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 10px;
+  border: 1px solid var(--aos-control-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  color: inherit;
+  background: var(--aos-control-bg, rgba(255, 255, 255, 0.04));
+  cursor: pointer;
+}
+
+.artifact-bundle-gallery-entry[data-selected="true"] {
+  border-color: #61b4b7;
+  background: rgba(97, 180, 183, 0.16);
+}
+
+.artifact-bundle-gallery-entry span,
+.artifact-bundle-gallery-entry code,
+.artifact-bundle-muted,
+.artifact-bundle-list span,
+.artifact-bundle-row span {
+  color: var(--aos-muted, #9aa7af);
+}
+
+.artifact-bundle-gallery-entry code,
+.artifact-bundle-list code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.artifact-bundle-preview {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.artifact-bundle-preview header span {
+  color: var(--aos-muted, #9aa7af);
+  font-size: 0.78rem;
+}
+
+.artifact-bundle-preview-stage {
+  min-height: 0;
+  padding: 12px;
+}
+
+.artifact-bundle-preview-stage iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  border: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.artifact-bundle-preview-fallback {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.artifact-bundle-inspector section {
+  border-bottom: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+  padding-bottom: 10px;
+}
+
+.artifact-bundle-list {
+  margin: 0;
+  padding: 0 14px 4px 34px;
+}
+
+.artifact-bundle-list li {
+  margin: 0 0 10px;
+}
+
+.artifact-bundle-list strong,
+.artifact-bundle-list span,
+.artifact-bundle-list code {
+  display: block;
+}
+
+.artifact-bundle-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 14px 8px;
+}
+
+.artifact-bundle-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.artifact-bundle-muted {
+  margin: 0;
+  padding: 0 14px 10px;
+}
+
+.artifact-bundle-inspector pre {
+  margin: 0 14px 12px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.76rem;
+  color: var(--aos-text, #e8f0f2);
+}
+
+@media (max-width: 980px) {
+  .artifact-bundle-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(360px, 1fr) auto;
+  }
+
+  .artifact-bundle-gallery,
+  .artifact-bundle-preview,
+  .artifact-bundle-inspector {
+    border-right: 0;
+    border-bottom: 1px solid var(--aos-panel-border, rgba(255, 255, 255, 0.12));
+  }
+}

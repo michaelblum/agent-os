@@ -590,6 +590,72 @@ V0 boundaries:
 - no dependency on legacy `views[]`, `controls[]`, or dotted raw
   `capabilities[]` summaries.
 
+### Artifact Bundle Subject V0
+
+Artifact bundles are the first generated-output Subject type in the shared
+Workbench Subject substrate:
+
+```js
+import {
+  createArtifactBundleSubject,
+} from '../workbench/artifact-bundle-subject.js'
+```
+
+The V0 fixture lives at:
+
+```text
+docs/design/fixtures/aos-artifacts/example-design-pass/subject.json
+```
+
+It describes one HTML prototype artifact and one Markdown/report artifact under
+one stable `aos.workbench.subject` with `subject_type:
+"aos.artifact_bundle"`. The descriptor uses canonical v-next fields only:
+high-level `capabilities[]`, dotted operation contracts in `contracts[]`,
+top-level `subject_references[]`, concrete `facets[]`, and
+`facets[].hosts[]`. Live artifact-bundle writers must not emit legacy `views[]`,
+legacy `controls[]`, or dotted raw `capabilities[]`.
+
+Artifact metadata remains in `artifacts[]` for V0. Each artifact record should
+carry an `id`, `kind`, `entry`, `renderer.id`, `files[]`, `exports[]`,
+`provenance`, `work_record`, and `validation`. Export entries are metadata
+records only; V0 does not execute exporters or require export files to exist.
+The top-level Subject `source` names the source folder, while per-artifact
+`entry` and `files[]` name entry and supporting files inside that folder.
+
+The read-only workbench model lives at:
+
+```js
+import {
+  createArtifactBundleWorkbenchState,
+  openArtifactBundle,
+  artifactBundleWorkbenchSnapshot,
+} from '../components/artifact-bundle-workbench/model.js'
+```
+
+The named component lives at:
+
+```text
+aos://toolkit/components/artifact-bundle-workbench/index.html
+```
+
+It accepts `artifact_bundle.open`, exposes
+`window.__artifactBundleWorkbenchState`, renders a gallery/preview/inspector
+snapshot, and preserves artifact payloads without rewriting them. It can preview
+HTML through a provided AOS content-root URL and falls back to metadata
+inspection for artifacts without a resolvable preview URL.
+
+The Subject Catalog supports artifact bundles through
+`createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing
+`subject.open.requested` shape with `artifact_bundle.open` as the workbench
+message. The Wiki Subject Browser can list, inspect, and route an artifact
+bundle catalog entry through that opener. This is read-only catalog/opening
+plumbing, not generation, save/lock-in, export execution, renderer registry,
+replay, repair, macro playback, or a new public `aos` command.
+
+The pattern adapts Open Design's artifact workspace lesson to AOS's Subject
+model. It is not a Sigil-owned feature, not a copied Open Design daemon or
+`.od` state model, and not a streamed `<artifact>` tag interface.
+
 ### Subject Graph Index V0
 
 The bounded cross-subject navigation index lives at:
@@ -859,6 +925,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
 - `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
+- `aos://toolkit/components/artifact-bundle-workbench/index.html` - read-only Artifact Bundle Workbench V0 shell for gallery, preview, source, exports, provenance, and validation inspection
 - `aos://toolkit/components/playbook-workbench/index.html` - Playbook Workbench V0 shell that gates one saved-evidence browser Playbook simulation and hands off the emitted Work Record read-only
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff

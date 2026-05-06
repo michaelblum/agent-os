@@ -21,6 +21,7 @@ import {
   SUBJECT_BROWSER_FOCUSED_DETAILS_TYPE,
   SUBJECT_BROWSER_INDEX_ENTRY_TYPE,
   SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE,
+  WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID,
   WIKI_SUBJECT_BROWSER_SURFACE,
   WIKI_SUBJECT_BROWSER_URL,
   WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID,
@@ -30,6 +31,7 @@ import {
   SUBJECT_CATALOG_LOAD_TYPE,
   SUBJECT_OPEN_REQUEST_TYPE,
   WORK_RECORD_WORKBENCH_URL,
+  createArtifactBundleSubjectCatalogEntry,
   createSubjectCatalogEntry,
   createWorkRecordSubjectCatalogEntry,
 } from '../../packages/toolkit/workbench/subject-catalog.js';
@@ -553,6 +555,38 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
   assert.equal(WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID, 'wiki-subject-browser-v0-work-record');
 });
 
+test('wiki subject browser indexes artifact bundle catalog entries through canonical fields', async () => {
+  const fixture = await repoJson(
+    'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
+  );
+  const entry = createArtifactBundleSubjectCatalogEntry(fixture);
+  const state = createWikiSubjectBrowserState();
+
+  applySubjectCatalogLoad(state, {
+    type: SUBJECT_CATALOG_LOAD_TYPE,
+    entries: [entry],
+  });
+  const request = createWikiSubjectBrowserOpenRequestFromCatalogEntry(state.catalog_entries[0]);
+  applySubjectOpenRequested(state, request);
+  const snapshot = wikiSubjectBrowserSnapshot(state);
+
+  assert.equal(snapshot.catalog_entries[0].subject.subject_type, 'aos.artifact_bundle');
+  assert.equal(snapshot.catalog_entries[0].affordances.openable, true);
+  assert.equal(snapshot.subject_graph_summary.subject_count, 1);
+  assert.deepEqual(snapshot.subject_graph_summary.subject_types, ['aos.artifact_bundle']);
+  assert.ok(snapshot.subject_graph_summary.relationship_types.includes('generated_by'));
+  assert.ok(snapshot.subject_graph_summary.relationship_types.includes('generated_from'));
+  assert.equal(request.type, SUBJECT_OPEN_REQUEST_TYPE);
+  assert.equal(request.entry_handle, 'artifact-bundle:example-design-pass');
+  assert.equal(request.opener.id, 'artifact-bundle-workbench');
+  assert.equal(request.open_message.type, 'artifact_bundle.open');
+  assert.equal(snapshot.navigation_history.length, 1);
+  assert.equal(snapshot.navigation_trail[0].source_kind, 'catalog');
+  assert.equal(snapshot.navigation_trail[0].catalog_entry_id, entry.id);
+  assert.equal(snapshot.navigation_trail[0].entry_handle, 'artifact-bundle:example-design-pass');
+  assert.equal(WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID, 'wiki-subject-browser-v0-artifact-bundle');
+});
+
 test('wiki subject browser exposes named shell manifest and semantic launch refs', async () => {
   const shell = WikiSubjectBrowser();
   const indexHtml = await repoText('packages/toolkit/components/wiki-subject-browser/index.html');
@@ -587,6 +621,8 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /subject-catalog-open/);
   assert.match(indexJs, /subject-index-open/);
   assert.match(indexJs, /work-record-workbench/);
+  assert.match(indexJs, /artifact-bundle-workbench/);
+  assert.match(indexJs, /WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID/);
   assert.match(indexJs, /subject_graph_summary/);
   assert.match(indexJs, /subject_index_entries/);
   assert.match(indexJs, /subject_index_filter_options/);

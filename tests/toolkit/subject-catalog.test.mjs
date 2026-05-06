@@ -4,8 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  ARTIFACT_BUNDLE_WORKBENCH_URL,
   SUBJECT_OPEN_REQUEST_TYPE,
   WORK_RECORD_WORKBENCH_URL,
+  createArtifactBundleSubjectCatalogEntry,
   createSubjectCatalogEntry,
   createSubjectOpenRequestFromCatalogEntry,
   createWorkRecordSubjectCatalogEntry,
@@ -15,9 +17,17 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const artifactBundleFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
+);
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(fixtureRoot, name), 'utf8'));
+}
+
+function artifactBundleFixture() {
+  return JSON.parse(fs.readFileSync(artifactBundleFixturePath, 'utf8'));
 }
 
 test('subject catalog creates an openable non-wiki Work Record entry from canonical descriptor fields', () => {
@@ -110,4 +120,22 @@ test('subject catalog does not use legacy views controls or dotted raw capabilit
   assert.equal(entry.affordances.openable, false);
   assert.equal(subjectCatalogEntryCanOpen(entry), false);
   assert.equal(createSubjectOpenRequestFromCatalogEntry(entry), null);
+});
+
+test('subject catalog creates an openable artifact bundle entry from canonical descriptor fields', () => {
+  const entry = createArtifactBundleSubjectCatalogEntry(artifactBundleFixture());
+  const request = createSubjectOpenRequestFromCatalogEntry(entry, {
+    requestId: 'artifact-open-test',
+  });
+
+  assert.equal(entry.subject.subject_type, 'aos.artifact_bundle');
+  assert.deepEqual(entry.capabilities, ['inspectable', 'exportable', 'verifier-target']);
+  assert.ok(entry.contracts.includes('artifact_bundle.gallery.view'));
+  assert.equal(entry.affordances.openable, true);
+  assert.equal(entry.affordances.openers[0].id, 'artifact-bundle-workbench');
+  assert.equal(request.type, SUBJECT_OPEN_REQUEST_TYPE);
+  assert.equal(request.opener.id, 'artifact-bundle-workbench');
+  assert.equal(request.host.entry.value, ARTIFACT_BUNDLE_WORKBENCH_URL);
+  assert.equal(request.open_message.type, 'artifact_bundle.open');
+  assert.equal(request.open_message.subject.id, 'artifact-bundle:example-design-pass');
 });

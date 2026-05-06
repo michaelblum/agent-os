@@ -25,6 +25,7 @@ import {
   createWikiSubjectBrowserOpenRequestFromCatalogEntry,
   createWikiSubjectBrowserState,
   WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID,
+  WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID,
   WIKI_SUBJECT_BROWSER_SURFACE,
   wikiSubjectBrowserSnapshot,
 } from './model.js';
@@ -35,6 +36,7 @@ import {
 
 const GRAPH_SELECTION_EVENT = `graph.${WIKI_SUBJECT_SELECTION_TYPE}`;
 const WORK_RECORD_WORKBENCH_SURFACE = 'work-record-workbench';
+const ARTIFACT_BUNDLE_WORKBENCH_SURFACE = 'artifact-bundle-workbench';
 
 function messageType(message = {}) {
   return message.type || message.payload?.type || '';
@@ -250,24 +252,49 @@ export default function WikiSubjectBrowser(options = {}) {
     };
   }
 
-  async function postWorkRecordOpenToChild(childId, openMessage) {
+  function openerChildCanvasId(opener = {}) {
+    if (opener.id === WORK_RECORD_WORKBENCH_SURFACE) return WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID;
+    if (opener.id === ARTIFACT_BUNDLE_WORKBENCH_SURFACE) return WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID;
+    return '';
+  }
+
+  function openerExpectedState(openMessage = {}, opener = {}) {
+    if (opener.id === WORK_RECORD_WORKBENCH_SURFACE) {
+      return {
+        expected: text(openMessage?.record?.id),
+        expression: 'window.__workRecordWorkbenchState?.record?.id',
+      };
+    }
+    if (opener.id === ARTIFACT_BUNDLE_WORKBENCH_SURFACE) {
+      return {
+        expected: text(openMessage?.subject?.id),
+        expression: 'window.__artifactBundleWorkbenchState?.subject?.id',
+      };
+    }
+    return {
+      expected: '',
+      expression: '""',
+    };
+  }
+
+  async function postOpenMessageToChild(childId, openMessage, opener = {}) {
     if (!host?.evalCanvas) return false;
     const encoded = btoa(JSON.stringify(openMessage));
-    const expectedRecordId = text(openMessage?.record?.id);
+    const { expected, expression } = openerExpectedState(openMessage, opener);
+    if (!expected) return false;
     const script = `
 (function () {
   if (!window.headsup || typeof window.headsup.receive !== "function") return "";
-  if (!window.__workRecordWorkbenchState || !document.querySelector("[data-role='record-id']")) return "";
   window.headsup.receive(${JSON.stringify(encoded)});
-  return window.__workRecordWorkbenchState?.record?.id === ${JSON.stringify(expectedRecordId)}
-    ? ${JSON.stringify(expectedRecordId)}
+  return ${expression} === ${JSON.stringify(expected)}
+    ? ${JSON.stringify(expected)}
     : "";
 })()
 `;
     for (let attempt = 0; attempt < 12; attempt += 1) {
       try {
         const result = await host.evalCanvas(childId, script, { timeoutMs: 3000 });
-        if (result === expectedRecordId) return true;
+        if (result === expected) return true;
       } catch {}
       await sleep(150);
     }
@@ -382,7 +409,8 @@ export default function WikiSubjectBrowser(options = {}) {
     emit(SUBJECT_OPEN_REQUEST_TYPE, request);
     syncSnapshot();
 
-    if (request.opener?.id !== WORK_RECORD_WORKBENCH_SURFACE) {
+    const childId = openerChildCanvasId(request.opener || {});
+    if (!childId) {
       const result = {
         type: SUBJECT_OPEN_RESULT_TYPE,
         schema_version: request.schema_version,
@@ -397,7 +425,6 @@ export default function WikiSubjectBrowser(options = {}) {
       return result;
     }
 
-    const childId = WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID;
     let childError = '';
     try {
       await host?.spawnChild?.({
@@ -411,7 +438,7 @@ export default function WikiSubjectBrowser(options = {}) {
       if (!/ID_COLLISION|DUPLICATE/i.test(message)) childError = message;
     }
 
-    const childPosted = await postWorkRecordOpenToChild(childId, request.open_message);
+    const childPosted = await postOpenMessageToChild(childId, request.open_message, request.opener);
     const result = {
       type: SUBJECT_OPEN_RESULT_TYPE,
       schema_version: request.schema_version,
@@ -419,8 +446,11 @@ export default function WikiSubjectBrowser(options = {}) {
       entry_id: request.entry_id,
       entry_handle: request.entry_handle,
       record_id: text(request.open_message?.record?.id) || null,
+      artifact_bundle_id: text(request.open_message?.subject?.id) || null,
       subject_type: text(request.subject?.subject_type),
-      work_record_canvas_id: childId,
+      child_canvas_id: childId,
+      ...(request.opener?.id === WORK_RECORD_WORKBENCH_SURFACE ? { work_record_canvas_id: childId } : {}),
+      ...(request.opener?.id === ARTIFACT_BUNDLE_WORKBENCH_SURFACE ? { artifact_bundle_canvas_id: childId } : {}),
       child_posted: childPosted,
       ...(childError ? { child_error: childError } : {}),
     };
