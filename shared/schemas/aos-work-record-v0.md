@@ -294,8 +294,10 @@ known Claims.
 
 ## Migration Notes
 
-This sketch intentionally does not migrate
-`packages/toolkit/workbench/work-record-subject.js` or Work Record workbench UI
-surfaces. The next implementation pass should add optional reader support for
-the new fields first, preserve the older fixture shape during migration, and
-only then promote this sketch toward the active Work Record helper contract.
+The toolkit now has a compatibility reader for v0 records in
+`packages/toolkit/workbench/work-record-adapter.js`, projects v0 records through
+`packages/toolkit/workbench/work-record-subject.js`, and opens them read-only in
+the stock Work Record workbench. Older helper-shaped records keep their existing
+manual edit and patch-request path. The next migration boundary is capture:
+future browser or canvas producers should emit this v0 shape from bounded
+`see/do/see` evidence while preserving the same report-only verifier gate.
