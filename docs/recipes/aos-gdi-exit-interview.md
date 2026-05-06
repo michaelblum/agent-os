@@ -23,6 +23,11 @@ Run the interview after the implementation evidence is fresh:
 If the goal was already marked complete, run the interview immediately afterward
 in the same session. The signal is still useful, but slightly less fresh.
 
+Do not run the full interview at the beginning of a GDI session. If a prompt
+mentions the interview up front, treat that as an instruction to notice concrete
+AOS friction during the run; perform the actual interview only after the goal
+work, verification, and commits are complete.
+
 ## Ground Rules
 
 - Do not edit files for the interview.
@@ -33,6 +38,11 @@ in the same session. The signal is still useful, but slightly less fresh.
 - Prefer specific command examples, error messages, recovery steps, and time or
   attention cost over general opinions.
 - Treat missing data as missing data. Do not invent telemetry.
+- Keep the final interview compact by default. Preserve the headings, but prefer
+  one to three high-signal bullets per section unless a serious incident needs
+  more detail.
+- Do not let unavailable read-only evidence commands block goal completion.
+  Record what was skipped and why.
 
 ## Evidence Packet
 
@@ -45,8 +55,12 @@ skipped.
 ./aos dev audit --json
 ./aos help --json
 git status --short --branch
-git diff --name-only <base>...HEAD
+git diff --name-only origin/main...HEAD
 ```
+
+Use `origin/main...HEAD` as the default base for topic-branch GDI sessions. If
+the session explicitly used a different integration base, substitute that base
+and name it in the output.
 
 If the session changed files, also run:
 
@@ -143,6 +157,23 @@ Suggest one sentence to add, remove, or change in future GDI prompts.
 
 Name the single highest-leverage AOS command, help, or schema improvement.
 
+### Durability Gate
+
+Do not create durable follow-up by default. Recommend durable follow-up only
+when the interview reveals a repeated, high-severity, or contract-level issue.
+
+For each recommended follow-up:
+
+- finding:
+- evidence:
+- why durable:
+- target boundary: AGENTS.md | docs/recipes | docs/api | shared/schemas |
+  GitHub issue | none
+- suggested title:
+
+Skip ADRs unless the decision is hard to reverse, surprising without context,
+and the result of a real trade-off.
+
 ## Output Contract
 
 The final response may be prose, but it should preserve the headings above. If
@@ -158,7 +189,8 @@ a downstream collector needs JSON, wrap the same fields in:
   "forced_aos_assessment": {},
   "improvement_backlog": [],
   "prompt_change": "",
-  "command_surface_change": ""
+  "command_surface_change": "",
+  "durability_gate": []
 }
 ```
 
