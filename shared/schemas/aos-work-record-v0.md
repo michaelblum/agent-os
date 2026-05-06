@@ -270,6 +270,24 @@ captures, browser traces, screenshots, or artifact bundles. They should still
 emit Claims, Postconditions, Claim Results, Verifier Report, and Health through a
 named report-only profile before any replay or repair behavior is introduced.
 
+The second producer is also narrow:
+`buildWorkRecordV0FromAosActionEvidence()` turns one saved AOS action evidence
+source into the same completed v0 shape. Its source records one
+`see -> do -> see` slice with before perception, AOS action metadata, after
+perception, target dialect, Target-with-Ref, State IDs where available, and
+immutable artifact refs. The builder stores the selected action target in
+`execution_map.steps[].action`, stores before/action/after receipts in
+`evidence[]`, and ties the post-action Postcondition to the after-perception
+evidence.
+
+This is the first Playbook-step substrate: a future Playbook step can emit the
+same saved evidence envelope after the harness runs `see`, resolves a target,
+executes `do`, and captures `see` again. The reusable Playbook owns the planned
+target-resolution strategy and repair hints; the Work Record owns what actually
+happened. This slice does not replay the action, repair refs, or add a broad
+recorder/verifier command. Replay and repair remain gated by
+`execution_map.replay_policy`.
+
 ## Examples
 
 The canonical examples for this sketch are JSON fixtures:
@@ -285,6 +303,13 @@ The canonical examples for this sketch are JSON fixtures:
   [`evidence/repo-command-adapter-test.json`](fixtures/aos-work-record-v0/evidence/repo-command-adapter-test.json)
   by the command-evidence builder, then checked with the named report-only
   verifier profile.
+- [`valid/aos-browser-click-status.json`](fixtures/aos-work-record-v0/valid/aos-browser-click-status.json)
+  is generated from
+  [`evidence/aos-browser-click-status.json`](fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json)
+  by the AOS action evidence builder. It records one browser Target-with-Ref
+  click with before perception, action metadata, after perception, a
+  post-action Postcondition, immutable evidence refs, and the same report-only
+  verifier profile.
 
 The fixture validation test also checks internal reference integrity that JSON
 Schema cannot express alone: every Claim Result must reference an existing
@@ -298,6 +323,8 @@ The toolkit now has a compatibility reader for v0 records in
 `packages/toolkit/workbench/work-record-adapter.js`, projects v0 records through
 `packages/toolkit/workbench/work-record-subject.js`, and opens them read-only in
 the stock Work Record workbench. Older helper-shaped records keep their existing
-manual edit and patch-request path. The next migration boundary is capture:
-future browser or canvas producers should emit this v0 shape from bounded
-`see/do/see` evidence while preserving the same report-only verifier gate.
+manual edit and patch-request path. The current capture boundary has two
+source-specific producers: bounded repo command evidence and bounded AOS action
+evidence. Future browser, canvas, or Playbook producers should continue to emit
+this v0 shape from bounded `see/do/see` evidence while preserving the same
+report-only verifier gate.

@@ -271,11 +271,15 @@ runWorkRecordVerifierProfile(record, {
 ```
 
 `packages/toolkit/workbench/work-record-capture.js` exposes the first narrow
-capture builder, `buildWorkRecordV0FromCommandEvidence()`. It turns one bounded
-repo command evidence source into a completed Work Record v0 with immutable
-evidence, Claims, Postconditions, Claim Results, a Verifier Report, and Health.
-This is report-only substrate for later browser or canvas playbooks; it does
-not add replay, repair, or a broad CLI command surface.
+capture builders. `buildWorkRecordV0FromCommandEvidence()` turns one bounded
+repo command evidence source into a completed Work Record v0.
+`buildWorkRecordV0FromAosActionEvidence()` does the same for one saved AOS
+`see -> do -> see` action evidence source, preserving before perception, action
+metadata, after perception, target dialect, Target-with-Ref, State IDs where
+available, immutable evidence refs, Claims, Postconditions, Claim Results, a
+Verifier Report, and Health. This is report-only substrate for later browser,
+canvas, or Playbook steps; it does not add replay, repair, or a broad CLI
+command surface.
 
 ## Stock Components Snapshot
 

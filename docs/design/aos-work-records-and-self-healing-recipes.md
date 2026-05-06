@@ -113,6 +113,16 @@ the structured execution map, and immutable evidence.
 Coordinates can be recorded, but they are fallback material. When semantic
 targets exist, prefer them.
 
+The first AOS action capture slice is intentionally saved-evidence only. A
+single source records before perception, the AOS `do` result, and after
+perception, then `buildWorkRecordV0FromAosActionEvidence()` normalizes that
+source into Work Record v0. This is enough to make the shape a Playbook-step
+substrate: a future Playbook harness can run the same `see -> resolve -> do ->
+see` loop and hand the saved evidence envelope to the builder. The Work Record
+still records what happened; the Playbook remains the reusable plan. No
+autonomous replay, ref repair, or broad recorder command is implied by this
+capture slice.
+
 ## Target Dialects
 
 The persisted model should allow target dialects without making every surface
