@@ -288,6 +288,16 @@ happened. This slice does not replay the action, repair refs, or add a broad
 recorder/verifier command. Replay and repair remain gated by
 `execution_map.replay_policy`.
 
+The Playbook bridge keeps that split explicit:
+`buildWorkRecordV0FromPlaybookStepEvidence()` combines one
+`aos.playbook_step` descriptor with one saved AOS action evidence source. The
+step descriptor contributes `origin.kind: "playbook"`, `origin.ref`,
+target-resolution metadata, step repair hints, workflow gate refs, and
+claim-promotion metadata. The action evidence still contributes the immutable
+before/action/after receipts, State IDs, selected Target-with-Ref, Claim
+Results, Verifier Report, and Health. This bridge does not execute or replay
+the Playbook step.
+
 ## Examples
 
 The canonical examples for this sketch are JSON fixtures:
@@ -310,6 +320,13 @@ The canonical examples for this sketch are JSON fixtures:
   click with before perception, action metadata, after perception, a
   post-action Postcondition, immutable evidence refs, and the same report-only
   verifier profile.
+- [`valid/playbook-browser-click-status.json`](fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json)
+  is generated from the same AOS action evidence plus
+  [`../aos-playbook-step-v0/valid/browser-click-status.json`](fixtures/aos-playbook-step-v0/valid/browser-click-status.json)
+  by the Playbook-step bridge. It preserves `origin.kind: "playbook"`,
+  `origin.ref`, the promoted Claim metadata, evidence refs, postcondition refs,
+  Claim Results, Verifier Report, Health, and workflow-gated replay/repair
+  policy.
 
 The fixture validation test also checks internal reference integrity that JSON
 Schema cannot express alone: every Claim Result must reference an existing
@@ -324,7 +341,8 @@ The toolkit now has a compatibility reader for v0 records in
 `packages/toolkit/workbench/work-record-subject.js`, and opens them read-only in
 the stock Work Record workbench. Older helper-shaped records keep their existing
 manual edit and patch-request path. The current capture boundary has two
-source-specific producers: bounded repo command evidence and bounded AOS action
-evidence. Future browser, canvas, or Playbook producers should continue to emit
-this v0 shape from bounded `see/do/see` evidence while preserving the same
-report-only verifier gate.
+source-specific producers plus one bridge: bounded repo command evidence,
+bounded AOS action evidence, and Playbook-step-plus-action-evidence. Future
+browser, canvas, or Playbook producers should continue to emit this v0 shape
+from bounded `see/do/see` evidence while preserving the same report-only
+verifier gate.
