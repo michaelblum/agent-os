@@ -3,6 +3,7 @@ export * from './wiki-subject.js';
 export * from './work-record-adapter.js';
 export * from './work-record-capture.js';
 export * from './playbook-step-harness.js';
+export * from './browser-playbook-prototype.js';
 export * from './work-record-subject.js';
 export * from './work-record-verifier.js';
 export * from './workflow-subject.js';
