@@ -5,31 +5,44 @@
 
 ## Goal
 
-Add the first richer verifier evidence adapters for browser and canvas-style
-artifacts.
+Split wiki document Subjects from domain Subjects in live toolkit helpers.
 
-The previous slice landed on `main` at `f0ad3e4`. AOS now has Work Record v0,
-saved AOS action evidence, Playbook step v0, Playbook-origin Work Record
-generation, report-only verifier diagnostics, an explicit-gate one-step
-Playbook harness, and a browser-compatible Playbook prototype bridge that emits
-read-only Work Records.
+The previous slice landed on `main` at `1b26ba6`. AOS now has Work Record v0,
+saved command/action evidence, Playbook step v0, report-only verifier
+diagnostics, an explicit-gate one-step Playbook harness, a browser-compatible
+Playbook prototype bridge, and deterministic report-only evidence adapters for
+browser, canvas/AX-like, and artifact-metadata evidence.
 
-The immediate next workstream is tracked in GitHub issue #275:
+The immediate next workstream is tracked in GitHub issue #216:
 
 ```text
-https://github.com/michaelblum/agent-os/issues/275
+https://github.com/michaelblum/agent-os/issues/216
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/verifier-evidence-adapters
+codex/wiki-domain-subject-split
 ```
 
-The trust gap now is evidence quality. The report-only verifier should be able
-to inspect deterministic structured evidence payloads for browser DOM/ARIA-like
-semantic targets, AX/canvas-like semantic targets, and screenshot/artifact
-metadata instead of only checking internal references.
+The trust gap now is subject identity drift. The ADR/glossary pass settled that
+`subject_type` names the stable kind of a Subject, not a contextual projection.
+Current wiki helpers still violate that model by minting `subject_type:
+sigil.agent` directly from wiki paths such as `sigil/agents/default.md`. The
+next slice should unwind that legacy behavior deliberately:
+
+- a wiki Markdown file remains a wiki document Subject (`wiki.entity`,
+  `wiki.concept`, `wiki.workflow`, `wiki.reference`, or `wiki.page`);
+- a domain concept such as a Sigil agent is a separate domain Subject
+  (`sigil.agent`);
+- the domain Subject references the wiki document Subject as the source of its
+  narrative Facet through a Subject Reference;
+- compatibility is preserved for existing consumers while the helpers and tests
+  move toward the target model.
+
+This is a foundation-hardening slice. Do not build the full Wiki Subject
+Browser, do not add broad command surface, and do not change runtime UI unless a
+small focused verification harness already depends on the migrated helper.
 
 ## Required Rediscovery
 
@@ -53,8 +66,8 @@ Before selecting verification commands, run:
 Use focused `--files` arguments after editing so the router sees the intended
 slice instead of the whole branch diff.
 
-If GitHub context is needed, inspect issue #275 after local state is known. An
-open issue or PR is not automatically current.
+Inspect GitHub issue #216 after local state is known. An open issue or PR is not
+automatically current.
 
 ## Read First
 
@@ -63,21 +76,22 @@ Read the fresh-session primer and live entry-path recipe:
 - `docs/recipes/fresh-session-continuation-primer.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 
-Then read the current workstream sources:
+Then read the current subject-model sources:
 
 - `CONTEXT.md`
-- `docs/design/browser-playbook-prototype.md`
-- `docs/design/aos-work-records-and-self-healing-recipes.md`
-- `docs/design/see-do-grammar-trace-connections.md`
-- `shared/schemas/aos-work-record-v0.md`
-- `shared/schemas/aos-playbook-step-v0.md`
-- `packages/toolkit/workbench/work-record-verifier.js`
-- `packages/toolkit/workbench/work-record-capture.js`
-- `packages/toolkit/workbench/playbook-step-harness.js`
-- `packages/toolkit/workbench/browser-playbook-prototype.js`
-- `tests/toolkit/work-record-verifier.test.mjs`
-- `tests/toolkit/browser-playbook-prototype.test.mjs`
-- `tests/schemas/aos-work-record-v0.test.mjs`
+- `docs/adr/0007-subject-type-is-kind-not-projection.md`
+- `docs/adr/0008-subject-browser-is-a-surface-kind.md`
+- `docs/adr/0010-capabilities-are-named-contracts-not-buttons-or-facets.md`
+- `docs/design/aos-subject-model-compatibility-audit.md`
+- `docs/design/aos-workbench-pattern.md`
+- `docs/api/toolkit.md`
+- `shared/schemas/aos-workbench-subject.schema.json`
+- `shared/schemas/aos-workbench-subject-vnext.md`
+- `shared/schemas/aos-subject-capabilities.md`
+- `packages/toolkit/workbench/wiki-subject.js`
+- `packages/toolkit/workbench/subject.js`
+- `tests/toolkit/wiki-subject.test.mjs`
+- `tests/toolkit/workbench-subject.test.mjs`
 
 Local reference checkouts should exist adjacent to this repo and are research
 inputs only:
@@ -87,58 +101,65 @@ inputs only:
 
 ## Current Checkpoint
 
-At this handoff, `main` is expected to be at `f0ad3e4`, and
-`codex/verifier-evidence-adapters` should be created from that commit.
+At this handoff, `main` is expected to be at `1b26ba6`, and
+`codex/wiki-domain-subject-split` should be created from that commit.
 
 Recent foundation commits include:
 
+- `1b26ba6 docs: document work record evidence adapter boundary`
+- `c7f0939 feat: add work record evidence adapters`
 - `f0ad3e4 feat: add browser playbook prototype bridge`
 - `18b7ea6 feat: add gated playbook step harness`
 - `034ecce feat: classify work record verifier diagnostics`
 - `3b6696a feat: bridge playbook steps to work records`
 - `7c199c4 docs: sketch playbook step v0 schema`
-- `3cbec84 docs: document AOS action work record substrate`
 
 Treat these as orientation only. Rediscover before editing.
 
 ## Immediate Work Plan
 
-1. Add narrow report-only evidence adapter helpers above the daemon. Keep them
-   deterministic and fixture-backed first.
-2. Support browser semantic target or DOM/ARIA-style evidence checks for
-   postcondition kinds already used by Work Record fixtures.
-3. Support one AX/canvas-like semantic target shape so the verifier contract is
-   not browser-only.
-4. Treat screenshot/artifact metadata as metadata only for this slice: presence,
-   URI, digest, dimensions, or attachment metadata can be checked, but do not
-   claim visual semantic understanding unless a deterministic image-check
-   contract is added.
-5. Wire adapters into `aos.verifier.work-record.v0.report-only` diagnostics so
-   postconditions can be checked against evidence payloads where payloads are
-   present.
-6. Preserve existing verifier reference-integrity checks and failure classes.
-7. Add valid and failing fixtures/tests for:
-   target/ref drift, missing semantic target, value mismatch, role/name mismatch,
-   and artifact metadata mismatch.
-8. Keep all behavior report-only: no Work Record mutation, no execution-map
-   patching, no replay, and no repair.
-9. Document the evidence-adapter boundary and what remains out of scope.
-10. Run the workflow router with focused `--files`, then run focused
-    schema/toolkit tests, `bash tests/help-contract.sh` if public command docs
-    changed, `git diff --check`, and `./aos ready`.
-11. Commit in focused reversible slices.
+1. Audit the current wiki subject helper, docs, and tests for places that derive
+   domain Subject types directly from wiki paths.
+2. Update `createWikiPageSubject` / `wikiSubjectType` so wiki pages stay
+   wiki-oriented Subjects. `sigil/agents/*.md` should no longer become
+   `subject_type: sigil.agent` through the wiki helper.
+3. Add or identify a separate domain helper for Sigil agent Subjects. The helper
+   should produce a stable `sigil.agent` domain Subject and include a Subject
+   Reference to the wiki document Subject that sources its narrative Layer.
+4. Keep compatibility explicit. If existing consumers need the older dotted
+   capability strings, preserve them through legacy summaries or contracts
+   rather than silently dropping them.
+5. Add focused tests proving:
+   - `sigil/agents/default.md` as a wiki page maps to a wiki document Subject;
+   - the separate Sigil agent helper emits `subject_type: sigil.agent`;
+   - the domain Subject references the wiki document Subject;
+   - generic wiki concepts/entities/workflows/references still map correctly;
+   - existing schema validation for `aos.workbench.subject` still passes.
+6. Update docs/API wording so `docs/api/toolkit.md` no longer lists
+   `sigil.agent` as a wiki page subject type without the domain-Subject
+   distinction.
+7. Do not promote the full v-next schema yet unless the migrated helper needs a
+   tiny compatible optional field. Prefer a minimal shape that validates against
+   the existing schema plus a documented forward path.
+8. Run the workflow router with focused `--files`, then run focused toolkit and
+   schema tests, `bash tests/help-contract.sh` if public command docs or CLI
+   contracts changed, `git diff --check`, and `./aos ready`.
+9. Commit in focused reversible slices.
 
 ## Acceptance Criteria
 
-- Evidence adapter module/API exists above the daemon.
-- Tests prove adapter-backed verification for browser semantic targets and one
-  canvas/AX-like semantic target shape.
-- Failing evidence fixtures produce clear report-only diagnostics with useful
-  failure classes.
-- Existing Work Record, Playbook harness, and browser prototype tests continue
-  to pass.
-- Docs explain the adapter boundary and why screenshots are metadata-only in
-  this slice.
+- Wiki document Subjects and Sigil agent domain Subjects are distinct in live
+  helpers and tests.
+- `wikiSubjectType` no longer returns `sigil.agent` for a wiki page path or
+  wiki frontmatter alone.
+- A tested domain helper emits `subject_type: sigil.agent` and carries an
+  explicit Subject Reference to the source wiki document Subject.
+- Docs explain the migration from legacy projection behavior to explicit Subject
+  References.
+- Existing Work Record, Playbook, verifier, and evidence-adapter tests continue
+  to pass when selected by the router.
+- No full Wiki Subject Browser, browser UI, autonomous replay, repair, macro
+  playback, or new `aos` command surface is added.
 
 ## Guardrails
 
@@ -146,19 +167,21 @@ Treat these as orientation only. Rediscover before editing.
   this repo.
 - Do not use AppleScript as a shortcut for AOS-owned behavior.
 - Do not add `aos verify`, `aos audit`, or another broad command surface.
-- Do not implement autonomous replay, repair, macro playback, or background
-  loops.
 - Do not build the Wiki Subject Browser or general Playbook UI.
-- Do not make screenshots a source of unverifiable visual claims beyond metadata
-  unless a deterministic image-check contract is added.
-- Keep generated Work Records report-only and read-only.
+- Do not change the Work Record verifier loop unless a small subject-reference
+  fixture needs read-only compatibility coverage.
+- Keep the current JSON schema backward-compatible unless the task explicitly
+  includes a schema migration with fixtures and docs.
 - Keep worktree/canonical content-root rules from `AGENTS.md` in force. The
   singleton daemon is shared across worktrees.
 
-## Next Milestones After Evidence Adapters
+## Next Milestones After Subject Split
 
-1. Split wiki document Subjects from domain Subjects in toolkit helpers.
-2. Promote the browser prototype into a browser-hosted Playbook workbench only
-   after evidence-adapter diagnostics prove stable.
-3. Implement the Browser-Hosted Wiki Subject Browser only after Work Record,
+1. Add optional v-next `facets[]`, `facets[].hosts[]`, `subject_references[]`,
+   and `contracts[]` support to `aos.workbench.subject` fixtures and helpers.
+2. Move legacy dotted operation/event strings from `capabilities[]` toward
+   `contracts[]` while keeping readers backward-compatible.
+3. Promote the browser prototype into a browser-hosted Playbook workbench only
+   after subject references and evidence-adapter diagnostics prove stable.
+4. Implement the Browser-Hosted Wiki Subject Browser only after Work Record,
    Playbook, verifier, and subject descriptor contracts are stable.
