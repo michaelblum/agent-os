@@ -320,6 +320,43 @@ module API above the daemon instead of a broad public CLI. Its boundary is:
   run or an explicit execution-map patch. It is not performed by the v0 harness
   or the report-only verifier.
 
+## Evidence Adapter Boundary
+
+The first richer verifier evidence adapters live in
+`packages/toolkit/workbench/work-record-evidence-adapters.js`. They are pure
+toolkit helpers above the daemon: callers pass a Work Record object, and the
+helpers inspect only structured payloads already embedded in `evidence[]` and
+`execution_map.postconditions[]`. They do not call `./aos`, inspect live
+canvases, open browsers, read files from artifact URIs, mutate Work Records,
+patch execution maps, replay actions, repair refs, or add a public CLI surface.
+
+`aos.verifier.work-record.v0.report-only` now composes those helpers with the
+existing internal-integrity checker. The old checks still validate ids, derived
+indexes, workflow gates, State IDs, action target refs, immutable evidence, and
+failed postcondition result classifications. The evidence adapters add
+report-only diagnostics when a supported postcondition can be checked directly
+against payload evidence:
+
+- Browser DOM/ARIA-style payloads use semantic target arrays such as
+  `evidence[].metadata.semantic_targets[]` with `ref`, `target`, `role`,
+  `name`, `value`, and `data_aos_ref` fields.
+- Canvas/AX-like payloads use the same semantic target contract with canvas or
+  AX target dialects and may include bounds, canvas ids, or AX paths as
+  metadata. The adapter still verifies only deterministic semantic fields.
+- Screenshot and artifact evidence is metadata-only in this slice. The adapter
+  may check URI, digest, content type, dimensions, attachment metadata, or
+  similar deterministic fields. It must not claim that pixels contain a visual
+  object, text, layout, or state unless a future deterministic image-check
+  contract is added.
+
+Supported adapter-backed failure classes include `target_ref_drift`,
+`semantic_target_missing`, `semantic_value_mismatch`,
+`semantic_role_name_mismatch`, and `artifact_metadata_mismatch`. These are
+diagnostics on the verifier report, not automatic Work Record edits. A record
+can remain schema-valid and keep optimistic historical `claim_results[]` while
+the current report-only verifier flags the embedded evidence as no longer
+supporting the claim.
+
 ## Examples
 
 The canonical examples for this sketch are JSON fixtures:
@@ -342,6 +379,13 @@ The canonical examples for this sketch are JSON fixtures:
   click with before perception, action metadata, after perception, a
   post-action Postcondition, immutable evidence refs, and the same report-only
   verifier profile.
+- [`valid/evidence-adapter-browser-canvas.json`](fixtures/aos-work-record-v0/valid/evidence-adapter-browser-canvas.json)
+  shows adapter-backed browser semantic target, canvas/AX-like semantic target,
+  and screenshot metadata checks that pass deterministically.
+- [`report-only-failures/evidence-adapter-failures.json`](fixtures/aos-work-record-v0/report-only-failures/evidence-adapter-failures.json)
+  remains schema-valid but intentionally fails adapter-backed report-only
+  diagnostics for target/ref drift, missing semantic targets, value mismatch,
+  role/name mismatch, and artifact metadata mismatch.
 - [`valid/playbook-browser-click-status.json`](fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json)
   is generated from the same AOS action evidence plus
   [`../aos-playbook-step-v0/valid/browser-click-status.json`](fixtures/aos-playbook-step-v0/valid/browser-click-status.json)
