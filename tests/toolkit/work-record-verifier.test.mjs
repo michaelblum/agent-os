@@ -20,6 +20,26 @@ function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(v0FixtureRoot, name), 'utf8'));
 }
 
+function markPostconditionFailed(record, postconditionId, reason) {
+  for (const claimResult of record.claim_results) {
+    let changed = false;
+    for (const postconditionResult of claimResult.postcondition_results) {
+      if (postconditionResult.postcondition_id !== postconditionId) continue;
+      postconditionResult.status = 'failed';
+      postconditionResult.reason = reason;
+      changed = true;
+    }
+    if (changed) {
+      claimResult.status = 'failed';
+      claimResult.confidence = 0.2;
+      claimResult.reason = reason;
+    }
+  }
+  record.verifier_report.derived_indexes = deriveWorkRecordClaimIndexes(record);
+  record.health.verdict = 'blocked';
+  record.health.reason = reason;
+}
+
 test('report-only verifier checker derives indexes and does not mutate valid v0 records', () => {
   const record = fixture('playbook-origin.json');
   const before = JSON.stringify(record);
@@ -93,6 +113,8 @@ test('report-only verifier checker reports internal reference and gate drift', (
   assert.ok(codes.has('health_report_mismatch'));
   assert.ok(codes.has('replay_gate_not_required'));
   assert.ok(codes.has('repair_gate_not_required'));
+  assert.ok(result.failure_classes.includes('evidence_ref_drift'));
+  assert.ok(result.failure_classes.includes('workflow_gate_drift'));
 });
 
 test('report-only verifier checker rejects unsupported legacy records', () => {
@@ -104,4 +126,70 @@ test('report-only verifier checker rejects unsupported legacy records', () => {
   assert.equal(result.status, 'unsupported');
   assert.equal(result.record_id, 'legacy-step');
   assert.equal(result.diagnostics[0].code, 'unsupported_record_shape');
+});
+
+test('report-only verifier classifies target/ref drift without mutating the Work Record', () => {
+  const record = fixture('playbook-browser-click-status.json');
+  const before = JSON.stringify(record);
+  record.execution_map.steps[0].action.target = 'browser:work-record-live-action/e99';
+
+  const mutated = JSON.stringify(record);
+  const result = checkWorkRecordReportOnly(record);
+  const targetDiagnostics = result.diagnostics.filter((item) => item.code === 'target_ref_drift');
+
+  assert.equal(result.status, 'failed');
+  assert.ok(targetDiagnostics.length >= 1);
+  assert.ok(targetDiagnostics.every((item) => item.failure_class === 'target_ref_drift'));
+  assert.ok(result.failure_classes.includes('target_ref_drift'));
+  assert.equal(JSON.stringify(record), mutated);
+  assert.notEqual(mutated, before);
+});
+
+test('report-only verifier classifies precondition, action, and postcondition failures', () => {
+  const cases = [
+    {
+      postconditionId: 'postcondition:aos-browser-click-status-2026-05-06-before-perception',
+      code: 'precondition_failed',
+      failureClass: 'precondition_failure',
+    },
+    {
+      postconditionId: 'postcondition:aos-browser-click-status-2026-05-06-action-executed',
+      code: 'action_failed',
+      failureClass: 'action_failure',
+    },
+    {
+      postconditionId: 'postcondition:aos-browser-click-status-after-status',
+      code: 'postcondition_failed',
+      failureClass: 'postcondition_failure',
+    },
+  ];
+
+  for (const item of cases) {
+    const record = fixture('playbook-browser-click-status.json');
+    markPostconditionFailed(record, item.postconditionId, `${item.failureClass} fixture`);
+    const before = JSON.stringify(record);
+    const result = checkWorkRecordReportOnly(record);
+    const diagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === item.code);
+
+    assert.equal(result.status, 'failed');
+    assert.ok(diagnostics.length >= 1, `expected ${item.code}`);
+    assert.ok(diagnostics.every((diagnostic) => diagnostic.failure_class === item.failureClass));
+    assert.ok(result.failure_classes.includes(item.failureClass));
+    assert.equal(JSON.stringify(record), before);
+  }
+});
+
+test('report-only verifier classifies State ID inconsistency without mutating the Work Record', () => {
+  const record = fixture('playbook-browser-click-status.json');
+  record.execution_map.postconditions[0].state_id = 'see_browserlive999';
+  const before = JSON.stringify(record);
+
+  const result = checkWorkRecordReportOnly(record);
+  const diagnostic = result.diagnostics.find((item) => item.code === 'state_id_inconsistency');
+
+  assert.equal(result.status, 'failed');
+  assert.equal(diagnostic.failure_class, 'state_id_inconsistency');
+  assert.equal(diagnostic.expected_state_id, 'see_browserlive999');
+  assert.equal(diagnostic.actual_state_id, 'see_browserlive001');
+  assert.equal(JSON.stringify(record), before);
 });

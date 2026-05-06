@@ -41,8 +41,34 @@ function refList(values = []) {
   return arrayValue(values).map((value) => text(value)).filter(Boolean);
 }
 
-function addDiagnostic(diagnostics, code, message, path, severity = 'error') {
-  diagnostics.push({ severity, code, message, path });
+const DIAGNOSTIC_FAILURE_CLASSES = Object.freeze({
+  unknown_postcondition_evidence_ref: 'evidence_ref_drift',
+  unknown_result_evidence_ref: 'evidence_ref_drift',
+  unknown_postcondition_result_evidence_ref: 'evidence_ref_drift',
+  unknown_verifier_report_evidence_ref: 'evidence_ref_drift',
+  target_ref_drift: 'target_ref_drift',
+  precondition_failed: 'precondition_failure',
+  action_failed: 'action_failure',
+  postcondition_failed: 'postcondition_failure',
+  state_id_inconsistency: 'state_id_inconsistency',
+  replay_gate_not_required: 'workflow_gate_drift',
+  repair_gate_not_required: 'workflow_gate_drift',
+});
+
+function diagnosticFailureClass(code) {
+  return DIAGNOSTIC_FAILURE_CLASSES[code] || 'work_record_integrity';
+}
+
+function addDiagnostic(diagnostics, code, message, path, severity = 'error', details = {}) {
+  diagnostics.push({
+    severity,
+    code,
+    failure_class: text(details.failure_class, diagnosticFailureClass(code)),
+    report_only: true,
+    message,
+    path,
+    ...details,
+  });
 }
 
 const WORK_RECORD_VERIFIER_PROFILES = Object.freeze({
@@ -95,6 +121,191 @@ function sameMembers(a = [], b = []) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function mapById(values = []) {
+  const result = new Map();
+  arrayValue(values).forEach((value, index) => {
+    const item = objectValue(value);
+    const id = text(item.id);
+    if (id) result.set(id, { item, index });
+  });
+  return result;
+}
+
+function targetRef(target = '') {
+  const value = text(target);
+  const schemeIndex = value.indexOf(':');
+  const slashIndex = value.lastIndexOf('/');
+  if (schemeIndex < 0 || slashIndex <= schemeIndex + 1 || slashIndex === value.length - 1) {
+    return '';
+  }
+  return value.slice(slashIndex + 1);
+}
+
+function targetIdentities(target = '') {
+  const value = text(target);
+  const ref = targetRef(value);
+  return new Set([value, ref].filter(Boolean));
+}
+
+function candidateIdentities(candidate = {}) {
+  const value = objectValue(candidate);
+  return new Set([
+    text(value.target),
+    text(value.ref),
+    text(value.semantic_ref),
+    text(value.data_aos_ref),
+  ].filter(Boolean));
+}
+
+function evidenceTargetIdentities(evidence = []) {
+  const result = new Set();
+  for (const item of arrayValue(evidence)) {
+    const value = objectValue(item);
+    const metadata = objectValue(value.metadata);
+    [value.target, metadata.target_with_ref].forEach((target) => {
+      for (const identity of targetIdentities(target)) result.add(identity);
+    });
+  }
+  return result;
+}
+
+function actionTargetCandidates(executionMapTargets = [], evidence = []) {
+  const candidates = [];
+  for (const target of arrayValue(executionMapTargets)) {
+    candidates.push(...arrayValue(objectValue(target).candidates));
+  }
+  for (const item of arrayValue(evidence)) {
+    candidates.push(...arrayValue(objectValue(objectValue(item).metadata).semantic_targets));
+  }
+  return candidates;
+}
+
+function hasCandidateIdentity(candidates = [], expected = new Set()) {
+  let checkedCandidate = false;
+  for (const candidate of candidates) {
+    const identities = candidateIdentities(candidate);
+    if (identities.size === 0) continue;
+    checkedCandidate = true;
+    for (const identity of identities) {
+      if (expected.has(identity)) return true;
+    }
+  }
+  return checkedCandidate ? false : true;
+}
+
+function expectedActionTarget(action = {}) {
+  const args = objectValue(action.args);
+  const targetResolution = objectValue(args.target_resolution);
+  return text(args.target_with_ref || targetResolution.target_with_ref);
+}
+
+function checkTargetRefDrift({ diagnostics, steps, targets, evidence }) {
+  const evidenceTargets = evidenceTargetIdentities(evidence);
+  const candidates = actionTargetCandidates(targets, evidence);
+
+  arrayValue(steps).forEach((step, index) => {
+    const action = objectValue(objectValue(step).action);
+    const actionTarget = text(action.target);
+    const ref = targetRef(actionTarget);
+    if (!actionTarget || !ref) return;
+
+    const expectedTarget = expectedActionTarget(action);
+    if (expectedTarget && expectedTarget !== actionTarget) {
+      addDiagnostic(
+        diagnostics,
+        'target_ref_drift',
+        `step ${text(objectValue(step).id, `steps[${index}]`)} action target ${actionTarget} does not match resolved target ${expectedTarget}`,
+        `execution_map.steps[${index}].action.target`,
+        'error',
+        {
+          expected_target: expectedTarget,
+          actual_target: actionTarget,
+        },
+      );
+    }
+
+    const identities = targetIdentities(actionTarget);
+    if (evidenceTargets.size > 0 && ![...identities].some((identity) => evidenceTargets.has(identity))) {
+      addDiagnostic(
+        diagnostics,
+        'target_ref_drift',
+        `step ${text(objectValue(step).id, `steps[${index}]`)} action target ${actionTarget} is not present in action evidence targets`,
+        `execution_map.steps[${index}].action.target`,
+        'error',
+        {
+          expected_target: actionTarget,
+        },
+      );
+    }
+
+    if (!hasCandidateIdentity(candidates, identities)) {
+      addDiagnostic(
+        diagnostics,
+        'target_ref_drift',
+        `step ${text(objectValue(step).id, `steps[${index}]`)} action ref ${ref} is not present in recorded semantic candidates`,
+        `execution_map.steps[${index}].action.target`,
+        'error',
+        {
+          expected_ref: ref,
+          expected_target: actionTarget,
+        },
+      );
+    }
+  });
+}
+
+function failedPostconditionDiagnostic(postcondition = {}, preconditionRefs = new Set()) {
+  const value = objectValue(postcondition);
+  const id = text(value.id);
+  const kind = text(value.kind);
+  const checkKind = text(objectValue(value.check).kind);
+  if (preconditionRefs.has(id)) {
+    return {
+      code: 'precondition_failed',
+      failure_class: 'precondition_failure',
+      label: 'precondition',
+    };
+  }
+  if (kind === 'aos_do_action' || checkKind === 'action_status_equals') {
+    return {
+      code: 'action_failed',
+      failure_class: 'action_failure',
+      label: 'action',
+    };
+  }
+  return {
+    code: 'postcondition_failed',
+    failure_class: 'postcondition_failure',
+    label: 'postcondition',
+  };
+}
+
+function checkStateIdConsistency({ diagnostics, postconditionsById, evidenceById }) {
+  for (const { item: postcondition, index } of postconditionsById.values()) {
+    const expectedStateId = text(postcondition.state_id);
+    if (!expectedStateId) continue;
+    for (const evidenceRef of refList(postcondition.evidence_refs)) {
+      const evidence = evidenceById.get(evidenceRef)?.item;
+      const evidenceStateId = text(evidence?.state_id);
+      if (evidenceStateId && evidenceStateId !== expectedStateId) {
+        addDiagnostic(
+          diagnostics,
+          'state_id_inconsistency',
+          `postcondition ${text(postcondition.id)} expects State ID ${expectedStateId} but evidence ${evidenceRef} has ${evidenceStateId}`,
+          `execution_map.postconditions[${index}].state_id`,
+          'error',
+          {
+            postcondition_id: text(postcondition.id),
+            evidence_ref: evidenceRef,
+            expected_state_id: expectedStateId,
+            actual_state_id: evidenceStateId,
+          },
+        );
+      }
+    }
+  }
+}
+
 export function checkWorkRecordReportOnly(record = {}) {
   const normalized = normalizeWorkRecord(record);
   const diagnostics = [];
@@ -141,6 +352,12 @@ export function checkWorkRecordReportOnly(record = {}) {
   const evidenceIds = idSet(evidence);
   const resultClaimCounts = new Map();
   const derivedIndexes = deriveWorkRecordClaimIndexes(record);
+  const postconditionsById = mapById(postconditions);
+  const evidenceById = mapById(evidence);
+  const preconditionRefs = new Set(
+    arrayValue(executionMap.steps)
+      .flatMap((step) => refList(objectValue(step).precondition_refs)),
+  );
 
   assertRefsKnown({
     diagnostics,
@@ -209,6 +426,7 @@ export function checkWorkRecordReportOnly(record = {}) {
     arrayValue(value.postcondition_results).forEach((postconditionResult, resultIndex) => {
       const postconditionValue = objectValue(postconditionResult);
       const postconditionId = text(postconditionValue.postcondition_id);
+      const postcondition = postconditionsById.get(postconditionId)?.item;
       if (!postconditionIds.has(postconditionId)) {
         addDiagnostic(
           diagnostics,
@@ -225,7 +443,36 @@ export function checkWorkRecordReportOnly(record = {}) {
         label: `postcondition_result ${postconditionId}`,
         path: `claim_results[${index}].postcondition_results[${resultIndex}].evidence_refs`,
       });
+      if (text(postconditionValue.status) === 'failed' && postcondition) {
+        const failure = failedPostconditionDiagnostic(postcondition, preconditionRefs);
+        addDiagnostic(
+          diagnostics,
+          failure.code,
+          `${failure.label} ${postconditionId} failed for claim ${claimId}`,
+          `claim_results[${index}].postcondition_results[${resultIndex}].status`,
+          'error',
+          {
+            failure_class: failure.failure_class,
+            claim_id: claimId,
+            postcondition_id: postconditionId,
+            evidence_refs: refList(postconditionValue.evidence_refs),
+          },
+        );
+      }
     });
+  });
+
+  checkTargetRefDrift({
+    diagnostics,
+    steps: arrayValue(executionMap.steps),
+    targets: arrayValue(executionMap.targets),
+    evidence,
+  });
+
+  checkStateIdConsistency({
+    diagnostics,
+    postconditionsById,
+    evidenceById,
   });
 
   for (const claimId of claimIds) {
@@ -305,6 +552,7 @@ export function checkWorkRecordReportOnly(record = {}) {
   }
 
   const errorCount = diagnostics.filter((diagnostic) => diagnostic.severity === 'error').length;
+  const failureClasses = [...new Set(diagnostics.map((diagnostic) => diagnostic.failure_class).filter(Boolean))].sort();
   return {
     type: 'work_record.report_only_check',
     schema_version: WORK_RECORD_REPORT_CHECKER_VERSION,
@@ -314,6 +562,7 @@ export function checkWorkRecordReportOnly(record = {}) {
     record_schema_version: normalized.schemaVersion,
     mutates_record: false,
     derived_indexes: derivedIndexes,
+    failure_classes: failureClasses,
     diagnostics,
     summary: {
       claims: claims.length,
@@ -322,6 +571,7 @@ export function checkWorkRecordReportOnly(record = {}) {
       postconditions: postconditions.length,
       replay_gated: replayPolicy.replay_requires_workflow_gate === true,
       repair_gated: replayPolicy.repair_requires_workflow_gate === true,
+      failure_classes: failureClasses,
     },
   };
 }
