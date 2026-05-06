@@ -46,6 +46,16 @@ test('wiki subject browser state starts graph-first with no content pane open', 
   assert.equal(state.content_open, false);
   assert.equal(state.selected_path, '');
   assert.equal(state.selected_subject, null);
+  assert.equal(state.subject_graph_index.type, 'aos.subject_graph.index');
+  assert.deepEqual(state.subject_graph_summary, {
+    subject_count: 0,
+    facet_count: 0,
+    host_count: 0,
+    edge_count: 0,
+    relationship_types: [],
+    subject_types: [],
+    health: {},
+  });
 });
 
 test('wiki subject browser bridges wiki selection to open-request payloads', () => {
@@ -90,6 +100,12 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
   assert.equal(load.entry_count, 1);
   assert.equal(snapshot.catalog_entries[0].subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.catalog_entries[0].affordances.openable, true);
+  assert.equal(snapshot.subject_graph_summary.subject_count, 1);
+  assert.equal(snapshot.subject_graph_summary.subject_types[0], 'aos.work_record');
+  assert.ok(snapshot.subject_graph_summary.relationship_types.includes('origin_subject'));
+  assert.ok(snapshot.subject_graph_index.host_references.some((host) => (
+    host.entry.value === WORK_RECORD_WORKBENCH_URL
+  )));
   assert.equal(request.type, SUBJECT_OPEN_REQUEST_TYPE);
   assert.equal(request.entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
   assert.equal(request.host.entry.value, WORK_RECORD_WORKBENCH_URL);
@@ -116,8 +132,11 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /loadGraphOnStart:\s*true/);
   assert.match(indexJs, /applyWikiSubjectBrowserSemanticTarget/);
   assert.match(indexJs, /wikiSubjectBrowserAosRef\('root'\)/);
+  assert.match(indexJs, /subject-index-status/);
+  assert.match(indexJs, /subjectIndexMarkup/);
   assert.match(indexJs, /subject-catalog-open/);
   assert.match(indexJs, /work-record-workbench/);
+  assert.match(indexJs, /subject_graph_summary/);
   assert.match(launch, /--manifest wiki-subject-browser-v0/);
   assert.match(launch, /SUBJECT_CATALOG_LOAD_TYPE/);
   assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);

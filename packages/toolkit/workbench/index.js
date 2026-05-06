@@ -1,4 +1,5 @@
 export * from './subject.js';
+export * from './subject-graph.js';
 export * from './wiki-subject.js';
 export * from './wiki-subject-opening.js';
 export * from './sigil-subject.js';

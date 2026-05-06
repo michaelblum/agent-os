@@ -59,11 +59,30 @@ function catalogEntryRef(entry = {}, suffix = 'entry') {
   return wikiSubjectBrowserAosRef('subject-catalog', suffix, entry.key || entry.id);
 }
 
+function subjectIndexStatusText(snapshot = {}) {
+  const summary = objectValue(snapshot.subject_graph_summary);
+  const subjects = Number(summary.subject_count || 0);
+  const edges = Number(summary.edge_count || 0);
+  return `${subjects} subject${subjects === 1 ? '' : 's'} · ${edges} edge${edges === 1 ? '' : 's'}`;
+}
+
+function subjectIndexSummaryText(snapshot = {}) {
+  const summary = objectValue(snapshot.subject_graph_summary);
+  const facets = Number(summary.facet_count || 0);
+  const hosts = Number(summary.host_count || 0);
+  const relationships = Array.isArray(summary.relationship_types) && summary.relationship_types.length > 0
+    ? summary.relationship_types.join(', ')
+    : 'none';
+  return `${facets} facets · ${hosts} hosts · ${relationships}`;
+}
+
 export default function WikiSubjectBrowser(options = {}) {
   let host = null;
   let rootEl = null;
   let catalogEl = null;
   let catalogStatusEl = null;
+  let subjectIndexStatusEl = null;
+  let subjectIndexSummaryEl = null;
   let workbenchRegionEl = null;
   let workbench = null;
   let workbenchHost = null;
@@ -76,6 +95,7 @@ export default function WikiSubjectBrowser(options = {}) {
       rootEl.dataset.selectedPath = snapshot.selected_path;
     }
     renderCatalog(snapshot);
+    renderSubjectIndex(snapshot);
     window.__wikiSubjectBrowserState = snapshot;
     return snapshot;
   }
@@ -276,6 +296,12 @@ export default function WikiSubjectBrowser(options = {}) {
     catalogStatusEl.textContent = catalogStatusText(snapshot);
   }
 
+  function renderSubjectIndex(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    if (!subjectIndexStatusEl || !subjectIndexSummaryEl) return;
+    subjectIndexStatusEl.textContent = subjectIndexStatusText(snapshot);
+    subjectIndexSummaryEl.textContent = subjectIndexSummaryText(snapshot);
+  }
+
   function handleSelectionMessage(message = {}) {
     const selection = Object.prototype.hasOwnProperty.call(message, 'payload')
       ? message.payload
@@ -339,6 +365,13 @@ export default function WikiSubjectBrowser(options = {}) {
             <span data-role="catalog-status"></span>
           </header>
           <div data-role="catalog-list"></div>
+          <section class="wiki-subject-browser-index" aria-label="Subject graph index" data-role="subject-index">
+            <header>
+              <strong>Subject Index</strong>
+              <span data-role="subject-index-status"></span>
+            </header>
+            <div data-role="subject-index-summary"></div>
+          </section>
         </aside>
       `;
       workbenchRegionEl = rootEl.querySelector('[data-role="workbench-region"]');
@@ -352,10 +385,25 @@ export default function WikiSubjectBrowser(options = {}) {
       catalogAside.innerHTML = catalogMarkup;
       catalogEl = catalogAside.querySelector('[data-role="catalog-list"]');
       catalogStatusEl = catalogAside.querySelector('[data-role="catalog-status"]');
+      const subjectIndexEl = catalogAside.querySelector('[data-role="subject-index"]');
+      const subjectIndexMarkup = subjectIndexEl.innerHTML;
       applyWikiSubjectBrowserSemanticTarget(catalogStatusEl, {
         id: 'subject-catalog-status',
         name: 'Subject catalog status',
         aosRef: wikiSubjectBrowserAosRef('subject-catalog-status'),
+      });
+      applyWikiSubjectBrowserSemanticTarget(subjectIndexEl, {
+        id: 'subject-index',
+        name: 'Subject graph index',
+        aosRef: wikiSubjectBrowserAosRef('subject-index'),
+      });
+      subjectIndexEl.innerHTML = subjectIndexMarkup;
+      subjectIndexStatusEl = subjectIndexEl.querySelector('[data-role="subject-index-status"]');
+      subjectIndexSummaryEl = subjectIndexEl.querySelector('[data-role="subject-index-summary"]');
+      applyWikiSubjectBrowserSemanticTarget(subjectIndexStatusEl, {
+        id: 'subject-index-status',
+        name: 'Subject graph index status',
+        aosRef: wikiSubjectBrowserAosRef('subject-index-status'),
       });
 
       workbench = MarkdownWorkbench({

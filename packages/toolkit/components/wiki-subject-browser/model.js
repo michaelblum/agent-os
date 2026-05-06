@@ -12,6 +12,10 @@ import {
   SUBJECT_CATALOG_SCHEMA_VERSION,
   SUBJECT_OPEN_REQUEST_TYPE,
 } from '../../workbench/subject-catalog.js';
+import {
+  deriveSubjectGraphIndex,
+  summarizeSubjectGraphIndex,
+} from '../../workbench/subject-graph.js';
 
 export const WIKI_SUBJECT_BROWSER_SURFACE = 'wiki-subject-browser-v0';
 export const WIKI_SUBJECT_BROWSER_URL = 'aos://toolkit/components/wiki-subject-browser/index.html';
@@ -46,6 +50,12 @@ export function createWikiSubjectBrowserState({
   lastEvent = null,
   last_event = lastEvent,
 } = {}) {
+  const normalizedCatalogEntries = createSubjectCatalogEntries(catalog_entries);
+  const subjectGraphIndex = deriveSubjectGraphIndex({
+    subjects: selected_subject ? [selected_subject] : [],
+    entries: normalizedCatalogEntries,
+  });
+
   return {
     type: 'wiki_subject_browser.snapshot',
     schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
@@ -54,7 +64,9 @@ export function createWikiSubjectBrowserState({
     content_open: Boolean(content_open),
     selected_path: text(selected_path),
     selected_subject: selected_subject ? cloneJson(selected_subject) : null,
-    catalog_entries: createSubjectCatalogEntries(catalog_entries),
+    catalog_entries: normalizedCatalogEntries,
+    subject_graph_index: subjectGraphIndex,
+    subject_graph_summary: summarizeSubjectGraphIndex(subjectGraphIndex),
     last_open_request: last_open_request ? cloneJson(last_open_request) : null,
     last_subject_open_request: last_subject_open_request ? cloneJson(last_subject_open_request) : null,
     subject_open_result: subject_open_result ? cloneJson(subject_open_result) : null,

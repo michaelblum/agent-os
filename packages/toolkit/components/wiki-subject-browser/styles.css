@@ -52,6 +52,28 @@
   padding: 10px;
 }
 
+.wiki-subject-browser-index {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(7, 12, 18, 0.7);
+}
+
+.wiki-subject-browser-index header {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+}
+
+.wiki-subject-browser-index [data-role="subject-index-summary"] {
+  font: var(--aos-type-caption);
+  color: rgba(203, 213, 225, 0.86);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .wiki-subject-browser-catalog-empty {
   margin: 0;
   color: rgba(148, 163, 184, 0.86);

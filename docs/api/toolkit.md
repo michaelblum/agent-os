@@ -323,7 +323,9 @@ as `wiki-subject-browser-v0:root`, `markdown-workbench:wiki-graph`,
 `markdown-workbench:source-editor`. Catalog refs include
 `wiki-subject-browser-v0:subject-catalog`,
 `wiki-subject-browser-v0:subject-catalog-status`, and
-`wiki-subject-browser-v0:subject-catalog:open:<catalog-key>`.
+`wiki-subject-browser-v0:subject-catalog:open:<catalog-key>`. The small
+graph/index inspection refs are `wiki-subject-browser-v0:subject-index` and
+`wiki-subject-browser-v0:subject-index-status`.
 
 V0 event contract:
 
@@ -362,6 +364,11 @@ V0 boundaries:
   `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`.
   `views[]`, `controls[]`, and dotted raw `capabilities[]` are not live
   catalog/open dependencies.
+- The shell derives a local Subject Graph Index V0 snapshot for inspection from
+  the selected wiki Subject and loaded catalog entries. It exposes the full
+  payload on `window.__wikiSubjectBrowserState.subject_graph_index` and a
+  compact count/type summary in the right sidebar. This is not a replacement for
+  the embedded Wiki KB graph.
 
 ### Subject Catalog And Opening V0
 
@@ -398,6 +405,75 @@ V0 boundaries:
 - no generic Playbook execution UI;
 - no dependency on legacy `views[]`, `controls[]`, or dotted raw
   `capabilities[]` summaries.
+
+### Subject Graph Index V0
+
+The bounded cross-subject navigation index lives at:
+
+```js
+import {
+  deriveSubjectGraphIndex,
+  summarizeSubjectGraphIndex,
+} from '../workbench/subject-graph.js'
+```
+
+`deriveSubjectGraphIndex()` is pure toolkit logic. It accepts canonical
+`aos.workbench.subject` descriptors, `aos.subject_catalog.entry` records, or an
+object with `{ subjects, entries }`, and returns a deterministic payload:
+
+```json
+{
+  "type": "aos.subject_graph.index",
+  "schema_version": "2026-05-06-subject-graph-index-v0",
+  "nodes": [],
+  "facet_summaries": [],
+  "host_references": [],
+  "edges": [],
+  "metadata": {
+    "subject_count": 0,
+    "facet_count": 0,
+    "host_count": 0,
+    "edge_count": 0,
+    "catalog_entry_count": 0,
+    "descriptor_count": 0,
+    "health": {}
+  }
+}
+```
+
+V0 node and edge shape:
+
+- `nodes[]` contains Subject nodes only. Each node carries stable
+  `subject_id`, `subject_type`, `label`, `owner`, `entry_handle`, high-level
+  `capabilities[]`, top-level canonical `contracts[]`, descriptor `source`,
+  source-record metadata, counts, and health/evidence summaries when those are
+  present on the descriptor.
+- `facet_summaries[]` contains one summary per canonical Facet with `key`,
+  `layer`, `label`, Facet-local `capabilities[]`, Facet-local `contracts[]`,
+  `source`, `source_ref`, and `host_count`.
+- `host_references[]` contains descriptive Host entries for Facets:
+  `kind`, `target_dialect`, typed `entry`, `preferred`,
+  `browser_compatible`, and notes where present. Host references do not launch
+  canvases or browser sessions.
+- `edges[]` contains typed relationships. V0 emits `has_facet`,
+  `hosted_by`, top-level Subject Reference edges using each reference's
+  `relationship`, and `facet_source_reference` when a Facet `source_ref`
+  points at a canonical Subject Reference.
+
+The index deliberately reads only canonical descriptor fields:
+`subjectCapabilities()`, `subjectCanonicalContracts()`,
+`subjectCanonicalReferences()`, and `subjectFacets()` plus Facet-local
+`hosts[]`. It does not read legacy `views[]`, legacy `controls[]`,
+`metadata.subject_references[]`, or dotted raw operation strings left in
+`capabilities[]`. The archived-descriptor fallback remains available through
+separate compatibility helpers, but it is not part of live graph derivation.
+
+This index is a cross-subject navigation aid for Subject Browsers and agents.
+It is not the wiki graph projection and does not replace the force-graph or
+mind-map layout work tracked by #72. The wiki graph projection continues to
+consume wiki graph snapshots with `nodes[]`, `links[]`, `raw`, and
+`config.graphView`; Subject graph index V0 consumes Workbench Subject
+descriptors and catalog entries.
 
 ### Playbook Workbench V0
 
