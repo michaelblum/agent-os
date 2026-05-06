@@ -5,34 +5,31 @@
 
 ## Goal
 
-Continue the AOS grand unification foundation work by moving from command-backed
-Work Records to one bounded live AOS action capture:
+Promote the completed AOS action Work Record capture into the first concrete
+Playbook step grammar and Work Record origin bridge.
+
+The previous slice landed on `main` at `3cbec84`. AOS can now take saved browser
+`see -> do -> see` action evidence, generate Work Record v0, run the named
+report-only verifier profile, validate the generated fixture, and open it
+read-only in the Work Record workbench.
+
+The immediate next slice is tracked in GitHub issue #272:
 
 ```text
-see -> do -> see -> record -> verify
-```
-
-The previous capture/verifier slice landed on `main` at `0c28bb2`. AOS can now
-generate a Work Record v0 from bounded repo command evidence, run the named
-report-only verifier profile, open generated v0 records read-only in the Work
-Record workbench, and keep replay/repair behind explicit workflow gates.
-
-The immediate next slice is tracked in GitHub issue #271:
-
-```text
-https://github.com/michaelblum/agent-os/issues/271
+https://github.com/michaelblum/agent-os/issues/272
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/work-record-live-action-capture
+codex/playbook-step-grammar
 ```
 
-Build the smallest serious proof that an actual AOS-observed/actioned surface can
-emit Work Record v0 evidence. Keep this above the daemon and report-only. Do not
-implement autonomous replay, repair, wiki-browser work, or broad new command
-surface.
+Build the smallest serious Playbook template layer above the proven evidence
+path. A Playbook step is reusable execution knowledge. A Work Record is the
+evidence log from one run. This session should define and test that bridge
+without implementing autonomous replay, repair, macro playback, or a broad CLI
+command surface.
 
 ## Required Rediscovery
 
@@ -56,7 +53,7 @@ Before selecting verification commands, run:
 Use focused `--files` arguments after editing so the router sees the intended
 slice instead of the whole branch diff.
 
-If GitHub context is needed, inspect issue #271 after local state is known. An
+If GitHub context is needed, inspect issue #272 after local state is known. An
 open issue or PR is not automatically current.
 
 ## Read First
@@ -69,15 +66,17 @@ Read the fresh-session primer and live entry-path recipe:
 Then read the current workstream sources:
 
 - `CONTEXT.md`
+- `docs/adr/0002-work-records-and-playbooks-are-distinct-artifacts.md`
+- `docs/adr/0003-claims-and-postconditions-split-along-intent-and-execution.md`
+- `docs/adr/0009-recipe-playbook-workflow-as-three-distinct-artifacts.md`
 - `docs/design/aos-grand-unification-plan.md`
-- `docs/design/aos-subject-model-compatibility-audit.md`
-- `shared/schemas/aos-subject-capabilities.md`
-- `shared/schemas/aos-workbench-subject-vnext.md`
-- `shared/schemas/aos-work-record-v0.md`
 - `docs/design/aos-work-records-and-self-healing-recipes.md`
 - `docs/design/see-do-grammar-trace-connections.md`
-- `docs/design/worktree-session-scope.md`
-- ADRs `docs/adr/0001-*` through `docs/adr/0010-*`
+- `shared/schemas/aos-work-record-v0.md`
+- `packages/toolkit/workbench/work-record-capture.js`
+- `packages/toolkit/workbench/work-record-verifier.js`
+- `tests/toolkit/work-record-capture.test.mjs`
+- `tests/schemas/aos-work-record-v0.test.mjs`
 
 Local reference checkouts should exist adjacent to this repo and are research
 inputs only:
@@ -87,11 +86,13 @@ inputs only:
 
 ## Current Checkpoint
 
-At this handoff, `main` is expected to be at `0c28bb2`, and
-`codex/work-record-live-action-capture` should be created from that commit.
+At this handoff, `main` is expected to be at `3cbec84`, and
+`codex/playbook-step-grammar` should be created from that commit.
 
 Recent foundation commits include:
 
+- `3cbec84 docs: document AOS action work record substrate`
+- `d9fab5f feat: capture AOS action work records`
 - `0c28bb2 docs: update work record v0 migration note`
 - `f9dc018 docs: document work record capture profile`
 - `446559f feat: capture command-backed work records`
@@ -103,76 +104,72 @@ Treat these as orientation only. Rediscover before editing.
 
 ## Immediate Work Plan
 
-1. Choose one deterministic live AOS surface and action path. Prefer a stable
-   toolkit/browser-compatible or canvas-backed surface with semantic refs and
-   minimal visual dependency.
-2. Capture or fixture a bounded AOS action source that contains:
-   before perception, action metadata, after perception, target dialect,
-   Target-with-Ref, State ID where available, and immutable evidence refs.
-3. Add a source-specific builder above the daemon, likely
-   `buildWorkRecordV0FromAosActionEvidence()` or an equivalent narrow adapter,
-   that emits Work Record v0 from the saved AOS action evidence.
-4. Emit Claims, Postconditions, Claim Results, Verifier Report, Health, and
-   replay/repair workflow gates using the same v0 contract that command evidence
-   now uses.
-5. Run the existing named profile
-   `aos.verifier.work-record.v0.report-only`; extend the deterministic checker
-   only where the AOS action evidence shape requires it.
-6. Add one generated fixture from the saved AOS action evidence and tests that
-   prove the generated output matches the fixture, validates against the schema,
-   and passes the named verifier profile.
-7. Ensure the generated live-action Work Record opens read-only through the
-   existing Work Record workbench model path with no patch capability.
-8. Document how this evidence source becomes the first Playbook-step substrate
-   without implementing replay or repair.
-9. Run the workflow router with focused `--files`, then run the smallest relevant
-   toolkit/schema tests, `bash tests/help-contract.sh` if docs/contracts changed,
-   `git diff --check`, and `./aos ready`.
-10. Commit in focused reversible slices. Do not wait until the entire epic is
+1. Define a minimal Playbook step v0 contract for:
+   `see -> resolve -> do -> see -> verify`.
+2. Keep the Playbook step as a reusable template and the Work Record as the run
+   evidence. Do not collapse the two artifacts.
+3. Represent step preconditions, target-resolution, action, postconditions,
+   repair hints, and replay gates explicitly.
+4. Define how a step postcondition can be promoted into a Work Record Claim. The
+   Claim remains the durable intent assertion; the Postcondition remains the
+   repairable execution-map check.
+5. Add one realistic Playbook step fixture based on the existing browser
+   click/status AOS action evidence.
+6. Add one corresponding generated Work Record v0 fixture with
+   `origin.kind: "playbook"` and `origin.ref` pointing back to the Playbook step
+   or Playbook Subject handle.
+7. Add a narrow builder/normalizer that combines a Playbook step descriptor plus
+   saved AOS action evidence into Work Record v0, reusing
+   `aos.verifier.work-record.v0.report-only`.
+8. Add schema/toolkit tests that prove target refs, State IDs, evidence refs,
+   postcondition refs, Claim Results, Verifier Report, Health, and workflow gates
+   survive the bridge.
+9. Keep generated Playbook-origin Work Records read-only in the existing Work
+   Record workbench path.
+10. Document the distinction between Playbook template and Work Record run
+    evidence at the schema/design boundary.
+11. Run the workflow router with focused `--files`, then run focused
+    schema/toolkit tests, `bash tests/help-contract.sh` if public docs/contracts
+    changed, `git diff --check`, and `./aos ready`.
+12. Commit in focused reversible slices. Do not wait until the entire epic is
     done to checkpoint.
 
 ## Acceptance Criteria
 
-- A generated Work Record v0 fixture from AOS action evidence validates against
-  `shared/schemas/aos-work-record-v0.schema.json`.
-- The fixture passes `runWorkRecordVerifierProfile(..., profileId:
-  "aos.verifier.work-record.v0.report-only")`.
-- The fixture records at least one before/after perception pair, one bounded
-  action, and one postcondition tied to post-action evidence.
-- Evidence is immutable and report-only; replay and repair remain workflow-gated.
-- Work Record workbench model tests prove the generated record opens read-only
-  without patch capability.
-- If a live display/runtime check is used, it goes through `./aos show/see/do`
-  and cleans up any temporary canvas.
+- A Playbook step v0 schema or schema sketch exists with valid and invalid
+  fixtures.
+- The browser click/status Playbook step fixture declares preconditions,
+  target-resolution, action, postconditions, repair hints, and claim-promotion
+  metadata.
+- A Playbook-origin generated Work Record v0 validates and passes
+  `aos.verifier.work-record.v0.report-only`.
+- Tests prove the builder preserves `origin.kind: "playbook"`, `origin.ref`,
+  evidence refs, postcondition refs, Claim Results, Verifier Report, Health, and
+  replay/repair workflow gates.
+- Docs clearly distinguish Playbook template from Work Record run evidence.
 
 ## Guardrails
 
 - Use `./aos` primitives and repo CLI. Do not use the Computer Use plugin for
   this repo.
 - Do not use AppleScript as a shortcut for AOS-owned behavior.
-- Do not add broad command surface such as `aos audit` or `aos verify` in this
-  slice.
-- Do not implement autonomous replay or repair.
-- Do not broaden into the wiki browser, subject-browser UX, or a toolkit-wide UI
-  refactor.
-- Do not change `aos.workbench.subject` live JSON Schema until the v-next shape
-  and migration path are settled.
-- Do not weaken the completed-record v0 contract silently. If draft or
-  pre-verifier Work Records are needed, design that as an explicit lifecycle
-  shape rather than making verifier output optional by accident.
+- Do not implement autonomous replay, repair, or macro playback.
+- Do not add `aos playbook`, `aos verify`, `aos audit`, or other broad command
+  surface in this slice.
+- Do not build the wiki browser or a browser-hosted Playbook UI yet.
+- Do not weaken Work Record v0 by making verifier output optional for completed
+  records.
+- Keep this above the daemon; use saved evidence and deterministic tests first.
 - Keep worktree/canonical content-root rules from `AGENTS.md` in force. The
   singleton daemon is shared across worktrees.
-- If visual or runtime surface work enters scope, verify through `./aos see/do`
-  and respect the human-as-sensor rule when the user explicitly asks to inspect
-  something themselves.
 
-## Next Milestones After Live AOS Action Capture
+## Next Milestones After Playbook Step Grammar
 
-1. Promote the live action evidence shape into the first Playbook step grammar.
-2. Wire a browser-hosted Playbook prototype that emits Work Records without
+1. Add a report-only Playbook harness prototype that can execute one step only
+   under an explicit workflow gate and emit a Work Record.
+2. Add verifier checks that distinguish selector/ref drift from failed intent.
+3. Wire a browser-hosted Playbook prototype that emits Work Records without
    replaying automatically.
-3. Add verifier checks that distinguish selector/ref drift from failed intent.
 4. Split wiki document Subjects from domain Subjects in toolkit helpers.
-5. Implement the Browser-Hosted Wiki Subject Browser only after Work Record
-   evidence, verifier output, and subject descriptors are stable enough to avoid
-   another drift loop.
+5. Implement the Browser-Hosted Wiki Subject Browser only after Work Record,
+   Playbook, verifier, and subject descriptor contracts are stable.
