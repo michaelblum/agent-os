@@ -146,10 +146,10 @@ older surfaces, but new toolkit CSS should use the `--aos-*` contract.
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with
-`aos.workbench.subject`. The current descriptor is intentionally small: it names
-stable identity, subject type, owner, source, capabilities, views, controls,
-persistence, artifacts, and current state. It does not move domain ownership
-into the toolkit.
+`aos.workbench.subject`. The descriptor is intentionally small: it names stable
+identity, subject type, owner, source, capabilities, operation contracts, Subject
+References, Facets, legacy views, legacy controls, persistence, artifacts, and
+current state. It does not move domain ownership into the toolkit.
 
 `workbench/defaults.css` provides the stock dual-pane workbench shell used when
 a surface needs a rich preview/editor composition instead of a plain panel body.
@@ -205,7 +205,24 @@ workflow engine:
 import { createWikiWorkflowSubject } from '../workbench/workflow-subject.js'
 ```
 
-The current schema version is `2026-05-03`. The first adopters are:
+The current schema version is `2026-05-03`. The active schema accepts optional
+v-next compatibility fields so writers can add `contracts[]`,
+`subject_references[]`, and `facets[]` while older consumers continue to read
+`views[]`, `controls[]`, and legacy dotted strings in `capabilities[]`.
+Consumers should use the toolkit helpers in `workbench/subject.js` when reading
+descriptors:
+
+- `subjectCapabilities(subject)` returns high-level capabilities such as
+  `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable`.
+- `subjectContracts(subject)` returns top-level `contracts[]` plus legacy
+  dotted operation/event strings still present in `capabilities[]`.
+- `subjectReferences(subject)` reads top-level `subject_references[]` and the
+  temporary `metadata.subject_references[]` fallback.
+- `subjectFacets(subject)`, `subjectHosts(subject)`,
+  `subjectLegacyViews(subject)`, and `subjectLegacyControls(subject)` expose the
+  v-next and legacy projection fields without forcing a one-shot migration.
+
+The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
@@ -223,10 +240,16 @@ The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For
 example, `createWikiPageSubject({ path: "sigil/agents/default.md" })` emits a
 wiki document Subject, while `createSigilAgentSubject()` emits the separate
-`sigil.agent` domain Subject. Because the live `2026-05-03` schema does not yet
-allow top-level `subject_references[]`, the Sigil helper stores the
-backward-compatible Subject Reference shape under
-`metadata.subject_references[]` until the v-next field is promoted.
+`sigil.agent` domain Subject. The Sigil helper now writes top-level
+`subject_references[]` and keeps the same reference under
+`metadata.subject_references[]` as a temporary compatibility bridge for older
+readers.
+
+Writer policy during migration is additive: keep legacy `views[]` and
+`controls[]` summaries, keep existing dotted `capabilities[]` strings readable,
+and add `contracts[]`, `subject_references[]`, and `facets[]` where the mapping
+is already clear. Do not remove the legacy fields until all readers use the
+compatibility helpers.
 
 Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,

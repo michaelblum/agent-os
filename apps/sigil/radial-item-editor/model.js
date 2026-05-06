@@ -172,12 +172,74 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
         owner: 'sigil.radial-item-editor',
         source: cloneConfig(RADIAL_ITEM_SOURCE),
         capabilities: [
+            'inspectable',
+            'editable',
+            'exportable',
             'canvas_object.registry',
             'canvas_object.transform.patch',
             'canvas_object.effects.patch',
             'canvas_object.visibility.patch',
             'sigil.radial_item_editor.lock_in',
             'sigil.radial_item.preview',
+        ],
+        facets: [
+            {
+                key: 'object-registry',
+                layer: 'descriptor',
+                label: 'Object Registry',
+                source: cloneConfig(RADIAL_ITEM_SOURCE),
+                capabilities: ['inspectable'],
+                contracts: ['canvas_object.registry'],
+                hosts: [
+                    {
+                        kind: 'canvas',
+                        target_dialect: 'canvas',
+                        entry: {
+                            kind: 'canvas-id',
+                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+                        },
+                        preferred: true,
+                    },
+                ],
+            },
+            {
+                key: 'object-controls',
+                layer: 'controls',
+                label: 'Object Controls',
+                capabilities: ['editable'],
+                contracts: [
+                    'canvas_object.transform.patch',
+                    'canvas_object.effects.patch',
+                    'canvas_object.visibility.patch',
+                ],
+                hosts: [
+                    {
+                        kind: 'canvas',
+                        target_dialect: 'canvas',
+                        entry: {
+                            kind: 'canvas-id',
+                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+                        },
+                    },
+                ],
+            },
+            {
+                key: 'radial-preview',
+                layer: 'artifacts',
+                label: 'Radial Preview',
+                capabilities: ['inspectable'],
+                contracts: ['sigil.radial_item.preview'],
+                hosts: [
+                    {
+                        kind: 'canvas',
+                        target_dialect: 'canvas',
+                        entry: {
+                            kind: 'canvas-id',
+                            value: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+                        },
+                    },
+                ],
+            },
         ],
         views: ['3d.preview', 'object.registry', 'production.radial.preview'],
         controls: ['object.transform', 'object.visibility', 'object.effects', 'scene.orbit', 'lock_in'],

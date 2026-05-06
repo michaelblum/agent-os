@@ -35,9 +35,10 @@ Migration direction:
 
 Migration status: the focused helper slice now keeps Sigil agent wiki documents
 as `wiki.entity` Subjects and adds `createSigilAgentSubject()` for the separate
-`sigil.agent` domain Subject. The live schema remains `2026-05-03`, so the
-helper stores the Subject Reference under `metadata.subject_references[]` as a
-backward-compatible bridge to the v-next top-level field.
+`sigil.agent` domain Subject. The live schema remains versioned as
+`2026-05-03`, but it accepts top-level `subject_references[]`; the helper keeps
+the same reference under `metadata.subject_references[]` only as a
+backward-compatible bridge for older readers.
 
 ### 2. `capabilities[]` mixes high-level capabilities and operation contracts
 
@@ -60,9 +61,10 @@ Migration direction:
   dotted strings that existing surfaces or tests inspect.
 
 Schema-design status: `shared/schemas/aos-subject-capabilities.md` now records
-the v0 high-level Capability registry and proposes `contracts[]` for dotted
-operation/event strings. Runtime helpers still need a backward-compatible
-reader/writer migration before the split becomes normative JSON Schema.
+the v0 high-level Capability registry and the active subject schema accepts
+optional `contracts[]` for dotted operation/event strings. Runtime helpers keep
+legacy dotted strings readable from `capabilities[]` while new readers use the
+compatibility helpers in `packages/toolkit/workbench/subject.js`.
 
 ### 3. `views[]` and `controls[]` are pre-facet projection fields
 
@@ -78,9 +80,10 @@ Migration direction:
   operation contracts once the schema is stable.
 
 Schema-design status:
-`shared/schemas/aos-workbench-subject-vnext.md` now sketches optional
-`facets[]`, `facets[].hosts[]`, `subject_references[]`, and `contracts[]` while
-preserving `views[]` and `controls[]` as legacy summaries.
+`shared/schemas/aos-workbench-subject-vnext.md` sketches the target model, and
+the active `aos-workbench-subject.schema.json` now accepts optional `facets[]`,
+`facets[].hosts[]`, `subject_references[]`, and `contracts[]` while preserving
+`views[]` and `controls[]` as legacy summaries.
 
 ### 4. Work-record origin, references, claims, and verifier output have a v0 sketch
 

@@ -4,6 +4,127 @@
   "title": "AOS Workbench Subject",
   "type": "object",
   "required": ["type", "schema_version", "id", "subject_type", "label", "owner"],
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "subjectReference": {
+      "type": "object",
+      "required": ["id", "relationship"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relationship": {
+          "type": "string",
+          "minLength": 1
+        },
+        "handle": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facet_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "hostEntry": {
+      "type": "object",
+      "required": ["kind", "target_dialect", "entry"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_dialect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entry": {
+          "type": "object"
+        },
+        "preferred": {
+          "type": "boolean"
+        },
+        "browser_compatible": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "facet": {
+      "type": "object",
+      "required": ["key", "layer", "label"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": ["object", "null"]
+        },
+        "source_ref": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "capabilities": {
+          "$ref": "#/$defs/stringList"
+        },
+        "contracts": {
+          "$ref": "#/$defs/stringList"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hostEntry"
+          },
+          "default": []
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
   "properties": {
     "type": {
       "const": "aos.workbench.subject"
@@ -32,28 +153,30 @@
       "type": ["object", "null"]
     },
     "capabilities": {
+      "$ref": "#/$defs/stringList"
+    },
+    "contracts": {
+      "$ref": "#/$defs/stringList"
+    },
+    "subject_references": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "$ref": "#/$defs/subjectReference"
+      },
+      "default": []
+    },
+    "facets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/facet"
       },
       "default": []
     },
     "views": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "default": []
+      "$ref": "#/$defs/stringList"
     },
     "controls": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "default": []
+      "$ref": "#/$defs/stringList"
     },
     "persistence": {
       "type": ["object", "null"]

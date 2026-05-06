@@ -7,6 +7,13 @@ import {
   createWorkRecordSubject,
   createWorkRecordSubjects,
 } from '../../packages/toolkit/workbench/work-record-subject.js';
+import {
+  subjectCapabilities,
+  subjectContracts,
+  subjectFacets,
+  subjectLegacyControls,
+  subjectLegacyViews,
+} from '../../packages/toolkit/workbench/subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -29,6 +36,9 @@ test('createWorkRecordSubject projects a browser do_step as a workbench subject'
   assert.equal(subject.state.surface, 'browser');
   assert.equal(subject.state.action.verb, 'navigate');
   assert.equal(subject.metadata.has_execution_map, true);
+  assert.ok(subjectCapabilities(subject).includes('editable'));
+  assert.ok(subjectContracts(subject).includes('work_record.execution_map.edit'));
+  assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.controls'));
   assert.ok(subject.capabilities.includes('work_record.execution_map.edit'));
   assert.ok(subject.views.includes('work_record.step.timeline'));
   assert.ok(subject.controls.includes('execution_map.json.editor'));
@@ -45,6 +55,7 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
   assert.equal(subject.state.health.state, 'impossible');
   assert.equal(subject.state.automatic_replay_allowed, false);
   assert.equal(subject.artifacts[0].kind, 'trace');
+  assert.ok(subjectLegacyViews(subject).includes('work_record.retirement'));
   assert.ok(subject.views.includes('work_record.retirement'));
   assert.ok(subject.capabilities.includes('work_record.retirement.inspect'));
 });
@@ -64,12 +75,15 @@ test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
   assert.ok(subject.capabilities.includes('inspectable'));
   assert.ok(subject.capabilities.includes('verifier-target'));
   assert.ok(subject.capabilities.includes('work_record.verifier_report.view'));
+  assert.ok(subjectContracts(subject).includes('work_record.verifier_report.view'));
+  assert.ok(subjectFacets(subject).some((facet) => facet.key === 'work_record.verifier_report'));
   assert.ok(!subject.capabilities.includes('work_record.execution_map.edit'));
   assert.ok(subject.views.includes('work_record.execution_map.postconditions'));
   assert.ok(subject.views.includes('work_record.claims'));
   assert.ok(subject.views.includes('work_record.claim_results'));
   assert.ok(subject.views.includes('work_record.verifier_report'));
   assert.ok(!subject.controls.includes('execution_map.json.editor'));
+  assert.deepEqual(subjectLegacyControls(subject), ['health.status']);
   assert.equal(subject.metadata.claim_count, 2);
   assert.equal(subject.metadata.claim_result_count, 2);
 });

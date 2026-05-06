@@ -17,6 +17,101 @@ function textList(values = []) {
     .filter(Boolean);
 }
 
+function uniqueTextList(values = []) {
+  return [...new Set(textList(values))];
+}
+
+function objectList(values = []) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter((value) => value && typeof value === 'object' && !Array.isArray(value))
+    .map((value) => cloneJson(value));
+}
+
+function uniqueObjects(values = [], keyFn = (value) => JSON.stringify(value)) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const key = keyFn(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+export function isLegacyOperationContract(value = '') {
+  return text(value).includes('.');
+}
+
+export function subjectRawCapabilities(subject = {}) {
+  return uniqueTextList(subject.capabilities);
+}
+
+export function subjectCapabilities(subject = {}) {
+  return subjectRawCapabilities(subject).filter((capability) => !isLegacyOperationContract(capability));
+}
+
+export function subjectContracts(subject = {}) {
+  return uniqueTextList([
+    ...textList(subject.contracts),
+    ...subjectRawCapabilities(subject).filter(isLegacyOperationContract),
+  ]);
+}
+
+export function subjectReferences(subject = {}) {
+  const metadataReferences = objectList(subject.metadata?.subject_references);
+  return uniqueObjects(
+    [
+      ...objectList(subject.subject_references),
+      ...metadataReferences,
+    ],
+    (reference) => [
+      text(reference.id),
+      text(reference.relationship),
+      text(reference.handle || reference.subject_id),
+    ].join('|'),
+  );
+}
+
+export function subjectFacetHosts(facet = {}) {
+  return objectList(facet.hosts);
+}
+
+export function subjectFacets(subject = {}) {
+  return objectList(subject.facets).map((facet) => ({
+    ...facet,
+    capabilities: uniqueTextList(facet.capabilities),
+    contracts: uniqueTextList(facet.contracts),
+    hosts: subjectFacetHosts(facet),
+  }));
+}
+
+export function subjectHosts(subject = {}) {
+  return subjectFacets(subject).flatMap((facet) => subjectFacetHosts(facet));
+}
+
+export function subjectLegacyViews(subject = {}) {
+  return uniqueTextList(subject.views);
+}
+
+export function subjectLegacyControls(subject = {}) {
+  return uniqueTextList(subject.controls);
+}
+
+export function normalizeWorkbenchSubjectDescriptor(subject = {}) {
+  return {
+    ...cloneJson(subject),
+    capabilities: subjectCapabilities(subject),
+    legacy_capabilities: subjectRawCapabilities(subject),
+    contracts: subjectContracts(subject),
+    subject_references: subjectReferences(subject),
+    facets: subjectFacets(subject),
+    views: subjectLegacyViews(subject),
+    controls: subjectLegacyControls(subject),
+  };
+}
+
 export function createWorkbenchSubject({
   id,
   type,
@@ -24,6 +119,9 @@ export function createWorkbenchSubject({
   owner,
   source = null,
   capabilities = [],
+  contracts = [],
+  subject_references = [],
+  facets = [],
   views = [],
   controls = [],
   persistence = null,
@@ -44,9 +142,15 @@ export function createWorkbenchSubject({
     label: text(label, subjectId),
     owner: text(owner, 'unknown'),
     source: source ? cloneJson(source) : null,
-    capabilities: textList(capabilities),
-    views: textList(views),
-    controls: textList(controls),
+    capabilities: uniqueTextList(capabilities),
+    contracts: uniqueTextList([
+      ...textList(contracts),
+      ...textList(capabilities).filter(isLegacyOperationContract),
+    ]),
+    subject_references: objectList(subject_references),
+    facets: objectList(facets),
+    views: uniqueTextList(views),
+    controls: uniqueTextList(controls),
     persistence: persistence ? cloneJson(persistence) : null,
     artifacts: Array.isArray(artifacts) ? cloneJson(artifacts) : [],
     state: cloneJson(state) || {},
@@ -55,9 +159,21 @@ export function createWorkbenchSubject({
 }
 
 export function subjectCapabilitySet(subject = {}) {
-  return new Set(textList(subject.capabilities));
+  return new Set(subjectRawCapabilities(subject));
 }
 
 export function subjectSupports(subject = {}, capability = '') {
-  return subjectCapabilitySet(subject).has(text(capability));
+  const value = text(capability);
+  if (!value) return false;
+  return subjectCapabilitySet(subject).has(value) || subjectContracts(subject).includes(value);
+}
+
+export function subjectSupportsCapability(subject = {}, capability = '') {
+  const value = text(capability);
+  return !!value && subjectCapabilities(subject).includes(value);
+}
+
+export function subjectSupportsContract(subject = {}, contract = '') {
+  const value = text(contract);
+  return !!value && subjectContracts(subject).includes(value);
 }

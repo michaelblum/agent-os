@@ -75,7 +75,8 @@ operation:
 
 ## Migration Rules
 
-The current `2026-05-03` schema allows only `capabilities[]`, `views[]`, and
+The current `2026-05-03` schema accepts optional `contracts[]`, `facets[]`, and
+`subject_references[]` while preserving `capabilities[]`, `views[]`, and
 `controls[]`. During migration:
 
 1. Keep accepting existing dotted strings in `capabilities[]`.

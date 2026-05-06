@@ -122,9 +122,9 @@ has its own stable identity and `subject_type` — the wiki document does not
 "become" `sigil.agent` when it is referenced. See `CONTEXT.md` (Subject
 Reference) and ADR-0007 for the full model. The live toolkit bridge keeps
 `createWikiPageSubject` wiki-oriented and uses `createSigilAgentSubject` when a
-consumer needs the separate `sigil.agent` domain descriptor; until the v-next
-schema field is promoted, that helper carries the Subject Reference in
-`metadata.subject_references[]`.
+consumer needs the separate `sigil.agent` domain descriptor. That helper writes
+top-level `subject_references[]` and keeps `metadata.subject_references[]` as a
+temporary bridge for older readers.
 
 ### View
 

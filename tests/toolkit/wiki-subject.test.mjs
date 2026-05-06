@@ -5,6 +5,14 @@ import {
   createWikiPageSubjects,
   wikiSubjectType,
 } from '../../packages/toolkit/workbench/wiki-subject.js';
+import {
+  subjectCapabilities,
+  subjectContracts,
+  subjectFacets,
+  subjectHosts,
+  subjectLegacyControls,
+  subjectLegacyViews,
+} from '../../packages/toolkit/workbench/subject.js';
 
 test('wikiSubjectType maps canonical wiki page types', () => {
   assert.equal(wikiSubjectType({ path: 'aos/concepts/runtime-modes.md', type: 'concept' }), 'wiki.concept');
@@ -38,8 +46,14 @@ test('createWikiPageSubject builds a concept subject from wiki list shape', () =
   });
   assert.equal(subject.state.modified_at, 1776393337);
   assert.deepEqual(subject.metadata.tags, ['employer-brand', 'workflow', 'process']);
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
   assert.ok(subject.capabilities.includes('wiki.read'));
   assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
+  assert.ok(subjectContracts(subject).includes('markdown_document.text.patch'));
+  assert.equal(subjectFacets(subject)[0].key, 'wiki-markdown');
+  assert.equal(subjectHosts(subject)[0].entry.value, 'aos://toolkit/components/markdown-workbench/index.html');
+  assert.ok(subjectLegacyViews(subject).includes('wiki.graph'));
+  assert.ok(subjectLegacyControls(subject).includes('save'));
 });
 
 test('createWikiPageSubject preserves plugin workflow capabilities', () => {
@@ -56,7 +70,10 @@ test('createWikiPageSubject preserves plugin workflow capabilities', () => {
   assert.equal(subject.subject_type, 'wiki.workflow');
   assert.equal(subject.source.plugin, 'customize-with-agent');
   assert.deepEqual(subject.metadata.tags, ['meta', 'authoring', 'plugin-creation']);
+  assert.ok(subjectCapabilities(subject).includes('replayable'));
   assert.ok(subject.capabilities.includes('wiki.invoke'));
+  assert.ok(subjectContracts(subject).includes('workflow.project'));
+  assert.ok(subjectFacets(subject).some((facet) => facet.key === 'workflow-projection'));
   assert.ok(subject.views.includes('workflow.graph'));
   assert.ok(subject.controls.includes('invoke'));
 });

@@ -55,6 +55,8 @@ export function createWikiPageSubject(page = {}) {
   const plugin = text(frontmatterValue(page, 'plugin') || page.plugin);
   const namespace = namespaceForPath(path);
   const capabilities = [
+    'inspectable',
+    'editable',
     'wiki.read',
     'wiki.markdown.render',
     'markdown_document.text.patch',
@@ -64,9 +66,63 @@ export function createWikiPageSubject(page = {}) {
   const controls = ['open', 'edit', 'save'];
 
   if (subjectType === 'wiki.workflow') {
+    capabilities.push('replayable');
     capabilities.push('wiki.invoke', 'workflow.project');
     views.push('workflow.graph', 'workflow.source');
     controls.push('invoke');
+  }
+  const source = {
+    kind: 'wiki',
+    path,
+    namespace,
+    plugin: plugin || null,
+  };
+  const facets = [
+    {
+      key: 'wiki-markdown',
+      layer: 'narrative',
+      label: 'Markdown',
+      source,
+      capabilities: ['inspectable', 'editable'],
+      contracts: [
+        'wiki.read',
+        'wiki.markdown.render',
+        'markdown_document.text.patch',
+        'markdown_document.save.requested',
+      ],
+      hosts: [
+        {
+          kind: 'canvas',
+          target_dialect: 'canvas',
+          entry: {
+            kind: 'aos-url',
+            value: 'aos://toolkit/components/markdown-workbench/index.html',
+          },
+          preferred: true,
+        },
+      ],
+    },
+  ];
+
+  if (subjectType === 'wiki.workflow') {
+    facets.push({
+      key: 'workflow-projection',
+      layer: 'descriptor',
+      label: 'Workflow Projection',
+      source,
+      capabilities: ['inspectable', 'replayable'],
+      contracts: ['workflow.project', 'wiki.invoke'],
+      hosts: [
+        {
+          kind: 'canvas',
+          target_dialect: 'canvas',
+          entry: {
+            kind: 'aos-url',
+            value: 'aos://toolkit/components/wiki-kb/index.html',
+          },
+        },
+      ],
+    });
   }
 
   return createWorkbenchSubject({
@@ -74,13 +130,9 @@ export function createWikiPageSubject(page = {}) {
     type: subjectType,
     label: name,
     owner: namespace,
-    source: {
-      kind: 'wiki',
-      path,
-      namespace,
-      plugin: plugin || null,
-    },
+    source,
     capabilities,
+    facets,
     views,
     controls,
     persistence: {

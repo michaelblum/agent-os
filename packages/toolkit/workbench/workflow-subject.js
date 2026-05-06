@@ -265,10 +265,42 @@ export function createWikiWorkflowSubject(input = {}) {
       plugin: root.plugin,
     },
     capabilities: [
+      'inspectable',
+      'replayable',
       'wiki.read',
       'workflow.project',
       'workflow.chain.inspect',
       ...(hasInvocableChildren ? ['wiki.invoke'] : []),
+    ],
+    facets: [
+      {
+        key: 'workflow-chain',
+        layer: 'descriptor',
+        label: 'Workflow Chain',
+        source: {
+          kind: 'wiki_workflow',
+          path: root.path,
+          namespace,
+          plugin: root.plugin,
+        },
+        capabilities: ['inspectable', 'replayable'],
+        contracts: [
+          'workflow.project',
+          'workflow.chain.inspect',
+          ...(hasInvocableChildren ? ['wiki.invoke'] : []),
+        ],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://toolkit/components/wiki-kb/index.html',
+            },
+            preferred: true,
+          },
+        ],
+      },
     ],
     views: ['workflow.chain', 'workflow.graph', 'workflow.source', 'workflow.artifacts'],
     controls: ['open', 'inspect.step', ...(hasInvocableChildren ? ['invoke.child_workflow'] : [])],

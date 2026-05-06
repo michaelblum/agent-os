@@ -1,8 +1,9 @@
 # AOS Workbench Subject v-next Sketch
 
-Status: design sketch. This is not the active JSON Schema. The live schema is
+Status: design sketch. The live JSON Schema remains
 [`aos-workbench-subject.schema.json`](aos-workbench-subject.schema.json) with
-`schema_version: "2026-05-03"`.
+`schema_version: "2026-05-03"`, and now accepts the optional v-next
+compatibility fields described here.
 
 This sketch records the target shape that follows ADR-0001 through ADR-0010:
 Subjects remain stable units of identity, Facets are concrete projections inside

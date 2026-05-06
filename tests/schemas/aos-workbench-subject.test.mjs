@@ -63,6 +63,52 @@ test('toolkit workbench subject helper emits schema-valid descriptors', async ()
   }));
 });
 
+test('subject schema accepts optional v-next compatibility fields', async () => {
+  await validate(createWorkbenchSubject({
+    id: 'sigil.agent:default',
+    type: 'sigil.agent',
+    label: 'Default',
+    owner: 'sigil',
+    capabilities: ['inspectable', 'editable', 'sigil.agent.preview'],
+    contracts: ['sigil.agent.appearance'],
+    subject_references: [
+      {
+        id: 'sigil-agent-narrative-source',
+        relationship: 'narrative_source',
+        handle: 'wiki:sigil/agents/default.md',
+        subject_id: 'wiki:sigil/agents/default.md',
+        subject_type: 'wiki.entity',
+        facet_key: 'wiki',
+        layer: 'narrative',
+        role: 'source',
+      },
+    ],
+    facets: [
+      {
+        key: 'narrative',
+        layer: 'narrative',
+        label: 'Agent Narrative',
+        source_ref: 'sigil-agent-narrative-source',
+        capabilities: ['inspectable', 'editable'],
+        contracts: ['markdown_document.text.patch'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://toolkit/components/markdown-workbench/index.html',
+            },
+            preferred: true,
+          },
+        ],
+      },
+    ],
+    views: ['markdown.source', 'markdown.preview'],
+    controls: ['text.editor', 'save'],
+  }));
+});
+
 test('current workbench adopters emit schema-valid subject descriptors', async () => {
   await validate(buildMarkdownWorkbenchSubject(createMarkdownWorkbenchState({
     path: 'docs/example.md',

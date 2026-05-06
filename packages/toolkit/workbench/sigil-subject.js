@@ -64,12 +64,75 @@ export function createSigilAgentSubject(page = {}, options = {}) {
       agent_id: agentId,
     },
     capabilities: [
+      'inspectable',
+      'editable',
       'wiki.read',
       'wiki.markdown.render',
       'markdown_document.text.patch',
       'markdown_document.save.requested',
       'sigil.agent.preview',
       'sigil.agent.appearance',
+    ],
+    subject_references: [reference],
+    facets: [
+      {
+        key: 'narrative',
+        layer: 'narrative',
+        label: 'Agent Narrative',
+        source_ref: reference.id,
+        capabilities: ['inspectable', 'editable'],
+        contracts: [
+          'wiki.read',
+          'wiki.markdown.render',
+          'markdown_document.text.patch',
+          'markdown_document.save.requested',
+        ],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://toolkit/components/markdown-workbench/index.html',
+            },
+            preferred: true,
+          },
+        ],
+      },
+      {
+        key: 'avatar-preview',
+        layer: 'artifacts',
+        label: 'Avatar Preview',
+        capabilities: ['inspectable'],
+        contracts: ['sigil.agent.preview'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://sigil/renderer/index.html',
+            },
+          },
+        ],
+      },
+      {
+        key: 'appearance-controls',
+        layer: 'controls',
+        label: 'Appearance Controls',
+        capabilities: ['editable'],
+        contracts: ['sigil.agent.appearance'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://sigil/studio/index.html',
+            },
+          },
+        ],
+      },
     ],
     views: [
       'markdown.source',

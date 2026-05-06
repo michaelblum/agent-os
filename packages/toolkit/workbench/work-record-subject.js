@@ -79,8 +79,59 @@ function workRecordControls(record) {
   return legacyWorkRecordControls(record.type);
 }
 
+function labelFromKey(key = '') {
+  return text(key)
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function layerForWorkRecordView(view = '') {
+  if (view.includes('intent')) return 'narrative';
+  if (view.includes('execution_map') || view.includes('timeline')) return 'descriptor';
+  if (view.includes('evidence') || view.includes('claims') || view.includes('verifier_report')) return 'artifacts';
+  if (view.includes('health') || view.includes('retirement')) return 'health';
+  return 'descriptor';
+}
+
+function workRecordWorkbenchHost(preferred = false) {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value: 'aos://toolkit/components/work-record-workbench/index.html',
+    },
+    ...(preferred ? { preferred: true } : {}),
+  };
+}
+
+function workRecordFacets(record) {
+  const viewFacets = workRecordViews(record).map((view, index) => ({
+    key: view,
+    layer: layerForWorkRecordView(view),
+    label: labelFromKey(view),
+    capabilities: ['inspectable'],
+    contracts: [],
+    hosts: [workRecordWorkbenchHost(index === 0)],
+  }));
+  const controlFacets = record.readOnly ? [] : [{
+    key: 'work_record.controls',
+    layer: 'controls',
+    label: 'Work Record Controls',
+    capabilities: ['editable'],
+    contracts: workRecordControls(record),
+    hosts: [workRecordWorkbenchHost()],
+  }];
+  return [...viewFacets, ...controlFacets];
+}
+
 function legacyWorkRecordCapabilities(kind) {
   const base = [
+    'inspectable',
+    'editable',
+    'verifier-target',
     'work_record.intent.edit',
     'work_record.evidence.view',
     'work_record.health.view',
@@ -139,6 +190,7 @@ export function createWorkRecordSubject(record = {}) {
     owner: DEFAULT_OWNER,
     source: workRecordSource(normalized),
     capabilities: workRecordCapabilities(normalized),
+    facets: workRecordFacets(normalized),
     views: workRecordViews(normalized),
     controls: workRecordControls(normalized),
     persistence: normalized.readOnly ? null : {

@@ -28,6 +28,12 @@ import {
   setSelectedItemFractalPulseIntensity,
   setSelectedItemHoverSpin,
 } from '../../apps/sigil/radial-item-editor/model.js'
+import {
+  subjectCapabilities,
+  subjectContracts,
+  subjectFacets,
+  subjectHosts,
+} from '../../packages/toolkit/workbench/subject.js'
 
 test('editableRadialItems exposes the current glTF radial item subjects', () => {
   assert.deepEqual(editableRadialItems(DEFAULT_SIGIL_RADIAL_ITEMS).map((item) => item.id), [
@@ -239,9 +245,17 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.equal(subject.owner, 'sigil.radial-item-editor')
   assert.equal(subject.state.canvas_id, 'preview')
   assert.equal(subject.state.object_count, 6)
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable', 'exportable'])
   assert.ok(subject.capabilities.includes('canvas_object.registry'))
   assert.ok(subject.capabilities.includes('canvas_object.effects.patch'))
   assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
+  assert.ok(subjectContracts(subject).includes('canvas_object.transform.patch'))
+  assert.deepEqual(subjectFacets(subject).map((facet) => facet.key), [
+    'object-registry',
+    'object-controls',
+    'radial-preview',
+  ])
+  assert.equal(subjectHosts(subject)[0].entry.value, 'preview')
 })
 
 test('radial item editor lock-in payload is detached from later state mutation', () => {

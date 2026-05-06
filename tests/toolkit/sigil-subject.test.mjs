@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSigilAgentSubject } from '../../packages/toolkit/workbench/sigil-subject.js';
+import {
+  subjectCapabilities,
+  subjectContracts,
+  subjectFacets,
+  subjectReferences,
+} from '../../packages/toolkit/workbench/subject.js';
 
 test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki document', () => {
   const subject = createSigilAgentSubject({
@@ -26,8 +32,10 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
     agent_id: 'default',
   });
   assert.equal(subject.state.modified_at, 1776393337);
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
   assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
   assert.ok(subject.capabilities.includes('sigil.agent.preview'));
+  assert.ok(subjectContracts(subject).includes('sigil.agent.appearance'));
   assert.ok(subject.views.includes('sigil.avatar.preview'));
   assert.ok(subject.controls.includes('appearance.controls'));
 
@@ -47,6 +55,13 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
       layer: 'narrative',
       role: 'source',
     },
+  ]);
+  assert.deepEqual(subject.subject_references, subject.metadata.subject_references);
+  assert.equal(subjectReferences(subject).length, 1);
+  assert.deepEqual(subjectFacets(subject).map((facet) => facet.key), [
+    'narrative',
+    'avatar-preview',
+    'appearance-controls',
   ]);
 });
 
