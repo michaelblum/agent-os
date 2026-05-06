@@ -21,6 +21,8 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   const wikiCss = await repoText('packages/toolkit/components/wiki-kb/styles.css');
 
   assert.match(js, /import WikiKB from '\.\.\/wiki-kb\/index\.js'/);
+  assert.match(js, /createMarkdownOpenRequestFromWikiSelection/);
+  assert.match(js, /WIKI_SUBJECT_SELECTION_TYPE/);
   assert.match(html, /\.\.\/wiki-kb\/styles\.css/);
   assert.match(html, /maximize:\s*true/);
   assert.match(html, /resizable:\s*true/);
@@ -35,6 +37,11 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.match(js, /labelMode:\s*'hover'/);
   assert.match(js, /collapsed:\s*true/);
   assert.match(wikiJs, /accepts:\s*\[[^\]]*'fit-view'/s);
+  assert.match(wikiJs, /createWikiSubjectSelectionPayload/);
+  assert.match(wikiJs, /WIKI_SUBJECT_SELECTION_TYPE/);
+  assert.match(wikiJs, /type:\s*node\.type \|\| 'unknown'/);
+  assert.match(wikiJs, /entry_handle:\s*payload\?\.entry_handle/);
+  assert.match(wikiJs, /emits:\s*\[[^\]]*WIKI_SUBJECT_SELECTION_TYPE/s);
   assert.match(wikiJs, /wiki-kb-compact-chrome/);
   assert.match(wikiCss, /\.wiki-kb-graph-main\s*\{/);
   assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell/);

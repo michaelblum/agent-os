@@ -255,6 +255,40 @@ accepting older descriptors that still have dotted strings in
 Do not remove the legacy `views[]` and `controls[]` fields until all readers use
 the compatibility helpers.
 
+### Wiki Subject Selection And Opening
+
+Browser-hosted wiki graph surfaces should bridge graph selection to workbench
+opening through `workbench/wiki-subject-opening.js`, not through private editor
+state. `WikiKB` keeps emitting the legacy `selection` event with node-shaped
+fields (`id`, `path`, `name`, `type`, `tags`, and `plugin`) and also emits the
+explicit `wiki.subject.selection` event for selected graph nodes. The explicit
+payload contains:
+
+```json
+{
+  "type": "wiki.subject.selection",
+  "schema_version": "2026-05-06",
+  "path": "aos/concepts/runtime-modes.md",
+  "entry_handle": "wiki:aos/concepts/runtime-modes.md",
+  "subject": {
+    "type": "aos.workbench.subject"
+  }
+}
+```
+
+Openers should call `createMarkdownOpenRequestFromWikiSelection(selection)` or
+the lower-level `wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection)` and
+`createWikiSubjectOpenRequest(selection)` helpers. Those helpers read descriptors
+through the compatibility API (`subjectFacets`, `subjectHosts`,
+`subjectContracts`, `subjectReferences`, `subjectLegacyViews`, and
+`subjectLegacyControls`) so newer `facets[]` descriptors and older graph
+descriptors remain openable during the migration.
+
+Wiki KB remains generic: it publishes selected wiki identity and a Workbench
+Subject descriptor. Markdown Workbench remains responsible for fetching,
+opening, editing, and saving wiki-backed Markdown through its existing
+`markdown_document.open` and `markdown_document.save.requested` behavior.
+
 Before migration, older helper output often looked like this:
 
 ```json

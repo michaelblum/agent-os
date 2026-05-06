@@ -15,6 +15,10 @@ import {
   applyWikiKBSemanticTarget,
   wikiKBAosRef,
 } from './semantics.js'
+import {
+  createWikiSubjectSelectionPayload,
+  WIKI_SUBJECT_SELECTION_TYPE,
+} from '../../workbench/wiki-subject-opening.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
@@ -103,6 +107,7 @@ export default function WikiKB(options = {}) {
     dom.sidebarEl.classList.remove('open')
     dom.relatedListEl.replaceChildren()
     host?.emit?.('selection', null)
+    host?.emit?.(WIKI_SUBJECT_SELECTION_TYPE, null)
   }
 
   function renderSidebarBody(node) {
@@ -200,6 +205,7 @@ export default function WikiKB(options = {}) {
   }
 
   function emitSelection(node) {
+    const payload = node ? createWikiSubjectSelectionPayload(node) : null
     host?.emit?.('selection', node ? {
       id: node.id,
       path: node.path || node.id,
@@ -207,7 +213,10 @@ export default function WikiKB(options = {}) {
       type: node.type || 'unknown',
       tags: [...node.tags],
       plugin: node.plugin || null,
+      entry_handle: payload?.entry_handle || null,
+      subject: payload?.subject || null,
     } : null)
+    host?.emit?.(WIKI_SUBJECT_SELECTION_TYPE, payload)
   }
 
   function setSelection(node, options = {}) {
@@ -467,7 +476,7 @@ export default function WikiKB(options = {}) {
       name: 'wiki-kb',
       title: 'Wiki KB',
       accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-view', 'fit-view'],
-      emits: ['selection'],
+      emits: ['selection', WIKI_SUBJECT_SELECTION_TYPE],
       channelPrefix: 'wiki-kb',
       defaultSize: { w: 860, h: 580 },
     },

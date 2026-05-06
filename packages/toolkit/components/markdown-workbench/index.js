@@ -1,4 +1,8 @@
 import { renderMarkdown } from '../../markdown/render.js';
+import {
+  createMarkdownOpenRequestFromWikiSelection,
+  WIKI_SUBJECT_SELECTION_TYPE,
+} from '../../workbench/wiki-subject-opening.js';
 import WikiKB from '../wiki-kb/index.js';
 import {
   indentMarkdownSelection,
@@ -209,6 +213,12 @@ export default function MarkdownWorkbench(options = {}) {
       console.warn('[markdown-workbench] initial wiki open failed:', error);
       return null;
     }
+  }
+
+  async function openWikiSubjectSelection(selection) {
+    const request = createMarkdownOpenRequestFromWikiSelection(selection);
+    if (!request) return null;
+    return openWikiPath(request.path, { syncEditor: true, openContent: true });
   }
 
   async function openInitialWikiFromUrl() {
@@ -425,12 +435,14 @@ export default function MarkdownWorkbench(options = {}) {
       contentEl: dom.graph,
       setTitle() {},
       emit(type, payload) {
-        if (type === 'selection' && payload?.path && payload.path !== state.source?.path) {
-          void openWikiPath(payload.path, { syncEditor: true, openContent: true });
-        } else if (type === 'selection' && payload?.path) {
+        if (type === WIKI_SUBJECT_SELECTION_TYPE && payload?.path && payload.path !== state.source?.path) {
+          void openWikiSubjectSelection(payload);
+        } else if (type === WIKI_SUBJECT_SELECTION_TYPE && payload?.path) {
           splitOpen = true;
           sync();
           scheduleEmbeddedGraphFit([260, 520]);
+        } else if (type === 'selection' && payload?.path && !payload.subject && !payload.entry_handle) {
+          void openWikiPath(payload.path, { syncEditor: true, openContent: true });
         }
         emit(`graph.${type}`, payload);
       },

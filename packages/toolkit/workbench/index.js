@@ -1,5 +1,6 @@
 export * from './subject.js';
 export * from './wiki-subject.js';
+export * from './wiki-subject-opening.js';
 export * from './sigil-subject.js';
 export * from './work-record-adapter.js';
 export * from './work-record-capture.js';
