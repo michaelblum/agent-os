@@ -7,6 +7,10 @@ import {
   createWikiWorkflowDescriptor,
   createWikiWorkflowSubject,
 } from '../../packages/toolkit/workbench/workflow-subject.js';
+import {
+  subjectCapabilities,
+  subjectContracts,
+} from '../../packages/toolkit/workbench/subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -117,7 +121,8 @@ test('createWikiWorkflowSubject emits a workflow-chain workbench subject', () =>
   assert.equal(subject.metadata.step_count, 6);
   assert.equal(subject.metadata.child_workflow_count, 5);
   assert.equal(subject.metadata.validation_state, 'valid');
-  assert.ok(subject.capabilities.includes('workflow.chain.inspect'));
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'replayable']);
+  assert.ok(subjectContracts(subject).includes('workflow.chain.inspect'));
   assert.ok(subject.views.includes('workflow.chain'));
   assert.ok(subject.controls.includes('invoke.child_workflow'));
   assert.equal(subject.state.workflow.steps[0].target.subject_id, 'wiki:aos/plugins/employer-brand-profile-intake/SKILL.md');

@@ -43,7 +43,7 @@ test('createWorkRecordSubject projects a browser do_step as a workbench subject'
   assert.ok(facets.find((facet) => facet.key === 'work_record.execution_map.json').contracts.includes('work_record.execution_map.view'));
   assert.ok(facets.find((facet) => facet.key === 'work_record.controls').contracts.includes('work_record.execution_map.edit'));
   assert.ok(subjectHosts(subject).every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'));
-  assert.ok(subject.capabilities.includes('work_record.execution_map.edit'));
+  assert.ok(!subject.capabilities.some((capability) => capability.includes('.')));
   assert.ok(subjectLegacyViews(subject).includes('work_record.step.timeline'));
   assert.ok(subjectLegacyControls(subject).includes('execution_map.json.editor'));
   assert.equal(subject.artifacts.length, 3);
@@ -61,7 +61,7 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
   assert.equal(subject.artifacts[0].kind, 'trace');
   assert.ok(subjectLegacyViews(subject).includes('work_record.retirement'));
   assert.ok(subjectFacets(subject).find((facet) => facet.key === 'work_record.retirement').contracts.includes('work_record.retirement.inspect'));
-  assert.ok(subject.capabilities.includes('work_record.retirement.inspect'));
+  assert.ok(subjectContracts(subject).includes('work_record.retirement.inspect'));
 });
 
 test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
@@ -76,9 +76,9 @@ test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
   assert.equal(subject.state.read_only, true);
   assert.equal(subject.persistence, null);
   assert.equal(subject.artifacts.length, 3);
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'verifier-target', 'exportable']);
   assert.ok(subject.capabilities.includes('inspectable'));
   assert.ok(subject.capabilities.includes('verifier-target'));
-  assert.ok(subject.capabilities.includes('work_record.verifier_report.view'));
   assert.ok(subjectContracts(subject).includes('work_record.verifier_report.view'));
   assert.ok(subjectFacets(subject).find((facet) => facet.key === 'work_record.verifier_report').contracts.includes('work_record.verifier_report.view'));
   assert.ok(!subject.capabilities.includes('work_record.execution_map.edit'));

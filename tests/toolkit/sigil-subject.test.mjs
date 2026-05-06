@@ -36,8 +36,9 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
   });
   assert.equal(subject.state.modified_at, 1776393337);
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
-  assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
-  assert.ok(subject.capabilities.includes('sigil.agent.preview'));
+  assert.deepEqual(subject.capabilities, ['inspectable', 'editable']);
+  assert.ok(subjectContracts(subject).includes('markdown_document.save.requested'));
+  assert.ok(subjectContracts(subject).includes('sigil.agent.preview'));
   assert.ok(subjectContracts(subject).includes('sigil.agent.appearance'));
   assert.ok(subjectLegacyViews(subject).includes('sigil.avatar.preview'));
   assert.ok(subjectLegacyControls(subject).includes('appearance.controls'));

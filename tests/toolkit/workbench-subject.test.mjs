@@ -24,7 +24,8 @@ test('createWorkbenchSubject normalizes the common subject descriptor', () => {
     label: ' Example ',
     owner: 'markdown-workbench',
     source: { kind: 'file', path: 'docs/example.md' },
-    capabilities: ['markdown.render', '', null, 'markdown_document.save.requested'],
+    capabilities: ['inspectable', '', null, 'editable'],
+    contracts: ['markdown.render', '', null, 'markdown_document.save.requested'],
     state: { dirty: true },
   });
 
@@ -33,9 +34,10 @@ test('createWorkbenchSubject normalizes the common subject descriptor', () => {
   assert.equal(subject.id, 'file:docs/example.md');
   assert.equal(subject.subject_type, 'markdown.document');
   assert.equal(subject.label, 'Example');
-  assert.deepEqual(subject.capabilities, ['markdown.render', 'markdown_document.save.requested']);
+  assert.deepEqual(subject.capabilities, ['inspectable', 'editable']);
   assert.deepEqual(subject.contracts, ['markdown.render', 'markdown_document.save.requested']);
   assert.equal(subjectSupports(subject, 'markdown.render'), true);
+  assert.equal(subjectSupportsCapability(subject, 'editable'), true);
   assert.equal(subjectSupportsContract(subject, 'markdown_document.save.requested'), true);
   assert.equal(subjectSupports(subject, 'canvas_object.registry'), false);
 });

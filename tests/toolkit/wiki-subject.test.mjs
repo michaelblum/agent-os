@@ -47,8 +47,9 @@ test('createWikiPageSubject builds a concept subject from wiki list shape', () =
   assert.equal(subject.state.modified_at, 1776393337);
   assert.deepEqual(subject.metadata.tags, ['employer-brand', 'workflow', 'process']);
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
-  assert.ok(subject.capabilities.includes('wiki.read'));
-  assert.ok(subject.capabilities.includes('markdown_document.save.requested'));
+  assert.deepEqual(subject.capabilities, ['inspectable', 'editable']);
+  assert.ok(subjectContracts(subject).includes('wiki.read'));
+  assert.ok(subjectContracts(subject).includes('markdown_document.save.requested'));
   assert.ok(subjectContracts(subject).includes('markdown_document.text.patch'));
   const facets = subjectFacets(subject);
   assert.deepEqual(facets.map((facet) => facet.key), ['wiki-markdown', 'markdown-preview', 'wiki-graph']);
@@ -78,7 +79,8 @@ test('createWikiPageSubject preserves plugin workflow capabilities', () => {
   assert.equal(subject.source.plugin, 'customize-with-agent');
   assert.deepEqual(subject.metadata.tags, ['meta', 'authoring', 'plugin-creation']);
   assert.ok(subjectCapabilities(subject).includes('replayable'));
-  assert.ok(subject.capabilities.includes('wiki.invoke'));
+  assert.deepEqual(subject.capabilities, ['inspectable', 'editable', 'replayable']);
+  assert.ok(subjectContracts(subject).includes('wiki.invoke'));
   assert.ok(subjectContracts(subject).includes('workflow.project'));
   const facets = subjectFacets(subject);
   assert.ok(facets.some((facet) => facet.key === 'workflow-projection'));
@@ -97,7 +99,7 @@ test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
   assert.equal(subject.subject_type, 'wiki.entity');
   assert.equal(subject.owner, 'sigil');
   assert.equal(subject.metadata.wiki_type, 'agent');
-  assert.ok(!subject.capabilities.includes('sigil.agent.preview'));
+  assert.ok(!subjectContracts(subject).includes('sigil.agent.preview'));
   assert.ok(!subjectLegacyViews(subject).includes('sigil.avatar.preview'));
 });
 

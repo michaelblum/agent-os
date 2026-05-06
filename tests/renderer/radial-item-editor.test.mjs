@@ -248,9 +248,10 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.equal(subject.state.canvas_id, 'preview')
   assert.equal(subject.state.object_count, 6)
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable', 'exportable'])
-  assert.ok(subject.capabilities.includes('canvas_object.registry'))
-  assert.ok(subject.capabilities.includes('canvas_object.effects.patch'))
-  assert.ok(subject.capabilities.includes('sigil.radial_item_editor.lock_in'))
+  assert.ok(!subject.capabilities.some((capability) => capability.includes('.')))
+  assert.ok(subjectContracts(subject).includes('canvas_object.registry'))
+  assert.ok(subjectContracts(subject).includes('canvas_object.effects.patch'))
+  assert.ok(subjectContracts(subject).includes('sigil.radial_item_editor.lock_in'))
   assert.ok(subjectContracts(subject).includes('canvas_object.transform.patch'))
   const facets = subjectFacets(subject)
   assert.deepEqual(facets.map((facet) => facet.key), [

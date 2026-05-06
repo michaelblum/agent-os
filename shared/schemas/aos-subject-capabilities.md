@@ -82,8 +82,9 @@ The current `2026-05-03` schema accepts optional `contracts[]`, `facets[]`, and
 1. Keep accepting existing dotted strings in `capabilities[]`.
 2. Add high-level Capability strings in a backward-compatible way.
 3. Add optional `contracts[]` in the v-next schema sketch and helpers.
-4. Move dotted operation/event strings from `capabilities[]` to `contracts[]`
-   only after consumers read both locations.
+4. For migrated writer helpers, stop duplicating dotted operation/event strings
+   in raw `capabilities[]`; emit them through top-level and Facet-local
+   `contracts[]` while keeping reader fallback through `subjectContracts()`.
 5. Treat `views[]` and `controls[]` as legacy summaries derived from Facets,
    Capabilities, and operation contracts.
 

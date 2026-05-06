@@ -267,6 +267,8 @@ export function createWikiWorkflowSubject(input = {}) {
     capabilities: [
       'inspectable',
       'replayable',
+    ],
+    contracts: [
       'wiki.read',
       'workflow.project',
       'workflow.chain.inspect',

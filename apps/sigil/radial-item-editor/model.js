@@ -188,6 +188,8 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
             'inspectable',
             'editable',
             'exportable',
+        ],
+        contracts: [
             'canvas_object.registry',
             'canvas_object.transform.patch',
             'canvas_object.effects.patch',

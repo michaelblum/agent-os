@@ -9,6 +9,11 @@ import {
   markdownDiagnostics,
   openMarkdownDocument,
 } from '../../packages/toolkit/components/markdown-workbench/model.js';
+import {
+  subjectCapabilities,
+  subjectContracts,
+  subjectFacets,
+} from '../../packages/toolkit/workbench/subject.js';
 
 test('markdownDiagnostics builds outline and mermaid counts', () => {
   const diagnostics = markdownDiagnostics('# One\n\n## Two\n\n```mermaid\na-->b\n```\n');
@@ -69,8 +74,10 @@ test('markdown workbench exposes an AOS workbench subject descriptor', () => {
   assert.deepEqual(subject.source, { kind: 'file', path: 'docs/example.md' });
   assert.equal(subject.state.dirty, true);
   assert.equal(subject.state.mermaid_block_count, 1);
-  assert.ok(subject.capabilities.includes('markdown_document.text.patch'));
-  assert.ok(subject.capabilities.includes('markdown.mermaid.detect'));
+  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
+  assert.ok(subjectContracts(subject).includes('markdown_document.text.patch'));
+  assert.ok(subjectContracts(subject).includes('markdown.mermaid.detect'));
+  assert.ok(subjectFacets(subject).find((facet) => facet.key === 'markdown-source').contracts.includes('markdown_document.save.requested'));
 });
 
 test('markdown workbench exposes wiki-backed subjects when opened from wiki', () => {
@@ -100,6 +107,7 @@ test('markdown workbench exposes wiki-backed subjects when opened from wiki', ()
   assert.equal(save.source.kind, 'wiki');
   assert.equal(save.path, 'aos/concepts/runtime-modes.md');
   assert.equal(save.subject.state.dirty, false);
+  assert.ok(subjectContracts(save.subject).includes('markdown_document.save.requested'));
 
   applyMarkdownTextPatch(state, {
     type: 'markdown_document.text.patch',

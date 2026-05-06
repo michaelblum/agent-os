@@ -2,6 +2,7 @@ import { createWorkbenchSubject } from '../../workbench/subject.js';
 import { createWikiPageSubject } from '../../workbench/wiki-subject.js';
 
 export const MARKDOWN_WORKBENCH_SCHEMA_VERSION = '2026-05-03';
+const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').trim();
@@ -185,18 +186,22 @@ export function markdownWorkbenchSnapshot(state) {
 
 export function buildMarkdownWorkbenchSubject(state = {}) {
   const diagnostics = markdownDiagnostics(state.content);
+  const contracts = [
+    'markdown.render',
+    'markdown.diagnostics',
+    'markdown.outline',
+    'markdown.mermaid.detect',
+    'markdown_document.text.patch',
+    'markdown_document.save.requested',
+  ];
   if (state.source?.kind === 'wiki') {
     const subject = createWikiPageSubject({
       ...(state.source.page || {}),
       path: state.source.path || state.path,
     });
-    subject.capabilities = [...new Set([
-      ...subject.capabilities,
-      'markdown.render',
-      'markdown.diagnostics',
-      'markdown.outline',
-      'markdown_document.text.patch',
-      'markdown_document.save.requested',
+    subject.contracts = [...new Set([
+      ...(Array.isArray(subject.contracts) ? subject.contracts : []),
+      ...contracts,
     ])];
     subject.views = [...new Set([...subject.views, 'source', 'markdown.preview', 'outline', 'diagnostics'])];
     subject.controls = [...new Set([...subject.controls, 'text.editor', 'save', 'revert'])];
@@ -221,12 +226,66 @@ export function buildMarkdownWorkbenchSubject(state = {}) {
       path: normalizePath(state.path),
     },
     capabilities: [
-      'markdown.render',
-      'markdown.diagnostics',
-      'markdown.outline',
-      'markdown.mermaid.detect',
-      'markdown_document.text.patch',
-      'markdown_document.save.requested',
+      'inspectable',
+      'editable',
+    ],
+    contracts,
+    facets: [
+      {
+        key: 'markdown-source',
+        layer: 'narrative',
+        label: 'Markdown Source',
+        capabilities: ['inspectable', 'editable'],
+        contracts: ['markdown_document.text.patch', 'markdown_document.save.requested'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: MARKDOWN_WORKBENCH_URL,
+              facet: 'source',
+            },
+            preferred: true,
+          },
+        ],
+      },
+      {
+        key: 'markdown-preview',
+        layer: 'narrative',
+        label: 'Rendered Markdown Preview',
+        capabilities: ['inspectable'],
+        contracts: ['markdown.render', 'markdown.mermaid.detect'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: MARKDOWN_WORKBENCH_URL,
+              facet: 'preview',
+            },
+          },
+        ],
+      },
+      {
+        key: 'markdown-diagnostics',
+        layer: 'descriptor',
+        label: 'Markdown Diagnostics',
+        capabilities: ['inspectable'],
+        contracts: ['markdown.diagnostics', 'markdown.outline'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: MARKDOWN_WORKBENCH_URL,
+              facet: 'diagnostics',
+            },
+          },
+        ],
+      },
     ],
     views: ['source', 'markdown.preview', 'outline', 'diagnostics'],
     controls: ['text.editor', 'save', 'revert'],

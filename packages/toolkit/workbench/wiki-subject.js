@@ -73,6 +73,8 @@ export function createWikiPageSubject(page = {}) {
   const capabilities = [
     'inspectable',
     'editable',
+  ];
+  const contracts = [
     'wiki.read',
     'wiki.markdown.render',
     'markdown_document.text.patch',
@@ -83,7 +85,7 @@ export function createWikiPageSubject(page = {}) {
 
   if (subjectType === 'wiki.workflow') {
     capabilities.push('replayable');
-    capabilities.push('wiki.invoke', 'workflow.project');
+    contracts.push('wiki.invoke', 'workflow.project');
     views.push('workflow.graph', 'workflow.source');
     controls.push('invoke');
   }
@@ -155,6 +157,7 @@ export function createWikiPageSubject(page = {}) {
     owner: namespace,
     source,
     capabilities,
+    contracts,
     facets,
     views,
     controls,

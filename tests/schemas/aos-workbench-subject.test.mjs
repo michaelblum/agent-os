@@ -69,8 +69,8 @@ test('subject schema accepts optional v-next compatibility fields', async () => 
     type: 'sigil.agent',
     label: 'Default',
     owner: 'sigil',
-    capabilities: ['inspectable', 'editable', 'sigil.agent.preview'],
-    contracts: ['sigil.agent.appearance'],
+    capabilities: ['inspectable', 'editable'],
+    contracts: ['sigil.agent.preview', 'sigil.agent.appearance'],
     subject_references: [
       {
         id: 'sigil-agent-narrative-source',

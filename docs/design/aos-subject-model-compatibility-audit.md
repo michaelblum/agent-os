@@ -62,9 +62,12 @@ Migration direction:
 
 Schema-design status: `shared/schemas/aos-subject-capabilities.md` now records
 the v0 high-level Capability registry and the active subject schema accepts
-optional `contracts[]` for dotted operation/event strings. Runtime helpers keep
-legacy dotted strings readable from `capabilities[]` while new readers use the
-compatibility helpers in `packages/toolkit/workbench/subject.js`.
+optional `contracts[]` for dotted operation/event strings. Runtime readers keep
+legacy dotted strings readable from `capabilities[]` through the compatibility
+helpers in `packages/toolkit/workbench/subject.js`. The current writer
+migration has moved the representative wiki, Sigil, Work Record, workflow,
+markdown workbench, and radial item descriptors toward high-level raw
+`capabilities[]` plus explicit `contracts[]`.
 
 ### 3. `views[]` and `controls[]` are pre-facet projection fields
 

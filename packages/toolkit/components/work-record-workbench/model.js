@@ -301,8 +301,8 @@ export function workRecordWorkbenchSnapshot(state) {
 export function buildWorkRecordWorkbenchSubject(state = {}) {
   const subject = createWorkRecordSubject(normalizeRecord(state.record));
   const readOnly = workRecordIsReadOnly(state.record);
-  subject.capabilities = [...new Set([
-    ...subject.capabilities,
+  subject.contracts = [...new Set([
+    ...(Array.isArray(subject.contracts) ? subject.contracts : []),
     ...(readOnly ? [] : ['work_record.patch.requested']),
     'work_record.snapshot',
   ])];

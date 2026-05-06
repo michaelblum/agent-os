@@ -158,25 +158,15 @@ function workRecordFacets(record) {
   return [...viewFacets, ...controlFacets];
 }
 
-function legacyWorkRecordCapabilities(kind) {
-  const base = [
-    'inspectable',
-    'editable',
-    'verifier-target',
-    'work_record.intent.edit',
-    'work_record.evidence.view',
-    'work_record.health.view',
-  ];
-  if (kind === 'aos.do_step') return [
-    ...base,
-    'work_record.execution_map.edit',
-    'work_record.do_step.inspect',
-  ];
-  if (kind === 'aos.recipe_health_event') return [
-    ...base,
-    'work_record.retirement.inspect',
-  ];
-  return base;
+function workRecordContracts(record) {
+  return uniqueTextList([
+    ...workRecordViews(record).flatMap((view) => contractsForWorkRecordView(view)),
+    ...workRecordControlContracts(record),
+  ]);
+}
+
+function legacyWorkRecordCapabilities() {
+  return ['inspectable', 'editable', 'verifier-target', 'exportable'];
 }
 
 function v0WorkRecordCapabilities() {
@@ -184,18 +174,12 @@ function v0WorkRecordCapabilities() {
     'inspectable',
     'verifier-target',
     'exportable',
-    'work_record.intent.view',
-    'work_record.execution_map.view',
-    'work_record.evidence.view',
-    'work_record.claims.view',
-    'work_record.verifier_report.view',
-    'work_record.health.view',
   ];
 }
 
 function workRecordCapabilities(record) {
   if (record.format === 'v0') return v0WorkRecordCapabilities();
-  return legacyWorkRecordCapabilities(record.type);
+  return legacyWorkRecordCapabilities();
 }
 
 function workRecordSource(record) {
@@ -221,6 +205,7 @@ export function createWorkRecordSubject(record = {}) {
     owner: DEFAULT_OWNER,
     source: workRecordSource(normalized),
     capabilities: workRecordCapabilities(normalized),
+    contracts: workRecordContracts(normalized),
     facets: workRecordFacets(normalized),
     views: workRecordViews(normalized),
     controls: workRecordControls(normalized),

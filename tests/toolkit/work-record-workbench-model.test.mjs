@@ -17,6 +17,9 @@ import {
   workRecordVerifierCheck,
   workRecordWorkbenchSnapshot,
 } from '../../packages/toolkit/components/work-record-workbench/model.js';
+import {
+  subjectContracts,
+} from '../../packages/toolkit/workbench/subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -45,7 +48,8 @@ test('work record workbench opens a do_step and exposes subject snapshot', () =>
   assert.equal(snapshot.subject.id, 'work-record:collect-company-careers-page');
   assert.equal(snapshot.subject.subject_type, 'aos.do_step');
   assert.deepEqual(snapshot.source, { kind: 'file', path: '/tmp/work-record.json' });
-  assert.ok(snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!snapshot.subject.capabilities.some((capability) => capability.includes('.')));
+  assert.ok(subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
   assert.equal(snapshot.diagnostics.health_state, 'stale');
   assert.equal(snapshot.diagnostics.artifact_count, 3);
 });
@@ -112,7 +116,7 @@ test('work record workbench opens a v0 fixture read-only without lossy rewriting
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
-  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
   assert.ok(!snapshot.subject.controls.includes('patch.request'));
   assert.equal(snapshot.diagnostics.health_state, 'valid');
   assert.equal(snapshot.diagnostics.claim_count, 2);
@@ -152,7 +156,7 @@ test('work record workbench opens generated command v0 records read-only', () =>
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
-  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
   assert.ok(!snapshot.subject.controls.includes('patch.request'));
   assert.equal(snapshot.diagnostics.format, 'v0');
   assert.equal(snapshot.diagnostics.read_only, true);
@@ -182,7 +186,7 @@ test('work record workbench opens generated AOS action v0 records read-only', ()
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
-  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!subjectContracts(snapshot.subject).includes('work_record.patch.requested'));
   assert.ok(!snapshot.subject.controls.includes('patch.request'));
   assert.equal(snapshot.diagnostics.format, 'v0');
   assert.equal(snapshot.diagnostics.read_only, true);

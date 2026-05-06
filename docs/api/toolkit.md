@@ -245,11 +245,45 @@ wiki document Subject, while `createSigilAgentSubject()` emits the separate
 `metadata.subject_references[]` as a temporary compatibility bridge for older
 readers.
 
-Writer policy during migration is additive: keep legacy `views[]` and
-`controls[]` summaries, keep existing dotted `capabilities[]` strings readable,
-and add `contracts[]`, `subject_references[]`, and `facets[]` where the mapping
-is already clear. Do not remove the legacy fields until all readers use the
-compatibility helpers.
+Writer policy during migration is compatibility-first but v-next-shaped for new
+output. Migrated writers should keep legacy `views[]` and `controls[]`
+summaries, put only high-level registry names in raw `capabilities[]`, and put
+dotted operation/event strings in top-level `contracts[]` plus Facet-local
+`contracts[]` where the operation belongs to one projection. Readers must keep
+accepting older descriptors that still have dotted strings in
+`capabilities[]`; use `subjectContracts(subject)` for that compatibility path.
+Do not remove the legacy `views[]` and `controls[]` fields until all readers use
+the compatibility helpers.
+
+Before migration, older helper output often looked like this:
+
+```json
+{
+  "capabilities": [
+    "inspectable",
+    "editable",
+    "wiki.read",
+    "markdown_document.text.patch"
+  ]
+}
+```
+
+The migrated writer shape is:
+
+```json
+{
+  "capabilities": ["inspectable", "editable"],
+  "contracts": ["wiki.read", "markdown_document.text.patch"],
+  "facets": [
+    {
+      "key": "wiki-markdown",
+      "layer": "narrative",
+      "capabilities": ["inspectable", "editable"],
+      "contracts": ["markdown_document.text.patch"]
+    }
+  ]
+}
+```
 
 Concrete helper examples:
 

@@ -83,6 +83,8 @@ export function createSigilAgentSubject(page = {}, options = {}) {
     capabilities: [
       'inspectable',
       'editable',
+    ],
+    contracts: [
       'wiki.read',
       'wiki.markdown.render',
       'markdown_document.text.patch',
