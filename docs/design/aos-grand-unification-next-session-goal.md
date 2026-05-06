@@ -1,30 +1,31 @@
 # AOS Grand Unification Next Session Goal
 
-**Status:** handoff goal for Subject Browser graph-index filters V0
+**Status:** handoff goal for Subject Browser related graph navigation V0
 **Date:** 2026-05-06
 
 ## Goal
 
-Extend the Subject Browser navigation V0 with graph-index-backed filters for
-indexed Subjects and relationships.
+Use the canonical Subject graph/index to add the first related-Subject
+navigation affordances in the Subject Browser.
 
-The Subject Browser search/navigation V0 landed on `main` at `800103d`. AOS can
-now derive a canonical Subject graph/index, surface indexed Subjects through a
-search/list affordance, and maintain a compact navigation trail/history for wiki
-and non-wiki Subject opens. The next practical step is to make the index more
-operable by adding deterministic filters over canonical graph metadata, not over
-the existing wiki graph internals.
+The Subject Browser graph-index filters V0 landed on `main` at `2e337c4`. AOS
+can now derive a canonical Subject graph/index, surface indexed Subjects through
+search/list, filter by graph metadata, and maintain a compact navigation
+trail/history for wiki and non-wiki Subject opens. The next practical step is to
+let agents and humans inspect a focused Subject's graph neighborhood:
+references, facets, and hosts, with open actions only where the target can be
+resolved through existing Subject Browser opening paths.
 
-The immediate next workstream is tracked in GitHub issue #286:
+The immediate next workstream is tracked in GitHub issue #287:
 
 ```text
-https://github.com/michaelblum/agent-os/issues/286
+https://github.com/michaelblum/agent-os/issues/287
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/subject-browser-index-filters-v0
+codex/subject-browser-related-nav-v0
 ```
 
 ## Required Rediscovery
@@ -39,7 +40,7 @@ git branch --format='%(refname:short)' | sort
 ./aos ready
 ./aos show list --json
 ./aos dev recommend --json
-gh issue view 286 --json number,title,state,url,body
+gh issue view 287 --json number,title,state,url,body
 ```
 
 Use focused `./aos dev recommend --json --files ...` arguments after editing so
@@ -53,8 +54,8 @@ Read the fresh-session primer and live entry-path recipe:
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `docs/recipes/layered-subject-expressions.md`
 
-Then read the current Subject model, graph/index, catalog, browser, and
-navigation sources:
+Then read the current Subject model, graph/index, catalog, browser, filtering,
+and navigation sources:
 
 - `CONTEXT.md`
 - `docs/design/aos-grand-unification-plan.md`
@@ -88,6 +89,7 @@ inputs only:
 
 At this handoff, `main` is expected to include:
 
+- `2e337c4 feat: add subject browser index filters`
 - `800103d docs: document subject browser navigation v0`
 - `3e872f0 feat: add subject browser navigation v0`
 - `890515e feat: add subject graph index v0`
@@ -102,37 +104,43 @@ Treat these as orientation only. Rediscover before editing.
 ## Immediate Work Plan
 
 1. Audit current Subject Browser state/model/rendering, Subject graph/index
-   helpers, search/list state, trail/history state, and docs around Subject
-   graph metadata.
-2. Define the smallest V0 filter shape before wiring UI. It should include:
-   - selected filter state;
-   - derived filter option lists from `subject_graph_index`;
-   - composable search + filter result derivation;
-   - stable semantic refs for filter controls;
-   - clear reset and empty/no-match behavior.
-3. Prefer high-leverage filters that are already present in the graph/index:
-   subject type, relationship type, layer, capability, and health. Implement at
-   least two in the first slice; leave clean structure for additional filters if
-   doing all five would make the slice too broad.
-4. Render compact filter controls in the existing Subject Browser index area.
-   Keep the surface utilitarian and avoid a broad visual redesign.
+   helpers, index search/filter state, trail/history state, and docs around
+   Subject References, Facets, Hosts, and Subject Entry Handles.
+2. Define the smallest V0 focused-subject details shape before wiring UI. It
+   should include:
+   - focused Subject id / entry handle;
+   - outgoing and incoming Subject Reference edge summaries;
+   - Facet summaries and Host references for the focused Subject;
+   - related target resolution against existing indexed Subjects and catalog
+     entries;
+   - stable semantic refs for focus/details/open controls;
+   - clear empty/unresolved states.
+3. Add focus behavior from the Subject index. Prefer a simple "Inspect" or
+   row-selection action over a broad router or new URL scheme.
+4. Add open actions only for related Subjects that resolve to existing wiki or
+   catalog entries. Unresolved graph targets should remain visible and
+   inspectable but disabled/read-only.
 5. Preserve existing wiki graph projection, text search/list behavior,
-   navigation trail/history, and Work Record catalog opening.
+   graph-index filters, navigation trail/history, and Work Record catalog
+   opening.
 6. Add focused tests proving:
-   - filter options derive from canonical graph/index fields;
-   - search and filters compose deterministically;
-   - reset and no-match states are stable;
-   - wiki and Work Record opening/trail behavior remain intact;
+   - details/neighborhood derivation is deterministic from `subject_graph_index`;
+   - outgoing/incoming reference edges, Facets, and Hosts are represented;
+   - resolvable related targets can open through existing paths;
+   - unresolved targets are visible but not openable;
+   - existing search/filter/trail/opening behavior remains intact;
    - no dependency on `views[]`, `controls[]`, or dotted raw `capabilities[]`;
    - stable semantic refs exist for `./aos see/do`.
-7. Update docs/API with the V0 filter shape, scope, non-goals, and relationship
-   to the underlying Subject graph/index.
+7. Update docs/API with the V0 related-navigation shape, scope, non-goals, and
+   relationship to the underlying Subject graph/index.
 8. Run the workflow router with focused `--files`, then focused tests,
    router-selected tests, `git diff --check`, and `./aos ready`.
 9. Perform one live AOS verification:
    - launch the Subject Browser;
    - inspect with `./aos see`;
-   - use `./aos do` to operate filter controls and open a filtered Subject;
+   - use `./aos do` to focus a Subject and inspect related graph details;
+   - open one resolvable related Subject if present, or confirm disabled
+     unresolved behavior if the fixture graph has no resolvable relation;
    - confirm existing wiki and non-wiki opening still work;
    - clean up created canvases;
    - record exact commands/results.
@@ -140,16 +148,19 @@ Treat these as orientation only. Rediscover before editing.
 
 ## Acceptance Criteria
 
-- Subject Browser exposes graph-index-backed filters over indexed Subjects.
-- Filters derive from canonical `subject_graph_index` metadata, not wiki graph
-  internals.
-- Search and filters compose deterministically.
-- Tests cover filter option derivation, filtered results, reset/empty states,
-  and preservation of existing opening/trail behavior.
+- Subject Browser can focus an indexed Subject and derive a deterministic
+  details/neighborhood view from `subject_graph_index`.
+- The view includes reference edges plus Facet/Host summaries for the focused
+  Subject.
+- Open actions are enabled only for resolvable related Subjects and reuse
+  existing wiki/catalog open paths.
+- Tests cover deterministic details derivation, resolvable vs unresolved related
+  targets, semantic refs, and preservation of search/filter/trail/opening
+  behavior.
 - Live AOS verification uses `./aos see` and `./aos do` against stable semantic
   refs or state-guarded coordinates and cleans up canvases afterward.
-- Docs distinguish filters from graph derivation and from the existing wiki
-  graph projection.
+- Docs distinguish graph-neighborhood navigation from the underlying graph
+  derivation and from the existing wiki graph projection.
 
 ## Guardrails
 
@@ -161,15 +172,16 @@ Treat these as orientation only. Rediscover before editing.
   live dependencies.
 - No new public `aos` command surface.
 - No replay/repair implementation, macro playback, or live browser execution.
+- No broad visual redesign or new URL/router system.
 - Keep worktree/canonical content-root rules from `AGENTS.md` in force. The
   singleton daemon is shared across worktrees.
 
-## Next Milestones After Subject Browser Filters V0
+## Next Milestones After Related Graph Navigation V0
 
-1. Add richer Subject Browser navigation actions such as opening related
-   Subjects from reference edges or host/facet summaries.
-2. Add artifact bundle Subjects and make generated artifacts browseable through
+1. Add artifact bundle Subjects and make generated artifacts browseable through
    the same Subject Browser substrate.
+2. Add richer related-node actions once more Subject types are present in the
+   catalog and graph index.
 3. Add live browser execution only behind a separate Workflow-gated design and
    verifier plan.
 4. Retire remaining legacy descriptor adapters once persisted/import evidence
