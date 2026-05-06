@@ -180,6 +180,26 @@ else
     fail "show create/update registry drifted from canvas parser"
 fi
 
+# --- 16. do click help exposes coordinate, browser, and canvas ref target forms ---
+OUT=$(./aos help do click --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+form = next(item for item in data["forms"] if item["id"] == "do-click")
+usage = form["usage"]
+tokens = {arg.get("token") for arg in form["args"]}
+assert "canvas:<canvas-id>/<ref>" in usage, usage
+assert "browser:<session>/<ref>" in usage, usage
+assert "--state-id" in tokens, tokens
+PY
+then
+    pass "do click help exposes ref target forms"
+else
+    fail "do click help is missing ref target forms: $OUT"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"

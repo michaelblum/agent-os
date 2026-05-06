@@ -348,7 +348,7 @@ Primary public verbs:
 
 | Subcommand | Purpose |
 | --- | --- |
-| `click` | click at coordinates |
+| `click` | click coordinates, browser refs, or AOS canvas semantic refs |
 | `hover` | move cursor |
 | `drag` | drag between coordinates |
 | `scroll` | scroll at a point |
@@ -364,9 +364,26 @@ Primary public verbs:
 | `session` | interactive action session |
 | `profiles` | inspect behavior profiles |
 
-Coordinate and browser-target actions accept `--state-id <id>` when the action
-was chosen from a prior `aos see capture` response. Direct one-shot responses
-and session responses report an additive `execution` object:
+`click` supports three target forms:
+
+```bash
+aos do click 500,300
+aos do click browser:<session>/<ref>
+aos do click canvas:<canvas-id>/<ref> --state-id <id>
+```
+
+Use `canvas:<canvas-id>/<ref>` when a target was discovered in
+`aos see capture --canvas <canvas-id> --xray` under `semantic_targets[].ref`.
+The CLI resolves the current AOS-owned canvas semantic target through the fixed
+probe path, rejects missing, disabled, ambiguous, suspended, noninteractive, or
+unsupported segmented canvases with machine-readable errors, and then clicks the
+resolved target center in global CG coordinates. V0 does not dereference a
+historical `state_id`; the id is preserved as correlation metadata for the
+perception the action was chosen from.
+
+Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
+the action was chosen from a prior `aos see capture` response. Direct one-shot
+responses and session responses report an additive `execution` object:
 
 ```json
 {
@@ -384,6 +401,12 @@ family (`cgevent`, `ax`, `applescript`, `playwright`, `canvas`, or `session`), a
 `fallback_used` is reserved for paths that intentionally degrade from a
 preferred semantic strategy. `duration_ms` remains the top-level timing field on
 session responses.
+
+Canvas ref click responses also include the resolved target details, including
+the target dialect, canvas id, ref, local semantic-target center, global click
+point, coordinate space, capture scale factor, and source
+`aos_semantic_targets`. Coordinate fallback remains available for surfaces that
+do not expose a semantic ref or for unsupported segmented canvases.
 
 ## `aos graph`
 

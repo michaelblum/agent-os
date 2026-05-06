@@ -411,9 +411,9 @@ func buildCommandRegistry() -> [CommandDescriptor] {
     let doDryRunArg = flag("dry-run", "--dry-run", "Validate and describe the action without executing it", type: .bool)
 
     reg.append(CommandDescriptor(path: ["do"], summary: "Action — execute mouse, keyboard, AX actions", forms: [
-        InvocationForm(id: "do-click", usage: "aos do click <x,y> [--right] [--double] [--dwell N] [--state-id id]",
+        InvocationForm(id: "do-click", usage: "aos do click <x,y|canvas:<canvas-id>/<ref>|browser:<session>/<ref>> [--right] [--double] [--dwell N] [--state-id id]",
             args: [
-                pos("coords", "Click coordinates as x,y"),
+                pos("target", "Coordinates as x,y, an AOS canvas ref target, or a browser ref target"),
                 flag("right", "--right", "Right-click", type: .bool),
                 flag("double", "--double", "Double-click", type: .bool),
                 flag("dwell", "--dwell", "Dwell time in ms", type: .int),
@@ -423,7 +423,11 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: permActionDryRun,
             output: outJSON,
-            examples: ["aos do click 500,300", "aos do click 500,300 --right"]),
+            examples: [
+                "aos do click 500,300",
+                "aos do click canvas:subject-browser/wiki-subject-browser-v0:subject-list:open:record --state-id see_abc123def456",
+                "aos do click browser:todo/e21"
+            ]),
         InvocationForm(id: "do-hover", usage: "aos do hover <x,y> [--state-id id]",
             args: [pos("coords", "Target coordinates as x,y"), doStateIDArg, doDryRunArg],
             stdin: nil, constraints: nil,

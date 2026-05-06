@@ -311,12 +311,16 @@ func cliClick(args: [String]) {
                             remaining: Array(positional.dropFirst()), flags: args)
         return
     }
+    if let first = positional.first, first.hasPrefix("canvas:") {
+        cliClickCanvasRef(targetString: first, args: args)
+        return
+    }
     let dryRun = hasFlag(args, "--dry-run")
     let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
-        exitError("click requires coordinates (x,y)", code: "MISSING_ARG")
+        exitError("click requires coordinates (x,y), browser:<session>/<ref>, or canvas:<canvas-id>/<ref>", code: "MISSING_ARG")
     }
 
     let isRight = hasFlag(args, "--right")
@@ -351,6 +355,43 @@ func cliClick(args: [String]) {
         exitError(resp.error ?? "click failed", code: resp.code ?? "UNKNOWN")
     }
     cliPrintLegacy(action: "click", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+}
+
+/// `aos do click canvas:<canvas-id>/<ref>` — click a semantic target on an AOS canvas.
+private func cliClickCanvasRef(targetString: String, args: [String]) {
+    let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
+    let isRight = hasFlag(args, "--right")
+    let isDouble = hasFlag(args, "--double")
+    let resolution = resolveCanvasRefClickTarget(targetString)
+
+    var detail: String? = nil
+    if isRight { detail = "right-click" }
+    if isDouble { detail = "double-click" }
+
+    if dryRun {
+        printCanvasRefClickResult(target: resolution.target, detail: detail, dryRun: true, stateID: stateID)
+        return
+    }
+
+    let state = cliSessionState(args: args)
+    if let dwellMs = parseInt(getArg(args, "--dwell")) {
+        state.profile.timing.click_dwell = DelayRange(min: dwellMs, max: dwellMs)
+    }
+
+    let req = ActionRequest(
+        action: "click",
+        x: Double(resolution.point.x),
+        y: Double(resolution.point.y),
+        button: isRight ? "right" : "left",
+        count: isDouble ? 2 : 1,
+        state_id: stateID
+    )
+    let resp = handleClick(req, state: state)
+    if resp.status == "error" {
+        exitError(resp.error ?? "click failed", code: resp.code ?? "UNKNOWN")
+    }
+    printCanvasRefClickResult(target: resolution.target, detail: detail, dryRun: false, stateID: stateID)
 }
 
 /// `aos do hover` — move cursor to coordinates.
