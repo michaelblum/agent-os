@@ -113,10 +113,17 @@ Current adopters publish this as `aos.workbench.subject` so a workbench shell,
 agent, or persistence adapter can inspect different subject kinds without
 knowing their private renderer internals.
 
-Wiki pages are the next natural subject catalog. A wiki page can project as
-`wiki.concept`, `wiki.entity`, `wiki.workflow`, `wiki.reference`, or an
-app-specialized type such as `sigil.agent` while retaining its canonical wiki
-path as source identity.
+Wiki pages are the next natural subject catalog. A wiki document is a Subject
+with a wiki-oriented `subject_type` such as `wiki.concept`, `wiki.entity`,
+`wiki.workflow`, or `wiki.reference`; the wiki path is the source identity of
+that Subject. A domain Subject such as `sigil.agent` may *reference* the wiki
+document as the source of its narrative-Layer Facet, but the domain Subject
+has its own stable identity and `subject_type` — the wiki document does not
+"become" `sigil.agent` when it is referenced. See `CONTEXT.md` (Subject
+Reference) and ADR-0007 for the full model. Some current helpers/tests still
+emit app-specialized subject types directly from wiki paths (e.g. minting a
+`sigil.agent` descriptor whose source is a wiki path); that is legacy
+projection behavior to unwind, not the target model.
 
 ### View
 

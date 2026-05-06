@@ -107,8 +107,11 @@ Chosen defaults:
   - `sigil.radial_menu.item:wiki-graph`
   - `canvas_object:radial.wiki-brain.shell`
 
-### Phase 4: Browser-Compatible Wiki Browser
+### Phase 4: Browser-Hosted Wiki Subject Browser
 
+- The wiki is the first **Subject Browser** (a class of surfaces — see
+  `CONTEXT.md` and ADR-0008 — not a wiki-only concept). Phase 4 builds the
+  Browser-Hosted instance.
 - Make the wiki graph/browser run cleanly in a real browser session as the
   default compatible host.
 - Keep AOS canvas hosting available for runtime-integrated surfaces, but do not
@@ -175,6 +178,11 @@ Chosen defaults:
   see/do`.
 - They can appear as subjects in the wiki browser, but their runtime projection
   remains AOS-owned.
+- Canvas Inspector *may* implement AOS-Native **Subject Browser** behavior when
+  navigating live runtime Subjects (canvas registry, input routes, permission
+  state). That does not force every diagnostic panel into the full Subject
+  Browser contract — it is an additive capability, not a requirement. See
+  ADR-0008.
 
 ## Test Plan
 
