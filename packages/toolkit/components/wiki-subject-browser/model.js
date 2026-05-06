@@ -24,6 +24,12 @@ export const WIKI_SUBJECT_BROWSER_SCHEMA_VERSION = '2026-05-06';
 export const WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID = 'wiki-subject-browser-v0-work-record';
 export const SUBJECT_BROWSER_INDEX_ENTRY_TYPE = 'aos.subject_browser.index_entry';
 export const SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE = 'aos.subject_browser.navigation_entry';
+export const SUBJECT_BROWSER_FOCUS_EVENT_TYPE = 'subject_browser.focus.requested';
+export const SUBJECT_BROWSER_FOCUSED_DETAILS_TYPE = 'aos.subject_browser.focused_subject_details';
+export const SUBJECT_BROWSER_RELATED_REFERENCE_TYPE = 'aos.subject_browser.related_reference';
+export const SUBJECT_BROWSER_RELATED_SUBJECT_TYPE = 'aos.subject_browser.related_subject';
+export const SUBJECT_BROWSER_FOCUSED_FACET_TYPE = 'aos.subject_browser.focused_facet_summary';
+export const SUBJECT_BROWSER_FOCUSED_HOST_TYPE = 'aos.subject_browser.focused_host_reference';
 export const SUBJECT_BROWSER_NAVIGATION_HISTORY_LIMIT = 8;
 export const SUBJECT_BROWSER_NAVIGATION_TRAIL_LIMIT = 5;
 export const SUBJECT_BROWSER_INDEX_FILTER_KEYS = Object.freeze([
@@ -117,6 +123,7 @@ function createSubjectIndexEntry(node = {}) {
     health: node.health ? cloneJson(node.health) : null,
     source_record: cloneJson(record),
     semantic_ref: ref('subject-list', 'entry', key),
+    inspect_ref: ref('subject-list', 'inspect', key),
     open_ref: ref('subject-list', 'open', key),
   };
 }
@@ -322,6 +329,241 @@ export function createSubjectIndexNavigationEntries(subjectGraphIndex = {}, {
   return filtered.sort(compareIndexEntries);
 }
 
+function subjectNodes(subjectGraphIndex = {}) {
+  return arrayValue(subjectGraphIndex.nodes).filter((node) => text(node.kind) === 'subject');
+}
+
+function focusValueParts(focus = {}) {
+  if (typeof focus === 'string') {
+    const value = text(focus);
+    return {
+      subject_node_id: value,
+      subject_id: value,
+      entry_handle: value,
+      key: value,
+    };
+  }
+  const value = objectValue(focus);
+  return {
+    subject_node_id: text(value.subject_node_id || value.subjectNodeId || value.node_id || value.nodeId),
+    subject_id: text(value.subject_id || value.subjectId || value.id),
+    entry_handle: text(value.entry_handle || value.entryHandle || value.handle),
+    key: text(value.key),
+  };
+}
+
+function subjectNodeMatchesFocus(node = {}, focus = {}) {
+  const parts = focusValueParts(focus);
+  const entry = createSubjectIndexEntry(node);
+  return !!(
+    parts.subject_node_id && parts.subject_node_id === node.id
+      || parts.subject_id && parts.subject_id === node.subject_id
+      || parts.entry_handle && parts.entry_handle === node.entry_handle
+      || parts.key && parts.key === entry.key
+  );
+}
+
+function resolveSubjectNode(subjectGraphIndex = {}, focus = {}) {
+  const nodes = subjectNodes(subjectGraphIndex);
+  return nodes.find((node) => subjectNodeMatchesFocus(node, focus)) || null;
+}
+
+function resolveEdgeEndpointNode(subjectGraphIndex = {}, edge = {}, endpoint = 'target') {
+  const nodes = subjectNodes(subjectGraphIndex);
+  if (endpoint === 'source') {
+    const source = text(edge.source);
+    const sourceSubjectId = text(edge.source_subject_id);
+    return nodes.find((node) => (
+      (source && node.id === source)
+        || (sourceSubjectId && node.subject_id === sourceSubjectId)
+    )) || null;
+  }
+
+  const target = text(edge.target);
+  const targetSubjectId = text(edge.target_subject_id);
+  const targetHandle = text(edge.target_handle);
+  return nodes.find((node) => (
+    (target && node.id === target)
+      || (targetSubjectId && node.subject_id === targetSubjectId)
+      || (targetHandle && (node.entry_handle === targetHandle || node.subject_id === targetHandle))
+  )) || null;
+}
+
+function edgeStartsFromSubject(edge = {}, node = {}) {
+  return text(edge.source) === text(node.id)
+    || text(edge.source_subject_id) === text(node.subject_id);
+}
+
+function edgeTargetsSubject(edge = {}, node = {}) {
+  const subjectId = text(node.subject_id);
+  const entryHandle = text(node.entry_handle);
+  return text(edge.target) === text(node.id)
+    || text(edge.target_subject_id) === subjectId
+    || (!!entryHandle && text(edge.target_handle) === entryHandle)
+    || (!!subjectId && text(edge.target_handle) === subjectId);
+}
+
+function endpointFallback(edge = {}, endpoint = 'target') {
+  if (endpoint === 'source') {
+    return {
+      node_id: text(edge.source),
+      subject_id: text(edge.source_subject_id),
+      subject_type: null,
+      handle: null,
+      facet_key: text(edge.source_facet_key) || null,
+      layer: null,
+    };
+  }
+  return {
+    node_id: text(edge.target),
+    subject_id: text(edge.target_subject_id),
+    subject_type: text(edge.target_subject_type) || null,
+    handle: text(edge.target_handle) || null,
+    facet_key: text(edge.target_facet_key) || null,
+    layer: text(edge.target_layer) || null,
+  };
+}
+
+function createRelatedSubjectSummary(subjectGraphIndex = {}, edge = {}, endpoint = 'target') {
+  const node = resolveEdgeEndpointNode(subjectGraphIndex, edge, endpoint);
+  const entry = node ? createSubjectIndexEntry(node) : null;
+  const fallback = endpointFallback(edge, endpoint);
+  const key = entry?.key || navKey(
+    fallback.handle || fallback.subject_id || fallback.node_id || edge.id,
+    'related-subject',
+  );
+  return {
+    type: SUBJECT_BROWSER_RELATED_SUBJECT_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    key,
+    resolved: !!entry,
+    subject_node_id: entry?.subject_node_id || fallback.node_id || null,
+    subject_id: entry?.subject_id || fallback.subject_id || null,
+    subject_type: entry?.subject_type || fallback.subject_type || null,
+    label: entry?.label || fallback.handle || fallback.subject_id || fallback.node_id || 'Unresolved Subject',
+    entry_handle: entry?.entry_handle || fallback.handle || fallback.subject_id || null,
+    facet_key: fallback.facet_key,
+    layer: fallback.layer,
+    source_kind: entry?.source_kind || null,
+    catalog_entry_id: entry?.catalog_entry_id || null,
+    wiki_path: entry?.wiki_path || null,
+    semantic_ref: ref('subject-details', 'related', 'target', key),
+    open_ref: entry ? ref('subject-details', 'related', 'open', entry.key) : null,
+    index_entry: entry ? cloneJson(entry) : null,
+  };
+}
+
+function referenceEdgeKinds(edge = {}) {
+  return text(edge.kind) === 'subject_reference' || text(edge.kind) === 'facet_source_reference';
+}
+
+function createReferenceEdgeSummary(subjectGraphIndex = {}, edge = {}, direction = 'outgoing') {
+  const edgeKey = navKey(edge.id, `${direction}-reference`);
+  return {
+    type: SUBJECT_BROWSER_RELATED_REFERENCE_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    id: text(edge.id),
+    kind: text(edge.kind),
+    direction,
+    relationship: text(edge.relationship, 'references'),
+    reference_id: text(edge.reference_id) || null,
+    role: text(edge.role) || null,
+    source_subject_id: text(edge.source_subject_id) || null,
+    source_facet_key: text(edge.source_facet_key) || null,
+    target_subject_id: text(edge.target_subject_id) || null,
+    target_handle: text(edge.target_handle) || null,
+    target_subject_type: text(edge.target_subject_type) || null,
+    target_facet_key: text(edge.target_facet_key) || null,
+    target_layer: text(edge.target_layer) || null,
+    metadata: edge.metadata ? cloneJson(edge.metadata) : {},
+    related_subject: createRelatedSubjectSummary(
+      subjectGraphIndex,
+      edge,
+      direction === 'incoming' ? 'source' : 'target',
+    ),
+    semantic_ref: ref('subject-details', direction, 'reference', edgeKey),
+  };
+}
+
+function createFocusedFacetSummary(facet = {}, subjectKey = '') {
+  const key = navKey(facet.key, 'facet');
+  return {
+    type: SUBJECT_BROWSER_FOCUSED_FACET_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    ...cloneJson(facet),
+    semantic_ref: ref('subject-details', 'facet', subjectKey, key),
+  };
+}
+
+function createFocusedHostReference(host = {}, subjectKey = '') {
+  const hostKey = navKey(host.id, 'host');
+  return {
+    type: SUBJECT_BROWSER_FOCUSED_HOST_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    ...cloneJson(host),
+    semantic_ref: ref('subject-details', 'host', subjectKey, hostKey),
+  };
+}
+
+export function deriveFocusedSubjectDetails(subjectGraphIndex = {}, focus = {}) {
+  const node = resolveSubjectNode(subjectGraphIndex, focus);
+  if (!node) return null;
+
+  const entry = createSubjectIndexEntry(node);
+  const facets = arrayValue(subjectGraphIndex.facet_summaries)
+    .filter((facet) => text(facet.subject_id) === entry.subject_id)
+    .map((facet) => createFocusedFacetSummary(facet, entry.key));
+  const hosts = arrayValue(subjectGraphIndex.host_references)
+    .filter((host) => text(host.subject_id) === entry.subject_id)
+    .map((host) => createFocusedHostReference(host, entry.key));
+  const referenceEdges = arrayValue(subjectGraphIndex.edges).filter(referenceEdgeKinds);
+  const outgoing_references = referenceEdges
+    .filter((edge) => edgeStartsFromSubject(edge, node))
+    .map((edge) => createReferenceEdgeSummary(subjectGraphIndex, edge, 'outgoing'));
+  const incoming_references = referenceEdges
+    .filter((edge) => edgeTargetsSubject(edge, node) && !edgeStartsFromSubject(edge, node))
+    .map((edge) => createReferenceEdgeSummary(subjectGraphIndex, edge, 'incoming'));
+  const references = [...outgoing_references, ...incoming_references];
+
+  return {
+    type: SUBJECT_BROWSER_FOCUSED_DETAILS_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    key: entry.key,
+    subject_node_id: entry.subject_node_id,
+    subject_id: entry.subject_id,
+    subject_type: entry.subject_type,
+    label: entry.label,
+    owner: entry.owner,
+    entry_handle: entry.entry_handle,
+    source_kind: entry.source_kind,
+    catalog_entry_id: entry.catalog_entry_id,
+    wiki_path: entry.wiki_path,
+    capabilities: cloneJson(entry.capabilities),
+    contracts: cloneJson(entry.contracts),
+    health: entry.health ? cloneJson(entry.health) : null,
+    index_entry: cloneJson(entry),
+    facets,
+    hosts,
+    outgoing_references,
+    incoming_references,
+    summary: {
+      outgoing_reference_count: outgoing_references.length,
+      incoming_reference_count: incoming_references.length,
+      reference_count: references.length,
+      unresolved_reference_count: references.filter((reference) => (
+        reference.related_subject?.resolved !== true
+      )).length,
+      resolved_reference_count: references.filter((reference) => (
+        reference.related_subject?.resolved === true
+      )).length,
+      facet_count: facets.length,
+      host_count: hosts.length,
+    },
+    semantic_ref: ref('subject-details', 'subject', entry.key),
+    clear_ref: ref('subject-details', 'clear'),
+  };
+}
+
 function sequenceNumber(value = 0) {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : 0;
@@ -460,6 +702,37 @@ export function resetSubjectIndexFilters(state) {
   return state.subject_index_filters;
 }
 
+export function applySubjectIndexFocus(state, focus = {}) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  const parts = focusValueParts(focus);
+  state.focused_subject_id = text(parts.subject_id || parts.entry_handle || parts.subject_node_id);
+  state.focused_entry_handle = text(parts.entry_handle);
+  state.last_event = {
+    type: SUBJECT_BROWSER_FOCUS_EVENT_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    subject_id: state.focused_subject_id,
+    entry_handle: state.focused_entry_handle || null,
+  };
+  return state.last_event;
+}
+
+export function clearSubjectIndexFocus(state) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('wiki subject browser state is required');
+  }
+  state.focused_subject_id = '';
+  state.focused_entry_handle = '';
+  state.last_event = {
+    type: SUBJECT_BROWSER_FOCUS_EVENT_TYPE,
+    schema_version: WIKI_SUBJECT_BROWSER_SCHEMA_VERSION,
+    subject_id: '',
+    entry_handle: null,
+  };
+  return state.last_event;
+}
+
 export function createWikiSubjectBrowserState({
   selectedSubject = null,
   selected_subject = selectedSubject,
@@ -485,6 +758,10 @@ export function createWikiSubjectBrowserState({
   navigation_trail = navigationTrail,
   navigationSequence = 0,
   navigation_sequence = navigationSequence,
+  focusedSubjectId = '',
+  focused_subject_id = focusedSubjectId,
+  focusedEntryHandle = '',
+  focused_entry_handle = focusedEntryHandle,
   lastEvent = null,
   last_event = lastEvent,
 } = {}) {
@@ -507,6 +784,10 @@ export function createWikiSubjectBrowserState({
     filters: normalizedFilters,
   });
   const filterCount = subjectIndexFilterCount(normalizedFilters);
+  const focusedSubjectDetails = deriveFocusedSubjectDetails(subjectGraphIndex, {
+    subject_id: focused_subject_id,
+    entry_handle: focused_entry_handle,
+  });
 
   return {
     type: 'wiki_subject_browser.snapshot',
@@ -526,6 +807,10 @@ export function createWikiSubjectBrowserState({
     subject_index_filters_active: filterCount > 0,
     subject_index_entries: subjectIndexEntries,
     subject_index_result_count: subjectIndexEntries.length,
+    focused_subject_id: focusedSubjectDetails?.subject_id || text(focused_subject_id),
+    focused_entry_handle: focusedSubjectDetails?.entry_handle || text(focused_entry_handle),
+    focused_subject_found: !!focusedSubjectDetails,
+    focused_subject_details: focusedSubjectDetails,
     navigation_sequence: Math.max(sequenceNumber(navigation_sequence), maxHistorySequence),
     navigation_history: normalizedHistory,
     navigation_trail: normalizedHistory.slice(-SUBJECT_BROWSER_NAVIGATION_TRAIL_LIMIT),
@@ -549,11 +834,15 @@ export function applyWikiSubjectSelection(state, selection = null) {
     state.selected_path = '';
     state.selected_subject = null;
     state.content_open = false;
+    state.focused_subject_id = '';
+    state.focused_entry_handle = '';
     return null;
   }
 
   state.selected_path = text(selection.path);
   state.selected_subject = selection.subject ? cloneJson(selection.subject) : null;
+  state.focused_subject_id = text(selection.subject?.id || selection.entry_handle || selection.id);
+  state.focused_entry_handle = text(selection.entry_handle || selection.subject?.id);
   return state.last_event;
 }
 
@@ -570,6 +859,8 @@ export function applyWikiSubjectOpenRequested(state, request = null) {
   };
   state.selected_path = text(request.path, state.selected_path);
   state.selected_subject = request.subject ? cloneJson(request.subject) : state.selected_subject;
+  state.focused_subject_id = text(request.subject?.id || request.entry_handle, state.focused_subject_id);
+  state.focused_entry_handle = text(request.entry_handle, state.focused_entry_handle);
   state.content_open = true;
   rememberSubjectNavigationOpen(
     state,
@@ -617,6 +908,8 @@ export function applySubjectOpenRequested(state, request = null) {
     state,
     createSubjectNavigationTrailEntryFromSubjectOpenRequest(request),
   );
+  state.focused_subject_id = text(request.subject?.id || request.entry_handle, state.focused_subject_id);
+  state.focused_entry_handle = text(request.entry_handle, state.focused_entry_handle);
   return state.last_event;
 }
 

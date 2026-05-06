@@ -12,10 +12,12 @@ import MarkdownWorkbench from '../markdown-workbench/index.js';
 import {
   SUBJECT_BROWSER_INDEX_FILTER_KEYS,
   applySubjectIndexFilter,
+  applySubjectIndexFocus,
   applySubjectNavigationQuery,
   applySubjectCatalogLoad,
   applySubjectOpenRequested,
   applySubjectOpenResult,
+  clearSubjectIndexFocus,
   resetSubjectIndexFilters,
   applyWikiSubjectOpenRequested,
   applyWikiSubjectSelection,
@@ -45,6 +47,10 @@ function text(value, fallback = '') {
 
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function sleep(ms) {
@@ -101,6 +107,50 @@ function subjectEntryMetaText(entry = {}) {
   return `${entry.subject_type || 'subject'} · ${facets} facets · ${hosts} hosts · ${refs} refs`;
 }
 
+function subjectDetailsStatusText(details = null) {
+  if (!details) return 'No focus';
+  const summary = objectValue(details.summary);
+  const references = Number(summary.reference_count || 0);
+  const facets = Number(summary.facet_count || 0);
+  const hosts = Number(summary.host_count || 0);
+  return `${references} refs · ${facets} facets · ${hosts} hosts`;
+}
+
+function referenceMetaText(reference = {}) {
+  const target = objectValue(reference.related_subject);
+  const role = text(reference.role);
+  const facet = text(reference.source_facet_key || reference.target_facet_key);
+  const bits = [
+    text(reference.relationship, 'references'),
+    role ? `role ${role}` : '',
+    facet ? `facet ${facet}` : '',
+    target.resolved ? 'resolved' : 'unresolved',
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
+function relatedSubjectMetaText(target = {}) {
+  const bits = [
+    text(target.subject_type, 'subject'),
+    text(target.entry_handle || target.subject_id),
+    text(target.layer) ? `layer ${target.layer}` : '',
+    text(target.facet_key) ? `facet ${target.facet_key}` : '',
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
+function hostReferenceMetaText(host = {}) {
+  const entry = objectValue(host.entry);
+  const bits = [
+    text(host.facet_key, 'facet'),
+    text(host.kind, 'host'),
+    text(host.target_dialect),
+    text(entry.kind),
+    text(entry.value),
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
+
 function subjectFilterOptions(snapshot = {}, filterKey = '') {
   const options = objectValue(snapshot.subject_index_filter_options);
   if (filterKey === 'subject_type') return Array.isArray(options.subject_types) ? options.subject_types : [];
@@ -142,6 +192,9 @@ export default function WikiSubjectBrowser(options = {}) {
   let subjectFiltersResetEl = null;
   let subjectListEl = null;
   let subjectListStatusEl = null;
+  let subjectDetailsSectionEl = null;
+  let subjectDetailsStatusEl = null;
+  let subjectDetailsEl = null;
   let navigationTrailEl = null;
   let navigationTrailStatusEl = null;
   let workbenchRegionEl = null;
@@ -154,6 +207,7 @@ export default function WikiSubjectBrowser(options = {}) {
     if (rootEl) {
       rootEl.dataset.contentOpen = String(snapshot.content_open);
       rootEl.dataset.selectedPath = snapshot.selected_path;
+      rootEl.dataset.focusedSubjectId = snapshot.focused_subject_id || '';
     }
     renderCatalog(snapshot);
     renderSubjectIndex(snapshot);
@@ -255,7 +309,12 @@ export default function WikiSubjectBrowser(options = {}) {
     applyWikiSubjectSelection(state, selection);
     emit(WIKI_SUBJECT_SELECTION_TYPE, selection);
     workbench?.onMessage?.(selection, workbenchHost);
-    if (!workbench) applyWikiSubjectOpenRequested(state, request);
+    if (
+      state.last_open_request?.entry_handle !== request.entry_handle
+      || state.content_open !== true
+    ) {
+      applyWikiSubjectOpenRequested(state, request);
+    }
     syncSnapshot();
     return request;
   }
@@ -263,11 +322,30 @@ export default function WikiSubjectBrowser(options = {}) {
   async function openSubjectIndexEntry(entryKey = '') {
     const snapshot = wikiSubjectBrowserSnapshot(state);
     const entry = (snapshot.subject_index_entries || []).find((candidate) => candidate.key === entryKey);
+    return openSubjectEntry(entry);
+  }
+
+  async function openSubjectEntry(entry = null) {
     if (!entry) return null;
     if (entry.source_kind === 'catalog_entry' && entry.catalog_entry_id) {
       return openCatalogEntry(entry.catalog_entry_id);
     }
     return openWikiNavigationEntry(entry);
+  }
+
+  function relatedSubjectCanOpen(target = {}) {
+    const entry = objectValue(target.index_entry);
+    return target.resolved === true && indexEntryCanOpen(entry);
+  }
+
+  async function openRelatedSubject(target = {}) {
+    if (!relatedSubjectCanOpen(target)) return null;
+    return openSubjectEntry(objectValue(target.index_entry));
+  }
+
+  function inspectSubjectIndexEntry(entry = {}) {
+    applySubjectIndexFocus(state, entry);
+    syncSnapshot();
   }
 
   async function openNavigationTrailEntry(entryKey = '') {
@@ -439,13 +517,17 @@ export default function WikiSubjectBrowser(options = {}) {
         subjectListEl.appendChild(empty);
       } else {
         for (const entry of entries) {
+          const focused = snapshot.focused_subject_id === entry.subject_id
+            || snapshot.focused_entry_handle === entry.entry_handle;
           const item = document.createElement('article');
           item.className = 'wiki-subject-browser-subject-entry';
           item.dataset.subjectId = entry.subject_id;
           item.dataset.entryHandle = entry.entry_handle;
+          item.dataset.focused = String(focused);
           applyWikiSubjectBrowserSemanticTarget(item, {
             id: `subject-index-entry-${entry.key}`,
             name: entry.label,
+            selected: focused,
             aosRef: entry.semantic_ref,
           });
 
@@ -459,20 +541,39 @@ export default function WikiSubjectBrowser(options = {}) {
           meta.className = 'wiki-subject-browser-subject-meta';
           meta.textContent = subjectEntryMetaText(entry);
 
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.disabled = !indexEntryCanOpen(entry);
-          button.dataset.subjectIndexOpen = entry.key;
-          applyWikiSubjectBrowserSemanticTarget(button, {
+          const actions = document.createElement('div');
+          actions.className = 'wiki-subject-browser-subject-actions';
+
+          const inspectButton = document.createElement('button');
+          inspectButton.type = 'button';
+          inspectButton.dataset.subjectIndexInspect = entry.key;
+          applyWikiSubjectBrowserSemanticTarget(inspectButton, {
+            id: `subject-index-inspect-${entry.key}`,
+            name: `Inspect ${entry.label}`,
+            role: 'AXButton',
+            action: 'inspect_subject',
+            current: focused ? 'true' : null,
+            aosRef: entry.inspect_ref,
+          });
+          inspectButton.textContent = 'Inspect';
+          inspectButton.addEventListener('click', () => {
+            inspectSubjectIndexEntry(entry);
+          });
+
+          const openButton = document.createElement('button');
+          openButton.type = 'button';
+          openButton.disabled = !indexEntryCanOpen(entry);
+          openButton.dataset.subjectIndexOpen = entry.key;
+          applyWikiSubjectBrowserSemanticTarget(openButton, {
             id: `subject-index-open-${entry.key}`,
             name: `Open ${entry.label}`,
             role: 'AXButton',
             action: 'open_subject',
-            enabled: !button.disabled,
+            enabled: !openButton.disabled,
             aosRef: entry.open_ref,
           });
-          button.textContent = 'Open';
-          button.addEventListener('click', () => {
+          openButton.textContent = 'Open';
+          openButton.addEventListener('click', () => {
             openSubjectIndexEntry(entry.key).catch((error) => {
               const result = {
                 type: SUBJECT_OPEN_RESULT_TYPE,
@@ -487,11 +588,13 @@ export default function WikiSubjectBrowser(options = {}) {
             });
           });
 
-          item.append(title, meta, button);
+          actions.append(inspectButton, openButton);
+          item.append(title, meta, actions);
           subjectListEl.appendChild(item);
         }
       }
     }
+    renderSubjectDetails(snapshot);
     renderNavigationTrail(snapshot);
   }
 
@@ -520,6 +623,191 @@ export default function WikiSubjectBrowser(options = {}) {
     if (subjectFiltersResetEl) {
       subjectFiltersResetEl.disabled = snapshot.subject_index_filters_active !== true;
     }
+  }
+
+  function renderSubjectDetails(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    if (!subjectDetailsEl || !subjectDetailsStatusEl) return;
+    const details = snapshot.focused_subject_found ? objectValue(snapshot.focused_subject_details) : null;
+    subjectDetailsStatusEl.textContent = subjectDetailsStatusText(details);
+    subjectDetailsEl.replaceChildren();
+
+    if (!details) {
+      const empty = document.createElement('p');
+      empty.className = 'wiki-subject-browser-empty';
+      empty.textContent = 'Inspect a Subject from the index';
+      subjectDetailsEl.appendChild(empty);
+      return;
+    }
+
+    const subject = document.createElement('article');
+    subject.className = 'wiki-subject-browser-details-subject';
+    applyWikiSubjectBrowserSemanticTarget(subject, {
+      id: `subject-details-subject-${details.key}`,
+      name: `Focused Subject ${details.label}`,
+      selected: true,
+      aosRef: details.semantic_ref,
+    });
+    const title = document.createElement('div');
+    title.className = 'wiki-subject-browser-details-title';
+    title.innerHTML = '<strong></strong><span></span>';
+    title.querySelector('strong').textContent = details.label;
+    title.querySelector('span').textContent = details.entry_handle || details.subject_id;
+    const meta = document.createElement('div');
+    meta.className = 'wiki-subject-browser-details-meta';
+    meta.textContent = subjectDetailsStatusText(details);
+    subject.append(title, meta);
+
+    const controls = document.createElement('div');
+    controls.className = 'wiki-subject-browser-details-actions';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    applyWikiSubjectBrowserSemanticTarget(clear, {
+      id: 'subject-details-clear',
+      name: 'Clear focused Subject details',
+      role: 'AXButton',
+      action: 'clear_subject_focus',
+      aosRef: details.clear_ref,
+    });
+    clear.textContent = 'Clear';
+    clear.addEventListener('click', () => {
+      clearSubjectIndexFocus(state);
+      syncSnapshot();
+    });
+    controls.appendChild(clear);
+    subject.appendChild(controls);
+    subjectDetailsEl.appendChild(subject);
+
+    renderReferenceGroup('Outgoing', arrayValue(details.outgoing_references));
+    renderReferenceGroup('Incoming', arrayValue(details.incoming_references));
+    renderFacetGroup(arrayValue(details.facets));
+    renderHostGroup(arrayValue(details.hosts));
+  }
+
+  function renderReferenceGroup(labelText, references = []) {
+    const group = document.createElement('section');
+    group.className = 'wiki-subject-browser-details-group';
+    const heading = document.createElement('h3');
+    heading.textContent = `${labelText} refs`;
+    group.appendChild(heading);
+    if (references.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'wiki-subject-browser-empty';
+      empty.textContent = `No ${labelText.toLowerCase()} Subject References`;
+      group.appendChild(empty);
+      subjectDetailsEl.appendChild(group);
+      return;
+    }
+
+    for (const reference of references) {
+      const target = objectValue(reference.related_subject);
+      const item = document.createElement('article');
+      item.className = 'wiki-subject-browser-related-reference';
+      applyWikiSubjectBrowserSemanticTarget(item, {
+        id: `subject-details-${reference.direction}-reference-${reference.id}`,
+        name: `${labelText} ${reference.relationship}`,
+        aosRef: reference.semantic_ref,
+      });
+
+      const title = document.createElement('div');
+      title.className = 'wiki-subject-browser-related-title';
+      title.innerHTML = '<strong></strong><span></span>';
+      title.querySelector('strong').textContent = target.label || target.entry_handle || 'Unresolved Subject';
+      title.querySelector('span').textContent = referenceMetaText(reference);
+
+      const meta = document.createElement('div');
+      meta.className = 'wiki-subject-browser-details-meta';
+      meta.textContent = relatedSubjectMetaText(target);
+
+      const openButton = document.createElement('button');
+      openButton.type = 'button';
+      openButton.disabled = !relatedSubjectCanOpen(target);
+      applyWikiSubjectBrowserSemanticTarget(openButton, {
+        id: `subject-details-related-open-${target.key || reference.id}`,
+        name: target.resolved ? `Open ${target.label}` : `Unresolved ${target.label}`,
+        role: 'AXButton',
+        action: 'open_subject',
+        enabled: !openButton.disabled,
+        aosRef: target.open_ref || wikiSubjectBrowserAosRef('subject-details', 'related', 'unresolved', target.key || reference.id),
+      });
+      openButton.textContent = target.resolved ? 'Open' : 'Unresolved';
+      openButton.addEventListener('click', () => {
+        openRelatedSubject(target).catch((error) => {
+          const result = {
+            type: SUBJECT_OPEN_RESULT_TYPE,
+            schema_version: wikiSubjectBrowserSnapshot(state).schema_version,
+            status: 'rejected',
+            reason: String(error?.message || error),
+            entry_handle: target.entry_handle,
+          };
+          applySubjectOpenResult(state, result);
+          syncSnapshot();
+        });
+      });
+
+      item.append(title, meta, openButton);
+      group.appendChild(item);
+    }
+    subjectDetailsEl.appendChild(group);
+  }
+
+  function renderFacetGroup(facets = []) {
+    const group = document.createElement('section');
+    group.className = 'wiki-subject-browser-details-group';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Facets';
+    group.appendChild(heading);
+    if (facets.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'wiki-subject-browser-empty';
+      empty.textContent = 'No Facets indexed';
+      group.appendChild(empty);
+      subjectDetailsEl.appendChild(group);
+      return;
+    }
+    for (const facet of facets) {
+      const item = document.createElement('div');
+      item.className = 'wiki-subject-browser-detail-row';
+      applyWikiSubjectBrowserSemanticTarget(item, {
+        id: `subject-details-facet-${facet.key}`,
+        name: facet.label || facet.key,
+        aosRef: facet.semantic_ref,
+      });
+      item.innerHTML = '<strong></strong><span></span>';
+      item.querySelector('strong').textContent = facet.label || facet.key;
+      item.querySelector('span').textContent = `${facet.layer || 'layer'} · ${facet.host_count || 0} hosts`;
+      group.appendChild(item);
+    }
+    subjectDetailsEl.appendChild(group);
+  }
+
+  function renderHostGroup(hosts = []) {
+    const group = document.createElement('section');
+    group.className = 'wiki-subject-browser-details-group';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Hosts';
+    group.appendChild(heading);
+    if (hosts.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'wiki-subject-browser-empty';
+      empty.textContent = 'No Host references indexed';
+      group.appendChild(empty);
+      subjectDetailsEl.appendChild(group);
+      return;
+    }
+    for (const hostReference of hosts) {
+      const item = document.createElement('div');
+      item.className = 'wiki-subject-browser-detail-row';
+      applyWikiSubjectBrowserSemanticTarget(item, {
+        id: `subject-details-host-${hostReference.id}`,
+        name: `${hostReference.facet_key} ${hostReference.kind} host`,
+        aosRef: hostReference.semantic_ref,
+      });
+      item.innerHTML = '<strong></strong><span></span>';
+      item.querySelector('strong').textContent = `${hostReference.facet_key || 'facet'} host`;
+      item.querySelector('span').textContent = hostReferenceMetaText(hostReference);
+      group.appendChild(item);
+    }
+    subjectDetailsEl.appendChild(group);
   }
 
   function renderNavigationTrail(snapshot = wikiSubjectBrowserSnapshot(state)) {
@@ -670,6 +958,13 @@ export default function WikiSubjectBrowser(options = {}) {
             <div class="wiki-subject-browser-list-status" data-role="subject-list-status"></div>
             <div class="wiki-subject-browser-subject-list" data-role="subject-list"></div>
           </section>
+          <section class="wiki-subject-browser-details" aria-label="Focused Subject details" data-role="subject-details-section">
+            <header>
+              <strong>Details</strong>
+              <span data-role="subject-details-status"></span>
+            </header>
+            <div data-role="subject-details"></div>
+          </section>
           <section class="wiki-subject-browser-trail" aria-label="Navigation trail" data-role="navigation-trail-section">
             <header>
               <strong>Trail</strong>
@@ -774,6 +1069,27 @@ export default function WikiSubjectBrowser(options = {}) {
       subjectSearchEl?.addEventListener('input', () => {
         applySubjectNavigationQuery(state, subjectSearchEl.value);
         syncSnapshot();
+      });
+
+      subjectDetailsSectionEl = catalogAside.querySelector('[data-role="subject-details-section"]');
+      const subjectDetailsMarkup = subjectDetailsSectionEl.innerHTML;
+      applyWikiSubjectBrowserSemanticTarget(subjectDetailsSectionEl, {
+        id: 'subject-details',
+        name: 'Focused Subject details',
+        aosRef: wikiSubjectBrowserAosRef('subject-details'),
+      });
+      subjectDetailsSectionEl.innerHTML = subjectDetailsMarkup;
+      subjectDetailsStatusEl = subjectDetailsSectionEl.querySelector('[data-role="subject-details-status"]');
+      subjectDetailsEl = subjectDetailsSectionEl.querySelector('[data-role="subject-details"]');
+      applyWikiSubjectBrowserSemanticTarget(subjectDetailsStatusEl, {
+        id: 'subject-details-status',
+        name: 'Focused Subject details status',
+        aosRef: wikiSubjectBrowserAosRef('subject-details-status'),
+      });
+      applyWikiSubjectBrowserSemanticTarget(subjectDetailsEl, {
+        id: 'subject-details-body',
+        name: 'Focused Subject details body',
+        aosRef: wikiSubjectBrowserAosRef('subject-details-body'),
       });
 
       const navigationTrailSectionEl = catalogAside.querySelector('[data-role="navigation-trail-section"]');

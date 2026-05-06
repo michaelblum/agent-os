@@ -5,17 +5,20 @@ import MarkdownWorkbench from '../../packages/toolkit/components/markdown-workbe
 import WikiSubjectBrowser from '../../packages/toolkit/components/wiki-subject-browser/index.js';
 import {
   applySubjectIndexFilter,
+  applySubjectIndexFocus,
   applySubjectNavigationQuery,
   applySubjectCatalogLoad,
   applySubjectOpenRequested,
   applyWikiSubjectOpenRequested,
   applyWikiSubjectSelection,
   createSubjectIndexNavigationEntries,
+  deriveFocusedSubjectDetails,
   deriveSubjectIndexFilterOptions,
   resetSubjectIndexFilters,
   createWikiSubjectBrowserOpenRequestFromCatalogEntry,
   createWikiSubjectBrowserOpenRequestFromSelection,
   createWikiSubjectBrowserState,
+  SUBJECT_BROWSER_FOCUSED_DETAILS_TYPE,
   SUBJECT_BROWSER_INDEX_ENTRY_TYPE,
   SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE,
   WIKI_SUBJECT_BROWSER_SURFACE,
@@ -27,6 +30,7 @@ import {
   SUBJECT_CATALOG_LOAD_TYPE,
   SUBJECT_OPEN_REQUEST_TYPE,
   WORK_RECORD_WORKBENCH_URL,
+  createSubjectCatalogEntry,
   createWorkRecordSubjectCatalogEntry,
 } from '../../packages/toolkit/workbench/subject-catalog.js';
 import {
@@ -34,6 +38,7 @@ import {
   WIKI_SUBJECT_SELECTION_TYPE,
   createWikiSubjectSelectionPayload,
 } from '../../packages/toolkit/workbench/wiki-subject-opening.js';
+import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 
 const repo = new URL('../../', import.meta.url);
@@ -69,6 +74,92 @@ async function subjectBrowserFixtureState() {
   };
 }
 
+function relatedNavigationFixtureState() {
+  const runtimeSubject = createWikiPageSubject({
+    path: 'aos/concepts/runtime-modes.md',
+    frontmatter: {
+      type: 'concept',
+      name: 'Runtime Modes',
+    },
+  });
+  const sourceSubject = createWorkbenchSubject({
+    id: 'demo:related-source',
+    type: 'aos.demo_subject',
+    label: 'Related Source',
+    owner: 'test',
+    capabilities: ['inspectable'],
+    contracts: ['demo.inspect'],
+    subject_references: [
+      {
+        id: 'runtime-reference',
+        relationship: 'guided_by',
+        handle: runtimeSubject.id,
+        subject_id: runtimeSubject.id,
+        subject_type: runtimeSubject.subject_type,
+        layer: 'narrative',
+        role: 'guide',
+      },
+      {
+        id: 'missing-playbook',
+        relationship: 'origin_subject',
+        handle: 'playbook:missing-flow',
+        subject_type: 'aos.playbook',
+        layer: 'execution_map',
+        role: 'origin',
+      },
+    ],
+    facets: [
+      {
+        key: 'demo-narrative',
+        layer: 'narrative',
+        label: 'Demo Narrative',
+        source_ref: 'runtime-reference',
+        capabilities: ['inspectable'],
+        contracts: ['demo.inspect'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://toolkit/components/wiki-subject-browser/index.html',
+            },
+            preferred: true,
+          },
+        ],
+      },
+      {
+        key: 'demo-health',
+        layer: 'health',
+        label: 'Demo Health',
+        capabilities: ['inspectable'],
+        contracts: ['demo.health.view'],
+        hosts: [
+          {
+            kind: 'canvas',
+            target_dialect: 'canvas',
+            entry: {
+              kind: 'aos-url',
+              value: 'aos://toolkit/components/canvas-inspector/index.html',
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const sourceEntry = createSubjectCatalogEntry({
+    subject: sourceSubject,
+    open_payload: {
+      type: 'demo.inspect',
+      subject_id: sourceSubject.id,
+    },
+  });
+  return createWikiSubjectBrowserState({
+    selected_subject: runtimeSubject,
+    catalog_entries: [sourceEntry],
+  });
+}
+
 test('wiki subject browser state starts graph-first with no content pane open', () => {
   const state = createWikiSubjectBrowserState();
 
@@ -97,6 +188,9 @@ test('wiki subject browser state starts graph-first with no content pane open', 
   assert.equal(state.subject_index_filters_active, false);
   assert.deepEqual(state.subject_index_entries, []);
   assert.equal(state.subject_index_result_count, 0);
+  assert.equal(state.focused_subject_id, '');
+  assert.equal(state.focused_subject_found, false);
+  assert.equal(state.focused_subject_details, null);
   assert.deepEqual(state.navigation_history, []);
   assert.deepEqual(state.navigation_trail, []);
   assert.deepEqual(state.subject_graph_summary, {
@@ -268,6 +362,122 @@ test('wiki subject browser resets filters and keeps stable no-match state', asyn
   assert.deepEqual(snapshot.subject_index_entries, []);
 });
 
+test('wiki subject browser derives focused details deterministically from subject graph index', () => {
+  const state = relatedNavigationFixtureState();
+  const sourceEntry = state.subject_index_entries.find((entry) => entry.subject_id === 'demo:related-source');
+
+  applySubjectIndexFocus(state, sourceEntry);
+  const snapshot = wikiSubjectBrowserSnapshot(state);
+  const details = snapshot.focused_subject_details;
+
+  assert.deepEqual(
+    details,
+    deriveFocusedSubjectDetails(snapshot.subject_graph_index, sourceEntry),
+  );
+  assert.equal(details.type, SUBJECT_BROWSER_FOCUSED_DETAILS_TYPE);
+  assert.equal(details.subject_id, 'demo:related-source');
+  assert.equal(details.entry_handle, 'demo:related-source');
+  assert.equal(details.semantic_ref, 'wiki-subject-browser-v0:subject-details:subject:demo-related-source');
+  assert.equal(sourceEntry.inspect_ref, 'wiki-subject-browser-v0:subject-list:inspect:demo-related-source');
+  assert.deepEqual(details.facets.map((facet) => [facet.key, facet.layer, facet.host_count]), [
+    ['demo-health', 'health', 1],
+    ['demo-narrative', 'narrative', 1],
+  ]);
+  assert.ok(details.facets.every((facet) => (
+    facet.semantic_ref.startsWith('wiki-subject-browser-v0:subject-details:facet:demo-related-source:')
+  )));
+  assert.equal(details.hosts.length, 2);
+  assert.ok(details.hosts.some((host) => (
+    host.facet_key === 'demo-narrative'
+      && host.entry.value === 'aos://toolkit/components/wiki-subject-browser/index.html'
+  )));
+  assert.equal(details.summary.outgoing_reference_count, 3);
+  assert.equal(details.summary.incoming_reference_count, 0);
+  assert.equal(details.summary.resolved_reference_count, 2);
+  assert.equal(details.summary.unresolved_reference_count, 1);
+});
+
+test('wiki subject browser focused details preserve resolvable unresolved and incoming related targets', () => {
+  const state = relatedNavigationFixtureState();
+  const sourceEntry = state.subject_index_entries.find((entry) => entry.subject_id === 'demo:related-source');
+
+  applySubjectIndexFocus(state, sourceEntry);
+  let details = wikiSubjectBrowserSnapshot(state).focused_subject_details;
+  const resolvedTargets = details.outgoing_references
+    .map((reference) => reference.related_subject)
+    .filter((target) => target.resolved);
+  const unresolvedTargets = details.outgoing_references
+    .map((reference) => reference.related_subject)
+    .filter((target) => !target.resolved);
+
+  assert.ok(resolvedTargets.every((target) => target.subject_id === 'wiki:aos/concepts/runtime-modes.md'));
+  assert.ok(resolvedTargets.every((target) => (
+    target.open_ref === 'wiki-subject-browser-v0:subject-details:related:open:wiki-aos-concepts-runtime-modes-md'
+      && target.index_entry.open_ref === 'wiki-subject-browser-v0:subject-list:open:wiki-aos-concepts-runtime-modes-md'
+  )));
+  assert.deepEqual(unresolvedTargets.map((target) => [
+    target.entry_handle,
+    target.subject_type,
+    target.open_ref,
+    target.index_entry,
+  ]), [
+    ['playbook:missing-flow', 'aos.playbook', null, null],
+  ]);
+
+  const targetEntry = state.subject_index_entries.find((entry) => (
+    entry.subject_id === 'wiki:aos/concepts/runtime-modes.md'
+  ));
+  applySubjectIndexFocus(state, targetEntry);
+  details = wikiSubjectBrowserSnapshot(state).focused_subject_details;
+
+  assert.equal(details.subject_id, 'wiki:aos/concepts/runtime-modes.md');
+  assert.equal(details.summary.incoming_reference_count, 2);
+  assert.deepEqual(
+    details.incoming_references.map((reference) => [
+      reference.direction,
+      reference.kind,
+      reference.relationship,
+      reference.related_subject.subject_id,
+      reference.related_subject.resolved,
+    ]),
+    [
+      ['incoming', 'facet_source_reference', 'facet_source_reference', 'demo:related-source', true],
+      ['incoming', 'subject_reference', 'guided_by', 'demo:related-source', true],
+    ],
+  );
+  assert.ok(details.incoming_references.every((reference) => (
+    reference.semantic_ref.startsWith('wiki-subject-browser-v0:subject-details:incoming:reference:')
+  )));
+});
+
+test('wiki subject browser focus preserves index filters trail and catalog opening state', async () => {
+  const { state } = await subjectBrowserFixtureState();
+  applySubjectIndexFilter(state, 'health', 'valid');
+  applySubjectNavigationQuery(state, 'browser');
+  const entry = state.subject_index_entries.find((candidate) => (
+    candidate.subject_id === 'work-record:aos-browser-click-status-2026-05-06'
+  ));
+  const request = createWikiSubjectBrowserOpenRequestFromCatalogEntry(state.catalog_entries[0]);
+  applySubjectOpenRequested(state, request);
+
+  applySubjectIndexFocus(state, entry);
+  const snapshot = wikiSubjectBrowserSnapshot(state);
+
+  assert.deepEqual(snapshot.subject_index_filters, {
+    subject_type: '',
+    relationship_type: '',
+    layer: '',
+    capability: '',
+    health: 'valid',
+  });
+  assert.equal(snapshot.subject_search_query, 'browser');
+  assert.equal(snapshot.subject_index_result_count, 1);
+  assert.equal(snapshot.focused_subject_details.subject_id, entry.subject_id);
+  assert.equal(snapshot.navigation_history.length, 1);
+  assert.equal(snapshot.navigation_trail[0].entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.last_subject_open_request.opener.id, 'work-record-workbench');
+});
+
 test('wiki subject browser bridges wiki selection to open-request payloads', () => {
   const selection = createWikiSubjectSelectionPayload({
     id: 'aos/concepts/runtime-modes.md',
@@ -357,7 +567,7 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.ok(shell.manifest.emits.includes(WIKI_SUBJECT_OPEN_REQUEST_TYPE));
   assert.ok(shell.manifest.emits.includes(SUBJECT_OPEN_REQUEST_TYPE));
   assert.match(indexHtml, /Wiki Subject Browser V0/);
-  assert.match(indexHtml, /index\.js\?subject-browser-index-filters-v0/);
+  assert.match(indexHtml, /index\.js\?subject-browser-related-nav-v0-state/);
   assert.match(indexJs, /loadGraphOnStart:\s*true/);
   assert.match(indexJs, /applyWikiSubjectBrowserSemanticTarget/);
   assert.match(indexJs, /wikiSubjectBrowserAosRef\('root'\)/);
@@ -370,6 +580,9 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /subject-filters-reset/);
   assert.match(indexJs, /subjectFiltersMarkup/);
   assert.match(indexJs, /subject-list/);
+  assert.match(indexJs, /subject-details/);
+  assert.match(indexJs, /subject-index-inspect/);
+  assert.match(indexJs, /subject-details-related-open/);
   assert.match(indexJs, /navigation-trail/);
   assert.match(indexJs, /subject-catalog-open/);
   assert.match(indexJs, /subject-index-open/);
@@ -383,6 +596,8 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(launch, /wiki-subject-browser-v0:subject-search/);
   assert.match(launch, /wiki-subject-browser-v0:subject-filters/);
   assert.match(launch, /wiki-subject-browser-v0:subject-filter:health/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-details/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:inspect:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);
