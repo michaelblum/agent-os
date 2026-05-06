@@ -6,8 +6,6 @@ import {
   subjectContracts,
   subjectFacets,
   subjectHosts,
-  subjectLegacyControls,
-  subjectLegacyViews,
   subjectReferences,
 } from '../../packages/toolkit/workbench/subject.js';
 
@@ -40,15 +38,16 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
   assert.ok(subjectContracts(subject).includes('markdown_document.save.requested'));
   assert.ok(subjectContracts(subject).includes('sigil.agent.preview'));
   assert.ok(subjectContracts(subject).includes('sigil.agent.appearance'));
-  assert.ok(subjectLegacyViews(subject).includes('sigil.avatar.preview'));
-  assert.ok(subjectLegacyControls(subject).includes('appearance.controls'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
 
   assert.deepEqual(subject.metadata.wiki_subject, {
     id: 'wiki:sigil/agents/default.md',
     subject_type: 'wiki.entity',
     path: 'sigil/agents/default.md',
   });
-  assert.deepEqual(subject.metadata.subject_references, [
+  assert.equal('subject_references' in subject.metadata, false);
+  assert.deepEqual(subject.subject_references, [
     {
       id: 'sigil-agent-narrative-source',
       relationship: 'narrative_source',
@@ -60,7 +59,6 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
       role: 'source',
     },
   ]);
-  assert.deepEqual(subject.subject_references, subject.metadata.subject_references);
   assert.equal(subjectReferences(subject).length, 1);
   assert.deepEqual(subjectFacets(subject).map((facet) => facet.key), [
     'narrative',

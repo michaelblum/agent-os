@@ -75,18 +75,17 @@ operation:
 
 ## Migration Rules
 
-The current `2026-05-03` schema accepts optional `contracts[]`, `facets[]`, and
-`subject_references[]` while preserving `capabilities[]`, `views[]`, and
-`controls[]`. During migration:
+The current `2026-05-03` schema accepts `contracts[]`, `facets[]`, and
+`subject_references[]` as the live descriptor fields. During the v-next cutover:
 
-1. Keep accepting existing dotted strings in `capabilities[]`.
-2. Add high-level Capability strings in a backward-compatible way.
-3. Add optional `contracts[]` in the v-next schema sketch and helpers.
-4. For migrated writer helpers, stop duplicating dotted operation/event strings
-   in raw `capabilities[]`; emit them through top-level and Facet-local
-   `contracts[]` while keeping reader fallback through `subjectContracts()`.
-5. Treat `views[]` and `controls[]` as legacy summaries derived from Facets,
-   Capabilities, and operation contracts.
+1. Live writers emit only the high-level Capability names listed above in raw
+   `capabilities[]`.
+2. Dotted operation/event strings are emitted through top-level `contracts[]`
+   and Facet-local `contracts[]`.
+3. Reader fallback for archived descriptors that still placed dotted strings in
+   `capabilities[]` stays isolated in `subjectContracts()`.
+4. `views[]` and `controls[]` are deprecated legacy summaries accepted only at
+   explicit archived-fixture or persisted-import boundaries.
 
 ## Adding A Capability
 

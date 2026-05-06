@@ -3,8 +3,6 @@ import {
   subjectContracts,
   subjectFacets,
   subjectHosts,
-  subjectLegacyControls,
-  subjectLegacyViews,
   subjectReferences,
 } from './subject.js';
 
@@ -93,10 +91,8 @@ export function wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection = {}) {
   const contracts = subjectContracts(subject);
   const facets = subjectFacets(subject);
   const hosts = subjectHosts(subject);
-  const legacyViews = subjectLegacyViews(subject);
-  const legacyControls = subjectLegacyControls(subject);
 
-  const hasWikiRead = contracts.includes('wiki.read') || legacyViews.includes('wiki.graph');
+  const hasWikiRead = contracts.includes('wiki.read');
   const hasMarkdownOpenFacet = facets.some((facet) => {
     const facetContracts = Array.isArray(facet.contracts) ? facet.contracts : [];
     return facet.layer === 'narrative'
@@ -107,10 +103,8 @@ export function wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection = {}) {
     const entry = host?.entry && typeof host.entry === 'object' ? host.entry : {};
     return entry.value === MARKDOWN_WORKBENCH_URL;
   });
-  const hasLegacyMarkdownOpen = legacyViews.includes('markdown.source')
-    && (legacyControls.includes('open') || legacyControls.includes('edit') || legacyControls.includes('save'));
 
-  return hasWikiRead && ((hasMarkdownOpenFacet && hasMarkdownWorkbenchHost) || hasLegacyMarkdownOpen);
+  return hasWikiRead && hasMarkdownOpenFacet && hasMarkdownWorkbenchHost;
 }
 
 export function createWikiSubjectOpenRequest(selection = {}) {

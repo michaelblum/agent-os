@@ -57,7 +57,7 @@ test('wiki subject open request maps selection to markdown workbench open state'
   });
 });
 
-test('wiki subject opener accepts legacy graph-compatible descriptors through readers', () => {
+test('wiki subject opener does not depend on legacy graph descriptor summaries', () => {
   const legacySubject = {
     type: 'aos.workbench.subject',
     schema_version: '2026-05-03',
@@ -76,8 +76,8 @@ test('wiki subject opener accepts legacy graph-compatible descriptors through re
     subject: legacySubject,
   };
 
-  assert.equal(wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection), true);
-  assert.equal(createMarkdownOpenRequestFromWikiSelection(selection).path, 'aos/concepts/legacy.md');
+  assert.equal(wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection), false);
+  assert.equal(createMarkdownOpenRequestFromWikiSelection(selection), null);
 });
 
 test('wiki path resolver can derive paths from subject references', () => {

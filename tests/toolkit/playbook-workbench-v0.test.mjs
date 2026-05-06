@@ -25,6 +25,9 @@ import {
 import {
   workRecordIsReadOnly,
 } from '../../packages/toolkit/components/work-record-workbench/model.js';
+import {
+  subjectFacets,
+} from '../../packages/toolkit/workbench/subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -192,7 +195,9 @@ test('Playbook Workbench V0 hands off emitted records to the existing read-only 
   assert.equal(snapshot.work_record_open.workbench_snapshot.diagnostics.read_only, true);
   assert.equal(snapshot.work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(workRecordIsReadOnly(snapshot.work_record_open.workbench_snapshot.record), true);
-  assert.ok(!snapshot.work_record_open.workbench_snapshot.subject.controls.includes('patch.request'));
+  assert.ok(subjectFacets(snapshot.work_record_open.workbench_snapshot.subject)
+    .some((facet) => facet.key === 'work_record.verifier_report'));
+  assert.equal('controls' in snapshot.work_record_open.workbench_snapshot.subject, false);
 });
 
 test('Playbook Workbench V0 exposes stable semantic refs and no replay/repair/macro controls', async () => {

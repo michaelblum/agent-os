@@ -4,6 +4,10 @@ import {
   runBrowserPlaybookPrototype,
 } from '../../workbench/browser-playbook-prototype.js';
 import {
+  subjectContracts,
+  subjectFacets,
+} from '../../workbench/subject.js';
+import {
   checkPlaybookHarnessGate,
   normalizePlaybookHarnessGate,
 } from '../../workbench/playbook-step-harness.js';
@@ -155,9 +159,11 @@ export function playbookWorkbenchBoundarySummary() {
 }
 
 export function playbookWorkbenchForbiddenControls(subject = {}) {
-  const controls = arrayValue(objectValue(subject).controls).join(' ');
-  const contracts = arrayValue(objectValue(subject).contracts).join(' ');
-  const textSurface = `${controls} ${contracts}`;
+  const contracts = [
+    ...subjectContracts(subject),
+    ...subjectFacets(subject).flatMap((facet) => arrayValue(facet.contracts).map((contract) => text(contract))),
+  ].join(' ');
+  const textSurface = contracts;
   return {
     replay: /replay/i.test(textSurface),
     repair: /repair/i.test(textSurface),

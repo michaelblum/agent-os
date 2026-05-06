@@ -32,7 +32,7 @@ function workRecordId(record = {}) {
   return id;
 }
 
-function legacyWorkRecordViews(kind) {
+function legacyWorkRecordFacetKeys(kind) {
   const base = [
     'work_record.intent',
     'work_record.execution_map.json',
@@ -49,7 +49,7 @@ function legacyWorkRecordViews(kind) {
   return base;
 }
 
-function v0WorkRecordViews() {
+function v0WorkRecordFacetKeys() {
   return [
     'work_record.intent',
     'work_record.execution_map.json',
@@ -62,21 +62,9 @@ function v0WorkRecordViews() {
   ];
 }
 
-function workRecordViews(record) {
-  if (record.format === 'v0') return v0WorkRecordViews();
-  return legacyWorkRecordViews(record.type);
-}
-
-function legacyWorkRecordControls(kind) {
-  const base = ['intent.editor', 'health.status'];
-  if (kind === 'aos.do_step') return [...base, 'execution_map.json.editor'];
-  if (kind === 'aos.recipe_health_event') return [...base, 'retirement.note'];
-  return base;
-}
-
-function workRecordControls(record) {
-  if (record.readOnly) return ['health.status'];
-  return legacyWorkRecordControls(record.type);
+function workRecordFacetKeys(record) {
+  if (record.format === 'v0') return v0WorkRecordFacetKeys();
+  return legacyWorkRecordFacetKeys(record.type);
 }
 
 function labelFromKey(key = '') {
@@ -87,11 +75,11 @@ function labelFromKey(key = '') {
     .join(' ');
 }
 
-function layerForWorkRecordView(view = '') {
-  if (view.includes('intent')) return 'narrative';
-  if (view.includes('execution_map') || view.includes('timeline')) return 'descriptor';
-  if (view.includes('evidence') || view.includes('claims') || view.includes('verifier_report')) return 'artifacts';
-  if (view.includes('health') || view.includes('retirement')) return 'health';
+function layerForWorkRecordFacetKey(key = '') {
+  if (key.includes('intent')) return 'narrative';
+  if (key.includes('execution_map') || key.includes('timeline')) return 'descriptor';
+  if (key.includes('evidence') || key.includes('claims') || key.includes('verifier_report')) return 'artifacts';
+  if (key.includes('health') || key.includes('retirement')) return 'health';
   return 'descriptor';
 }
 
@@ -99,24 +87,24 @@ function uniqueTextList(values = []) {
   return [...new Set(values.map((value) => text(value)).filter(Boolean))];
 }
 
-function contractsForWorkRecordView(view = '') {
+function contractsForWorkRecordFacetKey(key = '') {
   const contracts = [];
-  if (view.includes('intent')) contracts.push('work_record.intent.view');
-  if (view.includes('execution_map')) contracts.push('work_record.execution_map.view');
-  if (view.includes('timeline')) contracts.push('work_record.do_step.inspect');
-  if (view.includes('evidence')) contracts.push('work_record.evidence.view');
-  if (view.includes('claims')) contracts.push('work_record.claims.view');
-  if (view.includes('claim_results')) contracts.push('work_record.claim_results.view');
-  if (view.includes('verifier_report')) contracts.push('work_record.verifier_report.view');
-  if (view.includes('health')) contracts.push('work_record.health.view');
-  if (view.includes('retirement')) contracts.push('work_record.retirement.inspect');
+  if (key.includes('intent')) contracts.push('work_record.intent.view');
+  if (key.includes('execution_map')) contracts.push('work_record.execution_map.view');
+  if (key.includes('timeline')) contracts.push('work_record.do_step.inspect');
+  if (key.includes('evidence')) contracts.push('work_record.evidence.view');
+  if (key.includes('claims')) contracts.push('work_record.claims.view');
+  if (key.includes('claim_results')) contracts.push('work_record.claim_results.view');
+  if (key.includes('verifier_report')) contracts.push('work_record.verifier_report.view');
+  if (key.includes('health')) contracts.push('work_record.health.view');
+  if (key.includes('retirement')) contracts.push('work_record.retirement.inspect');
   return uniqueTextList(contracts);
 }
 
 function workRecordControlContracts(record) {
   if (record.readOnly) return [];
   const contracts = ['work_record.intent.edit'];
-  if (workRecordViews(record).some((view) => view.includes('execution_map'))) {
+  if (workRecordFacetKeys(record).some((key) => key.includes('execution_map'))) {
     contracts.push('work_record.execution_map.edit');
   }
   if (record.type === 'aos.recipe_health_event') {
@@ -139,13 +127,13 @@ function workRecordWorkbenchHost(preferred = false, facet = '') {
 }
 
 function workRecordFacets(record) {
-  const viewFacets = workRecordViews(record).map((view, index) => ({
-    key: view,
-    layer: layerForWorkRecordView(view),
-    label: labelFromKey(view),
+  const projectionFacets = workRecordFacetKeys(record).map((key, index) => ({
+    key,
+    layer: layerForWorkRecordFacetKey(key),
+    label: labelFromKey(key),
     capabilities: ['inspectable'],
-    contracts: contractsForWorkRecordView(view),
-    hosts: [workRecordWorkbenchHost(index === 0, view)],
+    contracts: contractsForWorkRecordFacetKey(key),
+    hosts: [workRecordWorkbenchHost(index === 0, key)],
   }));
   const controlFacets = record.readOnly ? [] : [{
     key: 'work_record.controls',
@@ -155,12 +143,12 @@ function workRecordFacets(record) {
     contracts: workRecordControlContracts(record),
     hosts: [workRecordWorkbenchHost(false, 'controls')],
   }];
-  return [...viewFacets, ...controlFacets];
+  return [...projectionFacets, ...controlFacets];
 }
 
 function workRecordContracts(record) {
   return uniqueTextList([
-    ...workRecordViews(record).flatMap((view) => contractsForWorkRecordView(view)),
+    ...workRecordFacetKeys(record).flatMap((key) => contractsForWorkRecordFacetKey(key)),
     ...workRecordControlContracts(record),
   ]);
 }
@@ -207,8 +195,6 @@ export function createWorkRecordSubject(record = {}) {
     capabilities: workRecordCapabilities(normalized),
     contracts: workRecordContracts(normalized),
     facets: workRecordFacets(normalized),
-    views: workRecordViews(normalized),
-    controls: workRecordControls(normalized),
     persistence: normalized.readOnly ? null : {
       kind: 'agent_handoff',
       request: 'work_record.patch.requested',

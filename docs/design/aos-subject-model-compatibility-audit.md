@@ -1,7 +1,7 @@
 # AOS Subject Model Compatibility Audit
 
-**Status:** compatibility audit after ADR-0001 through ADR-0010
-**Date:** 2026-05-05
+**Status:** compatibility audit with 2026-05-06 v-next cutover notes
+**Date:** 2026-05-06
 
 ## Purpose
 
@@ -36,9 +36,10 @@ Migration direction:
 Migration status: the focused helper slice now keeps Sigil agent wiki documents
 as `wiki.entity` Subjects and adds `createSigilAgentSubject()` for the separate
 `sigil.agent` domain Subject. The live schema remains versioned as
-`2026-05-03`, but it accepts top-level `subject_references[]`; the helper keeps
-the same reference under `metadata.subject_references[]` only as a
-backward-compatible bridge for older readers.
+`2026-05-03`, but it accepts top-level `subject_references[]`. Live helpers now
+write top-level `subject_references[]` only; the remaining
+`metadata.subject_references[]` support is isolated in the legacy reader adapter
+for archived descriptors.
 
 ### 2. `capabilities[]` mixes high-level capabilities and operation contracts
 
@@ -60,14 +61,12 @@ Migration direction:
 - add high-level capabilities in a backward-compatible way before removing any
   dotted strings that existing surfaces or tests inspect.
 
-Schema-design status: `shared/schemas/aos-subject-capabilities.md` now records
-the v0 high-level Capability registry and the active subject schema accepts
-optional `contracts[]` for dotted operation/event strings. Runtime readers keep
-legacy dotted strings readable from `capabilities[]` through the compatibility
-helpers in `packages/toolkit/workbench/subject.js`. The current writer
-migration has moved the representative wiki, Sigil, Work Record, workflow,
-markdown workbench, and radial item descriptors toward high-level raw
-`capabilities[]` plus explicit `contracts[]`.
+Cutover status: `shared/schemas/aos-subject-capabilities.md` records the v0
+high-level Capability registry and the active subject schema constrains
+`capabilities[]` to that registry. Runtime readers keep legacy dotted strings
+readable from archived raw descriptors through `subjectContracts()` in
+`packages/toolkit/workbench/subject.js`, but live writers now emit dotted
+operation/event strings through top-level and Facet-local `contracts[]`.
 
 ### 3. `views[]` and `controls[]` are pre-facet projection fields
 
@@ -77,16 +76,17 @@ operations derived from Capabilities plus Facets.
 
 Migration direction:
 
-- add optional `facets[]` as a compatible extension;
-- keep `views[]` and `controls[]` during migration as legacy summaries;
-- derive future view/control affordances from `facets[]`, `capabilities[]`, and
-  operation contracts once the schema is stable.
+- keep `facets[]` and `facets[].hosts[]` as the live projection model;
+- stop live writers from emitting `views[]` and `controls[]`;
+- derive live view/control affordances from `facets[]`, `capabilities[]`, and
+  operation contracts.
 
-Schema-design status:
+Cutover status:
 `shared/schemas/aos-workbench-subject-vnext.md` sketches the target model, and
-the active `aos-workbench-subject.schema.json` now accepts optional `facets[]`,
-`facets[].hosts[]`, `subject_references[]`, and `contracts[]` while preserving
-`views[]` and `controls[]` as legacy summaries.
+the active `aos-workbench-subject.schema.json` accepts `facets[]`,
+`facets[].hosts[]`, `subject_references[]`, and `contracts[]` as canonical live
+fields. It still accepts deprecated `views[]` and `controls[]` only as explicit
+archived-fixture or persisted-import boundary fields.
 
 ### 4. Work-record origin, references, claims, and verifier output have a v0 sketch
 
@@ -169,6 +169,16 @@ Migration direction:
 
 Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
 
+## 2026-05-06 Cutover Classification
+
+| Hit class | Representative evidence | Decision |
+| --- | --- | --- |
+| Live writers | `wiki-subject.js`, `markdown-workbench/model.js`, `work-record-subject.js`, `browser-playbook-prototype.js`, `workflow-subject.js`, `sigil-subject.js`, and `apps/sigil/radial-item-editor/model.js` | Emit high-level `capabilities[]`, dotted `contracts[]`, concrete `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`; omit `views[]` and `controls[]`. |
+| Live consumers | `wiki-subject-opening.js`, `playbook-workbench/model.js`, and workbench snapshot tests | Derive affordances from `contracts[]`, `facets[]`, and Host entries; do not open from legacy `views[]`/`controls[]`. |
+| Fixture/schema compatibility | `tests/toolkit/workbench-subject.test.mjs` and `tests/schemas/aos-workbench-subject.test.mjs` | Keep one explicit legacy reader boundary for archived descriptors with dotted raw capabilities or `views[]`/`controls[]`; schema marks legacy summaries as deprecated. |
+| Persisted/import boundary | Old helper-shaped Work Record fixtures under `docs/design/fixtures/aos-work-records/` and schema-v0 Work Record fixtures | Preserve Work Record payload adapters; do not emit legacy Workbench Subject summaries from live Work Record Subjects. |
+| Unrelated domain fields | Wiki graph view config, object-transform effect `controls`, object registry capabilities, gateway/session capabilities, and UI window controls | Leave untouched because they are not `aos.workbench.subject` descriptor fields. |
+
 ## Recommended Migration Order
 
 1. Update docs-only drift that does not change behavior: navigation trail
@@ -179,14 +189,15 @@ Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
    have initial sketches; Work Record origin/references, Claims,
    Postconditions, Claim Results, verifier reports, and Verifier Health now have
    an initial v0 sketch in `shared/schemas/aos-work-record-v0.md`.
-3. Add a capability registry document and decide whether operation contracts stay
-   in `capabilities[]` or move to `contracts[]`. The registry now recommends
-   `contracts[]`, with a migration period where consumers read both locations.
+3. Add a capability registry document and move operation contracts to
+   `contracts[]`. The registry now makes `contracts[]` canonical for live
+   writers, with `subjectContracts()` as the archived descriptor fallback.
 4. Migrate wiki/domain subject helpers: split wiki document Subjects from domain
-   Subjects and update tests.
-5. Add optional fields to `aos.workbench.subject` fixtures and helpers, then
-   gradually move Subject Browser consumers from `views[]`/`controls[]` toward
-   `facets[]` plus capabilities/contracts.
+   Subjects and update tests. This is done for the representative helpers.
+5. Move Workbench Subject helpers and representative consumers from
+   `views[]`/`controls[]` toward `facets[]` plus capabilities/contracts. The
+   bounded v-next cutover has done this for the representative live writers and
+   consumers listed in the classification table.
 
 ## Verification Notes
 

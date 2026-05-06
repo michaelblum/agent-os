@@ -80,14 +80,10 @@ export function createWikiPageSubject(page = {}) {
     'markdown_document.text.patch',
     'markdown_document.save.requested',
   ];
-  const views = ['markdown.source', 'markdown.preview', 'wiki.graph'];
-  const controls = ['open', 'edit', 'save'];
 
   if (subjectType === 'wiki.workflow') {
     capabilities.push('replayable');
     contracts.push('wiki.invoke', 'workflow.project');
-    views.push('workflow.graph', 'workflow.source');
-    controls.push('invoke');
   }
   const source = {
     kind: 'wiki',
@@ -148,6 +144,17 @@ export function createWikiPageSubject(page = {}) {
         canvasComponentHost(WIKI_KB_URL, { facet: 'workflow' }),
       ],
     });
+    facets.push({
+      key: 'workflow-controls',
+      layer: 'controls',
+      label: 'Workflow Controls',
+      source,
+      capabilities: ['replayable'],
+      contracts: ['wiki.invoke'],
+      hosts: [
+        canvasComponentHost(WIKI_KB_URL, { facet: 'workflow-controls' }),
+      ],
+    });
   }
 
   return createWorkbenchSubject({
@@ -159,8 +166,6 @@ export function createWikiPageSubject(page = {}) {
     capabilities,
     contracts,
     facets,
-    views,
-    controls,
     persistence: {
       kind: 'wiki_write',
       request: 'markdown_document.save.requested',

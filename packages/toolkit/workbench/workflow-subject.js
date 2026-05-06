@@ -304,8 +304,6 @@ export function createWikiWorkflowSubject(input = {}) {
         ],
       },
     ],
-    views: ['workflow.chain', 'workflow.graph', 'workflow.source', 'workflow.artifacts'],
-    controls: ['open', 'inspect.step', ...(hasInvocableChildren ? ['invoke.child_workflow'] : [])],
     artifacts: descriptor.artifacts,
     state: {
       workflow: descriptor,

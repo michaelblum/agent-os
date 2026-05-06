@@ -45,6 +45,93 @@ function normalizeSource(source = null, path = 'untitled.md') {
   };
 }
 
+function uniqueTextList(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).map((value) => text(value)).filter(Boolean))];
+}
+
+function uniqueObjects(values = [], keyFn = (value) => JSON.stringify(value)) {
+  const seen = new Set();
+  const out = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const key = keyFn(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function markdownWorkbenchHost(facet = '', preferred = false) {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value: MARKDOWN_WORKBENCH_URL,
+      ...(facet ? { facet } : {}),
+    },
+    ...(preferred ? { preferred: true } : {}),
+  };
+}
+
+function markdownWorkbenchFacets() {
+  return [
+    {
+      key: 'markdown-source',
+      layer: 'narrative',
+      label: 'Markdown Source',
+      capabilities: ['inspectable', 'editable'],
+      contracts: ['markdown_document.text.patch', 'markdown_document.save.requested'],
+      hosts: [markdownWorkbenchHost('source', true)],
+    },
+    {
+      key: 'markdown-preview',
+      layer: 'narrative',
+      label: 'Rendered Markdown Preview',
+      capabilities: ['inspectable'],
+      contracts: ['markdown.render', 'markdown.mermaid.detect'],
+      hosts: [markdownWorkbenchHost('preview')],
+    },
+    {
+      key: 'markdown-diagnostics',
+      layer: 'descriptor',
+      label: 'Markdown Diagnostics',
+      capabilities: ['inspectable'],
+      contracts: ['markdown.diagnostics', 'markdown.outline'],
+      hosts: [markdownWorkbenchHost('diagnostics')],
+    },
+  ];
+}
+
+function mergeFacets(existing = [], next = []) {
+  const byKey = new Map();
+  for (const facet of [...(Array.isArray(existing) ? existing : []), ...next]) {
+    if (!facet?.key) continue;
+    const current = byKey.get(facet.key);
+    if (!current) {
+      byKey.set(facet.key, { ...facet });
+      continue;
+    }
+    byKey.set(facet.key, {
+      ...current,
+      ...facet,
+      capabilities: uniqueTextList([
+        ...(Array.isArray(current.capabilities) ? current.capabilities : []),
+        ...(Array.isArray(facet.capabilities) ? facet.capabilities : []),
+      ]),
+      contracts: uniqueTextList([
+        ...(Array.isArray(current.contracts) ? current.contracts : []),
+        ...(Array.isArray(facet.contracts) ? facet.contracts : []),
+      ]),
+      hosts: uniqueObjects([
+        ...(Array.isArray(current.hosts) ? current.hosts : []),
+        ...(Array.isArray(facet.hosts) ? facet.hosts : []),
+      ]),
+    });
+  }
+  return [...byKey.values()];
+}
+
 export function markdownDiagnostics(content = '') {
   const source = String(content ?? '');
   const lines = source.split('\n');
@@ -203,8 +290,7 @@ export function buildMarkdownWorkbenchSubject(state = {}) {
       ...(Array.isArray(subject.contracts) ? subject.contracts : []),
       ...contracts,
     ])];
-    subject.views = [...new Set([...subject.views, 'source', 'markdown.preview', 'outline', 'diagnostics'])];
-    subject.controls = [...new Set([...subject.controls, 'text.editor', 'save', 'revert'])];
+    subject.facets = mergeFacets(subject.facets, markdownWorkbenchFacets());
     subject.state = {
       ...subject.state,
       dirty: !!state.dirty,
@@ -230,65 +316,7 @@ export function buildMarkdownWorkbenchSubject(state = {}) {
       'editable',
     ],
     contracts,
-    facets: [
-      {
-        key: 'markdown-source',
-        layer: 'narrative',
-        label: 'Markdown Source',
-        capabilities: ['inspectable', 'editable'],
-        contracts: ['markdown_document.text.patch', 'markdown_document.save.requested'],
-        hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: MARKDOWN_WORKBENCH_URL,
-              facet: 'source',
-            },
-            preferred: true,
-          },
-        ],
-      },
-      {
-        key: 'markdown-preview',
-        layer: 'narrative',
-        label: 'Rendered Markdown Preview',
-        capabilities: ['inspectable'],
-        contracts: ['markdown.render', 'markdown.mermaid.detect'],
-        hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: MARKDOWN_WORKBENCH_URL,
-              facet: 'preview',
-            },
-          },
-        ],
-      },
-      {
-        key: 'markdown-diagnostics',
-        layer: 'descriptor',
-        label: 'Markdown Diagnostics',
-        capabilities: ['inspectable'],
-        contracts: ['markdown.diagnostics', 'markdown.outline'],
-        hosts: [
-          {
-            kind: 'canvas',
-            target_dialect: 'canvas',
-            entry: {
-              kind: 'aos-url',
-              value: MARKDOWN_WORKBENCH_URL,
-              facet: 'diagnostics',
-            },
-          },
-        ],
-      },
-    ],
-    views: ['source', 'markdown.preview', 'outline', 'diagnostics'],
-    controls: ['text.editor', 'save', 'revert'],
+    facets: markdownWorkbenchFacets(),
     persistence: {
       kind: 'agent_handoff',
       request: 'markdown_document.save.requested',

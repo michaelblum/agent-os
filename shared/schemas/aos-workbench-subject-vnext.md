@@ -2,22 +2,24 @@
 
 Status: design sketch. The live JSON Schema remains
 [`aos-workbench-subject.schema.json`](aos-workbench-subject.schema.json) with
-`schema_version: "2026-05-03"`, and now accepts the optional v-next
-compatibility fields described here.
+`schema_version: "2026-05-03"`, and now treats the v-next fields described here
+as the canonical live descriptor shape.
 
 This sketch records the target shape that follows ADR-0001 through ADR-0010:
 Subjects remain stable units of identity, Facets are concrete projections inside
 Layers, Facets declare Host implementations, Capabilities are high-level
 contracts, and dotted operation strings move toward `contracts[]`.
 
-## Compatibility Goals
+## Cutover Goals
 
 - Keep the current required identity fields: `type`, `schema_version`, `id`,
   `subject_type`, `label`, and `owner`.
-- Add optional fields first: `facets[]`, `subject_references[]`, `contracts[]`,
-  and structured verification metadata.
-- Keep `views[]` and `controls[]` during migration as legacy summaries.
-- Preserve current helpers until consumers can read the v-next fields.
+- Use `facets[]`, `facets[].hosts[]`, `subject_references[]`, `contracts[]`,
+  and structured verification metadata for live descriptors.
+- Keep raw `capabilities[]` limited to the high-level registry in
+  `aos-subject-capabilities.md`.
+- Treat `views[]` and `controls[]` as deprecated boundary fields only for
+  archived fixtures or old persisted imports.
 
 ## Top-Level Shape
 
@@ -38,9 +40,7 @@ contracts, and dotted operation strings move toward `contracts[]`.
   "artifacts": [],
   "verification": null,
   "state": {},
-  "metadata": {},
-  "views": [],
-  "controls": []
+  "metadata": {}
 }
 ```
 
@@ -52,9 +52,10 @@ not a relationship to another Subject. Cross-Subject relationships use
 [`aos-subject-capabilities.md`](aos-subject-capabilities.md). Dotted operation
 or event contracts should move to `contracts[]`.
 
-`views[]` and `controls[]` remain compatibility fields for the 2026-05-03
-helpers. New consumers should derive openable views and operations from
-`facets[]`, `capabilities[]`, and `contracts[]`.
+Live consumers derive openable projections and operations from `facets[]`,
+`facets[].hosts[]`, `capabilities[]`, and `contracts[]`. The live schema still
+accepts deprecated `views[]` and `controls[]` at explicit legacy boundaries, but
+live writers should not emit them.
 
 ## Subject References
 
@@ -229,9 +230,7 @@ because it documents Sigil.
         }
       ]
     }
-  ],
-  "views": ["source", "markdown.preview", "outline"],
-  "controls": ["text.editor", "save", "revert"]
+  ]
 }
 ```
 
@@ -331,9 +330,7 @@ source for its narrative Facet.
         }
       ]
     }
-  ],
-  "views": ["overview", "radial-menu.descriptor"],
-  "controls": ["radial-menu.editor"]
+  ]
 }
 ```
 
@@ -342,8 +339,6 @@ the actual source-of-truth path for the descriptor it emits.
 
 ## Open Schema Decisions
 
-- Whether the new schema field should be named `subject_references[]`,
-  `references[]`, or `links[]`.
 - Whether `contracts[]` should stay a string list or become structured records
   with `id`, `kind`, `version`, and `schema_ref`.
 - Whether `facets[].capabilities` is useful or redundant once Facets already

@@ -10,6 +10,7 @@ import {
 import {
   subjectCapabilities,
   subjectContracts,
+  subjectFacets,
 } from '../../packages/toolkit/workbench/subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -123,8 +124,9 @@ test('createWikiWorkflowSubject emits a workflow-chain workbench subject', () =>
   assert.equal(subject.metadata.validation_state, 'valid');
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'replayable']);
   assert.ok(subjectContracts(subject).includes('workflow.chain.inspect'));
-  assert.ok(subject.views.includes('workflow.chain'));
-  assert.ok(subject.controls.includes('invoke.child_workflow'));
+  assert.ok(subjectFacets(subject).some((facet) => facet.key === 'workflow-chain'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
   assert.equal(subject.state.workflow.steps[0].target.subject_id, 'wiki:aos/plugins/employer-brand-profile-intake/SKILL.md');
 });
 

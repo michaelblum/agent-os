@@ -235,8 +235,6 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
                 ],
             },
         ],
-        views: ['3d.preview', 'object.registry', 'production.radial.preview'],
-        controls: ['object.transform', 'object.visibility', 'object.effects', 'scene.orbit', 'lock_in'],
         persistence: {
             kind: 'agent_handoff',
             request: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,

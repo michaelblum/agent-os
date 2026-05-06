@@ -123,8 +123,9 @@ has its own stable identity and `subject_type` — the wiki document does not
 Reference) and ADR-0007 for the full model. The live toolkit bridge keeps
 `createWikiPageSubject` wiki-oriented and uses `createSigilAgentSubject` when a
 consumer needs the separate `sigil.agent` domain descriptor. That helper writes
-top-level `subject_references[]` and keeps `metadata.subject_references[]` as a
-temporary bridge for older readers.
+top-level `subject_references[]`; the only remaining
+`metadata.subject_references[]` support is the explicit legacy reader adapter
+for archived descriptors.
 
 ### View
 

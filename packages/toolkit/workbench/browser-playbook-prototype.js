@@ -4,6 +4,7 @@ import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record-verifier.js';
 
 export const BROWSER_PLAYBOOK_PROTOTYPE_VERSION = '2026-05-browser-playbook-prototype-v0';
 export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'playbook-prototype:browser-click-status';
+export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
 
 const DEFAULT_OWNER = 'aos-playbook-prototype';
 
@@ -88,6 +89,68 @@ function prototypeArtifacts({ playbookStep, evidenceSource, record = null }) {
   return artifacts;
 }
 
+function playbookWorkbenchHost(preferred = false, facet = '') {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value: PLAYBOOK_WORKBENCH_URL,
+      ...(facet ? { facet } : {}),
+    },
+    browser_compatible: true,
+    ...(preferred ? { preferred: true } : {}),
+  };
+}
+
+function prototypeFacets({ recordId = '' } = {}) {
+  return [
+    {
+      key: 'playbook-step-descriptor',
+      layer: 'descriptor',
+      label: 'Playbook Step Descriptor',
+      capabilities: ['inspectable'],
+      contracts: ['playbook_step.inspect'],
+      hosts: [playbookWorkbenchHost(true, 'descriptor')],
+    },
+    {
+      key: 'playbook-simulate-controls',
+      layer: 'controls',
+      label: 'Simulation Controls',
+      capabilities: ['verifier-target'],
+      contracts: ['playbook_step.simulate.once'],
+      hosts: [playbookWorkbenchHost(false, 'simulate')],
+    },
+    {
+      key: 'harness-result',
+      layer: 'artifacts',
+      label: 'Harness Result',
+      capabilities: ['inspectable', 'verifier-target'],
+      contracts: ['playbook_step.harness_result.view'],
+      hosts: [playbookWorkbenchHost(false, 'harness-result')],
+    },
+    {
+      key: 'work-record-summary',
+      layer: 'artifacts',
+      label: 'Work Record Summary',
+      capabilities: ['inspectable', 'exportable'],
+      contracts: [
+        'work_record.open.read_only',
+        ...(recordId ? ['work_record.summary.view'] : []),
+      ],
+      hosts: [playbookWorkbenchHost(false, 'work-record-summary')],
+    },
+    {
+      key: 'work-record-verifier-report',
+      layer: 'health',
+      label: 'Verifier Report',
+      capabilities: ['verifier-target'],
+      contracts: ['work_record.verifier_report.view'],
+      hosts: [playbookWorkbenchHost(false, 'verifier-report')],
+    },
+  ];
+}
+
 export function createBrowserPlaybookPrototypeSubject({
   id = BROWSER_CLICK_STATUS_PROTOTYPE_ID,
   label = '',
@@ -124,19 +187,17 @@ export function createBrowserPlaybookPrototypeSubject({
     capabilities: [
       'inspectable',
       'verifier-target',
-      'browser-compatible',
+      'exportable',
+    ],
+    contracts: [
+      'playbook_step.inspect',
       'playbook_step.simulate.once',
+      'playbook_step.harness_result.view',
       'work_record.open.read_only',
+      ...(recordId ? ['work_record.summary.view'] : []),
+      'work_record.verifier_report.view',
     ],
-    views: [
-      'playbook_step.descriptor',
-      'playbook_step.harness_result',
-      'work_record.summary',
-      'work_record.verifier_report',
-    ],
-    controls: [
-      'playbook_step.simulate_once',
-    ],
+    facets: prototypeFacets({ recordId }),
     persistence: null,
     artifacts: prototypeArtifacts({
       playbookStep: step,

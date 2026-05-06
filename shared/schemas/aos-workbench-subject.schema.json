@@ -13,6 +13,23 @@
       },
       "default": []
     },
+    "capabilityName": {
+      "type": "string",
+      "enum": [
+        "inspectable",
+        "editable",
+        "verifier-target",
+        "replayable",
+        "exportable"
+      ]
+    },
+    "capabilityList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capabilityName"
+      },
+      "default": []
+    },
     "subjectReference": {
       "type": "object",
       "required": ["id", "relationship"],
@@ -106,7 +123,7 @@
           "minLength": 1
         },
         "capabilities": {
-          "$ref": "#/$defs/stringList"
+          "$ref": "#/$defs/capabilityList"
         },
         "contracts": {
           "$ref": "#/$defs/stringList"
@@ -153,7 +170,7 @@
       "type": ["object", "null"]
     },
     "capabilities": {
-      "$ref": "#/$defs/stringList"
+      "$ref": "#/$defs/capabilityList"
     },
     "contracts": {
       "$ref": "#/$defs/stringList"
@@ -173,10 +190,14 @@
       "default": []
     },
     "views": {
-      "$ref": "#/$defs/stringList"
+      "$ref": "#/$defs/stringList",
+      "deprecated": true,
+      "description": "Legacy descriptor summary accepted only at archived fixture or persisted import boundaries. Live writers should emit facets[] instead."
     },
     "controls": {
-      "$ref": "#/$defs/stringList"
+      "$ref": "#/$defs/stringList",
+      "deprecated": true,
+      "description": "Legacy descriptor summary accepted only at archived fixture or persisted import boundaries. Live writers should derive controls from capabilities[], contracts[], and facets[]."
     },
     "persistence": {
       "type": ["object", "null"]

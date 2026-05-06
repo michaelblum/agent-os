@@ -10,6 +10,8 @@ import {
   createBrowserPlaybookPrototype,
   createBrowserPlaybookPrototypeWorkRecordOpenMessage,
   runBrowserPlaybookPrototype,
+  subjectContracts,
+  subjectFacets,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } from '../../packages/toolkit/workbench/index.js';
 import {
@@ -88,8 +90,12 @@ if errors:
 }
 
 function assertNoReplayOrRepairControls(subject) {
-  const controls = subject.controls.join(' ');
-  assert.doesNotMatch(controls, /replay|repair|macro|background/i);
+  const contracts = [
+    ...subjectContracts(subject),
+    ...subjectFacets(subject).flatMap((facet) => facet.contracts || []),
+  ].join(' ');
+  assert.doesNotMatch(contracts, /replay|repair|macro|background/i);
+  assert.equal('controls' in subject, false);
   assert.equal(subject.state.autonomous_replay_allowed, false);
   assert.equal(subject.state.autonomous_repair_allowed, false);
   assert.equal(subject.state.macro_playback_allowed, false);
@@ -110,9 +116,12 @@ test('browser Playbook prototype exposes a browser-compatible one-step subject d
   assert.equal(candidate.run_policy.autonomous_replay_allowed, false);
   assert.equal(candidate.run_policy.autonomous_repair_allowed, false);
   assert.equal(candidate.subject.subject_type, 'aos.playbook_prototype');
-  assert.ok(candidate.subject.capabilities.includes('browser-compatible'));
-  assert.ok(candidate.subject.capabilities.includes('work_record.open.read_only'));
-  assert.deepEqual(candidate.subject.controls, ['playbook_step.simulate_once']);
+  assert.deepEqual(candidate.subject.capabilities, ['inspectable', 'verifier-target', 'exportable']);
+  assert.ok(subjectContracts(candidate.subject).includes('playbook_step.simulate.once'));
+  assert.ok(subjectContracts(candidate.subject).includes('work_record.open.read_only'));
+  assert.ok(subjectFacets(candidate.subject).some((facet) => facet.key === 'playbook-simulate-controls'));
+  assert.equal('views' in candidate.subject, false);
+  assert.equal('controls' in candidate.subject, false);
   assert.equal(candidate.subject.state.target_dialect, 'browser');
   assert.equal(candidate.subject.state.target_with_ref, 'browser:work-record-live-action/e2');
   assert.equal(candidate.subject.metadata.is_wiki_subject_browser, false);
@@ -202,8 +211,9 @@ test('emitted browser Playbook Work Record opens read-only through the existing 
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.source.origin.kind, 'playbook');
   assert.equal(snapshot.subject.persistence, null);
-  assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
-  assert.ok(!snapshot.subject.controls.includes('patch.request'));
+  assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
+  assert.equal('views' in snapshot.subject, false);
+  assert.equal('controls' in snapshot.subject, false);
   assert.equal(snapshot.diagnostics.read_only, true);
   assert.equal(snapshot.diagnostics.verifier_status, 'passed');
 

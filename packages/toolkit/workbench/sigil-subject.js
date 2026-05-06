@@ -131,13 +131,6 @@ export function createSigilAgentSubject(page = {}, options = {}) {
         ],
       },
     ],
-    views: [
-      'markdown.source',
-      'markdown.preview',
-      'wiki.graph',
-      'sigil.avatar.preview',
-    ],
-    controls: ['open', 'edit', 'save', 'appearance.controls'],
     persistence: {
       kind: 'wiki_write',
       request: 'markdown_document.save.requested',
@@ -153,7 +146,6 @@ export function createSigilAgentSubject(page = {}, options = {}) {
         subject_type: wikiSubject.subject_type,
         path,
       },
-      subject_references: [reference],
       wiki_type: wikiSubject.metadata.wiki_type,
       description: wikiSubject.metadata.description,
       tags,

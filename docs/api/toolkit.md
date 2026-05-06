@@ -205,22 +205,26 @@ workflow engine:
 import { createWikiWorkflowSubject } from '../workbench/workflow-subject.js'
 ```
 
-The current schema version is `2026-05-03`. The active schema accepts optional
-v-next compatibility fields so writers can add `contracts[]`,
-`subject_references[]`, and `facets[]` while older consumers continue to read
-`views[]`, `controls[]`, and legacy dotted strings in `capabilities[]`.
-Consumers should use the toolkit helpers in `workbench/subject.js` when reading
-descriptors:
+The current schema version is `2026-05-03`. Live Workbench Subject writers use
+the v-next descriptor shape: high-level registry names in `capabilities[]`,
+operation/event strings in `contracts[]`, typed links in
+`subject_references[]`, projections in `facets[]`, and Host implementations in
+`facets[].hosts[]`. `views[]` and `controls[]` are deprecated legacy boundary
+fields for archived fixtures or old persisted imports; live writers should not
+emit them. Consumers should use the toolkit helpers in `workbench/subject.js`
+when reading descriptors:
 
 - `subjectCapabilities(subject)` returns high-level capabilities such as
   `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable`.
 - `subjectContracts(subject)` returns top-level `contracts[]` plus legacy
   dotted operation/event strings still present in `capabilities[]`.
-- `subjectReferences(subject)` reads top-level `subject_references[]` and the
-  temporary `metadata.subject_references[]` fallback.
-- `subjectFacets(subject)`, `subjectHosts(subject)`,
-  `subjectLegacyViews(subject)`, and `subjectLegacyControls(subject)` expose the
-  v-next and legacy projection fields without forcing a one-shot migration.
+- `subjectReferences(subject)` reads top-level `subject_references[]`; it also
+  contains the only legacy fallback for archived descriptors that stored
+  references under `metadata.subject_references[]`.
+- `subjectFacets(subject)` and `subjectHosts(subject)` expose canonical
+  projections and Host entries. `subjectLegacyViews(subject)` and
+  `subjectLegacyControls(subject)` are legacy adapter helpers only; do not use
+  them in live consumer logic.
 
 The first adopters are:
 
@@ -240,20 +244,18 @@ The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For
 example, `createWikiPageSubject({ path: "sigil/agents/default.md" })` emits a
 wiki document Subject, while `createSigilAgentSubject()` emits the separate
-`sigil.agent` domain Subject. The Sigil helper now writes top-level
-`subject_references[]` and keeps the same reference under
-`metadata.subject_references[]` as a temporary compatibility bridge for older
-readers.
+`sigil.agent` domain Subject. The Sigil helper writes that relationship through
+top-level `subject_references[]`.
 
-Writer policy during migration is compatibility-first but v-next-shaped for new
-output. Migrated writers should keep legacy `views[]` and `controls[]`
-summaries, put only high-level registry names in raw `capabilities[]`, and put
-dotted operation/event strings in top-level `contracts[]` plus Facet-local
-`contracts[]` where the operation belongs to one projection. Readers must keep
-accepting older descriptors that still have dotted strings in
-`capabilities[]`; use `subjectContracts(subject)` for that compatibility path.
-Do not remove the legacy `views[]` and `controls[]` fields until all readers use
-the compatibility helpers.
+Writer policy is canonical-first for live output. Migrated writers omit
+`views[]` and `controls[]`, put only the registry names documented in
+`aos-subject-capabilities.md` in raw `capabilities[]`, and put dotted
+operation/event strings in top-level `contracts[]` plus Facet-local
+`contracts[]` where the operation belongs to one projection. The reader adapter
+still accepts older descriptors that have dotted strings in `capabilities[]`
+through `subjectContracts(subject)`, but live consumers should derive openable
+projections and operations from `facets[]`, `facets[].hosts[]`,
+`capabilities[]`, and `contracts[]`.
 
 ### Wiki Subject Selection And Opening
 
@@ -279,10 +281,10 @@ payload contains:
 Openers should call `createMarkdownOpenRequestFromWikiSelection(selection)` or
 the lower-level `wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection)` and
 `createWikiSubjectOpenRequest(selection)` helpers. Those helpers read descriptors
-through the compatibility API (`subjectFacets`, `subjectHosts`,
-`subjectContracts`, `subjectReferences`, `subjectLegacyViews`, and
-`subjectLegacyControls`) so newer `facets[]` descriptors and older graph
-descriptors remain openable during the migration.
+through the canonical descriptor API (`subjectFacets`, `subjectHosts`,
+`subjectContracts`, and `subjectReferences`) so graph selections open only when
+the selected Subject advertises the Markdown facet, Host, and contracts needed
+by the Markdown Workbench.
 
 Wiki KB remains generic: it publishes selected wiki identity and a Workbench
 Subject descriptor. Markdown Workbench remains responsible for fetching,
@@ -320,7 +322,7 @@ V0 event contract:
   `aos.workbench.subject` descriptor from Wiki KB.
 - `wiki_subject.open.requested` carries the normalized open request created via
   `createWikiSubjectOpenRequest(selection)` after the selection is known to be
-  openable through the Workbench Subject compatibility readers.
+  openable through its canonical Markdown Facet, Host, and contracts.
 - `markdown_document.open`, `markdown_document.text.patch`, and
   `markdown_document.save.result` remain Markdown Workbench messages.
 - `markdown-workbench/save.requested` and `markdown-workbench/save.result`
@@ -476,15 +478,15 @@ agent-driven workflow instructions, and run/evidence/repair layers attach later
 through the work-record model.
 
 Work-record subject ids use `work-record:<id>`. They expose the natural-language
-intent, execution map, evidence artifacts, and health state as workbench views.
+intent, execution map, evidence artifacts, and health state as workbench Facets.
 The helper is a projection layer only; recording, replay, repair, and retirement
 remain owned by the work-record model in
 [`docs/design/aos-work-records-and-self-healing-recipes.md`](../design/aos-work-records-and-self-healing-recipes.md).
-The compatibility reader accepts both the older helper-shaped records and
+The Work Record payload adapter accepts both the older helper-shaped records and
 schema-v0 records from `shared/schemas/fixtures/aos-work-record-v0/`. Legacy
 records keep their existing edit handoff. Schema-v0 records project as
 read-only `aos.work_record` Subjects with intent, execution-map postconditions,
-evidence, claims, claim results, verifier report, and health views.
+evidence, claims, claim results, verifier report, and health Facets.
 
 The stock work-record workbench lives at:
 

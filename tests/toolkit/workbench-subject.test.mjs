@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createWorkbenchSubject,
   isLegacyOperationContract,
+  isWorkbenchSubjectCapability,
   normalizeWorkbenchSubjectDescriptor,
   subjectCapabilities,
   subjectContracts,
@@ -24,7 +25,7 @@ test('createWorkbenchSubject normalizes the common subject descriptor', () => {
     label: ' Example ',
     owner: 'markdown-workbench',
     source: { kind: 'file', path: 'docs/example.md' },
-    capabilities: ['inspectable', '', null, 'editable'],
+    capabilities: ['inspectable', '', null, 'editable', 'markdown_document.text.patch', 'unknown-mode'],
     contracts: ['markdown.render', '', null, 'markdown_document.save.requested'],
     state: { dirty: true },
   });
@@ -35,7 +36,13 @@ test('createWorkbenchSubject normalizes the common subject descriptor', () => {
   assert.equal(subject.subject_type, 'markdown.document');
   assert.equal(subject.label, 'Example');
   assert.deepEqual(subject.capabilities, ['inspectable', 'editable']);
-  assert.deepEqual(subject.contracts, ['markdown.render', 'markdown_document.save.requested']);
+  assert.deepEqual(subject.contracts, [
+    'markdown.render',
+    'markdown_document.save.requested',
+    'markdown_document.text.patch',
+  ]);
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
   assert.equal(subjectSupports(subject, 'markdown.render'), true);
   assert.equal(subjectSupportsCapability(subject, 'editable'), true);
   assert.equal(subjectSupportsContract(subject, 'markdown_document.save.requested'), true);
@@ -47,10 +54,12 @@ test('createWorkbenchSubject rejects subjects without stable identity or type', 
   assert.throws(() => createWorkbenchSubject({ id: 'file:docs/example.md' }), /requires a type/);
 });
 
-test('subject compatibility helpers split high-level capabilities from legacy contracts', () => {
-  const subject = createWorkbenchSubject({
+test('subject compatibility helpers split high-level capabilities from archived legacy descriptors', () => {
+  const subject = {
+    type: 'aos.workbench.subject',
+    schema_version: WORKBENCH_SUBJECT_SCHEMA_VERSION,
     id: 'wiki:aos/concepts/example.md',
-    type: 'wiki.concept',
+    subject_type: 'wiki.concept',
     label: 'Example',
     owner: 'aos',
     capabilities: ['inspectable', 'editable', 'wiki.read', 'markdown_document.text.patch'],
@@ -93,10 +102,12 @@ test('subject compatibility helpers split high-level capabilities from legacy co
         },
       ],
     },
-  });
+  };
 
   assert.equal(isLegacyOperationContract('markdown_document.text.patch'), true);
   assert.equal(isLegacyOperationContract('editable'), false);
+  assert.equal(isWorkbenchSubjectCapability('editable'), true);
+  assert.equal(isWorkbenchSubjectCapability('wiki.read'), false);
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
   assert.deepEqual(subjectContracts(subject), [
     'wiki.invoke',

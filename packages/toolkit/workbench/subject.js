@@ -1,4 +1,13 @@
 export const WORKBENCH_SUBJECT_SCHEMA_VERSION = '2026-05-03';
+export const WORKBENCH_SUBJECT_CAPABILITY_REGISTRY = Object.freeze([
+  'inspectable',
+  'editable',
+  'verifier-target',
+  'replayable',
+  'exportable',
+]);
+
+const WORKBENCH_SUBJECT_CAPABILITY_SET = new Set(WORKBENCH_SUBJECT_CAPABILITY_REGISTRY);
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -44,12 +53,16 @@ export function isLegacyOperationContract(value = '') {
   return text(value).includes('.');
 }
 
+export function isWorkbenchSubjectCapability(value = '') {
+  return WORKBENCH_SUBJECT_CAPABILITY_SET.has(text(value));
+}
+
 export function subjectRawCapabilities(subject = {}) {
   return uniqueTextList(subject.capabilities);
 }
 
 export function subjectCapabilities(subject = {}) {
-  return subjectRawCapabilities(subject).filter((capability) => !isLegacyOperationContract(capability));
+  return subjectRawCapabilities(subject).filter(isWorkbenchSubjectCapability);
 }
 
 export function subjectContracts(subject = {}) {
@@ -122,8 +135,6 @@ export function createWorkbenchSubject({
   contracts = [],
   subject_references = [],
   facets = [],
-  views = [],
-  controls = [],
   persistence = null,
   artifacts = [],
   state = {},
@@ -134,6 +145,8 @@ export function createWorkbenchSubject({
   if (!subjectId) throw new TypeError('workbench subject requires an id');
   if (!subjectType) throw new TypeError('workbench subject requires a type');
 
+  const rawCapabilities = uniqueTextList(capabilities);
+
   return {
     type: 'aos.workbench.subject',
     schema_version: WORKBENCH_SUBJECT_SCHEMA_VERSION,
@@ -142,15 +155,13 @@ export function createWorkbenchSubject({
     label: text(label, subjectId),
     owner: text(owner, 'unknown'),
     source: source ? cloneJson(source) : null,
-    capabilities: uniqueTextList(capabilities),
+    capabilities: rawCapabilities.filter(isWorkbenchSubjectCapability),
     contracts: uniqueTextList([
       ...textList(contracts),
-      ...textList(capabilities).filter(isLegacyOperationContract),
+      ...rawCapabilities.filter(isLegacyOperationContract),
     ]),
     subject_references: objectList(subject_references),
     facets: objectList(facets),
-    views: uniqueTextList(views),
-    controls: uniqueTextList(controls),
     persistence: persistence ? cloneJson(persistence) : null,
     artifacts: Array.isArray(artifacts) ? cloneJson(artifacts) : [],
     state: cloneJson(state) || {},
@@ -159,7 +170,7 @@ export function createWorkbenchSubject({
 }
 
 export function subjectCapabilitySet(subject = {}) {
-  return new Set(subjectRawCapabilities(subject));
+  return new Set(subjectCapabilities(subject));
 }
 
 export function subjectSupports(subject = {}, capability = '') {

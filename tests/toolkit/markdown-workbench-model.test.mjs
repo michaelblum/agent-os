@@ -78,6 +78,8 @@ test('markdown workbench exposes an AOS workbench subject descriptor', () => {
   assert.ok(subjectContracts(subject).includes('markdown_document.text.patch'));
   assert.ok(subjectContracts(subject).includes('markdown.mermaid.detect'));
   assert.ok(subjectFacets(subject).find((facet) => facet.key === 'markdown-source').contracts.includes('markdown_document.save.requested'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
 });
 
 test('markdown workbench exposes wiki-backed subjects when opened from wiki', () => {
@@ -108,6 +110,8 @@ test('markdown workbench exposes wiki-backed subjects when opened from wiki', ()
   assert.equal(save.path, 'aos/concepts/runtime-modes.md');
   assert.equal(save.subject.state.dirty, false);
   assert.ok(subjectContracts(save.subject).includes('markdown_document.save.requested'));
+  assert.equal('views' in save.subject, false);
+  assert.equal('controls' in save.subject, false);
 
   applyMarkdownTextPatch(state, {
     type: 'markdown_document.text.patch',

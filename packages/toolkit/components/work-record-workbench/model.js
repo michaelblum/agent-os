@@ -8,6 +8,7 @@ import {
 import { runWorkRecordVerifierProfile } from '../../workbench/work-record-verifier.js';
 
 export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-05-04';
+const WORK_RECORD_WORKBENCH_URL = 'aos://toolkit/components/work-record-workbench/index.html';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -29,6 +30,57 @@ function cloneJson(value) {
 
 function stableJson(value) {
   return JSON.stringify(value ?? {}, null, 2);
+}
+
+function uniqueTextList(values = []) {
+  return [...new Set((Array.isArray(values) ? values : []).map((value) => text(value)).filter(Boolean))];
+}
+
+function workRecordWorkbenchHost(facet = '', preferred = false) {
+  return {
+    kind: 'canvas',
+    target_dialect: 'canvas',
+    entry: {
+      kind: 'aos-url',
+      value: WORK_RECORD_WORKBENCH_URL,
+      ...(facet ? { facet } : {}),
+    },
+    ...(preferred ? { preferred: true } : {}),
+  };
+}
+
+function mergeSubjectFacetContracts(facets = [], key = '', contracts = []) {
+  let found = false;
+  const next = (Array.isArray(facets) ? facets : []).map((facet) => {
+    if (facet?.key !== key) return facet;
+    found = true;
+    return {
+      ...facet,
+      contracts: uniqueTextList([
+        ...(Array.isArray(facet.contracts) ? facet.contracts : []),
+        ...contracts,
+      ]),
+    };
+  });
+  if (!found && contracts.length > 0) {
+    next.push({
+      key,
+      layer: 'controls',
+      label: 'Work Record Controls',
+      capabilities: ['editable'],
+      contracts: uniqueTextList(contracts),
+      hosts: [workRecordWorkbenchHost('controls')],
+    });
+  }
+  return next;
+}
+
+function appendSubjectFacet(facets = [], facet = {}) {
+  if (!facet?.key) return Array.isArray(facets) ? facets : [];
+  if ((Array.isArray(facets) ? facets : []).some((item) => item?.key === facet.key)) {
+    return facets;
+  }
+  return [...(Array.isArray(facets) ? facets : []), facet];
 }
 
 function recordsEqual(a, b) {
@@ -306,14 +358,19 @@ export function buildWorkRecordWorkbenchSubject(state = {}) {
     ...(readOnly ? [] : ['work_record.patch.requested']),
     'work_record.snapshot',
   ])];
-  subject.views = [...new Set([
-    ...subject.views,
-    'work_record.summary',
-  ])];
-  subject.controls = [...new Set([
-    ...subject.controls,
-    ...(readOnly ? [] : ['patch.request']),
-  ])];
+  subject.facets = appendSubjectFacet(subject.facets, {
+    key: 'work_record.summary',
+    layer: 'descriptor',
+    label: 'Work Record Summary',
+    capabilities: ['inspectable'],
+    contracts: ['work_record.snapshot'],
+    hosts: [workRecordWorkbenchHost('summary')],
+  });
+  if (!readOnly) {
+    subject.facets = mergeSubjectFacetContracts(subject.facets, 'work_record.controls', [
+      'work_record.patch.requested',
+    ]);
+  }
   subject.state = {
     ...subject.state,
     dirty: !!state.dirty,

@@ -10,8 +10,6 @@ import {
   subjectContracts,
   subjectFacets,
   subjectHosts,
-  subjectLegacyControls,
-  subjectLegacyViews,
 } from '../../packages/toolkit/workbench/subject.js';
 
 test('wikiSubjectType maps canonical wiki page types', () => {
@@ -60,8 +58,8 @@ test('createWikiPageSubject builds a concept subject from wiki list shape', () =
   assert.ok(hosts.every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/markdown-workbench/index.html'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-kb/index.html'));
-  assert.ok(subjectLegacyViews(subject).includes('wiki.graph'));
-  assert.ok(subjectLegacyControls(subject).includes('save'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
 });
 
 test('createWikiPageSubject preserves plugin workflow capabilities', () => {
@@ -84,8 +82,10 @@ test('createWikiPageSubject preserves plugin workflow capabilities', () => {
   assert.ok(subjectContracts(subject).includes('workflow.project'));
   const facets = subjectFacets(subject);
   assert.ok(facets.some((facet) => facet.key === 'workflow-projection'));
-  assert.ok(subjectLegacyViews(subject).includes('workflow.graph'));
-  assert.ok(subjectLegacyControls(subject).includes('invoke'));
+  assert.ok(facets.some((facet) => facet.key === 'workflow-controls'));
+  assert.ok(facets.find((facet) => facet.key === 'workflow-controls').contracts.includes('wiki.invoke'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
 });
 
 test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
@@ -100,7 +100,8 @@ test('createWikiPageSubject keeps Sigil agent documents wiki-oriented', () => {
   assert.equal(subject.owner, 'sigil');
   assert.equal(subject.metadata.wiki_type, 'agent');
   assert.ok(!subjectContracts(subject).includes('sigil.agent.preview'));
-  assert.ok(!subjectLegacyViews(subject).includes('sigil.avatar.preview'));
+  assert.equal('views' in subject, false);
+  assert.equal('controls' in subject, false);
 });
 
 test('createWikiPageSubjects maps arrays and rejects missing path', () => {

@@ -53,6 +53,30 @@ if errors:
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 }
 
+async function reject(instance) {
+  const result = spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(sys.argv[2])
+Draft202012Validator.check_schema(schema)
+errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda e: list(e.path))
+sys.exit(0 if errors else 1)
+`,
+      schemaPath,
+      JSON.stringify(instance),
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+}
+
 test('toolkit workbench subject helper emits schema-valid descriptors', async () => {
   await fs.access(schemaPath);
   await validate(createWorkbenchSubject({
@@ -63,7 +87,7 @@ test('toolkit workbench subject helper emits schema-valid descriptors', async ()
   }));
 });
 
-test('subject schema accepts optional v-next compatibility fields', async () => {
+test('subject schema accepts canonical v-next fields', async () => {
   await validate(createWorkbenchSubject({
     id: 'sigil.agent:default',
     type: 'sigil.agent',
@@ -104,9 +128,31 @@ test('subject schema accepts optional v-next compatibility fields', async () => 
         ],
       },
     ],
-    views: ['markdown.source', 'markdown.preview'],
-    controls: ['text.editor', 'save'],
   }));
+});
+
+test('subject schema keeps legacy summaries only as explicit boundary fields', async () => {
+  await validate({
+    type: 'aos.workbench.subject',
+    schema_version: '2026-05-03',
+    id: 'wiki:aos/concepts/legacy.md',
+    subject_type: 'wiki.concept',
+    label: 'Legacy',
+    owner: 'aos',
+    capabilities: ['inspectable'],
+    views: ['markdown.source'],
+    controls: ['text.editor'],
+  });
+
+  await reject({
+    type: 'aos.workbench.subject',
+    schema_version: '2026-05-03',
+    id: 'wiki:aos/concepts/dotted-capability.md',
+    subject_type: 'wiki.concept',
+    label: 'Dotted Capability',
+    owner: 'aos',
+    capabilities: ['wiki.read'],
+  });
 });
 
 test('current workbench adopters emit schema-valid subject descriptors', async () => {
