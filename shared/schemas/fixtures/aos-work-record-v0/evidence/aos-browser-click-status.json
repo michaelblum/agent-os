@@ -1,0 +1,161 @@
+{
+  "type": "aos.action_evidence",
+  "id": "aos-action-evidence:browser-click-status-2026-05-06",
+  "record_id": "work-record:aos-browser-click-status-2026-05-06",
+  "label": "AOS browser click status Work Record capture",
+  "created_at": "2026-05-06T03:10:00Z",
+  "completed_at": "2026-05-06T03:10:03Z",
+  "target_dialect": "browser",
+  "target": "browser:work-record-live-action",
+  "target_with_ref": "browser:work-record-live-action/e2",
+  "state_id": "see_browserlive001",
+  "summary": "A bounded AOS browser click was captured as before perception, do action metadata, and after perception.",
+  "intent": {
+    "summary": "Capture one bounded AOS browser click as a Work Record v0.",
+    "purpose": "Prove a live-action shaped AOS see/do/see evidence source can emit immutable Work Record v0 evidence without enabling replay or repair.",
+    "acceptance": "The generated Work Record validates, passes the named report-only verifier profile, and opens read-only in the Work Record workbench.",
+    "constraints": [
+      "Use the existing AOS browser target dialect and Target-with-Ref grammar.",
+      "Keep replay and repair behind explicit workflow gates.",
+      "Do not add a broad CLI recorder, audit, or verifier command."
+    ]
+  },
+  "references": [
+    {
+      "id": "github-issue-271",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/271",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "workstream_tracker"
+    },
+    {
+      "id": "see-do-grammar-note",
+      "relationship": "guided_by",
+      "ref": "repo:docs/design/see-do-grammar-trace-connections.md",
+      "subject_type": "docs.design_note",
+      "layer": "narrative",
+      "role": "target_grammar_context"
+    }
+  ],
+  "before_perception": {
+    "evidence_id": "evidence:aos-browser-click-status-before-see",
+    "command": "./aos see capture browser:work-record-live-action --xray",
+    "state_id": "see_browserlive001",
+    "target": "browser:work-record-live-action",
+    "captured_at": "2026-05-06T03:10:00Z",
+    "artifact_uri": "artifact:artifacts/work-records/aos-browser-click-status-2026-05-06/before-see.json",
+    "summary": "Before xray exposes the Commit live action button and the Ready status output.",
+    "element_count": 2,
+    "semantic_targets": [
+      {
+        "ref": "e2",
+        "target": "browser:work-record-live-action/e2",
+        "role": "button",
+        "name": "Commit live action",
+        "enabled": true,
+        "data_aos_ref": "work-record.live-action.commit"
+      },
+      {
+        "ref": "e3",
+        "target": "browser:work-record-live-action/e3",
+        "role": "status",
+        "name": "Live action status",
+        "value": "Ready",
+        "enabled": true,
+        "data_aos_ref": "work-record.live-action.status"
+      }
+    ],
+    "metadata": {
+      "capture_kind": "browser_xray"
+    }
+  },
+  "action": {
+    "evidence_id": "evidence:aos-browser-click-status-do-click",
+    "verb": "click",
+    "target": "browser:work-record-live-action/e2",
+    "target_dialect": "browser",
+    "state_id": "see_browserlive001",
+    "command": "./aos do click browser:work-record-live-action/e2 --state-id see_browserlive001",
+    "executed_at": "2026-05-06T03:10:01Z",
+    "artifact_uri": "artifact:artifacts/work-records/aos-browser-click-status-2026-05-06/do-click.json",
+    "status": "success",
+    "summary": "AOS do click reported success through the Playwright-backed browser adapter.",
+    "execution": {
+      "backend": "playwright",
+      "strategy": "playwright_click",
+      "fallback_used": false,
+      "state_id": "see_browserlive001"
+    },
+    "target_candidates": [
+      {
+        "ref": "e2",
+        "target": "browser:work-record-live-action/e2",
+        "role": "button",
+        "name": "Commit live action",
+        "data_aos_ref": "work-record.live-action.commit"
+      }
+    ],
+    "metadata": {
+      "aos_verb": "do",
+      "target_with_ref": "browser:work-record-live-action/e2"
+    }
+  },
+  "after_perception": {
+    "evidence_id": "evidence:aos-browser-click-status-after-see",
+    "command": "./aos see capture browser:work-record-live-action --xray",
+    "state_id": "see_browserlive002",
+    "target": "browser:work-record-live-action",
+    "captured_at": "2026-05-06T03:10:03Z",
+    "artifact_uri": "artifact:artifacts/work-records/aos-browser-click-status-2026-05-06/after-see.json",
+    "summary": "After xray exposes the same page with the status output changed to Action recorded.",
+    "element_count": 2,
+    "semantic_targets": [
+      {
+        "ref": "e2",
+        "target": "browser:work-record-live-action/e2",
+        "role": "button",
+        "name": "Commit live action",
+        "enabled": true,
+        "data_aos_ref": "work-record.live-action.commit"
+      },
+      {
+        "ref": "e3",
+        "target": "browser:work-record-live-action/e3",
+        "role": "status",
+        "name": "Live action status",
+        "value": "Action recorded",
+        "enabled": true,
+        "data_aos_ref": "work-record.live-action.status"
+      }
+    ],
+    "metadata": {
+      "capture_kind": "browser_xray"
+    }
+  },
+  "postcondition": {
+    "id": "postcondition:aos-browser-click-status-after-status",
+    "kind": "browser_xray_text",
+    "description": "The after perception shows the Live action status output changed to Action recorded.",
+    "target": "browser:work-record-live-action/e3",
+    "state_id": "see_browserlive002",
+    "check": {
+      "kind": "semantic_target_value_contains",
+      "ref": "e3",
+      "expected": "Action recorded",
+      "path": "after_perception.semantic_targets[ref=e3].value"
+    },
+    "passed": true,
+    "reason": "The after perception semantic target e3 has value Action recorded.",
+    "repair_policy": {
+      "mode": "manual_review",
+      "notes": "If the status ref drifts, re-capture under an explicit workflow gate and patch this execution-map postcondition."
+    }
+  },
+  "claim_text": "The bounded AOS browser click changed the live action status to Action recorded.",
+  "acceptance": "After perception semantic target e3 contains Action recorded.",
+  "metadata": {
+    "source_shape": "see-do-see-action-evidence",
+    "fixture_status": "deterministic_saved_evidence"
+  }
+}

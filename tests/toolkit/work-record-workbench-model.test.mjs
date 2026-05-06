@@ -163,6 +163,44 @@ test('work record workbench opens generated command v0 records read-only', () =>
   assert.equal(workRecordVerifierCheck(state.record).profile_id, 'aos.verifier.work-record.v0.report-only');
 });
 
+test('work record workbench opens generated AOS action v0 records read-only', () => {
+  const state = createWorkRecordWorkbenchState();
+  const record = fixture('aos-browser-click-status.json', v0FixtureRoot);
+  const result = openWorkRecord(state, {
+    type: 'work_record.open',
+    source: {
+      kind: 'file',
+      path: '/tmp/aos-browser-click-status.json',
+    },
+    record,
+  });
+  const snapshot = workRecordWorkbenchSnapshot(state);
+
+  assert.equal(result.status, 'opened');
+  assert.equal(workRecordIsReadOnly(state.record), true);
+  assert.equal(snapshot.subject.id, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
+  assert.equal(snapshot.subject.persistence, null);
+  assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
+  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!snapshot.subject.controls.includes('patch.request'));
+  assert.equal(snapshot.diagnostics.format, 'v0');
+  assert.equal(snapshot.diagnostics.read_only, true);
+  assert.equal(snapshot.diagnostics.health_state, 'valid');
+  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
+  assert.equal(snapshot.diagnostics.claim_count, 2);
+  assert.equal(snapshot.diagnostics.postcondition_count, 3);
+  assert.equal(evidenceArtifacts(state.record).length, 3);
+  assert.ok(executionMapJson(state.record).includes('browser:work-record-live-action/e2'));
+  assert.equal(workRecordVerifierCheck(state.record).profile_id, 'aos.verifier.work-record.v0.report-only');
+
+  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate action record' });
+  assert.equal(rejectedIntent.status, 'rejected');
+  assert.equal(rejectedIntent.reason, 'read_only');
+  assert.equal(state.dirty, false);
+  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
+});
+
 test('invalid execution-map JSON is rejected without mutating current map', () => {
   const state = createWorkRecordWorkbenchState({ record: fixture('browser-artifact-collection-step.json') });
   const before = executionMapJson(state.record);
