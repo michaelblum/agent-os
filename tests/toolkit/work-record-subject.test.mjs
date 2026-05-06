@@ -11,9 +11,10 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const fixtureRoot = path.join(repoRoot, 'docs/design/fixtures/aos-work-records');
+const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
 
-function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(fixtureRoot, name), 'utf8'));
+function fixture(name, root = fixtureRoot) {
+  return JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'));
 }
 
 test('createWorkRecordSubject projects a browser do_step as a workbench subject', () => {
@@ -46,6 +47,31 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
   assert.equal(subject.artifacts[0].kind, 'trace');
   assert.ok(subject.views.includes('work_record.retirement'));
   assert.ok(subject.capabilities.includes('work_record.retirement.inspect'));
+});
+
+test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
+  const subject = createWorkRecordSubject(fixture('playbook-origin.json', v0FixtureRoot));
+
+  assert.equal(subject.id, 'work-record:playbook-open-wiki-sigil-2026-05-05');
+  assert.equal(subject.subject_type, 'aos.work_record');
+  assert.equal(subject.source.kind, 'work_record');
+  assert.equal(subject.source.format, 'v0');
+  assert.equal(subject.source.origin.kind, 'playbook');
+  assert.equal(subject.state.health.state, 'valid');
+  assert.equal(subject.state.read_only, true);
+  assert.equal(subject.persistence, null);
+  assert.equal(subject.artifacts.length, 3);
+  assert.ok(subject.capabilities.includes('inspectable'));
+  assert.ok(subject.capabilities.includes('verifier-target'));
+  assert.ok(subject.capabilities.includes('work_record.verifier_report.view'));
+  assert.ok(!subject.capabilities.includes('work_record.execution_map.edit'));
+  assert.ok(subject.views.includes('work_record.execution_map.postconditions'));
+  assert.ok(subject.views.includes('work_record.claims'));
+  assert.ok(subject.views.includes('work_record.claim_results'));
+  assert.ok(subject.views.includes('work_record.verifier_report'));
+  assert.ok(!subject.controls.includes('execution_map.json.editor'));
+  assert.equal(subject.metadata.claim_count, 2);
+  assert.equal(subject.metadata.claim_result_count, 2);
 });
 
 test('createWorkRecordSubjects maps arrays and rejects records without ids', () => {
