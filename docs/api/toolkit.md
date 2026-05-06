@@ -262,6 +262,20 @@ report-only checker for schema-v0 records. It validates internal claim,
 postcondition, evidence, verifier-report, and health references, derives
 verifier indexes from `claim_results[]`, reports diagnostics, and never mutates
 the record. Replay and repair remain gated by explicit workflow policy fields.
+The named profile entrypoint is:
+
+```js
+runWorkRecordVerifierProfile(record, {
+  profileId: 'aos.verifier.work-record.v0.report-only',
+})
+```
+
+`packages/toolkit/workbench/work-record-capture.js` exposes the first narrow
+capture builder, `buildWorkRecordV0FromCommandEvidence()`. It turns one bounded
+repo command evidence source into a completed Work Record v0 with immutable
+evidence, Claims, Postconditions, Claim Results, a Verifier Report, and Health.
+This is report-only substrate for later browser or canvas playbooks; it does
+not add replay, repair, or a broad CLI command surface.
 
 ## Stock Components Snapshot
 

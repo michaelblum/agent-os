@@ -244,6 +244,32 @@ The schema requires both `replay_requires_workflow_gate` and
 evidence-backed replay or repair loops need an explicit Workflow gate even when
 the record has a reusable origin.
 
+## Capture Builder And Report-Only Profile
+
+The first runtime producer is intentionally narrow:
+`buildWorkRecordV0FromCommandEvidence()` in
+`packages/toolkit/workbench/work-record-capture.js` turns one bounded repo
+command evidence source into a completed Work Record v0. The source still looks
+like AOS evidence: it carries a command Target, optional State ID, immutable
+output evidence, expected command postconditions, and references back to the
+issue or test file that shaped the run.
+
+The first named verifier profile is
+`aos.verifier.work-record.v0.report-only`, exposed by
+`runWorkRecordVerifierProfile()` in
+`packages/toolkit/workbench/work-record-verifier.js`. The profile wraps the
+deterministic report-only checker. It validates internal Work Record integrity,
+derives claim indexes from `claim_results[]`, confirms replay and repair remain
+workflow-gated, and reports diagnostics without mutating the record.
+
+This command-evidence path is deliberately above the daemon. It is the smallest
+proof that Work Records can be generated from bounded evidence instead of only
+hand-authored fixtures. Future browser or canvas Playbooks should reuse the same
+shape by swapping the evidence source from repo-command output to `see/do/see`
+captures, browser traces, screenshots, or artifact bundles. They should still
+emit Claims, Postconditions, Claim Results, Verifier Report, and Health through a
+named report-only profile before any replay or repair behavior is introduced.
+
 ## Examples
 
 The canonical examples for this sketch are JSON fixtures:
@@ -254,6 +280,11 @@ The canonical examples for this sketch are JSON fixtures:
   shows a Playbook-origin Work Record with Claims linked to Postconditions,
   Claim Results linked back to Claims, and a Verifier Report that derives
   indexes from `claim_results[]`.
+- [`valid/repo-command-adapter-test.json`](fixtures/aos-work-record-v0/valid/repo-command-adapter-test.json)
+  is generated from
+  [`evidence/repo-command-adapter-test.json`](fixtures/aos-work-record-v0/evidence/repo-command-adapter-test.json)
+  by the command-evidence builder, then checked with the named report-only
+  verifier profile.
 
 The fixture validation test also checks internal reference integrity that JSON
 Schema cannot express alone: every Claim Result must reference an existing
