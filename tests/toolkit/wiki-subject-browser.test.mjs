@@ -4,13 +4,17 @@ import test from 'node:test';
 import MarkdownWorkbench from '../../packages/toolkit/components/markdown-workbench/index.js';
 import WikiSubjectBrowser from '../../packages/toolkit/components/wiki-subject-browser/index.js';
 import {
+  applySubjectNavigationQuery,
   applySubjectCatalogLoad,
   applySubjectOpenRequested,
   applyWikiSubjectOpenRequested,
   applyWikiSubjectSelection,
+  createSubjectIndexNavigationEntries,
   createWikiSubjectBrowserOpenRequestFromCatalogEntry,
   createWikiSubjectBrowserOpenRequestFromSelection,
   createWikiSubjectBrowserState,
+  SUBJECT_BROWSER_INDEX_ENTRY_TYPE,
+  SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE,
   WIKI_SUBJECT_BROWSER_SURFACE,
   WIKI_SUBJECT_BROWSER_URL,
   WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID,
@@ -27,6 +31,7 @@ import {
   WIKI_SUBJECT_SELECTION_TYPE,
   createWikiSubjectSelectionPayload,
 } from '../../packages/toolkit/workbench/wiki-subject-opening.js';
+import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 
 const repo = new URL('../../', import.meta.url);
 
@@ -47,6 +52,11 @@ test('wiki subject browser state starts graph-first with no content pane open', 
   assert.equal(state.selected_path, '');
   assert.equal(state.selected_subject, null);
   assert.equal(state.subject_graph_index.type, 'aos.subject_graph.index');
+  assert.equal(state.subject_search_query, '');
+  assert.deepEqual(state.subject_index_entries, []);
+  assert.equal(state.subject_index_result_count, 0);
+  assert.deepEqual(state.navigation_history, []);
+  assert.deepEqual(state.navigation_trail, []);
   assert.deepEqual(state.subject_graph_summary, {
     subject_count: 0,
     facet_count: 0,
@@ -56,6 +66,84 @@ test('wiki subject browser state starts graph-first with no content pane open', 
     subject_types: [],
     health: {},
   });
+});
+
+test('wiki subject browser derives deterministic search entries from subject graph index', async () => {
+  const record = await repoJson(
+    'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
+  );
+  const wikiSubject = createWikiPageSubject({
+    path: 'aos/concepts/runtime-modes.md',
+    frontmatter: {
+      type: 'concept',
+      name: 'Runtime Modes',
+    },
+  });
+  const catalogEntry = createWorkRecordSubjectCatalogEntry(record);
+  const state = createWikiSubjectBrowserState({
+    selected_subject: wikiSubject,
+    catalog_entries: [catalogEntry],
+  });
+
+  assert.deepEqual(state.subject_index_entries.map((entry) => entry.subject_id), [
+    'work-record:aos-browser-click-status-2026-05-06',
+    'wiki:aos/concepts/runtime-modes.md',
+  ]);
+  assert.ok(state.subject_index_entries.every((entry) => entry.type === SUBJECT_BROWSER_INDEX_ENTRY_TYPE));
+
+  const wikiEntry = state.subject_index_entries.find((entry) => entry.subject_type === 'wiki.concept');
+  assert.equal(wikiEntry.label, 'Runtime Modes');
+  assert.equal(wikiEntry.entry_handle, 'wiki:aos/concepts/runtime-modes.md');
+  assert.equal(wikiEntry.wiki_path, 'aos/concepts/runtime-modes.md');
+  assert.equal(
+    wikiEntry.semantic_ref,
+    'wiki-subject-browser-v0:subject-list:entry:wiki-aos-concepts-runtime-modes-md',
+  );
+  assert.equal(
+    wikiEntry.open_ref,
+    'wiki-subject-browser-v0:subject-list:open:wiki-aos-concepts-runtime-modes-md',
+  );
+
+  const workRecordEntry = state.subject_index_entries.find((entry) => entry.subject_type === 'aos.work_record');
+  assert.equal(workRecordEntry.catalog_entry_id, catalogEntry.id);
+  assert.equal(workRecordEntry.source_kind, 'catalog_entry');
+  assert.ok(workRecordEntry.contracts.includes('work_record.execution_map.view'));
+
+  applySubjectNavigationQuery(state, 'runtime');
+  const runtimeSnapshot = wikiSubjectBrowserSnapshot(state);
+  assert.deepEqual(
+    runtimeSnapshot.subject_index_entries,
+    createSubjectIndexNavigationEntries(runtimeSnapshot.subject_graph_index, { query: 'runtime' }),
+  );
+  assert.deepEqual(runtimeSnapshot.subject_index_entries.map((entry) => entry.subject_id), [
+    'wiki:aos/concepts/runtime-modes.md',
+  ]);
+
+  applySubjectNavigationQuery(state, 'work_record.execution_map.view');
+  const workRecordSnapshot = wikiSubjectBrowserSnapshot(state);
+  assert.deepEqual(workRecordSnapshot.subject_index_entries.map((entry) => entry.subject_id), [
+    'work-record:aos-browser-click-status-2026-05-06',
+  ]);
+
+  const legacyRawCapabilitySubject = {
+    type: 'aos.workbench.subject',
+    schema_version: '2026-05-03',
+    id: 'legacy:canonical-only',
+    subject_type: 'aos.work_record',
+    label: 'Canonical Only',
+    owner: 'test',
+    capabilities: ['inspectable', 'legacy.hidden.match'],
+    contracts: [],
+    views: ['hidden.view'],
+    controls: ['hidden-control'],
+    facets: [],
+  };
+  const legacySnapshot = createWikiSubjectBrowserState({
+    selected_subject: legacyRawCapabilitySubject,
+    subject_search_query: 'hidden',
+  });
+  assert.equal(legacySnapshot.subject_index_result_count, 0);
+  assert.doesNotMatch(JSON.stringify(legacySnapshot.subject_graph_index), /legacy\.hidden\.match|hidden\.view|hidden-control/);
 });
 
 test('wiki subject browser bridges wiki selection to open-request payloads', () => {
@@ -79,6 +167,14 @@ test('wiki subject browser bridges wiki selection to open-request payloads', () 
   assert.equal(snapshot.content_open, true);
   assert.equal(snapshot.selected_path, 'aos/concepts/runtime-modes.md');
   assert.equal(snapshot.last_open_request.type, WIKI_SUBJECT_OPEN_REQUEST_TYPE);
+  assert.equal(snapshot.navigation_history.length, 1);
+  assert.equal(snapshot.navigation_trail[0].type, SUBJECT_BROWSER_NAVIGATION_ENTRY_TYPE);
+  assert.equal(snapshot.navigation_trail[0].source_kind, 'wiki');
+  assert.equal(snapshot.navigation_trail[0].entry_handle, 'wiki:aos/concepts/runtime-modes.md');
+  assert.equal(
+    snapshot.navigation_trail[0].open_ref,
+    'wiki-subject-browser-v0:navigation-trail:open:wiki-aos-concepts-runtime-modes-md',
+  );
 });
 
 test('wiki subject browser loads and opens non-wiki catalog entries through canonical descriptors', async () => {
@@ -112,6 +208,14 @@ test('wiki subject browser loads and opens non-wiki catalog entries through cano
   assert.equal(request.open_message.type, 'work_record.open');
   assert.equal(request.open_message.record.id, 'work-record:aos-browser-click-status-2026-05-06');
   assert.equal(snapshot.last_subject_open_request.opener.id, 'work-record-workbench');
+  assert.equal(snapshot.navigation_history.length, 1);
+  assert.equal(snapshot.navigation_trail[0].source_kind, 'catalog');
+  assert.equal(snapshot.navigation_trail[0].catalog_entry_id, entry.id);
+  assert.equal(snapshot.navigation_trail[0].entry_handle, 'work-record:aos-browser-click-status-2026-05-06');
+  assert.equal(
+    snapshot.navigation_trail[0].open_ref,
+    'wiki-subject-browser-v0:navigation-trail:open:work-record-aos-browser-click-status-2026-05-06',
+  );
   assert.equal(WIKI_SUBJECT_BROWSER_WORK_RECORD_CANVAS_ID, 'wiki-subject-browser-v0-work-record');
 });
 
@@ -134,11 +238,18 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /wikiSubjectBrowserAosRef\('root'\)/);
   assert.match(indexJs, /subject-index-status/);
   assert.match(indexJs, /subjectIndexMarkup/);
+  assert.match(indexJs, /subject-search/);
+  assert.match(indexJs, /subject-list/);
+  assert.match(indexJs, /navigation-trail/);
   assert.match(indexJs, /subject-catalog-open/);
+  assert.match(indexJs, /subject-index-open/);
   assert.match(indexJs, /work-record-workbench/);
   assert.match(indexJs, /subject_graph_summary/);
+  assert.match(indexJs, /subject_index_entries/);
   assert.match(launch, /--manifest wiki-subject-browser-v0/);
   assert.match(launch, /SUBJECT_CATALOG_LOAD_TYPE/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-search/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-pane"/);
