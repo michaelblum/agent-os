@@ -9,6 +9,8 @@ import {
   updateWorkRecordExecutionMapJson,
   updateWorkRecordIntent,
   workRecordDiagnostics,
+  workRecordIsReadOnly,
+  workRecordVerifierCheck,
   workRecordWorkbenchSnapshot,
 } from './model.js';
 
@@ -22,6 +24,14 @@ function el(tag, className, textContent) {
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
+}
+
+function objectValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function artifactLabel(artifact = {}) {
@@ -48,7 +58,7 @@ function renderEvidenceList(record = {}) {
 
 function renderHealth(record = {}) {
   const health = record.next_health || record.health || {};
-  const state = text(health.state, 'unknown');
+  const state = text(health.state || health.verdict, 'unknown');
   const reason = text(health.reason);
   return (
     `<div class="work-record-health-state" data-health="${esc(state)}">`
@@ -58,14 +68,89 @@ function renderHealth(record = {}) {
   );
 }
 
+function renderPostconditions(record = {}) {
+  const postconditions = arrayValue(objectValue(record.execution_map).postconditions);
+  if (postconditions.length === 0) {
+    return '<p class="work-record-muted">No execution-map postconditions recorded.</p>';
+  }
+  return (
+    '<ol class="work-record-compact-list">'
+      + postconditions.map((postcondition) => (
+        '<li>'
+          + `<strong>${esc(text(postcondition.id, 'postcondition'))}</strong>`
+          + `<span>${esc(text(postcondition.description || postcondition.kind))}</span>`
+        + '</li>'
+      )).join('')
+    + '</ol>'
+  );
+}
+
+function renderClaims(record = {}) {
+  const claims = arrayValue(record.claims);
+  if (claims.length === 0) {
+    return '<p class="work-record-muted">No claims recorded.</p>';
+  }
+  return (
+    '<ol class="work-record-compact-list">'
+      + claims.map((claim) => (
+        '<li>'
+          + `<strong>${esc(text(claim.id, 'claim'))}</strong>`
+          + `<span>${esc(text(claim.text || claim.acceptance))}</span>`
+        + '</li>'
+      )).join('')
+    + '</ol>'
+  );
+}
+
+function renderClaimResults(record = {}) {
+  const results = arrayValue(record.claim_results);
+  if (results.length === 0) {
+    return '<p class="work-record-muted">No claim results recorded.</p>';
+  }
+  return (
+    '<ol class="work-record-compact-list">'
+      + results.map((result) => (
+        '<li>'
+          + `<strong>${esc(text(result.claim_id, result.id || 'claim result'))}</strong>`
+          + `<span>${esc(text(result.status, 'unknown'))}: ${esc(text(result.reason))}</span>`
+        + '</li>'
+      )).join('')
+    + '</ol>'
+  );
+}
+
+function renderVerifierReport(record = {}) {
+  const report = objectValue(record.verifier_report);
+  const check = workRecordVerifierCheck(record);
+  if (!text(report.id)) {
+    return '<p class="work-record-muted">No verifier report recorded.</p>';
+  }
+  const indexes = objectValue(report.derived_indexes);
+  const diagnosticCount = arrayValue(check.diagnostics).length;
+  return (
+    '<div class="work-record-verifier-report">'
+      + `<div class="work-record-summary-row"><span>Report</span><strong>${esc(text(report.id))}</strong></div>`
+      + `<div class="work-record-summary-row"><span>Checker</span><strong>${esc(text(check.status, 'unknown'))}</strong></div>`
+      + `<div class="work-record-summary-row"><span>Diagnostics</span><strong>${esc(String(diagnosticCount))}</strong></div>`
+      + `<div class="work-record-summary-row"><span>Verified</span><strong>${esc(arrayValue(indexes.verified).join(', ') || 'none')}</strong></div>`
+      + `<div class="work-record-summary-row"><span>Failed</span><strong>${esc(arrayValue(indexes.failed).join(', ') || 'none')}</strong></div>`
+      + `<div class="work-record-summary-row"><span>Unverified</span><strong>${esc(arrayValue(indexes.unverified).join(', ') || 'none')}</strong></div>`
+    + '</div>'
+  );
+}
+
 function renderSummary(record = {}) {
   const diagnostics = workRecordDiagnostics(record);
   const rows = [
     ['Record', diagnostics.record_id],
     ['Type', diagnostics.record_type],
+    ['Mode', diagnostics.read_only ? 'read-only' : 'editable'],
     ['Surface', diagnostics.surface || 'none'],
     ['Action', diagnostics.action_verb || 'none'],
     ['Artifacts', String(diagnostics.artifact_count)],
+    ['Claims', String(diagnostics.claim_count)],
+    ['Claim results', String(diagnostics.claim_result_count)],
+    ['Postconditions', String(diagnostics.postcondition_count)],
     ['Execution keys', diagnostics.execution_map_keys.join(', ') || 'none'],
   ];
   return rows.map(([label, value]) => (
@@ -94,19 +179,32 @@ export default function WorkRecordWorkbench(options = {}) {
   function sync({ replaceEditorValues = false } = {}) {
     const record = state.record || {};
     const intent = record.intent || {};
+    const readOnly = workRecordIsReadOnly(record);
     dom.recordId.textContent = record.id;
     dom.recordType.textContent = record.type;
-    dom.dirty.textContent = state.dirty ? 'Unsaved changes' : 'Saved';
+    dom.dirty.textContent = readOnly ? 'Read-only' : (state.dirty ? 'Unsaved changes' : 'Saved');
     dom.dirty.dataset.dirty = state.dirty ? 'true' : 'false';
+    dom.dirty.dataset.readOnly = readOnly ? 'true' : 'false';
     dom.summary.innerHTML = renderSummary(record);
     dom.health.innerHTML = renderHealth(record);
+    dom.postconditions.innerHTML = renderPostconditions(record);
     dom.evidence.innerHTML = renderEvidenceList(record);
+    dom.claims.innerHTML = renderClaims(record);
+    dom.claimResults.innerHTML = renderClaimResults(record);
+    dom.verifierReport.innerHTML = renderVerifierReport(record);
     dom.status.textContent = state.lastResult
       ? `${state.lastResult.status}: ${state.lastResult.message || state.lastResult.reason || state.lastResult.type}`
-      : 'No edits yet';
+      : (readOnly ? 'Opened read-only' : 'No edits yet');
+
+    for (const input of [dom.intentNl, dom.intentPurpose, dom.intentAcceptance, dom.executionMap]) {
+      input.readOnly = readOnly;
+    }
+    dom.applyJson.disabled = readOnly;
+    dom.revert.disabled = readOnly;
+    dom.save.disabled = readOnly;
 
     if (replaceEditorValues) {
-      dom.intentNl.value = String(intent.nl || '');
+      dom.intentNl.value = String(intent.nl || intent.summary || '');
       dom.intentPurpose.value = String(intent.purpose || '');
       dom.intentAcceptance.value = String(intent.acceptance || '');
       dom.executionMap.value = executionMapJson(record);
@@ -135,6 +233,18 @@ export default function WorkRecordWorkbench(options = {}) {
   }
 
   function requestSave() {
+    if (workRecordIsReadOnly(state.record)) {
+      state.lastResult = {
+        type: 'work_record.patch.requested',
+        schema_version: state.record.schema_version,
+        status: 'rejected',
+        record_id: state.record.id,
+        reason: 'read_only',
+        message: 'Work Record v0 opens read-only in this workbench.',
+      };
+      sync();
+      return null;
+    }
     const result = applyExecutionMapEditor();
     if (result.status !== 'applied') return null;
     const request = buildWorkRecordPatchRequest(state);
@@ -201,8 +311,24 @@ export default function WorkRecordWorkbench(options = {}) {
             <div data-role="health"></div>
           </section>
           <section>
+            <strong>Postconditions</strong>
+            <div data-role="postconditions"></div>
+          </section>
+          <section>
             <strong>Evidence</strong>
             <div data-role="evidence"></div>
+          </section>
+          <section>
+            <strong>Claims</strong>
+            <div data-role="claims"></div>
+          </section>
+          <section>
+            <strong>Claim Results</strong>
+            <div data-role="claim-results"></div>
+          </section>
+          <section>
+            <strong>Verifier Report</strong>
+            <div data-role="verifier-report"></div>
           </section>
           <section>
             <strong>Status</strong>
@@ -217,20 +343,27 @@ export default function WorkRecordWorkbench(options = {}) {
     dom.dirty = root.querySelector('[data-role="dirty"]');
     dom.summary = root.querySelector('[data-role="summary"]');
     dom.health = root.querySelector('[data-role="health"]');
+    dom.postconditions = root.querySelector('[data-role="postconditions"]');
     dom.evidence = root.querySelector('[data-role="evidence"]');
+    dom.claims = root.querySelector('[data-role="claims"]');
+    dom.claimResults = root.querySelector('[data-role="claim-results"]');
+    dom.verifierReport = root.querySelector('[data-role="verifier-report"]');
     dom.status = root.querySelector('[data-role="status"]');
     dom.intentNl = root.querySelector('[data-role="intent-nl"]');
     dom.intentPurpose = root.querySelector('[data-role="intent-purpose"]');
     dom.intentAcceptance = root.querySelector('[data-role="intent-acceptance"]');
     dom.executionMap = root.querySelector('[data-role="execution-map"]');
+    dom.applyJson = root.querySelector('[data-action="apply-json"]');
+    dom.revert = root.querySelector('[data-action="revert"]');
+    dom.save = root.querySelector('[data-action="save"]');
 
     for (const input of [dom.intentNl, dom.intentPurpose, dom.intentAcceptance]) {
       input.addEventListener('input', handleIntentInput);
     }
     dom.executionMap.addEventListener('blur', applyExecutionMapEditor);
-    root.querySelector('[data-action="apply-json"]').addEventListener('click', applyExecutionMapEditor);
-    root.querySelector('[data-action="revert"]').addEventListener('click', revert);
-    root.querySelector('[data-action="save"]').addEventListener('click', requestSave);
+    dom.applyJson.addEventListener('click', applyExecutionMapEditor);
+    dom.revert.addEventListener('click', revert);
+    dom.save.addEventListener('click', requestSave);
 
     sync({ replaceEditorValues: true });
     return root;

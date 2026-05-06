@@ -237,6 +237,11 @@ intent, execution map, evidence artifacts, and health state as workbench views.
 The helper is a projection layer only; recording, replay, repair, and retirement
 remain owned by the work-record model in
 [`docs/design/aos-work-records-and-self-healing-recipes.md`](../design/aos-work-records-and-self-healing-recipes.md).
+The compatibility reader accepts both the older helper-shaped records and
+schema-v0 records from `shared/schemas/fixtures/aos-work-record-v0/`. Legacy
+records keep their existing edit handoff. Schema-v0 records project as
+read-only `aos.work_record` Subjects with intent, execution-map postconditions,
+evidence, claims, claim results, verifier report, and health views.
 
 The stock work-record workbench lives at:
 
@@ -249,7 +254,14 @@ evidence. `work_record.open` may include a file `source`, which is preserved in
 snapshots and patch requests. The companion
 `packages/toolkit/components/work-record-workbench/save-current.sh` helper can
 persist the current edited record JSON back to that file source or an explicit
-output path. It does not record, replay, repair, or retire recipes by itself.
+output path. Schema-v0 records are opened read-only and do not emit patch
+requests. It does not record, replay, repair, or retire recipes by itself.
+
+`packages/toolkit/workbench/work-record-verifier.js` exposes a deterministic
+report-only checker for schema-v0 records. It validates internal claim,
+postcondition, evidence, verifier-report, and health references, derives
+verifier indexes from `claim_results[]`, reports diagnostics, and never mutates
+the record. Replay and repair remain gated by explicit workflow policy fields.
 
 ## Stock Components Snapshot
 

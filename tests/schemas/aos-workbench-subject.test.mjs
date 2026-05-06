@@ -19,6 +19,10 @@ const workRecordFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-work-records/browser-artifact-collection-step.json',
 );
+const v0WorkRecordFixturePath = path.join(
+  repoRoot,
+  'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-origin.json',
+);
 const workflowMapMarkdownPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
 
 async function validate(instance) {
@@ -75,6 +79,7 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     tags: ['diagnostics', 'runtime'],
   }));
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8'))));
+  await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8'))));
   await validate(createWikiWorkflowSubject({
     root: {
       path: 'aos/concepts/employer-brand-workflow-map.md',
@@ -118,5 +123,8 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
   }));
   await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
     record: JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8')),
+  })));
+  await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
+    record: JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8')),
   })));
 });

@@ -13,15 +13,18 @@ import {
   updateWorkRecordExecutionMapJson,
   updateWorkRecordIntent,
   workRecordDiagnostics,
+  workRecordIsReadOnly,
+  workRecordVerifierCheck,
   workRecordWorkbenchSnapshot,
 } from '../../packages/toolkit/components/work-record-workbench/model.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const fixtureRoot = path.join(repoRoot, 'docs/design/fixtures/aos-work-records');
+const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
 
-function fixture(name) {
-  return JSON.parse(fs.readFileSync(path.join(fixtureRoot, name), 'utf8'));
+function fixture(name, root = fixtureRoot) {
+  return JSON.parse(fs.readFileSync(path.join(root, name), 'utf8'));
 }
 
 test('work record workbench opens a do_step and exposes subject snapshot', () => {
@@ -86,6 +89,48 @@ test('work record patch requests preserve file source metadata', () => {
 
   assert.deepEqual(request.source, { kind: 'file', path: '/tmp/source-record.json' });
   assert.deepEqual(workRecordWorkbenchSnapshot(state).source, { kind: 'file', path: '/tmp/source-record.json' });
+});
+
+test('work record workbench opens a v0 fixture read-only without lossy rewriting', () => {
+  const state = createWorkRecordWorkbenchState();
+  const record = fixture('playbook-origin.json', v0FixtureRoot);
+  const result = openWorkRecord(state, {
+    type: 'work_record.open',
+    source: {
+      kind: 'file',
+      path: '/tmp/playbook-origin.json',
+    },
+    record,
+  });
+  const snapshot = workRecordWorkbenchSnapshot(state);
+
+  assert.equal(result.status, 'opened');
+  assert.equal(state.dirty, false);
+  assert.equal(workRecordIsReadOnly(state.record), true);
+  assert.deepEqual(state.record.evidence, record.evidence);
+  assert.equal(snapshot.subject.id, 'work-record:playbook-open-wiki-sigil-2026-05-05');
+  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
+  assert.equal(snapshot.subject.persistence, null);
+  assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
+  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!snapshot.subject.controls.includes('patch.request'));
+  assert.equal(snapshot.diagnostics.health_state, 'valid');
+  assert.equal(snapshot.diagnostics.claim_count, 2);
+  assert.equal(snapshot.diagnostics.claim_result_count, 2);
+  assert.equal(snapshot.diagnostics.postcondition_count, 3);
+  assert.equal(evidenceArtifacts(state.record).length, 3);
+  assert.match(executionMapJson(state.record), /postcondition:sigil-heading-visible/);
+  assert.equal(workRecordVerifierCheck(state.record).status, 'passed');
+
+  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate v0' });
+  assert.equal(rejectedIntent.status, 'rejected');
+  assert.equal(rejectedIntent.reason, 'read_only');
+  assert.equal(state.dirty, false);
+
+  const rejectedMap = updateWorkRecordExecutionMapJson(state, '{}');
+  assert.equal(rejectedMap.status, 'rejected');
+  assert.equal(rejectedMap.reason, 'read_only');
+  assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
 });
 
 test('invalid execution-map JSON is rejected without mutating current map', () => {

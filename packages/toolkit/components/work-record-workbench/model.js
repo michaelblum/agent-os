@@ -1,4 +1,11 @@
 import { createWorkRecordSubject } from '../../workbench/work-record-subject.js';
+import {
+  isWorkRecordV0,
+  normalizeWorkRecord,
+  workRecordEvidenceArtifacts,
+  workRecordIsReadOnly,
+} from '../../workbench/work-record-adapter.js';
+import { checkWorkRecordReportOnly } from '../../workbench/work-record-verifier.js';
 
 export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-05-04';
 
@@ -51,6 +58,7 @@ function defaultRecord() {
 
 function normalizeRecord(record = {}) {
   const next = objectValue(record);
+  if (isWorkRecordV0(next)) return cloneJson(next);
   const base = defaultRecord();
   return {
     ...base,
@@ -73,6 +81,18 @@ function normalizeRecord(record = {}) {
       ...objectValue(next.health),
     },
   };
+}
+
+function readOnlyResult(state, type, reason = 'read_only') {
+  state.lastResult = {
+    type,
+    schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
+    status: 'rejected',
+    record_id: state.record.id,
+    reason,
+    message: 'Work Record v0 opens read-only in this workbench.',
+  };
+  return state.lastResult;
 }
 
 function unwrapMessage(message = {}) {
@@ -134,6 +154,9 @@ function markDirty(state) {
 }
 
 export function updateWorkRecordIntent(state, intentPatch = {}) {
+  if (workRecordIsReadOnly(state.record)) {
+    return readOnlyResult(state, 'work_record.intent.patch.result');
+  }
   state.record.intent = {
     ...objectValue(state.record.intent),
     ...objectValue(intentPatch),
@@ -150,6 +173,10 @@ export function updateWorkRecordIntent(state, intentPatch = {}) {
 }
 
 export function updateWorkRecordExecutionMapJson(state, jsonText = '') {
+  if (workRecordIsReadOnly(state.record)) {
+    return readOnlyResult(state, 'work_record.execution_map.patch.result');
+  }
+
   let executionMap;
   try {
     executionMap = JSON.parse(String(jsonText || '{}'));
@@ -213,6 +240,9 @@ export function applyWorkRecordPatchResult(state, message = {}) {
 export function buildWorkRecordPatchRequest(state, {
   requestId = `work-record-patch-${Date.now().toString(36)}`,
 } = {}) {
+  if (workRecordIsReadOnly(state.record)) {
+    throw new TypeError('read-only Work Records cannot build patch requests');
+  }
   return {
     type: 'work_record.patch.requested',
     schema_version: WORK_RECORD_WORKBENCH_SCHEMA_VERSION,
@@ -230,22 +260,27 @@ export function buildWorkRecordPatchRequest(state, {
 
 export function workRecordDiagnostics(record = {}) {
   const normalized = normalizeRecord(record);
-  const evidence = objectValue(normalized.evidence);
-  const artifacts = [
-    ...arrayValue(evidence.artifacts),
-    ...(evidence.last_trace ? [{ kind: 'trace', path: evidence.last_trace }] : []),
-  ];
+  const adapter = normalizeWorkRecord(normalized);
   const executionMap = objectValue(normalized.execution_map);
+  const verifierCheck = isWorkRecordV0(normalized) ? checkWorkRecordReportOnly(normalized) : null;
   return {
     record_id: normalized.id,
     record_type: normalized.type,
-    health_state: text(objectValue(normalized.next_health).state || normalized.health.state, 'unknown'),
-    health_reason: text(objectValue(normalized.next_health).reason || normalized.health.reason),
-    surface: text(normalized.surface),
-    action_verb: text(objectValue(normalized.action).verb),
-    artifact_count: artifacts.length,
+    format: adapter.format,
+    read_only: adapter.readOnly,
+    health_state: text(adapter.health.state, 'unknown'),
+    health_reason: text(adapter.health.reason),
+    surface: text(adapter.surface),
+    action_verb: text(objectValue(adapter.action).verb),
+    artifact_count: adapter.artifacts.length,
+    evidence_count: adapter.evidence.length || adapter.artifacts.length,
+    claim_count: adapter.claims.length,
+    claim_result_count: adapter.claimResults.length,
+    postcondition_count: arrayValue(objectValue(executionMap).postconditions).length,
+    verifier_status: verifierCheck?.status || null,
+    verifier_diagnostic_count: verifierCheck?.diagnostics?.length || 0,
     execution_map_keys: Object.keys(executionMap).sort(),
-    has_intent: !!text(objectValue(normalized.intent).nl),
+    has_intent: !!text(adapter.intent.nl || adapter.intent.summary),
   };
 }
 
@@ -265,9 +300,10 @@ export function workRecordWorkbenchSnapshot(state) {
 
 export function buildWorkRecordWorkbenchSubject(state = {}) {
   const subject = createWorkRecordSubject(normalizeRecord(state.record));
+  const readOnly = workRecordIsReadOnly(state.record);
   subject.capabilities = [...new Set([
     ...subject.capabilities,
-    'work_record.patch.requested',
+    ...(readOnly ? [] : ['work_record.patch.requested']),
     'work_record.snapshot',
   ])];
   subject.views = [...new Set([
@@ -276,7 +312,7 @@ export function buildWorkRecordWorkbenchSubject(state = {}) {
   ])];
   subject.controls = [...new Set([
     ...subject.controls,
-    'patch.request',
+    ...(readOnly ? [] : ['patch.request']),
   ])];
   subject.state = {
     ...subject.state,
@@ -291,11 +327,11 @@ export function executionMapJson(record = {}) {
 }
 
 export function evidenceArtifacts(record = {}) {
-  const normalized = normalizeRecord(record);
-  const evidence = objectValue(normalized.evidence);
-  const artifacts = arrayValue(evidence.artifacts).map((artifact) => objectValue(artifact));
-  if (evidence.last_trace) {
-    artifacts.push({ kind: 'trace', path: evidence.last_trace });
-  }
-  return artifacts.filter((artifact) => text(artifact.kind) || text(artifact.path));
+  return workRecordEvidenceArtifacts(normalizeRecord(record));
 }
+
+export function workRecordVerifierCheck(record = {}) {
+  return checkWorkRecordReportOnly(normalizeRecord(record));
+}
+
+export { workRecordIsReadOnly };
