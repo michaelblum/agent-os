@@ -146,8 +146,8 @@ older surfaces, but new toolkit CSS should use the `--aos-*` contract.
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with
-`aos.workbench.subject`. The descriptor is intentionally small: it names stable
-identity, subject type, owner, source, capabilities, views, controls,
+`aos.workbench.subject`. The current descriptor is intentionally small: it names
+stable identity, subject type, owner, source, capabilities, views, controls,
 persistence, artifacts, and current state. It does not move domain ownership
 into the toolkit.
 
@@ -166,6 +166,11 @@ subject model and renderer; the shell only normalizes the frame.
 
 Canonical schema:
 [`shared/schemas/aos-workbench-subject.schema.json`](../../shared/schemas/aos-workbench-subject.schema.json)
+
+V-next schema design notes:
+[`shared/schemas/aos-workbench-subject-vnext.md`](../../shared/schemas/aos-workbench-subject-vnext.md)
+and
+[`shared/schemas/aos-subject-capabilities.md`](../../shared/schemas/aos-subject-capabilities.md)
 
 Create descriptors with:
 
@@ -198,13 +203,20 @@ The current schema version is `2026-05-03`. The first adopters are:
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
-  `wiki.reference`, and `sigil.agent`
+  `wiki.reference`, plus legacy app-specialized projections such as
+  `sigil.agent`
 - Workflow chain subjects: `wiki.workflow_chain`
 - Work-record subjects: `aos.do_step` and `aos.recipe_health_event`
 
 Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
 vocabulary.
+
+The v-next direction keeps wiki document Subjects wiki-oriented and represents
+domain concepts through separate domain Subjects plus Subject References. For
+example, a `sigil.agent` Subject should reference a `wiki.entity` Subject as the
+source of its narrative Facet rather than deriving `subject_type: sigil.agent`
+from the wiki page path itself.
 
 Wiki subject ids use `wiki:<path>`, for example
 `wiki:aos/concepts/runtime-modes.md`. Their source uses `{ kind: "wiki", path,

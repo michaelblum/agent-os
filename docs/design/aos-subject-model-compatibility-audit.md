@@ -53,6 +53,11 @@ Migration direction:
 - add high-level capabilities in a backward-compatible way before removing any
   dotted strings that existing surfaces or tests inspect.
 
+Schema-design status: `shared/schemas/aos-subject-capabilities.md` now records
+the v0 high-level Capability registry and proposes `contracts[]` for dotted
+operation/event strings. Runtime helpers still need a backward-compatible
+reader/writer migration before the split becomes normative JSON Schema.
+
 ### 3. `views[]` and `controls[]` are pre-facet projection fields
 
 The schema currently has `views[]` and `controls[]`, while ADR-0001 defines
@@ -65,6 +70,11 @@ Migration direction:
 - keep `views[]` and `controls[]` during migration as legacy summaries;
 - derive future view/control affordances from `facets[]`, `capabilities[]`, and
   operation contracts once the schema is stable.
+
+Schema-design status:
+`shared/schemas/aos-workbench-subject-vnext.md` now sketches optional
+`facets[]`, `facets[].hosts[]`, `subject_references[]`, and `contracts[]` while
+preserving `views[]` and `controls[]` as legacy summaries.
 
 ### 4. Work-record origin, references, claims, and verifier output are still design-only
 
@@ -147,8 +157,12 @@ Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
    wording, anchor role wording, and `screen:<state-id>/<x,y>`.
 2. Add schema sketches for Subject References, Facets, Hosts, Capabilities,
    operation contracts, Work Record origin/references, and verifier reports.
+   Subject References, Facets, Hosts, Capabilities, and operation contracts now
+   have initial sketches; Work Record origin/references and verifier reports
+   still need their dedicated pass.
 3. Add a capability registry document and decide whether operation contracts stay
-   in `capabilities[]` or move to `contracts[]`.
+   in `capabilities[]` or move to `contracts[]`. The registry now recommends
+   `contracts[]`, with a migration period where consumers read both locations.
 4. Migrate wiki/domain subject helpers: split wiki document Subjects from domain
    Subjects and update tests.
 5. Add optional fields to `aos.workbench.subject` fixtures and helpers, then
