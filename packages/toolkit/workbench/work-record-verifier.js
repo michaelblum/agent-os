@@ -3,6 +3,7 @@ import {
   normalizeWorkRecord,
   WORK_RECORD_V0_SCHEMA_VERSION,
 } from './work-record-adapter.js';
+import { checkWorkRecordEvidenceAdapters } from './work-record-evidence-adapters.js';
 
 export const WORK_RECORD_REPORT_CHECKER_VERSION = '2026-05-report-only';
 export const WORK_RECORD_REPORT_ONLY_PROFILE_ID = 'aos.verifier.work-record.v0.report-only';
@@ -475,6 +476,9 @@ export function checkWorkRecordReportOnly(record = {}) {
     evidenceById,
   });
 
+  const evidenceAdapterReport = checkWorkRecordEvidenceAdapters(record);
+  diagnostics.push(...arrayValue(evidenceAdapterReport.diagnostics));
+
   for (const claimId of claimIds) {
     const resultCount = resultClaimCounts.get(claimId) || 0;
     if (resultCount === 0) {
@@ -569,6 +573,8 @@ export function checkWorkRecordReportOnly(record = {}) {
       claim_results: claimResults.length,
       evidence: evidence.length,
       postconditions: postconditions.length,
+      evidence_adapter_checks: evidenceAdapterReport.summary.checked,
+      evidence_adapter_failures: evidenceAdapterReport.summary.failures,
       replay_gated: replayPolicy.replay_requires_workflow_gate === true,
       repair_gated: replayPolicy.repair_requires_workflow_gate === true,
       failure_classes: failureClasses,

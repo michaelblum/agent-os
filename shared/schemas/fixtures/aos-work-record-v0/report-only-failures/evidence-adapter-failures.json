@@ -1,0 +1,454 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:evidence-adapter-failures",
+  "label": "Evidence adapter failure fixture",
+  "created_at": "2026-05-06T11:45:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Schema-valid fixture with intentionally failing report-only evidence adapter checks."
+  },
+  "references": [
+    {
+      "id": "github-issue-275",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/275",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "workstream_tracker"
+    }
+  ],
+  "intent": {
+    "summary": "Exercise report-only evidence adapter failure diagnostics.",
+    "purpose": "Prove clear failure classes for target drift, missing semantic targets, value mismatch, role/name mismatch, and artifact metadata mismatch.",
+    "acceptance": "The verifier reports adapter diagnostics without mutating the Work Record.",
+    "constraints": [
+      "Keep claim_results intentionally optimistic so adapter diagnostics are the source of failure.",
+      "Do not infer visual screenshot semantics."
+    ],
+    "claim_refs": [
+      "claim:evidence-adapter-target-drift",
+      "claim:evidence-adapter-missing-target",
+      "claim:evidence-adapter-value-mismatch",
+      "claim:evidence-adapter-role-name-mismatch",
+      "claim:evidence-adapter-artifact-mismatch"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:evidence-adapter-browser",
+        "target": "browser:evidence-adapter-demo",
+        "dialect": "browser",
+        "state_id": "see_adapter_failure_browser_001",
+        "description": "Browser-hosted failure fixture scope.",
+        "candidates": [
+          {
+            "ref": "status",
+            "target": "browser:evidence-adapter-demo/status",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Still pending"
+          },
+          {
+            "ref": "status-value",
+            "target": "browser:evidence-adapter-demo/status-value",
+            "role": "status",
+            "name": "Value status",
+            "value": "Still pending"
+          },
+          {
+            "ref": "action",
+            "target": "browser:evidence-adapter-demo/action",
+            "role": "link",
+            "name": "Commit action"
+          }
+        ]
+      }
+    ],
+    "steps": [],
+    "postconditions": [
+      {
+        "id": "postcondition:evidence-adapter-target-drift",
+        "kind": "browser_dom_semantic_target",
+        "description": "The postcondition target ref intentionally drifted away from the check ref.",
+        "target": "browser:evidence-adapter-demo/status-drift",
+        "state_id": "see_adapter_failure_browser_001",
+        "check": {
+          "kind": "semantic_target_matches",
+          "ref": "status",
+          "expected": {
+            "target": "browser:evidence-adapter-demo/status-drift",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Still pending"
+          },
+          "path": "evidence.metadata.semantic_targets[ref=status]"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-failure-browser"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Target drift should be patched in the execution map under a workflow gate."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-missing-target",
+        "kind": "browser_dom_semantic_target",
+        "description": "The expected semantic target is absent from referenced evidence.",
+        "target": "browser:evidence-adapter-demo/missing",
+        "state_id": "see_adapter_failure_browser_001",
+        "check": {
+          "kind": "semantic_target_exists",
+          "ref": "missing",
+          "path": "evidence.metadata.semantic_targets[ref=missing]"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-failure-browser"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Missing semantic targets require re-capture or execution-map repair under a workflow gate."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-value-mismatch",
+        "kind": "browser_dom_semantic_target",
+        "description": "The semantic target exists but its value is wrong.",
+        "target": "browser:evidence-adapter-demo/status-value",
+        "state_id": "see_adapter_failure_browser_001",
+        "check": {
+          "kind": "semantic_target_value_contains",
+          "ref": "status-value",
+          "expected": "Action recorded",
+          "path": "evidence.metadata.semantic_targets[ref=status-value].value"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-failure-browser"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Value drift should be reviewed against immutable evidence before patching the postcondition."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-role-name-mismatch",
+        "kind": "browser_dom_semantic_target",
+        "description": "The semantic target exists but role and name metadata do not match.",
+        "target": "browser:evidence-adapter-demo/action",
+        "state_id": "see_adapter_failure_browser_001",
+        "check": {
+          "kind": "semantic_target_matches",
+          "ref": "action",
+          "expected": {
+            "target": "browser:evidence-adapter-demo/action",
+            "role": "button",
+            "name": "Commit live action"
+          },
+          "path": "evidence.metadata.semantic_targets[ref=action]"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-failure-browser"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Role/name drift should be patched only after deterministic review."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-artifact-mismatch",
+        "kind": "artifact_metadata",
+        "description": "The screenshot metadata intentionally differs from the expected attachment metadata.",
+        "target": "artifact:artifacts/work-records/evidence-adapter-failures/panel.png",
+        "check": {
+          "kind": "artifact_metadata_matches",
+          "expected": {
+            "uri": "artifact:artifacts/work-records/evidence-adapter-failures/panel.png",
+            "digest": "sha256:expected-panel",
+            "content_type": "image/png",
+            "dimensions": {
+              "width": 640,
+              "height": 360
+            }
+          },
+          "path": "evidence.metadata"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-failure-screenshot"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Only screenshot attachment metadata is checked in this slice."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:evidence-adapter-failure-screenshot",
+        "kind": "screenshot_metadata",
+        "destination": "artifact:artifacts/work-records/evidence-adapter-failures/panel.png",
+        "evidence_ref": "evidence:evidence-adapter-failure-screenshot"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This fixture proves report-only diagnostics only; replay and repair stay disabled."
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence:evidence-adapter-failure-browser",
+      "kind": "aos_see_capture",
+      "created_at": "2026-05-06T11:45:01Z",
+      "uri": "artifact:artifacts/work-records/evidence-adapter-failures/browser-after.json",
+      "digest": "fnv1a32:adapterfailurebrowser",
+      "state_id": "see_adapter_failure_browser_001",
+      "target": "browser:evidence-adapter-demo",
+      "immutable": true,
+      "summary": "Browser semantic payload with intentional mismatches.",
+      "metadata": {
+        "target_dialect": "browser",
+        "capture_kind": "browser_xray",
+        "semantic_targets": [
+          {
+            "ref": "status",
+            "target": "browser:evidence-adapter-demo/status",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Still pending"
+          },
+          {
+            "ref": "status-value",
+            "target": "browser:evidence-adapter-demo/status-value",
+            "role": "status",
+            "name": "Value status",
+            "value": "Still pending"
+          },
+          {
+            "ref": "action",
+            "target": "browser:evidence-adapter-demo/action",
+            "role": "link",
+            "name": "Commit action"
+          }
+        ]
+      }
+    },
+    {
+      "id": "evidence:evidence-adapter-failure-screenshot",
+      "kind": "screenshot_artifact",
+      "created_at": "2026-05-06T11:45:02Z",
+      "uri": "artifact:artifacts/work-records/evidence-adapter-failures/panel.png",
+      "digest": "sha256:actual-panel",
+      "target": "browser:evidence-adapter-demo",
+      "immutable": true,
+      "summary": "Screenshot attachment metadata with intentional mismatch.",
+      "metadata": {
+        "content_type": "image/jpeg",
+        "dimensions": {
+          "width": 800,
+          "height": 450
+        },
+        "attachment": {
+          "id": "artifact:evidence-adapter-failure-panel",
+          "kind": "screenshot"
+        },
+        "metadata_only": true
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:evidence-adapter-target-drift",
+      "text": "The browser semantic target keeps the expected target ref.",
+      "scope": "run",
+      "acceptance": "The target ref and check ref identify the same browser semantic target.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-target-drift"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-missing-target",
+      "text": "The browser semantic target exists in referenced evidence.",
+      "scope": "run",
+      "acceptance": "Ref missing should exist.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-missing-target"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-value-mismatch",
+      "text": "The browser semantic target value contains Action recorded.",
+      "scope": "run",
+      "acceptance": "Ref status-value contains Action recorded.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-value-mismatch"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-role-name-mismatch",
+      "text": "The browser semantic target role and name match the expected control.",
+      "scope": "run",
+      "acceptance": "Ref action is a button named Commit live action.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-role-name-mismatch"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-artifact-mismatch",
+      "text": "The screenshot artifact metadata matches the expected attachment.",
+      "scope": "artifact",
+      "acceptance": "Digest, content type, and dimensions match.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-artifact-mismatch"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:evidence-adapter-target-drift",
+      "claim_id": "claim:evidence-adapter-target-drift",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "Fixture intentionally leaves claim_result optimistic so adapter diagnostics catch drift.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-failure-browser"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-target-drift",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-failure-browser"
+          ],
+          "reason": "Optimistic fixture result."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-missing-target",
+      "claim_id": "claim:evidence-adapter-missing-target",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "Fixture intentionally leaves claim_result optimistic so adapter diagnostics catch missing targets.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-failure-browser"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-missing-target",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-failure-browser"
+          ],
+          "reason": "Optimistic fixture result."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-value-mismatch",
+      "claim_id": "claim:evidence-adapter-value-mismatch",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "Fixture intentionally leaves claim_result optimistic so adapter diagnostics catch value mismatches.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-failure-browser"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-value-mismatch",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-failure-browser"
+          ],
+          "reason": "Optimistic fixture result."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-role-name-mismatch",
+      "claim_id": "claim:evidence-adapter-role-name-mismatch",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "Fixture intentionally leaves claim_result optimistic so adapter diagnostics catch role/name mismatches.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-failure-browser"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-role-name-mismatch",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-failure-browser"
+          ],
+          "reason": "Optimistic fixture result."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-artifact-mismatch",
+      "claim_id": "claim:evidence-adapter-artifact-mismatch",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "Fixture intentionally leaves claim_result optimistic so adapter diagnostics catch artifact metadata mismatches.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-failure-screenshot"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-artifact-mismatch",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-failure-screenshot"
+          ],
+          "reason": "Optimistic fixture result."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:evidence-adapter-failures",
+    "generated_at": "2026-05-06T11:45:03Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0.report-only",
+      "kind": "work_record_v0_report_only",
+      "version": "2026-05-report-only"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:evidence-adapter-artifact-mismatch",
+        "claim:evidence-adapter-missing-target",
+        "claim:evidence-adapter-role-name-mismatch",
+        "claim:evidence-adapter-target-drift",
+        "claim:evidence-adapter-value-mismatch"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:evidence-adapter-failure-browser",
+      "evidence:evidence-adapter-failure-screenshot"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "Fixture leaves embedded health optimistic so report-only adapter diagnostics can surface evidence quality failures.",
+    "evaluated_at": "2026-05-06T11:45:03Z",
+    "verifier_report_id": "verifier-report:evidence-adapter-failures",
+    "confidence": 0.9,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "fixture_status": "deterministic_saved_evidence",
+    "expected_report_only_status": "failed",
+    "adapter_boundary": "above_daemon_report_only",
+    "screenshots_are_metadata_only": true
+  }
+}

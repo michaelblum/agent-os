@@ -1,0 +1,384 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:evidence-adapter-browser-canvas",
+  "label": "Evidence adapter browser and canvas fixture",
+  "created_at": "2026-05-06T11:30:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Deterministic fixture for report-only Work Record evidence adapters."
+  },
+  "references": [
+    {
+      "id": "github-issue-275",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/275",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "workstream_tracker"
+    }
+  ],
+  "intent": {
+    "summary": "Verify structured browser, canvas, and artifact metadata evidence without replay or repair.",
+    "purpose": "Prove report-only verifier evidence adapters can inspect deterministic payloads above the daemon.",
+    "acceptance": "Browser semantic target, canvas/AX-like semantic target, and screenshot metadata postconditions pass from structured evidence.",
+    "constraints": [
+      "Keep generated Work Records report-only and read-only.",
+      "Treat screenshots as metadata only."
+    ],
+    "claim_refs": [
+      "claim:evidence-adapter-browser-status",
+      "claim:evidence-adapter-canvas-status",
+      "claim:evidence-adapter-artifact-metadata"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:evidence-adapter-browser",
+        "target": "browser:evidence-adapter-demo",
+        "dialect": "browser",
+        "state_id": "see_adapter_browser_001",
+        "description": "Browser-hosted fixture scope with DOM/ARIA-like semantic targets.",
+        "candidates": [
+          {
+            "ref": "status",
+            "target": "browser:evidence-adapter-demo/status",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Action recorded",
+            "data_aos_ref": "evidence-adapter.status"
+          }
+        ]
+      },
+      {
+        "id": "target:evidence-adapter-canvas",
+        "target": "canvas:evidence-adapter-panel",
+        "dialect": "canvas",
+        "state_id": "see_adapter_canvas_001",
+        "description": "Canvas-hosted fixture scope with AX-like semantic targets.",
+        "candidates": [
+          {
+            "ref": "status-node",
+            "target": "canvas:evidence-adapter-panel/status-node",
+            "role": "AXStaticText",
+            "name": "Canvas Status",
+            "value": "Ready",
+            "canvas_id": "evidence-adapter-panel"
+          }
+        ]
+      }
+    ],
+    "steps": [],
+    "postconditions": [
+      {
+        "id": "postcondition:evidence-adapter-browser-status",
+        "kind": "browser_dom_semantic_target",
+        "description": "The browser after-capture exposes the live action status as Action recorded.",
+        "target": "browser:evidence-adapter-demo/status",
+        "state_id": "see_adapter_browser_001",
+        "check": {
+          "kind": "semantic_target_matches",
+          "ref": "status",
+          "expected": {
+            "target": "browser:evidence-adapter-demo/status",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Action recorded"
+          },
+          "path": "evidence.metadata.semantic_targets[ref=status]"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-browser-after"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch browser refs or semantic expectations under a workflow gate; do not edit historical evidence."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-canvas-status",
+        "kind": "canvas_ax_semantic_target",
+        "description": "The canvas semantic payload exposes an AX-like status node.",
+        "target": "canvas:evidence-adapter-panel/status-node",
+        "state_id": "see_adapter_canvas_001",
+        "check": {
+          "kind": "semantic_target_matches",
+          "ref": "status-node",
+          "expected": {
+            "target": "canvas:evidence-adapter-panel/status-node",
+            "role": "AXStaticText",
+            "name": "Canvas Status",
+            "value": "Ready"
+          },
+          "path": "evidence.metadata.semantic_targets[ref=status-node]"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-canvas-see"
+        ],
+        "repair_policy": {
+          "mode": "patch_execution_map",
+          "notes": "Patch canvas refs or AX-like semantic expectations under a workflow gate."
+        }
+      },
+      {
+        "id": "postcondition:evidence-adapter-screenshot-metadata",
+        "kind": "artifact_metadata",
+        "description": "The screenshot artifact exposes deterministic attachment metadata only.",
+        "target": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/panel.png",
+        "check": {
+          "kind": "artifact_metadata_matches",
+          "expected": {
+            "uri": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/panel.png",
+            "digest": "sha256:adapter-panel-001",
+            "content_type": "image/png",
+            "dimensions": {
+              "width": 640,
+              "height": 360
+            }
+          },
+          "path": "evidence.metadata"
+        },
+        "evidence_refs": [
+          "evidence:evidence-adapter-screenshot"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "This slice verifies screenshot metadata only, not visual semantic claims."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:evidence-adapter-screenshot",
+        "kind": "screenshot_metadata",
+        "destination": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/panel.png",
+        "evidence_ref": "evidence:evidence-adapter-screenshot"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "Evidence adapters inspect saved payloads only; they do not replay, repair, or mutate the record."
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence:evidence-adapter-browser-after",
+      "kind": "aos_see_capture",
+      "created_at": "2026-05-06T11:30:01Z",
+      "uri": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/browser-after.json",
+      "digest": "fnv1a32:adapterbrowser",
+      "state_id": "see_adapter_browser_001",
+      "target": "browser:evidence-adapter-demo",
+      "immutable": true,
+      "summary": "Browser semantic target payload exposes the expected status.",
+      "metadata": {
+        "target_dialect": "browser",
+        "capture_kind": "browser_xray",
+        "semantic_targets": [
+          {
+            "ref": "status",
+            "target": "browser:evidence-adapter-demo/status",
+            "role": "status",
+            "name": "Live action status",
+            "value": "Action recorded",
+            "enabled": true,
+            "data_aos_ref": "evidence-adapter.status"
+          }
+        ]
+      }
+    },
+    {
+      "id": "evidence:evidence-adapter-canvas-see",
+      "kind": "aos_see_capture",
+      "created_at": "2026-05-06T11:30:02Z",
+      "uri": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/canvas-see.json",
+      "digest": "fnv1a32:adaptercanvas",
+      "state_id": "see_adapter_canvas_001",
+      "target": "canvas:evidence-adapter-panel",
+      "immutable": true,
+      "summary": "Canvas semantic target payload exposes an AX-like status node.",
+      "metadata": {
+        "target_dialect": "canvas",
+        "capture_kind": "canvas_ax_semantic_targets",
+        "semantic_targets": [
+          {
+            "ref": "status-node",
+            "target": "canvas:evidence-adapter-panel/status-node",
+            "role": "AXStaticText",
+            "name": "Canvas Status",
+            "value": "Ready",
+            "canvas_id": "evidence-adapter-panel",
+            "bounds": {
+              "x": 20,
+              "y": 24,
+              "w": 200,
+              "h": 32
+            },
+            "ax_path": [
+              "AXWindow",
+              "AXGroup",
+              "AXStaticText[0]"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "evidence:evidence-adapter-screenshot",
+      "kind": "screenshot_artifact",
+      "created_at": "2026-05-06T11:30:03Z",
+      "uri": "artifact:artifacts/work-records/evidence-adapter-browser-canvas/panel.png",
+      "digest": "sha256:adapter-panel-001",
+      "target": "canvas:evidence-adapter-panel",
+      "immutable": true,
+      "summary": "Screenshot attachment metadata for the evidence adapter fixture.",
+      "metadata": {
+        "content_type": "image/png",
+        "dimensions": {
+          "width": 640,
+          "height": 360
+        },
+        "attachment": {
+          "id": "artifact:evidence-adapter-panel-png",
+          "kind": "screenshot"
+        },
+        "metadata_only": true
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:evidence-adapter-browser-status",
+      "text": "The browser semantic target evidence exposes the expected status.",
+      "scope": "run",
+      "acceptance": "Ref status has role status, name Live action status, and value Action recorded.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-browser-status"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-canvas-status",
+      "text": "The canvas evidence exposes one AX-like semantic target shape.",
+      "scope": "run",
+      "acceptance": "Ref status-node has role AXStaticText, name Canvas Status, and value Ready.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-canvas-status"
+      ]
+    },
+    {
+      "id": "claim:evidence-adapter-artifact-metadata",
+      "text": "The screenshot artifact is verified only by deterministic metadata.",
+      "scope": "artifact",
+      "acceptance": "URI, digest, content type, and dimensions match the metadata contract.",
+      "postcondition_refs": [
+        "postcondition:evidence-adapter-screenshot-metadata"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:evidence-adapter-browser-status",
+      "claim_id": "claim:evidence-adapter-browser-status",
+      "status": "verified",
+      "confidence": 0.95,
+      "reason": "The browser semantic target payload matches the postcondition.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-browser-after"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-browser-status",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-browser-after"
+          ],
+          "reason": "Ref status matched role, name, and value in structured browser evidence."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-canvas-status",
+      "claim_id": "claim:evidence-adapter-canvas-status",
+      "status": "verified",
+      "confidence": 0.94,
+      "reason": "The canvas AX-like semantic target payload matches the postcondition.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-canvas-see"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-canvas-status",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-canvas-see"
+          ],
+          "reason": "Ref status-node matched role, name, and value in structured canvas evidence."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:evidence-adapter-artifact-metadata",
+      "claim_id": "claim:evidence-adapter-artifact-metadata",
+      "status": "verified",
+      "confidence": 0.93,
+      "reason": "The screenshot artifact metadata matches the postcondition.",
+      "evidence_refs": [
+        "evidence:evidence-adapter-screenshot"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:evidence-adapter-screenshot-metadata",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:evidence-adapter-screenshot"
+          ],
+          "reason": "URI, digest, content type, and dimensions matched."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:evidence-adapter-browser-canvas",
+    "generated_at": "2026-05-06T11:30:04Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0.report-only",
+      "kind": "work_record_v0_report_only",
+      "version": "2026-05-report-only"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:evidence-adapter-artifact-metadata",
+        "claim:evidence-adapter-browser-status",
+        "claim:evidence-adapter-canvas-status"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:evidence-adapter-browser-after",
+      "evidence:evidence-adapter-canvas-see",
+      "evidence:evidence-adapter-screenshot"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "All adapter-backed postconditions verified against deterministic structured evidence.",
+    "evaluated_at": "2026-05-06T11:30:04Z",
+    "verifier_report_id": "verifier-report:evidence-adapter-browser-canvas",
+    "confidence": 0.93,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "fixture_status": "deterministic_saved_evidence",
+    "adapter_boundary": "above_daemon_report_only",
+    "screenshots_are_metadata_only": true
+  }
+}

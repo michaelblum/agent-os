@@ -11,13 +11,23 @@ import {
   workRecordVerifierProfile,
   workRecordVerifierProfiles,
 } from '../../packages/toolkit/workbench/work-record-verifier.js';
+import {
+  checkWorkRecordEvidenceAdapters,
+  WORK_RECORD_EVIDENCE_ADAPTER_IDS,
+  workRecordEvidenceAdapters,
+} from '../../packages/toolkit/workbench/work-record-evidence-adapters.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const v0FixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/valid');
+const reportOnlyFailureFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0/report-only-failures');
 
 function fixture(name) {
   return JSON.parse(fs.readFileSync(path.join(v0FixtureRoot, name), 'utf8'));
+}
+
+function reportOnlyFailureFixture(name) {
+  return JSON.parse(fs.readFileSync(path.join(reportOnlyFailureFixtureRoot, name), 'utf8'));
 }
 
 function markPostconditionFailed(record, postconditionId, reason) {
@@ -126,6 +136,51 @@ test('report-only verifier checker rejects unsupported legacy records', () => {
   assert.equal(result.status, 'unsupported');
   assert.equal(result.record_id, 'legacy-step');
   assert.equal(result.diagnostics[0].code, 'unsupported_record_shape');
+});
+
+test('report-only verifier checks structured browser, canvas, and artifact metadata evidence', () => {
+  const record = fixture('evidence-adapter-browser-canvas.json');
+  const before = JSON.stringify(record);
+  const adapterIds = new Set(workRecordEvidenceAdapters().map((adapter) => adapter.id));
+  const adapterReport = checkWorkRecordEvidenceAdapters(record);
+  const result = checkWorkRecordReportOnly(record);
+
+  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.browserSemanticTargets));
+  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.canvasSemanticTargets));
+  assert.ok(adapterIds.has(WORK_RECORD_EVIDENCE_ADAPTER_IDS.artifactMetadata));
+  assert.equal(adapterReport.status, 'passed');
+  assert.equal(adapterReport.mutates_record, false);
+  assert.equal(adapterReport.summary.checked, 3);
+  assert.deepEqual(adapterReport.diagnostics, []);
+  assert.equal(result.status, 'passed');
+  assert.equal(result.summary.evidence_adapter_checks, 3);
+  assert.equal(result.summary.evidence_adapter_failures, 0);
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(JSON.stringify(record), before);
+});
+
+test('report-only verifier reports adapter-backed evidence failure classes without mutating records', () => {
+  const record = reportOnlyFailureFixture('evidence-adapter-failures.json');
+  const before = JSON.stringify(record);
+  const result = checkWorkRecordReportOnly(record);
+  const codes = new Set(result.diagnostics.map((diagnostic) => diagnostic.code));
+
+  assert.equal(result.status, 'failed');
+  assert.ok(codes.has('evidence_target_ref_drift'));
+  assert.ok(codes.has('missing_semantic_target'));
+  assert.ok(codes.has('semantic_target_value_mismatch'));
+  assert.ok(codes.has('semantic_target_role_name_mismatch'));
+  assert.ok(codes.has('artifact_metadata_mismatch'));
+  assert.ok(result.failure_classes.includes('target_ref_drift'));
+  assert.ok(result.failure_classes.includes('semantic_target_missing'));
+  assert.ok(result.failure_classes.includes('semantic_value_mismatch'));
+  assert.ok(result.failure_classes.includes('semantic_role_name_mismatch'));
+  assert.ok(result.failure_classes.includes('artifact_metadata_mismatch'));
+  assert.equal(result.summary.evidence_adapter_checks, 5);
+  assert.ok(result.summary.evidence_adapter_failures >= 5);
+  assert.ok(result.diagnostics.every((diagnostic) => diagnostic.report_only === true));
+  assert.ok(result.diagnostics.every((diagnostic) => diagnostic.source === 'work_record_evidence_adapter'));
+  assert.equal(JSON.stringify(record), before);
 });
 
 test('report-only verifier classifies target/ref drift without mutating the Work Record', () => {

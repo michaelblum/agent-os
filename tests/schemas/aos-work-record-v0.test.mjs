@@ -162,6 +162,25 @@ test('valid Work Record v0 fixtures match the schema and resolve internal ids', 
   }
 });
 
+test('report-only verifier failure fixtures are schema-valid Work Records', async () => {
+  const fixtures = await jsonFiles(path.join(fixtureRoot, 'report-only-failures'));
+  assert.ok(fixtures.length >= 1, 'expected report-only failure Work Record fixtures');
+
+  for (const fixture of fixtures) {
+    const result = validate(fixture);
+    assert.equal(
+      result.status,
+      0,
+      `${path.relative(repoRoot, fixture)} should validate\n${result.stdout}${result.stderr}`,
+    );
+
+    const record = await loadJson(fixture);
+    const relative = path.relative(repoRoot, fixture);
+    assertKnownIds(record, relative);
+    assertDerivedIndexes(record, relative);
+  }
+});
+
 test('invalid Work Record v0 fixtures are rejected by the schema', async () => {
   const fixtures = await jsonFiles(path.join(fixtureRoot, 'invalid'));
   assert.ok(fixtures.length >= 1, 'expected invalid Work Record fixtures');
