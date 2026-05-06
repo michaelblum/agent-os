@@ -1,0 +1,274 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:repo-command-work-record-adapter-test-2026-05-06",
+  "label": "Repo command Work Record adapter test capture",
+  "created_at": "2026-05-06T02:20:00Z",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Generated from bounded repo command evidence."
+  },
+  "references": [
+    {
+      "id": "issue-270",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/270",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "acceptance_criteria"
+    },
+    {
+      "id": "test-work-record-adapter",
+      "relationship": "evidence_for",
+      "ref": "repo:tests/toolkit/work-record-adapter.test.mjs",
+      "subject_type": "repo.file",
+      "layer": "verification",
+      "role": "focused_test"
+    }
+  ],
+  "intent": {
+    "summary": "Capture focused Work Record adapter test evidence as a completed Work Record v0.",
+    "purpose": "Prove the Work Record capture path can normalize a bounded repo command into immutable evidence, Claims, Postconditions, Claim Results, a Verifier Report, and Health.",
+    "acceptance": "The generated Work Record validates against the v0 schema, passes the named report-only verifier profile, and opens read-only through the existing Work Record workbench model.",
+    "constraints": [
+      "Use one deterministic repo command as the bounded evidence source.",
+      "Do not introduce autonomous replay or repair behavior.",
+      "Keep replay and repair gated by workflow policy."
+    ],
+    "claim_refs": [
+      "claim:repo-command-work-record-adapter-test-2026-05-06-command-succeeded",
+      "claim:repo-command-work-record-adapter-test-2026-05-06-expected-output-observed"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:repo-command-work-record-adapter-test-2026-05-06-repo",
+        "target": "repo:/Users/Michael/Code/agent-os",
+        "dialect": "repo",
+        "description": "Repository checkout where the command evidence was captured."
+      },
+      {
+        "id": "target:repo-command-work-record-adapter-test-2026-05-06-command",
+        "target": "command:node --test tests/toolkit/work-record-adapter.test.mjs",
+        "dialect": "command",
+        "state_id": "repo-agent-os-5152b42",
+        "description": "Bounded repo command used as the AOS-shaped evidence source."
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:repo-command-work-record-adapter-test-2026-05-06-run-command",
+        "intent": "Run node --test tests/toolkit/work-record-adapter.test.mjs and capture its result as immutable evidence.",
+        "action": {
+          "verb": "run_command",
+          "target": "command:node --test tests/toolkit/work-record-adapter.test.mjs",
+          "state_id": "repo-agent-os-5152b42",
+          "args": {
+            "cwd": "repo:/Users/Michael/Code/agent-os",
+            "command": "node --test tests/toolkit/work-record-adapter.test.mjs"
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:repo-command-work-record-adapter-test-2026-05-06-exit-code",
+          "postcondition:repo-command-work-record-adapter-test-2026-05-06-stdout"
+        ],
+        "repair_hints": [
+          {
+            "kind": "rerun_command_manually",
+            "note": "Rerun the command under an explicit workflow gate before producing a new Work Record."
+          }
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:repo-command-work-record-adapter-test-2026-05-06-exit-code",
+        "kind": "repo_command_exit",
+        "description": "The command exits with code 0.",
+        "target": "command:node --test tests/toolkit/work-record-adapter.test.mjs",
+        "state_id": "repo-agent-os-5152b42",
+        "check": {
+          "kind": "exit_code_equals",
+          "command": "node --test tests/toolkit/work-record-adapter.test.mjs",
+          "expected": 0
+        },
+        "evidence_refs": [
+          "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Command failures require code, test, or environment investigation; the Work Record is report-only."
+        }
+      },
+      {
+        "id": "postcondition:repo-command-work-record-adapter-test-2026-05-06-stdout",
+        "kind": "repo_command_output",
+        "description": "The command output contains the expected success markers.",
+        "target": "command:node --test tests/toolkit/work-record-adapter.test.mjs",
+        "state_id": "repo-agent-os-5152b42",
+        "check": {
+          "kind": "stdout_contains_all",
+          "command": "node --test tests/toolkit/work-record-adapter.test.mjs",
+          "expected": [
+            "# pass 2",
+            "# fail 0"
+          ]
+        },
+        "evidence_refs": [
+          "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Output drift should be reviewed against the command evidence before changing expectations."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:repo-command-work-record-adapter-test-2026-05-06-command-evidence",
+        "kind": "command_evidence",
+        "destination": "artifact:artifacts/work-records/repo-command-work-record-adapter-test-2026-05-06/command-output.json",
+        "evidence_ref": "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This Work Record records and verifies command evidence only; it does not authorize autonomous replay or repair."
+    }
+  },
+  "evidence": [
+    {
+      "id": "evidence:repo-command-work-record-adapter-test-2026-05-06-command",
+      "kind": "repo_command",
+      "created_at": "2026-05-06T02:20:01Z",
+      "uri": "artifact:artifacts/work-records/repo-command-work-record-adapter-test-2026-05-06/command-output.json",
+      "digest": "fnv1a32:6f105d77",
+      "state_id": "repo-agent-os-5152b42",
+      "target": "command:node --test tests/toolkit/work-record-adapter.test.mjs",
+      "immutable": true,
+      "summary": "The focused Work Record adapter test command completed successfully with two passing tests and zero failures.",
+      "metadata": {
+        "builder": "2026-05-command-evidence-v0",
+        "command": "node --test tests/toolkit/work-record-adapter.test.mjs",
+        "cwd": "repo:/Users/Michael/Code/agent-os",
+        "exit_code": 0,
+        "stdout_excerpt": "# pass 2\n# fail 0",
+        "stderr_excerpt": "",
+        "expected_stdout_includes": [
+          "# pass 2",
+          "# fail 0"
+        ],
+        "duration_ms": 76,
+        "source": {
+          "type": "aos.command_evidence",
+          "id": "command-evidence:work-record-adapter-test-2026-05-06"
+        },
+        "branch": "codex/work-record-capture-verify",
+        "commit": "5152b42"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:repo-command-work-record-adapter-test-2026-05-06-command-succeeded",
+      "text": "The bounded repo command succeeded: node --test tests/toolkit/work-record-adapter.test.mjs",
+      "scope": "run",
+      "acceptance": "Exit code is 0.",
+      "postcondition_refs": [
+        "postcondition:repo-command-work-record-adapter-test-2026-05-06-exit-code"
+      ]
+    },
+    {
+      "id": "claim:repo-command-work-record-adapter-test-2026-05-06-expected-output-observed",
+      "text": "The bounded repo command evidence includes the expected success output.",
+      "scope": "run",
+      "acceptance": "# pass 2; # fail 0",
+      "postcondition_refs": [
+        "postcondition:repo-command-work-record-adapter-test-2026-05-06-stdout"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:repo-command-work-record-adapter-test-2026-05-06-command-succeeded",
+      "claim_id": "claim:repo-command-work-record-adapter-test-2026-05-06-command-succeeded",
+      "status": "verified",
+      "confidence": 0.98,
+      "reason": "Observed exit code 0.",
+      "evidence_refs": [
+        "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:repo-command-work-record-adapter-test-2026-05-06-exit-code",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+          ],
+          "reason": "Observed exit code 0."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:repo-command-work-record-adapter-test-2026-05-06-expected-output-observed",
+      "claim_id": "claim:repo-command-work-record-adapter-test-2026-05-06-expected-output-observed",
+      "status": "verified",
+      "confidence": 0.98,
+      "reason": "All expected output markers were present in the command evidence.",
+      "evidence_refs": [
+        "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:repo-command-work-record-adapter-test-2026-05-06-stdout",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+          ],
+          "reason": "All expected output markers were present in the command evidence."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:repo-command-work-record-adapter-test-2026-05-06",
+    "generated_at": "2026-05-06T02:20:01Z",
+    "verifier": {
+      "id": "aos.verifier.work-record.v0.report-only",
+      "kind": "work_record_v0_report_only",
+      "version": "2026-05-report-only"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:repo-command-work-record-adapter-test-2026-05-06-command-succeeded",
+        "claim:repo-command-work-record-adapter-test-2026-05-06-expected-output-observed"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:repo-command-work-record-adapter-test-2026-05-06-command"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "All run Claims verified against immutable repo command evidence.",
+    "evaluated_at": "2026-05-06T02:20:01Z",
+    "verifier_report_id": "verifier-report:repo-command-work-record-adapter-test-2026-05-06",
+    "confidence": 0.98,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "generated_by": "2026-05-command-evidence-v0",
+    "evidence_source_id": "command-evidence:work-record-adapter-test-2026-05-06",
+    "verifier_profile_id": "aos.verifier.work-record.v0.report-only"
+  }
+}

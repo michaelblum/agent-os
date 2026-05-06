@@ -133,6 +133,36 @@ test('work record workbench opens a v0 fixture read-only without lossy rewriting
   assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
 });
 
+test('work record workbench opens generated command v0 records read-only', () => {
+  const state = createWorkRecordWorkbenchState();
+  const record = fixture('repo-command-adapter-test.json', v0FixtureRoot);
+  const result = openWorkRecord(state, {
+    type: 'work_record.open',
+    source: {
+      kind: 'file',
+      path: '/tmp/repo-command-adapter-test.json',
+    },
+    record,
+  });
+  const snapshot = workRecordWorkbenchSnapshot(state);
+
+  assert.equal(result.status, 'opened');
+  assert.equal(workRecordIsReadOnly(state.record), true);
+  assert.equal(snapshot.subject.id, 'work-record:repo-command-work-record-adapter-test-2026-05-06');
+  assert.equal(snapshot.subject.subject_type, 'aos.work_record');
+  assert.equal(snapshot.subject.persistence, null);
+  assert.ok(snapshot.subject.views.includes('work_record.verifier_report'));
+  assert.ok(!snapshot.subject.capabilities.includes('work_record.patch.requested'));
+  assert.ok(!snapshot.subject.controls.includes('patch.request'));
+  assert.equal(snapshot.diagnostics.format, 'v0');
+  assert.equal(snapshot.diagnostics.read_only, true);
+  assert.equal(snapshot.diagnostics.health_state, 'valid');
+  assert.equal(snapshot.diagnostics.verifier_status, 'passed');
+  assert.equal(snapshot.diagnostics.claim_count, 2);
+  assert.equal(snapshot.diagnostics.postcondition_count, 2);
+  assert.equal(workRecordVerifierCheck(state.record).profile_id, 'aos.verifier.work-record.v0.report-only');
+});
+
 test('invalid execution-map JSON is rejected without mutating current map', () => {
   const state = createWorkRecordWorkbenchState({ record: fixture('browser-artifact-collection-step.json') });
   const before = executionMapJson(state.record);

@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 import {
   checkWorkRecordReportOnly,
   deriveWorkRecordClaimIndexes,
+  runWorkRecordVerifierProfile,
+  WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  workRecordVerifierProfile,
+  workRecordVerifierProfiles,
 } from '../../packages/toolkit/workbench/work-record-verifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -40,6 +44,22 @@ test('report-only verifier checker derives indexes and does not mutate valid v0 
     unverified: [],
   });
   assert.deepEqual(deriveWorkRecordClaimIndexes(record), result.derived_indexes);
+  assert.equal(JSON.stringify(record), before);
+});
+
+test('named report-only verifier profile runs the deterministic checker', () => {
+  const record = fixture('repo-command-adapter-test.json');
+  const before = JSON.stringify(record);
+  const profile = workRecordVerifierProfile(WORK_RECORD_REPORT_ONLY_PROFILE_ID);
+  const result = runWorkRecordVerifierProfile(record, { profileId: WORK_RECORD_REPORT_ONLY_PROFILE_ID });
+
+  assert.equal(profile.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
+  assert.ok(workRecordVerifierProfiles().some((item) => item.id === WORK_RECORD_REPORT_ONLY_PROFILE_ID));
+  assert.equal(result.status, 'passed');
+  assert.equal(result.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
+  assert.equal(result.profile.mode, 'report_only');
+  assert.equal(result.profile.mutates_record, false);
+  assert.deepEqual(result.diagnostics, []);
   assert.equal(JSON.stringify(record), before);
 });
 

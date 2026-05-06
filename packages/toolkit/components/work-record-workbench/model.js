@@ -5,7 +5,7 @@ import {
   workRecordEvidenceArtifacts,
   workRecordIsReadOnly,
 } from '../../workbench/work-record-adapter.js';
-import { checkWorkRecordReportOnly } from '../../workbench/work-record-verifier.js';
+import { runWorkRecordVerifierProfile } from '../../workbench/work-record-verifier.js';
 
 export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-05-04';
 
@@ -262,7 +262,7 @@ export function workRecordDiagnostics(record = {}) {
   const normalized = normalizeRecord(record);
   const adapter = normalizeWorkRecord(normalized);
   const executionMap = objectValue(normalized.execution_map);
-  const verifierCheck = isWorkRecordV0(normalized) ? checkWorkRecordReportOnly(normalized) : null;
+  const verifierCheck = isWorkRecordV0(normalized) ? runWorkRecordVerifierProfile(normalized) : null;
   return {
     record_id: normalized.id,
     record_type: normalized.type,
@@ -331,7 +331,7 @@ export function evidenceArtifacts(record = {}) {
 }
 
 export function workRecordVerifierCheck(record = {}) {
-  return checkWorkRecordReportOnly(normalizeRecord(record));
+  return runWorkRecordVerifierProfile(normalizeRecord(record));
 }
 
 export { workRecordIsReadOnly };

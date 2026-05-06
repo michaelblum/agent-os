@@ -5,6 +5,15 @@ import {
 } from './work-record-adapter.js';
 
 export const WORK_RECORD_REPORT_CHECKER_VERSION = '2026-05-report-only';
+export const WORK_RECORD_REPORT_ONLY_PROFILE_ID = 'aos.verifier.work-record.v0.report-only';
+export const WORK_RECORD_REPORT_ONLY_PROFILE = Object.freeze({
+  id: WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+  kind: 'work_record_v0_report_only',
+  version: WORK_RECORD_REPORT_CHECKER_VERSION,
+  mode: 'report_only',
+  mutates_record: false,
+  description: 'Checks Work Record v0 report integrity without mutating the record.',
+});
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -13,6 +22,11 @@ function text(value, fallback = '') {
 
 function objectValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function cloneJson(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
 }
 
 function arrayValue(value) {
@@ -29,6 +43,18 @@ function refList(values = []) {
 
 function addDiagnostic(diagnostics, code, message, path, severity = 'error') {
   diagnostics.push({ severity, code, message, path });
+}
+
+const WORK_RECORD_VERIFIER_PROFILES = Object.freeze({
+  [WORK_RECORD_REPORT_ONLY_PROFILE_ID]: WORK_RECORD_REPORT_ONLY_PROFILE,
+});
+
+export function workRecordVerifierProfiles() {
+  return Object.values(WORK_RECORD_VERIFIER_PROFILES).map((profile) => cloneJson(profile));
+}
+
+export function workRecordVerifierProfile(profileId = WORK_RECORD_REPORT_ONLY_PROFILE_ID) {
+  return cloneJson(WORK_RECORD_VERIFIER_PROFILES[text(profileId)]);
 }
 
 export function deriveWorkRecordClaimIndexes(record = {}) {
@@ -297,5 +323,33 @@ export function checkWorkRecordReportOnly(record = {}) {
       replay_gated: replayPolicy.replay_requires_workflow_gate === true,
       repair_gated: replayPolicy.repair_requires_workflow_gate === true,
     },
+  };
+}
+
+export function runWorkRecordVerifierProfile(record = {}, {
+  profileId = WORK_RECORD_REPORT_ONLY_PROFILE_ID,
+} = {}) {
+  const profile = workRecordVerifierProfile(profileId);
+  if (!profile) {
+    return {
+      type: 'work_record.verifier_profile_check',
+      schema_version: WORK_RECORD_REPORT_CHECKER_VERSION,
+      mode: 'report_only',
+      status: 'unsupported_profile',
+      profile_id: text(profileId),
+      mutates_record: false,
+      diagnostics: [{
+        severity: 'error',
+        code: 'unknown_verifier_profile',
+        message: `Unknown Work Record verifier profile ${text(profileId)}`,
+        path: 'profile_id',
+      }],
+    };
+  }
+
+  return {
+    ...checkWorkRecordReportOnly(record),
+    profile_id: profile.id,
+    profile,
   };
 }
