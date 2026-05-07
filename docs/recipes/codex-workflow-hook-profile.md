@@ -1,6 +1,15 @@
-# Recipe: Docked Codex Workflow Hook Profile V0
+# Legacy Recipe: Docked Codex Session Supervisor V0
 
-Use this recipe when role/persona/agent work should run as a docked workflow.
+This is legacy compatibility documentation for the older GDI/foreman supervisor
+experiment. The canonical dock model is now direct Codex session roots under
+`.docks/`; see `docs/recipes/codex-dock-session-profiles.md`.
+
+Do not use this recipe as the conceptual model for AOS Workflows. A Workflow is
+an AOS/domain orchestration Subject. This legacy supervisor only coordinates
+Codex role sessions.
+
+Use this recipe only when role/persona/agent work must run through the legacy
+two-role supervisor.
 The durable repo-local launch/control surface is `.docks/`: each dock template
 defines role directories, role-local hooks, sentinel contracts, and launch
 metadata. The launcher copies the dock template into generated per-run state
@@ -14,19 +23,19 @@ harness, or GDI exit interview.
 From the repo root:
 
 ```bash
-node scripts/create-codex-workflow-hook-profile.mjs --id pilot-001
+node scripts/create-codex-workflow-hook-profile.mjs --run-id pilot-001
 ```
 
 To also add the optional GDI Stop hook that writes a handoff packet:
 
 ```bash
-node scripts/create-codex-workflow-hook-profile.mjs --id pilot-001 --gdi-handoff
+node scripts/create-codex-workflow-hook-profile.mjs --run-id pilot-001 --gdi-handoff
 ```
 
 To opt into role-local TTS for a profile:
 
 ```bash
-node scripts/create-codex-workflow-hook-profile.mjs --id pilot-001 --tts
+node scripts/create-codex-workflow-hook-profile.mjs --run-id pilot-001 --tts
 ```
 
 The helper creates:
@@ -54,10 +63,10 @@ The reusable dock template is checked in at `.docks/gdi-foreman/`. A dock
 template is a durable launch/control template, not a source workspace,
 scratchpad, or generated artifact directory.
 
-Start the docked GDI/foreman workflow from the repo root:
+Start the legacy docked GDI/foreman supervisor from the repo root:
 
 ```bash
-node scripts/run-workflow.mjs --workflow-id pilot-001
+node scripts/run-workflow.mjs --run-id pilot-001
 ```
 
 The launcher creates `.aos-test-tmp/workflows/pilot-001/`, generates the
@@ -84,7 +93,7 @@ To append a concrete task body to the launched GDI prompt without editing the
 dock template:
 
 ```bash
-node scripts/run-workflow.mjs --workflow-id pilot-001 --gdi-task-file /path/to/task.md
+node scripts/run-workflow.mjs --run-id pilot-001 --gdi-task-file /path/to/task.md
 ```
 
 Role identity and task text are intentionally split. `role.md` carries stable
@@ -93,11 +102,11 @@ The supervisor concatenates `role.md` and rendered `task.md` at launch time;
 `--gdi-task-file` fills the GDI `task.md` body.
 
 Run state is kept by default for inspection. Add `--clean` to remove the
-generated workflow directory after completion or interruption.
+generated docked session directory after completion or interruption.
 
 The docked launcher enables role-local TTS by default. Add `--no-tts` for a
-quiet run. Each role gets a stable role session id: `<workflow-id>:gdi` and
-`<workflow-id>:foreman`. Before launching a role, the supervisor registers that
+quiet run. Each role gets a stable role session id: `<run-id>:gdi` and
+`<run-id>:foreman`. Before launching a role, the supervisor registers that
 role session with `./aos tell --register --session-id <id> --role <role>
 --harness codex`; after the role completes, it unregisters the same session.
 When TTS is enabled, the supervisor and role-local Stop hook both use the
@@ -105,19 +114,19 @@ registered role session id. GDI binds with `./aos voice bind --quality-tier
 premium --language en --gender female`; foreman binds with `./aos voice bind
 --quality-tier premium --language en --gender male`. The concrete voices can
 vary by run, but the role voices remain distinct when the registry has speakable
-premium voices for both filters. TTS failures are appended to workflow
+premium voices for both filters. TTS failures are appended to run-local
 `events.jsonl` instead of being silently swallowed.
 
-Inspect active or retained docked workflows without starting a new run:
+Inspect active or retained legacy docked session runs without starting a new run:
 
 ```bash
 node scripts/run-workflow.mjs --list
-node scripts/run-workflow.mjs --status --workflow-id pilot-001
+node scripts/run-workflow.mjs --status --run-id pilot-001
 ```
 
 Add `--json` to either inspection command for machine-readable output. The
-status payload reports the workflow state, active role, sentinel presence,
-workflow-local TTS hooks, role session ids, latest register/bind/TTS/unregister
+status payload reports the run state, active role, sentinel presence,
+run-local TTS hooks, role session ids, latest register/bind/TTS/unregister
 events per role, latest handoff packet path, latest hook event, and matching
 supervisor/role process ids when those processes are still alive. This is a
 repo-local supervisor inspection surface, not a public `aos` command.
@@ -130,7 +139,7 @@ returns Codex-compatible success JSON.
 
 When role-local TTS is enabled, both roles also get a Stop hook that speaks a
 short completion message through `./aos voice final-response --harness codex
---session-id <workflow-id>:<role>`. The hook does not use the provider hook
+--session-id <run-id>:<role>`. The hook does not use the provider hook
 payload's transient session id for speech. It appends a
 `codex.workflow_hook.tts.v0` event with success or failure details for the
 bind and final-response calls.

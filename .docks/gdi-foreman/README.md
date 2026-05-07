@@ -1,10 +1,14 @@
 # GDI/Foreman Dock
 
-This dock template is the durable, repo-local launch/control surface for the
-GDI/foreman docked workflow. It is not a source workspace, scratchpad, run log,
-or generated artifact directory.
+Legacy compatibility note: this directory belongs to the older two-role
+supervisor experiment. The canonical dock model is now direct launch roots such
+as `.docks/gdi/` and `.docks/foreman/`.
 
-Docks describe how to start and coordinate a workflow. The launcher copies this
+This dock template is the durable, repo-local launch/control surface for the
+legacy GDI/foreman docked session supervisor. It is not an AOS Workflow, source
+workspace, scratchpad, run log, or generated artifact directory.
+
+Docks describe how to start and coordinate session profiles. The launcher copies this
 template into disposable per-run state under `.aos-test-tmp/workflows/<id>/` and
 launches each role with one-shot `codex exec` from the generated role
 directories there. The supervisor does not pass `--cd`; the generated role cwd
@@ -17,7 +21,7 @@ is an integration/review pass rather than a goal-driving implementation role.
 
 Each launched role is registered with AOS as a role session before `codex exec`
 starts and unregistered after the role completes. Stable role session ids are
-`<workflow-id>:gdi` and `<workflow-id>:foreman`; the registered metadata uses
+`<run-id>:gdi` and `<run-id>:foreman`; the registered metadata uses
 the role id and `codex` harness. Role-local TTS uses those registered role
 session ids, not provider-transient hook ids.
 
@@ -32,7 +36,7 @@ role start.
 
 ## Sentinel Contract
 
-The workflow keeps the existing two-file handoff contract:
+The legacy supervisor keeps the existing two-file handoff contract:
 
 - GDI writes `handoff/ready-for-foreman.json`.
 - Foreman writes `handoff/done.json`.
@@ -42,7 +46,7 @@ The workflow keeps the existing two-file handoff contract:
 From the repo root:
 
 ```bash
-node scripts/run-workflow.mjs --workflow-id pilot-001
+node scripts/run-workflow.mjs --run-id pilot-001
 ```
 
 Run state is kept by default for inspection. Add `--clean` when the generated
@@ -51,6 +55,6 @@ state should be removed after completion or interruption. Add
 prompt for a specific run. Use `--model <id>` or `--reasoning-effort <level>`
 only when a run deliberately needs a different Codex role profile.
 
-Use `node scripts/run-workflow.mjs --list` or `--status --workflow-id <id>` to
+Use `node scripts/run-workflow.mjs --list` or `--status --run-id <id>` to
 inspect the current role/session, role-local TTS configuration, and latest TTS
 success or failure event.

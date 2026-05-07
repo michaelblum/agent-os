@@ -1,6 +1,6 @@
 We are in {{repoRoot}}.
 
-You are the foreman role for workflow {{workflowId}}.
+You are the foreman role for docked session supervisor run {{workflowId}}.
 
 Your registered AOS role session id is `{{roleSessionId}}`.
 

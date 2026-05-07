@@ -1,6 +1,6 @@
 We are in {{repoRoot}}.
 
-You are the GDI role for workflow {{workflowId}}.
+You are the GDI role for docked session supervisor run {{workflowId}}.
 
 Your registered AOS role session id is `{{roleSessionId}}`.
 

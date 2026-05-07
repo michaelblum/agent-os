@@ -44,6 +44,14 @@ _Avoid_: macro, script, runbook.
 An orchestration graph or chain of Recipes, Playbooks, agent tasks, approvals, external operations, inputs, outputs, and artifacts. A Workflow is a Subject. Scope: multi-step process, often crossing systems or human gates. A Workflow run typically emits one or more Work Records (one per meaningful execution unit or child run).
 _Avoid_: pipeline, process (too generic), automation.
 
+**Dock**:
+A repo-local Codex session profile rooted under `.docks/`, used to isolate persona or work-role instructions, hooks, and config from the normal session entry point.
+_Avoid_: workflow, workflow template, generated run, source workspace.
+
+**Docked Session**:
+One Codex session launched from a Dock so it adopts that Dock's local instructions, hooks, and config.
+_Avoid_: workflow run, Workflow run, automation run.
+
 **Verifier Health**:
 The terminal verdict the verifier writes to a Work Record's health Layer. One of: `valid`, `stale`, `repairable`, `blocked`, `impossible`, `superseded`, `retired`. Drives whether a run can be replayed, must be repaired, or has aged out of relevance.
 _Avoid_: status, state (overloaded with `state_id`).
@@ -131,6 +139,7 @@ _Avoid_: action (overloaded with `aos do`), affordance (UX term, not a model ter
 - `subject_type` (a schema field on `aos.workbench.subject`) names *what kind of Subject* the descriptor represents (e.g. `wiki.concept`, `sigil.radial_menu.item_3d`); facet keys are a separate namespace and do not collide with `subject_type` values.
 - A **Playbook** execution emits exactly one **Work Record**. Ad-hoc work also emits a Work Record (without a Playbook origin). A Verifier consumes Work Records, never Playbooks directly — trust attaches to what actually happened, not to the reusable plan.
 - **Workflows** may invoke **Recipes** or **Playbooks**; **Recipes** may compile into Playbook-like executable steps; **Playbooks** should not invoke Workflows (that would invert the abstraction — anything orchestrating multi-system gates and child runs *is* a Workflow). All three can be the **origin** of a Work Record (`origin.kind: ad_hoc | recipe | playbook | workflow`); documentation-only Recipes that *guided* a run without executing should be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
+- A **Dock** is adopted by launching Codex from that dock's directory, or with `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but the Dock is not the Workflow and does not create a parallel Workflow type.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.
@@ -165,3 +174,4 @@ _Avoid_: action (overloaded with `aos do`), affordance (UX term, not a model ter
 - `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a *role flag* whose value is a regular Target-with-Ref, not a parallel target dialect. The plan now says this explicitly; longer-term a generic `--anchor <target>` flag may consolidate them, but that is a future cleanup, not a plan rewrite. See ADR-0004.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
 - "Dual-hosting" (used in `aos-grand-unification-plan.md` Phase 4) — resolved meaning: shipping a Facet with both Browser-Host and Canvas-Host implementations. The plan now says every editor Facet does not need to ship both Browser-Host and Canvas-Host implementations.
+- "docked workflow" — resolved: this phrase conflated **Workflow** with **Dock**. The canonical concept is **Dock** or **Docked Session** for persona/session isolation. Keep **Workflow** reserved for AOS/domain orchestration Subjects such as the Employer Brand Comparative Audit Workflow. Legacy files may still contain `workflow` in script names or machine-readable fields for compatibility, but new docs and prompts should not use that framing.

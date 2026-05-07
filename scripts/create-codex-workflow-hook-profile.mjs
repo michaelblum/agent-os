@@ -8,12 +8,13 @@ const workflowsRoot = path.join(repoRoot, '.aos-test-tmp', 'workflows');
 const roles = ['gdi', 'foreman'];
 
 function usage() {
-  return `Usage: node scripts/create-codex-workflow-hook-profile.mjs [--id <workflow-id>] [--gdi-handoff] [--tts]
+  return `Usage: node scripts/create-codex-workflow-hook-profile.mjs [--id <run-id>|--run-id <run-id>] [--gdi-handoff] [--tts]
 
-Creates an ephemeral Codex hook profile under .aos-test-tmp/workflows/<workflow-id>/.
+Legacy helper. Creates an ephemeral Codex hook profile under
+.aos-test-tmp/workflows/<run-id>/ for the old GDI/foreman supervisor.
 The generated profile contains isolated gdi/ and foreman/ role directories, each
 with its own .codex/hooks.json. Role-local TTS hooks use stable role session ids
-<workflow-id>:gdi and <workflow-id>:foreman.`;
+<run-id>:gdi and <run-id>:foreman.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -36,7 +37,7 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') {
       args.help = true;
-    } else if (arg === '--id') {
+    } else if (arg === '--id' || arg === '--run-id') {
       args.id = requireValue(argv, index, arg);
       index += 1;
     } else if (arg === '--gdi-handoff') {
@@ -65,10 +66,10 @@ export function sanitizeWorkflowId(raw) {
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   if (!sanitized) {
-    throw new Error('Workflow id must contain at least one alphanumeric, dot, underscore, or hyphen character.');
+    throw new Error('Run id must contain at least one alphanumeric, dot, underscore, or hyphen character.');
   }
   if (sanitized === '.' || sanitized === '..' || sanitized.includes('..')) {
-    throw new Error(`Unsafe workflow id: ${raw}`);
+    throw new Error(`Unsafe run id: ${raw}`);
   }
   return sanitized;
 }
@@ -405,7 +406,7 @@ export function buildHookConfig(options) {
     {
       type: 'command',
       command: hookCommand(options.workflowDir, options.role, 'stop-marker.sh', options.workflowId),
-      statusMessage: 'Recording workflow Stop marker',
+      statusMessage: 'Recording docked session Stop marker',
       timeout: 10,
     },
   ];
@@ -423,7 +424,7 @@ export function buildHookConfig(options) {
     stopHooks.push({
       type: 'command',
       command: hookCommand(options.workflowDir, options.role, 'workflow-tts.sh', options.workflowId),
-      statusMessage: 'Speaking workflow role completion',
+      statusMessage: 'Speaking docked role completion',
       timeout: 20,
     });
   }
@@ -441,13 +442,13 @@ export function buildHookConfig(options) {
 
 function readmeTemplate(options) {
   const workflowDirRelative = path.relative(repoRoot, options.workflowDir);
-  return `# Ephemeral Codex Workflow Hook Profile
+  return `# Ephemeral Codex Docked Session Hook Profile
 
-Workflow id: \`${options.workflowId}\`
+Legacy run id: \`${options.workflowId}\`
 
 This directory is a repo-local, ignored Codex hook profile for a two-role GDI
-pilot. It is not a workflow engine, daemon pub/sub surface, public \`aos\`
-command, or Codex TUI automation harness.
+pilot. It is not an AOS Workflow, workflow engine, daemon pub/sub surface,
+public \`aos\` command, or Codex TUI automation harness.
 
 ## Manual Launch
 
@@ -552,6 +553,7 @@ export function createWorkflowProfile(options = {}) {
   return {
     type: 'aos.codex_workflow_hook_profile.v0',
     workflow_id: workflowId,
+    run_id: workflowId,
     workflow_dir: path.relative(repoRoot, workflowDir),
     gdi_handoff_enabled: Boolean(options.gdiHandoff),
     tts_enabled: Boolean(options.tts),

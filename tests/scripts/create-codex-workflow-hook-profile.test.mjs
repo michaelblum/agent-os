@@ -67,7 +67,7 @@ async function readEvents(workflowDir) {
   return text.trim().split(/\r?\n/).map((line) => JSON.parse(line));
 }
 
-test('parses arguments and sanitizes workflow ids', () => {
+test('parses arguments and sanitizes run ids', () => {
   assert.deepEqual(parseArgs(['--id', 'Pilot 01', '--gdi-handoff', '--tts']), {
     id: 'Pilot 01',
     gdiHandoff: true,
@@ -75,7 +75,7 @@ test('parses arguments and sanitizes workflow ids', () => {
     help: false,
   });
   assert.equal(sanitizeWorkflowId('Pilot 01'), 'Pilot-01');
-  assert.throws(() => sanitizeWorkflowId('../outside'), /Unsafe workflow id/);
+  assert.throws(() => sanitizeWorkflowId('../outside'), /Unsafe run id/);
 });
 
 test('CLI creates an ephemeral profile under .aos-test-tmp/workflows', async () => {

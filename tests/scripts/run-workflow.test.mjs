@@ -222,7 +222,8 @@ function promptArg(record) {
 }
 
 test('parses supervisor arguments', () => {
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
+  assert.equal(parseArgs(['--workflow-id', 'pilot-1']).workflowId, 'pilot-1');
+  assert.deepEqual(parseArgs(['--run-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
     model: 'gpt-5.5',
@@ -235,7 +236,7 @@ test('parses supervisor arguments', () => {
     json: false,
     help: false,
   });
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--clean']), {
+  assert.deepEqual(parseArgs(['--run-id', 'pilot-1', '--clean']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     model: 'gpt-5.5',
@@ -248,7 +249,7 @@ test('parses supervisor arguments', () => {
     json: false,
     help: false,
   });
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md', '--tts']), {
+  assert.deepEqual(parseArgs(['--run-id', 'pilot-1', '--gdi-task-file', 'task.md', '--tts']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     model: 'gpt-5.5',
@@ -261,7 +262,7 @@ test('parses supervisor arguments', () => {
     json: false,
     help: false,
   });
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--no-tts']), {
+  assert.deepEqual(parseArgs(['--run-id', 'pilot-1', '--no-tts']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     model: 'gpt-5.5',
@@ -287,7 +288,7 @@ test('parses supervisor arguments', () => {
     json: true,
     help: false,
   });
-  assert.deepEqual(parseArgs(['--status', '--workflow-id', 'pilot-1', '--json']), {
+  assert.deepEqual(parseArgs(['--status', '--run-id', 'pilot-1', '--json']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     model: 'gpt-5.5',
@@ -300,13 +301,13 @@ test('parses supervisor arguments', () => {
     json: true,
     help: false,
   });
-  assert.throws(() => parseArgs(['--workflow-id']), /--workflow-id requires a value/);
+  assert.throws(() => parseArgs(['--run-id']), /--run-id requires a value/);
   assert.throws(() => parseArgs(['--gdi-task-file']), /--gdi-task-file requires a value/);
   assert.throws(() => parseArgs(['--list', '--status']), /mutually exclusive/);
 });
 
 test('parses explicit Codex role profile overrides', () => {
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--model', 'gpt-5.4', '--reasoning-effort', 'xhigh']), {
+  assert.deepEqual(parseArgs(['--run-id', 'pilot-1', '--model', 'gpt-5.4', '--reasoning-effort', 'xhigh']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     model: 'gpt-5.4',
@@ -332,7 +333,7 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     const aosRecordPath = path.join(tempRoot, 'aos-records.jsonl');
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -390,7 +391,7 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     const statusResult = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--status',
-      '--workflow-id',
+      '--run-id',
       id,
       '--json',
     ], {
@@ -481,7 +482,7 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
     const fakeAos = await writeFakeAos(tempRoot);
     child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -507,7 +508,7 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
     const statusResult = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--status',
-      '--workflow-id',
+      '--run-id',
       id,
       '--json',
     ], {
@@ -549,7 +550,7 @@ test('run-workflow fails if GDI exits non-zero after writing ready sentinel', as
     const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -591,7 +592,7 @@ test('run-workflow waits for foreman to exit after done sentinel before completi
     const fakeAos = await writeFakeAos(tempRoot);
     child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -643,7 +644,7 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
     const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -686,7 +687,7 @@ test('run-workflow disables role-local TTS hooks with --no-tts', async () => {
     const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -722,7 +723,7 @@ test('run-workflow cleans up the workflow directory with --clean', async () => {
     const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,
@@ -755,7 +756,7 @@ test('run-workflow handles SIGINT by terminating children and honoring --clean',
     const fakeAos = await writeFakeAos(tempRoot);
     const child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
-      '--workflow-id',
+      '--run-id',
       id,
       '--codex-bin',
       fakeCodex,

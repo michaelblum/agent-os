@@ -59,6 +59,8 @@ and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
 cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
 warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
+For docked persona/session launch roots, see
+`docs/recipes/codex-dock-session-profiles.md`.
 
 ## Design Principle: Primitives First
 
@@ -198,10 +200,12 @@ design context is archived at
   substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
 - `.docks/` is the durable repo-local launch/control surface for docked
-  role/persona/agent workflows. Treat entries there as dock templates. Generated
-  role directories and workflow run state belong under
-  `.aos-test-tmp/workflows/<id>/`; do not write source edits or generated run
-  state into `.docks/`.
+  role/persona/agent sessions. A dock is a Codex session profile, not an AOS
+  Workflow. A session adopts a dock by launching Codex from that dock directory
+  or with `codex --cd <dock-dir>`, so Codex discovers the dock's `AGENTS.md`,
+  `.codex/hooks.json`, and local config through normal project discovery. Do
+  not write source edits, generated run state, or report artifacts into
+  `.docks/`.
 - Never attribute commits to Claude or any AI assistant in this repo. No
   `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"
   tags, and no AI attribution in commit messages, PR descriptions, or issue
@@ -228,4 +232,6 @@ source of truth at the interface boundary:
 - nearest subtree markdown file for package or app specifics
 - `docs/recipes/aos-app-accessibility-surfaces.md` for AOS app and toolkit
   accessibility surface contracts
+- `docs/recipes/codex-dock-session-profiles.md` for docked persona/session
+  launch roots
 - historical `CLAUDE.md` files remain only as compatibility pointers

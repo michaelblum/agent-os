@@ -1,7 +1,7 @@
 {
   "type": "aos.dock_template.v0",
   "name": "gdi-foreman",
-  "description": "Repo-local launch/control template for the two-role GDI/foreman workflow.",
+  "description": "Legacy repo-local launch/control template for the two-role GDI/foreman docked session supervisor.",
   "run_state_root": ".aos-test-tmp/workflows",
   "roles": [
     {

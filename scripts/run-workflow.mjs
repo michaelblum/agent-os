@@ -15,12 +15,13 @@ const roles = ['gdi', 'foreman'];
 
 function usage() {
   return `Usage:
-  node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--model <id>] [--reasoning-effort <level>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
+  node scripts/run-workflow.mjs [--run-id <id>|--workflow-id <id>] [--codex-bin <path>] [--model <id>] [--reasoning-effort <level>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
   node scripts/run-workflow.mjs --list [--json]
-  node scripts/run-workflow.mjs --status --workflow-id <id> [--json]
+  node scripts/run-workflow.mjs --status --run-id <id> [--json]
 
-Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
-.docks/gdi-foreman template, launches the GDI role, waits for
+Legacy supervisor helper. Creates an ephemeral Codex docked session hook
+profile, seeds it from the repo-local .docks/gdi-foreman compatibility
+template, launches the GDI role, waits for
 handoff/ready-for-foreman.json plus GDI exit, launches the foreman role, waits
 for handoff/done.json plus foreman exit, then exits cleanly.
 Each role is run as a one-shot Codex execution using codex exec from the
@@ -29,16 +30,16 @@ Codex role launches to ${defaultCodexModel}/${defaultCodexReasoningEffort} by
 default. GDI receives its role prompt with a literal "/goal " prefix; foreman
 receives its role prompt without "/goal".
 
-Generated workflow state is kept by default for inspection. Use --clean to
+Generated docked session state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
 TTS hooks are enabled by default; use --no-tts for a quiet run. Each role is
 registered with AOS before launch using stable role session ids
-<workflow-id>:gdi and <workflow-id>:foreman, then unregistered after completion.
+<run-id>:gdi and <run-id>:foreman, then unregistered after completion.
 When TTS is enabled, the supervisor binds GDI to a premium female English voice
 filter and foreman to a premium male English voice filter without hard-coding
 concrete voice ids.
 
-Use --list and --status to inspect docked workflow state without starting a new
+Use --list and --status to inspect docked session state without starting a new
 run. These status commands report role session ids, running processes,
 role-local TTS configuration, and latest TTS success or failure events. They
 are repo-local helper surfaces, not public aos commands.`;
@@ -71,7 +72,7 @@ export function parseArgs(argv) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') {
       args.help = true;
-    } else if (arg === '--workflow-id') {
+    } else if (arg === '--workflow-id' || arg === '--run-id') {
       args.workflowId = requireValue(argv, index, arg);
       index += 1;
     } else if (arg === '--codex-bin') {
@@ -255,7 +256,7 @@ function resolveWorkflowDir(profile) {
 
 function resolveWorkflowDirForId(workflowId) {
   const safeId = String(workflowId ?? '').trim();
-  if (!safeId) throw new Error('--workflow-id is required.');
+  if (!safeId) throw new Error('--run-id is required.');
   const workflowDir = path.resolve(workflowsRoot(), safeId);
   assertInsideDirectory(workflowDir, workflowsRoot(), 'workflow directory');
   return workflowDir;
@@ -507,11 +508,11 @@ async function workflowIds() {
 
 function formatWorkflowStatus(status) {
   const lines = [
-    `workflow ${status.workflow_id}`,
+    `docked_session_run ${status.workflow_id}`,
     `state: ${status.state}`,
     `active_role: ${status.active_role ?? 'none'}`,
     `branch: ${status.branch ?? 'unknown'}`,
-    `workflow_dir: ${status.workflow_dir}`,
+    `run_dir: ${status.workflow_dir}`,
     `ready_for_foreman: ${status.sentinels.ready_for_foreman.exists ? 'present' : 'missing'} (${status.sentinels.ready_for_foreman.path})`,
     `done: ${status.sentinels.done.exists ? 'present' : 'missing'} (${status.sentinels.done.path})`,
     `tts: gdi=${status.tts_enabled.gdi ? 'on' : 'off'} foreman=${status.tts_enabled.foreman ? 'on' : 'off'}`,
@@ -550,8 +551,8 @@ function eventState(event) {
 }
 
 function formatWorkflowList(statuses) {
-  if (statuses.length === 0) return 'no docked workflows found\n';
-  const lines = ['workflow_id\tstate\tactive_role\trole_sessions\ttts\tready\tdone\tprocesses'];
+  if (statuses.length === 0) return 'no legacy docked session runs found\n';
+  const lines = ['run_id\tstate\tactive_role\trole_sessions\ttts\tready\tdone\tprocesses'];
   for (const status of statuses) {
     lines.push([
       status.workflow_id,
@@ -569,7 +570,7 @@ function formatWorkflowList(statuses) {
 
 async function inspectWorkflows(args) {
   if (args.status) {
-    if (!args.workflowId) throw new Error('--status requires --workflow-id <id>.');
+    if (!args.workflowId) throw new Error('--status requires --run-id <id>.');
     const status = await workflowStatus(args.workflowId);
     if (args.json) {
       console.log(`${JSON.stringify(status, null, 2)}\n`);
@@ -904,7 +905,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
   process.once('SIGTERM', onSignal);
 
   try {
-    console.error(`workflow ${profile.workflow_id}: launching GDI`);
+    console.error(`docked session ${profile.workflow_id}: launching GDI`);
     await registerRoleSession('gdi', profile, workflowDir, args.tts);
     registeredRoles.add('gdi');
     const gdi = spawnRole('gdi', profile, workflowDir, args, {
@@ -922,7 +923,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
       }
     }
 
-    console.error(`workflow ${profile.workflow_id}: launching foreman`);
+    console.error(`docked session ${profile.workflow_id}: launching foreman`);
     await registerRoleSession('foreman', profile, workflowDir, args.tts);
     registeredRoles.add('foreman');
     const foreman = spawnRole('foreman', profile, workflowDir, args, {
@@ -944,7 +945,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
       }
     }
 
-    console.error(`workflow ${profile.workflow_id}: done`);
+    console.error(`docked session ${profile.workflow_id}: done`);
     for (const child of children) terminateChild(child);
     await cleanupWorkflow(workflowDir, args.keep);
     process.removeListener('SIGINT', onSignal);
