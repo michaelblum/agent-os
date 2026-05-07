@@ -1,34 +1,29 @@
 # AOS Grand Unification Next Session Goal
 
-**Status:** handoff goal for Semantic Target `do_target` V0
+**Status:** handoff goal for Live Canvas Test Serial V0
 **Date:** 2026-05-06
 
 ## Goal
 
-Expose a canonical `do_target` field in AOS canvas `semantic_targets[]` so the
-perception-to-action loop is directly machine-round-trippable.
+Make the live AOS canvas shell-test contract explicit and resilient enough that
+agents do not accidentally run shared-daemon canvas tests concurrently.
 
-The AOS ref click V0 slice landed on `main` at `1ca2e54` and added:
+The Semantic Target `do_target` V0 slice landed on `main` at `65d19a0`. Its exit
+interview reported that two live canvas xray smoke tests failed once when run
+concurrently, then passed when rerun serially. These tests create AOS canvases
+against the singleton repo daemon, so concurrent execution can create false
+failures or state contamination.
 
-```bash
-./aos do click canvas:<canvas-id>/<ref> --state-id <id>
-```
-
-That solves semantic action, but agents still need to synthesize the target
-string from `semantic_targets[].canvas_id` and `semantic_targets[].ref`.
-`semantic_targets[]` should carry the exact target-with-ref string accepted by
-`aos do`.
-
-The immediate workstream is tracked in GitHub issue #290:
+The immediate workstream is tracked in GitHub issue #291:
 
 ```text
-https://github.com/michaelblum/agent-os/issues/290
+https://github.com/michaelblum/agent-os/issues/291
 ```
 
 The target branch for the next session is:
 
 ```text
-codex/semantic-target-do-target-v0
+codex/live-canvas-test-serial-v0
 ```
 
 ## Required Rediscovery
@@ -43,7 +38,7 @@ git branch --format='%(refname:short)' | sort
 ./aos ready
 ./aos show list --json
 ./aos dev recommend --json
-gh issue view 290 --json number,title,state,url,body
+gh issue view 291 --json number,title,state,url,body
 ```
 
 Use focused `./aos dev recommend --json --files ...` arguments after editing so
@@ -51,109 +46,109 @@ the router sees the intended slice.
 
 ## Read First
 
-Read the repo and perception/action guidance:
+Read the repo and testing guidance:
 
 - `docs/recipes/fresh-session-continuation-primer.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
-- `docs/api/aos.md`
-- `shared/schemas/aos-semantic-targets.md`
 - `tests/README.md`
 - `docs/dev/workflow-rules.json`
-- `docs/dev/workflow-rules.schema.json`
+- `shared/schemas/dev-workflow-rules.schema.json`
+- `docs/api/aos.md`
 
-Then inspect the likely implementation and tests:
+Then inspect the likely live canvas test surface:
 
-- `src/perceive/semantic-targets.swift`
-- `src/perceive/models.swift`
-- `src/perceive/capture-pipeline.swift`
-- `src/act/canvas-ref-targeting.swift`
-- `src/act/act-cli.swift`
 - `tests/aos-semantic-targets-xray.sh`
+- `tests/aos-semantic-targets-xray-retry.sh`
 - `tests/aos-canvas-ref-click.sh`
-- `tests/help-contract.sh`
+- `tests/capture-canvas-surface.sh`
+- `tests/capture-union-canvas-surface.sh`
+- `tests/canvas-id-injection.sh`
+- `tests/canvas-stats-injection.sh`
+- `tests/canvas-lifecycle-metadata-smoke.sh`
+- `tests/lib/visual-harness.sh`
 - adjacent tests selected by `./aos dev recommend`
 
 ## Current Checkpoint
 
 At this handoff, `main` is expected to include:
 
+- `65d19a0 feat: expose semantic target do target`
 - `1ca2e54 feat: add canvas ref click path`
 - `9a26492 test: isolate wiki content state`
-- `bf03eab feat: align wiki graph page kinds`
 
 Treat these as orientation only. Rediscover before editing.
 
 ## Foreman Finding To Verify
 
-`aos see capture --canvas <id> --xray` currently emits entries like:
+The relevant failure mode is not deterministic logic failure. It is shared
+runtime contention:
 
-```json
-{
-  "canvas_id": "example",
-  "ref": "primary.action"
-}
-```
+- live canvas shell tests create/remove AOS canvases through the shared repo
+  daemon;
+- the singleton daemon and canvas namespace are not isolated by default;
+- two xray/ref-click smoke tests can overlap in timing and produce false
+  failures;
+- serial reruns passed.
 
-The action target is now:
-
-```text
-canvas:example/primary.action
-```
-
-Agents should not need to reconstruct that string. The target string is a
-cross-tool contract, and work records/playbooks should be able to carry it
-directly as action evidence.
+This is similar in spirit to the wiki/content state isolation work, but the
+scope should stay smaller: document or protect live canvas shell tests from
+accidental parallel execution. Do not redesign daemon isolation.
 
 ## Immediate Work Plan
 
-1. Add `do_target` to AOS canvas semantic target projection.
-   - Only emit it when both `canvas_id` and `ref` are present.
-   - Value should be exactly `canvas:<canvas-id>/<ref>`.
-   - Preserve all existing `semantic_targets[]` fields.
-2. Update `shared/schemas/aos-semantic-targets.md`.
-   - Document `do_target` as the canonical target-with-ref string accepted by
-     `./aos do click`.
-   - Keep `canvas_id` and `ref` documented for structured querying.
-3. Update `docs/api/aos.md`.
-   - Say agents may pass `semantic_targets[].do_target` directly to
-     `aos do click`.
-   - Clarify that `state_id` is still correlation metadata, not historical target
-     dereference.
-4. Update focused tests.
-   - `tests/aos-semantic-targets-xray.sh` should assert the `do_target` value.
-   - If useful, add a lightweight assertion that the emitted `do_target` works
-     with `tests/aos-canvas-ref-click.sh` rather than reconstructing the target.
-5. Run `./aos dev recommend --json --files ...`, then focused tests,
-   router-selected tests, `bash tests/help-contract.sh` if command docs/help are
-   touched, `git diff --check`, `./aos ready`, and live AOS verification.
-6. Commit focused reversible slices.
+1. Audit the focused live canvas shell tests that create AOS canvases through
+   the shared repo daemon.
+2. Classify them as:
+   - isolated daemon/root tests;
+   - shared repo daemon live canvas tests that must run serially;
+   - pure local tests that do not need this contract.
+3. Choose the smallest durable guard:
+   - documentation-only is acceptable if it clearly prevents prompt/router misuse;
+   - a tiny shared shell lock helper is acceptable if it is simple and reduces
+     repeated mistakes;
+   - do not build a full test harness or daemon-isolation system in this slice.
+4. Update `tests/README.md` with the serial-live-canvas contract.
+5. Update the affected semantic target/ref-click tests to either:
+   - use the shared lock/helper; or
+   - carry a clear header/comment naming the serial contract.
+6. If router rules should steer changed live canvas tests toward serial focused
+   commands, update `docs/dev/workflow-rules.json` and schema/fixtures only as
+   needed.
+7. Run `./aos dev recommend --json --files ...`, then focused tests,
+   router-selected tests, `git diff --check`, `./aos ready`, and `./aos show
+   list --json` cleanup verification.
+8. Commit focused reversible slices.
 
 ## Acceptance Criteria
 
-- `./aos see capture --canvas <id> --xray` includes
-  `semantic_targets[].do_target` for entries with both `canvas_id` and `ref`.
-- The value is exactly the public target-with-ref form accepted by
-  `./aos do click`.
-- Existing `semantic_targets[]` fields remain present and unchanged.
-- Tests cover the JSON shape in the semantic target smoke path.
-- Docs explain that agents can pass `do_target` directly to `aos do click`.
-- Final verification leaves no `semantic-target-smoke-*` or
-  `canvas-ref-click-*` canvases behind.
+- `tests/README.md` explains that live canvas tests using the shared repo daemon
+  should run serially unless they allocate an isolated daemon/root.
+- The semantic target/ref-click live tests are documented or protected by a
+  shared lock/helper.
+- Focused serial runs still pass:
+  - `bash tests/aos-semantic-targets-xray.sh`
+  - `bash tests/aos-semantic-targets-xray-retry.sh`
+  - `bash tests/aos-canvas-ref-click.sh`
+- Final verification leaves no `semantic-target-*` or `canvas-ref-click-*`
+  canvases behind.
+- The handoff schema path uses
+  `shared/schemas/dev-workflow-rules.schema.json`.
+- No broad daemon isolation, macro playback, work-record, or UI feature work is
+  added.
 
 ## Guardrails
 
-- This is an additive schema/API field, not a new command.
-- Do not redesign Target/Ref/Anchor vocabulary in this slice.
-- Do not change `aos do click` behavior unless a bug blocks using the new field.
-- Do not implement replay/repair, macro playback, or work-record capture.
-- Do not use `show eval` to perform the action under test. It is acceptable for
-  setup or read-only assertion if needed.
-- Keep live canvas tests serial unless isolated daemon roots are introduced.
+- Use `./aos` primitives and repo CLI. Do not use the Computer Use plugin for
+  this repo.
+- Do not use AppleScript as a shortcut for AOS-owned behavior.
+- Do not add new public `aos` command surface.
+- Do not broaden into ref-click behavior, semantic target schema, workbench UI,
+  or daemon architecture.
+- Keep live canvas verification serial in this session.
 - Remove verification canvases before exit.
 
 ## Known Follow-Up Outside This Slice
 
-The AOS ref click exit interview also flagged `dev recommend --files`
-comma-input ergonomics, live canvas test isolation policy, and post-build TCC
-messaging. Those may become separate issues later, but do not mix them into this
-`do_target` schema/API slice.
+The same exit interview mentioned a compact GDI evidence packet helper and
+post-build TCC messaging. Those are useful but separate workstreams; do not mix
+them into the live canvas serial-test slice.
