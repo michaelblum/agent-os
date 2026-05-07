@@ -184,18 +184,25 @@ async function readRecords(recordPath) {
 
 function assertCodexExecInvocation(record) {
   assert.equal(record.argv[0], 'exec');
+  assert.equal(record.argv[1], '--model');
+  assert.equal(record.argv[2], 'gpt-5.5');
+  assert.equal(record.argv[3], '-c');
+  assert.equal(record.argv[4], 'model_reasoning_effort="high"');
   assert.equal(record.argv.includes('--cd'), false);
   assert.equal(record.argv.includes(repoRoot), false);
+  assert.match(record.argv.at(-1), /^\/goal /);
 }
 
 function promptArg(record) {
-  return record.argv.slice(1).join(' ');
+  return record.argv.at(-1);
 }
 
 test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: null,
     tts: true,
     keep: true,
@@ -207,6 +214,8 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--clean']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: null,
     tts: true,
     keep: false,
@@ -218,6 +227,8 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md', '--tts']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: 'task.md',
     tts: true,
     keep: true,
@@ -229,6 +240,8 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--no-tts']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: null,
     tts: false,
     keep: true,
@@ -240,6 +253,8 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--list', '--json']), {
     workflowId: null,
     codexBin: 'codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: null,
     tts: true,
     keep: true,
@@ -251,6 +266,8 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--status', '--workflow-id', 'pilot-1', '--json']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
+    model: 'gpt-5.5',
+    reasoningEffort: 'high',
     gdiTaskFile: null,
     tts: true,
     keep: true,
@@ -262,6 +279,22 @@ test('parses supervisor arguments', () => {
   assert.throws(() => parseArgs(['--workflow-id']), /--workflow-id requires a value/);
   assert.throws(() => parseArgs(['--gdi-task-file']), /--gdi-task-file requires a value/);
   assert.throws(() => parseArgs(['--list', '--status']), /mutually exclusive/);
+});
+
+test('parses explicit Codex role profile overrides', () => {
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--model', 'gpt-5.4', '--reasoning-effort', 'xhigh']), {
+    workflowId: 'pilot-1',
+    codexBin: 'codex',
+    model: 'gpt-5.4',
+    reasoningEffort: 'xhigh',
+    gdiTaskFile: null,
+    tts: true,
+    keep: true,
+    list: false,
+    status: false,
+    json: false,
+    help: false,
+  });
 });
 
 test('run-workflow seeds the dock template, launches GDI then foreman with codex exec, and keeps state by default', async () => {

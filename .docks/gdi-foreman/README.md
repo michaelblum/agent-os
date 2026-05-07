@@ -10,6 +10,9 @@ launches each role with one-shot `codex exec` from the generated role
 directories there. The supervisor does not pass `--cd`; the generated role cwd
 is what lets Codex discover the role-local hooks. Source edits and tests still
 happen in the real repo root named in the role prompt and `AOS_WORKFLOW_REPO_ROOT`.
+The supervisor pins role launches to `gpt-5.5` with reasoning effort `high` by
+default, and passes the assembled role/task prompt with a literal `/goal `
+prefix.
 
 ## Roles
 
@@ -38,4 +41,5 @@ node scripts/run-workflow.mjs --workflow-id pilot-001
 Run state is kept by default for inspection. Add `--clean` when the generated
 state should be removed after completion or interruption. Add
 `--gdi-task-file <path>` to append a concrete task body to the launched GDI
-prompt for a specific run.
+prompt for a specific run. Use `--model <id>` or `--reasoning-effort <level>`
+only when a run deliberately needs a different Codex role profile.

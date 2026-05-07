@@ -9,10 +9,12 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const profileScript = path.join(repoRoot, 'scripts', 'create-codex-workflow-hook-profile.mjs');
 const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
+const defaultCodexModel = 'gpt-5.5';
+const defaultCodexReasoningEffort = 'high';
 
 function usage() {
   return `Usage:
-  node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
+  node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--model <id>] [--reasoning-effort <level>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
   node scripts/run-workflow.mjs --list [--json]
   node scripts/run-workflow.mjs --status --workflow-id <id> [--json]
 
@@ -21,7 +23,9 @@ Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 handoff/ready-for-foreman.json plus GDI exit, launches the foreman role, waits
 for handoff/done.json plus foreman exit, then exits cleanly.
 Each role is run as a one-shot Codex execution using codex exec from the
-generated role directory so role-local hooks are discovered.
+generated role directory so role-local hooks are discovered. The supervisor pins
+Codex role launches to ${defaultCodexModel}/${defaultCodexReasoningEffort} by
+default and passes the role prompt with a literal "/goal " prefix.
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
@@ -44,6 +48,8 @@ export function parseArgs(argv) {
   const args = {
     workflowId: null,
     codexBin: defaultCodexBin,
+    model: defaultCodexModel,
+    reasoningEffort: defaultCodexReasoningEffort,
     gdiTaskFile: null,
     tts: true,
     keep: true,
@@ -62,6 +68,12 @@ export function parseArgs(argv) {
       index += 1;
     } else if (arg === '--codex-bin') {
       args.codexBin = requireValue(argv, index, arg);
+      index += 1;
+    } else if (arg === '--model') {
+      args.model = requireValue(argv, index, arg);
+      index += 1;
+    } else if (arg === '--reasoning-effort') {
+      args.reasoningEffort = requireValue(argv, index, arg);
       index += 1;
     } else if (arg === '--gdi-task-file') {
       args.gdiTaskFile = requireValue(argv, index, arg);
@@ -532,7 +544,14 @@ export function waitForFile(filePath, options = {}) {
 
 function spawnRole(role, profile, workflowDir, args, extra = {}) {
   const roleDir = resolveRoleDir(profile, workflowDir, role);
-  const childArgs = ['exec', ...(extra.prompt ? [extra.prompt] : [])];
+  const childArgs = [
+    'exec',
+    '--model',
+    args.model,
+    '-c',
+    `model_reasoning_effort="${args.reasoningEffort}"`,
+    ...(extra.prompt ? [`/goal ${extra.prompt}`] : []),
+  ];
   const child = spawn(args.codexBin, childArgs, {
     cwd: roleDir,
     env: {

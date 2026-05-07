@@ -65,7 +65,11 @@ the GDI Codex process exit, then launches foreman and waits for both
 The supervisor launches each role as a one-shot `codex exec` run from that
 role's generated directory. It does not pass `--cd`: the role-local cwd is what
 lets Codex discover the generated `.codex/hooks.json`. The real repo root is
-available through `AOS_WORKFLOW_REPO_ROOT` and the rendered role prompt.
+available through `AOS_WORKFLOW_REPO_ROOT` and the rendered role prompt. Role
+launches are pinned to `gpt-5.5` with reasoning effort `high` by default, and
+the assembled role/task prompt is passed with a literal `/goal ` prefix. Use
+`--model <id>` or `--reasoning-effort <level>` only for an intentional role
+profile override.
 
 To append a concrete task body to the launched GDI prompt without editing the
 dock template:
