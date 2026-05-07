@@ -62,7 +62,18 @@ PY
 python3 - "$PWD/.codex/hooks.json" "$PWD/.claude/settings.json" <<'PY'
 import json, sys
 
-for path in sys.argv[1:]:
+codex_path, claude_path = sys.argv[1:]
+
+codex_hooks = json.load(open(codex_path)).get("hooks", {})
+codex_stop_commands = [
+    hook.get("command", "")
+    for matcher in codex_hooks.get("Stop", [])
+    for hook in matcher.get("hooks", [])
+]
+if any("final-response.sh" in command for command in codex_stop_commands):
+    raise SystemExit(f"FAIL: {codex_path} should not install repo-root Stop final-response relay: {codex_stop_commands}")
+
+for path in [claude_path]:
     hooks = json.load(open(path)).get("hooks", {})
     stop_hooks = [
         hook

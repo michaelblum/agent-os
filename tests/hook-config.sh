@@ -25,7 +25,9 @@ def assert_hooks(label, path):
         raise SystemExit(f"FAIL: {label} missing SessionStart git-health hook: {session_start}")
     if any("session-start.sh" in command for command in session_start):
         raise SystemExit(f"FAIL: {label} SessionStart should not invoke session-start.sh: {session_start}")
-    if not any("final-response.sh" in command for command in stop_hooks):
+    if label == "codex" and any("final-response.sh" in command for command in stop_hooks):
+        raise SystemExit(f"FAIL: {label} should not use repo-root Stop final-response hook: {stop_hooks}")
+    if label != "codex" and not any("final-response.sh" in command for command in stop_hooks):
         raise SystemExit(f"FAIL: {label} missing Stop final-response hook: {stop_hooks}")
 
 assert_hooks("codex", sys.argv[1])

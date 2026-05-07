@@ -11,6 +11,7 @@ const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 const defaultCodexModel = 'gpt-5.5';
 const defaultCodexReasoningEffort = 'high';
+const roles = ['gdi', 'foreman'];
 
 function usage() {
   return `Usage:
@@ -29,11 +30,17 @@ default and passes the role prompt with a literal "/goal " prefix.
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
-TTS hooks are enabled by default; use --no-tts for a quiet run.
+TTS hooks are enabled by default; use --no-tts for a quiet run. Each role is
+registered with AOS before launch using stable role session ids
+<workflow-id>:gdi and <workflow-id>:foreman, then unregistered after completion.
+When TTS is enabled, the supervisor binds GDI to a premium female English voice
+filter and foreman to a premium male English voice filter without hard-coding
+concrete voice ids.
 
 Use --list and --status to inspect docked workflow state without starting a new
-run. These status commands are repo-local helper surfaces, not public aos
-commands.`;
+run. These status commands report role session ids, running processes,
+role-local TTS configuration, and latest TTS success or failure events. They
+are repo-local helper surfaces, not public aos commands.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -145,9 +152,17 @@ function roleContext(profile, workflowDir, readyPath, donePath, role) {
     workflowDir,
     role,
     roleDir: resolveRoleDir(profile, workflowDir, role),
+    roleSessionId: roleSessionId(profile, role),
     readyPath,
     donePath,
   };
+}
+
+function roleSessionId(profileOrWorkflowId, role) {
+  if (typeof profileOrWorkflowId === 'object') {
+    return profileOrWorkflowId.roles?.[role]?.session_id ?? `${profileOrWorkflowId.workflow_id}:${role}`;
+  }
+  return `${profileOrWorkflowId}:${role}`;
 }
 
 function assertInsideDirectory(child, parent, label) {
@@ -189,6 +204,15 @@ async function instantiateDockTemplate(profile, workflowDir, readyPath, donePath
       gdi: profile.roles.gdi.dir,
       foreman: profile.roles.foreman.dir,
     },
+    role_sessions: Object.fromEntries(roles.map((role) => [
+      role,
+      {
+        session_id: roleSessionId(profile, role),
+        name: roleSessionId(profile, role),
+        role,
+        harness: 'codex',
+      },
+    ])),
   }, null, 2)}\n`);
 }
 
@@ -291,12 +315,12 @@ function readProcessRows() {
 function processRoleForWorkflow(processRow, workflowId, workflowDir) {
   const command = processRow.command;
   if (!command.includes(workflowId) && !command.includes(workflowDir)) return null;
+  if (command.includes(`${workflowDir}/gdi`) || command.includes('You are the GDI role')) return 'gdi';
+  if (command.includes(`${workflowDir}/foreman`) || command.includes('You are the foreman role')) return 'foreman';
   if (command.includes('run-workflow.mjs')) {
     if (/\s--(?:status|list)(?:\s|$)/.test(command)) return null;
     return 'supervisor';
   }
-  if (command.includes(`${workflowDir}/gdi`) || command.includes('You are the GDI role')) return 'gdi';
-  if (command.includes(`${workflowDir}/foreman`) || command.includes('You are the foreman role')) return 'foreman';
   return 'related';
 }
 
@@ -310,17 +334,43 @@ function summarizeProcesses(processRows, workflowId, workflowDir) {
 }
 
 async function latestWorkflowEvent(workflowDir) {
+  const events = await readWorkflowEvents(workflowDir);
+  return events?.at(-1) ?? null;
+}
+
+async function readWorkflowEvents(workflowDir) {
   const eventsPath = path.join(workflowDir, 'events.jsonl');
   const text = await readTextFile(eventsPath);
   if (!text) return null;
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  const latest = lines.at(-1);
-  if (!latest) return null;
-  try {
-    return JSON.parse(latest);
-  } catch {
-    return { raw: latest };
+  return text.split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
+    });
+}
+
+async function appendWorkflowEvent(workflowDir, event) {
+  const payload = {
+    created_at: new Date().toISOString(),
+    ...event,
+  };
+  await fsp.appendFile(
+    path.join(workflowDir, 'events.jsonl'),
+    `${JSON.stringify(payload, null, 0)}\n`,
+  );
+  return payload;
+}
+
+function latestEventMatching(events, predicate) {
+  if (!Array.isArray(events)) return null;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (predicate(events[index])) return events[index];
   }
+  return null;
 }
 
 async function roleHasTtsHook(workflowDir, role) {
@@ -373,6 +423,35 @@ async function workflowStatus(workflowId, options = {}) {
   const doneExists = fileExists(donePath);
   const state = workflowState({ readyExists, doneExists, processes });
   const dockRun = await readJsonFile(path.join(workflowDir, 'dock-run.json'));
+  const events = await readWorkflowEvents(workflowDir) ?? [];
+  const ttsEnabled = {};
+  for (const role of roles) {
+    ttsEnabled[role] = await roleHasTtsHook(workflowDir, role);
+  }
+  const roleSessions = {};
+  for (const role of roles) {
+    const sessionId = dockRun?.role_sessions?.[role]?.session_id ?? roleSessionId(workflowId, role);
+    roleSessions[role] = {
+      session_id: sessionId,
+      name: dockRun?.role_sessions?.[role]?.name ?? sessionId,
+      role,
+      harness: dockRun?.role_sessions?.[role]?.harness ?? 'codex',
+      running: processes.some((processRow) => processRow.role === role),
+      tts_configured: Boolean(ttsEnabled[role]),
+      latest_register: latestEventMatching(events, (event) => (
+        event.type === 'codex.docked_role.session_register.v0' && event.session_id === sessionId
+      )),
+      latest_voice_bind: latestEventMatching(events, (event) => (
+        event.type === 'codex.docked_role.voice_bind.v0' && event.session_id === sessionId
+      )),
+      latest_tts_attempt: latestEventMatching(events, (event) => (
+        event.type === 'codex.workflow_hook.tts.v0' && event.session_id === sessionId
+      )),
+      latest_unregister: latestEventMatching(events, (event) => (
+        event.type === 'codex.docked_role.session_unregister.v0' && event.session_id === sessionId
+      )),
+    };
+  }
 
   return {
     type: 'aos.docked_workflow.status.v0',
@@ -392,11 +471,10 @@ async function workflowStatus(workflowId, options = {}) {
       },
     },
     latest_handoff_packet_path: await readTextFile(path.join(workflowDir, 'gdi', 'latest-handoff-path.txt')),
-    latest_event: await latestWorkflowEvent(workflowDir),
-    tts_enabled: {
-      gdi: await roleHasTtsHook(workflowDir, 'gdi'),
-      foreman: await roleHasTtsHook(workflowDir, 'foreman'),
-    },
+    latest_event: events.at(-1) ?? null,
+    latest_tts_attempt: latestEventMatching(events, (event) => event.type === 'codex.workflow_hook.tts.v0'),
+    tts_enabled: ttsEnabled,
+    role_sessions: roleSessions,
     processes: processes.map((processRow) => ({
       role: processRow.role,
       pid: processRow.pid,
@@ -408,6 +486,7 @@ async function workflowStatus(workflowId, options = {}) {
     dock_run: dockRun ? {
       type: dockRun.type,
       roles: dockRun.roles,
+      role_sessions: dockRun.role_sessions ?? null,
     } : null,
   };
 }
@@ -436,6 +515,15 @@ function formatWorkflowStatus(status) {
     `done: ${status.sentinels.done.exists ? 'present' : 'missing'} (${status.sentinels.done.path})`,
     `tts: gdi=${status.tts_enabled.gdi ? 'on' : 'off'} foreman=${status.tts_enabled.foreman ? 'on' : 'off'}`,
   ];
+  lines.push('role_sessions:');
+  for (const role of roles) {
+    const session = status.role_sessions[role];
+    const registerState = eventState(session.latest_register);
+    const bindState = eventState(session.latest_voice_bind);
+    const ttsState = eventState(session.latest_tts_attempt);
+    const unregisterState = eventState(session.latest_unregister);
+    lines.push(`  ${role}: session_id=${session.session_id} running=${session.running ? 'yes' : 'no'} register=${registerState} voice_bind=${bindState} tts=${ttsState} unregister=${unregisterState}`);
+  }
   if (status.latest_handoff_packet_path) {
     lines.push(`latest_handoff_packet: ${status.latest_handoff_packet_path}`);
   }
@@ -453,14 +541,23 @@ function formatWorkflowStatus(status) {
   return `${lines.join('\n')}\n`;
 }
 
+function eventState(event) {
+  if (!event) return 'none';
+  if (event.success === true) return 'ok';
+  if (event.success === false) return `failed(${event.code ?? event.status ?? 'unknown'})`;
+  return event.code ?? event.type ?? 'seen';
+}
+
 function formatWorkflowList(statuses) {
   if (statuses.length === 0) return 'no docked workflows found\n';
-  const lines = ['workflow_id\tstate\tactive_role\tready\tdone\tprocesses'];
+  const lines = ['workflow_id\tstate\tactive_role\trole_sessions\ttts\tready\tdone\tprocesses'];
   for (const status of statuses) {
     lines.push([
       status.workflow_id,
       status.state,
       status.active_role ?? '-',
+      roles.map((role) => `${role}:${status.role_sessions[role].session_id}`).join(','),
+      roles.map((role) => `${role}:${eventState(status.role_sessions[role].latest_tts_attempt)}`).join(','),
       status.sentinels.ready_for_foreman.exists ? 'yes' : 'no',
       status.sentinels.done.exists ? 'yes' : 'no',
       status.processes.map((processRow) => `${processRow.role}:${processRow.pid}`).join(',') || '-',
@@ -544,6 +641,7 @@ export function waitForFile(filePath, options = {}) {
 
 function spawnRole(role, profile, workflowDir, args, extra = {}) {
   const roleDir = resolveRoleDir(profile, workflowDir, role);
+  const sessionId = roleSessionId(profile, role);
   const childArgs = [
     'exec',
     '--model',
@@ -559,7 +657,9 @@ function spawnRole(role, profile, workflowDir, args, extra = {}) {
       AOS_WORKFLOW_ID: profile.workflow_id,
       AOS_WORKFLOW_DIR: workflowDir,
       AOS_WORKFLOW_ROLE: role,
+      AOS_WORKFLOW_ROLE_SESSION_ID: sessionId,
       AOS_WORKFLOW_REPO_ROOT: repoRoot,
+      AOS_WORKFLOW_AOS_BIN: resolveAosBin(),
       ...(extra.env ?? {}),
     },
     stdio: 'inherit',
@@ -567,6 +667,109 @@ function spawnRole(role, profile, workflowDir, args, extra = {}) {
   });
 
   return child;
+}
+
+function resolveAosBin() {
+  return process.env.AOS_WORKFLOW_AOS_BIN || path.join(repoRoot, 'aos');
+}
+
+function runAos(args) {
+  const aosBin = resolveAosBin();
+  if (!fs.existsSync(aosBin)) {
+    return {
+      attempted: false,
+      status: null,
+      stdout: '',
+      stderr: `AOS binary not found: ${aosBin}`,
+    };
+  }
+  const result = spawnSync(aosBin, args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  return {
+    attempted: true,
+    status: result.status,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? result.error?.message ?? '',
+  };
+}
+
+function truncateOutput(text) {
+  return String(text ?? '').slice(0, 2000);
+}
+
+async function recordAosCommandEvent(workflowDir, event) {
+  return appendWorkflowEvent(workflowDir, {
+    ...event,
+    success: event.status === 0,
+    stdout: truncateOutput(event.stdout),
+    stderr: truncateOutput(event.stderr),
+  });
+}
+
+async function registerRoleSession(role, profile, workflowDir, ttsEnabled) {
+  const sessionId = roleSessionId(profile, role);
+  const name = sessionId;
+  const register = runAos([
+    'tell',
+    '--register',
+    '--session-id',
+    sessionId,
+    '--name',
+    name,
+    '--role',
+    role,
+    '--harness',
+    'codex',
+  ]);
+  await recordAosCommandEvent(workflowDir, {
+    type: 'codex.docked_role.session_register.v0',
+    role,
+    session_id: sessionId,
+    name,
+    harness: 'codex',
+    attempted: register.attempted,
+    status: register.status,
+    stdout: register.stdout,
+    stderr: register.stderr,
+  });
+
+  if (!ttsEnabled) return;
+
+  const bindFilters = role === 'gdi'
+    ? ['--quality-tier', 'premium', '--language', 'en', '--gender', 'female']
+    : ['--quality-tier', 'premium', '--language', 'en', '--gender', 'male'];
+  const bind = runAos(['voice', 'bind', '--session-id', sessionId, ...bindFilters]);
+  await recordAosCommandEvent(workflowDir, {
+    type: 'codex.docked_role.voice_bind.v0',
+    role,
+    session_id: sessionId,
+    filters: bindFilters,
+    attempted: bind.attempted,
+    status: bind.status,
+    stdout: bind.stdout,
+    stderr: bind.stderr,
+  });
+}
+
+async function unregisterRoleSession(role, profile, workflowDir) {
+  const sessionId = roleSessionId(profile, role);
+  const unregister = runAos([
+    'tell',
+    '--unregister',
+    '--session-id',
+    sessionId,
+  ]);
+  await recordAosCommandEvent(workflowDir, {
+    type: 'codex.docked_role.session_unregister.v0',
+    role,
+    session_id: sessionId,
+    attempted: unregister.attempted,
+    status: unregister.status,
+    stdout: unregister.stdout,
+    stderr: unregister.stderr,
+  });
 }
 
 function terminateChild(child, signal = 'SIGTERM') {
@@ -673,6 +876,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
 
   const controller = new AbortController();
   const children = new Set();
+  const registeredRoles = new Set();
   let shuttingDown = false;
 
   async function shutdown(exitCode, reason = null) {
@@ -680,6 +884,10 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
     shuttingDown = true;
     controller.abort(reason instanceof Error ? reason : new Error(reason ?? 'workflow shutting down'));
     for (const child of children) terminateChild(child);
+    for (const role of Array.from(registeredRoles).reverse()) {
+      await unregisterRoleSession(role, profile, workflowDir);
+      registeredRoles.delete(role);
+    }
     await cleanupWorkflow(workflowDir, args.keep);
     return exitCode;
   }
@@ -696,15 +904,26 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
 
   try {
     console.error(`workflow ${profile.workflow_id}: launching GDI`);
+    await registerRoleSession('gdi', profile, workflowDir, args.tts);
+    registeredRoles.add('gdi');
     const gdi = spawnRole('gdi', profile, workflowDir, args, {
       prompt: await readRolePrompt('gdi', profile, args),
     });
     children.add(gdi);
     gdi.once('exit', () => children.delete(gdi));
 
-    await waitForSentinelAndChildExit(readyPath, gdi, 'GDI', controller.signal);
+    try {
+      await waitForSentinelAndChildExit(readyPath, gdi, 'GDI', controller.signal);
+    } finally {
+      if (registeredRoles.has('gdi')) {
+        await unregisterRoleSession('gdi', profile, workflowDir);
+        registeredRoles.delete('gdi');
+      }
+    }
 
     console.error(`workflow ${profile.workflow_id}: launching foreman`);
+    await registerRoleSession('foreman', profile, workflowDir, args.tts);
+    registeredRoles.add('foreman');
     const foreman = spawnRole('foreman', profile, workflowDir, args, {
       prompt: await readRolePrompt('foreman', profile, args),
       env: {
@@ -715,7 +934,14 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
     children.add(foreman);
     foreman.once('exit', () => children.delete(foreman));
 
-    await waitForSentinelAndChildExit(donePath, foreman, 'Foreman', controller.signal);
+    try {
+      await waitForSentinelAndChildExit(donePath, foreman, 'Foreman', controller.signal);
+    } finally {
+      if (registeredRoles.has('foreman')) {
+        await unregisterRoleSession('foreman', profile, workflowDir);
+        registeredRoles.delete('foreman');
+      }
+    }
 
     console.error(`workflow ${profile.workflow_id}: done`);
     for (const child of children) terminateChild(child);
@@ -725,6 +951,10 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
     return 0;
   } catch (caught) {
     for (const child of children) terminateChild(child);
+    for (const role of Array.from(registeredRoles).reverse()) {
+      await unregisterRoleSession(role, profile, workflowDir);
+      registeredRoles.delete(role);
+    }
     await cleanupWorkflow(workflowDir, args.keep);
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);

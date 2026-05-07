@@ -31,7 +31,7 @@
     "done": "handoff/done.json"
   },
   "guardrails": [
-    "Do not modify repo-wide .codex/hooks.json.",
+    "Do not rely on repo-wide Codex Stop hooks for docked role sessions; use role-local hooks.",
     "Do not automate /goal, /model, /clear, keyboard input, terminal control, or Codex TUI driving.",
     "Do not put source edits or generated run state inside .docks/."
   ]

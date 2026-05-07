@@ -197,6 +197,11 @@ design context is archived at
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
+- `.docks/` is the durable repo-local launch/control surface for docked
+  role/persona/agent workflows. Treat entries there as dock templates. Generated
+  role directories and workflow run state belong under
+  `.aos-test-tmp/workflows/<id>/`; do not write source edits or generated run
+  state into `.docks/`.
 - Never attribute commits to Claude or any AI assistant in this repo. No
   `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"
   tags, and no AI attribution in commit messages, PR descriptions, or issue

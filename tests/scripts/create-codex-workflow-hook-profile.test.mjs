@@ -104,6 +104,8 @@ test('CLI creates an ephemeral profile under .aos-test-tmp/workflows', async () 
     assert.equal(profile.roles.foreman.dir, 'foreman');
     assert.equal(profile.roles.gdi.hooks, 'gdi/.codex/hooks.json');
     assert.equal(profile.roles.foreman.hooks, 'foreman/.codex/hooks.json');
+    assert.equal(profile.roles.gdi.session_id, `${id}:gdi`);
+    assert.equal(profile.roles.foreman.session_id, `${id}:foreman`);
     assert.deepEqual(Object.keys(profile.roles).sort(), ['foreman', 'gdi']);
     await readFile(path.join(dir, 'README.md'), 'utf8');
     await readFile(path.join(dir, 'gdi', '.codex', 'hooks.json'), 'utf8');
@@ -205,7 +207,7 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
 
     const gdiResult = runHookCommand(
       gdiTtsCommand,
-      JSON.stringify({ session_id: 'gdi-session', harness: 'codex' }),
+      JSON.stringify({ session_id: 'hook-session-should-be-ignored', harness: 'codex' }),
       {
         AOS_WORKFLOW_AOS_BIN: fakeAos,
         AOS_FAKE_VOICE_RECORD: recordPath,
@@ -216,7 +218,7 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
 
     const foremanResult = runHookCommand(
       foremanTtsCommand,
-      JSON.stringify({ session_id: 'foreman-session', harness: 'codex' }),
+      JSON.stringify({ session_id: 'hook-session-should-be-ignored', harness: 'codex' }),
       {
         AOS_WORKFLOW_AOS_BIN: fakeAos,
         AOS_FAKE_VOICE_RECORD: recordPath,
@@ -234,7 +236,7 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
       'voice',
       'bind',
       '--session-id',
-      'gdi-session',
+      `${enabledId}:gdi`,
       '--quality-tier',
       'premium',
       '--language',
@@ -242,12 +244,12 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
       '--gender',
       'female',
     ]);
-    assert.deepEqual(calls[1].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'gdi-session']);
+    assert.deepEqual(calls[1].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', `${enabledId}:gdi`]);
     assert.deepEqual(calls[2].argv, [
       'voice',
       'bind',
       '--session-id',
-      'foreman-session',
+      `${enabledId}:foreman`,
       '--quality-tier',
       'premium',
       '--language',
@@ -255,14 +257,71 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
       '--gender',
       'male',
     ]);
-    assert.deepEqual(calls[3].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'foreman-session']);
+    assert.deepEqual(calls[3].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', `${enabledId}:foreman`]);
     assert.equal(calls[0].stdin, '');
     assert.equal(JSON.parse(calls[1].stdin).last_assistant_message, 'GDI finished, foreman starting.');
+    assert.equal(JSON.parse(calls[1].stdin).session_id, `${enabledId}:gdi`);
     assert.equal(calls[2].stdin, '');
     assert.equal(JSON.parse(calls[3].stdin).last_assistant_message, 'Foreman finished.');
+    assert.equal(JSON.parse(calls[3].stdin).session_id, `${enabledId}:foreman`);
+
+    const events = await readEvents(enabledDir);
+    assert.equal(events.length, 2);
+    assert.equal(events[0].type, 'codex.workflow_hook.tts.v0');
+    assert.equal(events[0].role, 'gdi');
+    assert.equal(events[0].session_id, `${enabledId}:gdi`);
+    assert.equal(events[0].success, true);
+    assert.equal(events[1].type, 'codex.workflow_hook.tts.v0');
+    assert.equal(events[1].role, 'foreman');
+    assert.equal(events[1].session_id, `${enabledId}:foreman`);
+    assert.equal(events[1].success, true);
   } finally {
     await rm(disabledDir, { recursive: true, force: true });
     await rm(enabledDir, { recursive: true, force: true });
+  }
+});
+
+test('role-local TTS hook records failed AOS delivery attempts', async () => {
+  const id = `test-tts-failure-${process.pid}-${Date.now()}`;
+  const profile = createWorkflowProfile({ id, tts: true });
+  const dir = workflowPath(profile);
+
+  try {
+    const hooks = await readJson(path.join(dir, profile.roles.gdi.hooks));
+    const ttsCommand = stopCommands(hooks).find((command) => command.includes('workflow-tts.sh'));
+    assert.ok(ttsCommand);
+
+    const fakeAos = path.join(dir, 'hooks', 'fake-aos-fail.mjs');
+    await writeFile(fakeAos, `#!/usr/bin/env node
+if (process.argv[3] === 'final-response') {
+  process.stderr.write('synthetic final response failure\\n');
+  process.exit(17);
+}
+process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
+`);
+    await chmod(fakeAos, 0o755);
+
+    const result = runHookCommand(
+      ttsCommand,
+      JSON.stringify({ session_id: 'hook-session-should-be-ignored', harness: 'codex' }),
+      {
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), '{"continue":true}');
+
+    const events = await readEvents(dir);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, 'codex.workflow_hook.tts.v0');
+    assert.equal(events[0].session_id, `${id}:gdi`);
+    assert.equal(events[0].success, false);
+    assert.equal(events[0].code, 'tts_command_failed');
+    assert.equal(events[0].bind.status, 0);
+    assert.equal(events[0].final_response.status, 17);
+    assert.match(events[0].final_response.stderr, /synthetic final response failure/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });
 

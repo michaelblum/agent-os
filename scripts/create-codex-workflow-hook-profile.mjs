@@ -12,7 +12,8 @@ function usage() {
 
 Creates an ephemeral Codex hook profile under .aos-test-tmp/workflows/<workflow-id>/.
 The generated profile contains isolated gdi/ and foreman/ role directories, each
-with its own .codex/hooks.json.`;
+with its own .codex/hooks.json. Role-local TTS hooks use stable role session ids
+<workflow-id>:gdi and <workflow-id>:foreman.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -240,6 +241,8 @@ WORKFLOW_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="\${AOS_WORKFLOW_REPO_ROOT:-${repoRoot}}"
 EXPECTED_ROOT="$REPO_ROOT/.aos-test-tmp/workflows"
 ROLE="\${AOS_WORKFLOW_ROLE:-unknown}"
+WORKFLOW_ID="\${AOS_WORKFLOW_ID:-}"
+ROLE_SESSION_ID="\${AOS_WORKFLOW_ROLE_SESSION_ID:-}"
 AOS_BIN="\${AOS_WORKFLOW_AOS_BIN:-$REPO_ROOT/aos}"
 
 python3 - "$WORKFLOW_DIR" "$EXPECTED_ROOT" <<'PY'
@@ -267,17 +270,82 @@ case "$ROLE" in
   *) printf '{"continue":true}\\n'; exit 0 ;;
 esac
 
+if [[ -z "$ROLE_SESSION_ID" && -n "$WORKFLOW_ID" && "$ROLE" != "unknown" ]]; then
+  ROLE_SESSION_ID="$WORKFLOW_ID:$ROLE"
+fi
+
 INPUT_PATH="$(mktemp "$WORKFLOW_DIR/.tts-input.XXXXXX")"
 PAYLOAD_PATH="$(mktemp "$WORKFLOW_DIR/.tts-payload.XXXXXX")"
-trap 'rm -f "$INPUT_PATH" "$PAYLOAD_PATH"' EXIT
+BIND_STDOUT="$(mktemp "$WORKFLOW_DIR/.tts-bind-stdout.XXXXXX")"
+BIND_STDERR="$(mktemp "$WORKFLOW_DIR/.tts-bind-stderr.XXXXXX")"
+FINAL_STDOUT="$(mktemp "$WORKFLOW_DIR/.tts-final-stdout.XXXXXX")"
+FINAL_STDERR="$(mktemp "$WORKFLOW_DIR/.tts-final-stderr.XXXXXX")"
+trap 'rm -f "$INPUT_PATH" "$PAYLOAD_PATH" "$BIND_STDOUT" "$BIND_STDERR" "$FINAL_STDOUT" "$FINAL_STDERR"' EXIT
 cat >"$INPUT_PATH" || true
 
-if [[ ! -x "$AOS_BIN" ]]; then
+append_tts_event() {
+  python3 - "$WORKFLOW_DIR" "$ROLE" "$ROLE_SESSION_ID" "$1" "$2" "$3" "$4" "$5" "$BIND_STDOUT" "$BIND_STDERR" "$FINAL_STDOUT" "$FINAL_STDERR" <<'PY'
+import datetime
+import json
+import pathlib
+import sys
+
+workflow_dir = pathlib.Path(sys.argv[1]).resolve()
+role = sys.argv[2]
+session_id = sys.argv[3]
+code = sys.argv[4]
+bind_attempted = sys.argv[5] == "true"
+bind_status = int(sys.argv[6])
+final_attempted = sys.argv[7] == "true"
+final_status = int(sys.argv[8])
+paths = [pathlib.Path(value) for value in sys.argv[9:13]]
+
+def read_limited(path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")[:2000]
+    except FileNotFoundError:
+        return ""
+
+success = code == "ok" and (not bind_attempted or bind_status == 0) and (not final_attempted or final_status == 0)
+event = {
+    "type": "codex.workflow_hook.tts.v0",
+    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+    "role": role,
+    "session_id": session_id,
+    "hook": "Stop",
+    "success": success,
+    "code": code,
+    "bind": {
+        "attempted": bind_attempted,
+        "status": bind_status,
+        "stdout": read_limited(paths[0]),
+        "stderr": read_limited(paths[1]),
+    },
+    "final_response": {
+        "attempted": final_attempted,
+        "status": final_status,
+        "stdout": read_limited(paths[2]),
+        "stderr": read_limited(paths[3]),
+    },
+}
+with (workflow_dir / "events.jsonl").open("a", encoding="utf-8") as handle:
+    handle.write(json.dumps(event, separators=(",", ":")) + "\\n")
+PY
+}
+
+if [[ -z "$ROLE_SESSION_ID" ]]; then
+  append_tts_event "missing_role_session_id" false 0 false 0
   printf '{"continue":true}\\n'
   exit 0
 fi
 
-SESSION_ID="$(python3 - "$INPUT_PATH" "$PAYLOAD_PATH" "$MESSAGE" <<'PY'
+if [[ ! -x "$AOS_BIN" ]]; then
+  append_tts_event "aos_bin_not_executable" false 0 false 0
+  printf '{"continue":true}\\n'
+  exit 0
+fi
+
+python3 - "$INPUT_PATH" "$PAYLOAD_PATH" "$MESSAGE" "$ROLE_SESSION_ID" "$ROLE" <<'PY'
 import json
 import pathlib
 import sys
@@ -285,40 +353,47 @@ import sys
 input_path = pathlib.Path(sys.argv[1])
 payload_path = pathlib.Path(sys.argv[2])
 message = sys.argv[3]
+role_session_id = sys.argv[4]
+role = sys.argv[5]
 raw = input_path.read_text(encoding="utf-8", errors="replace").strip()
 try:
     hook = json.loads(raw) if raw else {}
 except json.JSONDecodeError:
     hook = {}
 
-session_id = (
-    hook.get("session_id")
-    or hook.get("thread_id")
-    or (hook.get("payload") or {}).get("session_id")
-    or (hook.get("payload") or {}).get("thread_id")
-    or ""
-)
+hook["session_id"] = role_session_id
 hook["last_assistant_message"] = message
-hook["harness"] = hook.get("harness") or "codex"
+hook["harness"] = "codex"
+hook["aos_workflow_role"] = role
 payload_path.write_text(json.dumps(hook, separators=(",", ":")) + "\\n", encoding="utf-8")
-print(session_id)
 PY
-)"
 
-if [[ -n "$SESSION_ID" ]]; then
-  "$AOS_BIN" voice bind --session-id "$SESSION_ID" "\${VOICE_BIND_FILTERS[@]}" >/dev/null 2>&1 || true
-  "$AOS_BIN" voice final-response --harness codex --session-id "$SESSION_ID" <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
+set +e
+"$AOS_BIN" voice bind --session-id "$ROLE_SESSION_ID" "\${VOICE_BIND_FILTERS[@]}" >"$BIND_STDOUT" 2>"$BIND_STDERR"
+BIND_STATUS=$?
+"$AOS_BIN" voice final-response --harness codex --session-id "$ROLE_SESSION_ID" <"$PAYLOAD_PATH" >"$FINAL_STDOUT" 2>"$FINAL_STDERR"
+FINAL_STATUS=$?
+set -e
+
+if [[ "$BIND_STATUS" -eq 0 && "$FINAL_STATUS" -eq 0 ]]; then
+  append_tts_event "ok" true "$BIND_STATUS" true "$FINAL_STATUS"
 else
-  "$AOS_BIN" voice final-response --harness codex <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
+  append_tts_event "tts_command_failed" true "$BIND_STATUS" true "$FINAL_STATUS"
 fi
 
 printf '{"continue":true}\\n'
 `;
 }
 
-function hookCommand(workflowDir, role, scriptName) {
+function roleSessionId(workflowId, role) {
+  return `${workflowId}:${role}`;
+}
+
+function hookCommand(workflowDir, role, scriptName, workflowId) {
   return [
+    `AOS_WORKFLOW_ID=${shellQuote(workflowId)}`,
     `AOS_WORKFLOW_ROLE=${shellQuote(role)}`,
+    `AOS_WORKFLOW_ROLE_SESSION_ID=${shellQuote(roleSessionId(workflowId, role))}`,
     `AOS_WORKFLOW_REPO_ROOT=${shellQuote(repoRoot)}`,
     'bash',
     shellQuote(path.join(workflowDir, 'hooks', scriptName)),
@@ -329,7 +404,7 @@ export function buildHookConfig(options) {
   const stopHooks = [
     {
       type: 'command',
-      command: hookCommand(options.workflowDir, options.role, 'stop-marker.sh'),
+      command: hookCommand(options.workflowDir, options.role, 'stop-marker.sh', options.workflowId),
       statusMessage: 'Recording workflow Stop marker',
       timeout: 10,
     },
@@ -338,7 +413,7 @@ export function buildHookConfig(options) {
   if (options.role === 'gdi' && options.gdiHandoff) {
     stopHooks.push({
       type: 'command',
-      command: hookCommand(options.workflowDir, options.role, 'gdi-stop-handoff.sh'),
+      command: hookCommand(options.workflowDir, options.role, 'gdi-stop-handoff.sh', options.workflowId),
       statusMessage: 'Writing GDI handoff packet',
       timeout: 45,
     });
@@ -347,7 +422,7 @@ export function buildHookConfig(options) {
   if (options.tts) {
     stopHooks.push({
       type: 'command',
-      command: hookCommand(options.workflowDir, options.role, 'workflow-tts.sh'),
+      command: hookCommand(options.workflowDir, options.role, 'workflow-tts.sh', options.workflowId),
       statusMessage: 'Speaking workflow role completion',
       timeout: 20,
     });
@@ -410,12 +485,15 @@ ${options.gdiHandoff ? `The GDI role also has an optional Stop hook that pipes h
 best-effort clipboard copy of that packet path.` : `The optional GDI handoff hook was not enabled for this profile. Regenerate with
 \`--gdi-handoff\` when you want the GDI Stop hook to write a handoff packet.`}
 
-${options.tts ? `Role-local TTS is enabled for this profile. The GDI Stop hook binds
-the session with \`${repoRoot}/aos voice bind --quality-tier premium --language en --gender female\`
-and speaks \`GDI finished, foreman starting.\`; the foreman Stop hook binds
-the session with \`${repoRoot}/aos voice bind --quality-tier premium --language en --gender male\`
+${options.tts ? `Role-local TTS is enabled for this profile. The GDI Stop hook uses
+the registered \`${options.workflowId}:gdi\` role session id, binds it with
+\`${repoRoot}/aos voice bind --quality-tier premium --language en --gender female\`,
+and speaks \`GDI finished, foreman starting.\`; the foreman Stop hook uses the
+registered \`${options.workflowId}:foreman\` role session id, binds it with
+\`${repoRoot}/aos voice bind --quality-tier premium --language en --gender male\`,
 and speaks \`Foreman finished.\`. Speech delivery goes through
-\`${repoRoot}/aos voice final-response\`.` : `Role-local TTS is disabled for this profile. Regenerate with \`--tts\` when you
+\`${repoRoot}/aos voice final-response\`, and each attempt appends a success or
+failure event to \`${workflowDirRelative}/events.jsonl\`.` : `Role-local TTS is disabled for this profile. Regenerate with \`--tts\` when you
 want the GDI and foreman Stop hooks to speak completion messages.`}
 `;
 }
@@ -453,12 +531,14 @@ export function createWorkflowProfile(options = {}) {
       role,
       gdiHandoff: Boolean(options.gdiHandoff),
       tts: Boolean(options.tts),
+      workflowId,
     });
     const hookConfigPath = path.join(workflowDir, role, '.codex', 'hooks.json');
     fs.writeFileSync(hookConfigPath, `${JSON.stringify(hookConfig, null, 2)}\n`);
     roleOutputs[role] = {
       dir: role,
       hooks: path.join(role, '.codex', 'hooks.json'),
+      session_id: roleSessionId(workflowId, role),
     };
   }
 

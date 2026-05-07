@@ -133,6 +133,7 @@ fs.appendFileSync(recordPath, JSON.stringify({
   cwd: process.cwd(),
   argv: process.argv.slice(2),
   workflowDir,
+  roleSessionId: process.env.AOS_WORKFLOW_ROLE_SESSION_ID,
   roleHooks,
   roleFile: fs.existsSync(roleFilePath) ? fs.readFileSync(roleFilePath, 'utf8') : null,
   taskFile: fs.existsSync(taskFilePath) ? fs.readFileSync(taskFilePath, 'utf8') : null,
@@ -175,6 +176,24 @@ if (mode === 'hang') {
 `);
   await chmod(fakeCodex, 0o755);
   return fakeCodex;
+}
+
+async function writeFakeAos(tempRoot) {
+  const fakeAos = path.join(tempRoot, 'fake-aos.mjs');
+  await writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+
+const recordPath = process.env.AOS_FAKE_AOS_RECORD;
+if (!recordPath) throw new Error('missing AOS_FAKE_AOS_RECORD');
+const stdin = fs.readFileSync(0, 'utf8');
+fs.appendFileSync(recordPath, JSON.stringify({
+  argv: process.argv.slice(2),
+  stdin,
+}) + '\\n');
+process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
+`);
+  await chmod(fakeAos, 0o755);
+  return fakeAos;
 }
 
 async function readRecords(recordPath) {
@@ -304,6 +323,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
   const recordPath = path.join(tempRoot, 'records.jsonl');
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
+    const aosRecordPath = path.join(tempRoot, 'aos-records.jsonl');
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -315,6 +336,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
       env: {
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: aosRecordPath,
       },
       encoding: 'utf8',
     });
@@ -324,6 +347,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.deepEqual(records.map((record) => record.role), ['gdi', 'foreman']);
     assert.equal(records[0].cwd, path.join(dir, 'gdi'));
     assert.equal(records[1].cwd, path.join(dir, 'foreman'));
+    assert.equal(records[0].roleSessionId, `${id}:gdi`);
+    assert.equal(records[1].roleSessionId, `${id}:foreman`);
     assertCodexExecInvocation(records[0]);
     assertCodexExecInvocation(records[1]);
     const gdiPrompt = promptArg(records[0]);
@@ -377,6 +402,46 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.equal(status.sentinels.done.exists, true);
     assert.equal(status.tts_enabled.gdi, true);
     assert.equal(status.tts_enabled.foreman, true);
+    assert.equal(status.role_sessions.gdi.session_id, `${id}:gdi`);
+    assert.equal(status.role_sessions.foreman.session_id, `${id}:foreman`);
+    assert.equal(status.role_sessions.gdi.latest_register.success, true);
+    assert.equal(status.role_sessions.gdi.latest_voice_bind.success, true);
+    assert.equal(status.role_sessions.gdi.latest_unregister.success, true);
+    assert.equal(status.role_sessions.foreman.latest_register.success, true);
+    assert.equal(status.role_sessions.foreman.latest_voice_bind.success, true);
+    assert.equal(status.role_sessions.foreman.latest_unregister.success, true);
+
+    const aosCalls = await readRecords(aosRecordPath);
+    assert.deepEqual(aosCalls.map((call) => call.argv.slice(0, 3)), [
+      ['tell', '--register', '--session-id'],
+      ['voice', 'bind', '--session-id'],
+      ['tell', '--unregister', '--session-id'],
+      ['tell', '--register', '--session-id'],
+      ['voice', 'bind', '--session-id'],
+      ['tell', '--unregister', '--session-id'],
+    ]);
+    assert.equal(aosCalls[0].argv[3], `${id}:gdi`);
+    assert.deepEqual(aosCalls[1].argv.slice(3), [
+      `${id}:gdi`,
+      '--quality-tier',
+      'premium',
+      '--language',
+      'en',
+      '--gender',
+      'female',
+    ]);
+    assert.equal(aosCalls[2].argv[3], `${id}:gdi`);
+    assert.equal(aosCalls[3].argv[3], `${id}:foreman`);
+    assert.deepEqual(aosCalls[4].argv.slice(3), [
+      `${id}:foreman`,
+      '--quality-tier',
+      'premium',
+      '--language',
+      'en',
+      '--gender',
+      'male',
+    ]);
+    assert.equal(aosCalls[5].argv[3], `${id}:foreman`);
 
     const listResult = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
@@ -408,6 +473,7 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
 
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -422,6 +488,8 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
         AOS_FAKE_CODEX_MODE: 'gdi-ready-then-wait',
         AOS_FAKE_CODEX_GDI_READY_MARKER: gdiReadyMarker,
         AOS_FAKE_CODEX_GDI_EXIT_FILE: gdiExitFile,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -473,6 +541,7 @@ test('run-workflow fails if GDI exits non-zero after writing ready sentinel', as
 
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -485,6 +554,8 @@ test('run-workflow fails if GDI exits non-zero after writing ready sentinel', as
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
         AOS_FAKE_CODEX_MODE: 'gdi-ready-then-fail',
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       encoding: 'utf8',
     });
@@ -512,6 +583,7 @@ test('run-workflow waits for foreman to exit after done sentinel before completi
 
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -526,6 +598,8 @@ test('run-workflow waits for foreman to exit after done sentinel before completi
         AOS_FAKE_CODEX_MODE: 'foreman-done-then-wait',
         AOS_FAKE_CODEX_FOREMAN_DONE_MARKER: foremanDoneMarker,
         AOS_FAKE_CODEX_FOREMAN_EXIT_FILE: foremanExitFile,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -561,6 +635,7 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
   try {
     await writeFile(taskPath, `${taskBody}\n`);
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -574,6 +649,8 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
       env: {
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       encoding: 'utf8',
     });
@@ -601,6 +678,7 @@ test('run-workflow disables role-local TTS hooks with --no-tts', async () => {
   const recordPath = path.join(tempRoot, 'records.jsonl');
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -613,6 +691,8 @@ test('run-workflow disables role-local TTS hooks with --no-tts', async () => {
       env: {
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       encoding: 'utf8',
     });
@@ -634,6 +714,7 @@ test('run-workflow cleans up the workflow directory with --clean', async () => {
   const recordPath = path.join(tempRoot, 'records.jsonl');
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     const result = spawnSync(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -646,6 +727,8 @@ test('run-workflow cleans up the workflow directory with --clean', async () => {
       env: {
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       encoding: 'utf8',
     });
@@ -664,6 +747,7 @@ test('run-workflow handles SIGINT by terminating children and honoring --clean',
   const recordPath = path.join(tempRoot, 'records.jsonl');
   try {
     const fakeCodex = await writeFakeCodex(tempRoot);
+    const fakeAos = await writeFakeAos(tempRoot);
     const child = spawn(process.execPath, [
       'scripts/run-workflow.mjs',
       '--workflow-id',
@@ -677,6 +761,8 @@ test('run-workflow handles SIGINT by terminating children and honoring --clean',
         ...process.env,
         AOS_FAKE_CODEX_RECORD: recordPath,
         AOS_FAKE_CODEX_MODE: 'hang',
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_AOS_RECORD: path.join(tempRoot, 'aos-records.jsonl'),
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

@@ -2,6 +2,8 @@ We are in {{repoRoot}}.
 
 You are the GDI role for workflow {{workflowId}}.
 
+Your registered AOS role session id is `{{roleSessionId}}`.
+
 Use this generated role directory only as launch/control context:
 
 {{roleDir}}

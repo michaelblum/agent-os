@@ -532,6 +532,13 @@ Voice deliveries and final-response ingress failures append local JSONL records 
 `~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
 voice, purpose, and failure code were involved without storing full message bodies.
 
+Docked workflows should use registered role session ids for final-response TTS
+instead of provider-transient hook ids. The `run-workflow` dock launcher uses
+stable ids such as `<workflow-id>:gdi` and `<workflow-id>:foreman`, registers
+them with `aos tell --register`, binds voices with filtered `aos voice bind`
+calls, and routes role-local Stop hook speech through `aos voice final-response
+--session-id <workflow-id>:<role>`.
+
 ## `aos config`
 
 Discoverable configuration surface:
@@ -590,6 +597,12 @@ final-response shaping policy before speaking.
 
 Direct routing should prefer canonical session ids. Human-readable names remain display metadata for `aos tell --who` and operator ergonomics.
 Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
+
+Docked role sessions are ordinary registered sessions. Supervisors should
+register each role before launch with stable ids such as `<workflow-id>:gdi`,
+include role and harness metadata, and unregister the session after that role
+completes. This keeps `aos tell --who`, `aos voice assignments`, and workflow
+status aligned around the same role session identity.
 
 ## `aos listen`
 
