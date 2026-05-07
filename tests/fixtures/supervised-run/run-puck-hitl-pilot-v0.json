@@ -1,0 +1,343 @@
+{
+  "id": "plan:run-puck-hitl-pilot-v0",
+  "label": "Supervised Run Puck HITL Pilot V0",
+  "kind": "run-puck-hitl",
+  "run_id": "supervised-run:run-puck-hitl-pilot-v0",
+  "requires_runtime_aos": true,
+  "operating_path": "agent/dev/testing/headed/real-input/hitl-sidecar",
+  "intent_summary": "Execute the first real supervised-run HITL pilot around a run-puck-like AOS canvas, a file-backed test console, an automated canvas wait, a recorded input advance, and two human confirmations.",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Issue #154 run-puck HITL pilot shell scenario."
+  },
+  "references": [
+    {
+      "id": "github-issue-154",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/154",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "tracker"
+    },
+    {
+      "id": "github-issue-149",
+      "relationship": "parent_epic",
+      "ref": "https://github.com/michaelblum/agent-os/issues/149",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "epic"
+    },
+    {
+      "id": "supervised-run-schema",
+      "relationship": "validated_by",
+      "ref": "repo:shared/schemas/aos-supervised-run-v0.schema.json",
+      "subject_type": "schema",
+      "layer": "descriptor",
+      "role": "coordination_contract"
+    },
+    {
+      "id": "test-console",
+      "relationship": "uses",
+      "ref": "repo:packages/toolkit/components/test-console/",
+      "subject_type": "toolkit.component",
+      "layer": "controls",
+      "role": "hitl_sidecar"
+    },
+    {
+      "id": "pilot-plan",
+      "relationship": "implemented_by",
+      "ref": "repo:tests/run-puck-hitl-plan.sh",
+      "subject_type": "test.harness",
+      "layer": "execution_map",
+      "role": "pilot_plan"
+    }
+  ],
+  "intent": {
+    "summary": "Coordinate one real supervised-run pilot around a run-puck-like AOS canvas and file-backed HITL console.",
+    "purpose": "Prove the pilot can launch isolated runtime state, verify a target canvas with show wait, collect two console-backed human responses, record the input method that advanced state, and leave Work Record-compatible evidence refs without adding public commands or replay/repair machinery.",
+    "acceptance": "The run writes summary.json, run.json, contiguous supervised.* timeline events, response-events.jsonl, human-responses.jsonl, input evidence, and cleanup evidence.",
+    "constraints": [
+      "No public aos test run command.",
+      "No daemon-backed event channel.",
+      "No broad pub/sub.",
+      "No replay, repair, or macro playback.",
+      "No autonomous repair.",
+      "No Work Record mutation or second evidence viewer."
+    ],
+    "step_refs": [
+      "step:run-puck-confirm-paused",
+      "step:run-puck-confirm-advanced"
+    ]
+  },
+  "steps": [
+    {
+      "id": "step:run-puck-confirm-paused",
+      "label": "Confirm run puck placement and paused state",
+      "instruction": {
+        "id": "instruction:run-puck-observe-paused",
+        "event_ref": "event:run-puck-paused-instruction",
+        "text": "Observe the run puck pilot canvas and confirm that it is visible, placed intentionally, and paused."
+      },
+      "expectation": {
+        "id": "expectation:run-puck-paused-visible",
+        "event_ref": "event:run-puck-paused-expectation",
+        "text": "The run puck canvas is visible and its status reads Paused.",
+        "acceptance": "The automated show wait passes for the run puck canvas and the supervisor confirms the paused visual state."
+      },
+      "human_request": {
+        "id": "request:run-puck-confirm-paused",
+        "event_ref": "event:run-puck-paused-human-requested",
+        "prompt": "Confirm that the run puck is visually placed and paused.",
+        "requested_at": "2026-05-06T18:10:30Z",
+        "response_options": [
+          "confirmed",
+          "failed",
+          "blocked",
+          "note"
+        ],
+        "evidence_refs": [
+          "evidence:run-puck-human-paused-confirmation"
+        ]
+      },
+      "automated_checks": [
+        {
+          "id": "check:run-puck-show-wait-paused",
+          "event_ref": "event:run-puck-paused-show-wait",
+          "description": "show wait verified the run puck canvas exists and is paused.",
+          "status": "passed",
+          "check": {
+            "kind": "aos_show_wait",
+            "command": "./aos show wait --id {{puck_canvas_id}} --manifest run-puck-v0 --js window.__runPuckState?.status === 'paused'",
+            "expected": "canvas exists with paused state",
+            "actual": "passed"
+          },
+          "evidence_refs": [
+            "evidence:run-puck-show-wait-paused"
+          ]
+        },
+        {
+          "id": "check:run-puck-xray-paused",
+          "event_ref": "event:run-puck-paused-xray",
+          "description": "see --xray captured the run puck advance semantic target before input.",
+          "status": "passed",
+          "check": {
+            "kind": "aos_see_xray",
+            "expected": "semantic do_target for run-puck-v0:advance",
+            "actual": "canvas:{{puck_canvas_id}}/run-puck-v0:advance"
+          },
+          "evidence_refs": [
+            "evidence:run-puck-xray-paused"
+          ]
+        }
+      ],
+      "completion_event_id": "event:run-puck-confirm-paused:completed",
+      "completion_evidence_refs": [
+        "evidence:run-puck-show-wait-paused",
+        "evidence:run-puck-xray-paused",
+        "evidence:run-puck-human-paused-confirmation"
+      ]
+    },
+    {
+      "id": "step:run-puck-confirm-advanced",
+      "label": "Confirm run puck advanced state",
+      "instruction": {
+        "id": "instruction:run-puck-observe-advanced",
+        "event_ref": "event:run-puck-advanced-instruction",
+        "text": "Observe the run puck after the recorded input advance and confirm the expected advanced state."
+      },
+      "expectation": {
+        "id": "expectation:run-puck-advanced-visible",
+        "event_ref": "event:run-puck-advanced-expectation",
+        "text": "The run puck status reads Advanced and reports one advance.",
+        "acceptance": "The input method is recorded in the timeline, show wait verifies advanced state, and the supervisor confirms the result."
+      },
+      "human_request": {
+        "id": "request:run-puck-confirm-advanced",
+        "event_ref": "event:run-puck-advanced-human-requested",
+        "prompt": "Confirm that the run puck advanced to the expected state.",
+        "requested_at": "2026-05-06T18:11:10Z",
+        "response_options": [
+          "confirmed",
+          "failed",
+          "blocked",
+          "note"
+        ],
+        "evidence_refs": [
+          "evidence:run-puck-human-advanced-confirmation"
+        ]
+      },
+      "automated_checks": [
+        {
+          "id": "check:run-puck-input-advance",
+          "event_ref": "event:run-puck-input-advance",
+          "description": "The run puck was advanced through the recorded input method.",
+          "status": "passed",
+          "check": {
+            "kind": "{{input_method}}",
+            "expected": "one run puck advance",
+            "actual": "advanced once"
+          },
+          "evidence_refs": [
+            "evidence:run-puck-input-advance"
+          ]
+        },
+        {
+          "id": "check:run-puck-show-wait-advanced",
+          "event_ref": "event:run-puck-advanced-show-wait",
+          "description": "show wait verified the run puck advanced state.",
+          "status": "passed",
+          "check": {
+            "kind": "aos_show_wait",
+            "command": "./aos show wait --id {{puck_canvas_id}} --manifest run-puck-v0 --js window.__runPuckState?.status === 'advanced'",
+            "expected": "canvas exists with advanced state",
+            "actual": "passed"
+          },
+          "evidence_refs": [
+            "evidence:run-puck-show-wait-advanced"
+          ]
+        }
+      ],
+      "completion_event_id": "event:run-puck-confirm-advanced:completed",
+      "completion_evidence_refs": [
+        "evidence:run-puck-input-advance",
+        "evidence:run-puck-show-wait-advanced",
+        "evidence:run-puck-human-advanced-confirmation"
+      ]
+    }
+  ],
+  "evidence_refs": [
+    {
+      "ref": "evidence:run-puck-live-equivalent-discovery",
+      "relationship": "surface_discovery",
+      "summary": "Documented the live run-puck equivalent used by the pilot."
+    },
+    {
+      "ref": "evidence:isolated-daemon-start",
+      "relationship": "runtime_setup",
+      "summary": "Isolated daemon/test state and runtime status evidence."
+    },
+    {
+      "ref": "evidence:toolkit-content-root",
+      "relationship": "runtime_setup",
+      "summary": "Toolkit content root registration evidence."
+    },
+    {
+      "ref": "evidence:test-console-show-wait",
+      "relationship": "automated_check_receipt",
+      "summary": "Test console show wait evidence."
+    },
+    {
+      "ref": "evidence:run-puck-show-wait-paused",
+      "relationship": "automated_check_receipt",
+      "summary": "show wait evidence for the paused run puck canvas."
+    },
+    {
+      "ref": "evidence:run-puck-xray-paused",
+      "relationship": "automated_check_receipt",
+      "summary": "see --xray evidence for the run puck advance target."
+    },
+    {
+      "ref": "evidence:run-puck-human-paused-confirmation",
+      "relationship": "human_feedback",
+      "summary": "Human/fixture confirmation for visual placement and paused state."
+    },
+    {
+      "ref": "evidence:run-puck-input-advance",
+      "relationship": "input_execution",
+      "summary": "Recorded input method evidence for advancing the run puck."
+    },
+    {
+      "ref": "evidence:run-puck-show-wait-advanced",
+      "relationship": "automated_check_receipt",
+      "summary": "show wait evidence for the advanced run puck canvas."
+    },
+    {
+      "ref": "evidence:run-puck-human-advanced-confirmation",
+      "relationship": "human_feedback",
+      "summary": "Human/fixture confirmation for expected advanced state."
+    },
+    {
+      "ref": "evidence:run-puck-cleanup",
+      "relationship": "cleanup",
+      "summary": "Canvas cleanup and show list evidence."
+    }
+  ],
+  "work_record_projection": {
+    "target_schema": "2026-05-work-record-v0",
+    "handoff_kind": "report_only",
+    "candidate_work_record_id": "work-record:run-puck-hitl-pilot-v0",
+    "evidence_refs": [
+      "evidence:run-puck-live-equivalent-discovery",
+      "evidence:isolated-daemon-start",
+      "evidence:toolkit-content-root",
+      "evidence:test-console-show-wait",
+      "evidence:run-puck-show-wait-paused",
+      "evidence:run-puck-xray-paused",
+      "evidence:run-puck-human-paused-confirmation",
+      "evidence:run-puck-input-advance",
+      "evidence:run-puck-show-wait-advanced",
+      "evidence:run-puck-human-advanced-confirmation",
+      "evidence:run-puck-cleanup"
+    ],
+    "claim_promotions": [
+      {
+        "id": "claim-promotion:run-puck-paused",
+        "step_ref": "step:run-puck-confirm-paused",
+        "claim_id_template": "claim:{{record_slug}}-run-puck-paused",
+        "claim_text": "The run puck pilot canvas was visible and paused before input.",
+        "postcondition_hint": "show wait passed and the supervisor confirmed visual placement and paused state.",
+        "evidence_refs": [
+          "evidence:run-puck-show-wait-paused",
+          "evidence:run-puck-human-paused-confirmation"
+        ]
+      },
+      {
+        "id": "claim-promotion:run-puck-advanced",
+        "step_ref": "step:run-puck-confirm-advanced",
+        "claim_id_template": "claim:{{record_slug}}-run-puck-advanced",
+        "claim_text": "The run puck advanced through the recorded input method and displayed the expected state.",
+        "postcondition_hint": "The input event evidence and show wait advanced evidence agree with the supervisor confirmation.",
+        "evidence_refs": [
+          "evidence:run-puck-input-advance",
+          "evidence:run-puck-show-wait-advanced",
+          "evidence:run-puck-human-advanced-confirmation"
+        ]
+      }
+    ],
+    "notes": "The pilot leaves refs for a future Work Record builder; it does not mutate Work Records."
+  },
+  "live_equivalent_discovery": {
+    "searched_terms": [
+      "run puck",
+      "run-puck",
+      "puck"
+    ],
+    "exact_surface_found": false,
+    "live_equivalent": {
+      "kind": "pilot_inline_aos_canvas",
+      "canvas_id": "{{puck_canvas_id}}",
+      "surface": "run-puck-v0",
+      "semantic_advance_ref": "run-puck-v0:advance"
+    },
+    "rationale": "No literal run-puck surface exists in the live repo. The pilot uses the nearest minimal equivalent: an AOS-owned canvas with a paused state, an advance control, semantic target metadata, and observable state for show wait."
+  },
+  "live_equivalent_metadata": {
+    "kind": "pilot_inline_aos_canvas",
+    "source": "{{artifact_dir}}/live-equivalent-discovery.json"
+  },
+  "summary_artifacts": {
+    "live_equivalent_discovery": "{{artifact_dir}}/live-equivalent-discovery.json",
+    "isolated_status": "{{artifact_dir}}/isolated-status.json",
+    "content_status": "{{artifact_dir}}/content-status.json",
+    "test_console_show_wait": "{{artifact_dir}}/test-console-show-wait-paused.json",
+    "run_puck_show_wait_paused": "{{artifact_dir}}/run-puck-show-wait-paused.json",
+    "run_puck_placement": "{{artifact_dir}}/run-puck-placement.json",
+    "run_puck_xray_json": "{{artifact_dir}}/run-puck-xray-paused.json",
+    "run_puck_xray_png": "{{artifact_dir}}/run-puck-xray-paused.png",
+    "input_advance": "{{artifact_dir}}/run-puck-input-advance.json",
+    "run_puck_show_wait_advanced": "{{artifact_dir}}/run-puck-show-wait-advanced.json",
+    "cleanup": "{{artifact_dir}}/cleanup-show-list.json"
+  },
+  "manual_follow_up": "Live human click-through remains the next manual check when fixture_file_bridge is used for unattended HITL responses."
+}

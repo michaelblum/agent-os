@@ -51,6 +51,45 @@ with events_path.open("a", encoding="utf-8") as handle:
 ' "$events_file"
 }
 
+aos_supervised_run_append_structured_event() {
+  local run_dir="$1"
+  local event_id="$2"
+  local event_type="$3"
+  local source_kind="$4"
+  local source_id="$5"
+  local summary="$6"
+  local extra_json="${7:-}"
+  local at="${AOS_SUPERVISED_RUN_EVENT_AT:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
+  if [[ -z "$extra_json" ]]; then
+    extra_json="{}"
+  fi
+
+  AOS_SUPERVISED_RUN_EVENT_ID="$event_id" \
+  AOS_SUPERVISED_RUN_EVENT_TYPE="$event_type" \
+  AOS_SUPERVISED_RUN_EVENT_AT="$at" \
+  AOS_SUPERVISED_RUN_SOURCE_KIND="$source_kind" \
+  AOS_SUPERVISED_RUN_SOURCE_ID="$source_id" \
+  AOS_SUPERVISED_RUN_EVENT_SUMMARY="$summary" \
+  AOS_SUPERVISED_RUN_EVENT_EXTRA="$extra_json" \
+  python3 - <<'PY' | aos_supervised_run_append_event "$run_dir"
+import json
+import os
+
+event = {
+    "id": os.environ["AOS_SUPERVISED_RUN_EVENT_ID"],
+    "type": os.environ["AOS_SUPERVISED_RUN_EVENT_TYPE"],
+    "at": os.environ["AOS_SUPERVISED_RUN_EVENT_AT"],
+    "source": {
+        "kind": os.environ["AOS_SUPERVISED_RUN_SOURCE_KIND"],
+        "id": os.environ["AOS_SUPERVISED_RUN_SOURCE_ID"],
+    },
+    "summary": os.environ["AOS_SUPERVISED_RUN_EVENT_SUMMARY"],
+}
+event.update(json.loads(os.environ.get("AOS_SUPERVISED_RUN_EVENT_EXTRA") or "{}"))
+print(json.dumps(event, sort_keys=True, indent=2))
+PY
+}
+
 aos_supervised_run_prepare_response_pipe() {
   local run_dir="$1"
   local pipe
@@ -139,6 +178,88 @@ if events_path.exists():
 with events_path.open("a", encoding="utf-8") as handle:
     handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
 print(json.dumps(response, sort_keys=True, separators=(",", ":")))
+PY
+}
+
+aos_supervised_run_record_human_response() {
+  local run_dir="$1"
+  local response_file="$2"
+  local request_ref="${3:-}"
+  local response_kind="${4:-}"
+  local responses_file
+
+  responses_file="$(aos_supervised_run_human_responses_file "$run_dir")"
+  python3 - "$response_file" "$responses_file" "$request_ref" "$response_kind" <<'PY'
+import json
+import pathlib
+import sys
+
+response_path = pathlib.Path(sys.argv[1])
+responses_path = pathlib.Path(sys.argv[2])
+request_ref = sys.argv[3]
+response_kind = sys.argv[4]
+payload = json.loads(response_path.read_text())
+response = payload.get("response") if isinstance(payload.get("response"), dict) else payload
+
+if request_ref and response.get("request_ref") != request_ref:
+    raise SystemExit(f"response request_ref {response.get('request_ref')} did not match {request_ref}")
+if response_kind and response.get("response") != response_kind:
+    raise SystemExit(f"expected {response_kind} response, got {response.get('response')}")
+
+responses_path.parent.mkdir(parents=True, exist_ok=True)
+existing_ids = set()
+if responses_path.exists():
+    for line in responses_path.read_text().splitlines():
+        if line.strip():
+            existing_ids.add(json.loads(line).get("id"))
+
+line = json.dumps(response, sort_keys=True, separators=(",", ":"))
+if response["id"] not in existing_ids:
+    with responses_path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+print(line)
+PY
+}
+
+aos_supervised_run_append_human_response_event() {
+  local run_dir="$1"
+  local response_file="$2"
+  local metadata_json="${3:-}"
+  if [[ -z "$metadata_json" ]]; then
+    metadata_json="{}"
+  fi
+
+  AOS_SUPERVISED_RUN_HUMAN_EVENT_METADATA="$metadata_json" \
+  python3 - "$response_file" <<'PY' | aos_supervised_run_append_event "$run_dir"
+import json
+import os
+import pathlib
+import sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+response = payload.get("response") if isinstance(payload.get("response"), dict) else payload
+kind = response["response"]
+source = {
+    "kind": "human",
+    "id": response["author"]["id"],
+}
+display_name = response["author"].get("display_name")
+if display_name:
+    source["display_name"] = display_name
+event = {
+    "id": response["event_ref"],
+    "type": f"supervised.human.{kind}",
+    "at": response["responded_at"],
+    "source": source,
+    "step_ref": response["step_ref"],
+    "human_response_ref": response["id"],
+    "evidence_refs": response.get("evidence_refs", []),
+    "summary": response["summary"],
+}
+metadata = json.loads(os.environ.get("AOS_SUPERVISED_RUN_HUMAN_EVENT_METADATA") or "{}")
+if metadata:
+    event["metadata"] = metadata
+print(json.dumps(event, sort_keys=True, indent=2))
 PY
 }
 

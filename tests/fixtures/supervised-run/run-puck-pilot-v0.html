@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Run Puck Pilot V0</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #111827;
+        color: #f8fafc;
+      }
+
+      .puck {
+        width: 148px;
+        height: 148px;
+        border-radius: 50%;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        background: #1f2937;
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .status {
+        display: block;
+        color: #93c5fd;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .count {
+        display: block;
+        margin-top: 4px;
+        color: #cbd5e1;
+        font-size: 12px;
+      }
+
+      button {
+        margin-top: 14px;
+        border: 1px solid rgba(59, 130, 246, 0.55);
+        border-radius: 999px;
+        background: #2563eb;
+        color: white;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 7px 13px;
+      }
+
+      button:disabled {
+        border-color: rgba(148, 163, 184, 0.35);
+        background: #334155;
+        color: #cbd5e1;
+      }
+    </style>
+  </head>
+  <body data-status="paused">
+    <main
+      class="puck"
+      data-aos-ref="run-puck-v0:root"
+      data-aos-action="inspect_run"
+      data-aos-surface="run-puck-v0"
+      data-semantic-target-id="root"
+      aria-label="Run puck pilot"
+    >
+      <div>
+        <span class="status" data-role="status">Paused</span>
+        <span class="count" data-role="count">0 advances</span>
+        <button
+          type="button"
+          data-aos-ref="run-puck-v0:advance"
+          data-aos-action="advance_run"
+          data-aos-surface="run-puck-v0"
+          data-semantic-target-id="advance"
+          aria-label="Advance supervised run"
+        >Advance</button>
+      </div>
+    </main>
+    <script>
+      const state = {
+        status: 'paused',
+        advances: 0,
+        lastInput: null,
+        advancedAt: null,
+      };
+      const statusEl = document.querySelector('[data-role="status"]');
+      const countEl = document.querySelector('[data-role="count"]');
+      const advanceButton = document.querySelector('[data-aos-ref="run-puck-v0:advance"]');
+
+      function sync() {
+        document.body.dataset.status = state.status;
+        statusEl.textContent = state.status === 'advanced' ? 'Advanced' : 'Paused';
+        countEl.textContent = `${state.advances} ${state.advances === 1 ? 'advance' : 'advances'}`;
+        advanceButton.disabled = state.status === 'advanced';
+        window.__runPuckState = { ...state };
+      }
+
+      function advance(input = 'button') {
+        if (state.status === 'advanced') return;
+        state.status = 'advanced';
+        state.advances += 1;
+        state.lastInput = input;
+        state.advancedAt = new Date().toISOString();
+        sync();
+      }
+
+      advanceButton.addEventListener('click', () => advance('do_click'));
+      window.addEventListener('keydown', (event) => {
+        if (event.key === ' ' || event.key === 'Enter') {
+          event.preventDefault();
+          advance('synthetic_hotkey');
+        }
+      });
+      window.__runPuckAdvance = advance;
+      sync();
+      window.headsup = window.headsup || {};
+      window.headsup.receive = window.headsup.receive || function () {};
+      window.headsup.manifest = {
+        name: 'run-puck-v0',
+        title: 'Run Puck Pilot V0',
+        accepts: [],
+        emits: ['run_puck.advanced'],
+        channelPrefix: 'run-puck-v0',
+        defaultSize: { w: 190, h: 190 },
+      };
+
+      function emitReady() {
+        window.webkit?.messageHandlers?.headsup?.postMessage({
+          type: 'ready',
+          payload: window.headsup.manifest,
+        });
+      }
+
+      window.addEventListener('load', emitReady, { once: true });
+      setTimeout(emitReady, 50);
+      setTimeout(emitReady, 250);
+    </script>
+  </body>
+</html>
