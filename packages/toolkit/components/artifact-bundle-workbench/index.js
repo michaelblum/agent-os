@@ -96,7 +96,40 @@ function renderProvenance(artifact = {}) {
   )).join('');
 }
 
-function renderWorkRecordLink(link = null) {
+function renderEvidenceSummary(summary = null) {
+  if (!summary) return '';
+  if (!summary.snapshot_available) {
+    return (
+      `<div class="artifact-bundle-evidence-summary" data-role="evidence-summary" data-aos-ref="${esc(text(summary.semantic_ref))}">`
+        + '<div><span>Linked refs</span><strong>'
+          + esc(String(summary.evidence_ref_count || 0))
+        + '</strong></div>'
+        + '<p>Open the linked Work Record to load verifier and claim evidence.</p>'
+      + '</div>'
+    );
+  }
+  const claimText = `${summary.verified_claim_count || 0} verified`
+    + (summary.failed_claim_count ? `, ${summary.failed_claim_count} failed` : '')
+    + (summary.unverified_claim_count ? `, ${summary.unverified_claim_count} unverified` : '');
+  const stats = [
+    ['Evidence', summary.evidence_count],
+    ['Claims', claimText],
+    ['Verifier', summary.verifier_status],
+    ['Health', summary.health_state],
+  ];
+  return (
+    `<div class="artifact-bundle-evidence-summary" data-role="evidence-summary" data-aos-ref="${esc(text(summary.semantic_ref))}">`
+      + stats.map(([label, value]) => (
+        '<div>'
+          + `<span>${esc(label)}</span>`
+          + `<strong>${esc(text(value, 'unknown'))}</strong>`
+        + '</div>'
+      )).join('')
+    + '</div>'
+  );
+}
+
+function renderWorkRecordLink(link = null, summary = null) {
   if (!link) {
     return '<p class="artifact-bundle-muted">No linked Work Record evidence recorded.</p>';
   }
@@ -104,6 +137,7 @@ function renderWorkRecordLink(link = null) {
   return (
     `<div class="artifact-bundle-row"><span>Record</span><strong>${esc(text(link.record_id, 'unknown'))}</strong></div>`
     + `<div class="artifact-bundle-row"><span>Source</span><strong>${esc(text(link.record_path || link.record_url, 'embedded'))}</strong></div>`
+    + renderEvidenceSummary(summary)
     + '<div class="artifact-bundle-action-row">'
       + `<button type="button" class="artifact-bundle-action" data-action="open-work-record" data-aos-ref="${esc(link.open_ref)}"${link.can_open ? '' : ' disabled'}>`
         + 'Open Work Record Evidence'
@@ -346,7 +380,10 @@ export default function ArtifactBundleWorkbench(options = {}) {
     dom.files.innerHTML = renderFileList(selected);
     dom.exports.innerHTML = renderExportList(selected);
     dom.provenance.innerHTML = renderProvenance(selected);
-    dom.workRecord.innerHTML = renderWorkRecordLink(snapshot.selected_work_record_link);
+    dom.workRecord.innerHTML = renderWorkRecordLink(
+      snapshot.selected_work_record_link,
+      snapshot.selected_work_record_summary,
+    );
     const openWorkRecord = dom.workRecord.querySelector('[data-action="open-work-record"]');
     if (openWorkRecord) {
       openWorkRecord.addEventListener('click', () => {

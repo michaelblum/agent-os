@@ -168,6 +168,10 @@ test('artifact bundle fixture links a schema-valid Work Record evidence route', 
   );
   assert.deepEqual(snapshot.selected_work_record_link.evidence_refs, ['evidence:html-prototype']);
   assert.equal(snapshot.selected_work_record_link.can_open, true);
+  assert.equal(snapshot.selected_work_record_summary.status, 'linked');
+  assert.equal(snapshot.selected_work_record_summary.snapshot_available, false);
+  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 1);
+  assert.deepEqual(snapshot.selected_work_record_summary.evidence_refs, ['evidence:html-prototype']);
 
   const result = openArtifactBundleLinkedWorkRecord(state, { record });
   assert.equal(result.status, 'opened');
@@ -181,6 +185,15 @@ test('artifact bundle fixture links a schema-valid Work Record evidence route', 
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 2);
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
+  assert.equal(snapshot.selected_work_record_summary.snapshot_available, true);
+  assert.equal(snapshot.selected_work_record_summary.evidence_count, 2);
+  assert.equal(snapshot.selected_work_record_summary.claim_count, 2);
+  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 2);
+  assert.equal(snapshot.selected_work_record_summary.failed_claim_count, 0);
+  assert.equal(snapshot.selected_work_record_summary.unverified_claim_count, 0);
+  assert.equal(snapshot.selected_work_record_summary.verifier_status, 'passed');
+  assert.equal(snapshot.selected_work_record_summary.health_state, 'valid');
+  assert.equal(snapshot.selected_work_record_summary.read_only, true);
   assert.equal(workRecordIsReadOnly(snapshot.linked_work_record_open.workbench_snapshot.record), true);
 });
 
@@ -291,6 +304,7 @@ test('artifact bundle workbench files expose the named surface and refs', async 
   assert.match(indexJs, /artifact_bundle\.open/);
   assert.match(indexJs, /artifact_bundle\.select/);
   assert.match(indexJs, /Open Work Record Evidence/);
+  assert.match(indexJs, /data-role="evidence-summary"/);
   assert.match(indexJs, /artifact_bundle\.work_record\.open\.result/);
   assert.match(indexJs, /work-record-workbench/);
   assert.match(indexJs, /renderMarkdown/);

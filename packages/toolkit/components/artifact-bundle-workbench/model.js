@@ -186,6 +186,38 @@ function linkedWorkRecordForArtifact(subject = {}, artifact = null, contentRoot 
   };
 }
 
+function countVerifierIndex(record = {}, key = '') {
+  return arrayValue(objectValue(record.verifier_report?.derived_indexes)[key]).length;
+}
+
+function createWorkRecordEvidenceSummary(link = null, openResult = null) {
+  if (!link) return null;
+  const snapshot = objectValue(openResult?.workbench_snapshot);
+  const diagnostics = objectValue(snapshot.diagnostics);
+  const record = objectValue(snapshot.record);
+  const hasSnapshot = Object.keys(snapshot).length > 0;
+  return {
+    type: 'aos.artifact_bundle.work_record_evidence_summary',
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    artifact_id: text(link.artifact_id),
+    record_id: text(diagnostics.record_id || link.record_id, 'unknown'),
+    snapshot_available: hasSnapshot,
+    read_only: hasSnapshot ? diagnostics.read_only === true : null,
+    evidence_ref_count: arrayValue(link.evidence_refs).length,
+    evidence_refs: cloneJson(arrayValue(link.evidence_refs)),
+    evidence_count: hasSnapshot ? Number(diagnostics.evidence_count || 0) : null,
+    claim_count: hasSnapshot ? Number(diagnostics.claim_count || 0) : null,
+    claim_result_count: hasSnapshot ? Number(diagnostics.claim_result_count || 0) : null,
+    verified_claim_count: hasSnapshot ? countVerifierIndex(record, 'verified') : null,
+    failed_claim_count: hasSnapshot ? countVerifierIndex(record, 'failed') : null,
+    unverified_claim_count: hasSnapshot ? countVerifierIndex(record, 'unverified') : null,
+    verifier_status: hasSnapshot ? text(diagnostics.verifier_status, 'unknown') : null,
+    health_state: hasSnapshot ? text(diagnostics.health_state, 'unknown') : null,
+    status: hasSnapshot ? text(openResult.status, 'opened') : 'linked',
+    semantic_ref: ref('work-record', 'summary', link.artifact_id),
+  };
+}
+
 function galleryEntry(artifact = {}, selectedId = '') {
   const id = text(artifact.id);
   const selected = id === selectedId;
@@ -432,6 +464,7 @@ export function artifactBundleWorkbenchSnapshot(state = {}) {
   const artifacts = artifactBundleArtifacts(subject);
   const selectedArtifact = artifactById(subject, state.selected_artifact_id);
   const selectedId = text(selectedArtifact?.id);
+  const selectedWorkRecordLink = linkedWorkRecordForArtifact(subject, selectedArtifact, state.content_root);
   return {
     type: 'artifact_bundle.snapshot',
     schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
@@ -445,7 +478,8 @@ export function artifactBundleWorkbenchSnapshot(state = {}) {
     selected_artifact_id: selectedId || null,
     selected_artifact: selectedArtifact ? cloneJson(selectedArtifact) : null,
     preview: createPreview(subject, selectedArtifact, state.content_root),
-    selected_work_record_link: linkedWorkRecordForArtifact(subject, selectedArtifact, state.content_root),
+    selected_work_record_link: selectedWorkRecordLink,
+    selected_work_record_summary: createWorkRecordEvidenceSummary(selectedWorkRecordLink, state.linked_work_record_open),
     linked_work_record_open: state.linked_work_record_open ? cloneJson(state.linked_work_record_open) : null,
     diagnostics: artifactBundleDiagnostics(subject),
     subject_json: stableJson(subject),

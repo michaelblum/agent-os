@@ -739,6 +739,13 @@ The action reuses the existing `work-record-workbench` child surface and emits
 it does not add replay, repair, macro playback, export execution, or a public
 `aos` command.
 
+The inspector also renders a compact Work Record evidence summary for the
+selected artifact. Before the linked record is opened, the summary shows the
+artifact-scoped evidence refs. After the handoff opens the existing Work Record
+Workbench path, the summary is hydrated from the linked Work Record snapshot and
+surfaces evidence count, claim status, verifier status, and health state without
+creating a second evidence viewer.
+
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing
 `subject.open.requested` shape with `artifact_bundle.open` as the workbench
