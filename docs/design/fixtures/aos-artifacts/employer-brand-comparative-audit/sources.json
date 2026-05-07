@@ -1,0 +1,80 @@
+{
+  "type": "aos.artifact_bundle.source_metadata",
+  "schema_version": "2026-05-07-employer-brand-fixture-v0",
+  "id": "source-metadata:employer-brand-comparative-audit",
+  "label": "Employer Brand Comparative Audit Source Metadata",
+  "status": "static_fixture",
+  "audit": {
+    "framework": "KILOS",
+    "client": "Symphony Talent",
+    "competitors": [
+      "Phenom",
+      "Radancy"
+    ],
+    "artifact_bundle_id": "artifact-bundle:employer-brand-comparative-audit",
+    "work_record_id": "work-record:employer-brand-comparative-audit-fixture"
+  },
+  "sources": [
+    {
+      "id": "source:symphony-talent-homepage",
+      "company": "Symphony Talent",
+      "role": "client",
+      "url": "https://www.symphonytalent.com/",
+      "evidence_kind": "public_homepage_reference",
+      "collection_status": "not_collected_in_fixture",
+      "fixture_signal": "Opportunity",
+      "notes": "Static source reference carried for provenance only. A production audit should attach browser text, screenshots, and timestamped collection evidence."
+    },
+    {
+      "id": "source:phenom-homepage",
+      "company": "Phenom",
+      "role": "competitor",
+      "url": "https://www.phenom.com/",
+      "evidence_kind": "public_homepage_reference",
+      "collection_status": "not_collected_in_fixture",
+      "fixture_signal": "Impact",
+      "notes": "Static source reference carried for provenance only. A production audit should attach browser text, screenshots, and timestamped collection evidence."
+    },
+    {
+      "id": "source:radancy-homepage",
+      "company": "Radancy",
+      "role": "competitor",
+      "url": "https://www.radancy.com/en/",
+      "evidence_kind": "public_homepage_reference",
+      "collection_status": "not_collected_in_fixture",
+      "fixture_signal": "Status",
+      "notes": "Static source reference carried for provenance only. A production audit should attach browser text, screenshots, and timestamped collection evidence."
+    }
+  ],
+  "provenance": {
+    "fixture_created_at": "2026-05-07T15:00:00Z",
+    "derived_from": [
+      {
+        "kind": "repo_doc",
+        "path": "docs/design/2026-05-05-employer-brand-demo-postmortem.md"
+      },
+      {
+        "kind": "repo_doc",
+        "path": "docs/design/open-design-workbench-cross-reference.md"
+      },
+      {
+        "kind": "git_branch",
+        "ref": "codex/employer-brand-demo",
+        "commit": "8046e4c"
+      }
+    ],
+    "non_goals": [
+      "live_collection",
+      "generation",
+      "export_execution",
+      "replay",
+      "repair",
+      "macro_playback"
+    ]
+  },
+  "limitations": [
+    "This fixture does not claim the source URLs still contain the sampled positioning.",
+    "This fixture does not contain screenshots or raw HTML/text captures.",
+    "This fixture is only evidence for Artifact Bundle preview, provenance, and Work Record handoff behavior."
+  ]
+}

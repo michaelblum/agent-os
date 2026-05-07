@@ -30,6 +30,10 @@ const artifactBundleFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
 );
+const employerBrandArtifactBundleFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json',
+);
 
 async function validate(instance) {
   const result = spawnSync(
@@ -233,4 +237,5 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     record: JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8')),
   })));
   await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(artifactBundleFixturePath, 'utf8'))));
+  await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(employerBrandArtifactBundleFixturePath, 'utf8'))));
 });

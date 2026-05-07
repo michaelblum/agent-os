@@ -95,7 +95,7 @@ print(json.dumps({
 "$AOS" show wait \
   --id "$CANVAS_ID" \
   --manifest artifact-bundle-workbench \
-  --js 'window.__artifactBundleWorkbenchState?.subject?.subject_type === "aos.artifact_bundle" && window.__artifactBundleWorkbenchState?.selected_artifact_id === "html-prototype"' \
+  --js 'window.__artifactBundleWorkbenchState?.subject?.subject_type === "aos.artifact_bundle" && window.__artifactBundleWorkbenchState?.last_result?.status === "opened"' \
   --timeout 5s >/dev/null
 
 echo "Artifact Bundle Workbench launched at ${X},${Y} (${W}x${H})"

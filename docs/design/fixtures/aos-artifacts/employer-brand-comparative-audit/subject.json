@@ -1,0 +1,295 @@
+{
+  "type": "aos.workbench.subject",
+  "schema_version": "2026-05-03",
+  "id": "artifact-bundle:employer-brand-comparative-audit",
+  "subject_type": "aos.artifact_bundle",
+  "label": "Employer Brand Comparative Audit",
+  "owner": "aos-artifact-workbench",
+  "source": {
+    "kind": "repo_folder",
+    "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit",
+    "entry": "subject.json"
+  },
+  "capabilities": [
+    "inspectable",
+    "exportable",
+    "verifier-target"
+  ],
+  "contracts": [
+    "artifact_bundle.gallery.view",
+    "artifact_bundle.preview.view",
+    "artifact_bundle.source.view",
+    "artifact_bundle.exports.view",
+    "artifact_bundle.provenance.view",
+    "artifact_bundle.validation.view",
+    "work_record.evidence.view"
+  ],
+  "subject_references": [
+    {
+      "id": "origin-work-record",
+      "relationship": "generated_by",
+      "handle": "work-record:employer-brand-comparative-audit-fixture",
+      "subject_id": "work-record:employer-brand-comparative-audit-fixture",
+      "subject_type": "aos.work_record",
+      "facet_key": "work_record.evidence",
+      "layer": "artifacts",
+      "role": "provenance",
+      "metadata": {
+        "work_record_path": "work-record.json",
+        "evidence_artifact_ids": [
+          "employer-brand-report"
+        ],
+        "evidence_refs": [
+          "evidence:markdown-report",
+          "evidence:sources-metadata",
+          "evidence:subject-descriptor",
+          "evidence:work-record-fixture"
+        ]
+      }
+    },
+    {
+      "id": "source-workflow",
+      "relationship": "generated_from",
+      "handle": "workflow:employer-brand-comparative-audit",
+      "subject_id": "workflow:employer-brand-comparative-audit",
+      "subject_type": "aos.workflow",
+      "facet_key": "workflow.descriptor",
+      "layer": "descriptor",
+      "role": "source"
+    }
+  ],
+  "facets": [
+    {
+      "key": "artifact_bundle.gallery",
+      "layer": "artifacts",
+      "label": "Artifact Gallery",
+      "capabilities": [
+        "inspectable",
+        "exportable"
+      ],
+      "contracts": [
+        "artifact_bundle.gallery.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.gallery"
+          },
+          "preferred": true
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.preview",
+      "layer": "artifacts",
+      "label": "Preview",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.preview.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.preview"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.source",
+      "layer": "descriptor",
+      "label": "Source Files",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.source.view",
+        "artifact_bundle.exports.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.source"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.provenance",
+      "layer": "descriptor",
+      "label": "Provenance",
+      "source_ref": "origin-work-record",
+      "capabilities": [
+        "inspectable"
+      ],
+      "contracts": [
+        "artifact_bundle.provenance.view",
+        "work_record.evidence.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.provenance"
+          }
+        }
+      ]
+    },
+    {
+      "key": "artifact_bundle.validation",
+      "layer": "health",
+      "label": "Validation",
+      "capabilities": [
+        "inspectable",
+        "verifier-target"
+      ],
+      "contracts": [
+        "artifact_bundle.validation.view"
+      ],
+      "hosts": [
+        {
+          "kind": "canvas",
+          "target_dialect": "canvas",
+          "entry": {
+            "kind": "aos-url",
+            "value": "aos://toolkit/components/artifact-bundle-workbench/index.html",
+            "facet": "artifact_bundle.validation"
+          }
+        }
+      ]
+    }
+  ],
+  "persistence": null,
+  "artifacts": [
+    {
+      "id": "employer-brand-report",
+      "kind": "markdown",
+      "label": "Employer Brand Comparative Audit Report",
+      "entry": "report.md",
+      "renderer": {
+        "id": "aos.renderer.markdown.report",
+        "kind": "markdown",
+        "host": "browser"
+      },
+      "files": [
+        {
+          "path": "report.md",
+          "role": "entry",
+          "media_type": "text/markdown"
+        },
+        {
+          "path": "sources.json",
+          "role": "source_metadata",
+          "media_type": "application/json"
+        },
+        {
+          "path": "work-record.json",
+          "role": "work_record_fixture",
+          "media_type": "application/json"
+        }
+      ],
+      "exports": [
+        {
+          "id": "report-markdown",
+          "kind": "markdown",
+          "path": "report.md",
+          "status": "available",
+          "renderer_id": "aos.renderer.markdown.report"
+        },
+        {
+          "id": "report-pdf",
+          "kind": "pdf",
+          "path": "exports/employer-brand-comparative-audit.pdf",
+          "status": "not_generated",
+          "reason": "V0 records export metadata but does not execute exports."
+        }
+      ],
+      "provenance": {
+        "source_kind": "static_fixture_report",
+        "source_subject_id": "workflow:employer-brand-comparative-audit",
+        "work_record_id": "work-record:employer-brand-comparative-audit-fixture",
+        "source_metadata": "sources.json",
+        "guided_by": [
+          "docs/design/2026-05-05-employer-brand-demo-postmortem.md",
+          "docs/design/open-design-workbench-cross-reference.md"
+        ]
+      },
+      "work_record": {
+        "subject_id": "work-record:employer-brand-comparative-audit-fixture",
+        "path": "work-record.json",
+        "evidence_refs": [
+          "evidence:markdown-report",
+          "evidence:sources-metadata",
+          "evidence:subject-descriptor",
+          "evidence:work-record-fixture"
+        ]
+      },
+      "validation": {
+        "state": "unchecked",
+        "last_checked_at": null,
+        "checks": [
+          {
+            "id": "report-entry-present",
+            "kind": "file_presence",
+            "target": "report.md",
+            "status": "unchecked"
+          },
+          {
+            "id": "sources-metadata-present",
+            "kind": "file_presence",
+            "target": "sources.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "work-record-present",
+            "kind": "file_presence",
+            "target": "work-record.json",
+            "status": "unchecked"
+          }
+        ]
+      }
+    }
+  ],
+  "state": {
+    "artifact_count": 1,
+    "artifact_kinds": [
+      "markdown"
+    ],
+    "renderer_ids": [
+      "aos.renderer.markdown.report"
+    ],
+    "export_count": 2,
+    "validation_state": "unchecked",
+    "read_only": true
+  },
+  "metadata": {
+    "fixture": "employer-brand-comparative-audit",
+    "scope": "artifact_bundle_subject_v0",
+    "workflow": "employer_brand_comparative_audit",
+    "non_goals": [
+      "generation",
+      "export_execution",
+      "live_collection",
+      "replay",
+      "repair",
+      "macro_playback"
+    ]
+  }
+}

@@ -690,11 +690,15 @@ The V0 fixture lives at:
 
 ```text
 docs/design/fixtures/aos-artifacts/example-design-pass/subject.json
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json
 ```
 
-It describes one HTML prototype artifact and one Markdown/report artifact under
-one stable `aos.workbench.subject` with `subject_type:
-"aos.artifact_bundle"`. The descriptor uses canonical v-next fields only:
+The example fixture describes one HTML prototype artifact and one
+Markdown/report artifact. The Employer Brand fixture is the first comparative
+audit bundle: it carries a Markdown report artifact plus `sources.json`
+source/provenance metadata and a linked schema-v0 Work Record fixture. Both
+fixtures use one stable `aos.workbench.subject` with `subject_type:
+"aos.artifact_bundle"`. The descriptors use canonical v-next fields only:
 high-level `capabilities[]`, dotted operation contracts in `contracts[]`,
 top-level `subject_references[]`, concrete `facets[]`, and
 `facets[].hosts[]`. Live artifact-bundle writers must not emit legacy `views[]`,
@@ -721,6 +725,15 @@ The named component lives at:
 
 ```text
 aos://toolkit/components/artifact-bundle-workbench/index.html
+```
+
+The launch helper opens the default example fixture or any supplied Artifact
+Bundle subject fixture through the same read-only workbench path:
+
+```bash
+packages/toolkit/components/artifact-bundle-workbench/launch.sh
+packages/toolkit/components/artifact-bundle-workbench/launch.sh \
+  docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json
 ```
 
 It accepts `artifact_bundle.open`, exposes

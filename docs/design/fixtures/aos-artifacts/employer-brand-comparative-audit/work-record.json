@@ -1,0 +1,351 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:employer-brand-comparative-audit-fixture",
+  "label": "Employer Brand Comparative Audit Fixture",
+  "created_at": "2026-05-07T15:00:00Z",
+  "origin": {
+    "kind": "workflow",
+    "ref": "workflow:employer-brand-comparative-audit",
+    "subject_type": "aos.workflow",
+    "description": "Fixture Work Record describing the evidence behind the Employer Brand comparative audit Artifact Bundle."
+  },
+  "references": [
+    {
+      "id": "output-artifact-bundle",
+      "relationship": "generated",
+      "ref": "artifact-bundle:employer-brand-comparative-audit",
+      "subject_type": "aos.artifact_bundle",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "artifacts",
+      "role": "output_bundle"
+    },
+    {
+      "id": "guided-by-demo-postmortem",
+      "relationship": "guided_by",
+      "ref": "repo:docs/design/2026-05-05-employer-brand-demo-postmortem.md",
+      "subject_type": "docs.design_note",
+      "layer": "narrative",
+      "role": "design_guidance"
+    },
+    {
+      "id": "guided-by-artifact-workbench-plan",
+      "relationship": "guided_by",
+      "ref": "repo:docs/design/open-design-workbench-cross-reference.md",
+      "subject_type": "docs.design_note",
+      "layer": "descriptor",
+      "role": "workbench_guidance"
+    }
+  ],
+  "intent": {
+    "summary": "Represent the first Employer Brand comparative audit report as a read-only Artifact Bundle with source metadata and Work Record evidence.",
+    "purpose": "employer_brand_artifact_bundle_fixture",
+    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, and opens the linked Work Record evidence through the existing workbench path.",
+    "constraints": [
+      "No browser collection, report generation, export execution, replay, repair, macro playback, or new public command is part of this fixture.",
+      "The report is a static fixture, not a current live-web competitive audit."
+    ],
+    "claim_refs": [
+      "claim:markdown-report-previewable",
+      "claim:source-metadata-attached",
+      "claim:work-record-handoff-available"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:artifact-bundle-folder",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit",
+        "dialect": "repo",
+        "description": "Fixture folder containing the Employer Brand Artifact Bundle subject, report, source metadata, and linked Work Record."
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:assemble-employer-brand-artifact-bundle",
+        "intent": "Assemble the Employer Brand comparative audit report and metadata into one Artifact Bundle subject descriptor.",
+        "action": {
+          "verb": "record_fixture",
+          "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json",
+          "args": {
+            "artifact_ids": [
+              "employer-brand-report"
+            ],
+            "supporting_files": [
+              "sources.json"
+            ]
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:markdown-report-present",
+          "postcondition:sources-metadata-present",
+          "postcondition:work-record-linked"
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:markdown-report-present",
+        "kind": "repo_file",
+        "description": "The Markdown report entry file is present and attached to the bundle.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/report.md",
+        "check": {
+          "kind": "file_exists",
+          "expected": true
+        },
+        "evidence_refs": [
+          "evidence:markdown-report"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "If this file moves, patch the Artifact Bundle subject and Work Record together."
+        }
+      },
+      {
+        "id": "postcondition:sources-metadata-present",
+        "kind": "repo_file",
+        "description": "The source/provenance metadata file is present and attached as supporting evidence.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/sources.json",
+        "check": {
+          "kind": "file_exists",
+          "expected": true
+        },
+        "evidence_refs": [
+          "evidence:sources-metadata"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "If the source metadata shape changes, keep the fixture and Work Record evidence in sync."
+        }
+      },
+      {
+        "id": "postcondition:work-record-linked",
+        "kind": "workbench_handoff",
+        "description": "The selected report artifact points at this schema-v0 Work Record for read-only evidence inspection.",
+        "target": "artifact-bundle:employer-brand-comparative-audit/employer-brand-report",
+        "check": {
+          "kind": "artifact_work_record_link",
+          "expected": "work-record:employer-brand-comparative-audit-fixture"
+        },
+        "evidence_refs": [
+          "evidence:subject-descriptor",
+          "evidence:work-record-fixture"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "The Artifact Bundle Work Record link is a handoff, not a replay or repair route."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:markdown-report",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/report.md",
+        "evidence_ref": "evidence:markdown-report"
+      },
+      {
+        "id": "artifact-route:sources-metadata",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/sources.json",
+        "evidence_ref": "evidence:sources-metadata"
+      },
+      {
+        "id": "artifact-route:subject-descriptor",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json",
+        "evidence_ref": "evidence:subject-descriptor"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This record proves a read-only artifact/work-record evidence route. It does not authorize live collection, generation, replay, or repair."
+    },
+    "repair_history": []
+  },
+  "evidence": [
+    {
+      "id": "evidence:markdown-report",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:01:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/report.md",
+      "immutable": true,
+      "summary": "Markdown report artifact used by the Artifact Bundle preview.",
+      "metadata": {
+        "artifact_id": "employer-brand-report",
+        "role": "entry"
+      }
+    },
+    {
+      "id": "evidence:sources-metadata",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:02:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/sources.json",
+      "immutable": true,
+      "summary": "Source and provenance metadata for the static comparative audit fixture.",
+      "metadata": {
+        "artifact_id": "employer-brand-report",
+        "role": "source_metadata"
+      }
+    },
+    {
+      "id": "evidence:subject-descriptor",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:03:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json",
+      "immutable": true,
+      "summary": "Artifact Bundle subject descriptor that links the report artifact to this Work Record.",
+      "metadata": {
+        "artifact_bundle_id": "artifact-bundle:employer-brand-comparative-audit",
+        "role": "subject_descriptor"
+      }
+    },
+    {
+      "id": "evidence:work-record-fixture",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:04:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/work-record.json",
+      "immutable": true,
+      "summary": "Schema-v0 Work Record fixture opened from the Artifact Bundle evidence handoff.",
+      "metadata": {
+        "record_id": "work-record:employer-brand-comparative-audit-fixture",
+        "role": "work_record_fixture"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:markdown-report-previewable",
+      "text": "The Employer Brand comparative audit bundle includes a previewable Markdown report artifact.",
+      "scope": "artifact",
+      "acceptance": "The subject metadata points at report.md and the Workbench preview renders it as Markdown.",
+      "postcondition_refs": [
+        "postcondition:markdown-report-present"
+      ]
+    },
+    {
+      "id": "claim:source-metadata-attached",
+      "text": "The report artifact carries source and provenance metadata as supporting evidence.",
+      "scope": "artifact",
+      "acceptance": "The subject metadata lists sources.json and the Work Record contains matching evidence.",
+      "postcondition_refs": [
+        "postcondition:sources-metadata-present"
+      ]
+    },
+    {
+      "id": "claim:work-record-handoff-available",
+      "text": "The report artifact can hand off to the existing read-only Work Record Workbench path.",
+      "scope": "subject",
+      "acceptance": "The selected artifact declares work_record.path and evidence refs that open this Work Record.",
+      "postcondition_refs": [
+        "postcondition:work-record-linked"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:markdown-report-previewable",
+      "claim_id": "claim:markdown-report-previewable",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "The bundle fixture declares the Markdown report artifact and records matching file evidence.",
+      "evidence_refs": [
+        "evidence:markdown-report"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:markdown-report-present",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:markdown-report"
+          ],
+          "reason": "The report entry file is present in the fixture folder."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:source-metadata-attached",
+      "claim_id": "claim:source-metadata-attached",
+      "status": "verified",
+      "confidence": 0.88,
+      "reason": "The bundle fixture declares sources.json as supporting metadata and records matching file evidence.",
+      "evidence_refs": [
+        "evidence:sources-metadata"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:sources-metadata-present",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:sources-metadata"
+          ],
+          "reason": "The source metadata file is present in the fixture folder."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:work-record-handoff-available",
+      "claim_id": "claim:work-record-handoff-available",
+      "status": "verified",
+      "confidence": 0.86,
+      "reason": "The report artifact declares a linked Work Record path and evidence refs for the read-only handoff.",
+      "evidence_refs": [
+        "evidence:subject-descriptor",
+        "evidence:work-record-fixture"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:work-record-linked",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:subject-descriptor",
+            "evidence:work-record-fixture"
+          ],
+          "reason": "The subject descriptor links the selected report artifact to this Work Record fixture."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:employer-brand-comparative-audit-fixture",
+    "generated_at": "2026-05-07T15:05:00Z",
+    "verifier": {
+      "id": "aos.artifact-bundle.fixture",
+      "kind": "fixture-integrity",
+      "version": "v0"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:markdown-report-previewable",
+        "claim:source-metadata-attached",
+        "claim:work-record-handoff-available"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:markdown-report",
+      "evidence:sources-metadata",
+      "evidence:subject-descriptor",
+      "evidence:work-record-fixture"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "The Markdown report, source metadata, subject descriptor, and linked Work Record are represented by immutable fixture evidence.",
+    "evaluated_at": "2026-05-07T15:05:00Z",
+    "verifier_report_id": "verifier-report:employer-brand-comparative-audit-fixture",
+    "confidence": 0.88,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "fixture": "employer-brand-comparative-audit",
+    "scope": "artifact_bundle_work_record_fixture_v0"
+  }
+}

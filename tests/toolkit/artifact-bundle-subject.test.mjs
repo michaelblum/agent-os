@@ -313,5 +313,7 @@ test('artifact bundle workbench files expose the named surface and refs', async 
   assert.match(indexJs, /data-role="markdown-preview"/);
   assert.match(launch, /--manifest artifact-bundle-workbench/);
   assert.match(launch, /artifact-bundle-workbench:root/);
+  assert.match(launch, /last_result\?\.status === "opened"/);
+  assert.doesNotMatch(launch, /selected_artifact_id === "html-prototype"/);
   assert.match(launch, /example-design-pass\/subject\.json/);
 });
