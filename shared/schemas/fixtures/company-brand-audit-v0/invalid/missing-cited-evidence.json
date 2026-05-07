@@ -1,0 +1,89 @@
+{
+  "type": "aos.company_brand_audit",
+  "schema_version": "2026-05-company-brand-audit-v0",
+  "id": "company-brand-audit:invalid",
+  "audit_id": "audit:invalid",
+  "company": {
+    "name": "Invalid Co",
+    "role": "competitor"
+  },
+  "scope": {
+    "framework": "KILOS",
+    "evidence_scope": "local_fixture_browser_evidence",
+    "registry_path": "browser-evidence/registry.json",
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "report_generation": false
+  },
+  "source_coverage_summary": [
+    {
+      "source_category": "careers_site",
+      "coverage_status": "captured_from_local_fixture",
+      "request_ids": [
+        "missing_registry_request"
+      ],
+      "summary": "This invalid fixture omits the required citation spine."
+    }
+  ],
+  "employer_value_proposition": "Invalid fixture.",
+  "main_promise": "Invalid fixture.",
+  "kilos_analysis": [
+    {
+      "dimension": "impact",
+      "factors": [
+        "innovation and invention"
+      ],
+      "interpretation": "Invalid fixture.",
+      "request_ids": [
+        "missing_registry_request"
+      ]
+    }
+  ],
+  "messaging_themes": [],
+  "brand_voice_and_tone": {
+    "summary": "Invalid fixture.",
+    "descriptors": [
+      "fixture"
+    ],
+    "request_ids": [
+      "missing_registry_request"
+    ]
+  },
+  "visual_identity_notes": [],
+  "employee_sentiment_and_review_sites": {
+    "coverage_status": "unavailable",
+    "summary": "No review-site evidence is present.",
+    "request_ids": [],
+    "caveat": "Invalid fixture."
+  },
+  "differentiators": [],
+  "generic_messaging_or_weak_spots": [],
+  "evidence_backed_claims": [
+    {
+      "id": "claim:invalid",
+      "claim": "Invalid fixture.",
+      "request_ids": [
+        "missing_registry_request"
+      ]
+    }
+  ],
+  "caveats": [
+    "Invalid fixture."
+  ],
+  "provenance": {
+    "created_at": "2026-05-07T16:00:00Z",
+    "derived_from_registry": "browser-evidence/registry.json",
+    "browser_evidence_request_ids": [
+      "missing_registry_request"
+    ],
+    "screenshot_paths": [
+      "screenshots/invalid/missing.png"
+    ],
+    "local_fixture_pages_only": true,
+    "live_websites": false,
+    "provenance_only": true,
+    "non_goals": [
+      "live_collection"
+    ]
+  }
+}

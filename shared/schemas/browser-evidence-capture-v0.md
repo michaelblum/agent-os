@@ -57,10 +57,12 @@ selector/XPath candidates and no screenshot path.
 ## Pilot Feed
 
 The Employer Brand audit pilot consumes this registry as the raw evidence pool
-for CompanyBrandAudit drafting. Analysts can cite `request_id` and
+for Company Brand Audit V0 fixture drafting. Analysts can cite `request_id` and
 `screenshot_path`, inspect the extracted text, and decide which KILOS dimensions
 or factors the evidence supports. Later Workflow or Work Record producers can
-wrap this registry, but V0 deliberately stops at local element evidence.
+wrap this registry, but V0 deliberately stops at local element evidence. The
+local audit fixture shape is documented in
+`shared/schemas/company-brand-audit-v0.md`.
 
 The Employer Brand Artifact Bundle fixture carries a concrete local handoff at:
 

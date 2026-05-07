@@ -1,0 +1,164 @@
+{
+  "type": "aos.company_brand_audit",
+  "schema_version": "2026-05-company-brand-audit-v0",
+  "id": "company-brand-audit:radancy",
+  "audit_id": "audit:employer-brand-comparative-audit-fixture",
+  "company": {
+    "name": "Radancy",
+    "role": "competitor",
+    "notes": "Competitor audit fixture derived only from the local Browser Evidence registry row."
+  },
+  "scope": {
+    "framework": "KILOS",
+    "evidence_scope": "local_fixture_browser_evidence",
+    "registry_path": "browser-evidence/registry.json",
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "report_generation": false,
+    "notes": "This is not a current live-web audit of Radancy."
+  },
+  "source_coverage_summary": [
+    {
+      "source_category": "careers_site",
+      "coverage_status": "captured_from_local_fixture",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ],
+      "summary": "One local careers-site proof block fixture is available for this competitor."
+    },
+    {
+      "source_category": "review_platforms",
+      "coverage_status": "unavailable",
+      "request_ids": [],
+      "summary": "No Glassdoor, Indeed, or other review-platform evidence is present in this local slice."
+    }
+  ],
+  "employer_value_proposition": "Radancy is framed as a place to work on enterprise hiring programs with global reach and specialist recruitment marketing expertise.",
+  "main_promise": "Employees can apply specialist expertise to established, scaled hiring programs.",
+  "kilos_analysis": [
+    {
+      "dimension": "status",
+      "factors": [
+        "industry reputation"
+      ],
+      "interpretation": "The fixture emphasizes enterprise programs, global reach, scale, and established client work as reputation proof points.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    },
+    {
+      "dimension": "opportunity",
+      "factors": [
+        "professional expertise"
+      ],
+      "interpretation": "Specialist recruitment marketing expertise is the clearest development and professional mastery signal in the available evidence.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "messaging_themes": [
+    {
+      "theme": "Scaled enterprise hiring",
+      "summary": "The fixture presents global reach and enterprise programs as proof that employee work operates at scale.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    },
+    {
+      "theme": "Specialist expertise",
+      "summary": "The proof block leans on recruitment marketing specialization as an employer-brand asset.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "brand_voice_and_tone": {
+    "summary": "The tone is established, proof-led, and expertise-oriented.",
+    "descriptors": [
+      "established",
+      "proof-led",
+      "expertise-oriented"
+    ],
+    "request_ids": [
+      "radancy_fixture_proof_block"
+    ]
+  },
+  "visual_identity_notes": [
+    {
+      "summary": "The available visual evidence is a proof-block crop, so visual notes are limited to the local proof-point presentation rather than a full brand identity read.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "employee_sentiment_and_review_sites": {
+    "coverage_status": "unavailable",
+    "summary": "No review-site or employee sentiment evidence is included in the local fixture registry.",
+    "request_ids": [],
+    "caveat": "Review platforms are required in the full workflow but are outside this first local fixture slice."
+  },
+  "differentiators": [
+    {
+      "summary": "The strongest differentiator in the fixture is the status signal from global reach, established client programs, and specialist hiring expertise.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "generic_messaging_or_weak_spots": [
+    {
+      "summary": "The fixture does not yet provide employee voice, culture specifics, benefits, or review-site sentiment.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "evidence_backed_claims": [
+    {
+      "id": "claim:radancy-enterprise-scale-proof",
+      "claim": "Radancy's local fixture positions enterprise scale, global reach, and recruitment marketing expertise as employer-brand proof points.",
+      "request_ids": [
+        "radancy_fixture_proof_block"
+      ]
+    }
+  ],
+  "caveats": [
+    "This company audit cites only one local Browser Evidence registry row.",
+    "The fixture is not a live-web capture and does not support market-current claims.",
+    "Review-site coverage is unavailable in this slice."
+  ],
+  "cited_evidence": [
+    {
+      "request_id": "radancy_fixture_proof_block",
+      "company": "Radancy",
+      "source_category": "careers_site",
+      "source_url": "html/radancy-careers.html",
+      "screenshot_path": "screenshots/radancy/radancy-fixture-proof-block.png",
+      "status": "captured",
+      "captured_at": "2026-05-07T15:11:03Z",
+      "extracted_text_excerpt": "Work on enterprise hiring programs with global reach."
+    }
+  ],
+  "provenance": {
+    "created_at": "2026-05-07T16:00:00Z",
+    "derived_from_registry": "browser-evidence/registry.json",
+    "browser_evidence_request_ids": [
+      "radancy_fixture_proof_block"
+    ],
+    "screenshot_paths": [
+      "screenshots/radancy/radancy-fixture-proof-block.png"
+    ],
+    "local_fixture_pages_only": true,
+    "live_websites": false,
+    "provenance_only": true,
+    "non_goals": [
+      "live_collection",
+      "report_generation",
+      "export_execution",
+      "replay",
+      "repair",
+      "macro_playback"
+    ]
+  }
+}

@@ -171,6 +171,13 @@ For each company, transform the evidence registry into one CompanyBrandAudit. Th
 - evidence-backed claims,
 - and caveats.
 
+The current V0 shape is documented in
+`shared/schemas/company-brand-audit-v0.md` and enforced by
+`shared/schemas/company-brand-audit-v0.schema.json`. V0 audits are local fixture
+artifacts only: they cite Browser Evidence registry `request_id`s and
+registry-relative `screenshot_path`s, and they do not authorize live collection,
+report generation, export execution, replay, repair, or macro playback.
+
 The KILOS dimensions and working factor vocabulary are defined above. Do not freeze a universal scoring or weighting formula yet. The local mapping workbook shows survey-style factor mapping, but the comparative audit pilot should first use KILOS as a structured evidence and messaging lens.
 
 ### 5. Company Audit Review
@@ -282,7 +289,6 @@ The pilot can proceed manually with Playwright and structured files, but the fin
 - selector/XPath/locator repair tied to durable evidence goals,
 - evidence registry generation,
 - citation log generation,
-- CompanyBrandAudit schema,
 - EmployerBrandComparativeAudit schema,
 - human review and auto-approval gates,
 - artifact bundle generation from structured data,

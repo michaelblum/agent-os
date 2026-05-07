@@ -46,10 +46,19 @@
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
           "evidence:browser-evidence-registry",
+          "evidence:company-brand-audit-symphony-talent",
+          "evidence:company-brand-audit-phenom",
+          "evidence:company-brand-audit-radancy",
           "evidence:browser-evidence-fixture-assets"
         ],
         "browser_evidence_registry_path": "browser-evidence/registry.json",
-        "browser_evidence_manifest_path": "browser-evidence/manifest.json"
+        "browser_evidence_manifest_path": "browser-evidence/manifest.json",
+        "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "company_brand_audit_paths": [
+          "company-audits/symphony-talent.json",
+          "company-audits/phenom.json",
+          "company-audits/radancy.json"
+        ]
       }
     },
     {
@@ -86,6 +95,39 @@
         ],
         "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
         "local_fixture_pages_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "company-brand-audits",
+      "relationship": "records_company_brand_audits",
+      "handle": "company-brand-audits:employer-brand-comparative-audit-fixture",
+      "subject_id": "company-brand-audits:employer-brand-comparative-audit-fixture",
+      "subject_type": "aos.company_brand_audit_set",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "evidence",
+      "role": "company_brand_audits",
+      "metadata": {
+        "paths": [
+          "company-audits/symphony-talent.json",
+          "company-audits/phenom.json",
+          "company-audits/radancy.json"
+        ],
+        "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "browser_evidence_registry_path": "browser-evidence/registry.json",
+        "request_ids": [
+          "symphony_talent_fixture_evp_hero",
+          "phenom_fixture_culture_card",
+          "radancy_fixture_proof_block"
+        ],
+        "screenshot_paths": [
+          "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "screenshots/phenom/phenom-fixture-culture-card.png",
+          "screenshots/radancy/radancy-fixture-proof-block.png"
+        ],
+        "local_fixture_evidence_only": true,
         "live_websites": false,
         "read_only": true,
         "provenance_only": true
@@ -266,6 +308,66 @@
           }
         },
         {
+          "path": "company-audits/symphony-talent.json",
+          "role": "company_brand_audit",
+          "media_type": "application/json",
+          "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:company-brand-audit-symphony-talent",
+            "browser_evidence_registry": "browser-evidence/registry.json",
+            "request_ids": [
+              "symphony_talent_fixture_evp_hero"
+            ],
+            "screenshot_paths": [
+              "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png"
+            ],
+            "local_fixture_evidence_only": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "company-audits/phenom.json",
+          "role": "company_brand_audit",
+          "media_type": "application/json",
+          "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:company-brand-audit-phenom",
+            "browser_evidence_registry": "browser-evidence/registry.json",
+            "request_ids": [
+              "phenom_fixture_culture_card"
+            ],
+            "screenshot_paths": [
+              "screenshots/phenom/phenom-fixture-culture-card.png"
+            ],
+            "local_fixture_evidence_only": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "company-audits/radancy.json",
+          "role": "company_brand_audit",
+          "media_type": "application/json",
+          "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:company-brand-audit-radancy",
+            "browser_evidence_registry": "browser-evidence/registry.json",
+            "request_ids": [
+              "radancy_fixture_proof_block"
+            ],
+            "screenshot_paths": [
+              "screenshots/radancy/radancy-fixture-proof-block.png"
+            ],
+            "local_fixture_evidence_only": true,
+            "live_websites": false
+          }
+        },
+        {
           "path": "browser-evidence/html/symphony-talent-careers.html",
           "role": "browser_evidence_fixture_page",
           "media_type": "text/html",
@@ -369,6 +471,12 @@
         "browser_evidence_manifest": "browser-evidence/manifest.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
         "browser_evidence_schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "company_brand_audits": [
+          "company-audits/symphony-talent.json",
+          "company-audits/phenom.json",
+          "company-audits/radancy.json"
+        ],
         "local_fixture_pages_only": true,
         "provenance_only": true
       },
@@ -382,6 +490,9 @@
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
           "evidence:browser-evidence-registry",
+          "evidence:company-brand-audit-symphony-talent",
+          "evidence:company-brand-audit-phenom",
+          "evidence:company-brand-audit-radancy",
           "evidence:browser-evidence-fixture-assets"
         ]
       },
@@ -417,6 +528,12 @@
             "id": "browser-evidence-registry-present",
             "kind": "file_presence",
             "target": "browser-evidence/registry.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "company-brand-audits-present",
+            "kind": "file_presence",
+            "target": "company-audits/",
             "status": "unchecked"
           },
           {
@@ -457,6 +574,19 @@
       "registry_path": "browser-evidence/registry.json",
       "manifest_path": "browser-evidence/manifest.json",
       "local_fixture_pages_only": true,
+      "live_websites": false,
+      "read_only": true,
+      "provenance_only": true
+    },
+    "company_brand_audit_v0": {
+      "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+      "paths": [
+        "company-audits/symphony-talent.json",
+        "company-audits/phenom.json",
+        "company-audits/radancy.json"
+      ],
+      "browser_evidence_registry": "browser-evidence/registry.json",
+      "local_fixture_evidence_only": true,
       "live_websites": false,
       "read_only": true,
       "provenance_only": true

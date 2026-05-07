@@ -697,8 +697,9 @@ The example fixture describes one HTML prototype artifact and one
 Markdown/report artifact. The Employer Brand fixture is the first comparative
 audit bundle: it carries a Markdown report artifact plus `sources.json`
 source/provenance metadata, a local-fixture Browser Evidence Capture V0
-registry under `browser-evidence/`, and a linked schema-v0 Work Record fixture. Both
-fixtures use one stable `aos.workbench.subject` with `subject_type:
+registry under `browser-evidence/`, Company Brand Audit V0 JSON files under
+`company-audits/`, and a linked schema-v0 Work Record fixture. Both fixtures use
+one stable `aos.workbench.subject` with `subject_type:
 "aos.artifact_bundle"`. The descriptors use canonical v-next fields only:
 high-level `capabilities[]`, dotted operation contracts in `contracts[]`,
 top-level `subject_references[]`, concrete `facets[]`, and
@@ -762,10 +763,11 @@ creating a second evidence viewer.
 
 The inspector also surfaces source/evidence file metadata from the selected
 artifact's own `files[]`, including Browser Evidence Capture V0 manifest,
-registry, local fixture page, and crop asset paths when present. This metadata
-is inspectable and provenance-only inside the existing Artifact Bundle
-inspector. It does not add another evidence viewer, browser collection route,
-replay/repair control, exporter, or public `aos` command.
+registry, local fixture page, crop asset paths, and Company Brand Audit V0 JSON
+paths when present. This metadata is inspectable and provenance-only inside the
+existing Artifact Bundle inspector. It does not add another evidence viewer,
+company audit viewer, browser collection route, replay/repair control, exporter,
+or public `aos` command.
 
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing
@@ -1058,10 +1060,12 @@ The Employer Brand Artifact Bundle fixture demonstrates the handoff at:
 ```text
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/*.json
 ```
 
-Those files are generated from local fixture pages only and are linked from the
-bundle subject plus the Work Record evidence trail as read-only provenance.
+Those files are generated or derived from local fixture pages only and are
+linked from the bundle subject plus the Work Record evidence trail as read-only
+provenance.
 
 ## Stock Components Snapshot
 

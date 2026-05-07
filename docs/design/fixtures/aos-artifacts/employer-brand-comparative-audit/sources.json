@@ -88,5 +88,29 @@
     "live_websites": false,
     "read_only": true,
     "provenance_only": true
+  },
+  "company_brand_audits": {
+    "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+    "status": "derived_from_local_browser_evidence_registry",
+    "registry_path": "browser-evidence/registry.json",
+    "paths": [
+      "company-audits/symphony-talent.json",
+      "company-audits/phenom.json",
+      "company-audits/radancy.json"
+    ],
+    "request_ids": [
+      "symphony_talent_fixture_evp_hero",
+      "phenom_fixture_culture_card",
+      "radancy_fixture_proof_block"
+    ],
+    "screenshot_paths": [
+      "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+      "screenshots/phenom/phenom-fixture-culture-card.png",
+      "screenshots/radancy/radancy-fixture-proof-block.png"
+    ],
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "read_only": true,
+    "provenance_only": true
   }
 }

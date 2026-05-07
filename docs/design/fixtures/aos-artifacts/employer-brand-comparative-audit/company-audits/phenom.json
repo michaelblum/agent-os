@@ -1,0 +1,164 @@
+{
+  "type": "aos.company_brand_audit",
+  "schema_version": "2026-05-company-brand-audit-v0",
+  "id": "company-brand-audit:phenom",
+  "audit_id": "audit:employer-brand-comparative-audit-fixture",
+  "company": {
+    "name": "Phenom",
+    "role": "competitor",
+    "notes": "Competitor audit fixture derived only from the local Browser Evidence registry row."
+  },
+  "scope": {
+    "framework": "KILOS",
+    "evidence_scope": "local_fixture_browser_evidence",
+    "registry_path": "browser-evidence/registry.json",
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "report_generation": false,
+    "notes": "This is not a current live-web audit of Phenom."
+  },
+  "source_coverage_summary": [
+    {
+      "source_category": "careers_site",
+      "coverage_status": "captured_from_local_fixture",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ],
+      "summary": "One local careers-site culture card fixture is available for this competitor."
+    },
+    {
+      "source_category": "review_platforms",
+      "coverage_status": "unavailable",
+      "request_ids": [],
+      "summary": "No Glassdoor, Indeed, or other review-platform evidence is present in this local slice."
+    }
+  ],
+  "employer_value_proposition": "Phenom is framed as a place where employees build intelligent, personal talent experiences at product speed.",
+  "main_promise": "Employees can make every talent moment more personal through product building, customer outcomes, and collaborative problem solving.",
+  "kilos_analysis": [
+    {
+      "dimension": "impact",
+      "factors": [
+        "innovation and invention"
+      ],
+      "interpretation": "The fixture centers intelligent experiences, product pace, and customer outcomes as the employee impact story.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    },
+    {
+      "dimension": "kinship",
+      "factors": [
+        "sense of belonging"
+      ],
+      "interpretation": "The copy points to collaborative problem solving across teams, which is the clearest available kinship signal in the local evidence.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "messaging_themes": [
+    {
+      "theme": "Personalized talent moments",
+      "summary": "The fixture makes personalization the core promise and ties it to employee product work.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    },
+    {
+      "theme": "Builder culture",
+      "summary": "Employees are described as builders of intelligent experiences rather than only operators of a platform.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "brand_voice_and_tone": {
+    "summary": "The tone is energetic, product-led, and customer-outcome oriented.",
+    "descriptors": [
+      "product-led",
+      "energetic",
+      "customer-focused"
+    ],
+    "request_ids": [
+      "phenom_fixture_culture_card"
+    ]
+  },
+  "visual_identity_notes": [
+    {
+      "summary": "The available visual evidence is a culture-card crop, so visual notes are limited to the card-level message hierarchy and cannot support a broader identity read.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "employee_sentiment_and_review_sites": {
+    "coverage_status": "unavailable",
+    "summary": "No review-site or employee sentiment evidence is included in the local fixture registry.",
+    "request_ids": [],
+    "caveat": "Review platforms are required in the full workflow but are outside this first local fixture slice."
+  },
+  "differentiators": [
+    {
+      "summary": "The strongest differentiator in the fixture is the link between personalization, intelligent experiences, product pace, and customer outcomes.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "generic_messaging_or_weak_spots": [
+    {
+      "summary": "The fixture does not yet provide proof of benefits, career paths, leadership access, or review sentiment.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "evidence_backed_claims": [
+    {
+      "id": "claim:phenom-personalized-builder-culture",
+      "claim": "Phenom's local fixture positions employees as builders of intelligent, personalized talent experiences.",
+      "request_ids": [
+        "phenom_fixture_culture_card"
+      ]
+    }
+  ],
+  "caveats": [
+    "This company audit cites only one local Browser Evidence registry row.",
+    "The fixture is not a live-web capture and does not support market-current claims.",
+    "Review-site coverage is unavailable in this slice."
+  ],
+  "cited_evidence": [
+    {
+      "request_id": "phenom_fixture_culture_card",
+      "company": "Phenom",
+      "source_category": "careers_site",
+      "source_url": "html/phenom-careers.html",
+      "screenshot_path": "screenshots/phenom/phenom-fixture-culture-card.png",
+      "status": "captured",
+      "captured_at": "2026-05-07T15:11:02Z",
+      "extracted_text_excerpt": "Make every talent moment more personal."
+    }
+  ],
+  "provenance": {
+    "created_at": "2026-05-07T16:00:00Z",
+    "derived_from_registry": "browser-evidence/registry.json",
+    "browser_evidence_request_ids": [
+      "phenom_fixture_culture_card"
+    ],
+    "screenshot_paths": [
+      "screenshots/phenom/phenom-fixture-culture-card.png"
+    ],
+    "local_fixture_pages_only": true,
+    "live_websites": false,
+    "provenance_only": true,
+    "non_goals": [
+      "live_collection",
+      "report_generation",
+      "export_execution",
+      "replay",
+      "repair",
+      "macro_playback"
+    ]
+  }
+}

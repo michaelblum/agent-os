@@ -38,9 +38,9 @@
     }
   ],
   "intent": {
-    "summary": "Represent the first Employer Brand comparative audit report as a read-only Artifact Bundle with source metadata and Work Record evidence.",
+    "summary": "Represent the first Employer Brand comparative audit report as a read-only Artifact Bundle with source metadata, Company Brand Audit fixtures, and Work Record evidence.",
     "purpose": "employer_brand_artifact_bundle_fixture",
-    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, links a Browser Evidence Capture V0 registry fixture, and opens the linked Work Record evidence through the existing workbench path.",
+    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, links a Browser Evidence Capture V0 registry fixture, exposes Company Brand Audit JSON fixtures as provenance metadata, and opens the linked Work Record evidence through the existing workbench path.",
     "constraints": [
       "No remote browser collection, report generation, export execution, replay, repair, macro playback, or new public command is part of this fixture.",
       "The report and Browser Evidence registry are static fixtures, not a current live-web competitive audit."
@@ -49,7 +49,8 @@
       "claim:markdown-report-previewable",
       "claim:source-metadata-attached",
       "claim:work-record-handoff-available",
-      "claim:browser-evidence-registry-linked"
+      "claim:browser-evidence-registry-linked",
+      "claim:company-brand-audits-linked"
     ]
   },
   "execution_map": {
@@ -75,7 +76,10 @@
             "supporting_files": [
               "sources.json",
               "browser-evidence/manifest.json",
-              "browser-evidence/registry.json"
+              "browser-evidence/registry.json",
+              "company-audits/symphony-talent.json",
+              "company-audits/phenom.json",
+              "company-audits/radancy.json"
             ]
           }
         },
@@ -83,7 +87,8 @@
           "postcondition:markdown-report-present",
           "postcondition:sources-metadata-present",
           "postcondition:work-record-linked",
-          "postcondition:browser-evidence-registry-linked"
+          "postcondition:browser-evidence-registry-linked",
+          "postcondition:company-brand-audits-linked"
         ]
       }
     ],
@@ -159,6 +164,27 @@
           "mode": "manual_review",
           "notes": "The registry is fixture provenance only; do not repair it by browsing remote websites or generating a report."
         }
+      },
+      {
+        "id": "postcondition:company-brand-audits-linked",
+        "kind": "repo_file",
+        "description": "The Symphony Talent, Phenom, and Radancy Company Brand Audit fixtures are present, schema-shaped, and linked as provenance-only source evidence.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits",
+        "check": {
+          "kind": "company_brand_audit_fixtures",
+          "expected": "aos.company_brand_audit",
+          "path": "company-audits/",
+          "count": 3
+        },
+        "evidence_refs": [
+          "evidence:company-brand-audit-symphony-talent",
+          "evidence:company-brand-audit-phenom",
+          "evidence:company-brand-audit-radancy"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "Company Brand Audit fixtures must cite the existing local Browser Evidence registry; do not repair them by browsing remote websites or generating a report."
+        }
       }
     ],
     "artifact_routes": [
@@ -191,6 +217,24 @@
         "kind": "repo_file",
         "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json",
         "evidence_ref": "evidence:browser-evidence-registry"
+      },
+      {
+        "id": "artifact-route:company-brand-audit-symphony-talent",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/symphony-talent.json",
+        "evidence_ref": "evidence:company-brand-audit-symphony-talent"
+      },
+      {
+        "id": "artifact-route:company-brand-audit-phenom",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/phenom.json",
+        "evidence_ref": "evidence:company-brand-audit-phenom"
+      },
+      {
+        "id": "artifact-route:company-brand-audit-radancy",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/radancy.json",
+        "evidence_ref": "evidence:company-brand-audit-radancy"
       },
       {
         "id": "artifact-route:browser-evidence-fixture-assets",
@@ -291,6 +335,78 @@
       }
     },
     {
+      "id": "evidence:company-brand-audit-symphony-talent",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T16:00:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/symphony-talent.json",
+      "immutable": true,
+      "summary": "Company Brand Audit V0 fixture for Symphony Talent derived from the local Browser Evidence registry.",
+      "metadata": {
+        "role": "company_brand_audit",
+        "company": "Symphony Talent",
+        "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "browser_evidence_registry": "browser-evidence/registry.json",
+        "request_ids": [
+          "symphony_talent_fixture_evp_hero"
+        ],
+        "screenshot_paths": [
+          "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png"
+        ],
+        "local_fixture_evidence_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "evidence:company-brand-audit-phenom",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T16:00:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/phenom.json",
+      "immutable": true,
+      "summary": "Company Brand Audit V0 fixture for Phenom derived from the local Browser Evidence registry.",
+      "metadata": {
+        "role": "company_brand_audit",
+        "company": "Phenom",
+        "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "browser_evidence_registry": "browser-evidence/registry.json",
+        "request_ids": [
+          "phenom_fixture_culture_card"
+        ],
+        "screenshot_paths": [
+          "screenshots/phenom/phenom-fixture-culture-card.png"
+        ],
+        "local_fixture_evidence_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "evidence:company-brand-audit-radancy",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T16:00:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/radancy.json",
+      "immutable": true,
+      "summary": "Company Brand Audit V0 fixture for Radancy derived from the local Browser Evidence registry.",
+      "metadata": {
+        "role": "company_brand_audit",
+        "company": "Radancy",
+        "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+        "browser_evidence_registry": "browser-evidence/registry.json",
+        "request_ids": [
+          "radancy_fixture_proof_block"
+        ],
+        "screenshot_paths": [
+          "screenshots/radancy/radancy-fixture-proof-block.png"
+        ],
+        "local_fixture_evidence_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
       "id": "evidence:browser-evidence-fixture-assets",
       "kind": "repo_folder",
       "created_at": "2026-05-07T15:11:30Z",
@@ -351,6 +467,15 @@
       "acceptance": "The subject descriptor and Work Record evidence trail reference browser-evidence/registry.json, the registry validates, and registry metadata records local fixture provenance only.",
       "postcondition_refs": [
         "postcondition:browser-evidence-registry-linked"
+      ]
+    },
+    {
+      "id": "claim:company-brand-audits-linked",
+      "text": "The Employer Brand comparative audit bundle links Company Brand Audit V0 fixtures for Symphony Talent, Phenom, and Radancy as read-only provenance metadata.",
+      "scope": "subject",
+      "acceptance": "The subject descriptor and Work Record evidence trail reference the three company audit JSON files, and each company audit cites only Browser Evidence registry request IDs and screenshots.",
+      "postcondition_refs": [
+        "postcondition:company-brand-audits-linked"
       ]
     }
   ],
@@ -438,6 +563,30 @@
           "reason": "The Browser Evidence registry fixture is present in the artifact bundle folder and linked by the subject descriptor."
         }
       ]
+    },
+    {
+      "id": "claim-result:company-brand-audits-linked",
+      "claim_id": "claim:company-brand-audits-linked",
+      "status": "verified",
+      "confidence": 0.84,
+      "reason": "The bundle fixture links three schema-shaped Company Brand Audit files as provenance-only metadata derived from the local Browser Evidence registry.",
+      "evidence_refs": [
+        "evidence:company-brand-audit-symphony-talent",
+        "evidence:company-brand-audit-phenom",
+        "evidence:company-brand-audit-radancy"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:company-brand-audits-linked",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:company-brand-audit-symphony-talent",
+            "evidence:company-brand-audit-phenom",
+            "evidence:company-brand-audit-radancy"
+          ],
+          "reason": "The three Company Brand Audit fixture files are present in the artifact bundle folder and linked by the subject descriptor."
+        }
+      ]
     }
   ],
   "verifier_report": {
@@ -454,7 +603,8 @@
         "claim:markdown-report-previewable",
         "claim:source-metadata-attached",
         "claim:work-record-handoff-available",
-        "claim:browser-evidence-registry-linked"
+        "claim:browser-evidence-registry-linked",
+        "claim:company-brand-audits-linked"
       ],
       "failed": [],
       "unverified": []
@@ -466,13 +616,16 @@
       "evidence:work-record-fixture",
       "evidence:browser-evidence-manifest",
       "evidence:browser-evidence-registry",
+      "evidence:company-brand-audit-symphony-talent",
+      "evidence:company-brand-audit-phenom",
+      "evidence:company-brand-audit-radancy",
       "evidence:browser-evidence-fixture-assets"
     ],
     "feedback": []
   },
   "health": {
     "verdict": "valid",
-    "reason": "The Markdown report, source metadata, subject descriptor, linked Work Record, and local Browser Evidence registry are represented by immutable fixture evidence.",
+    "reason": "The Markdown report, source metadata, subject descriptor, linked Work Record, local Browser Evidence registry, and Company Brand Audit fixtures are represented by immutable fixture evidence.",
     "evaluated_at": "2026-05-07T15:05:00Z",
     "verifier_report_id": "verifier-report:employer-brand-comparative-audit-fixture",
     "confidence": 0.88,
@@ -486,6 +639,19 @@
       "registry_path": "browser-evidence/registry.json",
       "manifest_path": "browser-evidence/manifest.json",
       "local_fixture_pages_only": true,
+      "live_websites": false,
+      "read_only": true,
+      "provenance_only": true
+    },
+    "company_brand_audit_v0": {
+      "schema": "shared/schemas/company-brand-audit-v0.schema.json",
+      "paths": [
+        "company-audits/symphony-talent.json",
+        "company-audits/phenom.json",
+        "company-audits/radancy.json"
+      ],
+      "browser_evidence_registry": "browser-evidence/registry.json",
+      "local_fixture_evidence_only": true,
       "live_websites": false,
       "read_only": true,
       "provenance_only": true
