@@ -1,46 +1,28 @@
-import { normalizeSemanticTarget } from '../../runtime/semantic-targets.js';
+import { semanticTargetAttrString } from '../../runtime/semantic-targets.js';
 
 const SURFACE = 'object-transform-panel';
-
-function escAttr(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function boolAttr(value) {
-  return value ? 'true' : 'false';
-}
-
-function checkedAttr(value) {
-  return value === 'mixed' ? 'mixed' : boolAttr(value);
-}
+const ATTRIBUTE_ORDER = Object.freeze([
+  'aria-label',
+  'data-aos-ref',
+  'data-aos-surface',
+  'data-semantic-target-id',
+  'data-aos-action',
+  'aria-selected',
+  'aria-checked',
+  'aria-valuetext',
+  'aria-disabled',
+  'role',
+]);
 
 function semanticAttrString(target = {}, options = {}) {
-  const normalized = normalizeSemanticTarget({
+  return semanticTargetAttrString({
     ...target,
     surface: SURFACE,
+  }, {
+    nativeRole: options.nativeRole,
+    attributeOrder: ATTRIBUTE_ORDER,
+    includeParentCanvas: false,
   });
-  const attrs = [
-    ['aria-label', normalized.name],
-    ['data-aos-ref', normalized.aosRef],
-    ['data-aos-surface', normalized.surface],
-    ['data-semantic-target-id', normalized.id],
-  ];
-  if (normalized.action) attrs.push(['data-aos-action', normalized.action]);
-  if (normalized.selected !== null) attrs.push(['aria-selected', boolAttr(normalized.selected)]);
-  if (normalized.checked !== null) attrs.push(['aria-checked', checkedAttr(normalized.checked)]);
-  if (normalized.value !== null) attrs.push(['aria-valuetext', normalized.value]);
-  if (!normalized.enabled) attrs.push(['aria-disabled', 'true']);
-  if (normalized.role && !(options.nativeRole && normalized.role === options.nativeRole)) {
-    attrs.push(['role', normalized.role]);
-  }
-  return attrs
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([name, value]) => `${name}="${escAttr(value)}"`)
-    .join(' ');
 }
 
 export function objectRowAttrs(entry, selected = false) {

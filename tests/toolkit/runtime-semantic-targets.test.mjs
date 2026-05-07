@@ -6,6 +6,8 @@ import {
   createSemanticTargetElement,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
+  semanticTargetAttributeEntries,
+  semanticTargetAttrString,
 } from '../../packages/toolkit/runtime/semantic-targets.js'
 
 function dataAttrName(name) {
@@ -105,6 +107,58 @@ test('normalizeSemanticTarget does not default action to identity', () => {
 
   assert.equal(target.action, '')
   assert.equal(target.aosRef, 'plain-target')
+})
+
+test('semanticTargetAttributeEntries serializes standard semantic target refs', () => {
+  const entries = semanticTargetAttributeEntries({
+    id: 'save',
+    role: 'AXButton',
+    name: 'Save',
+    action: 'save_markdown',
+    surface: 'markdown-workbench',
+    parentCanvasId: 'avatar-main',
+    pressed: false,
+  }, {
+    nativeRole: 'button',
+  })
+
+  assert.deepEqual(entries, [
+    ['aria-label', 'Save'],
+    ['data-aos-ref', 'markdown-workbench:save'],
+    ['data-aos-surface', 'markdown-workbench'],
+    ['data-semantic-target-id', 'save'],
+    ['data-aos-parent-canvas', 'avatar-main'],
+    ['data-aos-action', 'save_markdown'],
+    ['aria-pressed', 'false'],
+  ])
+})
+
+test('semanticTargetAttrString escapes attrs and supports custom order', () => {
+  const attrs = semanticTargetAttrString({
+    id: 'visibility-<tree>',
+    role: 'AXCheckBox',
+    name: 'Hide "Tree" & children',
+    action: 'toggle_visibility',
+    aosRef: 'object-transform-panel:visibility:avatar-main:<tree>',
+    surface: 'object-transform-panel',
+    checked: 'mixed',
+  }, {
+    attributeOrder: [
+      'aria-label',
+      'data-aos-ref',
+      'data-aos-surface',
+      'data-semantic-target-id',
+      'data-aos-action',
+      'aria-checked',
+      'role',
+    ],
+    nativeRole: 'checkbox',
+  })
+
+  assert.equal(
+    attrs,
+    'aria-label="Hide &quot;Tree&quot; &amp; children" data-aos-ref="object-transform-panel:visibility:avatar-main:&lt;tree&gt;" data-aos-surface="object-transform-panel" data-semantic-target-id="visibility-&lt;tree&gt;" data-aos-action="toggle_visibility" aria-checked="mixed"',
+  )
 })
 
 test('createSemanticTargetElement stamps native button semantics and metadata without visible text', () => {

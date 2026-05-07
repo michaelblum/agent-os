@@ -28,6 +28,8 @@ export {
   createSemanticTargetElement,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
+  semanticTargetAttributeEntries,
+  semanticTargetAttrString,
 } from './semantic-targets.js'
 export {
   createDesktopWorldRangeDrag,

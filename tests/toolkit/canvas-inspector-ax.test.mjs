@@ -16,6 +16,10 @@ import {
 test('canvas action attrs expose stable AOS target metadata', () => {
   const attrs = canvasActionAttrs('avatar-main', 'stats', { pressed: true })
 
+  assert.equal(
+    attrs,
+    'aria-label="Stats for canvas avatar-main" data-aos-ref="canvas-inspector:canvas:avatar-main:stats" data-aos-surface="canvas-inspector" data-semantic-target-id="stats-avatar-main" data-aos-action="toggle_stats" aria-pressed="true"',
+  )
   assert.match(attrs, /aria-label="Stats for canvas avatar-main"/)
   assert.match(attrs, /data-aos-ref="canvas-inspector:canvas:avatar-main:stats"/)
   assert.match(attrs, /data-aos-surface="canvas-inspector"/)

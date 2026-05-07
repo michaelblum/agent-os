@@ -23,6 +23,22 @@ const AX_ROLE_ALIASES = {
 }
 
 const NATIVE_BUTTON_ROLES = new Set(['button'])
+const DEFAULT_SEMANTIC_TARGET_ATTRIBUTE_ORDER = Object.freeze([
+  'aria-label',
+  'data-aos-ref',
+  'data-aos-surface',
+  'data-semantic-target-id',
+  'data-aos-parent-canvas',
+  'role',
+  'data-aos-action',
+  'aria-disabled',
+  'aria-pressed',
+  'aria-current',
+  'aria-selected',
+  'aria-checked',
+  'aria-expanded',
+  'aria-valuetext',
+])
 
 function finite(value, fallback = 0) {
   const n = Number(value)
@@ -78,6 +94,18 @@ function normalizeFrameObject(source = {}) {
 
 function boolAttr(value) {
   return value ? 'true' : 'false'
+}
+
+function checkedAttr(value) {
+  return value === 'mixed' ? 'mixed' : boolAttr(value)
+}
+
+function escAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 function setOrRemoveAttr(element, name, value) {
@@ -145,6 +173,54 @@ export function normalizeSemanticTarget(target = {}, options = {}) {
 export function normalizeSemanticTargets(targets = [], options = {}) {
   if (!Array.isArray(targets)) return []
   return targets.map((target) => normalizeSemanticTarget(target, options))
+}
+
+function roleMatchesNativeElement(normalized, options = {}) {
+  const nativeRole = options.nativeRole || (options.nativeButton ? 'button' : '')
+  return nativeRole && normalized.role === nativeRole
+}
+
+export function semanticTargetAttributeEntries(target = {}, options = {}) {
+  const normalized = normalizeSemanticTarget(target, options)
+  const attrs = new Map([
+    ['aria-label', normalized.name],
+    ['data-aos-ref', normalized.aosRef],
+    ['data-aos-surface', normalized.surface],
+    ['data-semantic-target-id', normalized.id],
+    ['data-aos-parent-canvas', options.includeParentCanvas === false ? null : normalized.parentCanvasId],
+    ['data-aos-action', normalized.action],
+    ['aria-disabled', normalized.enabled ? null : 'true'],
+    ['aria-pressed', normalized.pressed === null ? null : boolAttr(normalized.pressed)],
+    ['aria-current', normalized.current === null ? null : normalized.current === true ? 'true' : normalized.current],
+    ['aria-selected', normalized.selected === null ? null : boolAttr(normalized.selected)],
+    ['aria-checked', normalized.checked === null ? null : checkedAttr(normalized.checked)],
+    ['aria-expanded', normalized.expanded === null ? null : boolAttr(normalized.expanded)],
+    ['aria-valuetext', normalized.value],
+  ])
+  if (normalized.role && !roleMatchesNativeElement(normalized, options)) {
+    attrs.set('role', normalized.role)
+  }
+
+  const order = Array.isArray(options.attributeOrder)
+    ? options.attributeOrder
+    : DEFAULT_SEMANTIC_TARGET_ATTRIBUTE_ORDER
+  const seen = new Set()
+  const ordered = []
+  for (const name of order) {
+    if (!attrs.has(name)) continue
+    seen.add(name)
+    ordered.push([name, attrs.get(name)])
+  }
+  for (const [name, value] of attrs.entries()) {
+    if (!seen.has(name)) ordered.push([name, value])
+  }
+  return ordered.filter(([, value]) => value !== undefined && value !== null && value !== '')
+}
+
+export function semanticTargetAttrString(target = {}, options = {}) {
+  return semanticTargetAttributeEntries(target, options)
+    .map(([name, value]) => `${name}="${escAttr(value)}"`)
+    .join(' ')
 }
 
 export function applySemanticTargetAttributes(element, target = {}, options = {}) {
