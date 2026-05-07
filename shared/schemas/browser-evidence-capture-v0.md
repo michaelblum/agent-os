@@ -79,11 +79,14 @@ local audit fixture shape is documented in
 The Employer Brand Artifact Bundle fixture carries a concrete local handoff at:
 
 ```text
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/planning-manifest-skeleton.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json
 ```
 
-That registry is linked from `subject.json` and `work-record.json` as
-read-only, provenance-only evidence. It uses local fixture HTML pages and local
-crop assets only; it is not evidence of live web collection or report
-generation.
+The planning manifest skeleton is derived from `intake/project.json` and is
+linked as read-only planned-request provenance, separate from the captured
+manifest and registry. The registry is linked from `subject.json` and
+`work-record.json` as read-only, provenance-only evidence. It uses local fixture
+HTML pages and local crop assets only; neither file is evidence of live web
+collection or report generation.

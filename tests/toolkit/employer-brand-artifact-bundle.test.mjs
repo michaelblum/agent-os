@@ -32,6 +32,7 @@ const workRecordUrl = new URL(`${fixtureRoot}work-record.json`, repo);
 const workRecordSchemaUrl = new URL('shared/schemas/aos-work-record-v0.schema.json', repo);
 const employerBrandAuditProjectSchemaUrl = new URL('shared/schemas/employer-brand-audit-project-v0.schema.json', repo);
 const employerBrandAuditProjectUrl = new URL(`${fixtureRoot}intake/project.json`, repo);
+const browserEvidencePlanningManifestUrl = new URL(`${fixtureRoot}browser-evidence/planning-manifest-skeleton.json`, repo);
 const browserEvidenceManifestUrl = new URL(`${fixtureRoot}browser-evidence/manifest.json`, repo);
 const browserEvidenceRegistryUrl = new URL(`${fixtureRoot}browser-evidence/registry.json`, repo);
 const browserEvidenceSchemaUrl = new URL('shared/schemas/browser-evidence-capture-v0.schema.json', repo);
@@ -128,6 +129,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.ok(report.files.some((file) => file.path === 'sources.json' && file.role === 'source_metadata'));
   assert.ok(report.files.some((file) => file.path === 'intake/project.json' && file.role === 'employer_brand_audit_project'));
   assert.ok(report.files.some((file) => file.path === 'work-record.json' && file.role === 'work_record_fixture'));
+  assert.ok(report.files.some((file) => file.path === 'browser-evidence/planning-manifest-skeleton.json' && file.role === 'browser_evidence_planning_manifest'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/manifest.json' && file.role === 'browser_evidence_manifest'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/registry.json' && file.role === 'browser_evidence_registry'));
   assert.equal(report.files.filter((file) => file.role === 'company_brand_audit').length, 3);
@@ -145,6 +147,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(report.provenance.source_metadata, 'sources.json');
   assert.equal(report.provenance.employer_brand_audit_project_schema, 'shared/schemas/employer-brand-audit-project-v0.schema.json');
   assert.equal(report.provenance.employer_brand_audit_project, 'intake/project.json');
+  assert.equal(report.provenance.browser_evidence_planning_manifest, 'browser-evidence/planning-manifest-skeleton.json');
   assert.equal(report.provenance.browser_evidence_registry, 'browser-evidence/registry.json');
   assert.deepEqual(report.provenance.company_brand_audits, [
     'company-audits/symphony-talent.json',
@@ -160,6 +163,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
     'evidence:markdown-report',
     'evidence:sources-metadata',
     'evidence:employer-brand-audit-project',
+    'evidence:browser-evidence-planning-manifest',
     'evidence:subject-descriptor',
     'evidence:work-record-fixture',
     'evidence:browser-evidence-manifest',
@@ -181,9 +185,18 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(projectRef.metadata.read_only, true);
   assert.equal(projectRef.metadata.provenance_only, true);
 
+  const planningManifestRef = subject.subject_references.find((ref) => ref.id === 'browser-evidence-planning-manifest');
+  assert.equal(planningManifestRef.subject_type, 'aos.browser_evidence_capture_manifest');
+  assert.equal(planningManifestRef.metadata.path, 'browser-evidence/planning-manifest-skeleton.json');
+  assert.equal(planningManifestRef.metadata.request_count, 21);
+  assert.equal(planningManifestRef.metadata.skeleton_only, true);
+  assert.equal(planningManifestRef.metadata.collection_execution, false);
+  assert.equal(planningManifestRef.metadata.provenance_only, true);
+
   const registryRef = subject.subject_references.find((ref) => ref.id === 'browser-evidence-registry');
   assert.equal(registryRef.subject_type, 'aos.browser_evidence_registry');
   assert.equal(registryRef.metadata.registry_path, 'browser-evidence/registry.json');
+  assert.equal(registryRef.metadata.planning_manifest_path, 'browser-evidence/planning-manifest-skeleton.json');
   assert.equal(registryRef.metadata.local_fixture_pages_only, true);
   assert.equal(registryRef.metadata.provenance_only, true);
   const companyAuditRef = subject.subject_references.find((ref) => ref.id === 'company-brand-audits');
@@ -220,7 +233,12 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(sources.employer_brand_audit_project.read_only, true);
   assert.equal(sources.employer_brand_audit_project.provenance_only, true);
   assert.equal(sources.browser_evidence_registry.path, 'browser-evidence/registry.json');
+  assert.equal(sources.browser_evidence_registry.planning_manifest_path, 'browser-evidence/planning-manifest-skeleton.json');
   assert.equal(sources.browser_evidence_registry.local_fixture_pages_only, true);
+  assert.equal(sources.browser_evidence_planning_manifest.path, 'browser-evidence/planning-manifest-skeleton.json');
+  assert.equal(sources.browser_evidence_planning_manifest.request_count, 21);
+  assert.equal(sources.browser_evidence_planning_manifest.skeleton_only, true);
+  assert.equal(sources.browser_evidence_planning_manifest.collection_execution, false);
   assert.equal(sources.company_brand_audits.schema, 'shared/schemas/company-brand-audit-v0.schema.json');
   assert.deepEqual(sources.company_brand_audits.paths, [
     'company-audits/symphony-talent.json',
@@ -256,6 +274,7 @@ test('Employer Brand Audit Project fixture scopes the bundle as one project inst
   assert.equal(project.controls.report_generation_authorized, false);
   assert.equal(project.artifact_links.artifact_bundle_id, subject.id);
   assert.equal(project.artifact_links.work_record_id, record.id);
+  assert.equal(project.artifact_links.browser_evidence_planning_manifest_path, 'browser-evidence/planning-manifest-skeleton.json');
   assert.equal(project.artifact_links.read_only, true);
   assert.equal(project.artifact_links.provenance_only, true);
 
@@ -271,18 +290,32 @@ test('Employer Brand Audit Project fixture scopes the bundle as one project inst
   assert.match(projectClaim.text, /one project instance rather than the workflow/);
   assert.equal(projectPostcondition.check.expected, 'aos.employer_brand_audit_project');
   assert.ok(record.verifier_report.evidence_refs.includes('evidence:employer-brand-audit-project'));
+  assert.ok(record.verifier_report.evidence_refs.includes('evidence:browser-evidence-planning-manifest'));
   assert.ok(record.verifier_report.derived_indexes.verified.includes('claim:employer-brand-audit-project-linked'));
+  assert.ok(record.verifier_report.derived_indexes.verified.includes('claim:browser-evidence-planning-manifest-linked'));
 });
 
 test('Employer Brand Browser Evidence registry validates and uses local fixture pages only', async () => {
+  const planningValidation = validateBrowserEvidenceFixture(browserEvidencePlanningManifestUrl);
   const manifestValidation = validateBrowserEvidenceFixture(browserEvidenceManifestUrl);
   const registryValidation = validateBrowserEvidenceFixture(browserEvidenceRegistryUrl);
+  assert.equal(planningValidation.status, 0, `${planningValidation.stdout}${planningValidation.stderr}`);
   assert.equal(manifestValidation.status, 0, `${manifestValidation.stdout}${manifestValidation.stderr}`);
   assert.equal(registryValidation.status, 0, `${registryValidation.stdout}${registryValidation.stderr}`);
 
+  const planningManifest = await readJson(browserEvidencePlanningManifestUrl);
   const manifest = await readJson(browserEvidenceManifestUrl);
   const registry = await readJson(browserEvidenceRegistryUrl);
 
+  assert.equal(planningManifest.metadata.skeleton_only, true);
+  assert.equal(planningManifest.metadata.deterministic_planning_bridge, true);
+  assert.equal(planningManifest.metadata.collection_execution, false);
+  assert.equal(planningManifest.metadata.remote_web_collection, false);
+  assert.equal(planningManifest.metadata.autonomous_browsing, false);
+  assert.equal(planningManifest.requests.length, 21);
+  assert.notEqual(planningManifest.manifest_id, manifest.manifest_id);
+  assert.equal('evidence' in planningManifest, false);
+  assert.equal('capture_metadata' in planningManifest, false);
   assert.equal(manifest.metadata.local_fixture_pages_only, true);
   assert.equal(manifest.metadata.live_websites, false);
   assert.equal(registry.type, 'aos.browser_evidence_registry');
@@ -297,6 +330,15 @@ test('Employer Brand Browser Evidence registry validates and uses local fixture 
     assert.match(request.url, /^html\//);
     assert.doesNotMatch(request.url, /^https?:\/\//);
     assert.match(request.notes, /Fixture page only/);
+  }
+
+  for (const request of planningManifest.requests) {
+    assert.match(request.url, /^html\//);
+    assert.doesNotMatch(request.url, /^https?:\/\//);
+    assert.match(request.request_id, /_planning$/);
+    assert.match(request.notes, /Planning skeleton only/);
+    assert.deepEqual(request.kilos_relevance, []);
+    assert.deepEqual(request.kilos_factors, []);
   }
 
   for (const item of registry.evidence) {
@@ -398,7 +440,7 @@ test('Employer Brand artifact bundle previews the Markdown report through the ex
   assert.equal(snapshot.selected_work_record_link.record_path, 'work-record.json');
   assert.equal(snapshot.selected_work_record_link.can_open, true);
   assert.equal(snapshot.selected_work_record_summary.status, 'linked');
-  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 12);
+  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 13);
   assert.equal(snapshot.selected_source_evidence_metadata.read_only, true);
   assert.equal(snapshot.selected_source_evidence_metadata.provenance_only, true);
   assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_registry_paths, [
@@ -407,7 +449,10 @@ test('Employer Brand artifact bundle previews the Markdown report through the ex
   assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_manifest_paths, [
     'browser-evidence/manifest.json',
   ]);
-  assert.equal(snapshot.selected_source_evidence_metadata.browser_evidence_entry_count, 8);
+  assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_planning_manifest_paths, [
+    'browser-evidence/planning-manifest-skeleton.json',
+  ]);
+  assert.equal(snapshot.selected_source_evidence_metadata.browser_evidence_entry_count, 9);
   assert.equal(snapshot.selected_source_evidence_metadata.local_fixture_page_count, 3);
   assert.equal(snapshot.selected_source_evidence_metadata.crop_count, 3);
   assert.equal(
@@ -465,13 +510,13 @@ test('Employer Brand artifact bundle opens the linked schema-v0 Work Record evid
   assert.equal(snapshot.linked_work_record_open.open_message.type, 'work_record.open');
   assert.equal(snapshot.linked_work_record_open.open_message.source.kind, 'artifact_bundle_work_record');
   assert.equal(snapshot.linked_work_record_open.open_message.source.artifact_id, 'employer-brand-report');
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 12);
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 7);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 13);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 8);
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(snapshot.selected_work_record_summary.snapshot_available, true);
-  assert.equal(snapshot.selected_work_record_summary.evidence_count, 12);
-  assert.equal(snapshot.selected_work_record_summary.claim_count, 7);
-  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 7);
+  assert.equal(snapshot.selected_work_record_summary.evidence_count, 13);
+  assert.equal(snapshot.selected_work_record_summary.claim_count, 8);
+  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 8);
   assert.equal(snapshot.selected_work_record_summary.failed_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.unverified_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.health_state, 'valid');
@@ -504,6 +549,7 @@ test('Employer Brand browser evidence links remain read-only and provenance-only
 
   const registryEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-registry');
   const manifestEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-manifest');
+  const planningManifestEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-planning-manifest');
   const assetEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-fixture-assets');
   const projectEvidence = record.evidence.find((item) => item.id === 'evidence:employer-brand-audit-project');
   const companyAuditEvidence = record.evidence.filter((item) => item.metadata?.role === 'company_brand_audit');
@@ -512,6 +558,13 @@ test('Employer Brand browser evidence links remain read-only and provenance-only
   assert.equal(projectEvidence.metadata.read_only, true);
   assert.equal(projectEvidence.metadata.provenance_only, true);
   assert.equal(projectEvidence.metadata.project_instance_only, true);
+  assert.equal(planningManifestEvidence.immutable, true);
+  assert.equal(planningManifestEvidence.metadata.read_only, true);
+  assert.equal(planningManifestEvidence.metadata.provenance_only, true);
+  assert.equal(planningManifestEvidence.metadata.skeleton_only, true);
+  assert.equal(planningManifestEvidence.metadata.collection_execution, false);
+  assert.equal(planningManifestEvidence.metadata.remote_web_collection, false);
+  assert.equal(planningManifestEvidence.metadata.autonomous_browsing, false);
   assert.equal(registryEvidence.immutable, true);
   assert.equal(registryEvidence.metadata.read_only, true);
   assert.equal(registryEvidence.metadata.provenance_only, true);

@@ -401,6 +401,9 @@
         "browser_evidence_manifest_path": {
           "$ref": "#/$defs/relative_path"
         },
+        "browser_evidence_planning_manifest_path": {
+          "$ref": "#/$defs/relative_path"
+        },
         "browser_evidence_registry_path": {
           "$ref": "#/$defs/relative_path"
         },

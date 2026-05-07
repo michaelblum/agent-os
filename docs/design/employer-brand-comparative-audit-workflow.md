@@ -143,7 +143,10 @@ applicable source categories. This is deterministic planning only: it emits
 local placeholder fixture URLs and selectors, does not fetch websites, does not
 infer competitors or missing categories, and does not execute collection,
 analysis, report generation, export, replay, repair, macro playback, or a
-workflow engine.
+workflow engine. The checked-in pilot skeleton lives at
+`docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/planning-manifest-skeleton.json`;
+it is planned-request provenance derived from `intake/project.json`, separate
+from the captured Browser Evidence manifest and registry.
 
 ### 3. Company Evidence Collection
 
@@ -245,6 +248,7 @@ The near-term Artifact Bundle should include:
 - screenshot/crop assets,
 - Markdown report draft,
 - source/citation log,
+- planning manifest skeleton derived from the intake/project fixture,
 - and a Work Record-style provenance file.
 
 All artifact references should prefer local relative paths inside the artifact bundle. The pilot should avoid Google Drive IDs, absolute paths, or hidden uploads as provenance anchors. Analysis should only cite files that are already present in the evidence pool.

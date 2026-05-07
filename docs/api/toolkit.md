@@ -697,10 +697,11 @@ The example fixture describes one HTML prototype artifact and one
 Markdown/report artifact. The Employer Brand fixture is the first comparative
 audit bundle: it carries a Markdown report artifact plus `sources.json`
 source/provenance metadata, an Employer Brand Audit Project V0 intake fixture
-under `intake/`, a local-fixture Browser Evidence Capture V0 registry under
-`browser-evidence/`, Company Brand Audit V0 JSON files under
-`company-audits/`, one Comparative Brand Audit V0 JSON file under
-`comparative-audits/`, and a linked schema-v0 Work Record fixture. Both fixtures
+under `intake/`, a project-derived Browser Evidence planning manifest skeleton
+plus local-fixture Browser Evidence Capture V0 manifest and registry under
+`browser-evidence/`, Company Brand Audit V0 JSON files under `company-audits/`,
+one Comparative Brand Audit V0 JSON file under `comparative-audits/`, and a
+linked schema-v0 Work Record fixture. Both fixtures
 use one stable `aos.workbench.subject` with `subject_type:
 "aos.artifact_bundle"`. The descriptors use canonical v-next fields only:
 high-level `capabilities[]`, dotted operation contracts in `contracts[]`,
@@ -765,13 +766,13 @@ creating a second evidence viewer.
 
 The inspector also surfaces source/evidence file metadata from the selected
 artifact's own `files[]`, including Employer Brand Audit Project V0 intake
-paths, Browser Evidence Capture V0 manifest, registry, local fixture page, crop
-asset paths, and Company Brand Audit V0 JSON paths plus Comparative Brand Audit
-V0 JSON paths when present. This metadata is inspectable and provenance-only
-inside the existing Artifact Bundle inspector. It does not add another evidence
-viewer, project viewer, company audit viewer, comparative audit viewer, browser
-collection route, replay/repair control, exporter, workflow engine, or public
-`aos` command.
+paths, Browser Evidence Capture V0 planning manifest skeleton, capture
+manifest, registry, local fixture page, crop asset paths, and Company Brand
+Audit V0 JSON paths plus Comparative Brand Audit V0 JSON paths when present.
+This metadata is inspectable and provenance-only inside the existing Artifact
+Bundle inspector. It does not add another evidence viewer, project viewer,
+company audit viewer, comparative audit viewer, browser collection route,
+replay/repair control, exporter, workflow engine, or public `aos` command.
 
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing
@@ -1072,12 +1073,15 @@ skeleton. The wrapper script is
 `node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`.
 This bridge does not collect websites, infer competitors, generate reports,
 execute exports, replay, repair, run macros, create a workflow engine, or add a
-public `aos` command.
+public `aos` command. The checked-in Employer Brand fixture stores that compiler
+output as `browser-evidence/planning-manifest-skeleton.json`; it is
+planned-request provenance, not captured evidence.
 
 The Employer Brand Artifact Bundle fixture demonstrates the handoff at:
 
 ```text
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/planning-manifest-skeleton.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/intake/project.json
 docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/company-audits/*.json

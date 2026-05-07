@@ -279,6 +279,9 @@ function createSourceEvidenceMetadata(artifact = null) {
     browser_evidence_manifest_paths: browserEvidenceEntries
       .filter((entry) => entry.role === 'browser_evidence_manifest')
       .map((entry) => entry.path),
+    browser_evidence_planning_manifest_paths: browserEvidenceEntries
+      .filter((entry) => entry.role === 'browser_evidence_planning_manifest')
+      .map((entry) => entry.path),
     local_fixture_page_count: browserEvidenceEntries
       .filter((entry) => entry.role === 'browser_evidence_fixture_page')
       .length,

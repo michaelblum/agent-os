@@ -43,6 +43,7 @@
           "evidence:markdown-report",
           "evidence:sources-metadata",
           "evidence:employer-brand-audit-project",
+          "evidence:browser-evidence-planning-manifest",
           "evidence:subject-descriptor",
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
@@ -53,6 +54,7 @@
           "evidence:comparative-brand-audit",
           "evidence:browser-evidence-fixture-assets"
         ],
+        "browser_evidence_planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
         "browser_evidence_registry_path": "browser-evidence/registry.json",
         "browser_evidence_manifest_path": "browser-evidence/manifest.json",
         "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
@@ -105,6 +107,34 @@
       }
     },
     {
+      "id": "browser-evidence-planning-manifest",
+      "relationship": "records_planned_browser_evidence_requests",
+      "handle": "browser-evidence-planning-manifest:symphony-talent-phenom-radancy",
+      "subject_id": "browser-evidence-planning-manifest:symphony-talent-phenom-radancy",
+      "subject_type": "aos.browser_evidence_capture_manifest",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "descriptor",
+      "role": "browser_evidence_planning_manifest",
+      "metadata": {
+        "path": "browser-evidence/planning-manifest-skeleton.json",
+        "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "source_project_path": "intake/project.json",
+        "source_project_id": "employer-brand-audit-project:symphony-talent-phenom-radancy",
+        "compiler": "2026-05-employer-brand-project-browser-evidence-v0",
+        "request_count": 21,
+        "deterministic_planning_bridge": true,
+        "skeleton_only": true,
+        "planned_requests_only": true,
+        "local_fixture_pages_only": true,
+        "live_websites": false,
+        "remote_web_collection": false,
+        "autonomous_browsing": false,
+        "collection_execution": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
       "id": "browser-evidence-registry",
       "relationship": "records_fixture_evidence",
       "handle": "browser-evidence-registry:employer-brand-comparative-audit-fixture",
@@ -116,6 +146,7 @@
       "metadata": {
         "registry_path": "browser-evidence/registry.json",
         "manifest_path": "browser-evidence/manifest.json",
+        "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
         "fixture_page_paths": [
           "browser-evidence/html/symphony-talent-careers.html",
           "browser-evidence/html/phenom-careers.html",
@@ -362,6 +393,28 @@
           }
         },
         {
+          "path": "browser-evidence/planning-manifest-skeleton.json",
+          "role": "browser_evidence_planning_manifest",
+          "media_type": "application/json",
+          "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-planning-manifest",
+            "source_project_path": "intake/project.json",
+            "source_project_id": "employer-brand-audit-project:symphony-talent-phenom-radancy",
+            "request_count": 21,
+            "deterministic_planning_bridge": true,
+            "skeleton_only": true,
+            "planned_requests_only": true,
+            "local_fixture_pages_only": true,
+            "live_websites": false,
+            "remote_web_collection": false,
+            "autonomous_browsing": false,
+            "collection_execution": false
+          }
+        },
+        {
           "path": "work-record.json",
           "role": "work_record_fixture",
           "media_type": "application/json"
@@ -579,6 +632,7 @@
           "docs/design/open-design-workbench-cross-reference.md"
         ],
         "browser_evidence_manifest": "browser-evidence/manifest.json",
+        "browser_evidence_planning_manifest": "browser-evidence/planning-manifest-skeleton.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
         "browser_evidence_schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
         "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
@@ -603,6 +657,7 @@
           "evidence:markdown-report",
           "evidence:sources-metadata",
           "evidence:employer-brand-audit-project",
+          "evidence:browser-evidence-planning-manifest",
           "evidence:subject-descriptor",
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
@@ -646,6 +701,12 @@
             "id": "browser-evidence-manifest-present",
             "kind": "file_presence",
             "target": "browser-evidence/manifest.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "browser-evidence-planning-manifest-present",
+            "kind": "file_presence",
+            "target": "browser-evidence/planning-manifest-skeleton.json",
             "status": "unchecked"
           },
           {
@@ -703,6 +764,8 @@
     "browser_evidence_capture_v0": {
       "registry_path": "browser-evidence/registry.json",
       "manifest_path": "browser-evidence/manifest.json",
+      "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+      "planning_manifest_skeleton_only": true,
       "local_fixture_pages_only": true,
       "live_websites": false,
       "read_only": true,

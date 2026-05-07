@@ -670,7 +670,10 @@ test('wiki subject browser catalog opens Employer Brand artifact bundle with rep
     'aos://repo-test/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/report.md',
   );
   assert.equal(previewSnapshot.selected_work_record_link.can_open, true);
-  assert.equal(previewSnapshot.selected_work_record_summary.evidence_ref_count, 7);
+  assert.equal(previewSnapshot.selected_work_record_summary.evidence_ref_count, 13);
+  assert.deepEqual(previewSnapshot.selected_source_evidence_metadata.browser_evidence_planning_manifest_paths, [
+    'browser-evidence/planning-manifest-skeleton.json',
+  ]);
   assert.deepEqual(previewSnapshot.selected_source_evidence_metadata.browser_evidence_registry_paths, [
     'browser-evidence/registry.json',
   ]);
@@ -681,10 +684,10 @@ test('wiki subject browser catalog opens Employer Brand artifact bundle with rep
   assert.equal(evidenceResult.status, 'opened');
   assert.equal(evidenceResult.read_only, true);
   assert.equal(evidenceSnapshot.linked_work_record_open.open_message.type, 'work_record.open');
-  assert.equal(evidenceSnapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 7);
+  assert.equal(evidenceSnapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 13);
   assert.equal(evidenceSnapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(evidenceSnapshot.selected_work_record_summary.snapshot_available, true);
-  assert.equal(evidenceSnapshot.selected_work_record_summary.verified_claim_count, 4);
+  assert.equal(evidenceSnapshot.selected_work_record_summary.verified_claim_count, 8);
 });
 
 test('wiki subject browser exposes named shell manifest and semantic launch refs', async () => {

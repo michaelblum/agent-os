@@ -16,6 +16,10 @@ const projectFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/intake/project.json',
 );
+const planningManifestFixturePath = path.join(
+  repoRoot,
+  'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/planning-manifest-skeleton.json',
+);
 
 async function readJson(file) {
   return JSON.parse(await fs.readFile(file, 'utf8'));
@@ -85,6 +89,7 @@ function companyNamesFromProject(project) {
 }
 
 function assertLocalOnlyManifest(manifest) {
+  assert.equal(manifest.type, 'aos.browser_evidence_capture_manifest');
   assert.equal(manifest.metadata.deterministic_planning_bridge, true);
   assert.equal(manifest.metadata.skeleton_only, true);
   assert.equal(manifest.metadata.local_fixture_pages_only, true);
@@ -95,6 +100,8 @@ function assertLocalOnlyManifest(manifest) {
   assert.equal(manifest.metadata.workflow_execution, false);
   assert.equal(manifest.metadata.report_generation, false);
   assert.equal(manifest.metadata.export_execution, false);
+  assert.equal('evidence' in manifest, false);
+  assert.equal('capture_metadata' in manifest, false);
 
   for (const request of manifest.requests) {
     assert.doesNotMatch(request.url, /^[a-zA-Z][a-zA-Z0-9+.-]*:/);
@@ -103,6 +110,15 @@ function assertLocalOnlyManifest(manifest) {
     assert.match(request.selector, /^\[data-browser-evidence-request="/);
     assert.deepEqual(request.kilos_relevance, []);
     assert.deepEqual(request.kilos_factors, []);
+  }
+}
+
+function assertDoesNotCopyLiveUrls(manifest, project) {
+  for (const liveUrl of [
+    project.intake.client_company.website_url,
+    ...project.intake.competitor_companies.map((company) => company.website_url),
+  ]) {
+    assert.equal(collectStrings(manifest).includes(liveUrl), false, `manifest should not copy ${liveUrl}`);
   }
 }
 
@@ -238,12 +254,21 @@ test('compiles the Symphony/Phenom/Radancy project fixture into a local-only pla
     }
   }
 
-  for (const liveUrl of [
-    project.intake.client_company.website_url,
-    ...project.intake.competitor_companies.map((company) => company.website_url),
-  ]) {
-    assert.equal(collectStrings(manifest).includes(liveUrl), false, `manifest should not copy ${liveUrl}`);
-  }
+  assertDoesNotCopyLiveUrls(manifest, project);
+});
+
+test('checked-in planning manifest skeleton matches the project compiler output', async () => {
+  const project = await readJson(projectFixturePath);
+  const manifest = await readJson(planningManifestFixturePath);
+  const compiled = compileBrowserEvidenceManifestFromEmployerBrandAuditProject(project);
+  const validation = validateJson(planningManifestFixturePath);
+
+  assert.equal(validation.status, 0, `${validation.stdout}${validation.stderr}`);
+  assert.deepEqual(manifest, compiled);
+  assert.equal(manifest.requests.length, 21);
+  assert.equal(manifest.metadata.request_count, manifest.requests.length);
+  assertLocalOnlyManifest(manifest);
+  assertDoesNotCopyLiveUrls(manifest, project);
 });
 
 test('compiles arbitrary project fixtures without inherited companies or non-applicable source categories', async () => {

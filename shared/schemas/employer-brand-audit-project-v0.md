@@ -44,6 +44,7 @@ relative paths to the read-only provenance files:
   "artifact_bundle_subject_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json",
   "work_record_id": "work-record:employer-brand-comparative-audit-fixture",
   "work_record_path": "work-record.json",
+  "browser_evidence_planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
   "browser_evidence_manifest_path": "browser-evidence/manifest.json",
   "browser_evidence_registry_path": "browser-evidence/registry.json",
   "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
@@ -74,9 +75,11 @@ script
 derive a manifest skeleton from explicit fixture data only: the client company,
 competitor companies, and source categories. The generated requests use local
 placeholder fixture paths and selectors so an analyst can fill in local pages
-before running capture. The bridge does not fetch websites, infer competitors,
-generate reports, execute exports, replay, repair, run macros, or act as a
-workflow engine.
+before running capture. When stored in an Artifact Bundle, the planning
+manifest should remain separate from the capture manifest and registry; it is
+read-only planned-request provenance, not collected evidence. The bridge does
+not fetch websites, infer competitors, generate reports, execute exports,
+replay, repair, run macros, or act as a workflow engine.
 
 ## Pilot Fixture Location
 
