@@ -11,7 +11,7 @@ const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 
 function usage() {
-  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts] [--keep|--clean]
+  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
 
 Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 .docks/gdi-foreman template, launches the GDI role, waits for
@@ -21,7 +21,8 @@ Each role is run as a one-shot Codex execution using codex exec from the
 generated role directory so role-local hooks are discovered.
 
 Generated workflow state is kept by default for inspection. Use --clean to
-remove .aos-test-tmp/workflows/<id>/ after completion or interruption.`;
+remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
+TTS hooks are enabled by default; use --no-tts for a quiet run.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -37,7 +38,7 @@ export function parseArgs(argv) {
     workflowId: null,
     codexBin: defaultCodexBin,
     gdiTaskFile: null,
-    tts: false,
+    tts: true,
     keep: true,
     help: false,
   };
@@ -57,6 +58,8 @@ export function parseArgs(argv) {
       index += 1;
     } else if (arg === '--tts') {
       args.tts = true;
+    } else if (arg === '--no-tts') {
+      args.tts = false;
     } else if (arg === '--keep') {
       args.keep = true;
     } else if (arg === '--clean') {

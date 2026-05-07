@@ -82,9 +82,14 @@ The supervisor concatenates `role.md` and rendered `task.md` at launch time;
 Run state is kept by default for inspection. Add `--clean` to remove the
 generated workflow directory after completion or interruption.
 
-Add `--tts` to the docked launcher when the generated role-local Stop hooks
-should speak completion messages. GDI speaks "GDI finished, foreman starting."
-and foreman speaks "Foreman finished." through `./aos voice final-response`.
+The docked launcher enables role-local TTS by default. Add `--no-tts` for a
+quiet run. The generated Stop hooks bind each Codex session through the AOS
+voice registry before speaking: GDI uses
+`./aos voice bind --quality-tier premium --language en --gender female`, and
+foreman uses
+`./aos voice bind --quality-tier premium --language en --gender male`. The
+concrete voices can vary by run, but the role voices remain distinct when the
+registry has speakable premium voices for both filters.
 
 ## What The Hooks Do
 

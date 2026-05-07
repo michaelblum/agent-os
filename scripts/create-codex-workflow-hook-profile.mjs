@@ -256,8 +256,14 @@ except ValueError:
 PY
 
 case "$ROLE" in
-  gdi) MESSAGE="GDI finished, foreman starting." ;;
-  foreman) MESSAGE="Foreman finished." ;;
+  gdi)
+    MESSAGE="GDI finished, foreman starting."
+    VOICE_BIND_FILTERS=(--quality-tier premium --language en --gender female)
+    ;;
+  foreman)
+    MESSAGE="Foreman finished."
+    VOICE_BIND_FILTERS=(--quality-tier premium --language en --gender male)
+    ;;
   *) printf '{"continue":true}\\n'; exit 0 ;;
 esac
 
@@ -300,6 +306,7 @@ PY
 )"
 
 if [[ -n "$SESSION_ID" ]]; then
+  "$AOS_BIN" voice bind --session-id "$SESSION_ID" "\${VOICE_BIND_FILTERS[@]}" >/dev/null 2>&1 || true
   "$AOS_BIN" voice final-response --harness codex --session-id "$SESSION_ID" <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
 else
   "$AOS_BIN" voice final-response --harness codex <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
@@ -403,9 +410,12 @@ ${options.gdiHandoff ? `The GDI role also has an optional Stop hook that pipes h
 best-effort clipboard copy of that packet path.` : `The optional GDI handoff hook was not enabled for this profile. Regenerate with
 \`--gdi-handoff\` when you want the GDI Stop hook to write a handoff packet.`}
 
-${options.tts ? `Role-local TTS is enabled for this profile. The GDI Stop hook speaks
-\`GDI finished, foreman starting.\`; the foreman Stop hook speaks
-\`Foreman finished.\` Both calls go through \`${repoRoot}/aos voice final-response\`.` : `Role-local TTS is disabled for this profile. Regenerate with \`--tts\` when you
+${options.tts ? `Role-local TTS is enabled for this profile. The GDI Stop hook binds
+the session with \`${repoRoot}/aos voice bind --quality-tier premium --language en --gender female\`
+and speaks \`GDI finished, foreman starting.\`; the foreman Stop hook binds
+the session with \`${repoRoot}/aos voice bind --quality-tier premium --language en --gender male\`
+and speaks \`Foreman finished.\`. Speech delivery goes through
+\`${repoRoot}/aos voice final-response\`.` : `Role-local TTS is disabled for this profile. Regenerate with \`--tts\` when you
 want the GDI and foreman Stop hooks to speak completion messages.`}
 `;
 }

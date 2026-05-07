@@ -197,7 +197,7 @@ test('parses supervisor arguments', () => {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
     gdiTaskFile: null,
-    tts: false,
+    tts: true,
     keep: true,
     help: false,
   });
@@ -205,7 +205,7 @@ test('parses supervisor arguments', () => {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     gdiTaskFile: null,
-    tts: false,
+    tts: true,
     keep: false,
     help: false,
   });
@@ -214,6 +214,14 @@ test('parses supervisor arguments', () => {
     codexBin: 'codex',
     gdiTaskFile: 'task.md',
     tts: true,
+    keep: true,
+    help: false,
+  });
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--no-tts']), {
+    workflowId: 'pilot-1',
+    codexBin: 'codex',
+    gdiTaskFile: null,
+    tts: false,
     keep: true,
     help: false,
   });
@@ -265,8 +273,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.match(records[1].roleFile, /You are the foreman role/);
     assert.match(records[0].taskFile, /\{\{taskBody\}\}/);
     assert.match(records[1].taskFile, /Read the GDI handoff sentinel/);
-    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
-    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
+    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
+    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
     assert.match(records[0].roleReadme, /GDI Role Dock/);
     assert.match(records[1].roleReadme, /Foreman Role Dock/);
     assert.doesNotMatch(records[0].roleFile, /\{\{repoRoot\}\}/);
@@ -465,7 +473,7 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
   }
 });
 
-test('run-workflow enables role-local TTS hooks only with --tts', async () => {
+test('run-workflow disables role-local TTS hooks with --no-tts', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-tts-'));
   const id = `test-run-workflow-tts-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -478,7 +486,7 @@ test('run-workflow enables role-local TTS hooks only with --tts', async () => {
       id,
       '--codex-bin',
       fakeCodex,
-      '--tts',
+      '--no-tts',
     ], {
       cwd: repoRoot,
       env: {
@@ -490,8 +498,8 @@ test('run-workflow enables role-local TTS hooks only with --tts', async () => {
     assert.equal(result.status, 0, result.stderr);
 
     const records = await readRecords(recordPath);
-    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
-    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
+    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
+    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
   } finally {
     await rm(dir, { recursive: true, force: true });
     await rm(tempRoot, { recursive: true, force: true });

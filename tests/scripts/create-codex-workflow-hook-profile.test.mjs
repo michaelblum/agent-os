@@ -229,11 +229,37 @@ process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
       .trim()
       .split(/\r?\n/)
       .map((line) => JSON.parse(line));
-    assert.equal(calls.length, 2);
-    assert.deepEqual(calls[0].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'gdi-session']);
-    assert.deepEqual(calls[1].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'foreman-session']);
-    assert.equal(JSON.parse(calls[0].stdin).last_assistant_message, 'GDI finished, foreman starting.');
-    assert.equal(JSON.parse(calls[1].stdin).last_assistant_message, 'Foreman finished.');
+    assert.equal(calls.length, 4);
+    assert.deepEqual(calls[0].argv, [
+      'voice',
+      'bind',
+      '--session-id',
+      'gdi-session',
+      '--quality-tier',
+      'premium',
+      '--language',
+      'en',
+      '--gender',
+      'female',
+    ]);
+    assert.deepEqual(calls[1].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'gdi-session']);
+    assert.deepEqual(calls[2].argv, [
+      'voice',
+      'bind',
+      '--session-id',
+      'foreman-session',
+      '--quality-tier',
+      'premium',
+      '--language',
+      'en',
+      '--gender',
+      'male',
+    ]);
+    assert.deepEqual(calls[3].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'foreman-session']);
+    assert.equal(calls[0].stdin, '');
+    assert.equal(JSON.parse(calls[1].stdin).last_assistant_message, 'GDI finished, foreman starting.');
+    assert.equal(calls[2].stdin, '');
+    assert.equal(JSON.parse(calls[3].stdin).last_assistant_message, 'Foreman finished.');
   } finally {
     await rm(disabledDir, { recursive: true, force: true });
     await rm(enabledDir, { recursive: true, force: true });
