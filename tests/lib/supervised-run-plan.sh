@@ -7,6 +7,9 @@ aos_supervised_run_plan_requires_runtime() {
     dry-run)
       return 1
       ;;
+    run-puck-hitl)
+      return 0
+      ;;
     *)
       echo "FAIL: unknown supervised-run plan: $plan_name" >&2
       return 2
@@ -37,6 +40,38 @@ aos_supervised_run_write_plan() {
     "check_id": "check:dry-run-status-ready",
     "human_request_id": "request:dry-run-confirm-status"
   }
+}
+JSON
+      ;;
+    run-puck-hitl)
+      mkdir -p "$run_dir"
+      cat >"$run_dir/plan.json" <<'JSON'
+{
+  "id": "plan:run-puck-hitl-pilot-v0",
+  "label": "Supervised Run Puck HITL Pilot V0",
+  "kind": "run-puck-hitl",
+  "run_id": "supervised-run:run-puck-hitl-pilot-v0",
+  "requires_runtime_aos": true,
+  "operating_path": "agent/dev/testing/headed/real-input/hitl-sidecar",
+  "intent_summary": "Execute the first real supervised-run HITL pilot around a run-puck-like AOS canvas, a file-backed test console, an automated canvas wait, a recorded input advance, and two human confirmations.",
+  "steps": [
+    {
+      "id": "step:run-puck-confirm-paused",
+      "label": "Confirm run puck placement and paused state",
+      "instruction_id": "instruction:run-puck-observe-paused",
+      "expectation_id": "expectation:run-puck-paused-visible",
+      "check_id": "check:run-puck-show-wait-paused",
+      "human_request_id": "request:run-puck-confirm-paused"
+    },
+    {
+      "id": "step:run-puck-confirm-advanced",
+      "label": "Confirm run puck advanced state",
+      "instruction_id": "instruction:run-puck-observe-advanced",
+      "expectation_id": "expectation:run-puck-advanced-visible",
+      "check_id": "check:run-puck-show-wait-advanced",
+      "human_request_id": "request:run-puck-confirm-advanced"
+    }
+  ]
 }
 JSON
       ;;

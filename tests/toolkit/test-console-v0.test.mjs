@@ -248,6 +248,7 @@ test('test console exposes stable semantic refs for xray and do-target routing',
   assert.match(launch, /--manifest test-console-v0/);
   assert.match(launch, /test_console\.load/);
   assert.match(launch, /RUN_DIR/);
+  assert.match(launch, /EXPECTED_STEP_ID/);
   assert.match(writeResponse, /show eval/);
   assert.match(writeResponse, /aos_supervised_run_append_response_event/);
   assert.doesNotMatch(indexJs, /data-action="[^"]*(replay|repair|macro)[^"]*"/i);

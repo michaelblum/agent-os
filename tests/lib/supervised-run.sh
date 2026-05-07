@@ -233,7 +233,7 @@ for check in step.get("automated_checks", []):
 run = {
     "type": "aos.supervised_run",
     "schema_version": "2026-05-supervised-run-v0",
-    "id": "supervised-run:dry-run-shell-harness-kernel-v0",
+    "id": plan.get("run_id") or "supervised-run:dry-run-shell-harness-kernel-v0",
     "label": plan.get("label") or "Supervised run deterministic dry run",
     "created_at": events[0].get("at") if events else "2026-05-06T18:00:00Z",
     "status": step.get("status", "waiting_for_human"),

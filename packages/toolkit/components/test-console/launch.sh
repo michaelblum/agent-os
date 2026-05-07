@@ -14,6 +14,7 @@ PANEL_H="${AOS_TEST_CONSOLE_H:-740}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 RUN_DIR="${RUN_DIR:-}"
 RUN_FIXTURE="${RUN_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-supervised-run-v0/valid/dry-run-human-confirmed.json}"
+EXPECTED_STEP_ID="step:dry-run-confirm-status"
 
 if [[ ! -x "$AOS" ]]; then
   echo "aos binary not found at $AOS" >&2
@@ -26,6 +27,15 @@ if [[ -n "$RUN_DIR" ]]; then
     echo "Supervised-run current step not found: $RUN_DIR/state/current-step.json" >&2
     exit 1
   fi
+  EXPECTED_STEP_ID="$(python3 - "$RUN_DIR/state/current-step.json" <<'PY'
+import json
+import pathlib
+import sys
+
+step = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(step["id"])
+PY
+)"
 elif [[ ! -f "$RUN_FIXTURE" ]]; then
   echo "Supervised-run fixture not found: $RUN_FIXTURE" >&2
   exit 1
@@ -97,11 +107,12 @@ print(json.dumps({
 fi
 
 "$AOS" show post --id "$CANVAS_ID" --event "$CONTENT_JSON" >/dev/null
+EXPECTED_STEP_ID_JSON="$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$EXPECTED_STEP_ID")"
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
   --manifest test-console-v0 \
-  --js 'window.__testConsoleState?.step_id === "step:dry-run-confirm-status" && document.querySelector("[data-aos-ref=\"test-console-v0:response-confirm\"]")' \
+  --js "window.__testConsoleState?.step_id === ${EXPECTED_STEP_ID_JSON} && document.querySelector('[data-aos-ref=\"test-console-v0:response-confirm\"]')" \
   --timeout 5s >/dev/null
 
 echo "Supervised Run Test Console V0 launched at ${X},${Y} (${W}x${H})"
