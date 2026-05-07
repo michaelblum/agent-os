@@ -172,6 +172,15 @@ async function readRecords(recordPath) {
   return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
+function assertCodexExecInvocation(record) {
+  assert.equal(record.argv[0], 'exec');
+  assert.deepEqual(record.argv.slice(1, 3), ['--cd', repoRoot]);
+}
+
+function promptArg(record) {
+  return record.argv.slice(3).join(' ');
+}
+
 test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
     workflowId: 'pilot-1',
@@ -198,7 +207,7 @@ test('parses supervisor arguments', () => {
   assert.throws(() => parseArgs(['--gdi-task-file']), /--gdi-task-file requires a value/);
 });
 
-test('run-workflow seeds the dock template, launches GDI then foreman, and keeps state by default', async () => {
+test('run-workflow seeds the dock template, launches GDI then foreman with codex exec, and keeps state by default', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-'));
   const id = `test-run-workflow-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -225,12 +234,12 @@ test('run-workflow seeds the dock template, launches GDI then foreman, and keeps
     assert.deepEqual(records.map((record) => record.role), ['gdi', 'foreman']);
     assert.equal(records[0].cwd, path.join(dir, 'gdi'));
     assert.equal(records[1].cwd, path.join(dir, 'foreman'));
-    assert.deepEqual(records[0].argv.slice(0, 2), ['--cd', repoRoot]);
-    assert.deepEqual(records[1].argv.slice(0, 2), ['--cd', repoRoot]);
-    const gdiPrompt = records[0].argv.slice(2).join(' ');
+    assertCodexExecInvocation(records[0]);
+    assertCodexExecInvocation(records[1]);
+    const gdiPrompt = promptArg(records[0]);
     assert.match(gdiPrompt, /You are the GDI role/);
     assert.match(gdiPrompt, /handoff\/ready-for-foreman\.json/);
-    const foremanPrompt = records[1].argv.slice(2).join(' ');
+    const foremanPrompt = promptArg(records[1]);
     assert.match(foremanPrompt, /You are the foreman role/);
     assert.match(foremanPrompt, /handoff\/ready-for-foreman\.json/);
     assert.match(foremanPrompt, /handoff\/done\.json/);
@@ -358,7 +367,7 @@ test('run-workflow waits for foreman to exit after done sentinel before completi
   }
 });
 
-test('run-workflow appends a GDI task file to the launched GDI prompt', async () => {
+test('run-workflow appends a GDI task file to the codex exec GDI prompt', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-task-'));
   const id = `test-run-workflow-task-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -388,8 +397,10 @@ test('run-workflow appends a GDI task file to the launched GDI prompt', async ()
     assert.equal(result.status, 0, result.stderr);
 
     const records = await readRecords(recordPath);
-    const gdiPrompt = records[0].argv.slice(2).join(' ');
-    const foremanPrompt = records[1].argv.slice(2).join(' ');
+    assertCodexExecInvocation(records[0]);
+    assertCodexExecInvocation(records[1]);
+    const gdiPrompt = promptArg(records[0]);
+    const foremanPrompt = promptArg(records[1]);
     assert.match(gdiPrompt, /## Concrete Task/);
     assert.match(gdiPrompt, /Fix exactly the GDI\/foreman ordering race/);
     assert.match(gdiPrompt, /Keep the sentinel watcher intact/);

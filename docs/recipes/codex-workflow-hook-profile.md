@@ -56,6 +56,11 @@ directories, launches GDI, waits for both `handoff/ready-for-foreman.json` and
 the GDI Codex process exit, then launches foreman and waits for both
 `handoff/done.json` and the foreman Codex process exit.
 
+The supervisor launches each role as a one-shot `codex exec` run from that
+role's generated directory, with `--cd /Users/Michael/Code/agent-os` preserved
+so the role works against the real repo while Codex still discovers the
+role-local `.codex/hooks.json`.
+
 To append a concrete task body to the launched GDI prompt without editing the
 dock template:
 
