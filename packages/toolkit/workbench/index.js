@@ -10,5 +10,6 @@ export * from './work-record.js';
 export * from './playbook-step-harness.js';
 export * from './browser-playbook-prototype.js';
 export * from './browser-evidence-capture.js';
+export * from './browser-evidence-coverage.js';
 export * from './employer-brand-project-browser-evidence.js';
 export * from './workflow-subject.js';

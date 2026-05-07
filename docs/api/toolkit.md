@@ -769,6 +769,14 @@ artifact's own `files[]`, including Employer Brand Audit Project V0 intake
 paths, Browser Evidence Capture V0 planning manifest skeleton, capture
 manifest, registry, local fixture page, crop asset paths, and Company Brand
 Audit V0 JSON paths plus Comparative Brand Audit V0 JSON paths when present.
+For Browser Evidence fixtures, source metadata can also carry a read-only
+planning-vs-captured coverage summary. The helper
+`summarizeBrowserEvidencePlanningCoverage(planningManifest, capturedRegistry)`
+compares a planning manifest with a captured registry by stable `request_id`,
+reports planned and captured counts, missing planned request IDs, extra captured
+request IDs, and per-company/source-category coverage rows. The Employer Brand
+fixture exposes that summary on the existing Browser Evidence registry file
+metadata in the Artifact Bundle inspector.
 This metadata is inspectable and provenance-only inside the existing Artifact
 Bundle inspector. It does not add another evidence viewer, project viewer,
 company audit viewer, comparative audit viewer, browser collection route,
@@ -1076,6 +1084,10 @@ execute exports, replay, repair, run macros, create a workflow engine, or add a
 public `aos` command. The checked-in Employer Brand fixture stores that compiler
 output as `browser-evidence/planning-manifest-skeleton.json`; it is
 planned-request provenance, not captured evidence.
+The companion coverage helper compares that skeleton with the captured
+`browser-evidence/registry.json` fixture and is deterministic metadata only; it
+does not collect, replay, repair, browse, generate reports, execute exports, or
+start a workflow.
 
 The Employer Brand Artifact Bundle fixture demonstrates the handoff at:
 

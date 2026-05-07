@@ -443,7 +443,315 @@
             "evidence_ref": "evidence:browser-evidence-registry",
             "manifest_path": "browser-evidence/manifest.json",
             "local_fixture_pages_only": true,
-            "live_websites": false
+            "live_websites": false,
+            "browser_evidence_coverage_summary": {
+              "type": "aos.browser_evidence_coverage_summary",
+              "schema_version": "2026-05-browser-evidence-coverage-v0",
+              "planning_manifest_id": "manifest:symphony-talent-phenom-radancy-browser-evidence-planning-skeleton",
+              "captured_manifest_id": "manifest:employer-brand-comparative-audit-browser-evidence-fixture",
+              "registry_status": "completed",
+              "planned_count": 21,
+              "captured_count": 3,
+              "captured_status_count": 3,
+              "matched_request_count": 0,
+              "missing_planned_count": 21,
+              "extra_captured_count": 3,
+              "missing_planned_request_ids": [
+                "symphony_talent_careers_site_planning",
+                "symphony_talent_employer_brand_pages_planning",
+                "symphony_talent_linkedin_presence_planning",
+                "symphony_talent_review_platforms_planning",
+                "symphony_talent_social_campaigns_planning",
+                "symphony_talent_awards_recognition_planning",
+                "symphony_talent_employee_stories_planning",
+                "phenom_careers_site_planning",
+                "phenom_employer_brand_pages_planning",
+                "phenom_linkedin_presence_planning",
+                "phenom_review_platforms_planning",
+                "phenom_social_campaigns_planning",
+                "phenom_awards_recognition_planning",
+                "phenom_employee_stories_planning",
+                "radancy_careers_site_planning",
+                "radancy_employer_brand_pages_planning",
+                "radancy_linkedin_presence_planning",
+                "radancy_review_platforms_planning",
+                "radancy_social_campaigns_planning",
+                "radancy_awards_recognition_planning",
+                "radancy_employee_stories_planning"
+              ],
+              "extra_captured_request_ids": [
+                "symphony_talent_fixture_evp_hero",
+                "phenom_fixture_culture_card",
+                "radancy_fixture_proof_block"
+              ],
+              "by_company_source_category": [
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "careers_site",
+                  "planned_count": 1,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 1,
+                  "coverage_status": "captured_without_matching_request_id"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "employer_brand_pages",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "linkedin_presence",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "review_platforms",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "social_campaigns",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "awards_recognition",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Symphony Talent",
+                  "source_category": "employee_stories",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "careers_site",
+                  "planned_count": 1,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 1,
+                  "coverage_status": "captured_without_matching_request_id"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "employer_brand_pages",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "linkedin_presence",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "review_platforms",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "social_campaigns",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "awards_recognition",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Phenom",
+                  "source_category": "employee_stories",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "careers_site",
+                  "planned_count": 1,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 1,
+                  "coverage_status": "captured_without_matching_request_id"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "employer_brand_pages",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "linkedin_presence",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "review_platforms",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "social_campaigns",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "awards_recognition",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                },
+                {
+                  "company": "Radancy",
+                  "source_category": "employee_stories",
+                  "planned_count": 1,
+                  "captured_count": 0,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 1,
+                  "extra_captured_count": 0,
+                  "coverage_status": "missing"
+                }
+              ],
+              "by_company": [
+                {
+                  "company": "Symphony Talent",
+                  "planned_count": 7,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 7,
+                  "extra_captured_count": 1,
+                  "source_categories": [
+                    "careers_site",
+                    "employer_brand_pages",
+                    "linkedin_presence",
+                    "review_platforms",
+                    "social_campaigns",
+                    "awards_recognition",
+                    "employee_stories"
+                  ]
+                },
+                {
+                  "company": "Phenom",
+                  "planned_count": 7,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 7,
+                  "extra_captured_count": 1,
+                  "source_categories": [
+                    "careers_site",
+                    "employer_brand_pages",
+                    "linkedin_presence",
+                    "review_platforms",
+                    "social_campaigns",
+                    "awards_recognition",
+                    "employee_stories"
+                  ]
+                },
+                {
+                  "company": "Radancy",
+                  "planned_count": 7,
+                  "captured_count": 1,
+                  "matched_request_count": 0,
+                  "missing_planned_count": 7,
+                  "extra_captured_count": 1,
+                  "source_categories": [
+                    "careers_site",
+                    "employer_brand_pages",
+                    "linkedin_presence",
+                    "review_platforms",
+                    "social_campaigns",
+                    "awards_recognition",
+                    "employee_stories"
+                  ]
+                }
+              ],
+              "read_only": true,
+              "provenance_only": true
+            }
           }
         },
         {

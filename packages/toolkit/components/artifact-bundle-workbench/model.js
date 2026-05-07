@@ -4,6 +4,9 @@ import {
   createArtifactBundleSubject,
 } from '../../workbench/artifact-bundle-subject.js';
 import {
+  cloneBrowserEvidenceCoverageSummary,
+} from '../../workbench/browser-evidence-coverage.js';
+import {
   createWorkRecordWorkbenchState,
   openWorkRecord,
   workRecordWorkbenchSnapshot,
@@ -229,6 +232,7 @@ function createWorkRecordEvidenceSummary(link = null, openResult = null) {
 function createSourceEvidenceMetadata(artifact = null) {
   if (!artifact) return null;
   const artifactId = text(artifact.id, 'artifact');
+  const coverageSummary = browserEvidenceCoverageSummaryForArtifact(artifact, artifactId);
   const entries = arrayValue(artifact.files)
     .map((file) => objectValue(file))
     .filter((file) => {
@@ -282,6 +286,7 @@ function createSourceEvidenceMetadata(artifact = null) {
     browser_evidence_planning_manifest_paths: browserEvidenceEntries
       .filter((entry) => entry.role === 'browser_evidence_planning_manifest')
       .map((entry) => entry.path),
+    browser_evidence_coverage_summary: coverageSummary,
     local_fixture_page_count: browserEvidenceEntries
       .filter((entry) => entry.role === 'browser_evidence_fixture_page')
       .length,
@@ -290,6 +295,43 @@ function createSourceEvidenceMetadata(artifact = null) {
       .length,
     entries,
   };
+}
+
+function browserEvidenceCoverageSummaryForArtifact(artifact = {}, artifactId = '') {
+  const provenance = objectValue(artifact.provenance);
+  const provenanceSummary = cloneBrowserEvidenceCoverageSummary(
+    provenance.browser_evidence_coverage_summary
+      || provenance.browser_evidence_planning_coverage_summary,
+  );
+  if (provenanceSummary) {
+    return {
+      ...provenanceSummary,
+      artifact_id: text(artifactId, 'artifact'),
+      semantic_ref: ref('source-evidence', 'browser-evidence-coverage', artifactId),
+      read_only: true,
+      provenance_only: true,
+    };
+  }
+
+  for (const file of arrayValue(artifact.files)) {
+    const metadata = objectValue(file?.metadata);
+    const summary = cloneBrowserEvidenceCoverageSummary(
+      metadata.browser_evidence_coverage_summary
+        || metadata.browser_evidence_planning_coverage_summary
+        || metadata.coverage_summary,
+    );
+    if (summary) {
+      return {
+        ...summary,
+        artifact_id: text(artifactId, 'artifact'),
+        source_file_path: text(file.path) || null,
+        semantic_ref: ref('source-evidence', 'browser-evidence-coverage', artifactId),
+        read_only: true,
+        provenance_only: true,
+      };
+    }
+  }
+  return null;
 }
 
 function galleryEntry(artifact = {}, selectedId = '') {

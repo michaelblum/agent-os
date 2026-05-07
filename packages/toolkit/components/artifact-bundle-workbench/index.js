@@ -85,6 +85,7 @@ function renderFileList(artifact = {}) {
 function renderSourceEvidenceMetadata(metadata = null) {
   const entries = arrayValue(metadata?.entries);
   if (entries.length === 0) return '';
+  const coverage = objectValue(metadata?.browser_evidence_coverage_summary);
   const summary = [
     `${metadata.entry_count || entries.length} files`,
     metadata.browser_evidence_entry_count ? `${metadata.browser_evidence_entry_count} browser evidence` : '',
@@ -97,6 +98,7 @@ function renderSourceEvidenceMetadata(metadata = null) {
         + `<strong>${esc(summary)}</strong></div>`
       + '<p>Inspectable provenance only; no collection, replay, repair, or separate evidence viewer.</p>'
     + '</div>'
+    + renderBrowserEvidenceCoverageSummary(coverage)
     + '<ol class="artifact-bundle-list artifact-bundle-source-evidence-list">'
       + entries.map((entry) => {
         const flags = [
@@ -113,6 +115,56 @@ function renderSourceEvidenceMetadata(metadata = null) {
         );
       }).join('')
     + '</ol>'
+  );
+}
+
+function renderBrowserEvidenceCoverageSummary(summary = null) {
+  if (!summary || Object.keys(summary).length === 0) return '';
+  const stats = [
+    ['Planned', summary.planned_count],
+    ['Captured', summary.captured_count],
+    ['Missing planned', summary.missing_planned_count],
+    ['Extra captured', summary.extra_captured_count],
+  ];
+  const categoryRows = arrayValue(summary.by_company_source_category);
+  const missingIds = arrayValue(summary.missing_planned_requests).length > 0
+    ? arrayValue(summary.missing_planned_requests).map((item) => text(item.request_id))
+    : arrayValue(summary.missing_planned_request_ids).map((item) => text(item));
+  const extraIds = arrayValue(summary.extra_captured_requests).length > 0
+    ? arrayValue(summary.extra_captured_requests).map((item) => text(item.request_id))
+    : arrayValue(summary.extra_captured_request_ids).map((item) => text(item));
+  const categoryRequestText = (row) => (
+    arrayValue(row.captured_request_ids).join(', ')
+      || arrayValue(row.missing_planned_request_ids).join(', ')
+      || `${text(row.missing_planned_count, '0')} missing / ${text(row.extra_captured_count, '0')} extra`
+  );
+  return (
+    `<div class="artifact-bundle-evidence-summary" data-role="browser-evidence-coverage-summary" data-aos-ref="${esc(text(summary.semantic_ref))}">`
+      + stats.map(([label, value]) => (
+        '<div>'
+          + `<span>${esc(label)}</span>`
+          + `<strong>${esc(text(value, '0'))}</strong>`
+        + '</div>'
+      )).join('')
+      + '<p>Planning-vs-captured coverage metadata; read-only provenance, not collection or replay.</p>'
+    + '</div>'
+    + (categoryRows.length === 0 ? '' : (
+      '<ol class="artifact-bundle-list artifact-bundle-browser-evidence-coverage-list">'
+        + categoryRows.map((row) => (
+          '<li>'
+            + `<strong>${esc(text(row.company, 'unknown'))} / ${esc(text(row.source_category, 'unknown'))}</strong>`
+            + `<span>${esc(text(row.coverage_status, 'unknown'))} - ${esc(text(row.planned_count, '0'))} planned - ${esc(text(row.captured_count, '0'))} captured</span>`
+            + `<code>${esc(categoryRequestText(row))}</code>`
+          + '</li>'
+        )).join('')
+      + '</ol>'
+    ))
+    + '<div class="artifact-bundle-row"><span>Missing planned requests</span><strong>'
+      + esc(missingIds.filter(Boolean).join(', ') || 'none')
+    + '</strong></div>'
+    + '<div class="artifact-bundle-row"><span>Extra captured requests</span><strong>'
+      + esc(extraIds.filter(Boolean).join(', ') || 'none')
+    + '</strong></div>'
   );
 }
 
