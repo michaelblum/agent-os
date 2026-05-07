@@ -85,6 +85,21 @@ Talent segment and geography are not required. When omitted, the agent should in
 
 For the pilot, expect four or five companies. The model should not impose that limit.
 
+The current V0 intake/project fixture shape is documented in
+`shared/schemas/employer-brand-audit-project-v0.md` and enforced by
+`shared/schemas/employer-brand-audit-project-v0.schema.json`. It records one
+client company, zero or more competitor companies, optional talent segment,
+optional geography, audience/use case, output preferences, source categories,
+and non-authorizing controls. V0 project fixtures are read-only provenance
+metadata: they do not authorize live collection, autonomous browsing, report
+generation, export execution, replay, repair, macro playback, or a workflow
+engine.
+
+The Symphony Talent, Phenom, and Radancy project fixture at
+`docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/intake/project.json`
+is one project instance that points at the existing local audit bundle; it is
+not the workflow and should not become the default company set.
+
 ## Missing Coverage Policy
 
 Review platforms are always part of this audit version. Glassdoor and Indeed should be attempted first. Other sources can be used when relevant or available.

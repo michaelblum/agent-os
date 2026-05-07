@@ -1,0 +1,72 @@
+{
+  "type": "aos.employer_brand_audit_project",
+  "schema_version": "2026-05-employer-brand-audit-project-v0",
+  "id": "employer-brand-audit-project:invalid-live-collection",
+  "label": "Invalid Employer Brand Audit Project",
+  "project": {
+    "project_id": "invalid-live-collection",
+    "kind": "comparative_employer_brand_audit",
+    "framework": "KILOS",
+    "status": "draft",
+    "description": "Invalid fixture because it tries to authorize remote collection."
+  },
+  "intake": {
+    "client_company": {
+      "name": "Example Health",
+      "role": "client",
+      "website_url": null,
+      "notes": null
+    },
+    "competitor_companies": [],
+    "talent_segment": null,
+    "geography": null,
+    "audience_use_case": {
+      "primary_audience": "Brand team",
+      "use_case": "Define comparison scope.",
+      "secondary_audiences": [],
+      "notes": null
+    },
+    "output_preferences": {
+      "artifact_types": [
+        "structured_json"
+      ],
+      "include_evidence_appendix": false,
+      "include_work_record_link": false,
+      "export_preferences": [],
+      "notes": null
+    }
+  },
+  "source_categories": [
+    {
+      "id": "careers_site",
+      "label": "Careers or jobs site",
+      "coverage_policy": "attempt_if_available",
+      "expected_source_kinds": [
+        "careers_home"
+      ],
+      "evidence_goal": "Capture the primary employer value proposition.",
+      "notes": null
+    }
+  ],
+  "controls": {
+    "remote_web_collection_authorized": true,
+    "autonomous_browsing_authorized": false,
+    "report_generation_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false,
+    "replay_authorized": false,
+    "repair_authorized": false,
+    "macro_playback_authorized": false
+  },
+  "provenance": {
+    "created_at": "2026-05-07T17:05:00Z",
+    "project_instance_only": true,
+    "read_only": true,
+    "provenance_only": true,
+    "local_fixture_evidence_only": false,
+    "derived_from": [],
+    "non_goals": [
+      "remote_web_collection"
+    ]
+  }
+}

@@ -30,6 +30,8 @@ const subjectUrl = new URL(`${fixtureRoot}subject.json`, repo);
 const sourcesUrl = new URL(`${fixtureRoot}sources.json`, repo);
 const workRecordUrl = new URL(`${fixtureRoot}work-record.json`, repo);
 const workRecordSchemaUrl = new URL('shared/schemas/aos-work-record-v0.schema.json', repo);
+const employerBrandAuditProjectSchemaUrl = new URL('shared/schemas/employer-brand-audit-project-v0.schema.json', repo);
+const employerBrandAuditProjectUrl = new URL(`${fixtureRoot}intake/project.json`, repo);
 const browserEvidenceManifestUrl = new URL(`${fixtureRoot}browser-evidence/manifest.json`, repo);
 const browserEvidenceRegistryUrl = new URL(`${fixtureRoot}browser-evidence/registry.json`, repo);
 const browserEvidenceSchemaUrl = new URL('shared/schemas/browser-evidence-capture-v0.schema.json', repo);
@@ -89,6 +91,10 @@ function validateWorkRecordFixture() {
   return validateJsonFixture(workRecordSchemaUrl, workRecordUrl);
 }
 
+function validateEmployerBrandAuditProjectFixture() {
+  return validateJsonFixture(employerBrandAuditProjectSchemaUrl, employerBrandAuditProjectUrl);
+}
+
 function validateBrowserEvidenceFixture(fixtureUrl) {
   return validateJsonFixture(browserEvidenceSchemaUrl, fixtureUrl);
 }
@@ -120,6 +126,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(report.entry, 'report.md');
   assert.equal(report.renderer.id, 'aos.renderer.markdown.report');
   assert.ok(report.files.some((file) => file.path === 'sources.json' && file.role === 'source_metadata'));
+  assert.ok(report.files.some((file) => file.path === 'intake/project.json' && file.role === 'employer_brand_audit_project'));
   assert.ok(report.files.some((file) => file.path === 'work-record.json' && file.role === 'work_record_fixture'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/manifest.json' && file.role === 'browser_evidence_manifest'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/registry.json' && file.role === 'browser_evidence_registry'));
@@ -136,6 +143,8 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.ok(report.exports.some((item) => item.kind === 'pdf' && item.status === 'not_generated'));
   assert.equal(report.provenance.work_record_id, 'work-record:employer-brand-comparative-audit-fixture');
   assert.equal(report.provenance.source_metadata, 'sources.json');
+  assert.equal(report.provenance.employer_brand_audit_project_schema, 'shared/schemas/employer-brand-audit-project-v0.schema.json');
+  assert.equal(report.provenance.employer_brand_audit_project, 'intake/project.json');
   assert.equal(report.provenance.browser_evidence_registry, 'browser-evidence/registry.json');
   assert.deepEqual(report.provenance.company_brand_audits, [
     'company-audits/symphony-talent.json',
@@ -150,6 +159,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.deepEqual(report.work_record.evidence_refs, [
     'evidence:markdown-report',
     'evidence:sources-metadata',
+    'evidence:employer-brand-audit-project',
     'evidence:subject-descriptor',
     'evidence:work-record-fixture',
     'evidence:browser-evidence-manifest',
@@ -160,6 +170,16 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
     'evidence:comparative-brand-audit',
     'evidence:browser-evidence-fixture-assets',
   ]);
+
+  const projectRef = subject.subject_references.find((ref) => ref.id === 'employer-brand-audit-project');
+  assert.equal(projectRef.subject_type, 'aos.employer_brand_audit_project');
+  assert.equal(projectRef.metadata.schema, 'shared/schemas/employer-brand-audit-project-v0.schema.json');
+  assert.equal(projectRef.metadata.path, 'intake/project.json');
+  assert.equal(projectRef.metadata.client_company, 'Symphony Talent');
+  assert.deepEqual(projectRef.metadata.competitor_companies, ['Phenom', 'Radancy']);
+  assert.equal(projectRef.metadata.project_instance_only, true);
+  assert.equal(projectRef.metadata.read_only, true);
+  assert.equal(projectRef.metadata.provenance_only, true);
 
   const registryRef = subject.subject_references.find((ref) => ref.id === 'browser-evidence-registry');
   assert.equal(registryRef.subject_type, 'aos.browser_evidence_registry');
@@ -190,8 +210,15 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
 
   assert.equal(sources.audit.client, 'Symphony Talent');
   assert.deepEqual(sources.audit.competitors, ['Phenom', 'Radancy']);
+  assert.equal(sources.audit.project_id, 'employer-brand-audit-project:symphony-talent-phenom-radancy');
+  assert.equal(sources.audit.project_path, 'intake/project.json');
   assert.equal(sources.sources.length, 3);
   assert.ok(sources.sources.every((source) => source.collection_status === 'not_collected_in_fixture'));
+  assert.equal(sources.employer_brand_audit_project.schema, 'shared/schemas/employer-brand-audit-project-v0.schema.json');
+  assert.equal(sources.employer_brand_audit_project.path, 'intake/project.json');
+  assert.equal(sources.employer_brand_audit_project.project_instance_only, true);
+  assert.equal(sources.employer_brand_audit_project.read_only, true);
+  assert.equal(sources.employer_brand_audit_project.provenance_only, true);
   assert.equal(sources.browser_evidence_registry.path, 'browser-evidence/registry.json');
   assert.equal(sources.browser_evidence_registry.local_fixture_pages_only, true);
   assert.equal(sources.company_brand_audits.schema, 'shared/schemas/company-brand-audit-v0.schema.json');
@@ -206,6 +233,45 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(sources.comparative_brand_audit.provenance_only, true);
   assert.ok(sources.provenance.non_goals.includes('generation'));
   assert.ok(sources.provenance.non_goals.includes('export_execution'));
+});
+
+test('Employer Brand Audit Project fixture scopes the bundle as one project instance', async () => {
+  const validation = validateEmployerBrandAuditProjectFixture();
+  assert.equal(validation.status, 0, `${validation.stdout}${validation.stderr}`);
+
+  const subject = createArtifactBundleSubject(await fixtureSubject());
+  const record = await fixtureWorkRecord();
+  const project = await readJson(employerBrandAuditProjectUrl);
+  const report = artifactBundleArtifacts(subject)[0];
+  const projectFile = report.files.find((file) => file.role === 'employer_brand_audit_project');
+  const projectEvidence = record.evidence.find((item) => item.id === 'evidence:employer-brand-audit-project');
+  const projectClaim = record.claims.find((claim) => claim.id === 'claim:employer-brand-audit-project-linked');
+  const projectPostcondition = record.execution_map.postconditions
+    .find((postcondition) => postcondition.id === 'postcondition:employer-brand-audit-project-linked');
+
+  assert.equal(project.intake.client_company.name, 'Symphony Talent');
+  assert.deepEqual(project.intake.competitor_companies.map((company) => company.name), ['Phenom', 'Radancy']);
+  assert.equal(project.provenance.project_instance_only, true);
+  assert.equal(project.controls.remote_web_collection_authorized, false);
+  assert.equal(project.controls.report_generation_authorized, false);
+  assert.equal(project.artifact_links.artifact_bundle_id, subject.id);
+  assert.equal(project.artifact_links.work_record_id, record.id);
+  assert.equal(project.artifact_links.read_only, true);
+  assert.equal(project.artifact_links.provenance_only, true);
+
+  assert.equal(projectFile.path, 'intake/project.json');
+  assert.equal(projectFile.read_only, true);
+  assert.equal(projectFile.provenance_only, true);
+  assert.equal(projectFile.metadata.evidence_ref, 'evidence:employer-brand-audit-project');
+  assert.equal(projectEvidence.metadata.schema, 'shared/schemas/employer-brand-audit-project-v0.schema.json');
+  assert.equal(projectEvidence.metadata.path, 'intake/project.json');
+  assert.equal(projectEvidence.metadata.project_instance_only, true);
+  assert.equal(projectEvidence.metadata.read_only, true);
+  assert.equal(projectEvidence.metadata.provenance_only, true);
+  assert.match(projectClaim.text, /one project instance rather than the workflow/);
+  assert.equal(projectPostcondition.check.expected, 'aos.employer_brand_audit_project');
+  assert.ok(record.verifier_report.evidence_refs.includes('evidence:employer-brand-audit-project'));
+  assert.ok(record.verifier_report.derived_indexes.verified.includes('claim:employer-brand-audit-project-linked'));
 });
 
 test('Employer Brand Browser Evidence registry validates and uses local fixture pages only', async () => {
@@ -332,7 +398,7 @@ test('Employer Brand artifact bundle previews the Markdown report through the ex
   assert.equal(snapshot.selected_work_record_link.record_path, 'work-record.json');
   assert.equal(snapshot.selected_work_record_link.can_open, true);
   assert.equal(snapshot.selected_work_record_summary.status, 'linked');
-  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 11);
+  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 12);
   assert.equal(snapshot.selected_source_evidence_metadata.read_only, true);
   assert.equal(snapshot.selected_source_evidence_metadata.provenance_only, true);
   assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_registry_paths, [
@@ -399,13 +465,13 @@ test('Employer Brand artifact bundle opens the linked schema-v0 Work Record evid
   assert.equal(snapshot.linked_work_record_open.open_message.type, 'work_record.open');
   assert.equal(snapshot.linked_work_record_open.open_message.source.kind, 'artifact_bundle_work_record');
   assert.equal(snapshot.linked_work_record_open.open_message.source.artifact_id, 'employer-brand-report');
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 11);
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 6);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 12);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 7);
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(snapshot.selected_work_record_summary.snapshot_available, true);
-  assert.equal(snapshot.selected_work_record_summary.evidence_count, 11);
-  assert.equal(snapshot.selected_work_record_summary.claim_count, 6);
-  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 6);
+  assert.equal(snapshot.selected_work_record_summary.evidence_count, 12);
+  assert.equal(snapshot.selected_work_record_summary.claim_count, 7);
+  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 7);
   assert.equal(snapshot.selected_work_record_summary.failed_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.unverified_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.health_state, 'valid');
@@ -439,8 +505,13 @@ test('Employer Brand browser evidence links remain read-only and provenance-only
   const registryEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-registry');
   const manifestEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-manifest');
   const assetEvidence = record.evidence.find((item) => item.id === 'evidence:browser-evidence-fixture-assets');
+  const projectEvidence = record.evidence.find((item) => item.id === 'evidence:employer-brand-audit-project');
   const companyAuditEvidence = record.evidence.filter((item) => item.metadata?.role === 'company_brand_audit');
   const comparativeAuditEvidence = record.evidence.find((item) => item.metadata?.role === 'comparative_brand_audit');
+  assert.equal(projectEvidence.immutable, true);
+  assert.equal(projectEvidence.metadata.read_only, true);
+  assert.equal(projectEvidence.metadata.provenance_only, true);
+  assert.equal(projectEvidence.metadata.project_instance_only, true);
   assert.equal(registryEvidence.immutable, true);
   assert.equal(registryEvidence.metadata.read_only, true);
   assert.equal(registryEvidence.metadata.provenance_only, true);

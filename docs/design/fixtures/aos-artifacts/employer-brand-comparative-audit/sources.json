@@ -12,7 +12,9 @@
       "Radancy"
     ],
     "artifact_bundle_id": "artifact-bundle:employer-brand-comparative-audit",
-    "work_record_id": "work-record:employer-brand-comparative-audit-fixture"
+    "work_record_id": "work-record:employer-brand-comparative-audit-fixture",
+    "project_id": "employer-brand-audit-project:symphony-talent-phenom-radancy",
+    "project_path": "intake/project.json"
   },
   "sources": [
     {
@@ -133,6 +135,21 @@
       "phenom_fixture_culture_card",
       "radancy_fixture_proof_block"
     ],
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "read_only": true,
+    "provenance_only": true
+  },
+  "employer_brand_audit_project": {
+    "schema": "shared/schemas/employer-brand-audit-project-v0.schema.json",
+    "path": "intake/project.json",
+    "status": "project_instance_fixture",
+    "client_company": "Symphony Talent",
+    "competitor_companies": [
+      "Phenom",
+      "Radancy"
+    ],
+    "project_instance_only": true,
     "local_fixture_evidence_only": true,
     "live_websites": false,
     "read_only": true,

@@ -1,0 +1,540 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-audit-project-v0.schema.json",
+  "title": "Employer Brand Audit Project v0",
+  "description": "Generic intake/project fixture contract for Employer Brand comparative audits. V0 records project scope and optional links to local read-only audit artifacts; it does not authorize collection, generation, export execution, replay, repair, macro playback, or a workflow engine.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "project",
+    "intake",
+    "source_categories",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_audit_project"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-audit-project-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "intake": {
+      "$ref": "#/$defs/intake"
+    },
+    "source_categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source_category"
+      },
+      "uniqueItems": true
+    },
+    "artifact_links": {
+      "$ref": "#/$defs/artifact_links"
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "default": []
+    },
+    "date_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "^(?:[a-zA-Z][a-zA-Z0-9+.-]*:|/)"
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "kind",
+        "framework",
+        "status",
+        "description"
+      ],
+      "properties": {
+        "project_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "const": "comparative_employer_brand_audit"
+        },
+        "framework": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "intake_ready",
+            "fixture_instance",
+            "archived"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "company": {
+      "type": "object",
+      "required": [
+        "name",
+        "role"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "role": {
+          "enum": [
+            "client",
+            "competitor"
+          ]
+        },
+        "website_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scope_descriptor": {
+      "type": "object",
+      "required": [
+        "label",
+        "provided_by_user"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "provided_by_user": {
+          "type": "boolean"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "geography": {
+      "type": "object",
+      "required": [
+        "markets",
+        "provided_by_user"
+      ],
+      "properties": {
+        "markets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "uniqueItems": true
+        },
+        "provided_by_user": {
+          "type": "boolean"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "audience_use_case": {
+      "type": "object",
+      "required": [
+        "primary_audience",
+        "use_case"
+      ],
+      "properties": {
+        "primary_audience": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "use_case": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "secondary_audiences": {
+          "$ref": "#/$defs/string_array"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "export_preference": {
+      "type": "object",
+      "required": [
+        "kind",
+        "status"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "enum": [
+            "not_requested",
+            "requested_metadata_only",
+            "not_generated"
+          ]
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "output_preferences": {
+      "type": "object",
+      "required": [
+        "artifact_types",
+        "include_evidence_appendix",
+        "include_work_record_link",
+        "export_preferences"
+      ],
+      "properties": {
+        "artifact_types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "uniqueItems": true
+        },
+        "include_evidence_appendix": {
+          "type": "boolean"
+        },
+        "include_work_record_link": {
+          "type": "boolean"
+        },
+        "export_preferences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/export_preference"
+          },
+          "default": []
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "intake": {
+      "type": "object",
+      "required": [
+        "client_company",
+        "competitor_companies",
+        "audience_use_case",
+        "output_preferences"
+      ],
+      "properties": {
+        "client_company": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/company"
+            },
+            {
+              "properties": {
+                "role": {
+                  "const": "client"
+                }
+              }
+            }
+          ]
+        },
+        "competitor_companies": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/company"
+              },
+              {
+                "properties": {
+                  "role": {
+                    "const": "competitor"
+                  }
+                }
+              }
+            ]
+          },
+          "default": []
+        },
+        "talent_segment": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/scope_descriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "geography": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/geography"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audience_use_case": {
+          "$ref": "#/$defs/audience_use_case"
+        },
+        "output_preferences": {
+          "$ref": "#/$defs/output_preferences"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_category": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "coverage_policy",
+        "evidence_goal"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "label": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "coverage_policy": {
+          "enum": [
+            "required",
+            "attempt_if_available",
+            "optional",
+            "not_applicable"
+          ]
+        },
+        "expected_source_kinds": {
+          "$ref": "#/$defs/string_array"
+        },
+        "evidence_goal": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact_links": {
+      "type": "object",
+      "required": [
+        "artifact_bundle_id",
+        "artifact_bundle_subject_path",
+        "work_record_id",
+        "work_record_path",
+        "browser_evidence_manifest_path",
+        "browser_evidence_registry_path",
+        "company_brand_audit_schema",
+        "company_brand_audit_paths",
+        "comparative_brand_audit_schema",
+        "comparative_brand_audit_paths",
+        "read_only",
+        "provenance_only"
+      ],
+      "properties": {
+        "artifact_bundle_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "artifact_bundle_subject_path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "work_record_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_record_path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "browser_evidence_manifest_path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "browser_evidence_registry_path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "company_brand_audit_schema": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "company_brand_audit_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "default": []
+        },
+        "comparative_brand_audit_schema": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "comparative_brand_audit_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relative_path"
+          },
+          "default": []
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "remote_web_collection_authorized",
+        "autonomous_browsing_authorized",
+        "report_generation_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized",
+        "replay_authorized",
+        "repair_authorized",
+        "macro_playback_authorized"
+      ],
+      "properties": {
+        "remote_web_collection_authorized": {
+          "const": false
+        },
+        "autonomous_browsing_authorized": {
+          "const": false
+        },
+        "report_generation_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        },
+        "replay_authorized": {
+          "const": false
+        },
+        "repair_authorized": {
+          "const": false
+        },
+        "macro_playback_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "project_instance_only",
+        "read_only",
+        "provenance_only",
+        "local_fixture_evidence_only",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "project_instance_only": {
+          "const": true
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        },
+        "local_fixture_evidence_only": {
+          "type": "boolean"
+        },
+        "derived_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provenance_reference"
+          },
+          "default": []
+        },
+        "non_goals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance_reference": {
+      "type": "object",
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "ref": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
