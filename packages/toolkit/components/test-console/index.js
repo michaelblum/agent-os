@@ -144,6 +144,7 @@ export default function TestConsole(options = {}) {
         operating_path: state.operating_path,
         evidence_refs: state.evidence_refs,
         artifact_refs: state.artifact_refs,
+        bridge: state.bridge,
         note: state.note,
         last_result: state.last_result,
       };

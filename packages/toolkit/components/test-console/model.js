@@ -263,6 +263,7 @@ export function createTestConsoleState(initial = {}) {
     operating_path: '',
     evidence_refs: [],
     artifact_refs: [],
+    bridge: null,
     note: '',
     human_responses: [],
     emitted_events: [],
@@ -284,6 +285,7 @@ export function loadTestConsolePayload(state, payload = {}) {
   state.operating_path = text(source.operating_path ?? run?.operating_path ?? step?.metadata?.operating_path, '');
   state.evidence_refs = collectEvidenceRefs(run, step, source.evidence_refs);
   state.artifact_refs = collectArtifactRefs(run, step, source.artifact_refs);
+  state.bridge = cloneJson(source.bridge ?? run?.metadata?.bridge ?? step?.metadata?.bridge ?? null);
   state.note = text(source.note, state.note);
   state.status = state.step ? 'ready' : 'empty';
   state.sequence_base = maxTimelineSequence(run);
@@ -294,6 +296,7 @@ export function loadTestConsolePayload(state, payload = {}) {
     run_ref: text(run?.id, ''),
     step_ref: text(step?.id, ''),
     operating_path: state.operating_path,
+    bridge: cloneJson(state.bridge || null),
   };
   return state.last_result;
 }
@@ -325,12 +328,13 @@ export function testConsoleSnapshot(state = {}) {
     human_request: cloneJson(step?.human_request || null),
     evidence_refs: cloneJson(state.evidence_refs || []),
     artifact_refs: cloneJson(state.artifact_refs || []),
+    bridge: cloneJson(state.bridge || null),
     note: text(state.note, ''),
     last_result: cloneJson(state.last_result || null),
     last_response: cloneJson(state.last_result?.response || null),
     boundaries: {
-      supplied_state_only: true,
-      file_backed_bridge: false,
+      supplied_state_only: !state.bridge,
+      file_backed_bridge: text(state.bridge?.kind, '') === 'file_backed',
       daemon_event_bus: false,
       public_test_run_command: false,
       replay_repair_macro: false,
@@ -379,6 +383,7 @@ export function createTestConsoleHumanResponse(state, options = {}) {
     metadata: {
       operating_path: text(state.operating_path, ''),
       surface: TEST_CONSOLE_SURFACE,
+      bridge: cloneJson(state.bridge || null),
     },
   };
   const timelineEvent = {
@@ -402,6 +407,7 @@ export function createTestConsoleHumanResponse(state, options = {}) {
     run_ref: text(state.run?.id, ''),
     step_ref: stepRef,
     operating_path: text(state.operating_path, ''),
+    bridge: cloneJson(state.bridge || null),
     response,
     timeline_event: timelineEvent,
   };

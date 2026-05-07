@@ -165,6 +165,36 @@ test('human response capture emits schema-shaped response JSON and timeline even
   validateSchemaDef('timeline_event', result.timeline_event);
 });
 
+test('file-backed bridge metadata is carried without adding a daemon event channel', () => {
+  const bridge = {
+    kind: 'file_backed',
+    run_dir: '/tmp/aos-supervised-run',
+    events_jsonl: '/tmp/aos-supervised-run/events.jsonl',
+    current_step_json: '/tmp/aos-supervised-run/state/current-step.json',
+    response_events_jsonl: '/tmp/aos-supervised-run/response-events.jsonl',
+    human_responses_jsonl: '/tmp/aos-supervised-run/human-responses.jsonl',
+  };
+  const state = createTestConsoleState({
+    run: {
+      ...fixtureRun(),
+      metadata: { bridge },
+    },
+    bridge,
+  });
+  const snapshot = testConsoleSnapshot(state);
+  const result = createTestConsoleHumanResponse(state, {
+    response: 'confirmed',
+    summary: 'The ready status is visible through the bridge.',
+    now: '2026-05-06T18:02:00Z',
+  });
+
+  assert.equal(snapshot.boundaries.file_backed_bridge, true);
+  assert.equal(snapshot.boundaries.daemon_event_bus, false);
+  assert.equal(result.bridge.response_events_jsonl, bridge.response_events_jsonl);
+  assert.equal(result.response.metadata.bridge.response_events_jsonl, bridge.response_events_jsonl);
+  validateSchemaDef('human_response', result.response);
+});
+
 test('retry and open-evidence affordances stay request-only in V0', () => {
   const state = createTestConsoleState({ run: fixtureRun() });
   const retry = requestTestConsoleRetry(state);
@@ -209,6 +239,7 @@ test('test console exposes stable semantic refs for xray and do-target routing',
   const indexHtml = await repoText('packages/toolkit/components/test-console/index.html');
   const indexJs = await repoText('packages/toolkit/components/test-console/index.js');
   const launch = await repoText('packages/toolkit/components/test-console/launch.sh');
+  const writeResponse = await repoText('packages/toolkit/components/test-console/write-response.sh');
 
   assert.match(indexHtml, /Test Console V0/);
   assert.match(indexJs, /data-action="confirm"/);
@@ -216,6 +247,10 @@ test('test console exposes stable semantic refs for xray and do-target routing',
   assert.match(indexJs, /data-action="open-evidence"/);
   assert.match(launch, /--manifest test-console-v0/);
   assert.match(launch, /test_console\.load/);
+  assert.match(launch, /RUN_DIR/);
+  assert.match(writeResponse, /show eval/);
+  assert.match(writeResponse, /aos_supervised_run_append_response_event/);
   assert.doesNotMatch(indexJs, /data-action="[^"]*(replay|repair|macro)[^"]*"/i);
   assert.doesNotMatch(launch, /aos test run/);
+  assert.doesNotMatch(writeResponse, /aos test run/);
 });

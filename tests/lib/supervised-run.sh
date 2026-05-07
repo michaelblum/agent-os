@@ -31,6 +31,7 @@ aos_supervised_run_init() {
   mkdir -p "$run_dir/state" "$run_dir/artifacts"
   : >"$(aos_supervised_run_events_file "$run_dir")"
   : >"$(aos_supervised_run_human_responses_file "$run_dir")"
+  : >"$(aos_supervised_run_response_events_file "$run_dir")"
   aos_supervised_run_prepare_response_pipe "$run_dir"
   aos_supervised_run_write_plan "$run_dir" "$plan_name"
 }
@@ -95,6 +96,7 @@ aos_supervised_run_write_dry_run_step_state() {
   mkdir -p "$(dirname "$output_path")"
   AOS_SUPERVISED_RUN_STEP_STATUS="$status" \
   AOS_SUPERVISED_RUN_RESPONSE_ID="$response_id" \
+  AOS_SUPERVISED_RUN_DIR="$run_dir" \
   python3 - "$output_path" <<'PY'
 import json
 import os
@@ -103,6 +105,7 @@ import sys
 
 status = os.environ["AOS_SUPERVISED_RUN_STEP_STATUS"]
 response_id = os.environ.get("AOS_SUPERVISED_RUN_RESPONSE_ID", "")
+run_dir = pathlib.Path(os.environ["AOS_SUPERVISED_RUN_DIR"])
 output_path = pathlib.Path(sys.argv[1])
 
 step = {
@@ -143,6 +146,16 @@ step = {
         "response_options": ["confirmed", "failed", "blocked", "note"],
     },
     "human_response_refs": [response_id] if response_id else [],
+    "metadata": {
+        "bridge": {
+            "kind": "file_backed",
+            "run_dir": str(run_dir),
+            "events_jsonl": str(run_dir / "events.jsonl"),
+            "current_step_json": str(output_path),
+            "response_events_jsonl": str(run_dir / "response-events.jsonl"),
+            "human_responses_jsonl": str(run_dir / "human-responses.jsonl"),
+        },
+    },
 }
 
 if status in {"completed", "failed", "blocked"}:
@@ -159,7 +172,106 @@ if status in {"completed", "failed", "blocked"}:
         ],
     }
 
-output_path.write_text(json.dumps(step, sort_keys=True, indent=2) + "\n")
+tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+tmp_path.write_text(json.dumps(step, sort_keys=True, indent=2) + "\n")
+tmp_path.replace(output_path)
+PY
+}
+
+aos_supervised_run_console_payload_json() {
+  local run_dir="$1"
+
+  python3 - "$run_dir" <<'PY'
+import json
+import pathlib
+import sys
+
+run_dir = pathlib.Path(sys.argv[1])
+plan_path = run_dir / "plan.json"
+events_path = run_dir / "events.jsonl"
+responses_path = run_dir / "human-responses.jsonl"
+response_events_path = run_dir / "response-events.jsonl"
+step_path = run_dir / "state" / "current-step.json"
+
+plan = json.loads(plan_path.read_text()) if plan_path.exists() else {}
+events = [
+    json.loads(line)
+    for line in events_path.read_text().splitlines()
+    if line.strip()
+] if events_path.exists() else []
+responses = [
+    json.loads(line)
+    for line in responses_path.read_text().splitlines()
+    if line.strip()
+] if responses_path.exists() else []
+step = json.loads(step_path.read_text())
+
+bridge = {
+    "kind": "file_backed",
+    "run_dir": str(run_dir),
+    "events_jsonl": str(events_path),
+    "current_step_json": str(step_path),
+    "response_events_jsonl": str(response_events_path),
+    "human_responses_jsonl": str(responses_path),
+}
+
+evidence_refs = []
+seen = set()
+for check in step.get("automated_checks", []):
+    for ref in check.get("evidence_refs", []):
+        if ref in seen:
+            continue
+        seen.add(ref)
+        evidence_refs.append({
+            "id": f"evidence-ref:{ref.replace(':', '-')}",
+            "ref": ref,
+            "relationship": "automated_check_receipt",
+            "kind": "work_record_evidence_ref",
+            "summary": check.get("description") or ref,
+        })
+
+run = {
+    "type": "aos.supervised_run",
+    "schema_version": "2026-05-supervised-run-v0",
+    "id": "supervised-run:dry-run-shell-harness-kernel-v0",
+    "label": plan.get("label") or "Supervised run deterministic dry run",
+    "created_at": events[0].get("at") if events else "2026-05-06T18:00:00Z",
+    "status": step.get("status", "waiting_for_human"),
+    "operating_path": plan.get("operating_path") or "agent/dev/testing/headed/real-input/hitl-sidecar",
+    "timeline_transport": {
+        "kind": "jsonl_file",
+        "ordering": "sequence",
+        "single_writer": True,
+        "path": str(events_path),
+        "notes": "Partial supervised-run timeline for a file-backed test console bridge.",
+    },
+    "timeline": events,
+    "steps": [step],
+    "human_responses": responses,
+    "evidence_refs": evidence_refs,
+    "metadata": {
+        "plan": plan.get("kind") or "dry-run",
+        "plan_file": str(plan_path),
+        "bridge": bridge,
+    },
+}
+
+payload = {
+    "type": "test_console.load",
+    "run": run,
+    "step": step,
+    "bridge": bridge,
+    "artifact_refs": [
+        {
+            "id": "artifact-ref:supervised-run-dir",
+            "ref": f"artifact:{run_dir.name}",
+            "kind": "artifact_ref",
+            "relationship": "run_directory",
+            "summary": str(run_dir),
+        }
+    ],
+}
+print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
 PY
 }
 
@@ -302,6 +414,14 @@ run = {
     "metadata": {
         "plan": "dry-run",
         "plan_file": str(run_dir / "plan.json"),
+        "bridge": {
+            "kind": "file_backed",
+            "run_dir": str(run_dir),
+            "events_jsonl": str(events_path),
+            "current_step_json": str(step_path),
+            "response_events_jsonl": str(run_dir / "response-events.jsonl"),
+            "human_responses_jsonl": str(responses_path),
+        },
         "scope": "shell_harness_kernel_v0",
     },
 }
@@ -315,6 +435,7 @@ summary = {
     "status": run_status,
     "run_dir": str(run_dir),
     "events_jsonl": str(events_path),
+    "response_events_jsonl": str(run_dir / "response-events.jsonl"),
     "human_responses_jsonl": str(responses_path),
     "current_step_json": str(step_path),
     "run_json": str(run_path),
@@ -331,6 +452,7 @@ aos_supervised_run_run_dry_plan() {
   local response_line
   local response_kind
   local response_id
+  local response_transport
   local final_status
   local run_event_type
 
@@ -431,7 +553,19 @@ JSON
 JSON
 
   aos_supervised_run_write_dry_run_step_state "$run_dir" waiting_for_human
-  response_line="$(aos_supervised_run_wait_for_human_response "$run_dir" "request:dry-run-confirm-status" "$timeout_seconds")"
+  response_transport="${AOS_SUPERVISED_RUN_RESPONSE_TRANSPORT:-fifo}"
+  case "$response_transport" in
+    fifo)
+      response_line="$(aos_supervised_run_wait_for_human_response "$run_dir" "request:dry-run-confirm-status" "$timeout_seconds")"
+      ;;
+    file | jsonl | response-events)
+      response_line="$(aos_supervised_run_wait_for_human_response_event "$run_dir" "request:dry-run-confirm-status" "$timeout_seconds")"
+      ;;
+    *)
+      echo "FAIL: unsupported supervised-run response transport: $response_transport" >&2
+      return 2
+      ;;
+  esac
 
   response_kind="$(AOS_SUPERVISED_RUN_RESPONSE_LINE="$response_line" python3 -c 'import json, os; print(json.loads(os.environ["AOS_SUPERVISED_RUN_RESPONSE_LINE"])["response"])')"
   response_id="$(AOS_SUPERVISED_RUN_RESPONSE_LINE="$response_line" python3 -c 'import json, os; print(json.loads(os.environ["AOS_SUPERVISED_RUN_RESPONSE_LINE"])["id"])')"

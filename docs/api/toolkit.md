@@ -260,6 +260,32 @@ Retry emits `test_console.retry.requested` without starting replay, repair, or
 macro playback. Open evidence emits `test_console.evidence.open.requested`
 without launching a second evidence viewer.
 
+For the Supervised Run File Bridge V0, the console can also be launched against
+a shell harness run directory:
+
+```bash
+RUN_DIR=/path/to/supervised-run \
+  packages/toolkit/components/test-console/launch.sh
+```
+
+In run-dir mode, `launch.sh` reads the harness-owned `state/current-step.json`
+and posts a `test_console.load` payload through `aos show post`. After a human
+responds in the AOS-hosted console, the scoped bridge helper polls the existing
+canvas state with `aos show eval` and appends the captured console event to the
+run directory's `response-events.jsonl` queue:
+
+```bash
+RUN_DIR=/path/to/supervised-run \
+  packages/toolkit/components/test-console/write-response.sh
+```
+
+The shell harness remains the single writer for canonical
+`supervised.*` timeline events: it consumes the queued console response, writes
+`human-responses.jsonl`, advances the current step, and finalizes `run.json`.
+This V0 transport is file-backed and toolkit/test-helper scoped; it does not add
+a daemon event channel, public `aos test run` command, replay, repair, macro
+playback, Work Record mutation, or a second evidence viewer.
+
 Stable AOS semantic refs use the `test-console-v0:*` surface namespace,
 including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `test-console-v0:response-blocked`, `test-console-v0:response-note`,
