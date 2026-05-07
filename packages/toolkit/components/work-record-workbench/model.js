@@ -1,11 +1,11 @@
-import { createWorkRecordSubject } from '../../workbench/work-record-subject.js';
 import {
+  createWorkRecordSubject,
   isWorkRecordV0,
   normalizeWorkRecord,
+  runWorkRecordVerifierProfile,
   workRecordEvidenceArtifacts,
   workRecordIsReadOnly,
-} from '../../workbench/work-record-adapter.js';
-import { runWorkRecordVerifierProfile } from '../../workbench/work-record-verifier.js';
+} from '../../workbench/work-record.js';
 
 export const WORK_RECORD_WORKBENCH_SCHEMA_VERSION = '2026-05-04';
 const WORK_RECORD_WORKBENCH_URL = 'aos://toolkit/components/work-record-workbench/index.html';

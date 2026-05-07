@@ -211,7 +211,7 @@ Design-stage work records can be projected from schema-shaped work-record
 objects with:
 
 ```js
-import { createWorkRecordSubject } from '../workbench/work-record-subject.js'
+import { createWorkRecordSubject } from '../workbench/work-record.js'
 ```
 
 Wiki workflow maps can be projected into a chain descriptor without creating a
@@ -975,6 +975,13 @@ snapshots and patch requests. The companion
 persist the current edited record JSON back to that file source or an explicit
 output path. Schema-v0 records are opened read-only and do not emit patch
 requests. It does not record, replay, repair, or retire recipes by itself.
+
+The public Work Record facade lives at
+`packages/toolkit/workbench/work-record.js`. Consumers that need Work Record
+build, verify, evidence-adapter, adapter, or subject-projection operations should
+prefer that facade over importing multiple Work Record internal helper files.
+The facade is shallow; behavior remains owned by the focused helper modules it
+re-exports.
 
 `packages/toolkit/workbench/work-record-verifier.js` exposes a deterministic
 report-only checker for schema-v0 records. It validates internal claim,

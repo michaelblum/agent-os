@@ -1,8 +1,8 @@
-import { buildWorkRecordV0FromPlaybookStepEvidence } from './work-record-capture.js';
 import {
+  buildWorkRecordV0FromPlaybookStepEvidence,
   runWorkRecordVerifierProfile,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
-} from './work-record-verifier.js';
+} from './work-record.js';
 
 export const PLAYBOOK_STEP_HARNESS_VERSION = '2026-05-one-step-playbook-harness-v0';
 
