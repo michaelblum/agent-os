@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
 # Regression test: canvas xray retries an empty semantic target read before
 # concluding that an interactive surface has no targets.
+# Uses the shared repo daemon; serialize with other live canvas tests.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+source tests/lib/live-canvas-serial.sh
 
 CANVAS_ID="semantic-target-retry-$$"
 
 cleanup() {
   ./aos show remove --id "$CANVAS_ID" >/dev/null 2>&1 || true
   rm -f "/tmp/${CANVAS_ID}.png"
+  aos_live_canvas_release_serial_lock
 }
 trap cleanup EXIT
+
+aos_live_canvas_acquire_serial_lock "tests/aos-semantic-targets-xray-retry.sh"
 
 ./aos show create \
   --id "$CANVAS_ID" \

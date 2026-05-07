@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # Smoke test: click an AOS-owned canvas semantic target by data-aos-ref.
+# Uses the shared repo daemon; serialize with other live canvas tests.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [ "${AOS_BYPASS_PREFLIGHT:-}" = "1" ]; then
-  echo "WARN: skipping AOS readiness gate because AOS_BYPASS_PREFLIGHT=1" >&2
-elif ! ./aos ready >/dev/null 2>&1; then
-  echo "SKIP: AOS runtime is not ready"
-  exit 0
-fi
+source tests/lib/live-canvas-serial.sh
 
 CANVAS_ID="canvas-ref-click-$$"
 DW_CANVAS_ID="${CANVAS_ID}-dw"
@@ -22,8 +18,18 @@ cleanup() {
   ./aos show remove --id "$CANVAS_ID" >/dev/null 2>&1 || true
   ./aos show remove --id "$DW_CANVAS_ID" >/dev/null 2>&1 || true
   rm -rf "$ARTIFACT_DIR"
+  aos_live_canvas_release_serial_lock
 }
 trap cleanup EXIT
+
+aos_live_canvas_acquire_serial_lock "tests/aos-canvas-ref-click.sh"
+
+if [ "${AOS_BYPASS_PREFLIGHT:-}" = "1" ]; then
+  echo "WARN: skipping AOS readiness gate because AOS_BYPASS_PREFLIGHT=1" >&2
+elif ! ./aos ready >/dev/null 2>&1; then
+  echo "SKIP: AOS runtime is not ready"
+  exit 0
+fi
 
 cat > "$HTML_PATH" <<'HTML'
 <!doctype html>

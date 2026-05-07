@@ -95,6 +95,30 @@ they create on both success and failure. Do not run live wiki/content HTTP tests
 concurrently unless the test documents that it is isolated; shared daemon state
 can create false failures and leave runtime contamination.
 
+## Shared Repo Daemon Live Canvas Tests
+
+Shell tests that create AOS canvases through the shared repo daemon must run
+serially unless they allocate and export an isolated `AOS_STATE_ROOT` and start
+their own daemon. The repo daemon and canvas namespace are singleton runtime
+resources, so parallel live canvas tests can race on canvas creation, capture,
+xray, click, or cleanup and produce false failures.
+
+Live repo-daemon canvas tests should source `tests/lib/live-canvas-serial.sh`,
+call `aos_live_canvas_acquire_serial_lock` before the first `./aos show create`
+or other canvas mutation, and release the lock from their existing cleanup trap
+with `aos_live_canvas_release_serial_lock`. The known semantic target/ref-click
+smokes use this guard:
+
+```bash
+bash tests/aos-semantic-targets-xray.sh
+bash tests/aos-semantic-targets-xray-retry.sh
+bash tests/aos-canvas-ref-click.sh
+```
+
+Run those focused live tests as separate commands, not through a parallel test
+runner. Isolated canvas tests that use `tests/lib/isolated-daemon.sh` may keep
+their existing isolated workflow.
+
 ## Situational Hardware Tests
 
 Some display tests depend on real hardware topology and OS permissions. Those
