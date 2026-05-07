@@ -36,16 +36,6 @@ belong in the real repo root unless the dock says otherwise.
 - A Dock is not a Workflow.
 - A Docked Session may work on a Workflow, such as the Employer Brand
   Comparative Audit Workflow.
-- Do not create new launchers that concatenate persona markdown into prompts
-  before first trying a direct dock root with `AGENTS.md` and `.codex/`.
+- Do not create launchers that concatenate persona markdown into prompts. Use a
+  direct dock root with `AGENTS.md` and `.codex/`.
 - Do not write generated run state into `.docks/`.
-
-## Legacy Compatibility
-
-`.docks/gdi-foreman/`, `scripts/run-workflow.mjs`, and
-`scripts/create-codex-workflow-hook-profile.mjs` are legacy compatibility
-surfaces for the older GDI/foreman supervisor experiment. Their names and some
-machine-readable fields still use `workflow` for compatibility, but new docs,
-prompts, and skills should call that pattern a docked session supervisor, not an
-AOS Workflow. When the legacy supervisor must be used, prefer the `--run-id`
-alias over the older `--workflow-id` flag.

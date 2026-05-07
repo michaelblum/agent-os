@@ -533,11 +533,10 @@ Voice deliveries and final-response ingress failures append local JSONL records 
 voice, purpose, and failure code were involved without storing full message bodies.
 
 Docked sessions should use registered role session ids for final-response TTS
-instead of provider-transient hook ids. The legacy `run-workflow` supervisor
-uses stable ids such as `<run-id>:gdi` and `<run-id>:foreman`, registers them
-with `aos tell --register`, binds voices with filtered `aos voice bind` calls,
-and routes role-local Stop hook speech through `aos voice final-response
---session-id <run-id>:<role>`.
+instead of provider-transient hook ids. Direct dock hooks can use stable ids
+such as `gdi` and `foreman`, register them with `aos tell --register`, bind
+voices with filtered `aos voice bind` calls, and route role-local Stop hook
+speech through `aos voice final-response --session-id <role>`.
 
 ## `aos config`
 
