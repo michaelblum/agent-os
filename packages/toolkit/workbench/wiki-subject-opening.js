@@ -1,5 +1,9 @@
 import { createWikiPageSubject } from './wiki-subject.js';
 import {
+  formatSubjectEntryHandle,
+  parseSubjectEntryHandle,
+} from './subject-entry-handle.js';
+import {
   subjectReferences,
 } from './subject.js';
 import {
@@ -32,8 +36,15 @@ function normalizeTags(value = []) {
 }
 
 function pathFromHandle(handle = '') {
-  const value = text(handle);
-  return value.startsWith('wiki:') ? pathText(value.slice(5)) : '';
+  const parsed = parseSubjectEntryHandle(handle);
+  return parsed?.facet_key === 'wiki' ? pathText(parsed.subject_id) : '';
+}
+
+function wikiHandleForPath(path = '') {
+  return formatSubjectEntryHandle({
+    facet_key: 'wiki',
+    subject_id: pathText(path),
+  });
 }
 
 function graphNodePage(node = {}) {
@@ -98,7 +109,7 @@ export function createWikiSubjectSelectionPayload(nodeOrPage = {}, { subject = n
   if (!page.path) return null;
   const descriptor = subject || createWikiPageSubject(page);
   const path = wikiPathFromSubject(descriptor) || page.path;
-  const entryHandle = pathFromHandle(nodeOrPage.entry_handle) ? nodeOrPage.entry_handle : `wiki:${path}`;
+  const entryHandle = pathFromHandle(nodeOrPage.entry_handle) ? nodeOrPage.entry_handle : wikiHandleForPath(path);
 
   return {
     type: WIKI_SUBJECT_SELECTION_TYPE,
@@ -133,7 +144,7 @@ export function createWikiSubjectOpenRequest(selection = {}) {
   const subject = selection.subject && typeof selection.subject === 'object' ? selection.subject : null;
   const path = pathText(selection.path) || (subject ? wikiPathFromSubject(subject) : '');
   if (!path) return null;
-  const entryHandle = text(selection.entry_handle) || `wiki:${path}`;
+  const entryHandle = text(selection.entry_handle) || wikiHandleForPath(path);
   return {
     type: WIKI_SUBJECT_OPEN_REQUEST_TYPE,
     schema_version: WIKI_SUBJECT_OPEN_SCHEMA_VERSION,

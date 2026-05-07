@@ -17,6 +17,9 @@ import {
   deriveSubjectGraphIndex,
   summarizeSubjectGraphIndex,
 } from '../../workbench/subject-graph.js';
+import {
+  parseSubjectEntryHandle,
+} from '../../workbench/subject-entry-handle.js';
 
 export const WIKI_SUBJECT_BROWSER_SURFACE = 'wiki-subject-browser-v0';
 export const WIKI_SUBJECT_BROWSER_URL = 'aos://toolkit/components/wiki-subject-browser/index.html';
@@ -80,8 +83,8 @@ function ref(...parts) {
 }
 
 function wikiPathFromHandle(handle = '') {
-  const value = text(handle);
-  return value.startsWith('wiki:') ? value.slice(5).replace(/^\/+/, '').trim() : '';
+  const parsed = parseSubjectEntryHandle(handle);
+  return parsed?.facet_key === 'wiki' ? parsed.subject_id.replace(/^\/+/, '').trim() : '';
 }
 
 function wikiPathFromNode(node = {}) {

@@ -57,6 +57,27 @@ test('wiki subject open request maps selection to markdown workbench open state'
   });
 });
 
+test('wiki subject opener preserves existing wiki handle opening behavior', () => {
+  const selection = createWikiSubjectSelectionPayload({
+    id: 'aos/concepts/runtime-modes.md',
+    path: '/aos/concepts/runtime-modes.md',
+    entry_handle: 'wiki:/aos/concepts/runtime-modes.md',
+    name: 'Runtime Modes',
+    type: 'concept',
+  });
+
+  assert.equal(selection.path, 'aos/concepts/runtime-modes.md');
+  assert.equal(selection.entry_handle, 'wiki:/aos/concepts/runtime-modes.md');
+  assert.equal(wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection), true);
+
+  const request = createWikiSubjectOpenRequest(selection);
+  assert.equal(request.path, 'aos/concepts/runtime-modes.md');
+  assert.equal(request.entry_handle, 'wiki:/aos/concepts/runtime-modes.md');
+
+  const markdown = createMarkdownOpenRequestFromWikiSelection(selection);
+  assert.equal(markdown.markdown_document.path, 'aos/concepts/runtime-modes.md');
+});
+
 test('wiki subject opener does not depend on legacy graph descriptor summaries', () => {
   const legacySubject = {
     type: 'aos.workbench.subject',

@@ -336,6 +336,16 @@ canonical top-level and Facet-local `contracts[]` and `facets[]`. It does not
 read legacy `views[]`, legacy `controls[]`, or dotted operation strings left in
 raw `capabilities[]`.
 
+`packages/toolkit/workbench/subject-entry-handle.js` is the V0 pure helper for
+Subject Entry Handles. It parses the canonical `<facet-key>:<subject-id>` shape
+with `parseSubjectEntryHandle(handle)`, validates handles with
+`isSubjectEntryHandle(handle)`, extracts parts with
+`subjectEntryHandleFacetKey(handle)` and
+`subjectEntryHandleSubjectId(handle)`, and formats normalized handles with
+`formatSubjectEntryHandle(facetKey, subjectId)` or
+`formatSubjectEntryHandle({ facet_key, subject_id })`. The helper is parsing
+and formatting only; it does not resolve or open Subjects.
+
 ### Wiki Subject Selection And Opening
 
 Browser-hosted wiki graph surfaces should bridge graph selection to workbench
