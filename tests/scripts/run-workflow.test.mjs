@@ -201,7 +201,8 @@ async function readRecords(recordPath) {
   return text.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
 }
 
-function assertCodexExecInvocation(record) {
+function assertCodexExecInvocation(record, options = {}) {
+  const goalPrefix = options.goalPrefix ?? false;
   assert.equal(record.argv[0], 'exec');
   assert.equal(record.argv[1], '--model');
   assert.equal(record.argv[2], 'gpt-5.5');
@@ -209,7 +210,11 @@ function assertCodexExecInvocation(record) {
   assert.equal(record.argv[4], 'model_reasoning_effort="high"');
   assert.equal(record.argv.includes('--cd'), false);
   assert.equal(record.argv.includes(repoRoot), false);
-  assert.match(record.argv.at(-1), /^\/goal /);
+  if (goalPrefix) {
+    assert.match(record.argv.at(-1), /^\/goal /);
+  } else {
+    assert.doesNotMatch(record.argv.at(-1), /^\/goal /);
+  }
 }
 
 function promptArg(record) {
@@ -349,8 +354,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.equal(records[1].cwd, path.join(dir, 'foreman'));
     assert.equal(records[0].roleSessionId, `${id}:gdi`);
     assert.equal(records[1].roleSessionId, `${id}:foreman`);
-    assertCodexExecInvocation(records[0]);
-    assertCodexExecInvocation(records[1]);
+    assertCodexExecInvocation(records[0], { goalPrefix: true });
+    assertCodexExecInvocation(records[1], { goalPrefix: false });
     const gdiPrompt = promptArg(records[0]);
     assert.match(gdiPrompt, /You are the GDI role/);
     assert.match(gdiPrompt, /handoff\/ready-for-foreman\.json/);
@@ -657,8 +662,8 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
     assert.equal(result.status, 0, result.stderr);
 
     const records = await readRecords(recordPath);
-    assertCodexExecInvocation(records[0]);
-    assertCodexExecInvocation(records[1]);
+    assertCodexExecInvocation(records[0], { goalPrefix: true });
+    assertCodexExecInvocation(records[1], { goalPrefix: false });
     const gdiPrompt = promptArg(records[0]);
     const foremanPrompt = promptArg(records[1]);
     assert.match(gdiPrompt, /## Task/);

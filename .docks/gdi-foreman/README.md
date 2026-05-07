@@ -11,8 +11,9 @@ directories there. The supervisor does not pass `--cd`; the generated role cwd
 is what lets Codex discover the role-local hooks. Source edits and tests still
 happen in the real repo root named in the role prompt and `AOS_WORKFLOW_REPO_ROOT`.
 The supervisor pins role launches to `gpt-5.5` with reasoning effort `high` by
-default, and passes the assembled role/task prompt with a literal `/goal `
-prefix.
+default. GDI receives the assembled role/task prompt with a literal `/goal `
+prefix. Foreman receives the assembled prompt without `/goal`, because foreman
+is an integration/review pass rather than a goal-driving implementation role.
 
 Each launched role is registered with AOS as a role session before `codex exec`
 starts and unregistered after the role completes. Stable role session ids are

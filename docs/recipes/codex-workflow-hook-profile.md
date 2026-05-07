@@ -73,8 +73,10 @@ The supervisor launches each role as a one-shot `codex exec` run from that
 role's generated directory. It does not pass `--cd`: the role-local cwd is what
 lets Codex discover the generated `.codex/hooks.json`. The real repo root is
 available through `AOS_WORKFLOW_REPO_ROOT` and the rendered role prompt. Role
-launches are pinned to `gpt-5.5` with reasoning effort `high` by default, and
-the assembled role/task prompt is passed with a literal `/goal ` prefix. Use
+launches are pinned to `gpt-5.5` with reasoning effort `high` by default. The
+GDI role receives its assembled role/task prompt with a literal `/goal ` prefix;
+the foreman role receives its prompt without `/goal` because it is an
+integration/review pass, not a new goal-driving implementation session. Use
 `--model <id>` or `--reasoning-effort <level>` only for an intentional role
 profile override.
 

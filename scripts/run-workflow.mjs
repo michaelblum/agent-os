@@ -26,7 +26,8 @@ for handoff/done.json plus foreman exit, then exits cleanly.
 Each role is run as a one-shot Codex execution using codex exec from the
 generated role directory so role-local hooks are discovered. The supervisor pins
 Codex role launches to ${defaultCodexModel}/${defaultCodexReasoningEffort} by
-default and passes the role prompt with a literal "/goal " prefix.
+default. GDI receives its role prompt with a literal "/goal " prefix; foreman
+receives its role prompt without "/goal".
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
@@ -648,7 +649,7 @@ function spawnRole(role, profile, workflowDir, args, extra = {}) {
     args.model,
     '-c',
     `model_reasoning_effort="${args.reasoningEffort}"`,
-    ...(extra.prompt ? [`/goal ${extra.prompt}`] : []),
+    ...(extra.prompt ? [role === 'gdi' ? `/goal ${extra.prompt}` : extra.prompt] : []),
   ];
   const child = spawn(args.codexBin, childArgs, {
     cwd: roleDir,
