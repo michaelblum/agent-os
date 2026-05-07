@@ -1,0 +1,487 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/browser-evidence-capture-v0.schema.json",
+  "title": "Browser Evidence Capture v0",
+  "description": "Pilot contract for local Playwright-backed element evidence capture manifests and normalized registries.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/manifest"
+    },
+    {
+      "$ref": "#/$defs/registry"
+    }
+  ],
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "date_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "default": []
+    },
+    "kilos_relevance": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "kinship",
+          "impact",
+          "lifestyle",
+          "opportunity",
+          "status"
+        ]
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "manifest": {
+      "type": "object",
+      "required": [
+        "type",
+        "schema_version",
+        "requests"
+      ],
+      "properties": {
+        "type": {
+          "const": "aos.browser_evidence_capture_manifest"
+        },
+        "schema_version": {
+          "const": "2026-05-browser-evidence-capture-v0"
+        },
+        "manifest_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "audit_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "description": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "requests": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/request"
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "default": {}
+        }
+      },
+      "additionalProperties": false
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "request_id",
+        "company",
+        "source_category",
+        "url",
+        "evidence_goal",
+        "kilos_relevance",
+        "kilos_factors"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "selector"
+          ],
+          "properties": {
+            "selector": {
+              "$ref": "#/$defs/non_empty_string"
+            }
+          }
+        },
+        {
+          "required": [
+            "xpath"
+          ],
+          "properties": {
+            "xpath": {
+              "$ref": "#/$defs/non_empty_string"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "selector": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "xpath": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "evidence_goal": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "kilos_factors": {
+          "$ref": "#/$defs/string_array"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "registry": {
+      "type": "object",
+      "required": [
+        "type",
+        "schema_version",
+        "generated_at",
+        "status",
+        "manifest",
+        "summary",
+        "evidence",
+        "capture_metadata"
+      ],
+      "properties": {
+        "type": {
+          "const": "aos.browser_evidence_registry"
+        },
+        "schema_version": {
+          "const": "2026-05-browser-evidence-capture-v0"
+        },
+        "generated_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "completed_with_failures",
+            "failed"
+          ]
+        },
+        "manifest": {
+          "type": "object",
+          "required": [
+            "type",
+            "schema_version",
+            "request_count"
+          ],
+          "properties": {
+            "type": {
+              "const": "aos.browser_evidence_capture_manifest"
+            },
+            "schema_version": {
+              "const": "2026-05-browser-evidence-capture-v0"
+            },
+            "manifest_id": {
+              "$ref": "#/$defs/nullable_string"
+            },
+            "audit_id": {
+              "$ref": "#/$defs/nullable_string"
+            },
+            "request_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "summary": {
+          "type": "object",
+          "required": [
+            "request_count",
+            "captured_count",
+            "failed_count",
+            "by_status"
+          ],
+          "properties": {
+            "request_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "captured_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "by_status": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "capture_metadata": {
+          "$ref": "#/$defs/capture_metadata"
+        }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "message": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "selector_candidate": {
+      "type": "object",
+      "required": [
+        "kind",
+        "value",
+        "match_count",
+        "error"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "css",
+            "xpath"
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "match_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "selector_resolution": {
+      "type": "object",
+      "required": [
+        "strategy",
+        "candidates",
+        "used"
+      ],
+      "properties": {
+        "strategy": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selector_candidate"
+          }
+        },
+        "used": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "kind",
+            "value",
+            "index",
+            "match_count"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "css",
+                "xpath"
+              ]
+            },
+            "value": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "index": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "match_count": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "capture_metadata": {
+      "type": "object",
+      "required": [
+        "collector",
+        "backend",
+        "local_url_policy",
+        "autonomous_browsing"
+      ],
+      "properties": {
+        "collector": {
+          "const": "2026-05-browser-evidence-capture-v0"
+        },
+        "backend": {
+          "const": "playwright-cli"
+        },
+        "backend_command": {
+          "type": "string"
+        },
+        "browser": {
+          "type": "string"
+        },
+        "headless": {
+          "type": "boolean"
+        },
+        "viewport": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "output_root": {
+          "type": "string"
+        },
+        "local_url_policy": {
+          "const": "file_data_or_localhost_only"
+        },
+        "autonomous_browsing": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "request_id",
+        "company",
+        "source_category",
+        "source_url",
+        "url",
+        "evidence_goal",
+        "kilos_relevance",
+        "kilos_factors",
+        "notes",
+        "captured_at",
+        "selector",
+        "xpath",
+        "extracted_text",
+        "screenshot_path",
+        "status",
+        "error",
+        "caveat",
+        "selector_resolution",
+        "capture_metadata"
+      ],
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "evidence_goal": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "kilos_factors": {
+          "$ref": "#/$defs/string_array"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "captured_at": {
+          "$ref": "#/$defs/date_time"
+        },
+        "selector": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "xpath": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "extracted_text": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "screenshot_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "status": {
+          "enum": [
+            "captured",
+            "missing_selector",
+            "invalid_request",
+            "blocked_non_local_url",
+            "capture_failed"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/error"
+        },
+        "caveat": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "selector_resolution": {
+          "$ref": "#/$defs/selector_resolution"
+        },
+        "capture_metadata": {
+          "$ref": "#/$defs/capture_metadata"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

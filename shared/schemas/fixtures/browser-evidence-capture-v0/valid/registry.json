@@ -1,0 +1,147 @@
+{
+  "type": "aos.browser_evidence_registry",
+  "schema_version": "2026-05-browser-evidence-capture-v0",
+  "generated_at": "2026-05-07T00:01:00Z",
+  "status": "completed",
+  "manifest": {
+    "type": "aos.browser_evidence_capture_manifest",
+    "schema_version": "2026-05-browser-evidence-capture-v0",
+    "manifest_id": "manifest:example-health-browser-evidence-v0",
+    "audit_id": "audit:example-health-eba-pilot",
+    "request_count": 2
+  },
+  "summary": {
+    "request_count": 2,
+    "captured_count": 2,
+    "failed_count": 0,
+    "by_status": {
+      "captured": 2
+    }
+  },
+  "evidence": [
+    {
+      "request_id": "example_health_careers_hero",
+      "company": "Example Health",
+      "source_category": "careers_site",
+      "source_url": "../html/example-careers.html",
+      "url": "../html/example-careers.html",
+      "evidence_goal": "capture careers hero employer value proposition",
+      "kilos_relevance": [
+        "impact",
+        "opportunity",
+        "lifestyle"
+      ],
+      "kilos_factors": [
+        "innovation and invention",
+        "career progression",
+        "flexibility in location"
+      ],
+      "notes": "Hero section frames the talent promise for careers visitors.",
+      "captured_at": "2026-05-07T00:01:00Z",
+      "selector": "main .hero",
+      "xpath": null,
+      "extracted_text": "Careers at Example Health Build meaningful healthcare tools with room to grow. Our teams pair practical innovation with career mobility, flexible work, and a shared commitment to improving care.",
+      "screenshot_path": "evidence/example-health/example-health-careers-hero.png",
+      "status": "captured",
+      "error": null,
+      "caveat": null,
+      "selector_resolution": {
+        "strategy": "css",
+        "candidates": [
+          {
+            "kind": "css",
+            "value": "main .hero",
+            "match_count": 1,
+            "error": null
+          }
+        ],
+        "used": {
+          "kind": "css",
+          "value": "main .hero",
+          "index": 0,
+          "match_count": 1
+        }
+      },
+      "capture_metadata": {
+        "collector": "2026-05-browser-evidence-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "browser": "chromium",
+        "headless": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "local_url_policy": "file_data_or_localhost_only",
+        "autonomous_browsing": false,
+        "source_url_kind": "relative_file",
+        "screenshot_bytes": 1234
+      }
+    },
+    {
+      "request_id": "example_health_work_values",
+      "company": "Example Health",
+      "source_category": "culture_page",
+      "source_url": "../html/example-careers.html",
+      "url": "../html/example-careers.html",
+      "evidence_goal": "capture values block with manager support and employee voice cues",
+      "kilos_relevance": [
+        "kinship",
+        "opportunity"
+      ],
+      "kilos_factors": [
+        "safe to voice opinions",
+        "skills attainment"
+      ],
+      "notes": "XPath fixture confirms non-CSS selector support.",
+      "captured_at": "2026-05-07T00:01:01Z",
+      "selector": null,
+      "xpath": "//*[@data-evidence-id='values']",
+      "extracted_text": "How we work People managers support mentorship, learning budgets, and safe forums for employee voice.",
+      "screenshot_path": "evidence/example-health/example-health-work-values.png",
+      "status": "captured",
+      "error": null,
+      "caveat": null,
+      "selector_resolution": {
+        "strategy": "xpath",
+        "candidates": [
+          {
+            "kind": "xpath",
+            "value": "//*[@data-evidence-id='values']",
+            "match_count": 1,
+            "error": null
+          }
+        ],
+        "used": {
+          "kind": "xpath",
+          "value": "//*[@data-evidence-id='values']",
+          "index": 0,
+          "match_count": 1
+        }
+      },
+      "capture_metadata": {
+        "collector": "2026-05-browser-evidence-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "browser": "chromium",
+        "headless": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "local_url_policy": "file_data_or_localhost_only",
+        "autonomous_browsing": false,
+        "source_url_kind": "relative_file",
+        "screenshot_bytes": 1234
+      }
+    }
+  ],
+  "capture_metadata": {
+    "collector": "2026-05-browser-evidence-capture-v0",
+    "backend": "playwright-cli",
+    "backend_command": "playwright-cli",
+    "output_root": "artifacts/browser-evidence",
+    "local_url_policy": "file_data_or_localhost_only",
+    "autonomous_browsing": false
+  }
+}

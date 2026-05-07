@@ -1035,6 +1035,16 @@ Verifier Report, and Health. This is report-only substrate for later browser,
 canvas, or Playbook steps; it does not add replay, repair, or a broad CLI
 command surface.
 
+`packages/toolkit/workbench/browser-evidence-capture.js` exposes Browser
+Evidence Capture V0 for the Employer Brand audit pilot. It accepts a local
+manifest shaped by `shared/schemas/browser-evidence-capture-v0.schema.json`,
+opens only relative fixture, `file:`, `data:`, or localhost URLs through
+`playwright-cli`, captures CSS selector and/or XPath element crops, extracts
+element text, and emits an `aos.browser_evidence_registry`. The helper is a
+script/test-callable bridge above the daemon; it does not add a public `aos`
+command, autonomous browsing, report rendering, replay, repair, or an
+AOS-native Browser Host.
+
 ## Stock Components Snapshot
 
 Current reusable toolkit components include:
