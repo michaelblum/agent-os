@@ -19,6 +19,7 @@ import {
 } from '../../scripts/run-workflow.mjs';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+const orderingDelayMs = 250;
 
 function workflowDir(id) {
   return path.join(repoRoot, '.aos-test-tmp', 'workflows', id);
@@ -53,6 +54,26 @@ function waitForFile(filePath) {
   });
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function processExit(child) {
+  let exited = false;
+  const promise = new Promise((resolve) => {
+    child.once('exit', (code, signal) => {
+      exited = true;
+      resolve({ code, signal });
+    });
+  });
+  return {
+    promise,
+    get exited() {
+      return exited;
+    },
+  };
+}
+
 async function writeFakeCodex(tempRoot) {
   const fakeCodex = path.join(tempRoot, 'fake-codex.mjs');
   await writeFile(fakeCodex, `#!/usr/bin/env node
@@ -66,6 +87,37 @@ const mode = process.env.AOS_FAKE_CODEX_MODE || 'complete';
 if (!workflowDir || !role || !recordPath) {
   throw new Error('missing fake codex env');
 }
+
+function writeJson(filePath, payload) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(payload) + '\\n');
+}
+
+function writeMarker(envName) {
+  const markerPath = process.env[envName];
+  if (!markerPath) return;
+  fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+  fs.writeFileSync(markerPath, 'ok\\n');
+}
+
+function waitForPath(filePath) {
+  if (fs.existsSync(filePath)) return Promise.resolve(filePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      watcher?.close();
+      reject(new Error(\`timed out waiting for \${filePath}\`));
+    }, 5000);
+    let watcher = fs.watch(path.dirname(filePath), (_eventType, filename) => {
+      if ((!filename || filename.toString() === path.basename(filePath)) && fs.existsSync(filePath)) {
+        clearTimeout(timeout);
+        watcher.close();
+        resolve(filePath);
+      }
+    });
+  });
+}
+
 fs.mkdirSync(path.dirname(recordPath), { recursive: true });
 const rolePromptPath = path.join(process.cwd(), 'prompt.md');
 const roleReadmePath = path.join(process.cwd(), 'README.md');
@@ -90,19 +142,25 @@ if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else if (role === 'gdi') {
   const handoffDir = path.join(workflowDir, 'handoff');
-  fs.mkdirSync(handoffDir, { recursive: true });
-  fs.writeFileSync(path.join(handoffDir, 'ready-for-foreman.json'), JSON.stringify({
+  writeJson(path.join(handoffDir, 'ready-for-foreman.json'), {
     status: 'ready',
     role,
-  }) + '\\n');
+  });
+  if (mode === 'gdi-ready-then-wait') {
+    writeMarker('AOS_FAKE_CODEX_GDI_READY_MARKER');
+    await waitForPath(process.env.AOS_FAKE_CODEX_GDI_EXIT_FILE);
+  }
 } else if (role === 'foreman') {
   const handoffDir = path.join(workflowDir, 'handoff');
-  fs.mkdirSync(handoffDir, { recursive: true });
-  fs.writeFileSync(path.join(handoffDir, 'done.json'), JSON.stringify({
+  writeJson(path.join(handoffDir, 'done.json'), {
     status: 'done',
     role,
     argv: process.argv.slice(2),
-  }) + '\\n');
+  });
+  if (mode === 'foreman-done-then-wait') {
+    writeMarker('AOS_FAKE_CODEX_FOREMAN_DONE_MARKER');
+    await waitForPath(process.env.AOS_FAKE_CODEX_FOREMAN_EXIT_FILE);
+  }
 }
 `);
   await chmod(fakeCodex, 0o755);
@@ -118,16 +176,26 @@ test('parses supervisor arguments', () => {
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
+    gdiTaskFile: null,
     keep: true,
     help: false,
   });
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--clean']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
+    gdiTaskFile: null,
     keep: false,
     help: false,
   });
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md']), {
+    workflowId: 'pilot-1',
+    codexBin: 'codex',
+    gdiTaskFile: 'task.md',
+    keep: true,
+    help: false,
+  });
   assert.throws(() => parseArgs(['--workflow-id']), /--workflow-id requires a value/);
+  assert.throws(() => parseArgs(['--gdi-task-file']), /--gdi-task-file requires a value/);
 });
 
 test('run-workflow seeds the dock template, launches GDI then foreman, and keeps state by default', async () => {
@@ -184,6 +252,148 @@ test('run-workflow seeds the dock template, launches GDI then foreman, and keeps
     assert.equal(await exists(path.join(dir, 'foreman', 'prompt.md')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'ready-for-foreman.json')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-workflow waits for GDI to exit after ready sentinel before launching foreman', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-order-gdi-'));
+  const id = `test-run-workflow-order-gdi-${process.pid}-${Date.now()}`;
+  const dir = workflowDir(id);
+  const recordPath = path.join(tempRoot, 'records.jsonl');
+  const gdiReadyMarker = path.join(tempRoot, 'gdi-ready.marker');
+  const gdiExitFile = path.join(tempRoot, 'release-gdi-exit');
+  const stderr = [];
+  let child = null;
+
+  try {
+    const fakeCodex = await writeFakeCodex(tempRoot);
+    child = spawn(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--workflow-id',
+      id,
+      '--codex-bin',
+      fakeCodex,
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_FAKE_CODEX_MODE: 'gdi-ready-then-wait',
+        AOS_FAKE_CODEX_GDI_READY_MARKER: gdiReadyMarker,
+        AOS_FAKE_CODEX_GDI_EXIT_FILE: gdiExitFile,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stderr.on('data', (chunk) => stderr.push(chunk.toString()));
+
+    await waitForFile(gdiReadyMarker);
+    await delay(orderingDelayMs);
+    assert.deepEqual((await readRecords(recordPath)).map((record) => record.role), ['gdi']);
+
+    await writeFile(gdiExitFile, 'release\n');
+    const exit = await new Promise((resolve) => {
+      child.once('exit', (code, signal) => resolve({ code, signal }));
+    });
+    assert.equal(exit.code, 0, stderr.join(''));
+    assert.deepEqual((await readRecords(recordPath)).map((record) => record.role), ['gdi', 'foreman']);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGTERM');
+    }
+    await rm(dir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-workflow waits for foreman to exit after done sentinel before completing', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-order-foreman-'));
+  const id = `test-run-workflow-order-foreman-${process.pid}-${Date.now()}`;
+  const dir = workflowDir(id);
+  const recordPath = path.join(tempRoot, 'records.jsonl');
+  const foremanDoneMarker = path.join(tempRoot, 'foreman-done.marker');
+  const foremanExitFile = path.join(tempRoot, 'release-foreman-exit');
+  const stderr = [];
+  let child = null;
+
+  try {
+    const fakeCodex = await writeFakeCodex(tempRoot);
+    child = spawn(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--workflow-id',
+      id,
+      '--codex-bin',
+      fakeCodex,
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_FAKE_CODEX_MODE: 'foreman-done-then-wait',
+        AOS_FAKE_CODEX_FOREMAN_DONE_MARKER: foremanDoneMarker,
+        AOS_FAKE_CODEX_FOREMAN_EXIT_FILE: foremanExitFile,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stderr.on('data', (chunk) => stderr.push(chunk.toString()));
+    const exit = processExit(child);
+
+    await waitForFile(foremanDoneMarker);
+    await delay(orderingDelayMs);
+    assert.equal(exit.exited, false, 'supervisor exited before foreman process exited');
+    assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), true);
+
+    await writeFile(foremanExitFile, 'release\n');
+    const result = await exit.promise;
+    assert.equal(result.code, 0, stderr.join(''));
+    assert.deepEqual((await readRecords(recordPath)).map((record) => record.role), ['gdi', 'foreman']);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGTERM');
+    }
+    await rm(dir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-workflow appends a GDI task file to the launched GDI prompt', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-task-'));
+  const id = `test-run-workflow-task-${process.pid}-${Date.now()}`;
+  const dir = workflowDir(id);
+  const recordPath = path.join(tempRoot, 'records.jsonl');
+  const taskPath = path.join(tempRoot, 'task.md');
+  const taskBody = 'Fix exactly the GDI/foreman ordering race.\nKeep the sentinel watcher intact.';
+
+  try {
+    await writeFile(taskPath, `${taskBody}\n`);
+    const fakeCodex = await writeFakeCodex(tempRoot);
+    const result = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--workflow-id',
+      id,
+      '--codex-bin',
+      fakeCodex,
+      '--gdi-task-file',
+      taskPath,
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AOS_FAKE_CODEX_RECORD: recordPath,
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+
+    const records = await readRecords(recordPath);
+    const gdiPrompt = records[0].argv.slice(2).join(' ');
+    const foremanPrompt = records[1].argv.slice(2).join(' ');
+    assert.match(gdiPrompt, /## Concrete Task/);
+    assert.match(gdiPrompt, /Fix exactly the GDI\/foreman ordering race/);
+    assert.match(gdiPrompt, /Keep the sentinel watcher intact/);
+    assert.doesNotMatch(foremanPrompt, /Fix exactly the GDI\/foreman ordering race/);
   } finally {
     await rm(dir, { recursive: true, force: true });
     await rm(tempRoot, { recursive: true, force: true });

@@ -30,4 +30,6 @@ node scripts/run-workflow.mjs --workflow-id pilot-001
 ```
 
 Run state is kept by default for inspection. Add `--clean` when the generated
-state should be removed after completion or interruption.
+state should be removed after completion or interruption. Add
+`--gdi-task-file <path>` to append a concrete task body to the launched GDI
+prompt for a specific run.

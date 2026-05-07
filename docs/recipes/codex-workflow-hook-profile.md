@@ -52,8 +52,16 @@ node scripts/run-workflow.mjs --workflow-id pilot-001
 The launcher creates `.aos-test-tmp/workflows/pilot-001/`, generates the
 role-local hook profile, snapshots the dock template into `dock-template/`,
 copies rendered `gdi/` and `foreman/` role guidance into the generated role
-directories, launches GDI, waits for `handoff/ready-for-foreman.json`, then
-launches foreman and waits for `handoff/done.json`.
+directories, launches GDI, waits for both `handoff/ready-for-foreman.json` and
+the GDI Codex process exit, then launches foreman and waits for both
+`handoff/done.json` and the foreman Codex process exit.
+
+To append a concrete task body to the launched GDI prompt without editing the
+dock template:
+
+```bash
+node scripts/run-workflow.mjs --workflow-id pilot-001 --gdi-task-file /path/to/task.md
+```
 
 Run state is kept by default for inspection. Add `--clean` to remove the
 generated workflow directory after completion or interruption.

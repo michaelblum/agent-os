@@ -11,12 +11,12 @@ const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 
 function usage() {
-  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--keep|--clean]
+  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--keep|--clean]
 
 Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 .docks/gdi-foreman template, launches the GDI role, waits for
-handoff/ready-for-foreman.json, launches the foreman role, waits for
-handoff/done.json, then exits cleanly.
+handoff/ready-for-foreman.json plus GDI exit, launches the foreman role, waits
+for handoff/done.json plus foreman exit, then exits cleanly.
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption.`;
@@ -34,6 +34,7 @@ export function parseArgs(argv) {
   const args = {
     workflowId: null,
     codexBin: defaultCodexBin,
+    gdiTaskFile: null,
     keep: true,
     help: false,
   };
@@ -47,6 +48,9 @@ export function parseArgs(argv) {
       index += 1;
     } else if (arg === '--codex-bin') {
       args.codexBin = requireValue(argv, index, arg);
+      index += 1;
+    } else if (arg === '--gdi-task-file') {
+      args.gdiTaskFile = requireValue(argv, index, arg);
       index += 1;
     } else if (arg === '--keep') {
       args.keep = true;
@@ -267,27 +271,35 @@ function childExit(child, label, requiredFile) {
   });
 }
 
-async function waitForSentinelOrChildExit(filePath, child, label, parentSignal) {
+async function waitForSentinelAndChildExit(filePath, child, label, parentSignal) {
   const controller = new AbortController();
   const onAbort = () => {
     controller.abort(parentSignal.reason instanceof Error ? parentSignal.reason : new Error('workflow shutting down'));
   };
   parentSignal?.addEventListener('abort', onAbort, { once: true });
   try {
-    return await Promise.race([
+    const [, exit] = await Promise.all([
       waitForFile(filePath, { signal: controller.signal }),
       childExit(child, label, filePath),
     ]);
+    return exit;
   } finally {
     parentSignal?.removeEventListener('abort', onAbort);
     if (!controller.signal.aborted) {
-      controller.abort(new Error(`${label} sentinel race settled`));
+      controller.abort(new Error(`${label} sentinel and child wait settled`));
     }
   }
 }
 
-async function readRolePrompt(role, profile) {
-  return fsp.readFile(path.join(repoRoot, profile.roles[role].dir, 'prompt.md'), 'utf8');
+async function readRolePrompt(role, profile, args = {}) {
+  const prompt = await fsp.readFile(path.join(repoRoot, profile.roles[role].dir, 'prompt.md'), 'utf8');
+  if (role !== 'gdi' || !args.gdiTaskFile) {
+    return prompt;
+  }
+
+  const taskPath = path.resolve(args.gdiTaskFile);
+  const taskBody = await fsp.readFile(taskPath, 'utf8');
+  return `${prompt.trimEnd()}\n\n## Concrete Task\n\n${taskBody.trimEnd()}\n`;
 }
 
 async function cleanupWorkflow(workflowDir, keep) {
@@ -336,16 +348,16 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
   try {
     console.error(`workflow ${profile.workflow_id}: launching GDI`);
     const gdi = spawnRole('gdi', profile, workflowDir, args, {
-      prompt: await readRolePrompt('gdi', profile),
+      prompt: await readRolePrompt('gdi', profile, args),
     });
     children.add(gdi);
     gdi.once('exit', () => children.delete(gdi));
 
-    await waitForSentinelOrChildExit(readyPath, gdi, 'GDI', controller.signal);
+    await waitForSentinelAndChildExit(readyPath, gdi, 'GDI', controller.signal);
 
     console.error(`workflow ${profile.workflow_id}: launching foreman`);
     const foreman = spawnRole('foreman', profile, workflowDir, args, {
-      prompt: await readRolePrompt('foreman', profile),
+      prompt: await readRolePrompt('foreman', profile, args),
       env: {
         AOS_GDI_HANDOFF_READY_PATH: readyPath,
         AOS_WORKFLOW_DONE_PATH: donePath,
@@ -354,7 +366,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
     children.add(foreman);
     foreman.once('exit', () => children.delete(foreman));
 
-    await waitForSentinelOrChildExit(donePath, foreman, 'Foreman', controller.signal);
+    await waitForSentinelAndChildExit(donePath, foreman, 'Foreman', controller.signal);
 
     console.error(`workflow ${profile.workflow_id}: done`);
     for (const child of children) terminateChild(child);
