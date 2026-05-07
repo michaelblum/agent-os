@@ -1,4 +1,7 @@
 import { createWorkbenchSubject } from './subject.js';
+import {
+  formatSubjectEntryHandle,
+} from './subject-entry-handle.js';
 
 const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
 const WIKI_KB_URL = 'aos://toolkit/components/wiki-kb/index.html';
@@ -65,6 +68,7 @@ export function createWikiPageSubject(page = {}) {
   const path = pathText(page.path);
   if (!path) throw new TypeError('wiki page subject requires a path');
 
+  const subjectId = formatSubjectEntryHandle('wiki', path);
   const subjectType = wikiSubjectType(page);
   const name = text(frontmatterValue(page, 'name'), basename(path).replace(/\.md$/i, ''));
   const tags = normalizeTags(frontmatterValue(page, 'tags'));
@@ -158,7 +162,7 @@ export function createWikiPageSubject(page = {}) {
   }
 
   return createWorkbenchSubject({
-    id: `wiki:${path}`,
+    id: subjectId,
     type: subjectType,
     label: name,
     owner: namespace,

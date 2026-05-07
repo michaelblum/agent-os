@@ -43,6 +43,17 @@ test('command evidence builder emits the generated Work Record v0 fixture', () =
   assert.equal(record.execution_map.replay_policy.repair_requires_workflow_gate, true);
 });
 
+test('command evidence builder formats requested Work Record ids as Subject Entry Handles', () => {
+  const source = {
+    ...fixture('evidence/repo-command-adapter-test.json'),
+    record_id: 'repo-command-custom-record',
+  };
+  const record = buildWorkRecordV0FromCommandEvidence(source);
+
+  assert.equal(record.id, 'work-record:repo-command-custom-record');
+  assert.equal(record.evidence[0].id, 'evidence:repo-command-custom-record-command');
+});
+
 test('generated command Work Record passes the named report-only verifier profile', () => {
   const record = fixture('valid/repo-command-adapter-test.json');
   const result = runWorkRecordVerifierProfile(record, {

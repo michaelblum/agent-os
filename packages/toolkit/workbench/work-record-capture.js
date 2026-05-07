@@ -1,4 +1,10 @@
-import { WORK_RECORD_V0_SCHEMA_VERSION } from './work-record-adapter.js';
+import {
+  WORK_RECORD_V0_SCHEMA_VERSION,
+  workRecordSubjectId,
+} from './work-record-adapter.js';
+import {
+  parseSubjectEntryHandle,
+} from './subject-entry-handle.js';
 import {
   deriveWorkRecordClaimIndexes,
   WORK_RECORD_REPORT_ONLY_PROFILE,
@@ -37,6 +43,20 @@ function slug(value = '') {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'command-evidence';
+}
+
+function workRecordHandleSubjectId(value = '') {
+  const normalized = text(value);
+  const parsed = parseSubjectEntryHandle(normalized);
+  return parsed?.facet_key === 'work-record' ? parsed.subject_id : normalized;
+}
+
+function workRecordCaptureBaseId(recordId = '', sourceId = '') {
+  return slug(workRecordHandleSubjectId(text(recordId) || sourceId));
+}
+
+function workRecordCaptureRecordId(recordId = '', baseId = '') {
+  return workRecordSubjectId(text(recordId) || baseId);
 }
 
 function fnv1a32(value = '') {
@@ -248,11 +268,9 @@ export function buildWorkRecordV0FromCommandEvidence(source = {}, {
   const createdAt = requireText(evidenceSource.created_at, 'created_at');
   const completedAt = text(evidenceSource.completed_at, createdAt);
   const sourceId = requireText(evidenceSource.id, 'id');
-  const baseId = slug(text(evidenceSource.record_id || sourceId).replace(/^work-record:/, ''));
   const requestedRecordId = text(evidenceSource.record_id);
-  const recordId = requestedRecordId
-    ? (requestedRecordId.startsWith('work-record:') ? requestedRecordId : `work-record:${requestedRecordId}`)
-    : `work-record:${baseId}`;
+  const baseId = workRecordCaptureBaseId(requestedRecordId, sourceId);
+  const recordId = workRecordCaptureRecordId(requestedRecordId, baseId);
   const evidenceId = text(evidenceSource.evidence_id, `evidence:${baseId}-command`);
   const target = text(evidenceSource.target, commandTarget(command));
   const stateId = text(evidenceSource.state_id);
@@ -501,11 +519,9 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   const sourceId = requireText(evidenceSource.id, 'id');
   const createdAt = requireText(evidenceSource.created_at, 'created_at');
   const completedAt = text(evidenceSource.completed_at, createdAt);
-  const baseId = slug(text(evidenceSource.record_id || sourceId).replace(/^work-record:/, ''));
   const requestedRecordId = text(evidenceSource.record_id);
-  const recordId = requestedRecordId
-    ? (requestedRecordId.startsWith('work-record:') ? requestedRecordId : `work-record:${requestedRecordId}`)
-    : `work-record:${baseId}`;
+  const baseId = workRecordCaptureBaseId(requestedRecordId, sourceId);
+  const recordId = workRecordCaptureRecordId(requestedRecordId, baseId);
   const targetDialect = requireText(evidenceSource.target_dialect, 'target_dialect');
   const target = evidenceTarget(evidenceSource.target);
   const targetWithRef = evidenceTarget(evidenceSource.target_with_ref || objectValue(evidenceSource.action).target);

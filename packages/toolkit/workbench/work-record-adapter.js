@@ -1,3 +1,8 @@
+import {
+  formatSubjectEntryHandle,
+  parseSubjectEntryHandle,
+} from './subject-entry-handle.js';
+
 export const WORK_RECORD_V0_SCHEMA_VERSION = '2026-05-work-record-v0';
 
 function text(value, fallback = '') {
@@ -38,7 +43,10 @@ export function isWorkRecordV0(record = {}) {
 
 export function workRecordSubjectId(recordId = '') {
   const id = text(recordId);
-  return id.startsWith('work-record:') ? id : `work-record:${id}`;
+  if (!id) return '';
+  const parsed = parseSubjectEntryHandle(id);
+  if (parsed?.facet_key === 'work-record') return parsed.handle;
+  return formatSubjectEntryHandle('work-record', id);
 }
 
 function legacyKind(record = {}) {

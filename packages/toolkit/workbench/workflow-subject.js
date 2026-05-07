@@ -1,4 +1,7 @@
 import { createWorkbenchSubject } from './subject.js';
+import {
+  formatSubjectEntryHandle,
+} from './subject-entry-handle.js';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -15,6 +18,14 @@ function basename(path = '') {
 
 function namespaceForPath(path = '') {
   return pathText(path).split('/').filter(Boolean)[0] || 'wiki';
+}
+
+function wikiSubjectHandle(path = '') {
+  return formatSubjectEntryHandle('wiki', pathText(path));
+}
+
+function workflowSubjectHandle(path = '') {
+  return formatSubjectEntryHandle('workflow', pathText(path));
 }
 
 function textList(values = []) {
@@ -156,7 +167,7 @@ function stageStepFromRow(row, index, root, pageLookup) {
     label: text(row.stage, `Step ${index + 1}`),
     output: text(row.output),
     target: targetLink ? {
-      subject_id: `wiki:${targetLink.target}`,
+      subject_id: wikiSubjectHandle(targetLink.target),
       path: targetLink.target,
       label: targetLink.label,
       kind: targetPage ? pageKind(targetPage) : 'missing',
@@ -165,7 +176,7 @@ function stageStepFromRow(row, index, root, pageLookup) {
     references: allLinks.map((link) => {
       const page = pageLookup.get(link.target);
       return {
-        subject_id: `wiki:${link.target}`,
+        subject_id: wikiSubjectHandle(link.target),
         path: link.target,
         label: link.label,
         kind: page ? pageKind(page) : 'missing',
@@ -188,7 +199,7 @@ function fallbackSteps(root, pages, links) {
         label: targetPage?.name || targetPath,
         output: '',
         target: {
-          subject_id: `wiki:${targetPath}`,
+          subject_id: wikiSubjectHandle(targetPath),
           path: targetPath,
           label: targetPage?.name || targetPath,
           kind: targetPage ? pageKind(targetPage) : 'missing',
@@ -228,7 +239,7 @@ export function createWikiWorkflowDescriptor({ root, pages = [], links = [], mar
 
   return {
     root: {
-      subject_id: `wiki:${normalizedRoot.path}`,
+      subject_id: wikiSubjectHandle(normalizedRoot.path),
       path: normalizedRoot.path,
       label: normalizedRoot.name,
       type: normalizedRoot.type,
@@ -254,7 +265,7 @@ export function createWikiWorkflowSubject(input = {}) {
   const hasInvocableChildren = descriptor.child_workflows.length > 0;
 
   return createWorkbenchSubject({
-    id: `workflow:${root.path}`,
+    id: workflowSubjectHandle(root.path),
     type: 'wiki.workflow_chain',
     label: root.name,
     owner: namespace,

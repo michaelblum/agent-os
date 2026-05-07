@@ -18,6 +18,7 @@ import {
   summarizeSubjectGraphIndex,
 } from '../../workbench/subject-graph.js';
 import {
+  formatSubjectEntryHandle,
   parseSubjectEntryHandle,
 } from '../../workbench/subject-entry-handle.js';
 
@@ -611,7 +612,10 @@ export function createSubjectNavigationTrailEntryFromWikiOpenRequest(request = {
 } = {}) {
   const subject = objectValue(request.subject);
   const wikiPath = text(request.path) || wikiPathFromSubject(subject);
-  const entryHandle = text(request.entry_handle, wikiPath ? `wiki:${wikiPath}` : text(subject.id));
+  const entryHandle = text(
+    request.entry_handle,
+    wikiPath ? formatSubjectEntryHandle('wiki', wikiPath) : text(subject.id),
+  );
   return navigationEntryFromParts({
     label: text(subject.label, wikiPath || entryHandle),
     subject_id: text(subject.id, entryHandle),

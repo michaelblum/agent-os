@@ -13,6 +13,9 @@ import {
   deriveWorkbenchSubjectControls,
   findWorkbenchSubjectControl,
 } from './subject-controls.js';
+import {
+  normalizeSubjectEntryHandle,
+} from './subject-entry-handle.js';
 
 export const SUBJECT_CATALOG_SCHEMA_VERSION = '2026-05-06-subject-catalog-v0';
 export const SUBJECT_CATALOG_LOAD_TYPE = 'subject_catalog.load';
@@ -92,7 +95,8 @@ function entryIdForSubject(subject = {}) {
 }
 
 function entryHandleForSubject(subject = {}) {
-  return text(subject.id);
+  const id = text(subject.id);
+  return normalizeSubjectEntryHandle(id) || id;
 }
 
 function facetContracts(facet = {}) {
@@ -227,7 +231,7 @@ export function createWorkRecordSubjectCatalogEntry(record = {}, {
     id,
     key,
     subject,
-    entry_handle: subject.id,
+    entry_handle: entryHandleForSubject(subject),
     open_payload: {
       type: 'work_record.open',
       source: normalizedSource,
@@ -263,7 +267,7 @@ export function createArtifactBundleSubjectCatalogEntry(bundle = {}, {
     id,
     key,
     subject,
-    entry_handle: subject.id,
+    entry_handle: entryHandleForSubject(subject),
     open_payload: openMessage,
   });
 }

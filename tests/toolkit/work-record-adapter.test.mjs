@@ -55,3 +55,11 @@ test('adapter reads v0 records without rewriting evidence or claim arrays', () =
   assert.deepEqual(normalized.raw.evidence, record.evidence);
   assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/playbook-open-wiki-sigil/before-see.json');
 });
+
+test('adapter formats Work Record subject ids through Subject Entry Handles', () => {
+  assert.equal(workRecordSubjectId('collect-company-careers-page'), 'work-record:collect-company-careers-page');
+  assert.equal(workRecordSubjectId('work-record:collect-company-careers-page'), 'work-record:collect-company-careers-page');
+  assert.equal(workRecordSubjectId('work-record:example:with-colon'), 'work-record:example:with-colon');
+  assert.equal(workRecordSubjectId('wiki:aos/concepts/runtime-modes.md'), 'work-record:wiki:aos/concepts/runtime-modes.md');
+  assert.equal(workRecordSubjectId(''), '');
+});
