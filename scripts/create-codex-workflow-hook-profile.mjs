@@ -180,6 +180,23 @@ PY
 )"
 
 printf '%s\\n' "$PACKET_PATH" >"$WORKFLOW_DIR/gdi/latest-handoff-path.txt"
+HANDOFF_DIR="$WORKFLOW_DIR/handoff"
+mkdir -p "$HANDOFF_DIR"
+python3 - "$HANDOFF_DIR/ready-for-foreman.json" "$PACKET_PATH" <<'PY'
+import datetime
+import json
+import pathlib
+import sys
+
+ready_path = pathlib.Path(sys.argv[1])
+packet_path = sys.argv[2]
+payload = {
+    "type": "codex.workflow_handoff.ready_for_foreman.v0",
+    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+    "packet_path": packet_path,
+}
+ready_path.write_text(json.dumps(payload, indent=2) + "\\n", encoding="utf-8")
+PY
 
 COPIED=false
 if [[ "\${AOS_WORKFLOW_COPY_PACKET_PATH:-0}" == "1" ]] && command -v pbcopy >/dev/null 2>&1; then

@@ -283,6 +283,10 @@ process.stdout.write(JSON.stringify({ output_path: packetPath }) + '\\n');
     const latestPath = (await readFile(path.join(dir, 'gdi', 'latest-handoff-path.txt'), 'utf8')).trim();
     assert.equal(path.resolve(latestPath), path.join(dir, 'gdi', 'handoffs', 'packet.json'));
     assert.deepEqual(await readJson(latestPath), { ok: true });
+    const sentinel = await readJson(path.join(dir, 'handoff', 'ready-for-foreman.json'));
+    assert.equal(sentinel.type, 'codex.workflow_handoff.ready_for_foreman.v0');
+    assert.match(sentinel.created_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(sentinel.packet_path, latestPath);
 
     const events = await readEvents(dir);
     assert.equal(events.length, 1);
