@@ -64,6 +64,20 @@ relative paths to the read-only provenance files:
 Those links make an output bundle traceable to the intake/project fixture, but
 they do not make that project the workflow itself.
 
+## Browser Evidence Planning Bridge
+
+Project fixtures may be used as deterministic planning inputs for Browser
+Evidence Capture V0. The toolkit helper
+`compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` and the local
+script
+`node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`
+derive a manifest skeleton from explicit fixture data only: the client company,
+competitor companies, and source categories. The generated requests use local
+placeholder fixture paths and selectors so an analyst can fill in local pages
+before running capture. The bridge does not fetch websites, infer competitors,
+generate reports, execute exports, replay, repair, run macros, or act as a
+workflow engine.
+
 ## Pilot Fixture Location
 
 The first concrete project instance lives inside the Employer Brand Artifact

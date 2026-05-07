@@ -1059,6 +1059,21 @@ script/test-callable bridge above the daemon; it does not add a public `aos`
 command, autonomous browsing, report rendering, replay, repair, or an
 AOS-native Browser Host.
 
+`packages/toolkit/workbench/employer-brand-project-browser-evidence.js` exposes
+the deterministic planning bridge from Employer Brand Audit Project V0 to
+Browser Evidence Capture V0. Use
+`compileBrowserEvidenceManifestFromEmployerBrandAuditProject(project)` to derive
+a local-only manifest skeleton from explicit project data: the client company,
+competitor companies, and applicable `source_categories[]`. The helper emits
+one request per explicit company/category pair, uses local placeholder fixture
+page paths and selectors, leaves KILOS evidence arrays empty instead of
+inventing analysis, and records metadata flags showing that the result is a
+skeleton. The wrapper script is
+`node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`.
+This bridge does not collect websites, infer competitors, generate reports,
+execute exports, replay, repair, run macros, create a workflow engine, or add a
+public `aos` command.
+
 The Employer Brand Artifact Bundle fixture demonstrates the handoff at:
 
 ```text

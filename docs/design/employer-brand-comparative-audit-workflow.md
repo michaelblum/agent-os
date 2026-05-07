@@ -132,6 +132,19 @@ Create a per-company source plan. The baseline source categories are:
 
 Each collection request should have a stable request ID that survives collection, analysis, and reruns. The request ID is the anchor that lets an execution map, evidence registry, and final citation trace back to the same intended capture.
 
+The current local planning bridge is
+`compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` in
+`packages/toolkit/workbench/employer-brand-project-browser-evidence.js`, with a
+script wrapper at
+`scripts/employer-brand-project-browser-evidence-manifest.mjs`. It compiles an
+Employer Brand Audit Project V0 fixture into a Browser Evidence Capture
+manifest skeleton by crossing the fixture's explicit companies with its
+applicable source categories. This is deterministic planning only: it emits
+local placeholder fixture URLs and selectors, does not fetch websites, does not
+infer competitors or missing categories, and does not execute collection,
+analysis, report generation, export, replay, repair, macro playback, or a
+workflow engine.
+
 ### 3. Company Evidence Collection
 
 This is the hardest mini-workflow. It should produce a structured evidence registry, not just notes.

@@ -38,6 +38,18 @@ The manifest is the analyst-authored intent list. Each request has a stable
 `data:` URLs, or localhost HTTP(S). Remote public sites are blocked so the pilot
 can exercise the artifact shape without autonomous browsing.
 
+Employer Brand Audit Project V0 fixtures can also be compiled into manifest
+skeletons by
+`compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` in
+`packages/toolkit/workbench/employer-brand-project-browser-evidence.js`, or by
+the script wrapper
+`node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`.
+That compiler is a deterministic planning bridge only. It derives request
+stubs from the fixture's explicit client company, competitor companies, and
+source categories; it emits local placeholder page paths and selectors; and it
+does not collect websites, infer competitors, generate reports, execute
+exports, or run a workflow.
+
 ## Registry
 
 The registry is the normalized execution output. Each evidence object keeps the
