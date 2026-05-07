@@ -1,0 +1,249 @@
+{
+  "type": "aos.work_record",
+  "schema_version": "2026-05-work-record-v0",
+  "id": "work-record:example-design-pass-generation",
+  "label": "Example Design Pass Generation",
+  "created_at": "2026-05-06T16:00:00Z",
+  "origin": {
+    "kind": "workflow",
+    "ref": "workflow:example-design-pass",
+    "subject_type": "aos.workflow",
+    "description": "Fixture record describing the evidence behind the example Artifact Bundle workbench subject."
+  },
+  "references": [
+    {
+      "id": "output-artifact-bundle",
+      "relationship": "generated",
+      "ref": "artifact-bundle:example-design-pass",
+      "subject_type": "aos.artifact_bundle",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "artifacts",
+      "role": "output_bundle"
+    }
+  ],
+  "intent": {
+    "summary": "Capture a generated HTML prototype and Markdown report as one read-only Artifact Bundle.",
+    "purpose": "artifact_bundle_fixture",
+    "acceptance": "The bundle exposes both output files, provenance, validation placeholders, and linked evidence in the workbench.",
+    "constraints": [
+      "No generation, export execution, replay, repair, or macro playback is part of this fixture.",
+      "The workbench remains read-only and routes evidence through the existing Work Record surface."
+    ],
+    "claim_refs": [
+      "claim:html-prototype-attached",
+      "claim:markdown-report-attached"
+    ]
+  },
+  "execution_map": {
+    "targets": [
+      {
+        "id": "target:artifact-bundle-folder",
+        "target": "repo:docs/design/fixtures/aos-artifacts/example-design-pass",
+        "dialect": "repo",
+        "description": "Fixture folder containing the Artifact Bundle subject, prototype, report, and linked Work Record."
+      }
+    ],
+    "steps": [
+      {
+        "id": "step:assemble-example-artifact-bundle",
+        "intent": "Assemble the example design pass files into a single Artifact Bundle subject descriptor.",
+        "action": {
+          "verb": "record_fixture",
+          "target": "repo:docs/design/fixtures/aos-artifacts/example-design-pass/subject.json",
+          "args": {
+            "artifact_ids": [
+              "html-prototype",
+              "markdown-report"
+            ]
+          }
+        },
+        "postcondition_refs": [
+          "postcondition:html-prototype-present",
+          "postcondition:markdown-report-present"
+        ]
+      }
+    ],
+    "postconditions": [
+      {
+        "id": "postcondition:html-prototype-present",
+        "kind": "repo_file",
+        "description": "The HTML prototype entry file is present and attached to the bundle.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html",
+        "check": {
+          "kind": "file_exists",
+          "expected": true
+        },
+        "evidence_refs": [
+          "evidence:html-prototype"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "If this file moves, patch the Artifact Bundle subject and this Work Record together."
+        }
+      },
+      {
+        "id": "postcondition:markdown-report-present",
+        "kind": "repo_file",
+        "description": "The Markdown report entry file is present and attached to the bundle.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/example-design-pass/report.md",
+        "check": {
+          "kind": "file_exists",
+          "expected": true
+        },
+        "evidence_refs": [
+          "evidence:markdown-report"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "If this file moves, patch the Artifact Bundle subject and this Work Record together."
+        }
+      }
+    ],
+    "artifact_routes": [
+      {
+        "id": "artifact-route:html-prototype",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html",
+        "evidence_ref": "evidence:html-prototype"
+      },
+      {
+        "id": "artifact-route:markdown-report",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/example-design-pass/report.md",
+        "evidence_ref": "evidence:markdown-report"
+      }
+    ],
+    "replay_policy": {
+      "mode": "report_only",
+      "replay_requires_workflow_gate": true,
+      "repair_requires_workflow_gate": true,
+      "gate_refs": [],
+      "notes": "This fixture is evidence for a read-only workbench route, not an executable replay or repair recipe."
+    },
+    "repair_history": []
+  },
+  "evidence": [
+    {
+      "id": "evidence:html-prototype",
+      "kind": "repo_file",
+      "created_at": "2026-05-06T16:01:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html",
+      "immutable": true,
+      "summary": "HTML prototype entry used by the Artifact Bundle preview.",
+      "metadata": {
+        "artifact_id": "html-prototype",
+        "role": "entry"
+      }
+    },
+    {
+      "id": "evidence:markdown-report",
+      "kind": "repo_file",
+      "created_at": "2026-05-06T16:02:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/example-design-pass/report.md",
+      "immutable": true,
+      "summary": "Markdown report entry used by the Artifact Bundle report preview.",
+      "metadata": {
+        "artifact_id": "markdown-report",
+        "role": "entry"
+      }
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim:html-prototype-attached",
+      "text": "The Artifact Bundle includes the HTML prototype as a previewable output.",
+      "scope": "artifact",
+      "acceptance": "The subject metadata points at prototype/index.html and the file evidence is present.",
+      "postcondition_refs": [
+        "postcondition:html-prototype-present"
+      ]
+    },
+    {
+      "id": "claim:markdown-report-attached",
+      "text": "The Artifact Bundle includes the Markdown report as a previewable output.",
+      "scope": "artifact",
+      "acceptance": "The subject metadata points at report.md and the file evidence is present.",
+      "postcondition_refs": [
+        "postcondition:markdown-report-present"
+      ]
+    }
+  ],
+  "claim_results": [
+    {
+      "id": "claim-result:html-prototype-attached",
+      "claim_id": "claim:html-prototype-attached",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "The bundle fixture declares the HTML artifact and records the matching file evidence.",
+      "evidence_refs": [
+        "evidence:html-prototype"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:html-prototype-present",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:html-prototype"
+          ],
+          "reason": "The prototype entry file is present in the fixture folder."
+        }
+      ]
+    },
+    {
+      "id": "claim-result:markdown-report-attached",
+      "claim_id": "claim:markdown-report-attached",
+      "status": "verified",
+      "confidence": 0.9,
+      "reason": "The bundle fixture declares the Markdown artifact and records the matching file evidence.",
+      "evidence_refs": [
+        "evidence:markdown-report"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:markdown-report-present",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:markdown-report"
+          ],
+          "reason": "The report entry file is present in the fixture folder."
+        }
+      ]
+    }
+  ],
+  "verifier_report": {
+    "id": "verifier-report:example-design-pass-generation",
+    "generated_at": "2026-05-06T16:03:00Z",
+    "verifier": {
+      "id": "aos.artifact-bundle.fixture",
+      "kind": "fixture-integrity",
+      "version": "v0"
+    },
+    "claim_results_ref": "claim_results",
+    "derived_indexes": {
+      "verified": [
+        "claim:html-prototype-attached",
+        "claim:markdown-report-attached"
+      ],
+      "failed": [],
+      "unverified": []
+    },
+    "evidence_refs": [
+      "evidence:html-prototype",
+      "evidence:markdown-report"
+    ],
+    "feedback": []
+  },
+  "health": {
+    "verdict": "valid",
+    "reason": "Both artifact bundle outputs are represented by immutable fixture evidence.",
+    "evaluated_at": "2026-05-06T16:03:00Z",
+    "verifier_report_id": "verifier-report:example-design-pass-generation",
+    "confidence": 0.9,
+    "repair_gate_refs": [],
+    "replay_gate_refs": []
+  },
+  "metadata": {
+    "fixture": "example-design-pass",
+    "scope": "artifact_bundle_work_record_fixture_v0"
+  }
+}

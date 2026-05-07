@@ -35,9 +35,14 @@
       "layer": "artifacts",
       "role": "provenance",
       "metadata": {
+        "work_record_path": "work-record.json",
         "evidence_artifact_ids": [
           "html-prototype",
           "markdown-report"
+        ],
+        "evidence_refs": [
+          "evidence:html-prototype",
+          "evidence:markdown-report"
         ]
       }
     },
@@ -221,8 +226,9 @@
       },
       "work_record": {
         "subject_id": "work-record:example-design-pass-generation",
+        "path": "work-record.json",
         "evidence_refs": [
-          "artifact:docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html"
+          "evidence:html-prototype"
         ]
       },
       "validation": {
@@ -286,8 +292,9 @@
       },
       "work_record": {
         "subject_id": "work-record:example-design-pass-generation",
+        "path": "work-record.json",
         "evidence_refs": [
-          "artifact:docs/design/fixtures/aos-artifacts/example-design-pass/report.md"
+          "evidence:markdown-report"
         ]
       },
       "validation": {

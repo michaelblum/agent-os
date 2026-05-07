@@ -1,12 +1,15 @@
 import { esc } from '../../runtime/bridge.js';
 import { renderMarkdown } from '../../markdown/render.js';
 import {
+  ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID,
   ARTIFACT_BUNDLE_OPEN_TYPE,
   ARTIFACT_BUNDLE_SELECT_TYPE,
   ARTIFACT_BUNDLE_WORKBENCH_SURFACE,
   artifactBundleWorkbenchSnapshot,
   createArtifactBundleWorkbenchState,
   openArtifactBundle,
+  openArtifactBundleLinkedWorkRecord,
+  rejectArtifactBundleLinkedWorkRecordOpen,
   selectArtifactBundleArtifact,
 } from './model.js';
 
@@ -93,6 +96,29 @@ function renderProvenance(artifact = {}) {
   )).join('');
 }
 
+function renderWorkRecordLink(link = null) {
+  if (!link) {
+    return '<p class="artifact-bundle-muted">No linked Work Record evidence recorded.</p>';
+  }
+  const evidenceRefs = arrayValue(link.evidence_refs);
+  return (
+    `<div class="artifact-bundle-row"><span>Record</span><strong>${esc(text(link.record_id, 'unknown'))}</strong></div>`
+    + `<div class="artifact-bundle-row"><span>Source</span><strong>${esc(text(link.record_path || link.record_url, 'embedded'))}</strong></div>`
+    + '<div class="artifact-bundle-action-row">'
+      + `<button type="button" class="artifact-bundle-action" data-action="open-work-record" data-aos-ref="${esc(link.open_ref)}"${link.can_open ? '' : ' disabled'}>`
+        + 'Open Work Record Evidence'
+      + '</button>'
+    + '</div>'
+    + (evidenceRefs.length === 0 ? '<p class="artifact-bundle-muted">No evidence refs recorded.</p>' : (
+      '<ol class="artifact-bundle-list artifact-bundle-evidence-list">'
+        + evidenceRefs.map((item) => (
+          `<li><code>${esc(item)}</code></li>`
+        )).join('')
+      + '</ol>'
+    ))
+  );
+}
+
 function renderValidation(artifact = {}) {
   const validation = objectValue(artifact.validation);
   const checks = arrayValue(validation.checks);
@@ -144,6 +170,50 @@ async function fetchText(url = '') {
   return response.text();
 }
 
+async function fetchJson(url = '') {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`record fetch failed: ${response.status}`);
+  return response.json();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function siblingWorkRecordWorkbenchUrl() {
+  try {
+    return new URL('../work-record-workbench/index.html', window.location.href).href;
+  } catch {
+    return 'aos://toolkit/components/work-record-workbench/index.html';
+  }
+}
+
+async function postWorkRecordOpenToChild(host, childId, openMessage) {
+  if (!host?.evalCanvas) return false;
+  const encoded = btoa(JSON.stringify(openMessage));
+  const expectedRecordId = text(openMessage?.record?.id);
+  const script = `
+(function () {
+  if (!window.headsup || typeof window.headsup.receive !== "function") return "";
+  if (!window.__workRecordWorkbenchState || !document.querySelector("[data-role='record-id']")) return "";
+  window.headsup.receive(${JSON.stringify(encoded)});
+  return window.__workRecordWorkbenchState?.record?.id === ${JSON.stringify(expectedRecordId)}
+    ? ${JSON.stringify(expectedRecordId)}
+    : "";
+})()
+`;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    try {
+      const result = await host.evalCanvas(childId, script, { timeoutMs: 3000 });
+      if (result === expectedRecordId) return true;
+    } catch {}
+    await sleep(150);
+  }
+  return false;
+}
+
 export default function ArtifactBundleWorkbench(options = {}) {
   let host = null;
   let previewToken = 0;
@@ -187,6 +257,59 @@ export default function ArtifactBundleWorkbench(options = {}) {
     }
   }
 
+  async function openLinkedWorkRecord() {
+    const snapshot = artifactBundleWorkbenchSnapshot(state);
+    const link = snapshot.selected_work_record_link;
+    if (!link?.can_open) {
+      const result = rejectArtifactBundleLinkedWorkRecordOpen(state, {
+        artifactId: snapshot.selected_artifact_id,
+        recordId: link?.record_id,
+      });
+      emit(result.type, result);
+      sync();
+      return result;
+    }
+
+    let record = link.work_record?.record || null;
+    if (!record && link.record_url) {
+      record = await fetchJson(link.record_url);
+    }
+    const result = openArtifactBundleLinkedWorkRecord(state, {
+      record,
+      canvasId: ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID,
+    });
+    sync();
+    emit(result.type, result);
+
+    if (!host?.spawnChild || !state.linked_work_record_open?.open_message) {
+      return result;
+    }
+
+    const childId = state.linked_work_record_open.work_record_canvas_id || ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID;
+    try {
+      await host.spawnChild({
+        id: childId,
+        url: siblingWorkRecordWorkbenchUrl(),
+        frame: [80, 92, 1180, 720],
+        interactive: true,
+      });
+    } catch (error) {
+      const message = String(error?.message || error);
+      if (!/ID_COLLISION|DUPLICATE/i.test(message)) {
+        state.linked_work_record_open.child_error = message;
+      }
+    }
+    const posted = await postWorkRecordOpenToChild(host, childId, state.linked_work_record_open.open_message);
+    state.linked_work_record_open.child_posted = posted;
+    state.last_result = {
+      ...result,
+      child_posted: posted,
+    };
+    sync();
+    emit(result.type, state.last_result);
+    return state.last_result;
+  }
+
   function sync() {
     const snapshot = artifactBundleWorkbenchSnapshot(state);
     const token = previewToken + 1;
@@ -223,6 +346,23 @@ export default function ArtifactBundleWorkbench(options = {}) {
     dom.files.innerHTML = renderFileList(selected);
     dom.exports.innerHTML = renderExportList(selected);
     dom.provenance.innerHTML = renderProvenance(selected);
+    dom.workRecord.innerHTML = renderWorkRecordLink(snapshot.selected_work_record_link);
+    const openWorkRecord = dom.workRecord.querySelector('[data-action="open-work-record"]');
+    if (openWorkRecord) {
+      openWorkRecord.addEventListener('click', () => {
+        openWorkRecord.disabled = true;
+        openLinkedWorkRecord().catch((error) => {
+          const result = rejectArtifactBundleLinkedWorkRecordOpen(state, {
+            artifactId: snapshot.selected_artifact_id,
+            recordId: snapshot.selected_work_record_link?.record_id,
+            reason: 'linked_work_record_open_failed',
+            message: String(error?.message || error),
+          });
+          emit(result.type, result);
+          sync();
+        });
+      });
+    }
     dom.validation.innerHTML = renderValidation(selected);
     dom.subjectJson.textContent = snapshot.subject_json;
     dom.status.textContent = snapshot.last_result
@@ -272,6 +412,10 @@ export default function ArtifactBundleWorkbench(options = {}) {
             <div data-role="provenance"></div>
           </section>
           <section>
+            <strong>Work Record Evidence</strong>
+            <div data-role="work-record"></div>
+          </section>
+          <section>
             <strong>Validation</strong>
             <div data-role="validation"></div>
           </section>
@@ -291,6 +435,7 @@ export default function ArtifactBundleWorkbench(options = {}) {
     dom.files = root.querySelector('[data-role="files"]');
     dom.exports = root.querySelector('[data-role="exports"]');
     dom.provenance = root.querySelector('[data-role="provenance"]');
+    dom.workRecord = root.querySelector('[data-role="work-record"]');
     dom.validation = root.querySelector('[data-role="validation"]');
     dom.subjectJson = root.querySelector('[data-role="subject-json"]');
     dom.status = root.querySelector('[data-role="status"]');
@@ -322,7 +467,11 @@ export default function ArtifactBundleWorkbench(options = {}) {
       name: ARTIFACT_BUNDLE_WORKBENCH_SURFACE,
       title: 'Artifact Bundle Workbench',
       accepts: [ARTIFACT_BUNDLE_OPEN_TYPE, ARTIFACT_BUNDLE_SELECT_TYPE],
-      emits: ['artifact_bundle.open.result', 'artifact_bundle.select.result'],
+      emits: [
+        'artifact_bundle.open.result',
+        'artifact_bundle.select.result',
+        'artifact_bundle.work_record.open.result',
+      ],
       channelPrefix: ARTIFACT_BUNDLE_WORKBENCH_SURFACE,
       defaultSize: { w: 1220, h: 760 },
     },

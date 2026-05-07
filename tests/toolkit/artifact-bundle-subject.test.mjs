@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   ARTIFACT_BUNDLE_WORKBENCH_URL,
   SUBJECT_CATALOG_LOAD_TYPE,
@@ -20,8 +22,12 @@ import {
   artifactBundleWorkbenchSnapshot,
   createArtifactBundleWorkbenchState,
   openArtifactBundle,
+  openArtifactBundleLinkedWorkRecord,
   selectArtifactBundleArtifact,
 } from '../../packages/toolkit/components/artifact-bundle-workbench/model.js';
+import {
+  workRecordIsReadOnly,
+} from '../../packages/toolkit/workbench/work-record.js';
 import {
   WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID,
   applySubjectCatalogLoad,
@@ -33,9 +39,42 @@ import {
 
 const repo = new URL('../../', import.meta.url);
 const fixtureUrl = new URL('docs/design/fixtures/aos-artifacts/example-design-pass/subject.json', repo);
+const workRecordFixtureUrl = new URL('docs/design/fixtures/aos-artifacts/example-design-pass/work-record.json', repo);
+const workRecordSchemaUrl = new URL('shared/schemas/aos-work-record-v0.schema.json', repo);
 
 async function fixtureSubject() {
   return JSON.parse(await readFile(fixtureUrl, 'utf8'));
+}
+
+async function fixtureWorkRecord() {
+  return JSON.parse(await readFile(workRecordFixtureUrl, 'utf8'));
+}
+
+function validateWorkRecordFixture() {
+  return spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(Path(sys.argv[2]).read_text())
+Draft202012Validator.check_schema(schema)
+validator = Draft202012Validator(schema)
+errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+if errors:
+    for error in errors[:8]:
+        print(error.message)
+    sys.exit(1)
+`,
+      fileURLToPath(workRecordSchemaUrl),
+      fileURLToPath(workRecordFixtureUrl),
+    ],
+    { encoding: 'utf8' },
+  );
 }
 
 test('artifact bundle fixture uses canonical Workbench Subject fields', async () => {
@@ -84,6 +123,7 @@ test('artifact bundle metadata carries entries renderers files exports provenanc
     assert.ok(artifact.exports.length >= 2, `${artifact.id} has export metadata`);
     assert.equal(artifact.provenance.work_record_id, 'work-record:example-design-pass-generation');
     assert.equal(artifact.work_record.subject_id, 'work-record:example-design-pass-generation');
+    assert.equal(artifact.work_record.path, 'work-record.json');
     assert.equal(artifact.validation.state, 'unchecked');
   }
 
@@ -94,6 +134,54 @@ test('artifact bundle metadata carries entries renderers files exports provenanc
     export_count: 4,
     validation_state: 'unchecked',
   });
+});
+
+test('artifact bundle fixture links a schema-valid Work Record evidence route', async () => {
+  const validation = validateWorkRecordFixture();
+  assert.equal(validation.status, 0, `${validation.stdout}${validation.stderr}`);
+
+  const subject = createArtifactBundleSubject(await fixtureSubject());
+  const record = await fixtureWorkRecord();
+  const state = createArtifactBundleWorkbenchState({
+    subject,
+    contentRoot: {
+      name: 'repo-test',
+      url: 'aos://repo-test/',
+    },
+  });
+  const openResult = openArtifactBundle(state, {
+    type: ARTIFACT_BUNDLE_OPEN_TYPE,
+    subject,
+    content_root: {
+      name: 'repo-test',
+      url: 'aos://repo-test/',
+    },
+  });
+  assert.equal(openResult.status, 'opened');
+
+  let snapshot = artifactBundleWorkbenchSnapshot(state);
+  assert.equal(snapshot.selected_work_record_link.record_id, 'work-record:example-design-pass-generation');
+  assert.equal(snapshot.selected_work_record_link.record_path, 'work-record.json');
+  assert.equal(
+    snapshot.selected_work_record_link.record_url,
+    'aos://repo-test/docs/design/fixtures/aos-artifacts/example-design-pass/work-record.json',
+  );
+  assert.deepEqual(snapshot.selected_work_record_link.evidence_refs, ['evidence:html-prototype']);
+  assert.equal(snapshot.selected_work_record_link.can_open, true);
+
+  const result = openArtifactBundleLinkedWorkRecord(state, { record });
+  assert.equal(result.status, 'opened');
+  assert.equal(result.record_id, 'work-record:example-design-pass-generation');
+  assert.equal(result.read_only, true);
+
+  snapshot = artifactBundleWorkbenchSnapshot(state);
+  assert.equal(snapshot.linked_work_record_open.open_message.type, 'work_record.open');
+  assert.equal(snapshot.linked_work_record_open.open_message.source.kind, 'artifact_bundle_work_record');
+  assert.equal(snapshot.linked_work_record_open.open_message.source.artifact_id, 'html-prototype');
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.subject.subject_type, 'aos.work_record');
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 2);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
+  assert.equal(workRecordIsReadOnly(snapshot.linked_work_record_open.workbench_snapshot.record), true);
 });
 
 test('artifact bundle workbench model opens read-only and preserves artifact payloads', async () => {
@@ -202,6 +290,9 @@ test('artifact bundle workbench files expose the named surface and refs', async 
   assert.match(indexJs, /window\.__artifactBundleWorkbenchState/);
   assert.match(indexJs, /artifact_bundle\.open/);
   assert.match(indexJs, /artifact_bundle\.select/);
+  assert.match(indexJs, /Open Work Record Evidence/);
+  assert.match(indexJs, /artifact_bundle\.work_record\.open\.result/);
+  assert.match(indexJs, /work-record-workbench/);
   assert.match(indexJs, /renderMarkdown/);
   assert.match(indexHtml, /\.\.\/\.\.\/markdown\/preview\.css/);
   assert.match(indexJs, /aos-markdown-preview artifact-bundle-markdown-preview/);

@@ -3,11 +3,18 @@ import {
   artifactBundleSummary,
   createArtifactBundleSubject,
 } from '../../workbench/artifact-bundle-subject.js';
+import {
+  createWorkRecordWorkbenchState,
+  openWorkRecord,
+  workRecordWorkbenchSnapshot,
+} from '../work-record-workbench/model.js';
 
 export const ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION = '2026-05-06-artifact-bundle-v0';
 export const ARTIFACT_BUNDLE_WORKBENCH_SURFACE = 'artifact-bundle-workbench';
 export const ARTIFACT_BUNDLE_OPEN_TYPE = 'artifact_bundle.open';
 export const ARTIFACT_BUNDLE_SELECT_TYPE = 'artifact_bundle.select';
+export const ARTIFACT_BUNDLE_WORK_RECORD_OPEN_RESULT_TYPE = 'artifact_bundle.work_record.open.result';
+export const ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID = 'artifact-bundle-workbench-work-record';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -141,6 +148,44 @@ function artifactEntryUrl(subject = {}, artifact = {}, contentRoot = null) {
   return joinUrl(root.url, sourcePath, entry);
 }
 
+function workRecordPathUrl(subject = {}, path = '', contentRoot = null) {
+  const recordPath = text(path);
+  if (!recordPath) return null;
+  if (/^(https?:|aos:|file:)/i.test(recordPath)) return recordPath;
+  const root = normalizeContentRoot(contentRoot);
+  if (!root?.url) return null;
+  const sourcePath = text(subject.source?.path);
+  const joinedPath = recordPath.startsWith('/') || recordPath.includes('..')
+    ? recordPath
+    : joinUrl(sourcePath, recordPath);
+  return joinUrl(root.url, joinedPath);
+}
+
+function linkedWorkRecordForArtifact(subject = {}, artifact = null, contentRoot = null) {
+  const workRecord = objectValue(artifact?.work_record);
+  const recordId = text(workRecord.subject_id || workRecord.id || artifact?.provenance?.work_record_id);
+  const evidenceRefs = arrayValue(workRecord.evidence_refs).map((item) => text(item)).filter(Boolean);
+  const recordPath = text(workRecord.path || workRecord.source?.path);
+  const hasEmbeddedRecord = Object.keys(objectValue(workRecord.record)).length > 0;
+  const hasOpenMessage = Object.keys(objectValue(workRecord.open_message)).length > 0;
+  const recordUrl = recordPath ? workRecordPathUrl(subject, recordPath, contentRoot) : null;
+  if (!recordId && evidenceRefs.length === 0 && !recordPath && !hasEmbeddedRecord && !hasOpenMessage) return null;
+  const artifactId = text(artifact?.id, 'artifact');
+  return {
+    type: 'aos.artifact_bundle.work_record_link',
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    artifact_id: artifactId,
+    record_id: recordId || text(workRecord.record?.id || workRecord.open_message?.record?.id),
+    record_path: recordPath || null,
+    record_url: recordUrl,
+    evidence_refs: evidenceRefs,
+    can_open: hasOpenMessage || hasEmbeddedRecord || !!recordUrl,
+    semantic_ref: ref('work-record', artifactId),
+    open_ref: ref('work-record', 'open', artifactId),
+    work_record: cloneJson(workRecord),
+  };
+}
+
 function galleryEntry(artifact = {}, selectedId = '') {
   const id = text(artifact.id);
   const selected = id === selectedId;
@@ -226,6 +271,7 @@ export function createArtifactBundleWorkbenchState({
     source: normalizeSource(source),
     content_root: normalizeContentRoot(content_root),
     selected_artifact_id: text(selectedArtifact?.id),
+    linked_work_record_open: null,
     last_result: null,
   };
 }
@@ -240,6 +286,7 @@ export function openArtifactBundle(state, message = {}) {
   state.source = normalizeSource(payload.source) || state.source || null;
   state.content_root = normalizeContentRoot(payload.content_root || payload.contentRoot) || state.content_root || null;
   state.selected_artifact_id = text(artifactById(subject, payload.selected_artifact_id || payload.selectedArtifactId)?.id);
+  state.linked_work_record_open = null;
   state.last_result = {
     type: 'artifact_bundle.open.result',
     schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
@@ -267,6 +314,7 @@ export function selectArtifactBundleArtifact(state, artifactId = '') {
     return state.last_result;
   }
   state.selected_artifact_id = artifact.id;
+  state.linked_work_record_open = null;
   state.last_result = {
     type: 'artifact_bundle.select.result',
     schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
@@ -274,6 +322,108 @@ export function selectArtifactBundleArtifact(state, artifactId = '') {
     subject_id: state.subject.id,
     artifact_id: artifact.id,
   };
+  return state.last_result;
+}
+
+export function createArtifactBundleWorkRecordOpenMessage(state = {}, {
+  record = null,
+} = {}) {
+  const subject = normalizeSubject(state.subject);
+  const artifact = artifactById(subject, state.selected_artifact_id);
+  const workRecord = objectValue(artifact?.work_record);
+  const openMessage = objectValue(workRecord.open_message);
+  if (Object.keys(openMessage).length > 0) return cloneJson(openMessage);
+
+  const embeddedRecord = objectValue(record || workRecord.record);
+  if (Object.keys(embeddedRecord).length === 0) {
+    throw new TypeError('linked Work Record payload is required before opening');
+  }
+
+  return {
+    type: 'work_record.open',
+    source: {
+      kind: 'artifact_bundle_work_record',
+      path: text(workRecord.path) || null,
+      subject_id: text(subject.id),
+      artifact_id: text(artifact?.id),
+      read_only: true,
+    },
+    record: cloneJson(embeddedRecord),
+  };
+}
+
+export function openArtifactBundleLinkedWorkRecord(state, {
+  record = null,
+  canvasId = '',
+  canvas_id = canvasId,
+} = {}) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('artifact bundle workbench state is required');
+  }
+  const subject = normalizeSubject(state.subject);
+  const selectedArtifact = artifactById(subject, state.selected_artifact_id);
+  const link = linkedWorkRecordForArtifact(subject, selectedArtifact, state.content_root);
+  if (!link?.can_open) {
+    state.linked_work_record_open = null;
+    state.last_result = {
+      type: ARTIFACT_BUNDLE_WORK_RECORD_OPEN_RESULT_TYPE,
+      schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+      status: 'rejected',
+      reason: 'linked_work_record_unavailable',
+      artifact_id: text(selectedArtifact?.id) || null,
+      record_id: link?.record_id || null,
+    };
+    return state.last_result;
+  }
+
+  const openMessage = createArtifactBundleWorkRecordOpenMessage(state, { record });
+  const workbenchState = createWorkRecordWorkbenchState();
+  const opened = openWorkRecord(workbenchState, openMessage);
+  const snapshot = workRecordWorkbenchSnapshot(workbenchState);
+  const childCanvasId = text(canvas_id, ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID);
+  state.linked_work_record_open = {
+    type: ARTIFACT_BUNDLE_WORK_RECORD_OPEN_RESULT_TYPE,
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    status: opened.status,
+    artifact_id: text(selectedArtifact?.id) || null,
+    record_id: text(opened.record_id),
+    source: cloneJson(opened.source),
+    read_only: snapshot.diagnostics.read_only === true,
+    work_record_canvas_id: childCanvasId,
+    open_message: cloneJson(openMessage),
+    workbench_snapshot: snapshot,
+  };
+  state.last_result = {
+    type: ARTIFACT_BUNDLE_WORK_RECORD_OPEN_RESULT_TYPE,
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    status: opened.status,
+    artifact_id: text(selectedArtifact?.id) || null,
+    record_id: text(opened.record_id),
+    read_only: snapshot.diagnostics.read_only === true,
+    work_record_canvas_id: childCanvasId,
+  };
+  return state.last_result;
+}
+
+export function rejectArtifactBundleLinkedWorkRecordOpen(state, {
+  artifactId = '',
+  recordId = '',
+  reason = 'linked_work_record_unavailable',
+  message = '',
+} = {}) {
+  if (!state || typeof state !== 'object') {
+    throw new TypeError('artifact bundle workbench state is required');
+  }
+  state.last_result = {
+    type: ARTIFACT_BUNDLE_WORK_RECORD_OPEN_RESULT_TYPE,
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    status: 'rejected',
+    reason: text(reason, 'linked_work_record_unavailable'),
+    artifact_id: text(artifactId) || null,
+    record_id: text(recordId) || null,
+    message: text(message),
+  };
+  state.linked_work_record_open = null;
   return state.last_result;
 }
 
@@ -295,6 +445,8 @@ export function artifactBundleWorkbenchSnapshot(state = {}) {
     selected_artifact_id: selectedId || null,
     selected_artifact: selectedArtifact ? cloneJson(selectedArtifact) : null,
     preview: createPreview(subject, selectedArtifact, state.content_root),
+    selected_work_record_link: linkedWorkRecordForArtifact(subject, selectedArtifact, state.content_root),
+    linked_work_record_open: state.linked_work_record_open ? cloneJson(state.linked_work_record_open) : null,
     diagnostics: artifactBundleDiagnostics(subject),
     subject_json: stableJson(subject),
     last_result: state.last_result ? cloneJson(state.last_result) : null,

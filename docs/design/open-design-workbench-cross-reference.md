@@ -294,10 +294,12 @@ Implemented V0 status: the repo now contains the docs-only fixture at
 projection helper in `packages/toolkit/workbench/artifact-bundle-subject.js`,
 and a read-only inspection surface in
 `packages/toolkit/components/artifact-bundle-workbench/`. The shipped fixture
-includes both the HTML prototype and Markdown/report artifact. This keeps the
-adaptation inside AOS Workbench Subjects and explicitly avoids Open Design's
-daemon, `.od` project state, SQLite persistence, streamed `<artifact>` tags,
-generation flow, export execution, and broad renderer registry.
+includes both the HTML prototype and Markdown/report artifact, plus a linked
+schema-v0 Work Record evidence fixture that can open in the existing Work
+Record workbench from the Artifact Bundle inspector. This keeps the adaptation
+inside AOS Workbench Subjects and explicitly avoids Open Design's daemon, `.od`
+project state, SQLite persistence, streamed `<artifact>` tags, generation flow,
+export execution, replay/repair, macro playback, and broad renderer registry.
 
 ## Open Questions For AOS
 

@@ -731,6 +731,14 @@ with the shared toolkit Markdown renderer plus shared Markdown preview
 presentation, and fall back to metadata inspection for artifacts without a
 resolvable preview URL.
 
+When an artifact carries `work_record.path`, `work_record.record`, or
+`work_record.open_message`, the workbench renders a Work Record Evidence action.
+The action reuses the existing `work-record-workbench` child surface and emits
+`artifact_bundle.work_record.open.result` after preparing the read-only
+`work_record.open` payload. This is a visible provenance/evidence handoff only:
+it does not add replay, repair, macro playback, export execution, or a public
+`aos` command.
+
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing
 `subject.open.requested` shape with `artifact_bundle.open` as the workbench
