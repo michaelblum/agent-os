@@ -101,6 +101,24 @@ function artifactById(subject = {}, id = '') {
     || null;
 }
 
+function previewRenderMode(artifact = {}) {
+  const kind = text(artifact.kind).toLowerCase();
+  const renderer = rendererId(artifact).toLowerCase();
+  const entry = text(artifact.entry || artifact.path).toLowerCase();
+  const mediaTypes = arrayValue(artifact.files).map((file) => text(file?.media_type).toLowerCase());
+  if (kind === 'html' || renderer.includes('html') || entry.endsWith('.html')) return 'iframe';
+  if (
+    kind === 'markdown'
+      || renderer.includes('markdown')
+      || entry.endsWith('.md')
+      || entry.endsWith('.markdown')
+      || mediaTypes.includes('text/markdown')
+  ) {
+    return 'markdown';
+  }
+  return 'metadata';
+}
+
 function joinUrl(...parts) {
   return parts
     .map((part, index) => {
@@ -161,6 +179,7 @@ function createPreview(subject = {}, artifact = null, contentRoot = null) {
     artifact_kind: text(artifact.kind),
     renderer_id: rendererId(artifact),
     entry: text(artifact.entry || artifact.path),
+    render_mode: previewRenderMode(artifact),
     status: 'ready',
     url: artifactEntryUrl(subject, artifact, contentRoot),
     files: cloneJson(arrayValue(artifact.files)),

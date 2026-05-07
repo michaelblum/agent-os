@@ -123,6 +123,7 @@ test('artifact bundle workbench model opens read-only and preserves artifact pay
     snapshot.preview.url,
     'aos://repo-test/docs/design/fixtures/aos-artifacts/example-design-pass/prototype/index.html',
   );
+  assert.equal(snapshot.preview.render_mode, 'iframe');
   assert.equal(snapshot.diagnostics.has_legacy_views, false);
   assert.equal(snapshot.diagnostics.has_legacy_controls, false);
 
@@ -135,6 +136,7 @@ test('artifact bundle workbench model opens read-only and preserves artifact pay
     snapshot.preview.url,
     'aos://repo-test/docs/design/fixtures/aos-artifacts/example-design-pass/report.md',
   );
+  assert.equal(snapshot.preview.render_mode, 'markdown');
 });
 
 test('artifact bundle subject catalog entry creates a canonical open request', async () => {
@@ -200,6 +202,8 @@ test('artifact bundle workbench files expose the named surface and refs', async 
   assert.match(indexJs, /window\.__artifactBundleWorkbenchState/);
   assert.match(indexJs, /artifact_bundle\.open/);
   assert.match(indexJs, /artifact_bundle\.select/);
+  assert.match(indexJs, /renderMarkdown/);
+  assert.match(indexJs, /data-role="markdown-preview"/);
   assert.match(launch, /--manifest artifact-bundle-workbench/);
   assert.match(launch, /artifact-bundle-workbench:root/);
   assert.match(launch, /example-design-pass\/subject\.json/);

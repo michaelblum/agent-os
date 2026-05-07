@@ -692,8 +692,9 @@ aos://toolkit/components/artifact-bundle-workbench/index.html
 It accepts `artifact_bundle.open`, exposes
 `window.__artifactBundleWorkbenchState`, renders a gallery/preview/inspector
 snapshot, and preserves artifact payloads without rewriting them. It can preview
-HTML through a provided AOS content-root URL and falls back to metadata
-inspection for artifacts without a resolvable preview URL.
+HTML through a provided AOS content-root URL, fetch and render Markdown artifacts
+with the shared toolkit Markdown renderer, and fall back to metadata inspection
+for artifacts without a resolvable preview URL.
 
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing

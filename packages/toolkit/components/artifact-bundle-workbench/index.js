@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js';
+import { renderMarkdown } from '../../markdown/render.js';
 import {
   ARTIFACT_BUNDLE_OPEN_TYPE,
   ARTIFACT_BUNDLE_SELECT_TYPE,
@@ -118,8 +119,15 @@ function renderPreview(preview = {}) {
   if (!artifact.id) {
     return '<p class="artifact-bundle-muted">No artifact selected.</p>';
   }
-  if (kind === 'html' && preview.url) {
+  if (preview.render_mode === 'iframe' && preview.url) {
     return `<iframe title="${esc(text(artifact.label, 'HTML artifact'))}" src="${esc(preview.url)}"></iframe>`;
+  }
+  if (preview.render_mode === 'markdown' && preview.url) {
+    return (
+      `<article class="artifact-bundle-markdown-preview" aria-label="${esc(text(artifact.label, 'Markdown artifact'))}" data-role="markdown-preview">`
+        + '<p class="artifact-bundle-muted">Loading Markdown preview...</p>'
+      + '</article>'
+    );
   }
   return (
     '<div class="artifact-bundle-preview-fallback">'
@@ -130,8 +138,15 @@ function renderPreview(preview = {}) {
   );
 }
 
+async function fetchText(url = '') {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`preview fetch failed: ${response.status}`);
+  return response.text();
+}
+
 export default function ArtifactBundleWorkbench(options = {}) {
   let host = null;
+  let previewToken = 0;
   const state = createArtifactBundleWorkbenchState({
     subject: options.subject || null,
     source: options.source || null,
@@ -151,8 +166,31 @@ export default function ArtifactBundleWorkbench(options = {}) {
     window.__artifactBundleWorkbenchState = snapshot;
   }
 
+  async function loadMarkdownPreview(preview, token) {
+    try {
+      const source = await fetchText(preview.url);
+      if (token !== previewToken) return;
+      const target = dom.preview.querySelector('[data-role="markdown-preview"]');
+      if (!target) return;
+      target.innerHTML = renderMarkdown(source);
+    } catch (error) {
+      if (token !== previewToken) return;
+      const target = dom.preview.querySelector('[data-role="markdown-preview"]');
+      if (!target) return;
+      target.innerHTML = (
+        '<div class="artifact-bundle-preview-fallback">'
+          + '<strong>Markdown preview unavailable</strong>'
+          + `<span>${esc(String(error?.message || error))}</span>`
+          + `<code>${esc(text(preview.url, 'no entry'))}</code>`
+        + '</div>'
+      );
+    }
+  }
+
   function sync() {
     const snapshot = artifactBundleWorkbenchSnapshot(state);
+    const token = previewToken + 1;
+    previewToken = token;
     const subject = snapshot.subject;
     dom.subjectId.textContent = subject.id;
     dom.subjectType.textContent = subject.subject_type;
@@ -179,6 +217,9 @@ export default function ArtifactBundleWorkbench(options = {}) {
 
     const selected = objectValue(snapshot.selected_artifact);
     dom.preview.innerHTML = renderPreview(snapshot.preview);
+    if (snapshot.preview.render_mode === 'markdown' && snapshot.preview.url) {
+      void loadMarkdownPreview(snapshot.preview, token);
+    }
     dom.files.innerHTML = renderFileList(selected);
     dom.exports.innerHTML = renderExportList(selected);
     dom.provenance.innerHTML = renderProvenance(selected);
