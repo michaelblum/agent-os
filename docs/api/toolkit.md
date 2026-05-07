@@ -244,6 +244,31 @@ Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
 vocabulary.
 
+## Supervised Run Test Console
+
+`packages/toolkit/components/test-console/` provides the V0 human-in-the-loop
+console for one supplied Supervised Run step. It is a fixture/supplied-state
+toolkit component: it renders operating path, step title, instruction,
+expectation, automated-check status, evidence refs, artifact refs, and human
+response controls. It accepts `test_console.load` with either a full
+`aos.supervised_run` payload under `run` or a direct `step` payload.
+
+The component emits request-shaped events only. Confirm, Fail, Blocked, and Add
+note produce `test_console.human_response.captured` with a `response` object and
+matching `timeline_event` shaped by `shared/schemas/aos-supervised-run-v0`.
+Retry emits `test_console.retry.requested` without starting replay, repair, or
+macro playback. Open evidence emits `test_console.evidence.open.requested`
+without launching a second evidence viewer.
+
+Stable AOS semantic refs use the `test-console-v0:*` surface namespace,
+including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
+`test-console-v0:response-blocked`, `test-console-v0:response-note`,
+`test-console-v0:retry`, and evidence-specific
+`test-console-v0:evidence:open:<ref>` refs. These refs are stamped through
+`data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
+`data-semantic-target-id` so `aos see capture --canvas <id> --xray` can expose
+`semantic_targets[].do_target` for `aos do click`.
+
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For
 example, `createWikiPageSubject({ path: "sigil/agents/default.md" })` emits a

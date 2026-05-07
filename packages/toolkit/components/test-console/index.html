@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../_base/theme.css">
+<link rel="stylesheet" href="../../panel/defaults.css">
+<link rel="stylesheet" href="../../controls/defaults.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<script type="module">
+import { mountPanel, Single } from '../../panel/index.js'
+import TestConsole from './index.js'
+mountPanel({
+  title: 'Test Console V0',
+  layout: Single(TestConsole),
+  resizable: true,
+  resize: { minWidth: 720, minHeight: 560 },
+})
+</script>
+</body>
+</html>
