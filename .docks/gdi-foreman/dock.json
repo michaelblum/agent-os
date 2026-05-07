@@ -1,0 +1,36 @@
+{
+  "type": "aos.dock_template.gdi_foreman.v0",
+  "name": "gdi-foreman",
+  "description": "Repo-local launch/control template for the two-role GDI/foreman workflow.",
+  "run_state_root": ".aos-test-tmp/workflows",
+  "roles": [
+    {
+      "id": "gdi",
+      "readme": "gdi/README.md",
+      "prompt": "gdi/prompt.md",
+      "writes": [
+        "handoff/ready-for-foreman.json"
+      ]
+    },
+    {
+      "id": "foreman",
+      "readme": "foreman/README.md",
+      "prompt": "foreman/prompt.md",
+      "reads": [
+        "handoff/ready-for-foreman.json"
+      ],
+      "writes": [
+        "handoff/done.json"
+      ]
+    }
+  ],
+  "sentinels": {
+    "ready_for_foreman": "handoff/ready-for-foreman.json",
+    "done": "handoff/done.json"
+  },
+  "guardrails": [
+    "Do not modify repo-wide .codex/hooks.json.",
+    "Do not automate /goal, /model, /clear, keyboard input, terminal control, or Codex TUI driving.",
+    "Do not put source edits or generated run state inside .docks/."
+  ]
+}

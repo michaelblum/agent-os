@@ -67,11 +67,23 @@ if (!workflowDir || !role || !recordPath) {
   throw new Error('missing fake codex env');
 }
 fs.mkdirSync(path.dirname(recordPath), { recursive: true });
+const rolePromptPath = path.join(process.cwd(), 'prompt.md');
+const roleReadmePath = path.join(process.cwd(), 'README.md');
+const dockJsonPath = path.join(workflowDir, 'dock-template', 'dock.json');
+const dockRunPath = path.join(workflowDir, 'dock-run.json');
 fs.appendFileSync(recordPath, JSON.stringify({
   role,
   cwd: process.cwd(),
   argv: process.argv.slice(2),
   workflowDir,
+  rolePrompt: fs.existsSync(rolePromptPath) ? fs.readFileSync(rolePromptPath, 'utf8') : null,
+  roleReadme: fs.existsSync(roleReadmePath) ? fs.readFileSync(roleReadmePath, 'utf8') : null,
+  dockTemplateType: fs.existsSync(dockJsonPath)
+    ? JSON.parse(fs.readFileSync(dockJsonPath, 'utf8')).type
+    : null,
+  dockRunType: fs.existsSync(dockRunPath)
+    ? JSON.parse(fs.readFileSync(dockRunPath, 'utf8')).type
+    : null,
 }) + '\\n');
 
 if (mode === 'hang') {
@@ -103,16 +115,22 @@ async function readRecords(recordPath) {
 }
 
 test('parses supervisor arguments', () => {
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex', '--keep']), {
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--codex-bin', '/tmp/codex']), {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
     keep: true,
     help: false,
   });
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--clean']), {
+    workflowId: 'pilot-1',
+    codexBin: 'codex',
+    keep: false,
+    help: false,
+  });
   assert.throws(() => parseArgs(['--workflow-id']), /--workflow-id requires a value/);
 });
 
-test('run-workflow launches GDI then foreman and injects the handoff path', async () => {
+test('run-workflow seeds the dock template, launches GDI then foreman, and keeps state by default', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-'));
   const id = `test-run-workflow-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -125,7 +143,6 @@ test('run-workflow launches GDI then foreman and injects the handoff path', asyn
       id,
       '--codex-bin',
       fakeCodex,
-      '--keep',
     ], {
       cwd: repoRoot,
       env: {
@@ -142,11 +159,29 @@ test('run-workflow launches GDI then foreman and injects the handoff path', asyn
     assert.equal(records[1].cwd, path.join(dir, 'foreman'));
     assert.deepEqual(records[0].argv.slice(0, 2), ['--cd', repoRoot]);
     assert.deepEqual(records[1].argv.slice(0, 2), ['--cd', repoRoot]);
+    const gdiPrompt = records[0].argv.slice(2).join(' ');
+    assert.match(gdiPrompt, /You are the GDI role/);
+    assert.match(gdiPrompt, /handoff\/ready-for-foreman\.json/);
     const foremanPrompt = records[1].argv.slice(2).join(' ');
-    assert.match(foremanPrompt, /GDI handoff is ready at:/);
+    assert.match(foremanPrompt, /You are the foreman role/);
     assert.match(foremanPrompt, /handoff\/ready-for-foreman\.json/);
     assert.match(foremanPrompt, /handoff\/done\.json/);
+    assert.equal(records[0].dockTemplateType, 'aos.dock_template.gdi_foreman.v0');
+    assert.equal(records[1].dockTemplateType, 'aos.dock_template.gdi_foreman.v0');
+    assert.equal(records[0].dockRunType, 'aos.docked_workflow_run.v0');
+    assert.equal(records[1].dockRunType, 'aos.docked_workflow_run.v0');
+    assert.match(records[0].rolePrompt, /You are the GDI role/);
+    assert.match(records[1].rolePrompt, /You are the foreman role/);
+    assert.match(records[0].roleReadme, /GDI Role Dock/);
+    assert.match(records[1].roleReadme, /Foreman Role Dock/);
+    assert.doesNotMatch(records[0].rolePrompt, /\{\{repoRoot\}\}/);
+    assert.doesNotMatch(records[1].rolePrompt, /\{\{readyPath\}\}/);
 
+    assert.equal(await exists(path.join(dir, 'dock-template', 'README.md')), true);
+    assert.equal(await exists(path.join(dir, 'dock-template', 'dock.json')), true);
+    assert.equal(await exists(path.join(dir, 'dock-run.json')), true);
+    assert.equal(await exists(path.join(dir, 'gdi', 'README.md')), true);
+    assert.equal(await exists(path.join(dir, 'foreman', 'prompt.md')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'ready-for-foreman.json')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), true);
   } finally {
@@ -155,7 +190,7 @@ test('run-workflow launches GDI then foreman and injects the handoff path', asyn
   }
 });
 
-test('run-workflow cleans up the workflow directory by default', async () => {
+test('run-workflow cleans up the workflow directory with --clean', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-clean-'));
   const id = `test-run-workflow-clean-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -168,6 +203,7 @@ test('run-workflow cleans up the workflow directory by default', async () => {
       id,
       '--codex-bin',
       fakeCodex,
+      '--clean',
     ], {
       cwd: repoRoot,
       env: {
@@ -184,7 +220,7 @@ test('run-workflow cleans up the workflow directory by default', async () => {
   }
 });
 
-test('run-workflow handles SIGINT by terminating children and cleaning up', async () => {
+test('run-workflow handles SIGINT by terminating children and honoring --clean', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-signal-'));
   const id = `test-run-workflow-signal-${process.pid}-${Date.now()}`;
   const dir = workflowDir(id);
@@ -197,6 +233,7 @@ test('run-workflow handles SIGINT by terminating children and cleaning up', asyn
       id,
       '--codex-bin',
       fakeCodex,
+      '--clean',
     ], {
       cwd: repoRoot,
       env: {

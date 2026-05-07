@@ -7,14 +7,19 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const profileScript = path.join(repoRoot, 'scripts', 'create-codex-workflow-hook-profile.mjs');
+const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 
 function usage() {
-  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--keep]
+  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--keep|--clean]
 
-Creates an ephemeral Codex workflow hook profile, launches the GDI role, waits
-for handoff/ready-for-foreman.json, launches the foreman role with that path in
-the initial prompt, waits for handoff/done.json, then exits cleanly.`;
+Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
+.docks/gdi-foreman template, launches the GDI role, waits for
+handoff/ready-for-foreman.json, launches the foreman role, waits for
+handoff/done.json, then exits cleanly.
+
+Generated workflow state is kept by default for inspection. Use --clean to
+remove .aos-test-tmp/workflows/<id>/ after completion or interruption.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -29,7 +34,7 @@ export function parseArgs(argv) {
   const args = {
     workflowId: null,
     codexBin: defaultCodexBin,
-    keep: false,
+    keep: true,
     help: false,
   };
 
@@ -45,12 +50,81 @@ export function parseArgs(argv) {
       index += 1;
     } else if (arg === '--keep') {
       args.keep = true;
+    } else if (arg === '--clean') {
+      args.keep = false;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
 
   return args;
+}
+
+async function copyDirectoryContents(sourceDir, destinationDir) {
+  const entries = await fsp.readdir(sourceDir, { withFileTypes: true });
+  await fsp.mkdir(destinationDir, { recursive: true });
+
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const destinationPath = path.join(destinationDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirectoryContents(sourcePath, destinationPath);
+    } else if (entry.isFile()) {
+      await fsp.copyFile(sourcePath, destinationPath);
+    }
+  }
+}
+
+function renderTemplateText(text, context) {
+  return text.replace(/\{\{([A-Za-z0-9_]+)\}\}/g, (match, key) => {
+    if (Object.prototype.hasOwnProperty.call(context, key)) {
+      return context[key];
+    }
+    return match;
+  });
+}
+
+async function renderRoleFile(filePath, context) {
+  if (!fileExists(filePath)) return;
+  const text = await fsp.readFile(filePath, 'utf8');
+  await fsp.writeFile(filePath, renderTemplateText(text, context));
+}
+
+function roleContext(profile, workflowDir, readyPath, donePath, role) {
+  return {
+    workflowId: profile.workflow_id,
+    repoRoot,
+    workflowDir,
+    role,
+    roleDir: path.join(repoRoot, profile.roles[role].dir),
+    readyPath,
+    donePath,
+  };
+}
+
+async function instantiateDockTemplate(profile, workflowDir, readyPath, donePath) {
+  const dockSnapshotDir = path.join(workflowDir, 'dock-template');
+  await copyDirectoryContents(dockTemplateDir, dockSnapshotDir);
+
+  for (const role of ['gdi', 'foreman']) {
+    const roleSourceDir = path.join(dockTemplateDir, role);
+    const roleDir = path.join(repoRoot, profile.roles[role].dir);
+    await copyDirectoryContents(roleSourceDir, roleDir);
+    const context = roleContext(profile, workflowDir, readyPath, donePath, role);
+    await renderRoleFile(path.join(roleDir, 'README.md'), context);
+    await renderRoleFile(path.join(roleDir, 'prompt.md'), context);
+  }
+
+  await fsp.writeFile(path.join(workflowDir, 'dock-run.json'), `${JSON.stringify({
+    type: 'aos.docked_workflow_run.v0',
+    workflow_id: profile.workflow_id,
+    dock_template: path.relative(repoRoot, dockTemplateDir),
+    dock_snapshot: path.relative(repoRoot, dockSnapshotDir),
+    roles: {
+      gdi: profile.roles.gdi.dir,
+      foreman: profile.roles.foreman.dir,
+    },
+  }, null, 2)}\n`);
 }
 
 function runProfileGenerator(args, options = {}) {
@@ -212,16 +286,8 @@ async function waitForSentinelOrChildExit(filePath, child, label, parentSignal) 
   }
 }
 
-function foremanPrompt(readyPath, donePath) {
-  return `We are in ${repoRoot}.
-
-GDI handoff is ready at:
-${readyPath}
-
-Read that file first. Perform the foreman integration pass. When complete, write:
-${donePath}
-
-The done file should be JSON and may be as small as {"status":"done"}.`;
+async function readRolePrompt(role, profile) {
+  return fsp.readFile(path.join(repoRoot, profile.roles[role].dir, 'prompt.md'), 'utf8');
 }
 
 async function cleanupWorkflow(workflowDir, keep) {
@@ -242,6 +308,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
   const readyPath = path.join(handoffDir, 'ready-for-foreman.json');
   const donePath = path.join(handoffDir, 'done.json');
   await fsp.mkdir(handoffDir, { recursive: true });
+  await instantiateDockTemplate(profile, workflowDir, readyPath, donePath);
 
   const controller = new AbortController();
   const children = new Set();
@@ -268,7 +335,9 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
 
   try {
     console.error(`workflow ${profile.workflow_id}: launching GDI`);
-    const gdi = spawnRole('gdi', profile, workflowDir, args);
+    const gdi = spawnRole('gdi', profile, workflowDir, args, {
+      prompt: await readRolePrompt('gdi', profile),
+    });
     children.add(gdi);
     gdi.once('exit', () => children.delete(gdi));
 
@@ -276,7 +345,7 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
 
     console.error(`workflow ${profile.workflow_id}: launching foreman`);
     const foreman = spawnRole('foreman', profile, workflowDir, args, {
-      prompt: foremanPrompt(readyPath, donePath),
+      prompt: await readRolePrompt('foreman', profile),
       env: {
         AOS_GDI_HANDOFF_READY_PATH: readyPath,
         AOS_WORKFLOW_DONE_PATH: donePath,

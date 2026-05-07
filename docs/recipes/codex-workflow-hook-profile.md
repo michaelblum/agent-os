@@ -37,6 +37,27 @@ The helper creates:
 The generated role directories are intentionally ignored local scratch space.
 There is no automatic cleanup in V0.
 
+## Docked GDI/Foreman Launcher
+
+The reusable docking-station path is checked in at `.docks/gdi-foreman/`. A dock
+is a launch/control template, not a source workspace. Do not put generated run
+state or task source edits inside `.docks/`.
+
+Start the docked GDI/foreman workflow from the repo root:
+
+```bash
+node scripts/run-workflow.mjs --workflow-id pilot-001
+```
+
+The launcher creates `.aos-test-tmp/workflows/pilot-001/`, generates the
+role-local hook profile, snapshots the dock template into `dock-template/`,
+copies rendered `gdi/` and `foreman/` role guidance into the generated role
+directories, launches GDI, waits for `handoff/ready-for-foreman.json`, then
+launches foreman and waits for `handoff/done.json`.
+
+Run state is kept by default for inspection. Add `--clean` to remove the
+generated workflow directory after completion or interruption.
+
 ## What The Hooks Do
 
 Both roles get a harmless Stop marker hook. The script reads hook stdin, writes
