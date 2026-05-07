@@ -82,10 +82,59 @@ function renderFileList(artifact = {}) {
   );
 }
 
-function renderSourceEvidenceMetadata(metadata = null) {
+function sourceCategoryLabel(value = '') {
+  return text(value, 'unknown')
+    .replace(/_/g, ' ')
+    .replace(/\blinkedin\b/gi, 'LinkedIn');
+}
+
+export function renderEvidenceCoverageGap(gap = null) {
+  const coverageGap = objectValue(gap);
+  if (Object.keys(coverageGap).length === 0) return '';
+  const stats = [
+    ['Planned', coverageGap.planned_count],
+    ['Captured', coverageGap.captured_count],
+    ['Matched', coverageGap.matched_request_count],
+    ['Missing', coverageGap.missing_planned_count],
+  ];
+  const byCompany = arrayValue(coverageGap.by_company);
+  const collectionAuthorized = coverageGap.collection_authorized === true;
+  return (
+    `<div class="artifact-bundle-evidence-summary artifact-bundle-evidence-gap" data-role="evidence-coverage-gap" data-aos-ref="${esc(text(coverageGap.semantic_ref))}" data-collection-authorized="${collectionAuthorized ? 'true' : 'false'}">`
+      + '<header>Evidence Coverage Gap</header>'
+      + stats.map(([label, value]) => (
+        '<div>'
+          + `<span>${esc(label)}</span>`
+          + `<strong>${esc(text(value, '0'))}</strong>`
+        + '</div>'
+      )).join('')
+      + `<p>${collectionAuthorized ? 'Collection authorization present' : 'No collection authorization'}; read-only planning provenance only.</p>`
+    + '</div>'
+    + (byCompany.length === 0 ? '<p class="artifact-bundle-muted">No missing source categories recorded.</p>' : (
+      '<ol class="artifact-bundle-list artifact-bundle-evidence-gap-list" data-role="evidence-coverage-gap-companies">'
+        + byCompany.map((row) => {
+          const categories = arrayValue(row.missing_source_categories)
+            .map((category) => sourceCategoryLabel(category))
+            .filter(Boolean)
+            .join(', ');
+          return (
+            '<li>'
+              + `<strong>${esc(text(row.company, 'unknown'))}</strong>`
+              + `<span>${esc(text(row.missing_planned_count, '0'))} missing planned - ${esc(text(row.captured_count, '0'))}/${esc(text(row.planned_count, '0'))} captured</span>`
+              + `<code>${esc(categories || 'none')}</code>`
+            + '</li>'
+          );
+        }).join('')
+      + '</ol>'
+    ))
+  );
+}
+
+export function renderSourceEvidenceMetadata(metadata = null) {
   const entries = arrayValue(metadata?.entries);
   if (entries.length === 0) return '';
   const coverage = objectValue(metadata?.browser_evidence_coverage_summary);
+  const coverageGapMarkup = renderEvidenceCoverageGap(metadata?.evidence_coverage_gap);
   const summary = [
     `${metadata.entry_count || entries.length} files`,
     metadata.browser_evidence_entry_count ? `${metadata.browser_evidence_entry_count} browser evidence` : '',
@@ -98,7 +147,8 @@ function renderSourceEvidenceMetadata(metadata = null) {
         + `<strong>${esc(summary)}</strong></div>`
       + '<p>Inspectable provenance only; no collection, replay, repair, or separate evidence viewer.</p>'
     + '</div>'
-    + renderBrowserEvidenceCoverageSummary(coverage)
+    + coverageGapMarkup
+    + (coverageGapMarkup ? '' : renderBrowserEvidenceCoverageSummary(coverage))
     + '<ol class="artifact-bundle-list artifact-bundle-source-evidence-list">'
       + entries.map((entry) => {
         const flags = [

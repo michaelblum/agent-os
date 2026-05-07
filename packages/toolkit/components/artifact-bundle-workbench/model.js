@@ -4,9 +4,6 @@ import {
   createArtifactBundleSubject,
 } from '../../workbench/artifact-bundle-subject.js';
 import {
-  cloneBrowserEvidenceCoverageSummary,
-} from '../../workbench/browser-evidence-coverage.js';
-import {
   createWorkRecordWorkbenchState,
   openWorkRecord,
   workRecordWorkbenchSnapshot,
@@ -32,9 +29,20 @@ function arrayValue(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function numberValue(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
 function cloneJson(value) {
   if (value === undefined) return undefined;
   return JSON.parse(JSON.stringify(value));
+}
+
+function cloneBrowserEvidenceCoverageSummary(summary = null) {
+  const value = objectValue(summary);
+  if (Object.keys(value).length === 0) return null;
+  return cloneJson(value);
 }
 
 function stableJson(value) {
@@ -233,7 +241,7 @@ function createSourceEvidenceMetadata(artifact = null) {
   if (!artifact) return null;
   const artifactId = text(artifact.id, 'artifact');
   const coverageSummary = browserEvidenceCoverageSummaryForArtifact(artifact, artifactId);
-  const entries = arrayValue(artifact.files)
+  const evidenceFiles = arrayValue(artifact.files)
     .map((file) => objectValue(file))
     .filter((file) => {
       const role = text(file.role).toLowerCase();
@@ -242,7 +250,8 @@ function createSourceEvidenceMetadata(artifact = null) {
         || role.includes('evidence')
         || role.includes('work_record')
         || text(metadata.evidence_ref);
-    })
+    });
+  const entries = evidenceFiles
     .map((file) => {
       const role = text(file.role, 'file');
       const metadata = objectValue(file.metadata);
@@ -268,6 +277,11 @@ function createSourceEvidenceMetadata(artifact = null) {
       };
     });
   const browserEvidenceEntries = entries.filter((entry) => entry.role.startsWith('browser_evidence'));
+  const evidenceCoverageGap = createEvidenceCoverageGapFromCoverageSummary(
+    coverageSummary,
+    artifactId,
+    evidenceFiles,
+  );
   return {
     type: 'aos.artifact_bundle.source_evidence_metadata',
     schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
@@ -287,6 +301,7 @@ function createSourceEvidenceMetadata(artifact = null) {
       .filter((entry) => entry.role === 'browser_evidence_planning_manifest')
       .map((entry) => entry.path),
     browser_evidence_coverage_summary: coverageSummary,
+    evidence_coverage_gap: evidenceCoverageGap,
     local_fixture_page_count: browserEvidenceEntries
       .filter((entry) => entry.role === 'browser_evidence_fixture_page')
       .length,
@@ -332,6 +347,96 @@ function browserEvidenceCoverageSummaryForArtifact(artifact = {}, artifactId = '
     }
   }
   return null;
+}
+
+const COLLECTION_AUTHORIZATION_KEYS = [
+  'authorizes_collection',
+  'remote_web_collection',
+  'autonomous_browsing',
+  'collection_execution',
+  'workflow_execution',
+  'report_generation',
+  'export_execution',
+  'replay',
+  'repair',
+  'macro_playback',
+];
+
+function collectionAuthorizationFromMetadata(metadata = {}) {
+  const flags = {};
+  for (const key of COLLECTION_AUTHORIZATION_KEYS) {
+    flags[key] = metadata[key] === true;
+  }
+  return flags;
+}
+
+function browserEvidenceCoverageGapFile(files = []) {
+  return arrayValue(files).find((file) => text(file?.role) === 'browser_evidence_coverage_gap') || null;
+}
+
+function missingCompanyCategoriesFromCoverageSummary(summary = {}) {
+  const companies = new Map();
+  for (const row of arrayValue(summary.by_company_source_category)) {
+    const missingCount = numberValue(row?.missing_planned_count);
+    if (missingCount <= 0) continue;
+    const company = text(row.company, 'unknown');
+    if (!companies.has(company)) {
+      companies.set(company, {
+        company,
+        planned_count: 0,
+        captured_count: 0,
+        matched_request_count: 0,
+        missing_planned_count: 0,
+        missing_source_categories: [],
+      });
+    }
+    const entry = companies.get(company);
+    entry.missing_planned_count += missingCount;
+    const category = text(row.source_category);
+    if (category && !entry.missing_source_categories.includes(category)) {
+      entry.missing_source_categories.push(category);
+    }
+  }
+
+  for (const row of arrayValue(summary.by_company)) {
+    const company = text(row.company, 'unknown');
+    if (!companies.has(company)) continue;
+    const entry = companies.get(company);
+    entry.planned_count = numberValue(row.planned_count);
+    entry.captured_count = numberValue(row.captured_count);
+    entry.matched_request_count = numberValue(row.matched_request_count);
+    entry.missing_planned_count = numberValue(row.missing_planned_count, entry.missing_planned_count);
+  }
+  return [...companies.values()];
+}
+
+function createEvidenceCoverageGapFromCoverageSummary(summary = null, artifactId = '', files = []) {
+  const coverage = objectValue(summary);
+  if (Object.keys(coverage).length === 0) return null;
+  const gapFile = browserEvidenceCoverageGapFile(files);
+  if (!gapFile && numberValue(coverage.missing_planned_count) === 0) return null;
+  const gapMetadata = objectValue(gapFile?.metadata);
+  const authorization = collectionAuthorizationFromMetadata(gapMetadata);
+  const collectionAuthorized = Object.values(authorization).some((value) => value === true);
+  return {
+    type: 'aos.artifact_bundle.evidence_coverage_gap',
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    artifact_id: text(artifactId, 'artifact'),
+    label: 'Evidence Coverage Gap',
+    planned_count: numberValue(coverage.planned_count),
+    captured_count: numberValue(coverage.captured_count),
+    matched_request_count: numberValue(coverage.matched_request_count),
+    missing_planned_count: numberValue(coverage.missing_planned_count),
+    coverage_gap_path: text(gapFile?.path) || null,
+    coverage_summary_ref: text(coverage.semantic_ref) || null,
+    by_company: missingCompanyCategoriesFromCoverageSummary(coverage),
+    authorization,
+    collection_authorized: collectionAuthorized,
+    read_only: true,
+    provenance_only: true,
+    planning_artifact_only: gapMetadata.planning_artifact_only === true,
+    semantic_ref: ref('source-evidence', 'evidence-coverage-gap', artifactId),
+  };
 }
 
 function galleryEntry(artifact = {}, selectedId = '') {

@@ -7,6 +7,9 @@ import {
   openArtifactBundle,
 } from '../../packages/toolkit/components/artifact-bundle-workbench/model.js';
 import {
+  renderEvidenceCoverageGap,
+} from '../../packages/toolkit/components/artifact-bundle-workbench/index.js';
+import {
   summarizeBrowserEvidencePlanningCoverage,
 } from '../../packages/toolkit/workbench/browser-evidence-coverage.js';
 import {
@@ -76,6 +79,32 @@ function assertDoesNotAuthorizeCollection(value) {
     'macro_playback',
   ]) {
     assert.equal(value[key], false, `${key} should be false`);
+  }
+}
+
+function withEscDocument(fn) {
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    createElement() {
+      return {
+        value: '',
+        set textContent(value) {
+          this.value = String(value ?? '');
+        },
+        get innerHTML() {
+          return this.value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        },
+      };
+    },
+  };
+  try {
+    return fn();
+  } finally {
+    globalThis.document = previousDocument;
   }
 }
 
@@ -289,6 +318,7 @@ test('artifact bundle workbench exposes fixture coverage as read-only provenance
   });
   const snapshot = artifactBundleWorkbenchSnapshot(state);
   const summary = snapshot.selected_source_evidence_metadata.browser_evidence_coverage_summary;
+  const gap = snapshot.selected_source_evidence_metadata.evidence_coverage_gap;
   const coverageGapEntry = snapshot.selected_source_evidence_metadata.entries.find((entry) => (
     entry.role === 'browser_evidence_coverage_gap'
   ));
@@ -310,4 +340,93 @@ test('artifact bundle workbench exposes fixture coverage as read-only provenance
   assert.deepEqual(compactCoverageRows(summary), compactCoverageRows(expected));
   assert.equal('open_ref' in summary, false);
   assert.equal('can_open' in summary, false);
+
+  assert.equal(gap.type, 'aos.artifact_bundle.evidence_coverage_gap');
+  assert.equal(gap.label, 'Evidence Coverage Gap');
+  assert.equal(gap.planned_count, 21);
+  assert.equal(gap.captured_count, 3);
+  assert.equal(gap.matched_request_count, 3);
+  assert.equal(gap.missing_planned_count, 18);
+  assert.equal(gap.coverage_gap_path, 'browser-evidence/coverage-gap.json');
+  assert.equal(gap.read_only, true);
+  assert.equal(gap.provenance_only, true);
+  assert.equal(gap.planning_artifact_only, true);
+  assert.equal(gap.collection_authorized, false);
+  assertDoesNotAuthorizeCollection(gap.authorization);
+  assert.deepEqual(gap.by_company.map((row) => [
+    row.company,
+    row.planned_count,
+    row.captured_count,
+    row.matched_request_count,
+    row.missing_planned_count,
+    row.missing_source_categories,
+  ]), [
+    ['Symphony Talent', 7, 1, 1, 6, [
+      'employer_brand_pages',
+      'linkedin_presence',
+      'review_platforms',
+      'social_campaigns',
+      'awards_recognition',
+      'employee_stories',
+    ]],
+    ['Phenom', 7, 1, 1, 6, [
+      'employer_brand_pages',
+      'linkedin_presence',
+      'review_platforms',
+      'social_campaigns',
+      'awards_recognition',
+      'employee_stories',
+    ]],
+    ['Radancy', 7, 1, 1, 6, [
+      'employer_brand_pages',
+      'linkedin_presence',
+      'review_platforms',
+      'social_campaigns',
+      'awards_recognition',
+      'employee_stories',
+    ]],
+  ]);
+  assert.equal('open_ref' in gap, false);
+  assert.equal('can_open' in gap, false);
+  assert.equal('run_command' in gap, false);
+  assert.equal('collector' in gap, false);
+});
+
+test('artifact bundle provenance rendering exposes the compact Evidence Coverage Gap without collection authorization', async () => {
+  const subject = createArtifactBundleSubject(await readJson(subjectUrl));
+  const state = createArtifactBundleWorkbenchState({
+    contentRoot: {
+      name: 'repo-test',
+      url: 'aos://repo-test/',
+    },
+  });
+
+  openArtifactBundle(state, {
+    type: 'artifact_bundle.open',
+    subject,
+    content_root: {
+      name: 'repo-test',
+      url: 'aos://repo-test/',
+    },
+  });
+  const snapshot = artifactBundleWorkbenchSnapshot(state);
+  const gap = snapshot.selected_source_evidence_metadata.evidence_coverage_gap;
+  const html = withEscDocument(() => renderEvidenceCoverageGap(gap));
+
+  assert.match(html, /data-role="evidence-coverage-gap"/);
+  assert.match(html, /data-collection-authorized="false"/);
+  assert.match(html, /Evidence Coverage Gap/);
+  assert.match(html, /<span>Planned<\/span><strong>21<\/strong>/);
+  assert.match(html, /<span>Captured<\/span><strong>3<\/strong>/);
+  assert.match(html, /<span>Matched<\/span><strong>3<\/strong>/);
+  assert.match(html, /<span>Missing<\/span><strong>18<\/strong>/);
+  assert.match(html, /No collection authorization/);
+  assert.match(html, /Symphony Talent/);
+  assert.match(html, /Phenom/);
+  assert.match(html, /Radancy/);
+  assert.match(
+    html,
+    /employer brand pages, LinkedIn presence, review platforms, social campaigns, awards recognition, employee stories/,
+  );
+  assert.doesNotMatch(html, /data-collection-authorized="true"/);
 });

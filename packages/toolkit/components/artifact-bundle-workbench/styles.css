@@ -182,6 +182,18 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
+.artifact-bundle-evidence-gap {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.artifact-bundle-evidence-gap header {
+  grid-column: 1 / -1;
+  padding: 0;
+  color: var(--aos-text-strong, #ffffff);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .artifact-bundle-evidence-summary div {
   min-width: 0;
 }
@@ -211,6 +223,10 @@
   grid-column: 1 / -1;
   margin: 0;
   font-size: 0.76rem;
+}
+
+.artifact-bundle-evidence-gap-list code {
+  color: var(--aos-text, #e8f0f2);
 }
 
 .artifact-bundle-action-row {
