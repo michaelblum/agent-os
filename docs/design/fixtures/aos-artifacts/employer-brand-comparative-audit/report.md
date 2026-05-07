@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This static fixture represents the first Employer Brand comparative audit artifact bundle for the AOS Artifact Bundle Workbench. It is intentionally read-only: it does not run browser collection, generate strategic analysis, execute exports, repair a recipe, or replay a workflow. Its purpose is to prove that a stakeholder-facing Markdown report can travel with source metadata, provenance, Work Record evidence, and a previewable workbench route.
+This static fixture represents the first Employer Brand comparative audit artifact bundle for the AOS Artifact Bundle Workbench. It is intentionally read-only: it does not run remote browser collection, generate strategic analysis, execute exports, repair a recipe, or replay a workflow. Its purpose is to prove that a stakeholder-facing Markdown report can travel with source metadata, local browser-evidence provenance, Work Record evidence, and a previewable workbench route.
 
 ## Scope
 
@@ -26,7 +26,7 @@ The fixture compares Symphony Talent, Phenom, and Radancy through a lightweight 
 
 ## Source Evidence
 
-The attached `sources.json` file records one source reference per company, the fixture role, source URL, source status, and the limitation that this fixture does not include fresh browser captures. A production run should attach source text, screenshots, collection timestamps, and normalized excerpts before elevating these findings into a client-facing report.
+The attached `sources.json` file records one source reference per company, the fixture role, source URL, source status, and the limitation that this fixture does not include live-web captures. The attached `browser-evidence/registry.json` records Browser Evidence Capture V0 rows generated from local fixture pages only, with local crop assets for provenance inspection. A production run should attach live source text, screenshots, collection timestamps, and normalized excerpts before elevating these findings into a client-facing report.
 
 ## Provenance
 
@@ -34,4 +34,4 @@ This fixture is guided by the 2026-05-05 Employer Brand demo postmortem and the 
 
 ## Readiness Notes
 
-This report is acceptable as a workbench fixture when the Artifact Bundle Workbench can preview the Markdown artifact, inspect `sources.json`, open the linked Work Record through the existing Work Record Workbench path, and hydrate the Work Record evidence summary after handoff.
+This report is acceptable as a workbench fixture when the Artifact Bundle Workbench can preview the Markdown artifact, inspect `sources.json` and `browser-evidence/registry.json` as source/evidence metadata, open the linked Work Record through the existing Work Record Workbench path, and hydrate the Work Record evidence summary after handoff.

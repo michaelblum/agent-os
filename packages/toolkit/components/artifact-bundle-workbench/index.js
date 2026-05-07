@@ -82,18 +82,53 @@ function renderFileList(artifact = {}) {
   );
 }
 
-function renderProvenance(artifact = {}) {
+function renderSourceEvidenceMetadata(metadata = null) {
+  const entries = arrayValue(metadata?.entries);
+  if (entries.length === 0) return '';
+  const summary = [
+    `${metadata.entry_count || entries.length} files`,
+    metadata.browser_evidence_entry_count ? `${metadata.browser_evidence_entry_count} browser evidence` : '',
+    metadata.local_fixture_page_count ? `${metadata.local_fixture_page_count} local pages` : '',
+    metadata.crop_count ? `${metadata.crop_count} crops` : '',
+  ].filter(Boolean).join(' - ');
+  return (
+    `<div class="artifact-bundle-evidence-summary" data-role="source-evidence-metadata" data-aos-ref="${esc(text(metadata.semantic_ref))}">`
+      + '<div><span>Source/evidence metadata</span>'
+        + `<strong>${esc(summary)}</strong></div>`
+      + '<p>Inspectable provenance only; no collection, replay, repair, or separate evidence viewer.</p>'
+    + '</div>'
+    + '<ol class="artifact-bundle-list artifact-bundle-source-evidence-list">'
+      + entries.map((entry) => {
+        const flags = [
+          entry.read_only ? 'read-only' : '',
+          entry.provenance_only ? 'provenance-only' : '',
+          entry.local_fixture_pages_only ? 'local fixture' : '',
+        ].filter(Boolean).join(' - ');
+        return (
+          `<li data-aos-ref="${esc(text(entry.semantic_ref))}">`
+            + `<strong>${esc(text(entry.role, 'file'))}</strong>`
+            + `<span>${esc(text(entry.media_type, 'unknown'))}${flags ? ` - ${esc(flags)}` : ''}</span>`
+            + `<code>${esc(text(entry.path, 'no path'))}</code>`
+          + '</li>'
+        );
+      }).join('')
+    + '</ol>'
+  );
+}
+
+function renderProvenance(artifact = {}, sourceEvidenceMetadata = null) {
   const provenance = objectValue(artifact.provenance);
   const workRecord = objectValue(artifact.work_record);
   const rows = [
     ['Source', provenance.source_subject_id || 'none'],
     ['Work record', workRecord.subject_id || provenance.work_record_id || 'none'],
     ['Evidence refs', arrayValue(workRecord.evidence_refs).join(', ') || 'none'],
+    ['Browser evidence', provenance.browser_evidence_registry || 'none'],
     ['Guidance', arrayValue(provenance.guided_by).join(', ') || 'none'],
   ];
   return rows.map(([label, value]) => (
     `<div class="artifact-bundle-row"><span>${esc(label)}</span><strong>${esc(String(value))}</strong></div>`
-  )).join('');
+  )).join('') + renderSourceEvidenceMetadata(sourceEvidenceMetadata);
 }
 
 function renderEvidenceSummary(summary = null) {
@@ -379,7 +414,7 @@ export default function ArtifactBundleWorkbench(options = {}) {
     }
     dom.files.innerHTML = renderFileList(selected);
     dom.exports.innerHTML = renderExportList(selected);
-    dom.provenance.innerHTML = renderProvenance(selected);
+    dom.provenance.innerHTML = renderProvenance(selected, snapshot.selected_source_evidence_metadata);
     dom.workRecord.innerHTML = renderWorkRecordLink(
       snapshot.selected_work_record_link,
       snapshot.selected_work_record_summary,

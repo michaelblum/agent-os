@@ -1,0 +1,249 @@
+{
+  "type": "aos.browser_evidence_registry",
+  "schema_version": "2026-05-browser-evidence-capture-v0",
+  "generated_at": "2026-05-07T15:11:00Z",
+  "status": "completed",
+  "manifest": {
+    "type": "aos.browser_evidence_capture_manifest",
+    "schema_version": "2026-05-browser-evidence-capture-v0",
+    "manifest_id": "manifest:employer-brand-comparative-audit-browser-evidence-fixture",
+    "audit_id": "audit:employer-brand-comparative-audit-fixture",
+    "request_count": 3
+  },
+  "summary": {
+    "request_count": 3,
+    "captured_count": 3,
+    "failed_count": 0,
+    "by_status": {
+      "captured": 3
+    }
+  },
+  "evidence": [
+    {
+      "request_id": "symphony_talent_fixture_evp_hero",
+      "company": "Symphony Talent",
+      "source_category": "careers_site",
+      "source_url": "html/symphony-talent-careers.html",
+      "url": "html/symphony-talent-careers.html",
+      "evidence_goal": "capture the local fixture hero used as the client employer value proposition evidence sample",
+      "kilos_relevance": [
+        "impact",
+        "opportunity"
+      ],
+      "kilos_factors": [
+        "meaningful work for people",
+        "professional expertise"
+      ],
+      "notes": "Fixture page only; not collected from the live Symphony Talent website.",
+      "captured_at": "2026-05-07T15:11:01Z",
+      "selector": "[data-evidence-id='symphony-hero']",
+      "xpath": null,
+      "extracted_text": "SYMPHONY TALENT FIXTURE Build talent experiences with people who care about craft and impact. Teams connect creative storytelling, recruitment marketing technology, and client partnership to help employers reach candidates with more relevant experiences.",
+      "screenshot_path": "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+      "status": "captured",
+      "error": null,
+      "caveat": null,
+      "selector_resolution": {
+        "strategy": "css",
+        "candidates": [
+          {
+            "kind": "css",
+            "value": "[data-evidence-id='symphony-hero']",
+            "match_count": 1,
+            "error": null
+          }
+        ],
+        "used": {
+          "kind": "css",
+          "value": "[data-evidence-id='symphony-hero']",
+          "index": 0,
+          "match_count": 1
+        }
+      },
+      "capture_metadata": {
+        "collector": "2026-05-browser-evidence-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "browser": "chromium",
+        "headless": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "local_url_policy": "file_data_or_localhost_only",
+        "autonomous_browsing": false,
+        "playwright_session": "browser-evidence-fixture-symphony_talent_fixture_evp_hero",
+        "source_url_kind": "relative_file",
+        "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/symphony-talent-careers.html",
+        "page_url": "data:local-fixture-html",
+        "started_at": "2026-05-07T15:11:01Z",
+        "completed_at": "2026-05-07T15:11:01Z",
+        "duration_ms": 0,
+        "bounding_box": {
+          "x": 100,
+          "y": 48,
+          "width": 1080,
+          "height": 287
+        },
+        "visible": true,
+        "screenshot_bytes": 40824,
+        "fixture_backed": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "request_id": "phenom_fixture_culture_card",
+      "company": "Phenom",
+      "source_category": "careers_site",
+      "source_url": "html/phenom-careers.html",
+      "url": "html/phenom-careers.html",
+      "evidence_goal": "capture the local fixture culture card used as competitor employer brand evidence",
+      "kilos_relevance": [
+        "impact",
+        "kinship"
+      ],
+      "kilos_factors": [
+        "innovation and invention",
+        "sense of belonging"
+      ],
+      "notes": "Fixture page only; not collected from the live Phenom website.",
+      "captured_at": "2026-05-07T15:11:02Z",
+      "selector": "[data-evidence-id='phenom-culture']",
+      "xpath": null,
+      "extracted_text": "Make every talent moment more personal. Employees are shown as builders of intelligent experiences, with emphasis on product pace, customer outcomes, and collaborative problem solving across teams.",
+      "screenshot_path": "screenshots/phenom/phenom-fixture-culture-card.png",
+      "status": "captured",
+      "error": null,
+      "caveat": null,
+      "selector_resolution": {
+        "strategy": "css",
+        "candidates": [
+          {
+            "kind": "css",
+            "value": "[data-evidence-id='phenom-culture']",
+            "match_count": 1,
+            "error": null
+          }
+        ],
+        "used": {
+          "kind": "css",
+          "value": "[data-evidence-id='phenom-culture']",
+          "index": 0,
+          "match_count": 1
+        }
+      },
+      "capture_metadata": {
+        "collector": "2026-05-browser-evidence-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "browser": "chromium",
+        "headless": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "local_url_policy": "file_data_or_localhost_only",
+        "autonomous_browsing": false,
+        "playwright_session": "browser-evidence-fixture-phenom_fixture_culture_card",
+        "source_url_kind": "relative_file",
+        "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/phenom-careers.html",
+        "page_url": "data:local-fixture-html",
+        "started_at": "2026-05-07T15:11:02Z",
+        "completed_at": "2026-05-07T15:11:02Z",
+        "duration_ms": 0,
+        "bounding_box": {
+          "x": 100,
+          "y": 48,
+          "width": 1080,
+          "height": 232.1875
+        },
+        "visible": true,
+        "screenshot_bytes": 29593,
+        "fixture_backed": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "request_id": "radancy_fixture_proof_block",
+      "company": "Radancy",
+      "source_category": "careers_site",
+      "source_url": "html/radancy-careers.html",
+      "url": "html/radancy-careers.html",
+      "evidence_goal": "capture the local fixture proof block used as competitor status evidence",
+      "kilos_relevance": [
+        "status",
+        "opportunity"
+      ],
+      "kilos_factors": [
+        "industry reputation",
+        "professional expertise"
+      ],
+      "notes": "Fixture page only; not collected from the live Radancy website.",
+      "captured_at": "2026-05-07T15:11:03Z",
+      "selector": "[data-evidence-id='radancy-proof']",
+      "xpath": null,
+      "extracted_text": "Work on enterprise hiring programs with global reach. The fixture emphasizes scale, established client programs, and specialist recruitment marketing expertise as employer brand proof points.",
+      "screenshot_path": "screenshots/radancy/radancy-fixture-proof-block.png",
+      "status": "captured",
+      "error": null,
+      "caveat": null,
+      "selector_resolution": {
+        "strategy": "css",
+        "candidates": [
+          {
+            "kind": "css",
+            "value": "[data-evidence-id='radancy-proof']",
+            "match_count": 1,
+            "error": null
+          }
+        ],
+        "used": {
+          "kind": "css",
+          "value": "[data-evidence-id='radancy-proof']",
+          "index": 0,
+          "match_count": 1
+        }
+      },
+      "capture_metadata": {
+        "collector": "2026-05-browser-evidence-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "browser": "chromium",
+        "headless": true,
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "local_url_policy": "file_data_or_localhost_only",
+        "autonomous_browsing": false,
+        "playwright_session": "browser-evidence-fixture-radancy_fixture_proof_block",
+        "source_url_kind": "relative_file",
+        "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/radancy-careers.html",
+        "page_url": "data:local-fixture-html",
+        "started_at": "2026-05-07T15:11:03Z",
+        "completed_at": "2026-05-07T15:11:03Z",
+        "duration_ms": 0,
+        "bounding_box": {
+          "x": 100,
+          "y": 48,
+          "width": 1080,
+          "height": 232.1875
+        },
+        "visible": true,
+        "screenshot_bytes": 32633,
+        "fixture_backed": true,
+        "provenance_only": true
+      }
+    }
+  ],
+  "capture_metadata": {
+    "collector": "2026-05-browser-evidence-capture-v0",
+    "backend": "playwright-cli",
+    "backend_command": "playwright-cli",
+    "output_root": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence",
+    "local_url_policy": "file_data_or_localhost_only",
+    "autonomous_browsing": false,
+    "fixture_backed": true,
+    "provenance_only": true
+  }
+}

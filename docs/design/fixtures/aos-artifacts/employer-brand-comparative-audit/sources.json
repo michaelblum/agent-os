@@ -74,7 +74,19 @@
   },
   "limitations": [
     "This fixture does not claim the source URLs still contain the sampled positioning.",
-    "This fixture does not contain screenshots or raw HTML/text captures.",
-    "This fixture is only evidence for Artifact Bundle preview, provenance, and Work Record handoff behavior."
-  ]
+    "This fixture contains local Browser Evidence Capture V0 pages, registry rows, and crop assets for provenance only; it does not contain live-web captures.",
+    "This fixture is only evidence for Artifact Bundle preview, provenance, Work Record handoff behavior, and local browser evidence registry inspection."
+  ],
+  "browser_evidence_registry": {
+    "path": "browser-evidence/registry.json",
+    "manifest_path": "browser-evidence/manifest.json",
+    "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+    "status": "captured_from_local_fixtures",
+    "request_count": 3,
+    "captured_count": 3,
+    "local_fixture_pages_only": true,
+    "live_websites": false,
+    "read_only": true,
+    "provenance_only": true
+  }
 }

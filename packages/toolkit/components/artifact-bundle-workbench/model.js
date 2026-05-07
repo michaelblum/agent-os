@@ -42,6 +42,14 @@ function ref(...parts) {
   return [ARTIFACT_BUNDLE_WORKBENCH_SURFACE, ...parts].map((part) => text(part, 'unknown')).join(':');
 }
 
+function refKey(value = '') {
+  return text(value, 'unknown')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 96) || 'unknown';
+}
+
 function normalizeSubject(subject = null) {
   if (subject && typeof subject === 'object') return createArtifactBundleSubject(subject);
   return createArtifactBundleSubject({
@@ -215,6 +223,69 @@ function createWorkRecordEvidenceSummary(link = null, openResult = null) {
     health_state: hasSnapshot ? text(diagnostics.health_state, 'unknown') : null,
     status: hasSnapshot ? text(openResult.status, 'opened') : 'linked',
     semantic_ref: ref('work-record', 'summary', link.artifact_id),
+  };
+}
+
+function createSourceEvidenceMetadata(artifact = null) {
+  if (!artifact) return null;
+  const artifactId = text(artifact.id, 'artifact');
+  const entries = arrayValue(artifact.files)
+    .map((file) => objectValue(file))
+    .filter((file) => {
+      const role = text(file.role).toLowerCase();
+      const metadata = objectValue(file.metadata);
+      return role.includes('source')
+        || role.includes('evidence')
+        || role.includes('work_record')
+        || text(metadata.evidence_ref);
+    })
+    .map((file) => {
+      const role = text(file.role, 'file');
+      const metadata = objectValue(file.metadata);
+      const provenanceOnly = file.provenance_only === true
+        || role.includes('source')
+        || role.includes('evidence')
+        || role.includes('work_record');
+      return {
+        type: 'aos.artifact_bundle.source_evidence_file',
+        schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+        artifact_id: artifactId,
+        path: text(file.path),
+        role,
+        media_type: text(file.media_type, 'unknown'),
+        schema: text(file.schema) || null,
+        evidence_ref: text(metadata.evidence_ref) || null,
+        read_only: true,
+        provenance_only: provenanceOnly,
+        local_fixture_pages_only: metadata.local_fixture_pages_only === true || metadata.local_fixture_page === true,
+        live_websites: metadata.live_websites === false ? false : null,
+        inspectable: true,
+        semantic_ref: ref('source-evidence', artifactId, refKey(file.path || role)),
+      };
+    });
+  const browserEvidenceEntries = entries.filter((entry) => entry.role.startsWith('browser_evidence'));
+  return {
+    type: 'aos.artifact_bundle.source_evidence_metadata',
+    schema_version: ARTIFACT_BUNDLE_WORKBENCH_SCHEMA_VERSION,
+    artifact_id: artifactId,
+    read_only: true,
+    provenance_only: true,
+    semantic_ref: ref('source-evidence', 'summary', artifactId),
+    entry_count: entries.length,
+    browser_evidence_entry_count: browserEvidenceEntries.length,
+    browser_evidence_registry_paths: browserEvidenceEntries
+      .filter((entry) => entry.role === 'browser_evidence_registry')
+      .map((entry) => entry.path),
+    browser_evidence_manifest_paths: browserEvidenceEntries
+      .filter((entry) => entry.role === 'browser_evidence_manifest')
+      .map((entry) => entry.path),
+    local_fixture_page_count: browserEvidenceEntries
+      .filter((entry) => entry.role === 'browser_evidence_fixture_page')
+      .length,
+    crop_count: browserEvidenceEntries
+      .filter((entry) => entry.role === 'browser_evidence_crop')
+      .length,
+    entries,
   };
 }
 
@@ -478,6 +549,7 @@ export function artifactBundleWorkbenchSnapshot(state = {}) {
     selected_artifact_id: selectedId || null,
     selected_artifact: selectedArtifact ? cloneJson(selectedArtifact) : null,
     preview: createPreview(subject, selectedArtifact, state.content_root),
+    selected_source_evidence_metadata: createSourceEvidenceMetadata(selectedArtifact),
     selected_work_record_link: selectedWorkRecordLink,
     selected_work_record_summary: createWorkRecordEvidenceSummary(selectedWorkRecordLink, state.linked_work_record_open),
     linked_work_record_open: state.linked_work_record_open ? cloneJson(state.linked_work_record_open) : null,

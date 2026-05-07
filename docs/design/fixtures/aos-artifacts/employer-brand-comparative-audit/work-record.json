@@ -40,15 +40,16 @@
   "intent": {
     "summary": "Represent the first Employer Brand comparative audit report as a read-only Artifact Bundle with source metadata and Work Record evidence.",
     "purpose": "employer_brand_artifact_bundle_fixture",
-    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, and opens the linked Work Record evidence through the existing workbench path.",
+    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, links a Browser Evidence Capture V0 registry fixture, and opens the linked Work Record evidence through the existing workbench path.",
     "constraints": [
-      "No browser collection, report generation, export execution, replay, repair, macro playback, or new public command is part of this fixture.",
-      "The report is a static fixture, not a current live-web competitive audit."
+      "No remote browser collection, report generation, export execution, replay, repair, macro playback, or new public command is part of this fixture.",
+      "The report and Browser Evidence registry are static fixtures, not a current live-web competitive audit."
     ],
     "claim_refs": [
       "claim:markdown-report-previewable",
       "claim:source-metadata-attached",
-      "claim:work-record-handoff-available"
+      "claim:work-record-handoff-available",
+      "claim:browser-evidence-registry-linked"
     ]
   },
   "execution_map": {
@@ -72,14 +73,17 @@
               "employer-brand-report"
             ],
             "supporting_files": [
-              "sources.json"
+              "sources.json",
+              "browser-evidence/manifest.json",
+              "browser-evidence/registry.json"
             ]
           }
         },
         "postcondition_refs": [
           "postcondition:markdown-report-present",
           "postcondition:sources-metadata-present",
-          "postcondition:work-record-linked"
+          "postcondition:work-record-linked",
+          "postcondition:browser-evidence-registry-linked"
         ]
       }
     ],
@@ -135,6 +139,26 @@
           "mode": "manual_review",
           "notes": "The Artifact Bundle Work Record link is a handoff, not a replay or repair route."
         }
+      },
+      {
+        "id": "postcondition:browser-evidence-registry-linked",
+        "kind": "repo_file",
+        "description": "The Browser Evidence Capture V0 registry fixture is present, schema-shaped, and linked as provenance-only evidence.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json",
+        "check": {
+          "kind": "browser_evidence_registry_fixture",
+          "expected": "aos.browser_evidence_registry",
+          "path": "browser-evidence/registry.json"
+        },
+        "evidence_refs": [
+          "evidence:browser-evidence-manifest",
+          "evidence:browser-evidence-registry",
+          "evidence:browser-evidence-fixture-assets"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "The registry is fixture provenance only; do not repair it by browsing remote websites or generating a report."
+        }
       }
     ],
     "artifact_routes": [
@@ -155,6 +179,24 @@
         "kind": "repo_file",
         "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json",
         "evidence_ref": "evidence:subject-descriptor"
+      },
+      {
+        "id": "artifact-route:browser-evidence-manifest",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json",
+        "evidence_ref": "evidence:browser-evidence-manifest"
+      },
+      {
+        "id": "artifact-route:browser-evidence-registry",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json",
+        "evidence_ref": "evidence:browser-evidence-registry"
+      },
+      {
+        "id": "artifact-route:browser-evidence-fixture-assets",
+        "kind": "repo_folder",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence",
+        "evidence_ref": "evidence:browser-evidence-fixture-assets"
       }
     ],
     "replay_policy": {
@@ -162,7 +204,7 @@
       "replay_requires_workflow_gate": true,
       "repair_requires_workflow_gate": true,
       "gate_refs": [],
-      "notes": "This record proves a read-only artifact/work-record evidence route. It does not authorize live collection, generation, replay, or repair."
+      "notes": "This record proves a read-only artifact/work-record/browser-evidence provenance route. It does not authorize live collection, generation, replay, or repair."
     },
     "repair_history": []
   },
@@ -214,6 +256,64 @@
         "record_id": "work-record:employer-brand-comparative-audit-fixture",
         "role": "work_record_fixture"
       }
+    },
+    {
+      "id": "evidence:browser-evidence-manifest",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:11:10Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json",
+      "immutable": true,
+      "summary": "Browser Evidence Capture V0 manifest constrained to local Employer Brand fixture pages.",
+      "metadata": {
+        "role": "browser_evidence_manifest",
+        "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "local_fixture_pages_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "evidence:browser-evidence-registry",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T15:11:20Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json",
+      "immutable": true,
+      "summary": "Normalized Browser Evidence Capture V0 registry generated from local Employer Brand fixture pages.",
+      "metadata": {
+        "role": "browser_evidence_registry",
+        "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "manifest_path": "browser-evidence/manifest.json",
+        "local_fixture_pages_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "evidence:browser-evidence-fixture-assets",
+      "kind": "repo_folder",
+      "created_at": "2026-05-07T15:11:30Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence",
+      "immutable": true,
+      "summary": "Local HTML fixture pages and crop screenshots referenced by the Browser Evidence registry.",
+      "metadata": {
+        "role": "browser_evidence_fixture_assets",
+        "fixture_page_paths": [
+          "browser-evidence/html/symphony-talent-careers.html",
+          "browser-evidence/html/phenom-careers.html",
+          "browser-evidence/html/radancy-careers.html"
+        ],
+        "screenshot_paths": [
+          "browser-evidence/screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "browser-evidence/screenshots/phenom/phenom-fixture-culture-card.png",
+          "browser-evidence/screenshots/radancy/radancy-fixture-proof-block.png"
+        ],
+        "local_fixture_pages_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
     }
   ],
   "claims": [
@@ -242,6 +342,15 @@
       "acceptance": "The selected artifact declares work_record.path and evidence refs that open this Work Record.",
       "postcondition_refs": [
         "postcondition:work-record-linked"
+      ]
+    },
+    {
+      "id": "claim:browser-evidence-registry-linked",
+      "text": "The Employer Brand comparative audit bundle links a Browser Evidence Capture V0 registry fixture backed only by local fixture pages.",
+      "scope": "subject",
+      "acceptance": "The subject descriptor and Work Record evidence trail reference browser-evidence/registry.json, the registry validates, and registry metadata records local fixture provenance only.",
+      "postcondition_refs": [
+        "postcondition:browser-evidence-registry-linked"
       ]
     }
   ],
@@ -307,6 +416,28 @@
           "reason": "The subject descriptor links the selected report artifact to this Work Record fixture."
         }
       ]
+    },
+    {
+      "id": "claim-result:browser-evidence-registry-linked",
+      "claim_id": "claim:browser-evidence-registry-linked",
+      "status": "verified",
+      "confidence": 0.84,
+      "reason": "The bundle fixture links a schema-shaped Browser Evidence registry generated from local fixture pages and records matching immutable evidence.",
+      "evidence_refs": [
+        "evidence:browser-evidence-manifest",
+        "evidence:browser-evidence-registry",
+        "evidence:browser-evidence-fixture-assets"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:browser-evidence-registry-linked",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:browser-evidence-registry"
+          ],
+          "reason": "The Browser Evidence registry fixture is present in the artifact bundle folder and linked by the subject descriptor."
+        }
+      ]
     }
   ],
   "verifier_report": {
@@ -322,7 +453,8 @@
       "verified": [
         "claim:markdown-report-previewable",
         "claim:source-metadata-attached",
-        "claim:work-record-handoff-available"
+        "claim:work-record-handoff-available",
+        "claim:browser-evidence-registry-linked"
       ],
       "failed": [],
       "unverified": []
@@ -331,13 +463,16 @@
       "evidence:markdown-report",
       "evidence:sources-metadata",
       "evidence:subject-descriptor",
-      "evidence:work-record-fixture"
+      "evidence:work-record-fixture",
+      "evidence:browser-evidence-manifest",
+      "evidence:browser-evidence-registry",
+      "evidence:browser-evidence-fixture-assets"
     ],
     "feedback": []
   },
   "health": {
     "verdict": "valid",
-    "reason": "The Markdown report, source metadata, subject descriptor, and linked Work Record are represented by immutable fixture evidence.",
+    "reason": "The Markdown report, source metadata, subject descriptor, linked Work Record, and local Browser Evidence registry are represented by immutable fixture evidence.",
     "evaluated_at": "2026-05-07T15:05:00Z",
     "verifier_report_id": "verifier-report:employer-brand-comparative-audit-fixture",
     "confidence": 0.88,
@@ -346,6 +481,14 @@
   },
   "metadata": {
     "fixture": "employer-brand-comparative-audit",
-    "scope": "artifact_bundle_work_record_fixture_v0"
+    "scope": "artifact_bundle_work_record_fixture_v0",
+    "browser_evidence_capture_v0": {
+      "registry_path": "browser-evidence/registry.json",
+      "manifest_path": "browser-evidence/manifest.json",
+      "local_fixture_pages_only": true,
+      "live_websites": false,
+      "read_only": true,
+      "provenance_only": true
+    }
   }
 }

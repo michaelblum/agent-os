@@ -43,8 +43,13 @@
           "evidence:markdown-report",
           "evidence:sources-metadata",
           "evidence:subject-descriptor",
-          "evidence:work-record-fixture"
-        ]
+          "evidence:work-record-fixture",
+          "evidence:browser-evidence-manifest",
+          "evidence:browser-evidence-registry",
+          "evidence:browser-evidence-fixture-assets"
+        ],
+        "browser_evidence_registry_path": "browser-evidence/registry.json",
+        "browser_evidence_manifest_path": "browser-evidence/manifest.json"
       }
     },
     {
@@ -56,6 +61,35 @@
       "facet_key": "workflow.descriptor",
       "layer": "descriptor",
       "role": "source"
+    },
+    {
+      "id": "browser-evidence-registry",
+      "relationship": "records_fixture_evidence",
+      "handle": "browser-evidence-registry:employer-brand-comparative-audit-fixture",
+      "subject_id": "browser-evidence-registry:employer-brand-comparative-audit-fixture",
+      "subject_type": "aos.browser_evidence_registry",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "evidence",
+      "role": "browser_evidence_registry",
+      "metadata": {
+        "registry_path": "browser-evidence/registry.json",
+        "manifest_path": "browser-evidence/manifest.json",
+        "fixture_page_paths": [
+          "browser-evidence/html/symphony-talent-careers.html",
+          "browser-evidence/html/phenom-careers.html",
+          "browser-evidence/html/radancy-careers.html"
+        ],
+        "screenshot_paths": [
+          "browser-evidence/screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "browser-evidence/screenshots/phenom/phenom-fixture-culture-card.png",
+          "browser-evidence/screenshots/radancy/radancy-fixture-proof-block.png"
+        ],
+        "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "local_fixture_pages_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
     }
   ],
   "facets": [
@@ -203,6 +237,108 @@
           "path": "work-record.json",
           "role": "work_record_fixture",
           "media_type": "application/json"
+        },
+        {
+          "path": "browser-evidence/manifest.json",
+          "role": "browser_evidence_manifest",
+          "media_type": "application/json",
+          "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-manifest",
+            "local_fixture_pages_only": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/registry.json",
+          "role": "browser_evidence_registry",
+          "media_type": "application/json",
+          "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-registry",
+            "manifest_path": "browser-evidence/manifest.json",
+            "local_fixture_pages_only": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/html/symphony-talent-careers.html",
+          "role": "browser_evidence_fixture_page",
+          "media_type": "text/html",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/html/phenom-careers.html",
+          "role": "browser_evidence_fixture_page",
+          "media_type": "text/html",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/html/radancy-careers.html",
+          "role": "browser_evidence_fixture_page",
+          "media_type": "text/html",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "role": "browser_evidence_crop",
+          "media_type": "image/png",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "generated_from_registry": "browser-evidence/registry.json",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/screenshots/phenom/phenom-fixture-culture-card.png",
+          "role": "browser_evidence_crop",
+          "media_type": "image/png",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "generated_from_registry": "browser-evidence/registry.json",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
+        },
+        {
+          "path": "browser-evidence/screenshots/radancy/radancy-fixture-proof-block.png",
+          "role": "browser_evidence_crop",
+          "media_type": "image/png",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-fixture-assets",
+            "generated_from_registry": "browser-evidence/registry.json",
+            "local_fixture_page": true,
+            "live_websites": false
+          }
         }
       ],
       "exports": [
@@ -229,7 +365,12 @@
         "guided_by": [
           "docs/design/2026-05-05-employer-brand-demo-postmortem.md",
           "docs/design/open-design-workbench-cross-reference.md"
-        ]
+        ],
+        "browser_evidence_manifest": "browser-evidence/manifest.json",
+        "browser_evidence_registry": "browser-evidence/registry.json",
+        "browser_evidence_schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
+        "local_fixture_pages_only": true,
+        "provenance_only": true
       },
       "work_record": {
         "subject_id": "work-record:employer-brand-comparative-audit-fixture",
@@ -238,7 +379,10 @@
           "evidence:markdown-report",
           "evidence:sources-metadata",
           "evidence:subject-descriptor",
-          "evidence:work-record-fixture"
+          "evidence:work-record-fixture",
+          "evidence:browser-evidence-manifest",
+          "evidence:browser-evidence-registry",
+          "evidence:browser-evidence-fixture-assets"
         ]
       },
       "validation": {
@@ -261,6 +405,24 @@
             "id": "work-record-present",
             "kind": "file_presence",
             "target": "work-record.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "browser-evidence-manifest-present",
+            "kind": "file_presence",
+            "target": "browser-evidence/manifest.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "browser-evidence-registry-present",
+            "kind": "file_presence",
+            "target": "browser-evidence/registry.json",
+            "status": "unchecked"
+          },
+          {
+            "id": "browser-evidence-fixture-assets-present",
+            "kind": "file_presence",
+            "target": "browser-evidence/",
             "status": "unchecked"
           }
         ]
@@ -290,6 +452,14 @@
       "replay",
       "repair",
       "macro_playback"
-    ]
+    ],
+    "browser_evidence_capture_v0": {
+      "registry_path": "browser-evidence/registry.json",
+      "manifest_path": "browser-evidence/manifest.json",
+      "local_fixture_pages_only": true,
+      "live_websites": false,
+      "read_only": true,
+      "provenance_only": true
+    }
   }
 }

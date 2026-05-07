@@ -61,3 +61,15 @@ for CompanyBrandAudit drafting. Analysts can cite `request_id` and
 `screenshot_path`, inspect the extracted text, and decide which KILOS dimensions
 or factors the evidence supports. Later Workflow or Work Record producers can
 wrap this registry, but V0 deliberately stops at local element evidence.
+
+The Employer Brand Artifact Bundle fixture carries a concrete local handoff at:
+
+```text
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json
+docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json
+```
+
+That registry is linked from `subject.json` and `work-record.json` as
+read-only, provenance-only evidence. It uses local fixture HTML pages and local
+crop assets only; it is not evidence of live web collection or report
+generation.
