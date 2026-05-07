@@ -89,6 +89,12 @@ operations while leaving internal files intact.
 Promotion gate: a new producer or verifier needs Work Record build/verify/evidence
 operations and currently imports from multiple files.
 
+2026-05-07 status: Work Record facade V0 is complete at
+`packages/toolkit/workbench/work-record.js`. A current non-test toolkit import
+audit found no consumer importing multiple Work Record internal helper files, so
+deeper consolidation is deferred until another producer needs the same
+build/verify/evidence workflow.
+
 ## Later Epics
 
 ### Subject Browser Deep Module
