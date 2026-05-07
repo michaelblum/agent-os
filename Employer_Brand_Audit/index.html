@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="./styles/audit.css" />
 </head>
-<body x-data="brandAudit()" x-init="init()" class="antialiased bg-[--clr-slate]">
+<body x-data="brandAudit()" x-init="init()" class="antialiased bg-[--clr-slate]" data-aos-ref="employer-brand-audit:root">
   <div x-show="lightboxImage" x-transition @keydown.escape.window="lightboxImage = null" class="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4" x-cloak>
     <div @click.self="lightboxImage = null" class="absolute inset-0"></div>
     <div x-show="lightboxImage" x-transition class="relative bg-white p-2 rounded-lg max-w-4xl max-h-[90vh] overflow-auto">
@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  <header id="main-header" class="bg-slate-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg text-white">
+  <header id="main-header" class="bg-slate-900/80 backdrop-blur-lg sticky top-0 z-50 shadow-lg text-white" data-aos-ref="employer-brand-audit:header">
     <div class="container mx-auto px-4 md:px-8">
       <nav class="flex justify-between items-center gap-4">
         <div class="flex items-center space-x-4 md:space-x-6 -mb-px overflow-x-auto">
@@ -43,22 +43,22 @@
     </div>
   </header>
 
-  <main class="flex-grow">
-    <section x-show="activeView === 'overview'" x-transition id="overview-view" class="h-[calc(100vh-60px)] min-h-[700px] bg-cover bg-center flex flex-col" x-cloak>
+  <main class="flex-grow" data-aos-ref="employer-brand-audit:report">
+    <section x-show="activeView === 'overview'" x-transition id="overview-view" class="h-[calc(100vh-60px)] min-h-[700px] bg-cover bg-center flex flex-col" data-aos-ref="employer-brand-audit:view:overview" x-cloak>
     </section>
 
-    <section x-show="activeView === 'summary'" x-transition id="summary-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed flex flex-col" x-cloak>
+    <section x-show="activeView === 'summary'" x-transition id="summary-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed flex flex-col" data-aos-ref="employer-brand-audit:view:summary" x-cloak>
       <div id="summary-content-wrapper" class="flex-grow flex items-center justify-center container mx-auto w-full px-4 md:px-8 py-8">
       </div>
       <footer class="text-center p-4 bg-slate-900/50 text-white text-sm" x-text="templateMeta.footerText || 'Add footer text in the active report data script'"></footer>
     </section>
 
-    <section x-show="activeView === 'competition' || activeView === 'kilos'" x-transition id="competition-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed" x-cloak>
+    <section x-show="activeView === 'competition' || activeView === 'kilos'" x-transition id="competition-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed" data-aos-ref="employer-brand-audit:view:competition" x-cloak>
       <div id="competition-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-8">
       </div>
     </section>
 
-    <section x-show="activeView === 'deepdives'" x-transition id="deepdives-view" class="min-h-[calc(100vh-108px)] bg-cover bg-center bg-fixed" x-cloak>
+    <section x-show="activeView === 'deepdives'" x-transition id="deepdives-view" class="min-h-[calc(100vh-108px)] bg-cover bg-center bg-fixed" data-aos-ref="employer-brand-audit:view:deepdives" x-cloak>
       <div id="deepdives-content-wrapper" class="container mx-auto w-full px-4 md:px-8 py-8 space-y-16">
       </div>
     </section>

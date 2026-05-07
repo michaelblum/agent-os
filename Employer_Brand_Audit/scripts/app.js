@@ -27,6 +27,7 @@ function brandAudit() {
       this.buildThemeColorMap();
       this._prepareCarouselData();
       this.renderAllViews();
+      this.publishLaunchState();
       this.observeHeaderResize();
       this.$nextTick(() => {
         this.initTooltips();
@@ -239,6 +240,69 @@ function brandAudit() {
       this.renderCompetition();
       this.renderDeepDives();
       this.renderSubNav();
+    },
+
+    collectTraceUrls() {
+      const urls = new Set();
+      const walk = (obj) => {
+        if (!obj || typeof obj !== "object") return;
+        for (const [key, value] of Object.entries(obj)) {
+          if (key === "sourceURL" && value) urls.add(value);
+          if (key === "sourceURLs" && Array.isArray(value)) {
+            value.forEach((url) => url && urls.add(url));
+          }
+          if (value && typeof value === "object") walk(value);
+        }
+      };
+      walk({
+        client: this.client,
+        competitors: this.competitors,
+        comparison: this.comparison,
+        introContent: this.introContent,
+      });
+      return urls;
+    },
+
+    reportSnapshot() {
+      const text = document.body?.textContent || "";
+      const companies = this.allCompanies.map((company) => company.companyName).filter(Boolean);
+      const traceUrls = this.collectTraceUrls();
+      const placeholderTerms = ["Client Company", "Add rows", "Data Loading Error"];
+      return {
+        ready: true,
+        title: document.title,
+        companies,
+        activeView: this.activeView,
+        hasKilos: (this.comparison?.kilosMessagingMatrix || []).length > 0,
+        citationCount: this.citationMap?.size || 0,
+        evidenceTraceCount: traceUrls.size,
+        hasEvidenceCitationTrace: traceUrls.size > 0 && (this.citationMap?.size || 0) > 0,
+        containsFixtureCompanies: ["Symphony Talent", "Phenom", "Radancy"].every((name) => companies.includes(name)),
+        containsPlaceholderState: placeholderTerms.some((term) => text.includes(term)),
+      };
+    },
+
+    publishLaunchState() {
+      if (typeof window !== "object") return;
+      window.headsup = window.headsup || {};
+      window.headsup.manifest = {
+        name: "employer-brand-audit-report",
+        title: "Employer Brand Audit Report",
+        accepts: [],
+        emits: ["ready"],
+        channelPrefix: "employer-brand-audit-report",
+      };
+      if (typeof window.headsup.receive !== "function") {
+        window.headsup.receive = function () {};
+      }
+      window.__employerBrandAuditReport = {
+        status: "ready",
+        snapshot: () => this.reportSnapshot(),
+      };
+      window.webkit?.messageHandlers?.headsup?.postMessage({
+        type: "ready",
+        payload: window.headsup.manifest,
+      });
     },
 
     renderOverview() {

@@ -51,9 +51,10 @@ async function renderReportWithFakeDom() {
       return null;
     },
   };
+  const window = { scrollTo() {} };
   const context = vm.createContext({
     document,
-    window: { scrollTo() {} },
+    window,
     ResizeObserver: class {
       observe() {}
     },
@@ -63,7 +64,7 @@ async function renderReportWithFakeDom() {
   const audit = vm.runInContext('brandAudit()', context);
   audit.$nextTick = (callback) => callback();
   audit.init();
-  return { audit, document, elements };
+  return { audit, document, elements, window };
 }
 
 function collectStrings(value, strings = []) {
@@ -175,8 +176,9 @@ test('Employer Brand report data carries KILOS and comparative content', async (
 });
 
 test('Employer Brand report shell renders fixture content without placeholder state', async () => {
-  const { document, elements } = await renderReportWithFakeDom();
+  const { document, elements, window } = await renderReportWithFakeDom();
   const rendered = [...elements.values()].map((element) => element.innerHTML).join('\n');
+  const snapshot = window.__employerBrandAuditReport.snapshot();
 
   assert.equal(document.title, 'Employer Brand Comparative Audit Fixture');
   assert.match(rendered, /Symphony Talent/);
@@ -187,6 +189,100 @@ test('Employer Brand report shell renders fixture content without placeholder st
   assert.doesNotMatch(rendered, /Data Loading Error/);
   assert.doesNotMatch(rendered, /Client Company/);
   assert.doesNotMatch(rendered, /Add rows/);
+  assert.equal(window.headsup.manifest.name, 'employer-brand-audit-report');
+  assert.equal(typeof window.headsup.receive, 'function');
+  assert.equal(window.__employerBrandAuditReport.status, 'ready');
+  assert.deepEqual(Array.from(snapshot.companies), ['Symphony Talent', 'Phenom', 'Radancy']);
+  assert.equal(snapshot.hasKilos, true);
+  assert.equal(snapshot.hasEvidenceCitationTrace, true);
+  assert.equal(snapshot.containsFixtureCompanies, true);
+  assert.equal(snapshot.containsPlaceholderState, false);
+  assert.ok(snapshot.citationCount > 0);
+  assert.ok(snapshot.evidenceTraceCount > 0);
+});
+
+test('Employer Brand launch path opens the fixture report as an AOS canvas and waits on rendered evidence', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-employer-brand-launch-'));
+  const fakeAos = path.join(tmp, 'aos');
+  const logPath = path.join(tmp, 'aos-log.jsonl');
+  const rootName = 'employer_brand_audit_test';
+  try {
+    await fs.writeFile(fakeAos, `#!/usr/bin/env bash
+set -euo pipefail
+python3 - "$AOS_LOG" "$@" <<'PY'
+import json, sys
+with open(sys.argv[1], "a", encoding="utf-8") as fh:
+    fh.write(json.dumps(sys.argv[2:]) + "\\n")
+PY
+
+if [[ "$1" == "content" && "$2" == "status" ]]; then
+  python3 - <<'PY'
+import json, os
+print(json.dumps({"roots": {os.environ["REPORT_ROOT_NAME"]: os.environ["REPORT_ROOT_PATH"]}}))
+PY
+  exit 0
+fi
+
+if [[ "$1" == "graph" && "$2" == "displays" ]]; then
+  printf '%s\\n' '{"data":{"displays":[{"is_main":true,"visible_bounds":{"x":0,"y":0,"w":1440,"h":900}}]}}'
+  exit 0
+fi
+
+if [[ "$1" == "show" && "$2" == "wait" ]]; then
+  js=""
+  while [[ "$#" -gt 0 ]]; do
+    if [[ "$1" == "--js" ]]; then
+      shift
+      js="$1"
+    fi
+    shift || true
+  done
+  for term in "__employerBrandAuditReport" "Symphony Talent" "Phenom" "Radancy" "KILOS Messaging Matrix" "citationCount" "evidenceTraceCount" "employer-brand-audit:report"; do
+    if [[ "$js" != *"$term"* ]]; then
+      echo "missing launch check term: $term" >&2
+      exit 42
+    fi
+  done
+fi
+
+exit 0
+`);
+    await fs.chmod(fakeAos, 0o755);
+
+    const result = spawnSync(
+      'bash',
+      ['Employer_Brand_Audit/launch.sh'],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          AOS: fakeAos,
+          AOS_LOG: logPath,
+          AOS_EMPLOYER_BRAND_REPORT_ID: 'employer-brand-launch-test',
+          AOS_EMPLOYER_BRAND_REPORT_ROOT: rootName,
+          REPORT_ROOT_NAME: rootName,
+          REPORT_ROOT_PATH: reportRoot,
+        },
+      },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    const calls = (await fs.readFile(logPath, 'utf8')).trim().split('\n').map((line) => JSON.parse(line));
+    const createCall = calls.find((call) => call[0] === 'show' && call[1] === 'create');
+    const waitCall = calls.find((call) => call[0] === 'show' && call[1] === 'wait');
+
+    assert.ok(createCall, 'expected show create call');
+    assert.ok(waitCall, 'expected show wait call');
+    assert.deepEqual(createCall.slice(0, 4), ['show', 'create', '--id', 'employer-brand-launch-test']);
+    assert.ok(createCall.includes('--interactive'));
+    assert.ok(createCall.includes('--focus'));
+    assert.equal(createCall[createCall.indexOf('--url') + 1], `aos://${rootName}/index.html`);
+    assert.equal(waitCall[waitCall.indexOf('--manifest') + 1], 'employer-brand-audit-report');
+    assert.match(waitCall[waitCall.indexOf('--js') + 1], /hasEvidenceCitationTrace/);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
 });
 
 test('Employer Brand report data preserves traceability and existing local fixture assets', async () => {
