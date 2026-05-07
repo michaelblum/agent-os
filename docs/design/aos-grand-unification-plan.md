@@ -23,6 +23,11 @@ Chosen defaults:
 - Host posture: browser-first for wiki/editor/artifact workbenches.
 - Replay posture: record + verify before guided replay.
 
+Architecture-deepening audit input is tracked separately in
+`docs/design/2026-05-07-architecture-deepening-audit-triage.md`. Treat that
+note as advisory triage, not as new scope for this plan. Promote only bounded
+slices with repo evidence and clear exit criteria.
+
 ## Key Interfaces
 
 - Extend AOS docs/help around existing browser targets:
@@ -237,6 +242,8 @@ Chosen defaults:
 - Browser recording and grammar: `docs/design/see-do-grammar-trace-connections.md`
 - Pi lessons: `docs/design/pi-computer-use-lessons-for-aos-see-do.md`
 - Open Design comparison: `docs/design/open-design-workbench-cross-reference.md`
+- Architecture deepening audit triage:
+  `docs/design/2026-05-07-architecture-deepening-audit-triage.md`
 - Local reference checkouts:
   - `/Users/Michael/Code/pi-computer-use`
   - `/Users/Michael/Code/open-design`
