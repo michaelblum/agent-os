@@ -1,0 +1,130 @@
+{
+  "type": "aos.supervised_run",
+  "schema_version": "2026-05-supervised-run-v0",
+  "id": "supervised-run:invalid-completed-without-step-evidence",
+  "label": "Invalid completed supervised run without step evidence",
+  "created_at": "2026-05-06T18:00:00Z",
+  "completed_at": "2026-05-06T18:01:00Z",
+  "status": "completed",
+  "operating_path": "agent/dev/testing/headed/real-input/hitl-sidecar",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Invalid fixture where a completed step omits completion evidence refs."
+  },
+  "references": [],
+  "intent": {
+    "summary": "This fixture claims run completion without step completion evidence.",
+    "step_refs": [
+      "step:invalid-completed-without-evidence"
+    ]
+  },
+  "timeline": [
+    {
+      "id": "event:invalid-run-started",
+      "sequence": 1,
+      "type": "supervised.run.started",
+      "at": "2026-05-06T18:00:00Z",
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:aos-supervised-run-v0"
+      }
+    },
+    {
+      "id": "event:invalid-automated-check",
+      "sequence": 2,
+      "type": "supervised.step.automated_check",
+      "at": "2026-05-06T18:00:20Z",
+      "source": {
+        "kind": "verifier",
+        "id": "verifier:fixture"
+      },
+      "step_ref": "step:invalid-completed-without-evidence",
+      "automated_check_ref": "check:invalid-passed",
+      "status": "passed",
+      "evidence_refs": [
+        "evidence:invalid-automated-check"
+      ]
+    },
+    {
+      "id": "event:invalid-step-completed",
+      "sequence": 3,
+      "type": "supervised.step.completed",
+      "at": "2026-05-06T18:00:50Z",
+      "source": {
+        "kind": "harness",
+        "id": "harness:fixture"
+      },
+      "step_ref": "step:invalid-completed-without-evidence",
+      "status": "completed",
+      "evidence_refs": [
+        "evidence:invalid-automated-check"
+      ]
+    },
+    {
+      "id": "event:invalid-run-completed",
+      "sequence": 4,
+      "type": "supervised.run.completed",
+      "at": "2026-05-06T18:01:00Z",
+      "source": {
+        "kind": "harness",
+        "id": "harness:fixture"
+      },
+      "status": "completed",
+      "evidence_refs": [
+        "evidence:invalid-automated-check"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "step:invalid-completed-without-evidence",
+      "label": "Completed step missing evidence",
+      "status": "completed",
+      "instruction": {
+        "id": "instruction:invalid-completed-without-evidence",
+        "event_ref": "event:invalid-run-started",
+        "text": "Run the deterministic check."
+      },
+      "expectation": {
+        "id": "expectation:invalid-completed-without-evidence",
+        "event_ref": "event:invalid-run-started",
+        "text": "The deterministic check passes and completion evidence is recorded."
+      },
+      "automated_checks": [
+        {
+          "id": "check:invalid-passed",
+          "event_ref": "event:invalid-automated-check",
+          "description": "The deterministic check passes.",
+          "status": "passed",
+          "check": {
+            "kind": "fixture_value_equals",
+            "expected": "ready",
+            "actual": "ready"
+          },
+          "evidence_refs": [
+            "evidence:invalid-automated-check"
+          ]
+        }
+      ],
+      "completion": {
+        "status": "completed",
+        "event_ref": "event:invalid-step-completed",
+        "completed_at": "2026-05-06T18:00:50Z",
+        "automated_check_refs": [
+          "check:invalid-passed"
+        ],
+        "human_response_refs": [],
+        "evidence_refs": []
+      }
+    }
+  ],
+  "human_responses": [],
+  "evidence_refs": [
+    {
+      "id": "evidence-ref:invalid-automated-check",
+      "ref": "evidence:invalid-automated-check",
+      "relationship": "automated_check_receipt"
+    }
+  ]
+}

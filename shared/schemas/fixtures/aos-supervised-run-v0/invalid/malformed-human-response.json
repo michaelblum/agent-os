@@ -1,0 +1,95 @@
+{
+  "type": "aos.supervised_run",
+  "schema_version": "2026-05-supervised-run-v0",
+  "id": "supervised-run:invalid-malformed-human-response",
+  "label": "Invalid supervised run with malformed human response",
+  "created_at": "2026-05-06T18:00:00Z",
+  "status": "waiting_for_human",
+  "operating_path": "agent/dev/testing/headed/real-input/hitl-sidecar",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Invalid fixture with a non-v0 human response kind."
+  },
+  "references": [],
+  "intent": {
+    "summary": "This fixture uses an unsupported human response value."
+  },
+  "timeline": [
+    {
+      "id": "event:invalid-run-started",
+      "sequence": 1,
+      "type": "supervised.run.started",
+      "at": "2026-05-06T18:00:00Z",
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:aos-supervised-run-v0"
+      }
+    },
+    {
+      "id": "event:invalid-human-confirmed",
+      "sequence": 2,
+      "type": "supervised.human.confirmed",
+      "at": "2026-05-06T18:00:40Z",
+      "source": {
+        "kind": "human",
+        "id": "human:operator"
+      },
+      "step_ref": "step:invalid-human-response",
+      "human_response_ref": "response:invalid-approved"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step:invalid-human-response",
+      "label": "Await malformed human response",
+      "status": "waiting_for_human",
+      "instruction": {
+        "id": "instruction:invalid-human-response",
+        "event_ref": "event:invalid-run-started",
+        "text": "Ask for human confirmation."
+      },
+      "expectation": {
+        "id": "expectation:invalid-human-response",
+        "event_ref": "event:invalid-run-started",
+        "text": "The human response uses a v0 response kind."
+      },
+      "automated_checks": [],
+      "human_request": {
+        "id": "request:invalid-human-response",
+        "event_ref": "event:invalid-run-started",
+        "prompt": "Confirm the observed status.",
+        "requested_at": "2026-05-06T18:00:10Z",
+        "response_options": [
+          "confirmed",
+          "failed",
+          "blocked",
+          "note"
+        ]
+      },
+      "human_response_refs": [
+        "response:invalid-approved"
+      ]
+    }
+  ],
+  "human_responses": [
+    {
+      "id": "response:invalid-approved",
+      "event_ref": "event:invalid-human-confirmed",
+      "step_ref": "step:invalid-human-response",
+      "request_ref": "request:invalid-human-response",
+      "response": "approved",
+      "author": {
+        "kind": "human",
+        "id": "human:operator"
+      },
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:malformed-human-response"
+      },
+      "responded_at": "2026-05-06T18:00:40Z",
+      "summary": "This uses a response kind outside confirmed, failed, blocked, or note."
+    }
+  ],
+  "evidence_refs": []
+}

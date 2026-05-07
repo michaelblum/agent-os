@@ -1,0 +1,49 @@
+{
+  "type": "aos.supervised_run",
+  "schema_version": "2026-05-supervised-run-v0",
+  "id": "supervised-run:invalid-missing-operating-path",
+  "label": "Invalid supervised run without operating path",
+  "created_at": "2026-05-06T18:00:00Z",
+  "status": "running",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Invalid fixture missing operating_path."
+  },
+  "references": [],
+  "intent": {
+    "summary": "This fixture omits the required operating path."
+  },
+  "timeline": [
+    {
+      "id": "event:invalid-run-started",
+      "sequence": 1,
+      "type": "supervised.run.started",
+      "at": "2026-05-06T18:00:00Z",
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:aos-supervised-run-v0"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "id": "step:invalid-placeholder",
+      "label": "Placeholder step",
+      "status": "running",
+      "instruction": {
+        "id": "instruction:invalid-placeholder",
+        "event_ref": "event:invalid-run-started",
+        "text": "Run a placeholder step."
+      },
+      "expectation": {
+        "id": "expectation:invalid-placeholder",
+        "event_ref": "event:invalid-run-started",
+        "text": "The placeholder step runs."
+      },
+      "automated_checks": []
+    }
+  ],
+  "human_responses": [],
+  "evidence_refs": []
+}

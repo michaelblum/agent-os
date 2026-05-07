@@ -1,0 +1,339 @@
+{
+  "type": "aos.supervised_run",
+  "schema_version": "2026-05-supervised-run-v0",
+  "id": "supervised-run:hitl-dry-run-2026-05-06",
+  "label": "HITL dry run with human confirmation",
+  "created_at": "2026-05-06T18:00:00Z",
+  "completed_at": "2026-05-06T18:01:00Z",
+  "status": "completed",
+  "operating_path": "agent/dev/testing/headed/real-input/hitl-sidecar",
+  "origin": {
+    "kind": "ad_hoc",
+    "ref": null,
+    "description": "Deterministic supervised-run schema fixture."
+  },
+  "references": [
+    {
+      "id": "github-issue-150",
+      "relationship": "guided_by",
+      "ref": "https://github.com/michaelblum/agent-os/issues/150",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "contract_tracker"
+    },
+    {
+      "id": "github-issue-149",
+      "relationship": "parent_epic",
+      "ref": "https://github.com/michaelblum/agent-os/issues/149",
+      "subject_type": "github.issue",
+      "layer": "narrative",
+      "role": "epic"
+    },
+    {
+      "id": "work-record-schema",
+      "relationship": "bridges_to",
+      "ref": "repo:shared/schemas/aos-work-record-v0.md",
+      "subject_type": "schema.sketch",
+      "layer": "descriptor",
+      "role": "durable_run_artifact"
+    },
+    {
+      "id": "playbook-step-schema",
+      "relationship": "aligns_with",
+      "ref": "repo:shared/schemas/aos-playbook-step-v0.md",
+      "subject_type": "schema.sketch",
+      "layer": "execution_map",
+      "role": "reusable_step_contract"
+    }
+  ],
+  "intent": {
+    "summary": "Coordinate one deterministic supervised step with one automated check and one human confirmation.",
+    "purpose": "Prove the v0 contract can represent bounded HITL-style coordination without becoming a second Work Record format.",
+    "acceptance": "The timeline uses supervised.* events, the automated check and human confirmation carry Work Record-compatible evidence refs, and completed step evidence is present.",
+    "constraints": [
+      "Use generic supervised-run event names instead of test.* names.",
+      "Do not execute a shell harness or live browser.",
+      "Keep Work Record evidence as refs, not embedded evidence objects."
+    ],
+    "step_refs": [
+      "step:dry-run-confirm-status"
+    ]
+  },
+  "timeline_transport": {
+    "kind": "fixture_json",
+    "ordering": "sequence",
+    "single_writer": true,
+    "notes": "The timeline[] entries can be serialized as JSONL rows in sequence order."
+  },
+  "timeline": [
+    {
+      "id": "event:dry-run-run-started",
+      "sequence": 1,
+      "type": "supervised.run.started",
+      "at": "2026-05-06T18:00:00Z",
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:aos-supervised-run-v0"
+      },
+      "summary": "The supervised run started."
+    },
+    {
+      "id": "event:dry-run-step-started",
+      "sequence": 2,
+      "type": "supervised.step.started",
+      "at": "2026-05-06T18:00:05Z",
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:aos-supervised-run-v0"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "summary": "The supervised step started."
+    },
+    {
+      "id": "event:dry-run-step-instruction",
+      "sequence": 3,
+      "type": "supervised.step.instruction",
+      "at": "2026-05-06T18:00:06Z",
+      "source": {
+        "kind": "agent",
+        "id": "agent:codex"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "instruction_ref": "instruction:dry-run-observe-status",
+      "summary": "Observe the fixture status output."
+    },
+    {
+      "id": "event:dry-run-step-expectation",
+      "sequence": 4,
+      "type": "supervised.step.expectation",
+      "at": "2026-05-06T18:00:07Z",
+      "source": {
+        "kind": "agent",
+        "id": "agent:codex"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "expectation_ref": "expectation:dry-run-status-visible",
+      "summary": "The fixture status should read ready."
+    },
+    {
+      "id": "event:dry-run-automated-check",
+      "sequence": 5,
+      "type": "supervised.step.automated_check",
+      "at": "2026-05-06T18:00:20Z",
+      "source": {
+        "kind": "verifier",
+        "id": "verifier:fixture"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "automated_check_ref": "check:dry-run-status-ready",
+      "status": "passed",
+      "evidence_refs": [
+        "evidence:dry-run-automated-check"
+      ],
+      "summary": "The deterministic check passed."
+    },
+    {
+      "id": "event:dry-run-human-requested",
+      "sequence": 6,
+      "type": "supervised.human.requested",
+      "at": "2026-05-06T18:00:25Z",
+      "source": {
+        "kind": "agent",
+        "id": "agent:codex"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "human_request_ref": "request:dry-run-confirm-status",
+      "summary": "The agent requested human confirmation."
+    },
+    {
+      "id": "event:dry-run-human-confirmed",
+      "sequence": 7,
+      "type": "supervised.human.confirmed",
+      "at": "2026-05-06T18:00:40Z",
+      "source": {
+        "kind": "human",
+        "id": "human:operator"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "human_response_ref": "response:dry-run-human-confirmed",
+      "evidence_refs": [
+        "evidence:dry-run-human-confirmation"
+      ],
+      "summary": "The human supervisor confirmed the expected result."
+    },
+    {
+      "id": "event:dry-run-step-completed",
+      "sequence": 8,
+      "type": "supervised.step.completed",
+      "at": "2026-05-06T18:00:50Z",
+      "source": {
+        "kind": "harness",
+        "id": "harness:fixture"
+      },
+      "step_ref": "step:dry-run-confirm-status",
+      "status": "completed",
+      "evidence_refs": [
+        "evidence:dry-run-automated-check",
+        "evidence:dry-run-human-confirmation",
+        "evidence:dry-run-step-completion"
+      ],
+      "summary": "The step completed with automated and human evidence refs."
+    },
+    {
+      "id": "event:dry-run-run-completed",
+      "sequence": 9,
+      "type": "supervised.run.completed",
+      "at": "2026-05-06T18:01:00Z",
+      "source": {
+        "kind": "harness",
+        "id": "harness:fixture"
+      },
+      "status": "completed",
+      "evidence_refs": [
+        "evidence:dry-run-automated-check",
+        "evidence:dry-run-human-confirmation",
+        "evidence:dry-run-step-completion"
+      ],
+      "summary": "The supervised run completed."
+    }
+  ],
+  "steps": [
+    {
+      "id": "step:dry-run-confirm-status",
+      "label": "Confirm deterministic fixture status",
+      "status": "completed",
+      "instruction": {
+        "id": "instruction:dry-run-observe-status",
+        "event_ref": "event:dry-run-step-instruction",
+        "text": "Observe the deterministic fixture status output."
+      },
+      "expectation": {
+        "id": "expectation:dry-run-status-visible",
+        "event_ref": "event:dry-run-step-expectation",
+        "text": "The fixture status output reads ready.",
+        "acceptance": "The automated check reports fixture.status == ready and the supervisor confirms the same outcome."
+      },
+      "automated_checks": [
+        {
+          "id": "check:dry-run-status-ready",
+          "event_ref": "event:dry-run-automated-check",
+          "description": "The deterministic fixture status equals ready.",
+          "status": "passed",
+          "check": {
+            "kind": "fixture_value_equals",
+            "path": "fixture.status",
+            "expected": "ready",
+            "actual": "ready"
+          },
+          "evidence_refs": [
+            "evidence:dry-run-automated-check"
+          ]
+        }
+      ],
+      "human_request": {
+        "id": "request:dry-run-confirm-status",
+        "event_ref": "event:dry-run-human-requested",
+        "prompt": "Confirm whether the deterministic fixture status reads ready.",
+        "requested_at": "2026-05-06T18:00:25Z",
+        "response_options": [
+          "confirmed",
+          "failed",
+          "blocked",
+          "note"
+        ]
+      },
+      "human_response_refs": [
+        "response:dry-run-human-confirmed"
+      ],
+      "completion": {
+        "status": "completed",
+        "event_ref": "event:dry-run-step-completed",
+        "completed_at": "2026-05-06T18:00:50Z",
+        "automated_check_refs": [
+          "check:dry-run-status-ready"
+        ],
+        "human_response_refs": [
+          "response:dry-run-human-confirmed"
+        ],
+        "evidence_refs": [
+          "evidence:dry-run-automated-check",
+          "evidence:dry-run-human-confirmation",
+          "evidence:dry-run-step-completion"
+        ]
+      }
+    }
+  ],
+  "human_responses": [
+    {
+      "id": "response:dry-run-human-confirmed",
+      "event_ref": "event:dry-run-human-confirmed",
+      "step_ref": "step:dry-run-confirm-status",
+      "request_ref": "request:dry-run-confirm-status",
+      "response": "confirmed",
+      "author": {
+        "kind": "human",
+        "id": "human:operator",
+        "display_name": "Operator"
+      },
+      "source": {
+        "kind": "fixture",
+        "id": "fixture:dry-run-human-response"
+      },
+      "responded_at": "2026-05-06T18:00:40Z",
+      "summary": "The supervisor confirmed the expected ready status.",
+      "evidence_refs": [
+        "evidence:dry-run-human-confirmation"
+      ]
+    }
+  ],
+  "evidence_refs": [
+    {
+      "id": "evidence-ref:dry-run-automated-check",
+      "ref": "evidence:dry-run-automated-check",
+      "relationship": "automated_check_receipt",
+      "kind": "work_record_evidence_ref",
+      "summary": "Deterministic automated check output that can become Work Record evidence."
+    },
+    {
+      "id": "evidence-ref:dry-run-human-confirmation",
+      "ref": "evidence:dry-run-human-confirmation",
+      "relationship": "human_feedback",
+      "kind": "work_record_evidence_ref",
+      "summary": "Human confirmation that can become Work Record evidence or verifier feedback."
+    },
+    {
+      "id": "evidence-ref:dry-run-step-completion",
+      "ref": "evidence:dry-run-step-completion",
+      "relationship": "step_completion",
+      "kind": "work_record_evidence_ref",
+      "summary": "Step completion receipt for a later Work Record builder."
+    }
+  ],
+  "work_record_projection": {
+    "target_schema": "2026-05-work-record-v0",
+    "handoff_kind": "report_only",
+    "candidate_work_record_id": "work-record:hitl-dry-run-2026-05-06",
+    "evidence_refs": [
+      "evidence:dry-run-automated-check",
+      "evidence:dry-run-human-confirmation",
+      "evidence:dry-run-step-completion"
+    ],
+    "claim_promotions": [
+      {
+        "id": "claim-promotion:dry-run-human-confirmed",
+        "step_ref": "step:dry-run-confirm-status",
+        "claim_id_template": "claim:{{record_slug}}-human-confirmed",
+        "claim_text": "The human supervisor confirmed the deterministic fixture status.",
+        "postcondition_hint": "Human response response:dry-run-human-confirmed is confirmed.",
+        "evidence_refs": [
+          "evidence:dry-run-human-confirmation"
+        ]
+      }
+    ],
+    "notes": "A future builder may project these refs into Work Record evidence, Claims, Claim Results, verifier feedback, and Health."
+  },
+  "metadata": {
+    "fixture_status": "schema_valid",
+    "scope": "contracts_only"
+  }
+}
