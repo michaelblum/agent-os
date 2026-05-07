@@ -1,0 +1,151 @@
+{
+  "type": "aos.comparative_brand_audit",
+  "schema_version": "2026-05-comparative-brand-audit-v0",
+  "id": "comparative-brand-audit:invalid-missing-citations",
+  "audit_id": "audit:invalid",
+  "scope": {
+    "framework": "KILOS",
+    "evidence_scope": "local_fixture_company_brand_audits",
+    "company_audit_scope": "local_fixture_browser_evidence",
+    "registry_path": "browser-evidence/registry.json",
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "report_generation": false
+  },
+  "companies": [
+    {
+      "name": "A",
+      "role": "client",
+      "company_audit_id": "company-brand-audit:a"
+    },
+    {
+      "name": "B",
+      "role": "competitor",
+      "company_audit_id": "company-brand-audit:b"
+    },
+    {
+      "name": "C",
+      "role": "competitor",
+      "company_audit_id": "company-brand-audit:c"
+    }
+  ],
+  "source_company_audits": [
+    {
+      "id": "company-brand-audit:a",
+      "company": "A",
+      "role": "client",
+      "path": "company-audits/a.json",
+      "request_ids": ["a_request"]
+    },
+    {
+      "id": "company-brand-audit:b",
+      "company": "B",
+      "role": "competitor",
+      "path": "company-audits/b.json",
+      "request_ids": ["b_request"]
+    },
+    {
+      "id": "company-brand-audit:c",
+      "company": "C",
+      "role": "competitor",
+      "path": "company-audits/c.json",
+      "request_ids": ["c_request"]
+    }
+  ],
+  "comparative_synthesis": {
+    "summary": "Invalid fixture with no citation spine.",
+    "company_audit_ids": ["company-brand-audit:a"],
+    "request_ids": ["a_request"]
+  },
+  "shared_themes": [
+    {
+      "theme": "Theme",
+      "summary": "Theme summary.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "key_differentiators": [
+    {
+      "company": "A",
+      "summary": "Differentiator.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "whitespace_opportunities": [
+    {
+      "opportunity": "Opportunity",
+      "rationale": "Rationale.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "kilos_positioning_matrix": [
+    {
+      "dimension": "impact",
+      "client_read": "Client read.",
+      "competitor_reads": [],
+      "synthesis": "Synthesis.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "review_site_comparison": {
+    "coverage_status": "unavailable",
+    "summary": "No review evidence.",
+    "company_audit_ids": ["company-brand-audit:a"],
+    "request_ids": [],
+    "caveat": "No review evidence."
+  },
+  "standout_engagement_examples": [
+    {
+      "company": "A",
+      "example": "Example.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "implications_for_client": [
+    {
+      "implication": "Implication",
+      "summary": "Summary.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "evidence_backed_claims": [
+    {
+      "id": "claim:invalid",
+      "claim": "Claim.",
+      "company_audit_ids": ["company-brand-audit:a"],
+      "request_ids": ["a_request"]
+    }
+  ],
+  "caveats": ["Invalid fixture."],
+  "provenance": {
+    "created_at": "2026-05-07T16:30:00Z",
+    "derived_from_company_audit_ids": [
+      "company-brand-audit:a",
+      "company-brand-audit:b",
+      "company-brand-audit:c"
+    ],
+    "derived_from_company_audit_paths": [
+      "company-audits/a.json",
+      "company-audits/b.json",
+      "company-audits/c.json"
+    ],
+    "derived_from_registry": "browser-evidence/registry.json",
+    "browser_evidence_request_ids": [
+      "a_request",
+      "b_request",
+      "c_request"
+    ],
+    "local_fixture_evidence_only": true,
+    "live_websites": false,
+    "report_generation": false,
+    "provenance_only": true,
+    "read_only": true,
+    "non_goals": ["live_collection"]
+  }
+}

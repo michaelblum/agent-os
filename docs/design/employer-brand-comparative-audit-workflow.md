@@ -197,6 +197,14 @@ After company audits are approved or auto-approved, generate:
 - standout engagement examples,
 - and recommendations or implications for the client company.
 
+The current V0 shape is documented in
+`shared/schemas/comparative-brand-audit-v0.md` and enforced by
+`shared/schemas/comparative-brand-audit-v0.schema.json`. V0 comparative audits
+are local fixture artifacts only: they cite existing Company Brand Audit fixture
+IDs and Browser Evidence registry `request_id`s, and they do not authorize live
+collection, report generation, export execution, replay, repair, macro
+playback, or a new viewer.
+
 ### 7. Artifact Assembly
 
 The first durable output should be structured data. Rendered artifacts can come later.

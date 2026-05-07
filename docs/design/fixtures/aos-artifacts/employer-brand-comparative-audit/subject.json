@@ -49,6 +49,7 @@
           "evidence:company-brand-audit-symphony-talent",
           "evidence:company-brand-audit-phenom",
           "evidence:company-brand-audit-radancy",
+          "evidence:comparative-brand-audit",
           "evidence:browser-evidence-fixture-assets"
         ],
         "browser_evidence_registry_path": "browser-evidence/registry.json",
@@ -58,6 +59,10 @@
           "company-audits/symphony-talent.json",
           "company-audits/phenom.json",
           "company-audits/radancy.json"
+        ],
+        "comparative_brand_audit_schema": "shared/schemas/comparative-brand-audit-v0.schema.json",
+        "comparative_brand_audit_paths": [
+          "comparative-audits/symphony-talent-phenom-radancy.json"
         ]
       }
     },
@@ -126,6 +131,40 @@
           "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
           "screenshots/phenom/phenom-fixture-culture-card.png",
           "screenshots/radancy/radancy-fixture-proof-block.png"
+        ],
+        "local_fixture_evidence_only": true,
+        "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "comparative-brand-audit",
+      "relationship": "records_comparative_brand_audit",
+      "handle": "comparative-brand-audit:symphony-talent-phenom-radancy",
+      "subject_id": "comparative-brand-audit:symphony-talent-phenom-radancy",
+      "subject_type": "aos.comparative_brand_audit",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "evidence",
+      "role": "comparative_brand_audit",
+      "metadata": {
+        "path": "comparative-audits/symphony-talent-phenom-radancy.json",
+        "schema": "shared/schemas/comparative-brand-audit-v0.schema.json",
+        "browser_evidence_registry_path": "browser-evidence/registry.json",
+        "company_audit_ids": [
+          "company-brand-audit:symphony-talent",
+          "company-brand-audit:phenom",
+          "company-brand-audit:radancy"
+        ],
+        "company_audit_paths": [
+          "company-audits/symphony-talent.json",
+          "company-audits/phenom.json",
+          "company-audits/radancy.json"
+        ],
+        "request_ids": [
+          "symphony_talent_fixture_evp_hero",
+          "phenom_fixture_culture_card",
+          "radancy_fixture_proof_block"
         ],
         "local_fixture_evidence_only": true,
         "live_websites": false,
@@ -368,6 +407,30 @@
           }
         },
         {
+          "path": "comparative-audits/symphony-talent-phenom-radancy.json",
+          "role": "comparative_brand_audit",
+          "media_type": "application/json",
+          "schema": "shared/schemas/comparative-brand-audit-v0.schema.json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:comparative-brand-audit",
+            "browser_evidence_registry": "browser-evidence/registry.json",
+            "company_audit_ids": [
+              "company-brand-audit:symphony-talent",
+              "company-brand-audit:phenom",
+              "company-brand-audit:radancy"
+            ],
+            "request_ids": [
+              "symphony_talent_fixture_evp_hero",
+              "phenom_fixture_culture_card",
+              "radancy_fixture_proof_block"
+            ],
+            "local_fixture_evidence_only": true,
+            "live_websites": false
+          }
+        },
+        {
           "path": "browser-evidence/html/symphony-talent-careers.html",
           "role": "browser_evidence_fixture_page",
           "media_type": "text/html",
@@ -477,6 +540,10 @@
           "company-audits/phenom.json",
           "company-audits/radancy.json"
         ],
+        "comparative_brand_audit_schema": "shared/schemas/comparative-brand-audit-v0.schema.json",
+        "comparative_brand_audits": [
+          "comparative-audits/symphony-talent-phenom-radancy.json"
+        ],
         "local_fixture_pages_only": true,
         "provenance_only": true
       },
@@ -493,6 +560,7 @@
           "evidence:company-brand-audit-symphony-talent",
           "evidence:company-brand-audit-phenom",
           "evidence:company-brand-audit-radancy",
+          "evidence:comparative-brand-audit",
           "evidence:browser-evidence-fixture-assets"
         ]
       },
@@ -534,6 +602,12 @@
             "id": "company-brand-audits-present",
             "kind": "file_presence",
             "target": "company-audits/",
+            "status": "unchecked"
+          },
+          {
+            "id": "comparative-brand-audit-present",
+            "kind": "file_presence",
+            "target": "comparative-audits/symphony-talent-phenom-radancy.json",
             "status": "unchecked"
           },
           {
@@ -584,6 +658,22 @@
         "company-audits/symphony-talent.json",
         "company-audits/phenom.json",
         "company-audits/radancy.json"
+      ],
+      "browser_evidence_registry": "browser-evidence/registry.json",
+      "local_fixture_evidence_only": true,
+      "live_websites": false,
+      "read_only": true,
+      "provenance_only": true
+    },
+    "comparative_brand_audit_v0": {
+      "schema": "shared/schemas/comparative-brand-audit-v0.schema.json",
+      "paths": [
+        "comparative-audits/symphony-talent-phenom-radancy.json"
+      ],
+      "company_audit_ids": [
+        "company-brand-audit:symphony-talent",
+        "company-brand-audit:phenom",
+        "company-brand-audit:radancy"
       ],
       "browser_evidence_registry": "browser-evidence/registry.json",
       "local_fixture_evidence_only": true,
