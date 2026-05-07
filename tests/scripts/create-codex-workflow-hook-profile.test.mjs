@@ -25,6 +25,22 @@ function workflowPath(profile) {
   return path.join(repoRoot, profile.workflow_dir);
 }
 
+function repoStatusOutsideTemp() {
+  const result = spawnSync('git', [
+    'status',
+    '--porcelain=v1',
+    '--untracked-files=all',
+    '--',
+    '.',
+    ':(exclude).aos-test-tmp',
+  ], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout;
+}
+
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, 'utf8'));
 }
@@ -63,6 +79,7 @@ test('parses arguments and sanitizes workflow ids', () => {
 
 test('CLI creates an ephemeral profile under .aos-test-tmp/workflows', async () => {
   const id = `test-cli-${process.pid}-${Date.now()}`;
+  const statusBefore = repoStatusOutsideTemp();
   const result = spawnSync('node', [
     'scripts/create-codex-workflow-hook-profile.mjs',
     '--id',
@@ -81,10 +98,15 @@ test('CLI creates an ephemeral profile under .aos-test-tmp/workflows', async () 
     assert.equal(profile.workflow_id, id);
     assert.equal(profile.workflow_dir, `.aos-test-tmp/workflows/${id}`);
     assert.equal(profile.gdi_handoff_enabled, true);
+    assert.equal(profile.roles.gdi.dir, 'gdi');
+    assert.equal(profile.roles.foreman.dir, 'foreman');
+    assert.equal(profile.roles.gdi.hooks, 'gdi/.codex/hooks.json');
+    assert.equal(profile.roles.foreman.hooks, 'foreman/.codex/hooks.json');
     assert.deepEqual(Object.keys(profile.roles).sort(), ['foreman', 'gdi']);
     await readFile(path.join(dir, 'README.md'), 'utf8');
     await readFile(path.join(dir, 'gdi', '.codex', 'hooks.json'), 'utf8');
     await readFile(path.join(dir, 'foreman', '.codex', 'hooks.json'), 'utf8');
+    assert.equal(repoStatusOutsideTemp(), statusBefore);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -100,8 +122,8 @@ test('creates isolated role hook profiles and the Stop marker writes under the w
     assert.equal(profile.workflow_dir, `.aos-test-tmp/workflows/${id}`);
     assert.equal(profile.gdi_handoff_enabled, false);
 
-    const gdiHooksPath = path.join(repoRoot, profile.roles.gdi.hooks);
-    const foremanHooksPath = path.join(repoRoot, profile.roles.foreman.hooks);
+    const gdiHooksPath = path.join(dir, profile.roles.gdi.hooks);
+    const foremanHooksPath = path.join(dir, profile.roles.foreman.hooks);
     const gdiHooks = await readJson(gdiHooksPath);
     const foremanHooks = await readJson(foremanHooksPath);
 
@@ -145,7 +167,7 @@ test('mock Codex launched from a role dir discovers and runs its CWD-local Stop 
   const id = `test-codex-discovery-${process.pid}-${Date.now()}`;
   const profile = createWorkflowProfile({ id });
   const dir = workflowPath(profile);
-  const gdiDir = path.join(repoRoot, profile.roles.gdi.dir);
+  const gdiDir = path.join(dir, profile.roles.gdi.dir);
 
   try {
     const mockCodex = path.join(dir, 'hooks', 'mock-codex.mjs');
@@ -263,7 +285,7 @@ process.stdout.write(JSON.stringify({ output_path: packetPath }) + '\\n');
 `);
     await chmod(fakePacketScript, 0o755);
 
-    const gdiHooksPath = path.join(repoRoot, profile.roles.gdi.hooks);
+    const gdiHooksPath = path.join(dir, profile.roles.gdi.hooks);
     const gdiHooks = await readJson(gdiHooksPath);
     const commands = stopCommands(gdiHooks);
     assert.equal(commands.length, 2);

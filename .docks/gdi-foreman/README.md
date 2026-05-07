@@ -16,6 +16,10 @@ happen in the real repo root named in the role prompt and `AOS_WORKFLOW_REPO_ROO
 - `gdi/` contains the role-local guidance for the GDI pass.
 - `foreman/` contains the role-local guidance for the foreman integration pass.
 
+Each role keeps stable identity and sentinel guidance in `role.md`. The
+per-invocation task body lives in `task.md`; the launcher concatenates both at
+role start.
+
 ## Sentinel Contract
 
 The workflow keeps the existing two-file handoff contract:

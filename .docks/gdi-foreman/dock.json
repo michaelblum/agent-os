@@ -1,5 +1,5 @@
 {
-  "type": "aos.dock_template.gdi_foreman.v0",
+  "type": "aos.dock_template.v0",
   "name": "gdi-foreman",
   "description": "Repo-local launch/control template for the two-role GDI/foreman workflow.",
   "run_state_root": ".aos-test-tmp/workflows",
@@ -7,7 +7,8 @@
     {
       "id": "gdi",
       "readme": "gdi/README.md",
-      "prompt": "gdi/prompt.md",
+      "role": "gdi/role.md",
+      "task": "gdi/task.md",
       "writes": [
         "handoff/ready-for-foreman.json"
       ]
@@ -15,7 +16,8 @@
     {
       "id": "foreman",
       "readme": "foreman/README.md",
-      "prompt": "foreman/prompt.md",
+      "role": "foreman/role.md",
+      "task": "foreman/task.md",
       "reads": [
         "handoff/ready-for-foreman.json"
       ],

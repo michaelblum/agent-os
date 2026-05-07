@@ -119,7 +119,8 @@ function waitForPath(filePath) {
 }
 
 fs.mkdirSync(path.dirname(recordPath), { recursive: true });
-const rolePromptPath = path.join(process.cwd(), 'prompt.md');
+const roleFilePath = path.join(process.cwd(), 'role.md');
+const taskFilePath = path.join(process.cwd(), 'task.md');
 const roleReadmePath = path.join(process.cwd(), 'README.md');
 const dockJsonPath = path.join(workflowDir, 'dock-template', 'dock.json');
 const dockRunPath = path.join(workflowDir, 'dock-run.json');
@@ -128,7 +129,8 @@ fs.appendFileSync(recordPath, JSON.stringify({
   cwd: process.cwd(),
   argv: process.argv.slice(2),
   workflowDir,
-  rolePrompt: fs.existsSync(rolePromptPath) ? fs.readFileSync(rolePromptPath, 'utf8') : null,
+  roleFile: fs.existsSync(roleFilePath) ? fs.readFileSync(roleFilePath, 'utf8') : null,
+  taskFile: fs.existsSync(taskFilePath) ? fs.readFileSync(taskFilePath, 'utf8') : null,
   roleReadme: fs.existsSync(roleReadmePath) ? fs.readFileSync(roleReadmePath, 'utf8') : null,
   dockTemplateType: fs.existsSync(dockJsonPath)
     ? JSON.parse(fs.readFileSync(dockJsonPath, 'utf8')).type
@@ -247,22 +249,25 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.match(foremanPrompt, /You are the foreman role/);
     assert.match(foremanPrompt, /handoff\/ready-for-foreman\.json/);
     assert.match(foremanPrompt, /handoff\/done\.json/);
-    assert.equal(records[0].dockTemplateType, 'aos.dock_template.gdi_foreman.v0');
-    assert.equal(records[1].dockTemplateType, 'aos.dock_template.gdi_foreman.v0');
+    assert.equal(records[0].dockTemplateType, 'aos.dock_template.v0');
+    assert.equal(records[1].dockTemplateType, 'aos.dock_template.v0');
     assert.equal(records[0].dockRunType, 'aos.docked_workflow_run.v0');
     assert.equal(records[1].dockRunType, 'aos.docked_workflow_run.v0');
-    assert.match(records[0].rolePrompt, /You are the GDI role/);
-    assert.match(records[1].rolePrompt, /You are the foreman role/);
+    assert.match(records[0].roleFile, /You are the GDI role/);
+    assert.match(records[1].roleFile, /You are the foreman role/);
+    assert.match(records[0].taskFile, /\{\{taskBody\}\}/);
+    assert.match(records[1].taskFile, /Read the GDI handoff sentinel/);
     assert.match(records[0].roleReadme, /GDI Role Dock/);
     assert.match(records[1].roleReadme, /Foreman Role Dock/);
-    assert.doesNotMatch(records[0].rolePrompt, /\{\{repoRoot\}\}/);
-    assert.doesNotMatch(records[1].rolePrompt, /\{\{readyPath\}\}/);
+    assert.doesNotMatch(records[0].roleFile, /\{\{repoRoot\}\}/);
+    assert.doesNotMatch(records[1].roleFile, /\{\{readyPath\}\}/);
 
     assert.equal(await exists(path.join(dir, 'dock-template', 'README.md')), true);
     assert.equal(await exists(path.join(dir, 'dock-template', 'dock.json')), true);
     assert.equal(await exists(path.join(dir, 'dock-run.json')), true);
     assert.equal(await exists(path.join(dir, 'gdi', 'README.md')), true);
-    assert.equal(await exists(path.join(dir, 'foreman', 'prompt.md')), true);
+    assert.equal(await exists(path.join(dir, 'foreman', 'role.md')), true);
+    assert.equal(await exists(path.join(dir, 'foreman', 'task.md')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'ready-for-foreman.json')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), true);
   } finally {
@@ -440,7 +445,7 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
     assertCodexExecInvocation(records[1]);
     const gdiPrompt = promptArg(records[0]);
     const foremanPrompt = promptArg(records[1]);
-    assert.match(gdiPrompt, /## Concrete Task/);
+    assert.match(gdiPrompt, /## Task/);
     assert.match(gdiPrompt, /Fix exactly the GDI\/foreman ordering race/);
     assert.match(gdiPrompt, /Keep the sentinel watcher intact/);
     assert.doesNotMatch(foremanPrompt, /Fix exactly the GDI\/foreman ordering race/);

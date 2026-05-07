@@ -68,6 +68,11 @@ dock template:
 node scripts/run-workflow.mjs --workflow-id pilot-001 --gdi-task-file /path/to/task.md
 ```
 
+Role identity and task text are intentionally split. `role.md` carries stable
+role identity, sentinels, and guardrails. `task.md` carries per-run task text.
+The supervisor concatenates `role.md` and rendered `task.md` at launch time;
+`--gdi-task-file` fills the GDI `task.md` body.
+
 Run state is kept by default for inspection. Add `--clean` to remove the
 generated workflow directory after completion or interruption.
 

@@ -102,10 +102,27 @@ function roleContext(profile, workflowDir, readyPath, donePath, role) {
     repoRoot,
     workflowDir,
     role,
-    roleDir: path.join(repoRoot, profile.roles[role].dir),
+    roleDir: resolveRoleDir(profile, workflowDir, role),
     readyPath,
     donePath,
   };
+}
+
+function assertInsideDirectory(child, parent, label) {
+  const relative = path.relative(parent, child);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`${label} outside ${parent}: ${child}`);
+  }
+}
+
+function resolveRoleDir(profile, workflowDir, role) {
+  const roleConfig = profile.roles?.[role];
+  if (!roleConfig?.dir) {
+    throw new Error(`Missing role directory for ${role}`);
+  }
+  const roleDir = path.resolve(workflowDir, roleConfig.dir);
+  assertInsideDirectory(roleDir, workflowDir, `${role} role directory`);
+  return roleDir;
 }
 
 async function instantiateDockTemplate(profile, workflowDir, readyPath, donePath) {
@@ -114,11 +131,11 @@ async function instantiateDockTemplate(profile, workflowDir, readyPath, donePath
 
   for (const role of ['gdi', 'foreman']) {
     const roleSourceDir = path.join(dockTemplateDir, role);
-    const roleDir = path.join(repoRoot, profile.roles[role].dir);
+    const roleDir = resolveRoleDir(profile, workflowDir, role);
     await copyDirectoryContents(roleSourceDir, roleDir);
     const context = roleContext(profile, workflowDir, readyPath, donePath, role);
     await renderRoleFile(path.join(roleDir, 'README.md'), context);
-    await renderRoleFile(path.join(roleDir, 'prompt.md'), context);
+    await renderRoleFile(path.join(roleDir, 'role.md'), context);
   }
 
   await fsp.writeFile(path.join(workflowDir, 'dock-run.json'), `${JSON.stringify({
@@ -224,7 +241,7 @@ export function waitForFile(filePath, options = {}) {
 }
 
 function spawnRole(role, profile, workflowDir, args, extra = {}) {
-  const roleDir = path.join(repoRoot, profile.roles[role].dir);
+  const roleDir = resolveRoleDir(profile, workflowDir, role);
   const childArgs = ['exec', ...(extra.prompt ? [extra.prompt] : [])];
   const child = spawn(args.codexBin, childArgs, {
     cwd: roleDir,
@@ -298,14 +315,28 @@ async function waitForSentinelAndChildExit(filePath, child, label, parentSignal)
 }
 
 async function readRolePrompt(role, profile, args = {}) {
-  const prompt = await fsp.readFile(path.join(repoRoot, profile.roles[role].dir, 'prompt.md'), 'utf8');
-  if (role !== 'gdi' || !args.gdiTaskFile) {
-    return prompt;
-  }
-
-  const taskPath = path.resolve(args.gdiTaskFile);
-  const taskBody = await fsp.readFile(taskPath, 'utf8');
-  return `${prompt.trimEnd()}\n\n## Concrete Task\n\n${taskBody.trimEnd()}\n`;
+  const workflowDir = resolveWorkflowDir(profile);
+  const handoffDir = path.join(workflowDir, 'handoff');
+  const context = roleContext(
+    profile,
+    workflowDir,
+    path.join(handoffDir, 'ready-for-foreman.json'),
+    path.join(handoffDir, 'done.json'),
+    role,
+  );
+  const roleDir = resolveRoleDir(profile, workflowDir, role);
+  const roleText = await fsp.readFile(path.join(roleDir, 'role.md'), 'utf8');
+  const taskText = fileExists(path.join(roleDir, 'task.md'))
+    ? await fsp.readFile(path.join(roleDir, 'task.md'), 'utf8')
+    : '';
+  const taskBody = role === 'gdi' && args.gdiTaskFile
+    ? await fsp.readFile(path.resolve(args.gdiTaskFile), 'utf8')
+    : 'No concrete task was supplied. Complete only the role contract for this run.';
+  const renderedTask = renderTemplateText(taskText, {
+    ...context,
+    taskBody: taskBody.trimEnd(),
+  }).trimEnd();
+  return [roleText.trimEnd(), renderedTask].filter(Boolean).join('\n\n') + '\n';
 }
 
 async function cleanupWorkflow(workflowDir, keep) {

@@ -350,8 +350,8 @@ export function createWorkflowProfile(options = {}) {
     const hookConfigPath = path.join(workflowDir, role, '.codex', 'hooks.json');
     fs.writeFileSync(hookConfigPath, `${JSON.stringify(hookConfig, null, 2)}\n`);
     roleOutputs[role] = {
-      dir: path.relative(repoRoot, path.join(workflowDir, role)),
-      hooks: path.relative(repoRoot, hookConfigPath),
+      dir: role,
+      hooks: path.join(role, '.codex', 'hooks.json'),
     };
   }
 
