@@ -19,6 +19,12 @@ To also add the optional GDI Stop hook that writes a handoff packet:
 node scripts/create-codex-workflow-hook-profile.mjs --id pilot-001 --gdi-handoff
 ```
 
+To opt into role-local TTS for a profile:
+
+```bash
+node scripts/create-codex-workflow-hook-profile.mjs --id pilot-001 --tts
+```
+
 The helper creates:
 
 ```text
@@ -75,6 +81,10 @@ The supervisor concatenates `role.md` and rendered `task.md` at launch time;
 
 Run state is kept by default for inspection. Add `--clean` to remove the
 generated workflow directory after completion or interruption.
+
+Add `--tts` to the docked launcher when the generated role-local Stop hooks
+should speak completion messages. GDI speaks "GDI finished, foreman starting."
+and foreman speaks "Foreman finished." through `./aos voice final-response`.
 
 ## What The Hooks Do
 

@@ -122,13 +122,18 @@ fs.mkdirSync(path.dirname(recordPath), { recursive: true });
 const roleFilePath = path.join(process.cwd(), 'role.md');
 const taskFilePath = path.join(process.cwd(), 'task.md');
 const roleReadmePath = path.join(process.cwd(), 'README.md');
+const roleHooksPath = path.join(process.cwd(), '.codex', 'hooks.json');
 const dockJsonPath = path.join(workflowDir, 'dock-template', 'dock.json');
 const dockRunPath = path.join(workflowDir, 'dock-run.json');
+const roleHooks = fs.existsSync(roleHooksPath)
+  ? JSON.parse(fs.readFileSync(roleHooksPath, 'utf8')).hooks.Stop.flatMap((matcher) => matcher.hooks).map((hook) => hook.command)
+  : [];
 fs.appendFileSync(recordPath, JSON.stringify({
   role,
   cwd: process.cwd(),
   argv: process.argv.slice(2),
   workflowDir,
+  roleHooks,
   roleFile: fs.existsSync(roleFilePath) ? fs.readFileSync(roleFilePath, 'utf8') : null,
   taskFile: fs.existsSync(taskFilePath) ? fs.readFileSync(taskFilePath, 'utf8') : null,
   roleReadme: fs.existsSync(roleReadmePath) ? fs.readFileSync(roleReadmePath, 'utf8') : null,
@@ -192,6 +197,7 @@ test('parses supervisor arguments', () => {
     workflowId: 'pilot-1',
     codexBin: '/tmp/codex',
     gdiTaskFile: null,
+    tts: false,
     keep: true,
     help: false,
   });
@@ -199,13 +205,15 @@ test('parses supervisor arguments', () => {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     gdiTaskFile: null,
+    tts: false,
     keep: false,
     help: false,
   });
-  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md']), {
+  assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md', '--tts']), {
     workflowId: 'pilot-1',
     codexBin: 'codex',
     gdiTaskFile: 'task.md',
+    tts: true,
     keep: true,
     help: false,
   });
@@ -257,6 +265,8 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.match(records[1].roleFile, /You are the foreman role/);
     assert.match(records[0].taskFile, /\{\{taskBody\}\}/);
     assert.match(records[1].taskFile, /Read the GDI handoff sentinel/);
+    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
+    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), false);
     assert.match(records[0].roleReadme, /GDI Role Dock/);
     assert.match(records[1].roleReadme, /Foreman Role Dock/);
     assert.doesNotMatch(records[0].roleFile, /\{\{repoRoot\}\}/);
@@ -449,6 +459,39 @@ test('run-workflow appends a GDI task file to the codex exec GDI prompt', async 
     assert.match(gdiPrompt, /Fix exactly the GDI\/foreman ordering race/);
     assert.match(gdiPrompt, /Keep the sentinel watcher intact/);
     assert.doesNotMatch(foremanPrompt, /Fix exactly the GDI\/foreman ordering race/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-workflow enables role-local TTS hooks only with --tts', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-tts-'));
+  const id = `test-run-workflow-tts-${process.pid}-${Date.now()}`;
+  const dir = workflowDir(id);
+  const recordPath = path.join(tempRoot, 'records.jsonl');
+  try {
+    const fakeCodex = await writeFakeCodex(tempRoot);
+    const result = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--workflow-id',
+      id,
+      '--codex-bin',
+      fakeCodex,
+      '--tts',
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AOS_FAKE_CODEX_RECORD: recordPath,
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+
+    const records = await readRecords(recordPath);
+    assert.equal(records[0].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
+    assert.equal(records[1].roleHooks.some((command) => command.includes('workflow-tts.sh')), true);
   } finally {
     await rm(dir, { recursive: true, force: true });
     await rm(tempRoot, { recursive: true, force: true });

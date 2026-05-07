@@ -68,9 +68,10 @@ async function readEvents(workflowDir) {
 }
 
 test('parses arguments and sanitizes workflow ids', () => {
-  assert.deepEqual(parseArgs(['--id', 'Pilot 01', '--gdi-handoff']), {
+  assert.deepEqual(parseArgs(['--id', 'Pilot 01', '--gdi-handoff', '--tts']), {
     id: 'Pilot 01',
     gdiHandoff: true,
+    tts: true,
     help: false,
   });
   assert.equal(sanitizeWorkflowId('Pilot 01'), 'Pilot-01');
@@ -98,6 +99,7 @@ test('CLI creates an ephemeral profile under .aos-test-tmp/workflows', async () 
     assert.equal(profile.workflow_id, id);
     assert.equal(profile.workflow_dir, `.aos-test-tmp/workflows/${id}`);
     assert.equal(profile.gdi_handoff_enabled, true);
+    assert.equal(profile.tts_enabled, false);
     assert.equal(profile.roles.gdi.dir, 'gdi');
     assert.equal(profile.roles.foreman.dir, 'foreman');
     assert.equal(profile.roles.gdi.hooks, 'gdi/.codex/hooks.json');
@@ -121,6 +123,7 @@ test('creates isolated role hook profiles and the Stop marker writes under the w
   try {
     assert.equal(profile.workflow_dir, `.aos-test-tmp/workflows/${id}`);
     assert.equal(profile.gdi_handoff_enabled, false);
+    assert.equal(profile.tts_enabled, false);
 
     const gdiHooksPath = path.join(dir, profile.roles.gdi.hooks);
     const foremanHooksPath = path.join(dir, profile.roles.foreman.hooks);
@@ -160,6 +163,80 @@ test('creates isolated role hook profiles and the Stop marker writes under the w
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('role-local TTS hook is opt-in and speaks role completion messages when enabled', async () => {
+  const disabledId = `test-tts-disabled-${process.pid}-${Date.now()}`;
+  const disabledProfile = createWorkflowProfile({ id: disabledId });
+  const disabledDir = workflowPath(disabledProfile);
+  const enabledId = `test-tts-enabled-${process.pid}-${Date.now()}`;
+  const enabledProfile = createWorkflowProfile({ id: enabledId, tts: true });
+  const enabledDir = workflowPath(enabledProfile);
+
+  try {
+    assert.equal(disabledProfile.tts_enabled, false);
+    const disabledGdiHooks = await readJson(path.join(disabledDir, disabledProfile.roles.gdi.hooks));
+    assert.equal(stopCommands(disabledGdiHooks).some((command) => command.includes('workflow-tts.sh')), false);
+
+    assert.equal(enabledProfile.tts_enabled, true);
+    const gdiHooks = await readJson(path.join(enabledDir, enabledProfile.roles.gdi.hooks));
+    const foremanHooks = await readJson(path.join(enabledDir, enabledProfile.roles.foreman.hooks));
+    const gdiTtsCommand = stopCommands(gdiHooks).find((command) => command.includes('workflow-tts.sh'));
+    const foremanTtsCommand = stopCommands(foremanHooks).find((command) => command.includes('workflow-tts.sh'));
+    assert.ok(gdiTtsCommand);
+    assert.ok(foremanTtsCommand);
+
+    const recordPath = path.join(enabledDir, 'voice-calls.jsonl');
+    const fakeAos = path.join(enabledDir, 'hooks', 'fake-aos.mjs');
+    await writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+
+const recordPath = process.env.AOS_FAKE_VOICE_RECORD;
+if (!recordPath) throw new Error('missing AOS_FAKE_VOICE_RECORD');
+const stdin = fs.readFileSync(0, 'utf8');
+fs.appendFileSync(recordPath, JSON.stringify({
+  argv: process.argv.slice(2),
+  stdin,
+}) + '\\n');
+process.stdout.write(JSON.stringify({ status: 'ok' }) + '\\n');
+`);
+    await chmod(fakeAos, 0o755);
+
+    const gdiResult = runHookCommand(
+      gdiTtsCommand,
+      JSON.stringify({ session_id: 'gdi-session', harness: 'codex' }),
+      {
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_VOICE_RECORD: recordPath,
+      },
+    );
+    assert.equal(gdiResult.status, 0, gdiResult.stderr);
+    assert.equal(gdiResult.stdout.trim(), '{"continue":true}');
+
+    const foremanResult = runHookCommand(
+      foremanTtsCommand,
+      JSON.stringify({ session_id: 'foreman-session', harness: 'codex' }),
+      {
+        AOS_WORKFLOW_AOS_BIN: fakeAos,
+        AOS_FAKE_VOICE_RECORD: recordPath,
+      },
+    );
+    assert.equal(foremanResult.status, 0, foremanResult.stderr);
+    assert.equal(foremanResult.stdout.trim(), '{"continue":true}');
+
+    const calls = (await readFile(recordPath, 'utf8'))
+      .trim()
+      .split(/\r?\n/)
+      .map((line) => JSON.parse(line));
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'gdi-session']);
+    assert.deepEqual(calls[1].argv, ['voice', 'final-response', '--harness', 'codex', '--session-id', 'foreman-session']);
+    assert.equal(JSON.parse(calls[0].stdin).last_assistant_message, 'GDI finished, foreman starting.');
+    assert.equal(JSON.parse(calls[1].stdin).last_assistant_message, 'Foreman finished.');
+  } finally {
+    await rm(disabledDir, { recursive: true, force: true });
+    await rm(enabledDir, { recursive: true, force: true });
   }
 });
 

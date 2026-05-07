@@ -8,7 +8,7 @@ const workflowsRoot = path.join(repoRoot, '.aos-test-tmp', 'workflows');
 const roles = ['gdi', 'foreman'];
 
 function usage() {
-  return `Usage: node scripts/create-codex-workflow-hook-profile.mjs [--id <workflow-id>] [--gdi-handoff]
+  return `Usage: node scripts/create-codex-workflow-hook-profile.mjs [--id <workflow-id>] [--gdi-handoff] [--tts]
 
 Creates an ephemeral Codex hook profile under .aos-test-tmp/workflows/<workflow-id>/.
 The generated profile contains isolated gdi/ and foreman/ role directories, each
@@ -27,6 +27,7 @@ export function parseArgs(argv) {
   const args = {
     id: null,
     gdiHandoff: false,
+    tts: false,
     help: false,
   };
 
@@ -39,6 +40,8 @@ export function parseArgs(argv) {
       index += 1;
     } else if (arg === '--gdi-handoff') {
       args.gdiHandoff = true;
+    } else if (arg === '--tts') {
+      args.tts = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -228,6 +231,84 @@ printf '{"continue":true}\\n'
 `;
 }
 
+function workflowTtsScriptTemplate() {
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+WORKFLOW_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="\${AOS_WORKFLOW_REPO_ROOT:-${repoRoot}}"
+EXPECTED_ROOT="$REPO_ROOT/.aos-test-tmp/workflows"
+ROLE="\${AOS_WORKFLOW_ROLE:-unknown}"
+AOS_BIN="\${AOS_WORKFLOW_AOS_BIN:-$REPO_ROOT/aos}"
+
+python3 - "$WORKFLOW_DIR" "$EXPECTED_ROOT" <<'PY'
+import pathlib
+import sys
+
+workflow_dir = pathlib.Path(sys.argv[1]).resolve()
+expected_root = pathlib.Path(sys.argv[2]).resolve()
+try:
+    workflow_dir.relative_to(expected_root)
+except ValueError:
+    print(f"workflow dir outside expected temp root: {workflow_dir}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+
+case "$ROLE" in
+  gdi) MESSAGE="GDI finished, foreman starting." ;;
+  foreman) MESSAGE="Foreman finished." ;;
+  *) printf '{"continue":true}\\n'; exit 0 ;;
+esac
+
+INPUT_PATH="$(mktemp "$WORKFLOW_DIR/.tts-input.XXXXXX")"
+PAYLOAD_PATH="$(mktemp "$WORKFLOW_DIR/.tts-payload.XXXXXX")"
+trap 'rm -f "$INPUT_PATH" "$PAYLOAD_PATH"' EXIT
+cat >"$INPUT_PATH" || true
+
+if [[ ! -x "$AOS_BIN" ]]; then
+  printf '{"continue":true}\\n'
+  exit 0
+fi
+
+SESSION_ID="$(python3 - "$INPUT_PATH" "$PAYLOAD_PATH" "$MESSAGE" <<'PY'
+import json
+import pathlib
+import sys
+
+input_path = pathlib.Path(sys.argv[1])
+payload_path = pathlib.Path(sys.argv[2])
+message = sys.argv[3]
+raw = input_path.read_text(encoding="utf-8", errors="replace").strip()
+try:
+    hook = json.loads(raw) if raw else {}
+except json.JSONDecodeError:
+    hook = {}
+
+session_id = (
+    hook.get("session_id")
+    or hook.get("thread_id")
+    or (hook.get("payload") or {}).get("session_id")
+    or (hook.get("payload") or {}).get("thread_id")
+    or ""
+)
+hook["last_assistant_message"] = message
+hook["harness"] = hook.get("harness") or "codex"
+payload_path.write_text(json.dumps(hook, separators=(",", ":")) + "\\n", encoding="utf-8")
+print(session_id)
+PY
+)"
+
+if [[ -n "$SESSION_ID" ]]; then
+  "$AOS_BIN" voice final-response --harness codex --session-id "$SESSION_ID" <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
+else
+  "$AOS_BIN" voice final-response --harness codex <"$PAYLOAD_PATH" >/dev/null 2>&1 || true
+fi
+
+printf '{"continue":true}\\n'
+`;
+}
+
 function hookCommand(workflowDir, role, scriptName) {
   return [
     `AOS_WORKFLOW_ROLE=${shellQuote(role)}`,
@@ -253,6 +334,15 @@ export function buildHookConfig(options) {
       command: hookCommand(options.workflowDir, options.role, 'gdi-stop-handoff.sh'),
       statusMessage: 'Writing GDI handoff packet',
       timeout: 45,
+    });
+  }
+
+  if (options.tts) {
+    stopHooks.push({
+      type: 'command',
+      command: hookCommand(options.workflowDir, options.role, 'workflow-tts.sh'),
+      statusMessage: 'Speaking workflow role completion',
+      timeout: 20,
     });
   }
 
@@ -312,6 +402,11 @@ ${options.gdiHandoff ? `The GDI role also has an optional Stop hook that pipes h
 \`AOS_WORKFLOW_COPY_PACKET_PATH=1\` before launching Codex to attempt a
 best-effort clipboard copy of that packet path.` : `The optional GDI handoff hook was not enabled for this profile. Regenerate with
 \`--gdi-handoff\` when you want the GDI Stop hook to write a handoff packet.`}
+
+${options.tts ? `Role-local TTS is enabled for this profile. The GDI Stop hook speaks
+\`GDI finished, foreman starting.\`; the foreman Stop hook speaks
+\`Foreman finished.\` Both calls go through \`${repoRoot}/aos voice final-response\`.` : `Role-local TTS is disabled for this profile. Regenerate with \`--tts\` when you
+want the GDI and foreman Stop hooks to speak completion messages.`}
 `;
 }
 
@@ -333,6 +428,7 @@ export function createWorkflowProfile(options = {}) {
   const scripts = {
     'stop-marker.sh': stopMarkerScriptTemplate(),
     'gdi-stop-handoff.sh': gdiHandoffScriptTemplate(),
+    'workflow-tts.sh': workflowTtsScriptTemplate(),
   };
   for (const [name, content] of Object.entries(scripts)) {
     const scriptPath = path.join(workflowDir, 'hooks', name);
@@ -346,6 +442,7 @@ export function createWorkflowProfile(options = {}) {
       workflowDir,
       role,
       gdiHandoff: Boolean(options.gdiHandoff),
+      tts: Boolean(options.tts),
     });
     const hookConfigPath = path.join(workflowDir, role, '.codex', 'hooks.json');
     fs.writeFileSync(hookConfigPath, `${JSON.stringify(hookConfig, null, 2)}\n`);
@@ -359,6 +456,7 @@ export function createWorkflowProfile(options = {}) {
     workflowId,
     workflowDir,
     gdiHandoff: Boolean(options.gdiHandoff),
+    tts: Boolean(options.tts),
   }));
 
   return {
@@ -366,6 +464,7 @@ export function createWorkflowProfile(options = {}) {
     workflow_id: workflowId,
     workflow_dir: path.relative(repoRoot, workflowDir),
     gdi_handoff_enabled: Boolean(options.gdiHandoff),
+    tts_enabled: Boolean(options.tts),
     roles: roleOutputs,
     events: path.relative(repoRoot, path.join(workflowDir, 'events.jsonl')),
   };
@@ -381,6 +480,7 @@ export function main(argv = process.argv.slice(2)) {
   const profile = createWorkflowProfile({
     id: args.id,
     gdiHandoff: args.gdiHandoff,
+    tts: args.tts,
   });
   console.log(JSON.stringify(profile, null, 2));
   return 0;

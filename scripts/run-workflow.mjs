@@ -11,7 +11,7 @@ const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 
 function usage() {
-  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--keep|--clean]
+  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts] [--keep|--clean]
 
 Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 .docks/gdi-foreman template, launches the GDI role, waits for
@@ -37,6 +37,7 @@ export function parseArgs(argv) {
     workflowId: null,
     codexBin: defaultCodexBin,
     gdiTaskFile: null,
+    tts: false,
     keep: true,
     help: false,
   };
@@ -54,6 +55,8 @@ export function parseArgs(argv) {
     } else if (arg === '--gdi-task-file') {
       args.gdiTaskFile = requireValue(argv, index, arg);
       index += 1;
+    } else if (arg === '--tts') {
+      args.tts = true;
     } else if (arg === '--keep') {
       args.keep = true;
     } else if (arg === '--clean') {
@@ -153,6 +156,9 @@ async function instantiateDockTemplate(profile, workflowDir, readyPath, donePath
 function runProfileGenerator(args, options = {}) {
   const nodeBin = options.nodeBin ?? process.execPath;
   const commandArgs = [profileScript, '--gdi-handoff'];
+  if (args.tts) {
+    commandArgs.push('--tts');
+  }
   if (args.workflowId) {
     commandArgs.push('--id', args.workflowId);
   }
