@@ -124,7 +124,7 @@ function renderPreview(preview = {}) {
   }
   if (preview.render_mode === 'markdown' && preview.url) {
     return (
-      `<article class="artifact-bundle-markdown-preview" aria-label="${esc(text(artifact.label, 'Markdown artifact'))}" data-role="markdown-preview">`
+      `<article class="aos-markdown-preview artifact-bundle-markdown-preview" aria-label="${esc(text(artifact.label, 'Markdown artifact'))}" data-role="markdown-preview">`
         + '<p class="artifact-bundle-muted">Loading Markdown preview...</p>'
       + '</article>'
     );

@@ -143,6 +143,22 @@ Legacy aliases such as `--font-ui`, `--font-mono`, `--bg-panel`,
 `--border-panel`, `--radius-panel`, and `--shadow-panel` remain available for
 older surfaces, but new toolkit CSS should use the `--aos-*` contract.
 
+## Markdown Preview
+
+`markdown/render.js` owns the shared Markdown-to-HTML renderer. Surfaces that
+display that rendered HTML should also import `markdown/preview.css` and put the
+`aos-markdown-preview` class on their document preview element:
+
+```html
+<link rel="stylesheet" href="aos://toolkit/markdown/preview.css">
+<article class="aos-markdown-preview">...</article>
+```
+
+The stylesheet owns only the document presentation layer: max width, padding,
+type scale, heading/list spacing, code blocks, rules, and links. Workbenches
+keep their own artifact chrome, panes, toolbars, loading states, semantic refs,
+and edit/save affordances.
+
 ## Workbench Contracts
 
 Workbench surfaces should describe the thing being edited with
@@ -693,8 +709,9 @@ It accepts `artifact_bundle.open`, exposes
 `window.__artifactBundleWorkbenchState`, renders a gallery/preview/inspector
 snapshot, and preserves artifact payloads without rewriting them. It can preview
 HTML through a provided AOS content-root URL, fetch and render Markdown artifacts
-with the shared toolkit Markdown renderer, and fall back to metadata inspection
-for artifacts without a resolvable preview URL.
+with the shared toolkit Markdown renderer plus shared Markdown preview
+presentation, and fall back to metadata inspection for artifacts without a
+resolvable preview URL.
 
 The Subject Catalog supports artifact bundles through
 `createArtifactBundleSubjectCatalogEntry()`. The opener reuses the existing

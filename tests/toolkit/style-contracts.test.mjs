@@ -118,12 +118,13 @@ test('workbench shell consumes shared panel chrome tokens', async () => {
 test('workbench and document surfaces consume shared type tokens', async () => {
   const workbenchCss = await repoText('packages/toolkit/workbench/defaults.css');
   const markdownCss = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
+  const markdownPreviewCss = await repoText('packages/toolkit/markdown/preview.css');
   const workRecordCss = await repoText('packages/toolkit/components/work-record-workbench/styles.css');
   const objectTransformCss = await repoText('packages/toolkit/components/object-transform-panel/styles.css');
 
   assert.match(workbenchCss, /font:\s*var\(--aos-type-label/);
   assert.match(markdownCss, /font:\s*var\(--aos-type-code/);
-  assert.match(markdownCss, /font:\s*var\(--aos-type-code-block/);
+  assert.match(markdownPreviewCss, /font:\s*var\(--aos-type-code-block/);
   assert.match(workRecordCss, /font:\s*var\(--aos-type-label/);
   assert.match(workRecordCss, /font:\s*var\(--aos-type-code/);
   assert.match(workRecordCss, /font:\s*var\(--aos-type-code-block/);

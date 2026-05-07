@@ -406,7 +406,7 @@ export default function MarkdownWorkbench(options = {}) {
               <textarea spellcheck="true" aria-label="Markdown source editor" data-aos-ref="markdown-workbench:source-editor" data-aos-action="edit_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="source-editor"></textarea>
             </section>
             <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview" data-aos-ref="markdown-workbench:preview-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="preview-pane">
-              <div class="markdown-workbench-preview" data-aos-ref="markdown-workbench:preview" data-aos-surface="markdown-workbench" data-semantic-target-id="preview"></div>
+              <div class="aos-markdown-preview markdown-workbench-preview" data-aos-ref="markdown-workbench:preview" data-aos-surface="markdown-workbench" data-semantic-target-id="preview"></div>
             </section>
             <aside class="markdown-workbench-outline-panel" aria-label="Document index" hidden>
               <div class="markdown-workbench-outline-title">Index</div>

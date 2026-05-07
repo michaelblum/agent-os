@@ -41,6 +41,10 @@ controls/               Layer 1a — reusable app-control behavior for WKWebView
   number-field.js         focused wheel/key stepping for numeric fields
   index.js                re-exports
 
+markdown/               Layer 1c — shared Markdown renderer and preview presentation
+  render.js               Markdown-to-HTML renderer with shared link safety
+  preview.css             document preview typography and spacing
+
 panel/                  Layer 1b — panel primitives
   chrome.js               mountChrome — pure DOM scaffold + drag/resize lifecycle + absolute drag updates, final drag clamp, resize frame updates, and optional maximize/restore state
   drag-transfer.js        cross-display panel transfer outline + release-frame controller

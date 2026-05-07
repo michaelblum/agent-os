@@ -24,6 +24,7 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.match(js, /createMarkdownOpenRequestFromWikiSelection/);
   assert.match(js, /WIKI_SUBJECT_SELECTION_TYPE/);
   assert.match(html, /\.\.\/wiki-kb\/styles\.css/);
+  assert.match(html, /\.\.\/\.\.\/markdown\/preview\.css/);
   assert.match(html, /maximize:\s*true/);
   assert.match(html, /resizable:\s*true/);
   assert.match(html, /minWidth:\s*760/);
@@ -95,6 +96,7 @@ test('markdown workbench toggles source and preview in the content pane', async 
   assert.doesNotMatch(documentPane, /data-role="dirty"/);
   assert.match(js, /dom\.saveButton\.disabled = !state\.dirty/);
   assert.match(documentPane, /markdown-workbench-document-toolbar/);
+  assert.match(documentPane, /aos-markdown-preview markdown-workbench-preview/);
   assert.match(js, /syncViewMode/);
   assert.match(js, /dom\.previewPane\.hidden = !previewActive/);
   assert.match(js, /dom\.sourcePane\.hidden = previewActive/);

@@ -203,6 +203,8 @@ test('artifact bundle workbench files expose the named surface and refs', async 
   assert.match(indexJs, /artifact_bundle\.open/);
   assert.match(indexJs, /artifact_bundle\.select/);
   assert.match(indexJs, /renderMarkdown/);
+  assert.match(indexHtml, /\.\.\/\.\.\/markdown\/preview\.css/);
+  assert.match(indexJs, /aos-markdown-preview artifact-bundle-markdown-preview/);
   assert.match(indexJs, /data-role="markdown-preview"/);
   assert.match(launch, /--manifest artifact-bundle-workbench/);
   assert.match(launch, /artifact-bundle-workbench:root/);
