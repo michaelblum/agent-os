@@ -50,7 +50,7 @@
     <section x-show="activeView === 'summary'" x-transition id="summary-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed flex flex-col" x-cloak>
       <div id="summary-content-wrapper" class="flex-grow flex items-center justify-center container mx-auto w-full px-4 md:px-8 py-8">
       </div>
-      <footer class="text-center p-4 bg-slate-900/50 text-white text-sm" x-text="templateMeta.footerText || 'Replace footer text in scripts/report-data.template.js'"></footer>
+      <footer class="text-center p-4 bg-slate-900/50 text-white text-sm" x-text="templateMeta.footerText || 'Add footer text in the active report data script'"></footer>
     </section>
 
     <section x-show="activeView === 'competition' || activeView === 'kilos'" x-transition id="competition-view" class="min-h-[calc(100vh-60px)] bg-cover bg-center bg-fixed" x-cloak>
@@ -64,7 +64,7 @@
     </section>
   </main>
 
-  <script src="./scripts/report-data.template.js"></script>
+  <script src="./scripts/report-data.fixture.js"></script>
   <script src="./scripts/app.js"></script>
 </body>
 </html>
