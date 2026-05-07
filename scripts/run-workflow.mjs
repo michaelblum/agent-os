@@ -260,15 +260,19 @@ function childExit(child, label, requiredFile) {
   return new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', (code, signal) => {
-      if (requiredFile && fileExists(requiredFile)) {
-        resolve({ label, code, signal });
+      if (signal) {
+        reject(new Error(`${label} exited with ${signal}`));
         return;
       }
-      if (code === 0) {
-        reject(new Error(`${label} exited before ${path.basename(requiredFile)}`));
-      } else {
-        reject(new Error(`${label} exited with ${signal ?? `code ${code}`}`));
+      if (code !== 0) {
+        reject(new Error(`${label} exited with code ${code}`));
+        return;
       }
+      if (requiredFile && !fileExists(requiredFile)) {
+        reject(new Error(`${label} exited before ${path.basename(requiredFile)}`));
+        return;
+      }
+      resolve({ label, code, signal });
     });
   });
 }

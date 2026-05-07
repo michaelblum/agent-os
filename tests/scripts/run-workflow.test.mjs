@@ -146,6 +146,9 @@ if (mode === 'hang') {
     status: 'ready',
     role,
   });
+  if (mode === 'gdi-ready-then-fail') {
+    process.exit(42);
+  }
   if (mode === 'gdi-ready-then-wait') {
     writeMarker('AOS_FAKE_CODEX_GDI_READY_MARKER');
     await waitForPath(process.env.AOS_FAKE_CODEX_GDI_EXIT_FILE);
@@ -312,6 +315,41 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
     if (child && child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM');
     }
+    await rm(dir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('run-workflow fails if GDI exits non-zero after writing ready sentinel', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'aos-run-workflow-gdi-fail-'));
+  const id = `test-run-workflow-gdi-fail-${process.pid}-${Date.now()}`;
+  const dir = workflowDir(id);
+  const recordPath = path.join(tempRoot, 'records.jsonl');
+
+  try {
+    const fakeCodex = await writeFakeCodex(tempRoot);
+    const result = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--workflow-id',
+      id,
+      '--codex-bin',
+      fakeCodex,
+    ], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        AOS_FAKE_CODEX_RECORD: recordPath,
+        AOS_FAKE_CODEX_MODE: 'gdi-ready-then-fail',
+      },
+      encoding: 'utf8',
+    });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /GDI exited with code 42/);
+    assert.deepEqual((await readRecords(recordPath)).map((record) => record.role), ['gdi']);
+    assert.equal(await exists(path.join(dir, 'handoff', 'ready-for-foreman.json')), true);
+    assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), false);
+  } finally {
     await rm(dir, { recursive: true, force: true });
     await rm(tempRoot, { recursive: true, force: true });
   }
