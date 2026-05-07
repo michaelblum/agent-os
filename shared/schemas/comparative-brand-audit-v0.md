@@ -44,7 +44,7 @@ existing Company Brand Audit fixture ID and the Browser Evidence registry
   "company_audit_id": "company-brand-audit:symphony-talent",
   "company": "Symphony Talent",
   "role": "client",
-  "request_ids": ["symphony_talent_fixture_evp_hero"]
+  "request_ids": ["symphony_talent_careers_site_planning"]
 }
 ```
 

@@ -37,7 +37,7 @@
       "role": "client",
       "path": "company-audits/symphony-talent.json",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -46,7 +46,7 @@
       "role": "competitor",
       "path": "company-audits/phenom.json",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -55,7 +55,7 @@
       "role": "competitor",
       "path": "company-audits/radancy.json",
       "request_ids": [
-        "radancy_fixture_proof_block"
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -67,9 +67,9 @@
       "company-brand-audit:radancy"
     ],
     "request_ids": [
-      "symphony_talent_fixture_evp_hero",
-      "phenom_fixture_culture_card",
-      "radancy_fixture_proof_block"
+      "symphony_talent_careers_site_planning",
+      "phenom_careers_site_planning",
+      "radancy_careers_site_planning"
     ]
   },
   "shared_themes": [
@@ -82,9 +82,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -96,9 +96,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -110,9 +110,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -124,7 +124,7 @@
         "company-brand-audit:symphony-talent"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -134,7 +134,7 @@
         "company-brand-audit:phenom"
       ],
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -144,7 +144,7 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "radancy_fixture_proof_block"
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -158,9 +158,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -172,9 +172,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -188,7 +188,7 @@
           "read": "Phenom frames impact as making every talent moment more personal through intelligent product work and customer outcomes.",
           "company_audit_id": "company-brand-audit:phenom",
           "request_ids": [
-            "phenom_fixture_culture_card"
+            "phenom_careers_site_planning"
           ]
         },
         {
@@ -196,7 +196,7 @@
           "read": "Radancy's local evidence is less impact-led and more focused on enterprise scale and expertise.",
           "company_audit_id": "company-brand-audit:radancy",
           "request_ids": [
-            "radancy_fixture_proof_block"
+            "radancy_careers_site_planning"
           ]
         }
       ],
@@ -207,9 +207,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -221,7 +221,7 @@
           "read": "Phenom implies opportunity through builder culture and intelligent product work, but the fixture does not prove specific mobility paths.",
           "company_audit_id": "company-brand-audit:phenom",
           "request_ids": [
-            "phenom_fixture_culture_card"
+            "phenom_careers_site_planning"
           ]
         },
         {
@@ -229,7 +229,7 @@
           "read": "Radancy signals opportunity through specialist recruitment marketing expertise and enterprise program exposure.",
           "company_audit_id": "company-brand-audit:radancy",
           "request_ids": [
-            "radancy_fixture_proof_block"
+            "radancy_careers_site_planning"
           ]
         }
       ],
@@ -240,9 +240,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -254,7 +254,7 @@
           "read": "Phenom has the clearest kinship signal through collaborative problem solving across teams.",
           "company_audit_id": "company-brand-audit:phenom",
           "request_ids": [
-            "phenom_fixture_culture_card"
+            "phenom_careers_site_planning"
           ]
         },
         {
@@ -262,7 +262,7 @@
           "read": "Radancy's local fixture does not foreground kinship beyond the implied professional community around specialist expertise.",
           "company_audit_id": "company-brand-audit:radancy",
           "request_ids": [
-            "radancy_fixture_proof_block"
+            "radancy_careers_site_planning"
           ]
         }
       ],
@@ -273,9 +273,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -287,7 +287,7 @@
           "read": "Phenom's local evidence is product-led rather than status-led.",
           "company_audit_id": "company-brand-audit:phenom",
           "request_ids": [
-            "phenom_fixture_culture_card"
+            "phenom_careers_site_planning"
           ]
         },
         {
@@ -295,7 +295,7 @@
           "read": "Radancy owns the clearest status position through enterprise hiring programs, global reach, and established client work.",
           "company_audit_id": "company-brand-audit:radancy",
           "request_ids": [
-            "radancy_fixture_proof_block"
+            "radancy_careers_site_planning"
           ]
         }
       ],
@@ -306,9 +306,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -356,7 +356,7 @@
         "company-brand-audit:symphony-talent"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -366,7 +366,7 @@
         "company-brand-audit:phenom"
       ],
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -376,7 +376,7 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "radancy_fixture_proof_block"
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -390,9 +390,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -404,9 +404,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -420,9 +420,9 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero",
-        "phenom_fixture_culture_card",
-        "radancy_fixture_proof_block"
+        "symphony_talent_careers_site_planning",
+        "phenom_careers_site_planning",
+        "radancy_careers_site_planning"
       ]
     },
     {
@@ -432,7 +432,7 @@
         "company-brand-audit:symphony-talent"
       ],
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -442,7 +442,7 @@
         "company-brand-audit:phenom"
       ],
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -452,7 +452,7 @@
         "company-brand-audit:radancy"
       ],
       "request_ids": [
-        "radancy_fixture_proof_block"
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -468,7 +468,7 @@
       "company": "Symphony Talent",
       "role": "client",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -476,7 +476,7 @@
       "company": "Phenom",
       "role": "competitor",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -484,7 +484,7 @@
       "company": "Radancy",
       "role": "competitor",
       "request_ids": [
-        "radancy_fixture_proof_block"
+        "radancy_careers_site_planning"
       ]
     }
   ],
@@ -502,9 +502,9 @@
     ],
     "derived_from_registry": "browser-evidence/registry.json",
     "browser_evidence_request_ids": [
-      "symphony_talent_fixture_evp_hero",
-      "phenom_fixture_culture_card",
-      "radancy_fixture_proof_block"
+      "symphony_talent_careers_site_planning",
+      "phenom_careers_site_planning",
+      "radancy_careers_site_planning"
     ],
     "local_fixture_evidence_only": true,
     "live_websites": false,

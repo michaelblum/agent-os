@@ -119,9 +119,9 @@
       "company-audits/radancy.json"
     ],
     "request_ids": [
-      "symphony_talent_fixture_evp_hero",
-      "phenom_fixture_culture_card",
-      "radancy_fixture_proof_block"
+      "symphony_talent_careers_site_planning",
+      "phenom_careers_site_planning",
+      "radancy_careers_site_planning"
     ],
     "screenshot_paths": [
       "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
@@ -149,9 +149,9 @@
     ],
     "registry_path": "browser-evidence/registry.json",
     "request_ids": [
-      "symphony_talent_fixture_evp_hero",
-      "phenom_fixture_culture_card",
-      "radancy_fixture_proof_block"
+      "symphony_talent_careers_site_planning",
+      "phenom_careers_site_planning",
+      "radancy_careers_site_planning"
     ],
     "local_fixture_evidence_only": true,
     "live_websites": false,

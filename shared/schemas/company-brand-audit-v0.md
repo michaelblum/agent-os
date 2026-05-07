@@ -39,7 +39,7 @@ and must match the registry row exactly, for example:
 
 ```json
 {
-  "request_id": "symphony_talent_fixture_evp_hero",
+  "request_id": "symphony_talent_careers_site_planning",
   "company": "Symphony Talent",
   "source_category": "careers_site",
   "source_url": "html/symphony-talent-careers.html",

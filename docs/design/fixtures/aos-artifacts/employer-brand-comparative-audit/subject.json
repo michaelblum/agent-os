@@ -182,9 +182,9 @@
         "schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "browser_evidence_registry_path": "browser-evidence/registry.json",
         "request_ids": [
-          "symphony_talent_fixture_evp_hero",
-          "phenom_fixture_culture_card",
-          "radancy_fixture_proof_block"
+          "symphony_talent_careers_site_planning",
+          "phenom_careers_site_planning",
+          "radancy_careers_site_planning"
         ],
         "screenshot_paths": [
           "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
@@ -221,9 +221,9 @@
           "company-audits/radancy.json"
         ],
         "request_ids": [
-          "symphony_talent_fixture_evp_hero",
-          "phenom_fixture_culture_card",
-          "radancy_fixture_proof_block"
+          "symphony_talent_careers_site_planning",
+          "phenom_careers_site_planning",
+          "radancy_careers_site_planning"
         ],
         "local_fixture_evidence_only": true,
         "live_websites": false,
@@ -453,25 +453,22 @@
               "planned_count": 21,
               "captured_count": 3,
               "captured_status_count": 3,
-              "matched_request_count": 0,
-              "missing_planned_count": 21,
-              "extra_captured_count": 3,
+              "matched_request_count": 3,
+              "missing_planned_count": 18,
+              "extra_captured_count": 0,
               "missing_planned_request_ids": [
-                "symphony_talent_careers_site_planning",
                 "symphony_talent_employer_brand_pages_planning",
                 "symphony_talent_linkedin_presence_planning",
                 "symphony_talent_review_platforms_planning",
                 "symphony_talent_social_campaigns_planning",
                 "symphony_talent_awards_recognition_planning",
                 "symphony_talent_employee_stories_planning",
-                "phenom_careers_site_planning",
                 "phenom_employer_brand_pages_planning",
                 "phenom_linkedin_presence_planning",
                 "phenom_review_platforms_planning",
                 "phenom_social_campaigns_planning",
                 "phenom_awards_recognition_planning",
                 "phenom_employee_stories_planning",
-                "radancy_careers_site_planning",
                 "radancy_employer_brand_pages_planning",
                 "radancy_linkedin_presence_planning",
                 "radancy_review_platforms_planning",
@@ -479,21 +476,17 @@
                 "radancy_awards_recognition_planning",
                 "radancy_employee_stories_planning"
               ],
-              "extra_captured_request_ids": [
-                "symphony_talent_fixture_evp_hero",
-                "phenom_fixture_culture_card",
-                "radancy_fixture_proof_block"
-              ],
+              "extra_captured_request_ids": [],
               "by_company_source_category": [
                 {
                   "company": "Symphony Talent",
                   "source_category": "careers_site",
                   "planned_count": 1,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 1,
-                  "extra_captured_count": 1,
-                  "coverage_status": "captured_without_matching_request_id"
+                  "matched_request_count": 1,
+                  "missing_planned_count": 0,
+                  "extra_captured_count": 0,
+                  "coverage_status": "matched"
                 },
                 {
                   "company": "Symphony Talent",
@@ -560,10 +553,10 @@
                   "source_category": "careers_site",
                   "planned_count": 1,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 1,
-                  "extra_captured_count": 1,
-                  "coverage_status": "captured_without_matching_request_id"
+                  "matched_request_count": 1,
+                  "missing_planned_count": 0,
+                  "extra_captured_count": 0,
+                  "coverage_status": "matched"
                 },
                 {
                   "company": "Phenom",
@@ -630,10 +623,10 @@
                   "source_category": "careers_site",
                   "planned_count": 1,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 1,
-                  "extra_captured_count": 1,
-                  "coverage_status": "captured_without_matching_request_id"
+                  "matched_request_count": 1,
+                  "missing_planned_count": 0,
+                  "extra_captured_count": 0,
+                  "coverage_status": "matched"
                 },
                 {
                   "company": "Radancy",
@@ -701,9 +694,9 @@
                   "company": "Symphony Talent",
                   "planned_count": 7,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 7,
-                  "extra_captured_count": 1,
+                  "matched_request_count": 1,
+                  "missing_planned_count": 6,
+                  "extra_captured_count": 0,
                   "source_categories": [
                     "careers_site",
                     "employer_brand_pages",
@@ -718,9 +711,9 @@
                   "company": "Phenom",
                   "planned_count": 7,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 7,
-                  "extra_captured_count": 1,
+                  "matched_request_count": 1,
+                  "missing_planned_count": 6,
+                  "extra_captured_count": 0,
                   "source_categories": [
                     "careers_site",
                     "employer_brand_pages",
@@ -735,9 +728,9 @@
                   "company": "Radancy",
                   "planned_count": 7,
                   "captured_count": 1,
-                  "matched_request_count": 0,
-                  "missing_planned_count": 7,
-                  "extra_captured_count": 1,
+                  "matched_request_count": 1,
+                  "missing_planned_count": 6,
+                  "extra_captured_count": 0,
                   "source_categories": [
                     "careers_site",
                     "employer_brand_pages",
@@ -765,7 +758,7 @@
             "evidence_ref": "evidence:company-brand-audit-symphony-talent",
             "browser_evidence_registry": "browser-evidence/registry.json",
             "request_ids": [
-              "symphony_talent_fixture_evp_hero"
+              "symphony_talent_careers_site_planning"
             ],
             "screenshot_paths": [
               "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png"
@@ -785,7 +778,7 @@
             "evidence_ref": "evidence:company-brand-audit-phenom",
             "browser_evidence_registry": "browser-evidence/registry.json",
             "request_ids": [
-              "phenom_fixture_culture_card"
+              "phenom_careers_site_planning"
             ],
             "screenshot_paths": [
               "screenshots/phenom/phenom-fixture-culture-card.png"
@@ -805,7 +798,7 @@
             "evidence_ref": "evidence:company-brand-audit-radancy",
             "browser_evidence_registry": "browser-evidence/registry.json",
             "request_ids": [
-              "radancy_fixture_proof_block"
+              "radancy_careers_site_planning"
             ],
             "screenshot_paths": [
               "screenshots/radancy/radancy-fixture-proof-block.png"
@@ -830,9 +823,9 @@
               "company-brand-audit:radancy"
             ],
             "request_ids": [
-              "symphony_talent_fixture_evp_hero",
-              "phenom_fixture_culture_card",
-              "radancy_fixture_proof_block"
+              "symphony_talent_careers_site_planning",
+              "phenom_careers_site_planning",
+              "radancy_careers_site_planning"
             ],
             "local_fixture_evidence_only": true,
             "live_websites": false

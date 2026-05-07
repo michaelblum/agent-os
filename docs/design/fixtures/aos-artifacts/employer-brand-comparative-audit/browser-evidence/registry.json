@@ -20,7 +20,7 @@
   },
   "evidence": [
     {
-      "request_id": "symphony_talent_fixture_evp_hero",
+      "request_id": "symphony_talent_careers_site_planning",
       "company": "Symphony Talent",
       "source_category": "careers_site",
       "source_url": "html/symphony-talent-careers.html",
@@ -72,7 +72,7 @@
         },
         "local_url_policy": "file_data_or_localhost_only",
         "autonomous_browsing": false,
-        "playwright_session": "browser-evidence-fixture-symphony_talent_fixture_evp_hero",
+        "playwright_session": "browser-evidence-fixture-symphony_talent_careers_site_planning",
         "source_url_kind": "relative_file",
         "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/symphony-talent-careers.html",
         "page_url": "data:local-fixture-html",
@@ -92,7 +92,7 @@
       }
     },
     {
-      "request_id": "phenom_fixture_culture_card",
+      "request_id": "phenom_careers_site_planning",
       "company": "Phenom",
       "source_category": "careers_site",
       "source_url": "html/phenom-careers.html",
@@ -144,7 +144,7 @@
         },
         "local_url_policy": "file_data_or_localhost_only",
         "autonomous_browsing": false,
-        "playwright_session": "browser-evidence-fixture-phenom_fixture_culture_card",
+        "playwright_session": "browser-evidence-fixture-phenom_careers_site_planning",
         "source_url_kind": "relative_file",
         "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/phenom-careers.html",
         "page_url": "data:local-fixture-html",
@@ -164,7 +164,7 @@
       }
     },
     {
-      "request_id": "radancy_fixture_proof_block",
+      "request_id": "radancy_careers_site_planning",
       "company": "Radancy",
       "source_category": "careers_site",
       "source_url": "html/radancy-careers.html",
@@ -216,7 +216,7 @@
         },
         "local_url_policy": "file_data_or_localhost_only",
         "autonomous_browsing": false,
-        "playwright_session": "browser-evidence-fixture-radancy_fixture_proof_block",
+        "playwright_session": "browser-evidence-fixture-radancy_careers_site_planning",
         "source_url_kind": "relative_file",
         "resolved_source_url": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/html/radancy-careers.html",
         "page_url": "data:local-fixture-html",

@@ -22,7 +22,7 @@
       "source_category": "careers_site",
       "coverage_status": "captured_from_local_fixture",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ],
       "summary": "One local careers-site culture card fixture is available for this competitor."
     },
@@ -43,7 +43,7 @@
       ],
       "interpretation": "The fixture centers intelligent experiences, product pace, and customer outcomes as the employee impact story.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
@@ -53,7 +53,7 @@
       ],
       "interpretation": "The copy points to collaborative problem solving across teams, which is the clearest available kinship signal in the local evidence.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -62,14 +62,14 @@
       "theme": "Personalized talent moments",
       "summary": "The fixture makes personalization the core promise and ties it to employee product work.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     },
     {
       "theme": "Builder culture",
       "summary": "Employees are described as builders of intelligent experiences rather than only operators of a platform.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -81,14 +81,14 @@
       "customer-focused"
     ],
     "request_ids": [
-      "phenom_fixture_culture_card"
+      "phenom_careers_site_planning"
     ]
   },
   "visual_identity_notes": [
     {
       "summary": "The available visual evidence is a culture-card crop, so visual notes are limited to the card-level message hierarchy and cannot support a broader identity read.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -102,7 +102,7 @@
     {
       "summary": "The strongest differentiator in the fixture is the link between personalization, intelligent experiences, product pace, and customer outcomes.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -110,7 +110,7 @@
     {
       "summary": "The fixture does not yet provide proof of benefits, career paths, leadership access, or review sentiment.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -119,7 +119,7 @@
       "id": "claim:phenom-personalized-builder-culture",
       "claim": "Phenom's local fixture positions employees as builders of intelligent, personalized talent experiences.",
       "request_ids": [
-        "phenom_fixture_culture_card"
+        "phenom_careers_site_planning"
       ]
     }
   ],
@@ -130,7 +130,7 @@
   ],
   "cited_evidence": [
     {
-      "request_id": "phenom_fixture_culture_card",
+      "request_id": "phenom_careers_site_planning",
       "company": "Phenom",
       "source_category": "careers_site",
       "source_url": "html/phenom-careers.html",
@@ -144,7 +144,7 @@
     "created_at": "2026-05-07T16:00:00Z",
     "derived_from_registry": "browser-evidence/registry.json",
     "browser_evidence_request_ids": [
-      "phenom_fixture_culture_card"
+      "phenom_careers_site_planning"
     ],
     "screenshot_paths": [
       "screenshots/phenom/phenom-fixture-culture-card.png"

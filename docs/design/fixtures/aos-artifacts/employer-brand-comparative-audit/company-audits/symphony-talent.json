@@ -22,7 +22,7 @@
       "source_category": "careers_site",
       "coverage_status": "captured_from_local_fixture",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ],
       "summary": "One local careers-site hero fixture is available for the client company."
     },
@@ -43,7 +43,7 @@
       ],
       "interpretation": "The fixture copy connects employee work to helping employers reach candidates with more relevant experiences.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     },
     {
@@ -53,7 +53,7 @@
       ],
       "interpretation": "The message emphasizes craft, recruitment marketing technology, and client partnership as professional expertise signals.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -62,7 +62,7 @@
       "theme": "Craft and client impact",
       "summary": "The main evidence sample blends creative storytelling, technology, and client partnership into one employer promise.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -74,14 +74,14 @@
       "impact-oriented"
     ],
     "request_ids": [
-      "symphony_talent_fixture_evp_hero"
+      "symphony_talent_careers_site_planning"
     ]
   },
   "visual_identity_notes": [
     {
       "summary": "The available visual evidence is a hero crop, so visual interpretation is limited to first-impression positioning rather than a full design-system read.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -95,7 +95,7 @@
     {
       "summary": "The strongest differentiator in the fixture is the combination of creative storytelling, recruitment marketing technology, and client partnership.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -103,7 +103,7 @@
     {
       "summary": "The hero-level fixture does not yet prove employee stories, benefits, review sentiment, or concrete career mobility claims.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -112,7 +112,7 @@
       "id": "claim:symphony-talent-craft-impact-promise",
       "claim": "Symphony Talent's local fixture positions its employer promise around craft, impact, technology, and client partnership.",
       "request_ids": [
-        "symphony_talent_fixture_evp_hero"
+        "symphony_talent_careers_site_planning"
       ]
     }
   ],
@@ -123,7 +123,7 @@
   ],
   "cited_evidence": [
     {
-      "request_id": "symphony_talent_fixture_evp_hero",
+      "request_id": "symphony_talent_careers_site_planning",
       "company": "Symphony Talent",
       "source_category": "careers_site",
       "source_url": "html/symphony-talent-careers.html",
@@ -137,7 +137,7 @@
     "created_at": "2026-05-07T16:00:00Z",
     "derived_from_registry": "browser-evidence/registry.json",
     "browser_evidence_request_ids": [
-      "symphony_talent_fixture_evp_hero"
+      "symphony_talent_careers_site_planning"
     ],
     "screenshot_paths": [
       "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png"

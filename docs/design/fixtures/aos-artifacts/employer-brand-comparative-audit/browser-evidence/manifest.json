@@ -7,7 +7,7 @@
   "description": "Local fixture manifest connecting Browser Evidence Capture V0 to the Employer Brand comparative audit Artifact Bundle.",
   "requests": [
     {
-      "request_id": "symphony_talent_fixture_evp_hero",
+      "request_id": "symphony_talent_careers_site_planning",
       "company": "Symphony Talent",
       "source_category": "careers_site",
       "url": "html/symphony-talent-careers.html",
@@ -25,7 +25,7 @@
       "notes": "Fixture page only; not collected from the live Symphony Talent website."
     },
     {
-      "request_id": "phenom_fixture_culture_card",
+      "request_id": "phenom_careers_site_planning",
       "company": "Phenom",
       "source_category": "careers_site",
       "url": "html/phenom-careers.html",
@@ -43,7 +43,7 @@
       "notes": "Fixture page only; not collected from the live Phenom website."
     },
     {
-      "request_id": "radancy_fixture_proof_block",
+      "request_id": "radancy_careers_site_planning",
       "company": "Radancy",
       "source_category": "careers_site",
       "url": "html/radancy-careers.html",

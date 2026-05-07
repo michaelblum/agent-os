@@ -493,7 +493,7 @@
         "schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
         "request_ids": [
-          "symphony_talent_fixture_evp_hero"
+          "symphony_talent_careers_site_planning"
         ],
         "screenshot_paths": [
           "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png"
@@ -517,7 +517,7 @@
         "schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
         "request_ids": [
-          "phenom_fixture_culture_card"
+          "phenom_careers_site_planning"
         ],
         "screenshot_paths": [
           "screenshots/phenom/phenom-fixture-culture-card.png"
@@ -541,7 +541,7 @@
         "schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
         "request_ids": [
-          "radancy_fixture_proof_block"
+          "radancy_careers_site_planning"
         ],
         "screenshot_paths": [
           "screenshots/radancy/radancy-fixture-proof-block.png"
@@ -574,9 +574,9 @@
           "company-audits/radancy.json"
         ],
         "request_ids": [
-          "symphony_talent_fixture_evp_hero",
-          "phenom_fixture_culture_card",
-          "radancy_fixture_proof_block"
+          "symphony_talent_careers_site_planning",
+          "phenom_careers_site_planning",
+          "radancy_careers_site_planning"
         ],
         "local_fixture_evidence_only": true,
         "live_websites": false,
