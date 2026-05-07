@@ -95,6 +95,15 @@ audit found no consumer importing multiple Work Record internal helper files, so
 deeper consolidation is deferred until another producer needs the same
 build/verify/evidence workflow.
 
+2026-05-07 close-out status: the small toolkit-deepening track is complete.
+Recent helpers now cover semantic target attribute stamping, shared Markdown
+preview presentation, Capability-to-Control derivation, Subject Entry Handle
+parsing/formatting, and the shallow Work Record facade. The remaining safe
+adoption moved adjacent Work Record consumers to the facade without changing
+behavior. Larger tracks remain deferred: Subject Browser deep module, Target
+Resolver plus State ID lifecycle, Work Record deep module, and
+Recipe/Playbook/Workflow registry.
+
 ## Later Epics
 
 ### Subject Browser Deep Module

@@ -1,6 +1,6 @@
 import { createWorkbenchSubject } from './subject.js';
 import { runOneStepPlaybookHarness } from './playbook-step-harness.js';
-import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record-verifier.js';
+import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record.js';
 
 export const BROWSER_PLAYBOOK_PROTOTYPE_VERSION = '2026-05-browser-playbook-prototype-v0';
 export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'playbook-prototype:browser-click-status';
