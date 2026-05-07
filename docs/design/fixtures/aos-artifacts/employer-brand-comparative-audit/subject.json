@@ -48,6 +48,7 @@
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
           "evidence:browser-evidence-registry",
+          "evidence:browser-evidence-coverage-gap",
           "evidence:company-brand-audit-symphony-talent",
           "evidence:company-brand-audit-phenom",
           "evidence:company-brand-audit-radancy",
@@ -56,6 +57,7 @@
         ],
         "browser_evidence_planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
         "browser_evidence_registry_path": "browser-evidence/registry.json",
+        "browser_evidence_coverage_gap_path": "browser-evidence/coverage-gap.json",
         "browser_evidence_manifest_path": "browser-evidence/manifest.json",
         "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "company_brand_audit_paths": [
@@ -160,6 +162,36 @@
         "schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
         "local_fixture_pages_only": true,
         "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "browser-evidence-coverage-gap",
+      "relationship": "records_missing_planned_browser_evidence_requests",
+      "handle": "browser-evidence-coverage-gap:symphony-talent-phenom-radancy",
+      "subject_id": "coverage-gap:symphony-talent-phenom-radancy-browser-evidence-planning",
+      "subject_type": "aos.browser_evidence_coverage_gap",
+      "facet_key": "artifact_bundle.provenance",
+      "layer": "evidence",
+      "role": "browser_evidence_coverage_gap",
+      "metadata": {
+        "path": "browser-evidence/coverage-gap.json",
+        "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+        "registry_path": "browser-evidence/registry.json",
+        "coverage_helper": "packages/toolkit/workbench/browser-evidence-coverage.js#summarizeBrowserEvidencePlanningCoverage",
+        "missing_planned_count": 18,
+        "planning_artifact_only": true,
+        "authorizes_collection": false,
+        "remote_web_collection": false,
+        "autonomous_browsing": false,
+        "collection_execution": false,
+        "workflow_execution": false,
+        "report_generation": false,
+        "export_execution": false,
+        "replay": false,
+        "repair": false,
+        "macro_playback": false,
         "read_only": true,
         "provenance_only": true
       }
@@ -748,6 +780,32 @@
           }
         },
         {
+          "path": "browser-evidence/coverage-gap.json",
+          "role": "browser_evidence_coverage_gap",
+          "media_type": "application/json",
+          "read_only": true,
+          "provenance_only": true,
+          "metadata": {
+            "evidence_ref": "evidence:browser-evidence-coverage-gap",
+            "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+            "registry_path": "browser-evidence/registry.json",
+            "coverage_helper": "packages/toolkit/workbench/browser-evidence-coverage.js#summarizeBrowserEvidencePlanningCoverage",
+            "missing_planned_count": 18,
+            "planning_artifact_only": true,
+            "authorizes_collection": false,
+            "live_websites": false,
+            "remote_web_collection": false,
+            "autonomous_browsing": false,
+            "collection_execution": false,
+            "workflow_execution": false,
+            "report_generation": false,
+            "export_execution": false,
+            "replay": false,
+            "repair": false,
+            "macro_playback": false
+          }
+        },
+        {
           "path": "company-audits/symphony-talent.json",
           "role": "company_brand_audit",
           "media_type": "application/json",
@@ -935,6 +993,7 @@
         "browser_evidence_manifest": "browser-evidence/manifest.json",
         "browser_evidence_planning_manifest": "browser-evidence/planning-manifest-skeleton.json",
         "browser_evidence_registry": "browser-evidence/registry.json",
+        "browser_evidence_coverage_gap": "browser-evidence/coverage-gap.json",
         "browser_evidence_schema": "shared/schemas/browser-evidence-capture-v0.schema.json",
         "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
         "company_brand_audits": [
@@ -963,6 +1022,7 @@
           "evidence:work-record-fixture",
           "evidence:browser-evidence-manifest",
           "evidence:browser-evidence-registry",
+          "evidence:browser-evidence-coverage-gap",
           "evidence:company-brand-audit-symphony-talent",
           "evidence:company-brand-audit-phenom",
           "evidence:company-brand-audit-radancy",

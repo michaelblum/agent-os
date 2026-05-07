@@ -64,10 +64,11 @@
   "intent": {
     "summary": "Represent one Employer Brand comparative audit project instance and its read-only Artifact Bundle output with source metadata, Company Brand Audit fixtures, a Comparative Brand Audit fixture, and Work Record evidence.",
     "purpose": "employer_brand_artifact_bundle_fixture",
-    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, links an Employer Brand Audit Project V0 intake fixture, links the derived Browser Evidence Capture V0 planning manifest skeleton, links a Browser Evidence Capture V0 registry fixture, exposes Company Brand Audit and Comparative Brand Audit JSON fixtures as provenance metadata, and opens the linked Work Record evidence through the existing workbench path.",
+    "acceptance": "The bundle previews the Markdown report, carries source/provenance metadata, links an Employer Brand Audit Project V0 intake fixture, links the derived Browser Evidence Capture V0 planning manifest skeleton, links a Browser Evidence Capture V0 registry fixture, links the derived Browser Evidence coverage gap fixture, exposes Company Brand Audit and Comparative Brand Audit JSON fixtures as provenance metadata, and opens the linked Work Record evidence through the existing workbench path.",
     "constraints": [
       "No remote browser collection, report generation, export execution, replay, repair, macro playback, or new public command is part of this fixture.",
-      "The report and Browser Evidence registry are static fixtures, not a current live-web competitive audit."
+      "The report and Browser Evidence registry are static fixtures, not a current live-web competitive audit.",
+      "The Browser Evidence coverage gap is a read-only planning artifact and does not authorize collection execution."
     ],
     "claim_refs": [
       "claim:markdown-report-previewable",
@@ -75,6 +76,7 @@
       "claim:work-record-handoff-available",
       "claim:browser-evidence-planning-manifest-linked",
       "claim:browser-evidence-registry-linked",
+      "claim:browser-evidence-coverage-gap-linked",
       "claim:company-brand-audits-linked",
       "claim:comparative-brand-audit-linked",
       "claim:employer-brand-audit-project-linked"
@@ -105,6 +107,7 @@
               "browser-evidence/planning-manifest-skeleton.json",
               "browser-evidence/manifest.json",
               "browser-evidence/registry.json",
+              "browser-evidence/coverage-gap.json",
               "company-audits/symphony-talent.json",
               "company-audits/phenom.json",
               "company-audits/radancy.json",
@@ -118,6 +121,7 @@
           "postcondition:work-record-linked",
           "postcondition:browser-evidence-planning-manifest-linked",
           "postcondition:browser-evidence-registry-linked",
+          "postcondition:browser-evidence-coverage-gap-linked",
           "postcondition:company-brand-audits-linked",
           "postcondition:comparative-brand-audit-linked"
         ]
@@ -234,6 +238,27 @@
         }
       },
       {
+        "id": "postcondition:browser-evidence-coverage-gap-linked",
+        "kind": "repo_file",
+        "description": "The Browser Evidence coverage gap fixture is present, derived from planning-vs-captured coverage, and linked as read-only planning provenance.",
+        "target": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/coverage-gap.json",
+        "check": {
+          "kind": "browser_evidence_coverage_gap_fixture",
+          "expected": "aos.browser_evidence_coverage_gap",
+          "path": "browser-evidence/coverage-gap.json",
+          "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+          "registry_path": "browser-evidence/registry.json",
+          "missing_planned_count": 18
+        },
+        "evidence_refs": [
+          "evidence:browser-evidence-coverage-gap"
+        ],
+        "repair_policy": {
+          "mode": "manual_review",
+          "notes": "The coverage gap is a planning artifact only; do not repair it by collecting websites, authorizing collection, running a workflow engine, generating a report, exporting artifacts, replaying steps, repairing evidence, or playing macros."
+        }
+      },
+      {
         "id": "postcondition:company-brand-audits-linked",
         "kind": "repo_file",
         "description": "The Symphony Talent, Phenom, and Radancy Company Brand Audit fixtures are present, schema-shaped, and linked as provenance-only source evidence.",
@@ -309,6 +334,12 @@
         "kind": "repo_file",
         "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json",
         "evidence_ref": "evidence:browser-evidence-registry"
+      },
+      {
+        "id": "artifact-route:browser-evidence-coverage-gap",
+        "kind": "repo_file",
+        "destination": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/coverage-gap.json",
+        "evidence_ref": "evidence:browser-evidence-coverage-gap"
       },
       {
         "id": "artifact-route:company-brand-audit-symphony-talent",
@@ -476,6 +507,35 @@
         "manifest_path": "browser-evidence/manifest.json",
         "local_fixture_pages_only": true,
         "live_websites": false,
+        "read_only": true,
+        "provenance_only": true
+      }
+    },
+    {
+      "id": "evidence:browser-evidence-coverage-gap",
+      "kind": "repo_file",
+      "created_at": "2026-05-07T17:20:00Z",
+      "uri": "repo:docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/coverage-gap.json",
+      "immutable": true,
+      "summary": "Read-only coverage gap fixture derived from planning-vs-captured Browser Evidence coverage; records 18 missing planned requests without authorizing collection.",
+      "metadata": {
+        "role": "browser_evidence_coverage_gap",
+        "path": "browser-evidence/coverage-gap.json",
+        "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+        "registry_path": "browser-evidence/registry.json",
+        "coverage_helper": "packages/toolkit/workbench/browser-evidence-coverage.js#summarizeBrowserEvidencePlanningCoverage",
+        "missing_planned_count": 18,
+        "planning_artifact_only": true,
+        "authorizes_collection": false,
+        "remote_web_collection": false,
+        "autonomous_browsing": false,
+        "collection_execution": false,
+        "workflow_execution": false,
+        "report_generation": false,
+        "export_execution": false,
+        "replay": false,
+        "repair": false,
+        "macro_playback": false,
         "read_only": true,
         "provenance_only": true
       }
@@ -657,6 +717,15 @@
       ]
     },
     {
+      "id": "claim:browser-evidence-coverage-gap-linked",
+      "text": "The Employer Brand comparative audit bundle links a read-only Browser Evidence coverage gap fixture derived from planning-vs-captured coverage.",
+      "scope": "subject",
+      "acceptance": "The subject descriptor and Work Record evidence trail reference browser-evidence/coverage-gap.json as provenance metadata; the fixture records 18 missing planned requests and explicitly does not authorize collection, workflow execution, report generation, export execution, replay, repair, or macro playback.",
+      "postcondition_refs": [
+        "postcondition:browser-evidence-coverage-gap-linked"
+      ]
+    },
+    {
       "id": "claim:browser-evidence-planning-manifest-linked",
       "text": "The Employer Brand comparative audit bundle links a Browser Evidence Capture V0 planning manifest skeleton derived from the project fixture, separate from collected registry evidence.",
       "scope": "subject",
@@ -810,6 +879,26 @@
       ]
     },
     {
+      "id": "claim-result:browser-evidence-coverage-gap-linked",
+      "claim_id": "claim:browser-evidence-coverage-gap-linked",
+      "status": "verified",
+      "confidence": 0.86,
+      "reason": "The bundle fixture links a read-only Browser Evidence coverage gap file derived from the planning manifest and captured registry, and the fixture explicitly denies collection authority.",
+      "evidence_refs": [
+        "evidence:browser-evidence-coverage-gap"
+      ],
+      "postcondition_results": [
+        {
+          "postcondition_id": "postcondition:browser-evidence-coverage-gap-linked",
+          "status": "passed",
+          "evidence_refs": [
+            "evidence:browser-evidence-coverage-gap"
+          ],
+          "reason": "The coverage gap fixture file is present in the artifact bundle folder and linked by the subject descriptor."
+        }
+      ]
+    },
+    {
       "id": "claim-result:company-brand-audits-linked",
       "claim_id": "claim:company-brand-audits-linked",
       "status": "verified",
@@ -870,6 +959,7 @@
         "claim:work-record-handoff-available",
         "claim:browser-evidence-planning-manifest-linked",
         "claim:browser-evidence-registry-linked",
+        "claim:browser-evidence-coverage-gap-linked",
         "claim:company-brand-audits-linked",
         "claim:comparative-brand-audit-linked",
         "claim:employer-brand-audit-project-linked"
@@ -886,6 +976,7 @@
       "evidence:work-record-fixture",
       "evidence:browser-evidence-manifest",
       "evidence:browser-evidence-registry",
+      "evidence:browser-evidence-coverage-gap",
       "evidence:company-brand-audit-symphony-talent",
       "evidence:company-brand-audit-phenom",
       "evidence:company-brand-audit-radancy",
@@ -896,7 +987,7 @@
   },
   "health": {
     "verdict": "valid",
-    "reason": "The project intake fixture, Browser Evidence planning manifest skeleton, Markdown report, source metadata, subject descriptor, linked Work Record, local Browser Evidence registry, Company Brand Audit fixtures, and Comparative Brand Audit fixture are represented by immutable fixture evidence.",
+    "reason": "The project intake fixture, Browser Evidence planning manifest skeleton, Markdown report, source metadata, subject descriptor, linked Work Record, local Browser Evidence registry, Browser Evidence coverage gap, Company Brand Audit fixtures, and Comparative Brand Audit fixture are represented by immutable fixture evidence.",
     "evaluated_at": "2026-05-07T15:05:00Z",
     "verifier_report_id": "verifier-report:employer-brand-comparative-audit-fixture",
     "confidence": 0.89,
@@ -910,9 +1001,13 @@
       "registry_path": "browser-evidence/registry.json",
       "manifest_path": "browser-evidence/manifest.json",
       "planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
+      "coverage_gap_path": "browser-evidence/coverage-gap.json",
       "planning_manifest_skeleton_only": true,
+      "coverage_gap_planning_artifact_only": true,
+      "coverage_gap_missing_planned_count": 18,
       "local_fixture_pages_only": true,
       "live_websites": false,
+      "authorizes_collection": false,
       "read_only": true,
       "provenance_only": true
     },

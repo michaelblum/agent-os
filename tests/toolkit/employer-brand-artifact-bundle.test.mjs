@@ -168,6 +168,7 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
     'evidence:work-record-fixture',
     'evidence:browser-evidence-manifest',
     'evidence:browser-evidence-registry',
+    'evidence:browser-evidence-coverage-gap',
     'evidence:company-brand-audit-symphony-talent',
     'evidence:company-brand-audit-phenom',
     'evidence:company-brand-audit-radancy',
@@ -440,7 +441,7 @@ test('Employer Brand artifact bundle previews the Markdown report through the ex
   assert.equal(snapshot.selected_work_record_link.record_path, 'work-record.json');
   assert.equal(snapshot.selected_work_record_link.can_open, true);
   assert.equal(snapshot.selected_work_record_summary.status, 'linked');
-  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 13);
+  assert.equal(snapshot.selected_work_record_summary.evidence_ref_count, 14);
   assert.equal(snapshot.selected_source_evidence_metadata.read_only, true);
   assert.equal(snapshot.selected_source_evidence_metadata.provenance_only, true);
   assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_registry_paths, [
@@ -452,7 +453,7 @@ test('Employer Brand artifact bundle previews the Markdown report through the ex
   assert.deepEqual(snapshot.selected_source_evidence_metadata.browser_evidence_planning_manifest_paths, [
     'browser-evidence/planning-manifest-skeleton.json',
   ]);
-  assert.equal(snapshot.selected_source_evidence_metadata.browser_evidence_entry_count, 9);
+  assert.equal(snapshot.selected_source_evidence_metadata.browser_evidence_entry_count, 10);
   assert.equal(snapshot.selected_source_evidence_metadata.local_fixture_page_count, 3);
   assert.equal(snapshot.selected_source_evidence_metadata.crop_count, 3);
   assert.equal(
@@ -510,13 +511,13 @@ test('Employer Brand artifact bundle opens the linked schema-v0 Work Record evid
   assert.equal(snapshot.linked_work_record_open.open_message.type, 'work_record.open');
   assert.equal(snapshot.linked_work_record_open.open_message.source.kind, 'artifact_bundle_work_record');
   assert.equal(snapshot.linked_work_record_open.open_message.source.artifact_id, 'employer-brand-report');
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 13);
-  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 8);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 14);
+  assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.claim_count, 9);
   assert.equal(snapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(snapshot.selected_work_record_summary.snapshot_available, true);
-  assert.equal(snapshot.selected_work_record_summary.evidence_count, 13);
-  assert.equal(snapshot.selected_work_record_summary.claim_count, 8);
-  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 8);
+  assert.equal(snapshot.selected_work_record_summary.evidence_count, 14);
+  assert.equal(snapshot.selected_work_record_summary.claim_count, 9);
+  assert.equal(snapshot.selected_work_record_summary.verified_claim_count, 9);
   assert.equal(snapshot.selected_work_record_summary.failed_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.unverified_claim_count, 0);
   assert.equal(snapshot.selected_work_record_summary.health_state, 'valid');
