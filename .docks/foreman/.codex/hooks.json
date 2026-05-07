@@ -1,3 +1,29 @@
 {
-  "hooks": {}
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AOS_DOCK_ROLE=foreman AOS_DOCK_REPO_ROOT=/Users/Michael/Code/agent-os bash /Users/Michael/Code/agent-os/.docks/hooks/dock-session-start.sh",
+            "statusMessage": "Binding Foreman voice",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AOS_DOCK_ROLE=foreman AOS_DOCK_REPO_ROOT=/Users/Michael/Code/agent-os bash /Users/Michael/Code/agent-os/.docks/hooks/dock-stop.sh",
+            "statusMessage": "Copying Foreman final response",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
 }
