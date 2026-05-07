@@ -177,11 +177,12 @@ async function readRecords(recordPath) {
 
 function assertCodexExecInvocation(record) {
   assert.equal(record.argv[0], 'exec');
-  assert.deepEqual(record.argv.slice(1, 3), ['--cd', repoRoot]);
+  assert.equal(record.argv.includes('--cd'), false);
+  assert.equal(record.argv.includes(repoRoot), false);
 }
 
 function promptArg(record) {
-  return record.argv.slice(3).join(' ');
+  return record.argv.slice(1).join(' ');
 }
 
 test('parses supervisor arguments', () => {

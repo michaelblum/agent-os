@@ -17,8 +17,8 @@ Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 .docks/gdi-foreman template, launches the GDI role, waits for
 handoff/ready-for-foreman.json plus GDI exit, launches the foreman role, waits
 for handoff/done.json plus foreman exit, then exits cleanly.
-Each role is run as a one-shot Codex execution using codex exec while preserving
-the generated role directory as the launch cwd for role-local hook discovery.
+Each role is run as a one-shot Codex execution using codex exec from the
+generated role directory so role-local hooks are discovered.
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption.`;
@@ -225,7 +225,7 @@ export function waitForFile(filePath, options = {}) {
 
 function spawnRole(role, profile, workflowDir, args, extra = {}) {
   const roleDir = path.join(repoRoot, profile.roles[role].dir);
-  const childArgs = ['exec', '--cd', repoRoot, ...(extra.prompt ? [extra.prompt] : [])];
+  const childArgs = ['exec', ...(extra.prompt ? [extra.prompt] : [])];
   const child = spawn(args.codexBin, childArgs, {
     cwd: roleDir,
     env: {

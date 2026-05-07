@@ -57,9 +57,9 @@ the GDI Codex process exit, then launches foreman and waits for both
 `handoff/done.json` and the foreman Codex process exit.
 
 The supervisor launches each role as a one-shot `codex exec` run from that
-role's generated directory, with `--cd /Users/Michael/Code/agent-os` preserved
-so the role works against the real repo while Codex still discovers the
-role-local `.codex/hooks.json`.
+role's generated directory. It does not pass `--cd`: the role-local cwd is what
+lets Codex discover the generated `.codex/hooks.json`. The real repo root is
+available through `AOS_WORKFLOW_REPO_ROOT` and the rendered role prompt.
 
 To append a concrete task body to the launched GDI prompt without editing the
 dock template:

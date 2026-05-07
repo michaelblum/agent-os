@@ -7,8 +7,9 @@ artifact directory.
 Docks describe how to start and coordinate a workflow. The launcher copies this
 template into disposable per-run state under `.aos-test-tmp/workflows/<id>/` and
 launches each role with one-shot `codex exec` from the generated role
-directories there. Source edits and tests still happen in the real repo root via
-the supervisor's preserved `--cd /Users/Michael/Code/agent-os`.
+directories there. The supervisor does not pass `--cd`; the generated role cwd
+is what lets Codex discover the role-local hooks. Source edits and tests still
+happen in the real repo root named in the role prompt and `AOS_WORKFLOW_REPO_ROOT`.
 
 ## Roles
 
