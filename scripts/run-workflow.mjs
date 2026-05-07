@@ -11,7 +11,10 @@ const dockTemplateDir = path.join(repoRoot, '.docks', 'gdi-foreman');
 const defaultCodexBin = 'codex';
 
 function usage() {
-  return `Usage: node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
+  return `Usage:
+  node scripts/run-workflow.mjs [--workflow-id <id>] [--codex-bin <path>] [--gdi-task-file <path>] [--tts|--no-tts] [--keep|--clean]
+  node scripts/run-workflow.mjs --list [--json]
+  node scripts/run-workflow.mjs --status --workflow-id <id> [--json]
 
 Creates an ephemeral Codex workflow hook profile, seeds it from the repo-local
 .docks/gdi-foreman template, launches the GDI role, waits for
@@ -22,7 +25,11 @@ generated role directory so role-local hooks are discovered.
 
 Generated workflow state is kept by default for inspection. Use --clean to
 remove .aos-test-tmp/workflows/<id>/ after completion or interruption. Role-local
-TTS hooks are enabled by default; use --no-tts for a quiet run.`;
+TTS hooks are enabled by default; use --no-tts for a quiet run.
+
+Use --list and --status to inspect docked workflow state without starting a new
+run. These status commands are repo-local helper surfaces, not public aos
+commands.`;
 }
 
 function requireValue(argv, index, flag) {
@@ -40,6 +47,9 @@ export function parseArgs(argv) {
     gdiTaskFile: null,
     tts: true,
     keep: true,
+    list: false,
+    status: false,
+    json: false,
     help: false,
   };
 
@@ -64,12 +74,26 @@ export function parseArgs(argv) {
       args.keep = true;
     } else if (arg === '--clean') {
       args.keep = false;
+    } else if (arg === '--list') {
+      args.list = true;
+    } else if (arg === '--status') {
+      args.status = true;
+    } else if (arg === '--json') {
+      args.json = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
 
+  if (args.list && args.status) {
+    throw new Error('--list and --status are mutually exclusive.');
+  }
+
   return args;
+}
+
+function workflowsRoot() {
+  return path.join(repoRoot, '.aos-test-tmp', 'workflows');
 }
 
 async function copyDirectoryContents(sourceDir, destinationDir) {
@@ -184,11 +208,19 @@ function runProfileGenerator(args, options = {}) {
 
 function resolveWorkflowDir(profile) {
   const workflowDir = path.resolve(repoRoot, profile.workflow_dir);
-  const workflowsRoot = path.join(repoRoot, '.aos-test-tmp', 'workflows');
-  const relative = path.relative(workflowsRoot, workflowDir);
+  const root = workflowsRoot();
+  const relative = path.relative(root, workflowDir);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new Error(`Workflow directory outside .aos-test-tmp/workflows: ${workflowDir}`);
   }
+  return workflowDir;
+}
+
+function resolveWorkflowDirForId(workflowId) {
+  const safeId = String(workflowId ?? '').trim();
+  if (!safeId) throw new Error('--workflow-id is required.');
+  const workflowDir = path.resolve(workflowsRoot(), safeId);
+  assertInsideDirectory(workflowDir, workflowsRoot(), 'workflow directory');
   return workflowDir;
 }
 
@@ -199,6 +231,255 @@ function fileExists(filePath) {
   } catch {
     return false;
   }
+}
+
+async function readJsonFile(filePath) {
+  try {
+    return JSON.parse(await fsp.readFile(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function readTextFile(filePath) {
+  try {
+    return (await fsp.readFile(filePath, 'utf8')).trim();
+  } catch {
+    return null;
+  }
+}
+
+function parsePsOutput(text) {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.+)$/);
+      if (!match) return null;
+      return {
+        pid: Number(match[1]),
+        ppid: Number(match[2]),
+        stat: match[3],
+        etime: match[4],
+        command: match[5],
+      };
+    })
+    .filter(Boolean);
+}
+
+function readProcessRows() {
+  const result = spawnSync('ps', ['-axo', 'pid=,ppid=,stat=,etime=,command='], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) return [];
+  return parsePsOutput(result.stdout);
+}
+
+function processRoleForWorkflow(processRow, workflowId, workflowDir) {
+  const command = processRow.command;
+  if (!command.includes(workflowId) && !command.includes(workflowDir)) return null;
+  if (command.includes('run-workflow.mjs')) {
+    if (/\s--(?:status|list)(?:\s|$)/.test(command)) return null;
+    return 'supervisor';
+  }
+  if (command.includes(`${workflowDir}/gdi`) || command.includes('You are the GDI role')) return 'gdi';
+  if (command.includes(`${workflowDir}/foreman`) || command.includes('You are the foreman role')) return 'foreman';
+  return 'related';
+}
+
+function summarizeProcesses(processRows, workflowId, workflowDir) {
+  const matches = [];
+  for (const processRow of processRows) {
+    const role = processRoleForWorkflow(processRow, workflowId, workflowDir);
+    if (role) matches.push({ ...processRow, role });
+  }
+  return matches;
+}
+
+async function latestWorkflowEvent(workflowDir) {
+  const eventsPath = path.join(workflowDir, 'events.jsonl');
+  const text = await readTextFile(eventsPath);
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  const latest = lines.at(-1);
+  if (!latest) return null;
+  try {
+    return JSON.parse(latest);
+  } catch {
+    return { raw: latest };
+  }
+}
+
+async function roleHasTtsHook(workflowDir, role) {
+  const hooks = await readJsonFile(path.join(workflowDir, role, '.codex', 'hooks.json'));
+  const stopHooks = Array.isArray(hooks?.hooks?.Stop) ? hooks.hooks.Stop : [];
+  return stopHooks.some((matcher) => (
+    Array.isArray(matcher?.hooks)
+    && matcher.hooks.some((hook) => String(hook?.command ?? '').includes('workflow-tts.sh'))
+  ));
+}
+
+function workflowState({ readyExists, doneExists, processes }) {
+  const supervisor = processes.some((processRow) => processRow.role === 'supervisor');
+  const gdi = processes.some((processRow) => processRow.role === 'gdi');
+  const foreman = processes.some((processRow) => processRow.role === 'foreman');
+
+  if (foreman) return 'foreman_running';
+  if (doneExists && supervisor) return 'finishing';
+  if (doneExists) return 'completed';
+  if (gdi) return readyExists ? 'gdi_finishing' : 'gdi_running';
+  if (readyExists && supervisor) return 'waiting_for_foreman';
+  if (readyExists) return 'ready_for_foreman';
+  if (supervisor) return 'starting_or_blocked';
+  return 'idle';
+}
+
+function activeRoleForState(state) {
+  if (state.startsWith('gdi_')) return 'gdi';
+  if (state.startsWith('foreman_')) return 'foreman';
+  if (state === 'waiting_for_foreman') return 'foreman_pending';
+  return null;
+}
+
+function gitBranchSummary() {
+  const result = spawnSync('git', ['status', '--short', '--branch'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) return null;
+  return result.stdout.split(/\r?\n/).find(Boolean) ?? null;
+}
+
+async function workflowStatus(workflowId, options = {}) {
+  const workflowDir = resolveWorkflowDirForId(workflowId);
+  const readyPath = path.join(workflowDir, 'handoff', 'ready-for-foreman.json');
+  const donePath = path.join(workflowDir, 'handoff', 'done.json');
+  const processRows = options.processRows ?? readProcessRows();
+  const processes = summarizeProcesses(processRows, workflowId, workflowDir);
+  const readyExists = fileExists(readyPath);
+  const doneExists = fileExists(donePath);
+  const state = workflowState({ readyExists, doneExists, processes });
+  const dockRun = await readJsonFile(path.join(workflowDir, 'dock-run.json'));
+
+  return {
+    type: 'aos.docked_workflow.status.v0',
+    workflow_id: workflowId,
+    workflow_dir: path.relative(repoRoot, workflowDir),
+    state,
+    active_role: activeRoleForState(state),
+    branch: gitBranchSummary(),
+    sentinels: {
+      ready_for_foreman: {
+        path: path.relative(repoRoot, readyPath),
+        exists: readyExists,
+      },
+      done: {
+        path: path.relative(repoRoot, donePath),
+        exists: doneExists,
+      },
+    },
+    latest_handoff_packet_path: await readTextFile(path.join(workflowDir, 'gdi', 'latest-handoff-path.txt')),
+    latest_event: await latestWorkflowEvent(workflowDir),
+    tts_enabled: {
+      gdi: await roleHasTtsHook(workflowDir, 'gdi'),
+      foreman: await roleHasTtsHook(workflowDir, 'foreman'),
+    },
+    processes: processes.map((processRow) => ({
+      role: processRow.role,
+      pid: processRow.pid,
+      ppid: processRow.ppid,
+      stat: processRow.stat,
+      etime: processRow.etime,
+      command: processRow.command,
+    })),
+    dock_run: dockRun ? {
+      type: dockRun.type,
+      roles: dockRun.roles,
+    } : null,
+  };
+}
+
+async function workflowIds() {
+  const root = workflowsRoot();
+  try {
+    const entries = await fsp.readdir(root, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+function formatWorkflowStatus(status) {
+  const lines = [
+    `workflow ${status.workflow_id}`,
+    `state: ${status.state}`,
+    `active_role: ${status.active_role ?? 'none'}`,
+    `branch: ${status.branch ?? 'unknown'}`,
+    `workflow_dir: ${status.workflow_dir}`,
+    `ready_for_foreman: ${status.sentinels.ready_for_foreman.exists ? 'present' : 'missing'} (${status.sentinels.ready_for_foreman.path})`,
+    `done: ${status.sentinels.done.exists ? 'present' : 'missing'} (${status.sentinels.done.path})`,
+    `tts: gdi=${status.tts_enabled.gdi ? 'on' : 'off'} foreman=${status.tts_enabled.foreman ? 'on' : 'off'}`,
+  ];
+  if (status.latest_handoff_packet_path) {
+    lines.push(`latest_handoff_packet: ${status.latest_handoff_packet_path}`);
+  }
+  if (status.latest_event?.created_at || status.latest_event?.type) {
+    lines.push(`latest_event: ${status.latest_event.created_at ?? 'unknown-time'} ${status.latest_event.type ?? 'unknown-type'}`);
+  }
+  if (status.processes.length > 0) {
+    lines.push('processes:');
+    for (const processRow of status.processes) {
+      lines.push(`  ${processRow.role}: pid=${processRow.pid} ppid=${processRow.ppid} stat=${processRow.stat} etime=${processRow.etime}`);
+    }
+  } else {
+    lines.push('processes: none');
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatWorkflowList(statuses) {
+  if (statuses.length === 0) return 'no docked workflows found\n';
+  const lines = ['workflow_id\tstate\tactive_role\tready\tdone\tprocesses'];
+  for (const status of statuses) {
+    lines.push([
+      status.workflow_id,
+      status.state,
+      status.active_role ?? '-',
+      status.sentinels.ready_for_foreman.exists ? 'yes' : 'no',
+      status.sentinels.done.exists ? 'yes' : 'no',
+      status.processes.map((processRow) => `${processRow.role}:${processRow.pid}`).join(',') || '-',
+    ].join('\t'));
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+async function inspectWorkflows(args) {
+  if (args.status) {
+    if (!args.workflowId) throw new Error('--status requires --workflow-id <id>.');
+    const status = await workflowStatus(args.workflowId);
+    if (args.json) {
+      console.log(`${JSON.stringify(status, null, 2)}\n`);
+    } else {
+      process.stdout.write(formatWorkflowStatus(status));
+    }
+    return 0;
+  }
+
+  const ids = await workflowIds();
+  const statuses = await Promise.all(ids.map((id) => workflowStatus(id)));
+  if (args.json) {
+    console.log(`${JSON.stringify({
+      type: 'aos.docked_workflow.list.v0',
+      workflows: statuses,
+    }, null, 2)}\n`);
+  } else {
+    process.stdout.write(formatWorkflowList(statuses));
+  }
+  return 0;
 }
 
 export function waitForFile(filePath, options = {}) {
@@ -358,6 +639,9 @@ export async function runWorkflow(argv = process.argv.slice(2)) {
   if (args.help) {
     console.log(usage());
     return 0;
+  }
+  if (args.list || args.status) {
+    return inspectWorkflows(args);
   }
 
   const profile = runProfileGenerator(args);

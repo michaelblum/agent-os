@@ -199,6 +199,9 @@ test('parses supervisor arguments', () => {
     gdiTaskFile: null,
     tts: true,
     keep: true,
+    list: false,
+    status: false,
+    json: false,
     help: false,
   });
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--clean']), {
@@ -207,6 +210,9 @@ test('parses supervisor arguments', () => {
     gdiTaskFile: null,
     tts: true,
     keep: false,
+    list: false,
+    status: false,
+    json: false,
     help: false,
   });
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--gdi-task-file', 'task.md', '--tts']), {
@@ -215,6 +221,9 @@ test('parses supervisor arguments', () => {
     gdiTaskFile: 'task.md',
     tts: true,
     keep: true,
+    list: false,
+    status: false,
+    json: false,
     help: false,
   });
   assert.deepEqual(parseArgs(['--workflow-id', 'pilot-1', '--no-tts']), {
@@ -223,10 +232,36 @@ test('parses supervisor arguments', () => {
     gdiTaskFile: null,
     tts: false,
     keep: true,
+    list: false,
+    status: false,
+    json: false,
+    help: false,
+  });
+  assert.deepEqual(parseArgs(['--list', '--json']), {
+    workflowId: null,
+    codexBin: 'codex',
+    gdiTaskFile: null,
+    tts: true,
+    keep: true,
+    list: true,
+    status: false,
+    json: true,
+    help: false,
+  });
+  assert.deepEqual(parseArgs(['--status', '--workflow-id', 'pilot-1', '--json']), {
+    workflowId: 'pilot-1',
+    codexBin: 'codex',
+    gdiTaskFile: null,
+    tts: true,
+    keep: true,
+    list: false,
+    status: true,
+    json: true,
     help: false,
   });
   assert.throws(() => parseArgs(['--workflow-id']), /--workflow-id requires a value/);
   assert.throws(() => parseArgs(['--gdi-task-file']), /--gdi-task-file requires a value/);
+  assert.throws(() => parseArgs(['--list', '--status']), /mutually exclusive/);
 });
 
 test('run-workflow seeds the dock template, launches GDI then foreman with codex exec, and keeps state by default', async () => {
@@ -288,6 +323,40 @@ test('run-workflow seeds the dock template, launches GDI then foreman with codex
     assert.equal(await exists(path.join(dir, 'foreman', 'task.md')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'ready-for-foreman.json')), true);
     assert.equal(await exists(path.join(dir, 'handoff', 'done.json')), true);
+
+    const statusResult = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--status',
+      '--workflow-id',
+      id,
+      '--json',
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(statusResult.status, 0, statusResult.stderr);
+    const status = JSON.parse(statusResult.stdout);
+    assert.equal(status.type, 'aos.docked_workflow.status.v0');
+    assert.equal(status.workflow_id, id);
+    assert.equal(status.state, 'completed');
+    assert.equal(status.active_role, null);
+    assert.equal(status.sentinels.ready_for_foreman.exists, true);
+    assert.equal(status.sentinels.done.exists, true);
+    assert.equal(status.tts_enabled.gdi, true);
+    assert.equal(status.tts_enabled.foreman, true);
+
+    const listResult = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--list',
+      '--json',
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(listResult.status, 0, listResult.stderr);
+    const list = JSON.parse(listResult.stdout);
+    assert.equal(list.type, 'aos.docked_workflow.list.v0');
+    assert.ok(list.workflows.some((workflow) => workflow.workflow_id === id));
   } finally {
     await rm(dir, { recursive: true, force: true });
     await rm(tempRoot, { recursive: true, force: true });
@@ -328,6 +397,25 @@ test('run-workflow waits for GDI to exit after ready sentinel before launching f
     await waitForFile(gdiReadyMarker);
     await delay(orderingDelayMs);
     assert.deepEqual((await readRecords(recordPath)).map((record) => record.role), ['gdi']);
+
+    const statusResult = spawnSync(process.execPath, [
+      'scripts/run-workflow.mjs',
+      '--status',
+      '--workflow-id',
+      id,
+      '--json',
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    assert.equal(statusResult.status, 0, statusResult.stderr);
+    const status = JSON.parse(statusResult.stdout);
+    assert.equal(status.state, 'gdi_finishing');
+    assert.equal(status.active_role, 'gdi');
+    assert.equal(status.sentinels.ready_for_foreman.exists, true);
+    assert.equal(status.sentinels.done.exists, false);
+    assert.ok(status.processes.some((processRow) => processRow.role === 'supervisor'));
+    assert.ok(status.processes.some((processRow) => processRow.role === 'gdi'));
 
     await writeFile(gdiExitFile, 'release\n');
     const exit = await new Promise((resolve) => {

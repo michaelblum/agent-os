@@ -91,6 +91,19 @@ foreman uses
 concrete voices can vary by run, but the role voices remain distinct when the
 registry has speakable premium voices for both filters.
 
+Inspect active or retained docked workflows without starting a new run:
+
+```bash
+node scripts/run-workflow.mjs --list
+node scripts/run-workflow.mjs --status --workflow-id pilot-001
+```
+
+Add `--json` to either inspection command for machine-readable output. The
+status payload reports the workflow state, active role, sentinel presence,
+workflow-local TTS hooks, latest handoff packet path, latest hook event, and
+matching supervisor/role process ids when those processes are still alive. This
+is a repo-local supervisor inspection surface, not a public `aos` command.
+
 ## What The Hooks Do
 
 Both roles get a harmless Stop marker hook. The script reads hook stdin, writes
