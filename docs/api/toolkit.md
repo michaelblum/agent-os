@@ -328,6 +328,14 @@ through `subjectContracts(subject)`, but live consumers should derive openable
 projections and operations from `facets[]`, `facets[].hosts[]`,
 `capabilities[]`, and `contracts[]`.
 
+`deriveWorkbenchSubjectControls(subject)` in
+`packages/toolkit/workbench/subject-controls.js` is the V0 pure helper for that
+last step. It returns proposed Controls in the stable order `open`, `edit`,
+`verify`, `replay`, and `export`, using high-level `capabilities[]` plus
+canonical top-level and Facet-local `contracts[]` and `facets[]`. It does not
+read legacy `views[]`, legacy `controls[]`, or dotted operation strings left in
+raw `capabilities[]`.
+
 ### Wiki Subject Selection And Opening
 
 Browser-hosted wiki graph surfaces should bridge graph selection to workbench

@@ -1,10 +1,11 @@
 import { createWikiPageSubject } from './wiki-subject.js';
 import {
-  subjectContracts,
-  subjectFacets,
-  subjectHosts,
   subjectReferences,
 } from './subject.js';
+import {
+  deriveWorkbenchSubjectControls,
+  findWorkbenchSubjectControl,
+} from './subject-controls.js';
 
 export const WIKI_SUBJECT_SELECTION_TYPE = 'wiki.subject.selection';
 export const WIKI_SUBJECT_OPEN_REQUEST_TYPE = 'wiki_subject.open.requested';
@@ -51,6 +52,33 @@ function graphNodePage(node = {}) {
   };
 }
 
+function controlFacets(control = null) {
+  return Array.isArray(control?.facets) ? control.facets : [];
+}
+
+function controlFacetHosts(facet = {}) {
+  return Array.isArray(facet.hosts) ? facet.hosts : [];
+}
+
+function controlFacetContracts(facet = {}) {
+  return Array.isArray(facet.contracts) ? facet.contracts : [];
+}
+
+function controlFacetHasMarkdownWorkbenchHost(facet = {}) {
+  return controlFacetHosts(facet).some((host) => {
+    const entry = host?.entry && typeof host.entry === 'object' ? host.entry : {};
+    return entry.value === MARKDOWN_WORKBENCH_URL;
+  });
+}
+
+function controlFacetCanOpenMarkdownWorkbench(facet = {}) {
+  const contracts = controlFacetContracts(facet);
+  return facet.layer === 'narrative'
+    && (contracts.includes('markdown_document.text.patch')
+      || contracts.includes('markdown_document.save.requested'))
+    && controlFacetHasMarkdownWorkbenchHost(facet);
+}
+
 export function wikiPathFromSubject(subject = {}) {
   const sourcePath = subject?.source?.kind === 'wiki' ? pathText(subject.source.path) : '';
   if (sourcePath) return sourcePath;
@@ -88,23 +116,17 @@ export function wikiSubjectSelectionCanOpenInMarkdownWorkbench(selection = {}) {
   const path = pathText(selection.path) || (subject ? wikiPathFromSubject(subject) : '');
   if (!path || !subject) return false;
 
-  const contracts = subjectContracts(subject);
-  const facets = subjectFacets(subject);
-  const hosts = subjectHosts(subject);
+  const controls = deriveWorkbenchSubjectControls(subject);
+  const openControl = findWorkbenchSubjectControl(controls, 'open');
+  const editControl = findWorkbenchSubjectControl(controls, 'edit');
+  const facets = [
+    ...controlFacets(openControl),
+    ...controlFacets(editControl),
+  ];
+  const hasWikiRead = facets.some((facet) => controlFacetContracts(facet).includes('wiki.read'));
+  const hasMarkdownOpenFacet = facets.some(controlFacetCanOpenMarkdownWorkbench);
 
-  const hasWikiRead = contracts.includes('wiki.read');
-  const hasMarkdownOpenFacet = facets.some((facet) => {
-    const facetContracts = Array.isArray(facet.contracts) ? facet.contracts : [];
-    return facet.layer === 'narrative'
-      && (facetContracts.includes('markdown_document.text.patch')
-        || facetContracts.includes('markdown_document.save.requested'));
-  });
-  const hasMarkdownWorkbenchHost = hosts.some((host) => {
-    const entry = host?.entry && typeof host.entry === 'object' ? host.entry : {};
-    return entry.value === MARKDOWN_WORKBENCH_URL;
-  });
-
-  return hasWikiRead && hasMarkdownOpenFacet && hasMarkdownWorkbenchHost;
+  return hasWikiRead && hasMarkdownOpenFacet;
 }
 
 export function createWikiSubjectOpenRequest(selection = {}) {

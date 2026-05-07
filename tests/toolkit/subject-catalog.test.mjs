@@ -54,6 +54,37 @@ test('subject catalog creates an openable non-wiki Work Record entry from canoni
   )));
   assert.equal(entry.affordances.openable, true);
   assert.equal(entry.affordances.openers[0].id, 'work-record-workbench');
+  assert.deepEqual(entry.affordances, {
+    inspectable: true,
+    openable: true,
+    read_only: true,
+    openers: [
+      {
+        id: 'work-record-workbench',
+        component_url: WORK_RECORD_WORKBENCH_URL,
+        target_dialect: 'canvas',
+        message_types: ['work_record.open'],
+        facet: {
+          key: 'work_record.intent',
+          layer: 'narrative',
+          label: 'Work Record Intent',
+          contracts: ['work_record.intent.view'],
+        },
+        host: {
+          kind: 'canvas',
+          target_dialect: 'canvas',
+          entry: {
+            kind: 'aos-url',
+            value: WORK_RECORD_WORKBENCH_URL,
+            facet: 'work_record.intent',
+          },
+          preferred: true,
+        },
+      },
+    ],
+    reference_count: 6,
+    followable_reference_count: 4,
+  });
   assert.equal(subjectCatalogEntryCanOpen(entry), true);
 });
 
@@ -84,7 +115,7 @@ test('subject catalog does not use legacy views controls or dotted raw capabilit
     subject_type: 'aos.work_record',
     label: 'Legacy Summary Only',
     owner: 'aos-work-record',
-    capabilities: ['inspectable', 'work_record.execution_map.view'],
+    capabilities: ['inspectable', 'editable', 'work_record.execution_map.view'],
     views: ['work_record.execution_map.json'],
     controls: ['open'],
     facets: [
@@ -118,6 +149,7 @@ test('subject catalog does not use legacy views controls or dotted raw capabilit
 
   assert.deepEqual(entry.contracts, []);
   assert.equal(entry.affordances.openable, false);
+  assert.equal(entry.affordances.read_only, true);
   assert.equal(subjectCatalogEntryCanOpen(entry), false);
   assert.equal(createSubjectOpenRequestFromCatalogEntry(entry), null);
 });

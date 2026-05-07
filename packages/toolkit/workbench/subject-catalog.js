@@ -9,6 +9,10 @@ import {
   subjectCanonicalReferences,
   subjectFacets,
 } from './subject.js';
+import {
+  deriveWorkbenchSubjectControls,
+  findWorkbenchSubjectControl,
+} from './subject-controls.js';
 
 export const SUBJECT_CATALOG_SCHEMA_VERSION = '2026-05-06-subject-catalog-v0';
 export const SUBJECT_CATALOG_LOAD_TYPE = 'subject_catalog.load';
@@ -102,8 +106,8 @@ function canonicalContractsForSubject(subject = {}) {
   ]);
 }
 
-function facetHostCandidates(subject = {}) {
-  return subjectFacets(subject).flatMap((facet) => {
+function facetHostCandidatesForFacets(facets = []) {
+  return arrayValue(facets).flatMap((facet) => {
     const hosts = arrayValue(facet.hosts);
     return hosts.map((host) => ({
       facet: {
@@ -123,11 +127,12 @@ function hostComponentUrl(host = {}) {
 }
 
 function openersForSubject(subject = {}) {
-  const capabilities = subjectCapabilities(subject);
+  const controls = deriveWorkbenchSubjectControls(subject);
+  const openControl = findWorkbenchSubjectControl(controls, 'open');
   const contracts = canonicalContractsForSubject(subject);
-  const hosts = facetHostCandidates(subject);
+  const hosts = facetHostCandidatesForFacets(openControl?.facets);
   const subjectType = text(subject.subject_type);
-  if (!capabilities.includes('inspectable')) return [];
+  if (!openControl?.enabled) return [];
 
   return COMPONENT_OPENERS.flatMap((opener) => {
     if (!opener.subject_types.includes(subjectType)) return [];
@@ -157,13 +162,15 @@ export function subjectCatalogAffordances(subject = {}) {
     };
   }
 
-  const capabilities = subjectCapabilities(subject);
+  const controls = deriveWorkbenchSubjectControls(subject);
   const references = subjectCanonicalReferences(subject);
   const openers = openersForSubject(subject);
+  const openControl = findWorkbenchSubjectControl(controls, 'open');
+  const editControl = findWorkbenchSubjectControl(controls, 'edit');
   return {
-    inspectable: capabilities.includes('inspectable'),
+    inspectable: !!openControl,
     openable: openers.length > 0,
-    read_only: !capabilities.includes('editable'),
+    read_only: !editControl?.enabled,
     openers,
     reference_count: references.length,
     followable_reference_count: references.filter((reference) => text(reference.handle)).length,

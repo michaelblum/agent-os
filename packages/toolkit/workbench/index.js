@@ -1,4 +1,5 @@
 export * from './subject.js';
+export * from './subject-controls.js';
 export * from './subject-graph.js';
 export * from './artifact-bundle-subject.js';
 export * from './wiki-subject.js';
