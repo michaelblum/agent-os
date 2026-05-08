@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AOS_DOCK_ROLE=gdi AOS_DOCK_REPO_ROOT=/Users/Michael/Code/agent-os bash /Users/Michael/Code/agent-os/.docks/hooks/dock-session-start.sh",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/gdi/hooks/session-start.sh",
             "statusMessage": "Binding GDI voice",
             "timeout": 10
           }
@@ -18,8 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "AOS_DOCK_ROLE=gdi AOS_DOCK_REPO_ROOT=/Users/Michael/Code/agent-os bash /Users/Michael/Code/agent-os/.docks/hooks/dock-stop.sh",
-            "statusMessage": "Copying GDI final response",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/gdi/hooks/stop.sh",
+            "statusMessage": "Speaking GDI handoff notice",
             "timeout": 20
           }
         ]

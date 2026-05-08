@@ -26,6 +26,10 @@ Codex then discovers the dock's `AGENTS.md`, `.codex/hooks.json`, and any other
 project-local configuration from that launch root. Source edits and tests still
 belong in the real repo root unless the dock says otherwise.
 
+Each dock owns its own hook scripts under `<dock>/hooks/`. Do not route dock
+hooks through a shared `.docks/hooks/` script; role behavior should stay local
+to the dock that installs it.
+
 ## Canonical Docks
 
 - `gdi/` is the Goal-Driven Implementation role.
