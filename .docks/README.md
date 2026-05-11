@@ -82,7 +82,22 @@ prefix for those targets if present.
 
 ## Canonical Docks
 
-- `gdi/` is the Goal-Driven Implementation role.
-- `foreman/` is the integration/review and steering role.
+- `foreman/` is the coordination, review, work-card routing, git/GitHub, and
+  workstream hygiene role. Foreman tracks who is doing what, where the work
+  lives, what is complete, what remains blocked, and when commits, pushes, PRs,
+  or issue updates are appropriate.
+- `gdi/` is the Goal-Driven Implementation role. GDI consumes `/goal`
+  handoffs, implements the assigned deterministic slice, runs verification, and
+  reports exact results. GDI does not own next-work selection, PRs, issues, or
+  branch hygiene unless a goal explicitly says so.
 - `operator/` is the Operator supervised human-in-the-loop execution and
-  locator review role.
+  locator review role. Operator inspects live surfaces, records bounded human
+  judgments, observes stop conditions, and reports evidence. Operator does not
+  own git/GitHub or implementation scope unless a handoff explicitly says so.
+
+For non-trivial GDI work, Foreman should prefer a Markdown work card under
+`docs/design/work-cards/` plus a thin GDI handoff such as:
+
+```text
+attn: GDI, follow the instructions in docs/design/work-cards/<card>.md
+```

@@ -10,3 +10,8 @@ codex
 The dock is just a session profile. Codex discovers `AGENTS.md` and
 `.codex/hooks.json` from this launch root. The working repo remains
 `/Users/Michael/Code/agent-os`.
+
+Foreman is the default coordinator and git/GitHub steward: it routes work to
+GDI or Operator, maintains work cards, reviews completion reports, keeps track
+of active/completed work, and decides when commits, pushes, PRs, or issue
+updates are appropriate.
