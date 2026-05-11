@@ -163,6 +163,8 @@
     "browser_evidence_planning_manifest_path": "browser-evidence/planning-manifest-skeleton.json",
     "browser_evidence_manifest_path": "browser-evidence/manifest.json",
     "browser_evidence_registry_path": "browser-evidence/registry.json",
+    "live_evidence_target_plan_schema": "shared/schemas/employer-brand-live-evidence-target-plan-v0.schema.json",
+    "live_evidence_target_plan_path": "live-evidence-target-plan.json",
     "company_brand_audit_schema": "shared/schemas/company-brand-audit-v0.schema.json",
     "company_brand_audit_paths": [
       "company-audits/symphony-talent.json",

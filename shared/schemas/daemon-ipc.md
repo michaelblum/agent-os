@@ -171,6 +171,10 @@ the response may include:
   - `listen_access` (bool) — `CGPreflightListenEventAccess()` evaluated **inside the daemon process**. The CLI must not fabricate this from its own preflight.
   - `post_access` (bool) — `CGPreflightPostEventAccess()` evaluated inside the daemon.
   - `last_error_at` (string|null) — ISO 8601 timestamp of the most recent `CGEventTap` failure. `null` when no failure has occurred since daemon start.
+  - `panic_passthrough_active` (bool) — legacy compatibility field name for whether the Force Quit input safety passthrough window is active.
+  - `panic_passthrough_until` (string|null) — legacy compatibility field name for the input safety passthrough deadline.
+  - `panic_trigger` (string|null) — legacy compatibility field name for the last safety shortcut trigger, currently `"cmd_opt_escape"` when set.
+  - `panic_trigger_count` (int) — legacy compatibility field name for safety shortcut trigger count.
 - `permissions` (object) — daemon-sourced TCC view. Always present.
   - `accessibility` (bool) — `AXIsProcessTrusted()` evaluated inside the daemon.
 

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>AOS Browser DOM Element Picker Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+
+      .hero {
+        margin: 32px;
+        padding: 24px;
+        width: 520px;
+        border: 1px solid #8b949e;
+      }
+
+      .hero-card {
+        padding: 16px;
+        border: 1px solid #57606a;
+      }
+
+      .primary-copy {
+        margin: 0 0 12px;
+      }
+
+      #stable-cta {
+        display: inline-block;
+        width: 164px;
+        height: 40px;
+      }
+
+      .spacer {
+        height: 960px;
+      }
+
+      #offscreen-target {
+        margin: 24px 32px;
+        width: 220px;
+        height: 54px;
+      }
+
+      [data-aos-dom-picker-overlay] {
+        position: fixed;
+        inset: 0 auto auto 0;
+        width: 12px;
+        height: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-aos-dom-picker-overlay></div>
+    <main class="hero" data-qa="campaign-hero" aria-label="Campaign hero">
+      <section class="hero-card" data-testid="hero-card" aria-label="Employer brand hero">
+        <p class="primary-copy">Build a candidate story from exact page evidence.</p>
+        <button id="stable-cta" data-testid="primary-cta" aria-label="Request demo">
+          Request demo
+        </button>
+      </section>
+    </main>
+    <div class="spacer"></div>
+    <button id="offscreen-target" data-cy="offscreen-cta" aria-label="Offscreen action">
+      Offscreen action
+    </button>
+  </body>
+</html>

@@ -1,0 +1,301 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/annotation-projection-v0.schema.json",
+  "title": "Annotation Projection Result V0",
+  "description": "Viewport-local projection results derived from durable annotation intent records and a surface-owned anchor resolver.",
+  "type": "object",
+  "required": ["schema", "version", "surface_binding", "viewport", "layer", "projections"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "annotation_projection" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "surface_binding": { "$ref": "#/$defs/SurfaceBinding" },
+    "viewport": { "$ref": "#/$defs/Viewport" },
+    "layer": { "$ref": "#/$defs/Layer" },
+    "adapter_results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AdapterResult" },
+      "default": []
+    },
+    "adapter_capability_summary": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AdapterCapabilitySummary" },
+      "default": []
+    },
+    "projections": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Projection" }
+    }
+  },
+  "$defs": {
+    "Rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      },
+      "description": "A rectangle in viewport-local CSS pixel coordinates."
+    },
+    "SurfaceBinding": {
+      "type": "object",
+      "required": ["surface_id", "surface_type"],
+      "additionalProperties": false,
+      "properties": {
+        "surface_id": { "type": "string", "minLength": 1 },
+        "surface_type": {
+          "enum": ["markdown_workbench", "browser_page", "mermaid_svg", "three_scene", "pdf_page", "image", "generic_canvas"]
+        },
+        "source_path": { "type": ["string", "null"] },
+        "source_url": { "type": ["string", "null"] },
+        "subject_id": { "type": ["string", "null"] },
+        "canvas_id": { "type": ["string", "null"] },
+        "window_id": { "type": ["string", "null"] },
+        "tab_id": { "type": ["string", "null"] }
+      }
+    },
+    "Viewport": {
+      "type": "object",
+      "required": ["width", "height", "scroll_x", "scroll_y", "zoom", "scale", "device_pixel_ratio", "view_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 },
+        "scroll_x": { "type": "number" },
+        "scroll_y": { "type": "number" },
+        "zoom": { "type": "number" },
+        "scale": { "type": "number" },
+        "device_pixel_ratio": { "type": "number" },
+        "view_mode": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Layer": {
+      "type": "object",
+      "required": ["visible", "dismissed", "decorator_mode", "expanded_annotation_ids", "capture"],
+      "additionalProperties": false,
+      "properties": {
+        "visible": { "type": "boolean" },
+        "dismissed": { "type": "boolean" },
+        "decorator_mode": { "enum": ["ordinal_badge", "compact", "hidden"] },
+        "expanded_annotation_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "capture": {
+          "type": "object",
+          "required": ["prepare", "restore"],
+          "additionalProperties": false,
+          "properties": {
+            "prepare": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Capture-time implications, such as hiding annotation controls while keeping target evidence visible."
+            },
+            "restore": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Post-capture restoration implications for the annotation layer."
+            }
+          }
+        }
+      }
+    },
+    "Projection": {
+      "type": "object",
+      "required": [
+        "annotation_id",
+        "ordinal",
+        "anchor_type",
+        "status",
+        "rects",
+        "decorator",
+        "confidence",
+        "reason",
+        "precision",
+        "source_anchor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 1 },
+        "anchor_type": { "type": "string", "minLength": 1 },
+        "status": {
+          "enum": ["resolved", "unresolved", "stale", "out_of_viewport", "unsupported"]
+        },
+        "rects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Rect" }
+        },
+        "decorator": {
+          "type": "object",
+          "required": ["placement", "x", "y", "avoid_covering_anchor", "detail_preference"],
+          "additionalProperties": false,
+          "properties": {
+            "placement": { "type": "string", "minLength": 1 },
+            "x": { "type": ["number", "null"] },
+            "y": { "type": ["number", "null"] },
+            "avoid_covering_anchor": { "type": "boolean" },
+            "detail_preference": { "enum": ["hover_click_focus", "panel", "none"] }
+          }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string" },
+        "precision": { "type": "string", "minLength": 1 },
+        "source_anchor": {
+          "type": "object",
+          "required": ["source_path", "source_url", "text_excerpt", "text_range", "selector_candidates", "semantic"],
+          "additionalProperties": false,
+          "properties": {
+            "source_path": { "type": ["string", "null"] },
+            "source_url": { "type": ["string", "null"] },
+            "text_excerpt": { "type": "string" },
+            "text_range": {},
+            "selector_candidates": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "semantic": {
+              "type": "object",
+              "required": ["role", "label", "ancestor_chain"],
+              "additionalProperties": false,
+              "properties": {
+                "role": { "type": "string" },
+                "label": { "type": "string" },
+                "ancestor_chain": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "AdapterResult": {
+      "type": "object",
+      "required": [
+        "adapter_id",
+        "subject_id",
+        "subject_path",
+        "root_id",
+        "root_path",
+        "subject_kind",
+        "source_tree_node_metadata",
+        "current_render_status",
+        "can_project_display_overlay",
+        "can_reveal",
+        "display_space_rect",
+        "local_space_rect",
+        "ancestor_viewport_clip_chain",
+        "scrollable_ancestor_chain",
+        "z_order_evidence",
+        "blocker_reason",
+        "refreshed_at",
+        "provenance_source_payload_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "subject_id": { "type": "string", "minLength": 1 },
+        "subject_path": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "root_id": { "type": "string", "minLength": 1 },
+        "root_path": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "subject_kind": { "type": "string", "minLength": 1 },
+        "source_tree_node_metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "current_render_status": {
+          "enum": ["visible", "clipped", "offscreen_scrollable", "virtualized", "hidden", "absent", "stale", "unsupported"]
+        },
+        "can_project_display_overlay": { "type": "boolean" },
+        "can_reveal": { "type": "boolean" },
+        "display_space_rect": { "anyOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+        "local_space_rect": { "anyOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+        "ancestor_viewport_clip_chain": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AncestorChainEntry" }
+        },
+        "scrollable_ancestor_chain": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AncestorChainEntry" }
+        },
+        "z_order_evidence": {},
+        "blocker_reason": { "type": "string" },
+        "refreshed_at": { "type": "string" },
+        "provenance_source_payload_id": { "type": "string" }
+      }
+    },
+    "AncestorChainEntry": {
+      "type": "object",
+      "required": ["id", "kind", "rect", "overflow", "scroll"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "rect": { "anyOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+        "overflow": { "type": "string" },
+        "scroll": {
+          "type": "object",
+          "required": ["x", "y", "max_x", "max_y"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": ["number", "null"] },
+            "y": { "type": ["number", "null"] },
+            "max_x": { "type": ["number", "null"] },
+            "max_y": { "type": ["number", "null"] }
+          }
+        }
+      }
+    },
+    "AdapterCapabilitySummary": {
+      "type": "object",
+      "required": [
+        "adapter_id",
+        "visible",
+        "clipped",
+        "offscreen_scrollable",
+        "virtualized",
+        "hidden",
+        "absent",
+        "stale",
+        "unsupported",
+        "can_project_display_overlay",
+        "can_reveal",
+        "blockers"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "visible": { "type": "integer", "minimum": 0 },
+        "clipped": { "type": "integer", "minimum": 0 },
+        "offscreen_scrollable": { "type": "integer", "minimum": 0 },
+        "virtualized": { "type": "integer", "minimum": 0 },
+        "hidden": { "type": "integer", "minimum": 0 },
+        "absent": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "integer", "minimum": 0 },
+        "unsupported": { "type": "integer", "minimum": 0 },
+        "can_project_display_overlay": { "type": "boolean" },
+        "can_reveal": { "type": "boolean" },
+        "blockers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

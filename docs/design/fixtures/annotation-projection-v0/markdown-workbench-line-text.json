@@ -1,0 +1,112 @@
+{
+  "schema": "annotation_projection",
+  "version": "0.1.0",
+  "surface_binding": {
+    "surface_id": "markdown-workbench",
+    "surface_type": "markdown_workbench",
+    "source_path": "docs/design/fixtures/workbench-human-checkpoint-v0/operator-smoke.md",
+    "source_url": null,
+    "subject_id": "file:docs/design/fixtures/workbench-human-checkpoint-v0/operator-smoke.md",
+    "canvas_id": null,
+    "window_id": null,
+    "tab_id": null
+  },
+  "viewport": {
+    "width": 640,
+    "height": 480,
+    "scroll_x": 0,
+    "scroll_y": 120,
+    "zoom": 1,
+    "scale": 1,
+    "device_pixel_ratio": 2,
+    "view_mode": "source"
+  },
+  "layer": {
+    "visible": true,
+    "dismissed": false,
+    "decorator_mode": "ordinal_badge",
+    "expanded_annotation_ids": ["ann-line-2"],
+    "capture": {
+      "prepare": {
+        "hide_annotation_controls": true,
+        "keep_target_evidence_visible": true
+      },
+      "restore": {
+        "restore_annotation_controls": true
+      }
+    }
+  },
+  "projections": [
+    {
+      "annotation_id": "ann-line-2",
+      "ordinal": 1,
+      "anchor_type": "text_range",
+      "status": "resolved",
+      "rects": [
+        {
+          "x": 18,
+          "y": 96,
+          "width": 594,
+          "height": 20
+        }
+      ],
+      "decorator": {
+        "placement": "start-outside",
+        "x": 8,
+        "y": 106,
+        "avoid_covering_anchor": true,
+        "detail_preference": "hover_click_focus"
+      },
+      "confidence": 0.86,
+      "reason": "",
+      "precision": "editor_line",
+      "source_anchor": {
+        "source_path": "docs/design/fixtures/workbench-human-checkpoint-v0/operator-smoke.md",
+        "source_url": null,
+        "text_excerpt": "Operator smoke",
+        "text_range": {
+          "start_line": 2,
+          "end_line": 2
+        },
+        "selector_candidates": [],
+        "semantic": {
+          "role": "",
+          "label": "",
+          "ancestor_chain": []
+        }
+      }
+    },
+    {
+      "annotation_id": "ann-stale-text",
+      "ordinal": 2,
+      "anchor_type": "text_range",
+      "status": "unresolved",
+      "rects": [],
+      "decorator": {
+        "placement": "none",
+        "x": null,
+        "y": null,
+        "avoid_covering_anchor": true,
+        "detail_preference": "hover_click_focus"
+      },
+      "confidence": 0,
+      "reason": "surface adapter did not return geometry for this anchor",
+      "precision": "none",
+      "source_anchor": {
+        "source_path": "docs/design/fixtures/workbench-human-checkpoint-v0/operator-smoke.md",
+        "source_url": null,
+        "text_excerpt": "Older wording",
+        "text_range": {
+          "start_line": 99,
+          "end_line": 99
+        },
+        "selector_candidates": [],
+        "semantic": {
+          "role": "",
+          "label": "",
+          "ancestor_chain": []
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schema": "aos_html_workbench_expression_resume",
+  "version": "0.1.0",
+  "expression_id": "html-workbench-expression-aos-html-workbench-expression-v0-63513f6c50a7",
+  "output_kind": "decision_sidecar",
+  "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+  "source_hash": "sha256:63513f6c50a760d9d30224944c7493307c977f0016e48ed0b7aad4534520d4b4",
+  "annotations": [
+    {
+      "target_id": "goal",
+      "kind": "selection_comment",
+      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+      "source_line_start": 13,
+      "source_line_end": 29,
+      "note": "V0 accepts the source-vs-expression rule: Markdown remains durable, HTML is review projection."
+    }
+  ],
+  "decisions": [
+    {
+      "target_id": "goal",
+      "decision": "approved",
+      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+      "source_line_start": 13,
+      "source_line_end": 29
+    }
+  ],
+  "proposed_markdown_patch": "",
+  "automatic_source_mutation": false,
+  "resumed_by": "fixture",
+  "metadata": {
+    "fixture": true,
+    "purpose": "Proves V0 checkpoint resume can emit structured annotation and decision sidecars without mutating Markdown."
+  }
+}

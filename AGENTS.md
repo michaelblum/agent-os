@@ -59,8 +59,6 @@ and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
 cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
 warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
-For docked persona/session launch roots, see
-`docs/recipes/codex-dock-session-profiles.md`.
 
 ## Design Principle: Primitives First
 
@@ -120,6 +118,11 @@ design context is archived at
   start/checks the daemon, performs one restart/recheck for expected daemon
   drift, then either reports `ready=true` or gives the remaining concrete
   blocker. Do not run repeated ad-hoc repair loops.
+- Before telling a human to remove/re-add repo-mode Accessibility or Input
+  Monitoring grants, stop the managed daemon with
+  `./aos service stop --mode repo` and wait for `running=false`. Only then should
+  the human remove/re-add `/Users/Michael/Code/agent-os/aos`; when they return,
+  run `./aos ready --post-permission`.
 - If `./aos ready` reports blockers and the user wants repair, run
   `./aos ready --repair`. It performs safe automated recovery steps, records a
   trace, and prints plain-English human instructions when macOS privacy settings
@@ -128,9 +131,10 @@ design context is archived at
 - If `./aos ready --repair --json` returns `phase=human_required`, do not dump
   raw JSON at the user. Give a concise, assertive summary. For
   `diagnosis=daemon_tcc_grant_stale_or_missing`, say the repo-mode `aos` macOS
-  permission grant is stale and must be removed/re-added. Offer short numbered
-  choices: more detail, open the listed `open_settings` panes, or stop. Tell the
-  user to come back and say `ready`; when they do, run `./aos ready`.
+  permission grant is stale and must be removed/re-added only after
+  `./aos service stop --mode repo` reports `running=false`. Offer short numbered
+  choices: more detail, run the safe stop, or stop. Tell the user to come back
+  and say `ready`; when they do, run `./aos ready --post-permission`.
 - Use `./aos introspect review` for self-review or recovery after repeated failed
   `./aos` attempts.
 - Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
@@ -199,13 +203,6 @@ design context is archived at
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
-- `.docks/` is the durable repo-local launch/control surface for docked
-  role/persona/agent sessions. A dock is a Codex session profile, not an AOS
-  Workflow. A session adopts a dock by launching Codex from that dock directory
-  or with `codex --cd <dock-dir>`, so Codex discovers the dock's `AGENTS.md`,
-  `.codex/hooks.json`, and local config through normal project discovery. Do
-  not write source edits, generated run state, or report artifacts into
-  `.docks/`.
 - Never attribute commits to Claude or any AI assistant in this repo. No
   `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"
   tags, and no AI attribution in commit messages, PR descriptions, or issue
@@ -232,6 +229,4 @@ source of truth at the interface boundary:
 - nearest subtree markdown file for package or app specifics
 - `docs/recipes/aos-app-accessibility-surfaces.md` for AOS app and toolkit
   accessibility surface contracts
-- `docs/recipes/codex-dock-session-profiles.md` for docked persona/session
-  launch roots
 - historical `CLAUDE.md` files remain only as compatibility pointers

@@ -30,12 +30,22 @@ belong in the real repo root unless the dock says otherwise.
 
 - `.docks/gdi/` is the Goal-Driven Implementation session profile.
 - `.docks/foreman/` is the review/integration session profile.
+- `.docks/operator/` is the supervised human-in-the-loop execution and locator
+  review session profile.
 
 ## Boundary
 
 - A Dock is not a Workflow.
 - A Docked Session may work on a Workflow, such as the Employer Brand
   Comparative Audit Workflow.
+- GDI is the only dock that should receive `/goal ` handoff payloads. Use that
+  prefix for bounded deterministic implementation work only.
+- Operator receives plain supervised instructions, not `/goal`, so it can stop
+  for clarification, visual confirmation, sign-off, or blockers instead of
+  forcing autonomous goal completion.
+- Operator is a docked role for bounded supervised page operation, locator
+  review, selector approval, stop decisions, and capture-plan handoffs. It is
+  not a replacement for GDI, Foreman, Verifier, or workflow-engine behavior.
 - Do not create launchers that concatenate persona markdown into prompts. Use a
   direct dock root with `AGENTS.md` and `.codex/`.
 - Do not write generated run state into `.docks/`.

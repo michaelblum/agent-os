@@ -65,6 +65,10 @@ assert tap["attempts"] == payload["input_tap_attempts"], f"flat/nested mismatch:
 assert isinstance(tap.get("listen_access"), bool), f"input_tap.listen_access missing: {d}"
 assert isinstance(tap.get("post_access"), bool), f"input_tap.post_access missing: {d}"
 assert tap.get("last_error_at") is None or isinstance(tap.get("last_error_at"), str), f"input_tap.last_error_at must be string-or-null: {d}"
+assert isinstance(tap.get("panic_passthrough_active"), bool), f"input_tap.panic_passthrough_active missing: {d}"
+assert tap.get("panic_passthrough_until") is None or isinstance(tap.get("panic_passthrough_until"), str), f"input_tap.panic_passthrough_until must be string-or-null: {d}"
+assert tap.get("panic_trigger") is None or tap.get("panic_trigger") == "cmd_opt_escape", f"input_tap.panic_trigger invalid: {d}"
+assert isinstance(tap.get("panic_trigger_count"), int), f"input_tap.panic_trigger_count missing: {d}"
 
 # New nested permissions block
 perms = payload.get("permissions")

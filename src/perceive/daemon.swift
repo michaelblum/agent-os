@@ -19,6 +19,7 @@ class PerceptionEngine {
     /// Called for raw input events captured by the daemon's event tap.
     /// Returns true when the event should be consumed.
     var onInputEvent: ((String, [String: Any]) -> Bool)?
+    var onInputSafetyHotkeyTriggered: ((Date) -> Void)?
 
     // Cursor state
     private var lastCursorPoint: CGPoint = .zero
@@ -37,6 +38,7 @@ class PerceptionEngine {
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
     private var lastEventTapErrorAt: Date?
+    private let inputSafetyHotkeyState = InputSafetyHotkeyState()
 
     var inputTapStatus: String {
         if eventTap != nil { return "active" }
@@ -64,6 +66,10 @@ class PerceptionEngine {
             return CGPreflightPostEventAccess()
         }
         return true
+    }
+
+    var inputSafetyHotkeySnapshot: InputSafetyHotkeySnapshot {
+        inputSafetyHotkeyState.snapshot()
     }
 
     var daemonAccessibilityGranted: Bool {
@@ -181,6 +187,15 @@ class PerceptionEngine {
 
     private func handleTapEvent(_ event: CGEvent) -> Bool {
         let type = event.type
+        let safetyDecision = inputSafetyHotkeyState.classify(inputSafetyHotkeyEvent(for: type, event: event))
+        if safetyDecision.passThrough {
+            if safetyDecision.triggered, let deadline = safetyDecision.deadline {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onInputSafetyHotkeyTriggered?(deadline)
+                }
+            }
+            return false
+        }
 
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
@@ -197,6 +212,32 @@ class PerceptionEngine {
         guard let eventName = inputEventName(for: type) else { return false }
         let data = inputEventPayload(for: type, event: event, eventName: eventName)
         return onInputEvent?(eventName, data) ?? false
+    }
+
+    private func inputSafetyHotkeyEvent(for type: CGEventType, event: CGEvent) -> InputSafetyHotkeyEvent {
+        let kind: InputSafetyHotkeyEventKind
+        switch type {
+        case .keyDown:
+            kind = .keyDown
+        case .keyUp:
+            kind = .keyUp
+        default:
+            kind = .other
+        }
+
+        let keyCode: Int64?
+        switch kind {
+        case .keyDown, .keyUp:
+            keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        case .other:
+            keyCode = nil
+        }
+
+        return InputSafetyHotkeyEvent(
+            kind: kind,
+            keyCode: keyCode,
+            modifiers: InputSafetyModifierSnapshot(flags: event.flags)
+        )
     }
 
     private func inputEventName(for type: CGEventType) -> String? {

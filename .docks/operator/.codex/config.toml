@@ -1,0 +1,9 @@
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+
+[features]
+goals = false
+
+[tui]
+status_line = ["current-dir", "run-state", "context-remaining", "model-with-reasoning"]
+terminal_title = ["current-dir", "activity", "run-state", "model"]

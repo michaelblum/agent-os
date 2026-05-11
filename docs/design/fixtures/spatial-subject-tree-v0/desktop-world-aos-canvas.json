@@ -1,0 +1,287 @@
+{
+  "schema": "spatial_subject_tree",
+  "version": "0.1.0",
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "root": "desktop-world",
+  "nodes": [
+    {
+      "id": "desktop-world",
+      "parent_id": null,
+      "path": "desktop-world",
+      "kind": "desktop_world",
+      "label": "DesktopWorld",
+      "source": {},
+      "bounds": {
+        "desktop_world": { "x": 0, "y": 0, "width": 1512, "height": 982 }
+      },
+      "z_order": null,
+      "sibling_order": null,
+      "state": "visible",
+      "adapter": {
+        "id": "spatial-topology",
+        "type": "spatial_topology",
+        "confidence": 1,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      }
+    },
+    {
+      "id": "display:1",
+      "parent_id": "desktop-world",
+      "path": "desktop-world/display:1",
+      "kind": "display",
+      "label": "Built-in Display",
+      "source": { "display_id": 1 },
+      "bounds": {
+        "parent_local": { "x": 0, "y": 0, "width": 1512, "height": 982 },
+        "desktop_world": { "x": 0, "y": 0, "width": 1512, "height": 982 }
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "state": "visible",
+      "adapter": {
+        "id": "spatial-topology",
+        "type": "spatial_topology",
+        "confidence": 1,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      }
+    },
+    {
+      "id": "window:1001",
+      "parent_id": "display:1",
+      "path": "desktop-world/display:1/window:1001",
+      "kind": "window",
+      "label": "Employer Brand Audit",
+      "source": {
+        "window_id": 1001,
+        "app_pid": 4242,
+        "app_bundle_id": "dev.agent-os"
+      },
+      "bounds": {
+        "desktop_world": { "x": 100, "y": 80, "width": 900, "height": 620 }
+      },
+      "z_order": 0,
+      "sibling_order": 0,
+      "state": "visible",
+      "adapter": {
+        "id": "spatial-topology",
+        "type": "spatial_topology",
+        "confidence": 0.9,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": true,
+        "inspect_children": true
+      }
+    },
+    {
+      "id": "canvas:brand-audit",
+      "parent_id": "window:1001",
+      "path": "desktop-world/display:1/window:1001/canvas:brand-audit",
+      "kind": "canvas",
+      "label": "Brand Audit Canvas",
+      "source": {
+        "canvas_id": "brand-audit",
+        "window_id": 1001
+      },
+      "bounds": {
+        "parent_local": { "x": 0, "y": 0, "width": 900, "height": 620 },
+        "desktop_world": { "x": 100, "y": 80, "width": 900, "height": 620 }
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "state": "visible",
+      "adapter": {
+        "id": "aos-canvas",
+        "type": "aos_canvas",
+        "confidence": 0.9,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": false,
+        "action": false,
+        "capture": true,
+        "inspect_children": true
+      }
+    },
+    {
+      "id": "surface:comparative-audit",
+      "parent_id": "canvas:brand-audit",
+      "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit",
+      "kind": "surface",
+      "label": "Comparative Audit Surface",
+      "source": {
+        "canvas_id": "brand-audit",
+        "surface_id": "comparative-audit",
+        "file_path": "Employer_Brand_Audit/report.md",
+        "subject_id": "employer-brand-comparative-audit"
+      },
+      "bounds": {
+        "parent_local": { "x": 24, "y": 44, "width": 852, "height": 540 },
+        "desktop_world": { "x": 124, "y": 124, "width": 852, "height": 540 }
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "state": "visible",
+      "adapter": {
+        "id": "employer-brand-surface",
+        "type": "employer_brand",
+        "confidence": 0.8,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": true,
+        "inspect_children": true
+      },
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": { "x": 100, "y": 80 },
+          "scale": { "x": 1, "y": 1 }
+        }
+      ]
+    },
+    {
+      "id": "target:primary-cta",
+      "parent_id": "surface:comparative-audit",
+      "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta",
+      "kind": "semantic_target",
+      "label": "Primary CTA",
+      "source": {
+        "canvas_id": "brand-audit",
+        "surface_id": "comparative-audit",
+        "subject_id": "primary-cta",
+        "adapter_subject_id": "button-primary-cta"
+      },
+      "bounds": {
+        "parent_local": { "x": 48, "y": 80, "width": 160, "height": 36 },
+        "desktop_world": { "x": 172, "y": 204, "width": 160, "height": 36 }
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "state": "visible",
+      "adapter": {
+        "id": "aos-semantic-targets",
+        "type": "aos_canvas",
+        "confidence": 0.85,
+        "freshness": "snapshot",
+        "child_discovery": "complete"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": false,
+        "action": true,
+        "capture": true,
+        "inspect_children": false
+      }
+    },
+    {
+      "id": "target:evidence-card",
+      "parent_id": "surface:comparative-audit",
+      "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:evidence-card",
+      "kind": "semantic_target",
+      "label": "Evidence Card",
+      "source": {
+        "canvas_id": "brand-audit",
+        "surface_id": "comparative-audit",
+        "subject_id": "evidence-card",
+        "adapter_subject_id": "card-evidence"
+      },
+      "bounds": {
+        "parent_local": { "x": 48, "y": 148, "width": 360, "height": 180 },
+        "desktop_world": { "x": 172, "y": 272, "width": 360, "height": 180 }
+      },
+      "z_order": null,
+      "sibling_order": 1,
+      "state": "visible",
+      "adapter": {
+        "id": "aos-semantic-targets",
+        "type": "aos_canvas",
+        "confidence": 0.85,
+        "freshness": "snapshot",
+        "child_discovery": "complete"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": false,
+        "action": false,
+        "capture": true,
+        "inspect_children": false
+      }
+    },
+    {
+      "id": "annotation:ann-cta-copy",
+      "parent_id": "surface:comparative-audit",
+      "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/annotation:ann-cta-copy",
+      "kind": "annotation_projection",
+      "label": "Annotation ann-cta-copy",
+      "source": {
+        "surface_id": "comparative-audit",
+        "subject_id": "ann-cta-copy"
+      },
+      "bounds": {
+        "viewport_local": { "x": 48, "y": 80, "width": 160, "height": 36 }
+      },
+      "z_order": null,
+      "sibling_order": 2,
+      "state": "visible",
+      "adapter": {
+        "id": "annotation-projection",
+        "type": "generic",
+        "confidence": 0.78,
+        "freshness": "snapshot",
+        "child_discovery": "unsupported"
+      },
+      "capabilities": {
+        "hit_test": false,
+        "annotate": false,
+        "project_annotation": true,
+        "action": false,
+        "capture": true,
+        "inspect_children": false
+      },
+      "metadata": {
+        "status": "resolved",
+        "anchor_type": "semantic_target"
+      }
+    }
+  ],
+  "metadata": {
+    "source_schema": "spatial-topology",
+    "purpose": "contract fixture"
+  }
+}

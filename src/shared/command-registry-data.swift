@@ -603,9 +603,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── say ───────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["say"], summary: "Voice — speak text aloud (sugar for tell human)", forms: [
-        InvocationForm(id: "say-text", usage: "aos say [--voice id] [--rate wpm] <text>",
+        InvocationForm(id: "say-text", usage: "aos say [--voice id] [--voice-slot n] [--language value] [--gender value] [--quality-tier value] [--rate wpm] <text>",
             args: [
                 flag("voice", "--voice", "Voice identifier", discovery: [.command(path: ["say"], formId: "say-list-voices")]),
+                flag("voice-slot", "--voice-slot", "1-based speakable voice slot resolved after filters in registry order", type: .int),
+                flag("language", "--language", "Filter voice-slot candidates by language"),
+                flag("gender", "--gender", "Filter voice-slot candidates by gender"),
+                flag("quality-tier", "--quality-tier", "Filter voice-slot candidates by quality tier; repeat or use comma-separated values", variadic: true),
                 flag("rate", "--rate", "Speech rate in WPM", type: .int),
                 pos("text", "Text to speak", required: false, variadic: true)
             ],
@@ -613,7 +617,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             constraints: nil,
             execution: execMutating(),
             output: outJSON,
-            examples: ["aos say \"Hello, I'm your agent\"", "echo 'status' | aos say"]),
+            examples: ["aos say \"Hello, I'm your agent\"", "aos say --voice-slot 1 --language en --quality-tier premium,enhanced \"Done\"", "echo 'status' | aos say"]),
         InvocationForm(id: "say-list-voices", usage: "aos say --list-voices",
             args: [flag("list-voices", "--list-voices", "List available system voices", type: .bool, required: true)],
             stdin: nil, constraints: nil,

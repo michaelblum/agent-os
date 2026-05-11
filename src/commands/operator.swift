@@ -505,13 +505,17 @@ private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMod
 
     print("")
     print("Human action needed:")
-    print("Permissions to fix:")
+    print("Safe permission reset sequence:")
+    for line in permissionResetSafeSequenceLines(blockers: permissionBlockers, mode: mode, prefix: prefix) {
+        print("  \(line)")
+    }
+    print("Permissions that may need remove/re-add after the service is stopped:")
     for line in permissionFixLines(blockers: permissionBlockers, mode: mode) {
         print("  \(line)")
     }
 
     print("After fixing those rows, come back and say: ready")
-    print("The agent should run: \(prefix) ready")
+    print("The agent should run: \(prefix) ready --post-permission")
 }
 
 func statusCommand(args: [String]) {
@@ -1164,7 +1168,23 @@ private func cliView(from permissions: PermissionsState) -> CLIViewBlock {
 }
 
 private func permissionRecoveryNotes(missing: [String], mode: AOSRuntimeMode) -> [String] {
-    var notes: [String] = []
+    let prefix = aosInvocationDisplayName()
+    var notes = permissionResetSafeSequenceLines(
+        blockers: missing.map { id in
+            ReadyBlocker(
+                kind: "permission",
+                id: id,
+                scope: nil,
+                message: "",
+                target_path: permissionResetTargetPath(mode: mode),
+                settings_url: nil,
+                blocks: []
+            )
+        },
+        mode: mode,
+        prefix: prefix
+    )
+    notes.append("Permissions to fix after the daemon reports running=false:")
     for id in missing {
         switch id {
         case "accessibility":
@@ -1221,6 +1241,26 @@ private func permissionFixLines(blockers: [ReadyBlocker], mode: AOSRuntimeMode) 
         if seen.insert(key).inserted {
             lines.append("\(panel) -> \(permissionEntryName(mode: mode)) (\(action))")
         }
+    }
+    return lines
+}
+
+private func permissionResetTargetPath(mode: AOSRuntimeMode) -> String {
+    aosExpectedBinaryPath(program: "aos", mode: mode)
+}
+
+private func permissionResetSafeSequenceLines(blockers: [ReadyBlocker], mode: AOSRuntimeMode, prefix: String) -> [String] {
+    let targetPath = permissionResetTargetPath(mode: mode)
+    var lines = [
+        "Runtime mode: \(mode.rawValue)",
+        "Target binary: \(targetPath)",
+        "1. Stop the managed daemon first: \(prefix) service stop --mode \(mode.rawValue)",
+        "2. Do not remove/re-add macOS permissions until service status reports running=false.",
+        "3. Remove/re-add \(targetPath) in Accessibility and/or Input Monitoring as listed below.",
+        "4. Return here and run: \(prefix) ready --post-permission",
+    ]
+    if blockers.contains(where: { $0.id == "screen_recording" }) {
+        lines.insert("Screen Recording can be handled in the same Settings pass if it is listed below.", at: 5)
     }
     return lines
 }
@@ -1588,6 +1628,11 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
     }
 
     if blockers.contains(where: { $0.kind == "permission" }) {
+        append(ReadyNextAction(
+            type: "command",
+            label: "stop the managed daemon before removing/re-adding macOS permissions; wait for running=false",
+            command: "\(prefix) service stop --mode \(mode.rawValue)"
+        ))
         append(ReadyNextAction(
             type: "command",
             label: "bounded handoff check after fixing macOS permissions",

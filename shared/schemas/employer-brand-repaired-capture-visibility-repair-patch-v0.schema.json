@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aos.local/schemas/employer-brand-repaired-capture-visibility-repair-patch-v0.schema.json",
+  "title": "Employer Brand Repaired Capture Visibility Repair Patch V0",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "status",
+    "source_refs",
+    "summary",
+    "allowed_visibility_repair_decisions",
+    "repair_items",
+    "read_only_context",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_repaired_capture_visibility_repair_patch"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-repaired-capture-visibility-repair-patch-v0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "label": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "unfilled_template",
+        "repair_reviewed"
+      ]
+    },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "visibility_review_pack_path",
+        "manifest_path",
+        "repaired_locator_capture_plan_path",
+        "repaired_capture_runtime_diagnostics_path",
+        "read_only"
+      ],
+      "properties": {
+        "visibility_review_pack_path": {
+          "const": "live-evidence-repaired-capture-visibility-review-pack.json"
+        },
+        "manifest_path": {
+          "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+        },
+        "repaired_locator_capture_plan_path": {
+          "const": "live-evidence-repaired-locator-capture-plan.json"
+        },
+        "repaired_capture_runtime_diagnostics_path": {
+          "const": "live-evidence-repaired-capture-runtime-diagnostics.json"
+        },
+        "read_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "patchable_visibility_repair_item_count",
+        "filled_visibility_repair_decision_count",
+        "proposed_locator_count",
+        "scroll_strategy_count",
+        "wait_condition_count",
+        "viewport_hint_count",
+        "all_repair_fields_null"
+      ],
+      "properties": {
+        "patchable_visibility_repair_item_count": {
+          "const": 4
+        },
+        "read_only_context_entry_count": {
+          "const": 15
+        },
+        "filled_visibility_repair_decision_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "proposed_locator_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "scroll_strategy_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "wait_condition_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "viewport_hint_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "all_repair_fields_null": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "allowed_visibility_repair_decisions": {
+      "type": "array",
+      "const": [
+        "edit_locator",
+        "add_scroll_strategy",
+        "add_wait_condition",
+        "adjust_viewport",
+        "mark_target_hidden",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_pending_review"
+      ]
+    },
+    "repair_items": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": [
+          "repair_item_id",
+          "failure_id",
+          "slot_id",
+          "target_id",
+          "work_unit_id",
+          "company",
+          "source_category",
+          "blocker_reason",
+          "failed_phase",
+          "runner_type",
+          "match_count",
+          "allowed_visibility_repair_decisions",
+          "original_natural_language_target",
+          "kilos_relevance",
+          "evidence_goal",
+          "expected_clip_count",
+          "repaired_locator",
+          "operator_outcome_notes",
+          "prior_repair_provenance",
+          "repair",
+          "full_page_grab"
+        ],
+        "properties": {
+          "blocker_reason": {
+            "const": "reviewed_locator_element_not_visible"
+          },
+          "failed_phase": {
+            "const": "element_visibility_check"
+          },
+          "runner_type": {
+            "const": "playwright_node_api"
+          },
+          "match_count": {
+            "const": 1
+          },
+          "full_page_grab": {
+            "const": false
+          },
+          "allowed_visibility_repair_decisions": {
+            "const": [
+              "edit_locator",
+              "add_scroll_strategy",
+              "add_wait_condition",
+              "adjust_viewport",
+              "mark_target_hidden",
+              "mark_source_unavailable",
+              "reject_target",
+              "keep_pending_review"
+            ]
+          },
+          "repair": {
+            "type": "object",
+            "required": [
+              "visibility_repair_decision",
+              "proposed_selector",
+              "proposed_xpath",
+              "proposed_playwright_locator",
+              "capture_precondition",
+              "scroll_strategy",
+              "wait_condition",
+              "viewport_hint",
+              "mark_target_hidden_reason",
+              "repair_notes",
+              "reviewed_by",
+              "reviewed_at"
+            ],
+            "properties": {
+              "visibility_repair_decision": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "edit_locator",
+                  "add_scroll_strategy",
+                  "add_wait_condition",
+                  "adjust_viewport",
+                  "mark_target_hidden",
+                  "mark_source_unavailable",
+                  "reject_target",
+                  "keep_pending_review",
+                  null
+                ]
+              },
+              "proposed_selector": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "proposed_xpath": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "proposed_playwright_locator": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "capture_precondition": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scroll_strategy": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "wait_condition": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "viewport_hint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mark_target_hidden_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "repair_notes": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reviewed_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reviewed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "read_only_context": {
+      "type": "array",
+      "minItems": 15,
+      "maxItems": 15,
+      "items": {
+        "type": "object",
+        "properties": {
+          "read_only_context": {
+            "const": true
+          },
+          "actionable_visibility_repair_item": {
+            "const": false
+          },
+          "full_page_grab": {
+            "const": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": {
+        "const": false
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "read_only": {
+          "const": true
+        },
+        "template_only": {
+          "type": "boolean"
+        },
+        "repair_fields_initialized_null": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

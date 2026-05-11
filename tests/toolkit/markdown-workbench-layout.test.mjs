@@ -117,6 +117,41 @@ test('markdown workbench folds index into the content pane and can close it', as
   assert.doesNotMatch(js, /markdown-workbench-inspector/);
 });
 
+test('markdown workbench renders annotation badges, notes, metadata, and anchors', async () => {
+  const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+  const css = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
+  const renderJs = await repoText('packages/toolkit/markdown/render.js');
+
+  assert.match(js, /buildAnnotationProjectionResult/);
+  assert.match(js, /markdown_workbench\.annotations\.replace/);
+  assert.match(js, /markdown_workbench\.annotations\.clear/);
+  assert.match(js, /markdown_workbench\.annotations\.show/);
+  assert.match(js, /markdown_workbench\.annotations\.hide/);
+  assert.match(js, /markdown_workbench\.annotations\.toggle/);
+  assert.match(js, /data-action="toggle-annotations"/);
+  assert.match(js, /data-role="annotation-panel"/);
+  assert.match(js, /data-role="annotation-list"/);
+  assert.match(js, /data-role="annotation-overlay"/);
+  assert.match(js, /String\(annotation\.ordinal\)/);
+  assert.match(js, /markdown-workbench-annotation-note', annotation\.note/);
+  assert.match(js, /annotation\.actor\.role.*annotation\.actor\.id.*annotation\.status.*view\.anchor_summary/s);
+  assert.match(js, /sourceLineProjection/);
+  assert.match(js, /previewLineProjection/);
+  assert.match(js, /renderOverlayDecorator/);
+  assert.match(js, /annotation_projection/);
+  assert.match(js, /window\.__markdownWorkbenchState = \{/);
+  assert.match(js, /dom\.editor\.addEventListener\('scroll'/);
+  assert.match(js, /dom\.previewPane\.addEventListener\('scroll'/);
+  assert.match(js, /window\.addEventListener\('resize'/);
+  assert.match(renderJs, /data-source-line/);
+  assert.match(css, /\.markdown-workbench-annotation-badge\s*\{/);
+  assert.match(css, /\.markdown-workbench-annotation-card\.secondary\s*\{/);
+  assert.match(css, /\.markdown-workbench-annotation-overlay\s*\{/);
+  assert.match(css, /\.markdown-workbench-annotation-popover\s*\{/);
+  assert.match(css, /hover \.markdown-workbench-annotation-popover/);
+  assert.doesNotMatch(js, /data-role="annotation-rail"/);
+});
+
 test('markdown source editor leaves native undo and redo key chords alone', async () => {
   const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
   const keydownBody = js.match(/function handleEditorKeydown\(event\) \{[\s\S]*?\n  \}/)?.[0] || '';

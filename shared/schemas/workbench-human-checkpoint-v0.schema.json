@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/workbench-human-checkpoint-v0.schema.json",
+  "title": "Workbench Human Checkpoint V0",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "checkpoint_id",
+    "status",
+    "subject",
+    "canvas_id",
+    "launch_status",
+    "readiness",
+    "initial",
+    "handoff",
+    "annotations",
+    "created_at",
+    "created_by"
+  ],
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "bounds": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "actor": {
+      "type": "object",
+      "required": ["role", "id"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "annotation": {
+      "type": "object",
+      "required": [
+        "id",
+        "ordinal",
+        "kind",
+        "surface_id",
+        "coordinate_space",
+        "note",
+        "actor",
+        "status",
+        "lifecycle",
+        "capture",
+        "created_at",
+        "updated_at"
+      ],
+      "anyOf": [
+        {
+          "required": ["source_url"],
+          "properties": {
+            "source_url": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "required": ["source_path"],
+          "properties": {
+            "source_path": { "type": "string", "minLength": 1 }
+          }
+        }
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 1 },
+        "kind": {
+          "enum": ["point_comment", "region_comment", "element_selection", "selection_comment"]
+        },
+        "surface_id": { "type": "string", "minLength": 1 },
+        "source_url": { "type": ["string", "null"] },
+        "source_path": { "type": ["string", "null"] },
+        "coordinate_space": {
+          "enum": ["viewport", "page", "document", "lcs", "desktop_world", "unknown"]
+        },
+        "point": { "oneOf": [{ "$ref": "#/$defs/point" }, { "type": "null" }] },
+        "bounds": { "oneOf": [{ "$ref": "#/$defs/bounds" }, { "type": "null" }] },
+        "viewport_bounds": { "oneOf": [{ "$ref": "#/$defs/bounds" }, { "type": "null" }] },
+        "page_bounds": { "oneOf": [{ "$ref": "#/$defs/bounds" }, { "type": "null" }] },
+        "selector_candidates": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "text_excerpt": { "type": "string" },
+        "text_range": {},
+        "role": { "type": "string" },
+        "label": { "type": "string" },
+        "ancestor_chain": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "note": { "type": "string" },
+        "actor": { "$ref": "#/$defs/actor" },
+        "status": { "enum": ["draft", "committed", "resolved", "rejected"] },
+        "lifecycle": {
+          "type": "object",
+          "required": ["clearable", "committed_at", "resolved_at", "rejected_at", "recovered_from"],
+          "properties": {
+            "clearable": { "type": "boolean" },
+            "committed_at": { "type": ["string", "null"], "format": "date-time" },
+            "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+            "rejected_at": { "type": ["string", "null"], "format": "date-time" },
+            "recovered_from": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        },
+        "capture": {
+          "type": "object",
+          "required": ["prepare", "restore"],
+          "properties": {
+            "prepare": { "type": "object" },
+            "restore": { "type": "object" }
+          },
+          "additionalProperties": true
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "line_count": { "type": "integer", "minimum": 0 },
+        "word_count": { "type": "integer", "minimum": 0 },
+        "heading_count": { "type": "integer", "minimum": 0 },
+        "headings": { "type": "array" },
+        "mermaid_blocks": { "type": "array" },
+        "unclosed_fence": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "properties": {
+    "type": { "const": "aos.workbench_human_checkpoint" },
+    "schema_version": { "const": "2026-05-09" },
+    "checkpoint_id": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": ["blocked_readiness", "launched", "attached", "resumed", "saved", "draft", "aborted"]
+    },
+    "subject": {
+      "type": "object",
+      "required": ["type", "subject_type", "path", "source", "label"],
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "subject_type": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "source": { "type": "object" },
+        "label": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "canvas_id": { "type": ["string", "null"], "minLength": 1 },
+    "launch_status": { "type": "string", "minLength": 1 },
+    "readiness": {
+      "type": "object",
+      "required": ["status", "command", "exit_code", "diagnostics", "repair_instructions"],
+      "properties": {
+        "status": { "enum": ["ready", "blocked", "skipped_explicit"] },
+        "command": { "type": "string" },
+        "exit_code": { "type": ["integer", "null"] },
+        "diagnostics": { "type": "object" },
+        "repair_instructions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      },
+      "additionalProperties": true
+    },
+    "initial": {
+      "type": "object",
+      "required": ["content_hash", "content", "diagnostics"],
+      "properties": {
+        "content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "content": { "type": "string" },
+        "diagnostics": { "$ref": "#/$defs/diagnostics" }
+      },
+      "additionalProperties": true
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["expected_human_action", "resume_condition", "instructions"],
+      "properties": {
+        "expected_human_action": { "type": "string", "minLength": 1 },
+        "resume_condition": { "type": "string", "minLength": 1 },
+        "instructions": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+    "resume": {
+      "type": ["object", "null"],
+      "properties": {
+        "behavior": { "enum": ["save", "draft", "abort"] },
+        "resumed_at": { "type": "string", "format": "date-time" },
+        "resumed_by": { "type": "string", "minLength": 1 },
+        "current_content_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "current_diagnostics": { "$ref": "#/$defs/diagnostics" },
+        "diff_summary": {
+          "type": "object",
+          "required": ["changed", "line_count_delta", "heading_count_delta", "heading_delta", "diagnostic_delta"],
+          "properties": {
+            "changed": { "type": "boolean" },
+            "line_count_delta": { "type": "integer" },
+            "heading_count_delta": { "type": "integer" },
+            "heading_delta": {
+              "type": "object",
+              "required": ["added", "removed"],
+              "properties": {
+                "added": { "type": "array", "items": { "type": "string" } },
+                "removed": { "type": "array", "items": { "type": "string" } }
+              },
+              "additionalProperties": true
+            },
+            "diagnostic_delta": { "type": "object" },
+            "unified_diff_snippet": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "save_result": { "type": ["object", "null"] },
+        "annotations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/annotation" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "annotations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/annotation" }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string", "minLength": 1 },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

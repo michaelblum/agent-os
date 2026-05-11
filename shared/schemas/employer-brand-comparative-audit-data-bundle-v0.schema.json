@@ -1,0 +1,2571 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-comparative-audit-data-bundle-v0.schema.json",
+  "title": "Employer Brand Comparative Audit Data Bundle v0",
+  "description": "Normalized, read-only data bundle for arbitrary-n-company Employer Brand Comparative Audit fixtures. The bundle is data and provenance only; it does not authorize report rendering, exports, live collection, workflows, or full-page grabs.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "project",
+    "inputs",
+    "source_artifact_targets",
+    "live_evidence_targets",
+    "companies",
+    "comparative_audits",
+    "kilos",
+    "citations",
+    "coverage",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_comparative_audit_data_bundle"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-comparative-audit-data-bundle-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "const": "normalized"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "inputs": {
+      "$ref": "#/$defs/inputs"
+    },
+    "source_artifact_targets": {
+      "$ref": "#/$defs/source_artifact_targets"
+    },
+    "live_evidence_targets": {
+      "$ref": "#/$defs/live_evidence_targets"
+    },
+    "companies": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/company"
+      }
+    },
+    "comparative_audits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/comparative_audit"
+      }
+    },
+    "kilos": {
+      "$ref": "#/$defs/kilos"
+    },
+    "citations": {
+      "$ref": "#/$defs/citations"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      }
+    },
+    "json_object": {
+      "type": "object"
+    },
+    "kilos_dimension": {
+      "enum": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "project_id",
+        "framework",
+        "company_count",
+        "client_company",
+        "competitor_companies"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "project_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "framework": {
+          "const": "KILOS"
+        },
+        "company_count": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "client_company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "competitor_companies": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "project_path",
+        "sources_path",
+        "live_evidence_target_plan_path",
+        "live_evidence_target_review_pack_path",
+        "live_evidence_target_approval_patch_path",
+        "live_evidence_reviewed_target_plan_path",
+        "live_evidence_locator_readiness_path",
+        "live_evidence_supervised_locator_plan_path",
+        "live_evidence_url_open_run_path",
+        "live_evidence_url_reachability_check_path",
+        "live_evidence_locator_resolution_result_path",
+        "live_evidence_human_locator_review_pack_path",
+        "live_evidence_human_locator_approval_patch_path",
+        "live_evidence_reviewed_locator_readiness_path",
+        "live_evidence_reviewed_locator_capture_plan_path",
+        "live_evidence_element_clip_manifest_path",
+        "live_evidence_capture_failure_review_pack_path",
+        "live_evidence_capture_repair_patch_path",
+        "live_evidence_capture_repair_promotion_path",
+        "live_evidence_repaired_locator_capture_plan_path",
+        "live_evidence_repaired_capture_runtime_diagnostics_path",
+        "live_evidence_repaired_capture_visibility_review_pack_path",
+        "live_evidence_repaired_capture_visibility_repair_patch_path",
+        "live_evidence_visibility_adjusted_capture_plan_path",
+        "human_alignment_pack_path",
+        "source_artifact_data_bundle_path",
+        "target_plan_path",
+        "browser_evidence_registry_path",
+        "browser_evidence_coverage_gap_path",
+        "company_audit_paths",
+        "comparative_audit_paths"
+      ],
+      "properties": {
+        "project_path": {
+          "const": "intake/project.json"
+        },
+        "sources_path": {
+          "const": "sources.json"
+        },
+        "live_evidence_target_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-target-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_target_review_pack_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-target-review-pack.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_target_approval_patch_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-target-approval-patch.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_reviewed_target_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-reviewed-target-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_locator_readiness_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-locator-readiness.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_supervised_locator_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-supervised-locator-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_url_open_run_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-url-open-run.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_url_reachability_check_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-url-reachability-check.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_locator_resolution_result_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-locator-resolution-result.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_human_locator_review_pack_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-human-locator-review-pack.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_human_locator_approval_patch_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-human-locator-approval-patch.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_reviewed_locator_readiness_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-locator-readiness.reviewed.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_reviewed_locator_capture_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-reviewed-locator-capture-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_element_clip_manifest_path": {
+          "anyOf": [
+            {
+              "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_capture_failure_review_pack_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-capture-failure-review-pack.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_artifact_data_bundle_path": {
+          "const": "source-artifacts/data-bundle.json"
+        },
+        "target_plan_path": {
+          "const": "source-artifacts/target-plan.json"
+        },
+        "browser_evidence_registry_path": {
+          "const": "browser-evidence/registry.json"
+        },
+        "browser_evidence_coverage_gap_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "company_audit_paths": {
+          "$ref": "#/$defs/string_array"
+        },
+        "comparative_audit_paths": {
+          "$ref": "#/$defs/string_array"
+        },
+        "live_evidence_capture_repair_patch_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-capture-repair-patch.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_capture_repair_promotion_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-capture-repair-promotion.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_repaired_locator_capture_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-repaired-locator-capture-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_repaired_capture_runtime_diagnostics_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-repaired-capture-runtime-diagnostics.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_repaired_capture_visibility_review_pack_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-repaired-capture-visibility-review-pack.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_repaired_capture_visibility_repair_patch_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-repaired-capture-visibility-repair-patch.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "live_evidence_visibility_adjusted_capture_plan_path": {
+          "anyOf": [
+            {
+              "const": "live-evidence-visibility-adjusted-capture-plan.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "human_alignment_pack_path": {
+          "anyOf": [
+            {
+              "const": "human-alignment-pack.md"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "live_evidence_targets": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "target_plan_id",
+            "target_plan_schema",
+            "target_plan_path",
+            "review_pack_id",
+            "review_pack_schema",
+            "review_pack_path",
+            "review_pack_status",
+            "approval_patch_id",
+            "approval_patch_schema",
+            "approval_patch_path",
+            "reviewed_target_plan_id",
+            "reviewed_target_plan_schema",
+            "reviewed_target_plan_path",
+            "reviewed_target_plan_status",
+            "locator_readiness_id",
+            "locator_readiness_schema",
+            "locator_readiness_path",
+            "locator_readiness_status",
+            "supervised_locator_plan_id",
+            "supervised_locator_plan_schema",
+            "supervised_locator_plan_path",
+            "supervised_locator_plan_status",
+            "url_open_run_id",
+            "url_open_run_schema",
+            "url_open_run_path",
+            "url_open_run_status",
+            "url_reachability_check_id",
+            "url_reachability_check_schema",
+            "url_reachability_check_path",
+            "url_reachability_check_status",
+            "locator_resolution_result_id",
+            "locator_resolution_result_schema",
+            "locator_resolution_result_path",
+            "locator_resolution_result_status",
+            "human_locator_review_pack_id",
+            "human_locator_review_pack_schema",
+            "human_locator_review_pack_path",
+            "human_locator_review_pack_status",
+            "human_locator_approval_patch_id",
+            "human_locator_approval_patch_schema",
+            "human_locator_approval_patch_path",
+            "reviewed_locator_readiness_id",
+            "reviewed_locator_readiness_schema",
+            "reviewed_locator_readiness_path",
+            "reviewed_locator_readiness_status",
+            "reviewed_locator_capture_plan_id",
+            "reviewed_locator_capture_plan_schema",
+            "reviewed_locator_capture_plan_path",
+            "reviewed_locator_capture_plan_status",
+            "live_element_clip_manifest_id",
+            "live_element_clip_manifest_schema",
+            "live_element_clip_manifest_path",
+            "live_element_clip_manifest_status",
+            "capture_failure_review_pack_id",
+            "capture_failure_review_pack_schema",
+            "capture_failure_review_pack_path",
+            "capture_failure_review_pack_status",
+            "capture_repair_patch_id",
+            "capture_repair_patch_schema",
+            "capture_repair_patch_path",
+            "capture_repair_patch_status",
+            "capture_repair_promotion_id",
+            "capture_repair_promotion_schema",
+            "capture_repair_promotion_path",
+            "capture_repair_promotion_status",
+            "repaired_locator_capture_plan_id",
+            "repaired_locator_capture_plan_schema",
+            "repaired_locator_capture_plan_path",
+            "repaired_locator_capture_plan_status",
+            "repaired_capture_runtime_diagnostics_id",
+            "repaired_capture_runtime_diagnostics_schema",
+            "repaired_capture_runtime_diagnostics_path",
+            "repaired_capture_runtime_diagnostics_status",
+            "repaired_capture_visibility_review_pack_id",
+            "repaired_capture_visibility_review_pack_schema",
+            "repaired_capture_visibility_review_pack_path",
+            "repaired_capture_visibility_review_pack_status",
+            "repaired_capture_visibility_repair_patch_id",
+            "repaired_capture_visibility_repair_patch_schema",
+            "repaired_capture_visibility_repair_patch_path",
+            "repaired_capture_visibility_repair_patch_status",
+            "status",
+            "target_count",
+            "expected_clip_count",
+            "company_count",
+            "source_category_count",
+            "page_count",
+            "review_pack_group_count",
+            "review_pack_locator_ready_count",
+            "review_pack_human_review_required_count",
+            "review_pack_pending_decision_count",
+            "decision_summary",
+            "reviewed_target_count",
+            "reviewed_expected_clip_count",
+            "reviewed_approved_count",
+            "reviewed_draft_count",
+            "reviewed_rejected_count",
+            "readiness_summary",
+            "supervised_locator_plan_summary",
+            "url_open_run_summary",
+            "url_reachability_check_summary",
+            "locator_resolution_summary",
+            "human_locator_review_pack_summary",
+            "human_locator_approval_patch_summary",
+            "reviewed_locator_readiness_summary",
+            "reviewed_locator_capture_plan_summary",
+            "live_element_clip_manifest_summary",
+            "live_element_clip_manifest_acceptance",
+            "live_element_clip_manifest_required_next_actions",
+            "capture_failure_review_pack_summary",
+            "capture_repair_patch_summary",
+            "capture_repair_promotion_summary",
+            "repaired_locator_capture_plan_summary",
+            "repaired_capture_runtime_diagnostics_summary",
+            "repaired_capture_visibility_review_pack_summary",
+            "repaired_capture_visibility_repair_patch_summary",
+            "visibility_adjusted_capture_plan_id",
+            "visibility_adjusted_capture_plan_schema",
+            "visibility_adjusted_capture_plan_path",
+            "visibility_adjusted_capture_plan_status",
+            "visibility_adjusted_capture_plan_summary",
+            "review_status_counts",
+            "kilos_dimensions",
+            "grouped_by_company",
+            "grouped_by_source_category",
+            "grouped_by_url_source_category",
+            "controls",
+            "locator_placeholders_nullable",
+            "live_evidence_collected",
+            "selectors_resolved",
+            "locator_readiness_planning_metadata_only",
+            "supervised_locator_plan_planning_metadata_only",
+            "url_open_run_executed_read_only_evidence",
+            "url_reachability_check_planning_metadata_only",
+            "locator_resolution_read_only_planning_evidence",
+            "human_locator_review_pack_read_only_planning_evidence",
+            "human_locator_approval_patch_read_only_planning_evidence",
+            "reviewed_locator_readiness_read_only_planning_evidence",
+            "reviewed_locator_capture_plan_read_only_planning_evidence",
+            "reviewed_locator_capture_plan_no_capture_assets_produced",
+            "live_element_clip_manifest_read_only_captured_evidence",
+            "live_element_clip_manifest_no_full_page_grabs",
+            "capture_failure_review_pack_read_only",
+            "capture_failure_review_pack_no_repairs_fabricated",
+            "capture_repair_patch_template_only",
+            "capture_repair_patch_no_unapproved_repairs",
+            "capture_repair_patch_read_only_context_count",
+            "capture_repair_promotion_read_only_planning_evidence",
+            "capture_repair_promotion_no_capture_assets_produced",
+            "repaired_locator_capture_plan_read_only_planning_evidence",
+            "repaired_locator_capture_plan_no_capture_assets_produced",
+            "repaired_capture_runtime_diagnostics_read_only",
+            "repaired_capture_runtime_diagnostics_runtime_failure_count",
+            "repaired_capture_runtime_diagnostics_locator_failure_count",
+            "repaired_capture_runtime_diagnostics_retry_after_runtime_repair_count",
+            "repaired_capture_visibility_review_pack_read_only",
+            "repaired_capture_visibility_review_pack_actionable_failure_count",
+            "repaired_capture_visibility_review_pack_asset_count_zero",
+            "repaired_capture_visibility_repair_patch_template_only",
+            "repaired_capture_visibility_repair_patch_all_fields_null",
+            "repaired_capture_visibility_repair_patch_item_count",
+            "visibility_adjusted_capture_plan_read_only_planning_evidence",
+            "visibility_adjusted_capture_plan_no_capture_assets_produced",
+            "read_only",
+            "planning_metadata_only",
+            "non_goals"
+          ],
+          "properties": {
+            "target_plan_id": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "target_plan_schema": {
+              "const": "shared/schemas/employer-brand-live-evidence-target-plan-v0.schema.json"
+            },
+            "target_plan_path": {
+              "const": "live-evidence-target-plan.json"
+            },
+            "review_pack_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "review_pack_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-target-review-pack-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_pack_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-target-review-pack.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_pack_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "human_review_required",
+                    "approved",
+                    "archived"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "approval_patch_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "approval_patch_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-target-approval-patch-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "approval_patch_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-target-approval-patch.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_target_plan_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_target_plan_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-target-plan-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_target_plan_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-reviewed-target-plan.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_target_plan_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "human_review_required",
+                    "approved",
+                    "archived"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_readiness_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "locator_readiness_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-locator-readiness-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_readiness_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-locator-readiness.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_readiness_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "needs_locator",
+                    "needs_human_target_review",
+                    "locator_ready",
+                    "not_checked"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supervised_locator_plan_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "supervised_locator_plan_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-supervised-locator-plan-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supervised_locator_plan_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-supervised-locator-plan.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supervised_locator_plan_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "operator_plan_ready",
+                    "operator_plan_ready_with_blocked_entries"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_open_run_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "url_open_run_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-url-open-run-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_open_run_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-url-open-run.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_open_run_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "not_run_fixture",
+                    "completed",
+                    "completed_with_blockers"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_reachability_check_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "url_reachability_check_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-url-reachability-check-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_reachability_check_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-url-reachability-check.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "url_reachability_check_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "dry_run_not_checked",
+                    "checked",
+                    "checked_with_blockers"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_resolution_result_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "locator_resolution_result_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-locator-resolution-result-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_resolution_result_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-locator-resolution-result.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator_resolution_result_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "not_run_fixture",
+                    "completed",
+                    "completed_with_blockers"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "human_locator_review_pack_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "human_locator_review_pack_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-human-locator-review-pack-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "human_locator_review_pack_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-human-locator-review-pack.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "human_locator_review_pack_status": {
+              "anyOf": [
+                {
+                  "const": "human_locator_review_required"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "human_locator_approval_patch_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "human_locator_approval_patch_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-human-locator-approval-patch-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "human_locator_approval_patch_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-human-locator-approval-patch.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_readiness_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_locator_readiness_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-locator-readiness-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_readiness_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-locator-readiness.reviewed.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_readiness_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "needs_locator",
+                    "needs_human_target_review",
+                    "locator_ready",
+                    "not_checked"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_capture_plan_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reviewed_locator_capture_plan_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-reviewed-locator-capture-plan-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_capture_plan_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-reviewed-locator-capture-plan.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reviewed_locator_capture_plan_status": {
+              "anyOf": [
+                {
+                  "const": "pre_capture_plan_ready_with_non_executable_context"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "live_element_clip_manifest_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "live_element_clip_manifest_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-element-clip-manifest-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "live_element_clip_manifest_path": {
+              "anyOf": [
+                {
+                  "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "live_element_clip_manifest_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "captured",
+                    "captured_with_blocked_context",
+                    "not_accepted"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_failure_review_pack_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "capture_failure_review_pack_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-capture-failure-review-pack-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_failure_review_pack_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-capture-failure-review-pack.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_failure_review_pack_status": {
+              "anyOf": [
+                {
+                  "const": "repair_queue_ready"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "status": {
+              "enum": [
+                "draft",
+                "human_review_required",
+                "approved",
+                "archived"
+              ]
+            },
+            "target_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "expected_clip_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "company_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "source_category_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "page_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "review_pack_group_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "review_pack_locator_ready_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "review_pack_human_review_required_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "review_pack_pending_decision_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "decision_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "reviewed_target_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reviewed_expected_clip_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reviewed_approved_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reviewed_draft_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reviewed_rejected_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "readiness_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "supervised_locator_plan_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "url_open_run_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "url_reachability_check_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "locator_resolution_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "human_locator_review_pack_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "human_locator_approval_patch_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "reviewed_locator_readiness_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "reviewed_locator_capture_plan_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "live_element_clip_manifest_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "live_element_clip_manifest_acceptance": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "live_element_clip_manifest_required_next_actions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "uniqueItems": true
+            },
+            "capture_failure_review_pack_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "review_status_counts": {
+              "$ref": "#/$defs/json_object"
+            },
+            "kilos_dimensions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "dimension",
+                  "target_count"
+                ],
+                "properties": {
+                  "dimension": {
+                    "$ref": "#/$defs/kilos_dimension"
+                  },
+                  "target_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "grouped_by_company": {
+              "$ref": "#/$defs/json_object"
+            },
+            "grouped_by_source_category": {
+              "$ref": "#/$defs/json_object"
+            },
+            "grouped_by_url_source_category": {
+              "$ref": "#/$defs/json_object"
+            },
+            "controls": {
+              "type": "object",
+              "required": [
+                "full_page_grabs",
+                "autonomous_browsing_authorized",
+                "live_collection_authorized",
+                "report_renderer_authorized",
+                "export_execution_authorized",
+                "workflow_engine_authorized"
+              ],
+              "properties": {
+                "full_page_grabs": {
+                  "const": false
+                },
+                "autonomous_browsing_authorized": {
+                  "const": false
+                },
+                "live_collection_authorized": {
+                  "const": false
+                },
+                "report_renderer_authorized": {
+                  "const": false
+                },
+                "export_execution_authorized": {
+                  "const": false
+                },
+                "workflow_engine_authorized": {
+                  "const": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "locator_placeholders_nullable": {
+              "const": true
+            },
+            "live_evidence_collected": {
+              "const": false
+            },
+            "selectors_resolved": {
+              "const": false
+            },
+            "locator_readiness_planning_metadata_only": {
+              "type": "boolean"
+            },
+            "supervised_locator_plan_planning_metadata_only": {
+              "type": "boolean"
+            },
+            "url_open_run_executed_read_only_evidence": {
+              "type": "boolean"
+            },
+            "url_reachability_check_planning_metadata_only": {
+              "type": "boolean"
+            },
+            "locator_resolution_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "human_locator_review_pack_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "human_locator_approval_patch_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "reviewed_locator_readiness_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "reviewed_locator_capture_plan_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "reviewed_locator_capture_plan_no_capture_assets_produced": {
+              "type": "boolean"
+            },
+            "live_element_clip_manifest_read_only_captured_evidence": {
+              "type": "boolean"
+            },
+            "live_element_clip_manifest_no_full_page_grabs": {
+              "type": "boolean"
+            },
+            "capture_failure_review_pack_read_only": {
+              "type": "boolean"
+            },
+            "capture_failure_review_pack_no_repairs_fabricated": {
+              "type": "boolean"
+            },
+            "read_only": {
+              "const": true
+            },
+            "planning_metadata_only": {
+              "const": true
+            },
+            "non_goals": {
+              "$ref": "#/$defs/string_array"
+            },
+            "capture_repair_patch_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "capture_repair_patch_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-capture-repair-patch-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_patch_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-capture-repair-patch.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_patch_status": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "unfilled_template",
+                    "repair_reviewed"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_patch_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "capture_repair_patch_template_only": {
+              "type": "boolean"
+            },
+            "capture_repair_patch_no_repairs_fabricated": {
+              "type": "boolean"
+            },
+            "capture_repair_patch_read_only_context_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "capture_repair_patch_no_unapproved_repairs": {
+              "type": "boolean"
+            },
+            "capture_repair_promotion_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "capture_repair_promotion_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-capture-repair-promotion-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_promotion_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-capture-repair-promotion.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_promotion_status": {
+              "anyOf": [
+                {
+                  "const": "repair_promoted_to_next_capture_attempt_plan"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "capture_repair_promotion_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "capture_repair_promotion_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "capture_repair_promotion_no_capture_assets_produced": {
+              "type": "boolean"
+            },
+            "repaired_locator_capture_plan_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_locator_capture_plan_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-repaired-locator-capture-plan-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_locator_capture_plan_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-repaired-locator-capture-plan.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_locator_capture_plan_status": {
+              "anyOf": [
+                {
+                  "const": "pre_capture_plan_ready_with_source_unavailable_context"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_locator_capture_plan_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "repaired_locator_capture_plan_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "repaired_locator_capture_plan_no_capture_assets_produced": {
+              "type": "boolean"
+            },
+            "repaired_capture_runtime_diagnostics_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_capture_runtime_diagnostics_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-repaired-capture-runtime-diagnostics-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_runtime_diagnostics_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-repaired-capture-runtime-diagnostics.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_runtime_diagnostics_status": {
+              "anyOf": [
+                {
+                  "const": "runtime_repair_required"
+                },
+                {
+                  "const": "non_runtime_capture_blockers_detected"
+                },
+                {
+                  "const": "no_runtime_failure_detected"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_runtime_diagnostics_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "repaired_capture_runtime_diagnostics_read_only": {
+              "type": "boolean"
+            },
+            "repaired_capture_runtime_diagnostics_runtime_failure_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "repaired_capture_runtime_diagnostics_locator_failure_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "repaired_capture_runtime_diagnostics_retry_after_runtime_repair_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "repaired_capture_visibility_review_pack_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_review_pack_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-repaired-capture-visibility-review-pack-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_visibility_review_pack_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-repaired-capture-visibility-review-pack.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_visibility_review_pack_status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-repaired-capture-visibility-repair-patch-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-repaired-capture-visibility-repair-patch.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "visibility_adjusted_capture_plan_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "visibility_adjusted_capture_plan_schema": {
+              "anyOf": [
+                {
+                  "const": "shared/schemas/employer-brand-live-evidence-visibility-adjusted-capture-plan-v0.schema.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "visibility_adjusted_capture_plan_path": {
+              "anyOf": [
+                {
+                  "const": "live-evidence-visibility-adjusted-capture-plan.json"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "visibility_adjusted_capture_plan_status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_review_pack_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "visibility_adjusted_capture_plan_summary": {
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_review_pack_read_only": {
+              "type": "boolean"
+            },
+            "repaired_capture_visibility_review_pack_actionable_failure_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "repaired_capture_visibility_review_pack_asset_count_zero": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "repaired_capture_visibility_repair_patch_template_only": {
+              "type": "boolean"
+            },
+            "repaired_capture_visibility_repair_patch_all_fields_null": {
+              "type": "boolean"
+            },
+            "repaired_capture_visibility_repair_patch_item_count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "visibility_adjusted_capture_plan_read_only_planning_evidence": {
+              "type": "boolean"
+            },
+            "visibility_adjusted_capture_plan_no_capture_assets_produced": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_artifact_targets": {
+      "type": "object",
+      "required": [
+        "data_bundle_id",
+        "data_bundle_schema",
+        "data_bundle_path",
+        "target_plan_id",
+        "target_plan_schema",
+        "target_plan_path",
+        "source_artifacts",
+        "target_count",
+        "expected_clip_count",
+        "target_ids",
+        "capture_unit",
+        "full_page_grabs",
+        "selectors_ready",
+        "xpath_ready",
+        "playwright_ready",
+        "codegen_ready",
+        "element_capture_planning",
+        "non_goals",
+        "read_only",
+        "provenance_only"
+      ],
+      "properties": {
+        "data_bundle_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "data_bundle_schema": {
+          "const": "shared/schemas/employer-brand-source-artifact-data-bundle-v0.schema.json"
+        },
+        "data_bundle_path": {
+          "const": "source-artifacts/data-bundle.json"
+        },
+        "target_plan_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_plan_schema": {
+          "const": "shared/schemas/employer-brand-source-artifact-target-plan-v0.schema.json"
+        },
+        "target_plan_path": {
+          "const": "source-artifacts/target-plan.json"
+        },
+        "source_artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/json_object"
+          }
+        },
+        "target_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_ids": {
+          "$ref": "#/$defs/string_array"
+        },
+        "capture_unit": {
+          "const": "page_element"
+        },
+        "full_page_grabs": {
+          "const": false
+        },
+        "selectors_ready": {
+          "const": false
+        },
+        "xpath_ready": {
+          "const": false
+        },
+        "playwright_ready": {
+          "const": false
+        },
+        "codegen_ready": {
+          "const": false
+        },
+        "element_capture_planning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/element_capture_planning"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "element_capture_planning": {
+      "type": "object",
+      "required": [
+        "planning_bundle_id",
+        "planning_bundle_schema",
+        "planning_bundle_path",
+        "clip_manifest_schema",
+        "clip_manifest_path",
+        "planned_clip_manifest_path",
+        "status",
+        "work_unit_count",
+        "locator_ready_count",
+        "blocked_count",
+        "expected_clip_count",
+        "clip_manifest_status",
+        "actual_clip_count",
+        "planned_slot_count",
+        "acceptance_report_schema",
+        "acceptance_report_path",
+        "acceptance_report_status",
+        "acceptance_captured_count",
+        "acceptance_blocked_count",
+        "acceptance_failed_count",
+        "acceptance_not_run_count",
+        "local_spv5_html_only",
+        "full_page_grabs_authorized",
+        "read_only",
+        "provenance_only",
+        "planned_only"
+      ],
+      "properties": {
+        "planning_bundle_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "planning_bundle_schema": {
+          "const": "shared/schemas/employer-brand-element-capture-planning-bundle-v0.schema.json"
+        },
+        "planning_bundle_path": {
+          "const": "source-artifacts/element-capture-planning-bundle.json"
+        },
+        "clip_manifest_schema": {
+          "const": "shared/schemas/employer-brand-element-clip-manifest-v0.schema.json"
+        },
+        "clip_manifest_path": {
+          "const": "source-artifacts/element-clip-manifest.json"
+        },
+        "planned_clip_manifest_path": {
+          "const": "source-artifacts/element-clip-manifest.planned.json"
+        },
+        "status": {
+          "enum": [
+            "planned_ready",
+            "planned_with_blockers"
+          ]
+        },
+        "work_unit_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "locator_ready_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clip_manifest_status": {
+          "enum": [
+            "planned_only_empty",
+            "captured",
+            "captured_with_blockers"
+          ]
+        },
+        "actual_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "planned_slot_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "acceptance_report_schema": {
+          "const": "shared/schemas/employer-brand-element-clip-acceptance-report-v0.schema.json"
+        },
+        "acceptance_report_path": {
+          "const": "source-artifacts/element-clip-acceptance-report.json"
+        },
+        "acceptance_report_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "accepted_with_blockers",
+                "not_accepted"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptance_captured_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptance_blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptance_failed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptance_not_run_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "local_spv5_html_only": {
+          "type": "boolean"
+        },
+        "full_page_grabs_authorized": {
+          "const": false
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        },
+        "planned_only": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "company": {
+      "type": "object",
+      "required": [
+        "name",
+        "role",
+        "website_url",
+        "audit_id",
+        "path",
+        "source_id",
+        "registry_request_ids",
+        "screenshot_paths",
+        "kilos_dimensions",
+        "coverage_summary",
+        "citations",
+        "caveats",
+        "non_goals",
+        "read_only",
+        "provenance_only"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "role": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "website_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "audit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "registry_request_ids": {
+          "$ref": "#/$defs/string_array"
+        },
+        "screenshot_paths": {
+          "$ref": "#/$defs/string_array"
+        },
+        "kilos_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "dimension",
+              "factors",
+              "interpretation",
+              "request_ids"
+            ],
+            "properties": {
+              "dimension": {
+                "$ref": "#/$defs/kilos_dimension"
+              },
+              "factors": {
+                "$ref": "#/$defs/string_array"
+              },
+              "interpretation": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "request_ids": {
+                "$ref": "#/$defs/string_array"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "coverage_summary": {
+          "$ref": "#/$defs/json_object"
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/citation"
+          }
+        },
+        "caveats": {
+          "$ref": "#/$defs/string_array"
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "comparative_audit": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "company_audit_ids",
+        "company_audit_paths",
+        "companies",
+        "kilos_dimensions",
+        "citation_integrity",
+        "citations",
+        "caveats",
+        "non_goals",
+        "read_only",
+        "provenance_only"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_audit_ids": {
+          "$ref": "#/$defs/string_array"
+        },
+        "company_audit_paths": {
+          "$ref": "#/$defs/string_array"
+        },
+        "companies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/json_object"
+          }
+        },
+        "kilos_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "dimension",
+              "company_audit_ids",
+              "request_ids",
+              "synthesis"
+            ],
+            "properties": {
+              "dimension": {
+                "$ref": "#/$defs/kilos_dimension"
+              },
+              "company_audit_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "request_ids": {
+                "$ref": "#/$defs/string_array"
+              },
+              "synthesis": {
+                "$ref": "#/$defs/non_empty_string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "citation_integrity": {
+          "type": "object",
+          "required": [
+            "request_ids",
+            "registry_request_ids_present",
+            "company_audit_ids_present"
+          ],
+          "properties": {
+            "request_ids": {
+              "$ref": "#/$defs/string_array"
+            },
+            "registry_request_ids_present": {
+              "const": true
+            },
+            "company_audit_ids_present": {
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/citation"
+          }
+        },
+        "caveats": {
+          "$ref": "#/$defs/string_array"
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "kilos": {
+      "type": "object",
+      "required": [
+        "framework",
+        "dimensions"
+      ],
+      "properties": {
+        "framework": {
+          "const": "KILOS"
+        },
+        "dimensions": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": [
+              "dimension",
+              "companies",
+              "comparative_present"
+            ],
+            "properties": {
+              "dimension": {
+                "$ref": "#/$defs/kilos_dimension"
+              },
+              "companies": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "company",
+                    "role",
+                    "present",
+                    "factors",
+                    "request_ids"
+                  ],
+                  "properties": {
+                    "company": {
+                      "$ref": "#/$defs/non_empty_string"
+                    },
+                    "role": {
+                      "$ref": "#/$defs/non_empty_string"
+                    },
+                    "present": {
+                      "type": "boolean"
+                    },
+                    "factors": {
+                      "$ref": "#/$defs/string_array"
+                    },
+                    "request_ids": {
+                      "$ref": "#/$defs/string_array"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "comparative_present": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "citations": {
+      "type": "object",
+      "required": [
+        "registry_request_ids",
+        "registry_request_count",
+        "missing_registry_request_ids",
+        "screenshot_paths",
+        "rows"
+      ],
+      "properties": {
+        "registry_request_ids": {
+          "$ref": "#/$defs/string_array"
+        },
+        "registry_request_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "missing_registry_request_ids": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "screenshot_paths": {
+          "$ref": "#/$defs/string_array"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/citation"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "citation": {
+      "type": "object",
+      "required": [
+        "request_id",
+        "registry_status",
+        "company",
+        "source_category",
+        "source_url",
+        "screenshot_path",
+        "captured_at"
+      ],
+      "properties": {
+        "request_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "registry_status": {
+          "const": "captured"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "screenshot_path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "captured_at": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "browser_evidence",
+        "planning",
+        "by_company"
+      ],
+      "properties": {
+        "browser_evidence": {
+          "type": "object",
+          "required": [
+            "registry_status",
+            "request_count",
+            "captured_count",
+            "failed_count",
+            "local_fixture_pages_only",
+            "autonomous_browsing",
+            "provenance_only"
+          ],
+          "properties": {
+            "registry_status": {
+              "const": "completed"
+            },
+            "request_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "captured_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "failed_count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "local_fixture_pages_only": {
+              "const": true
+            },
+            "autonomous_browsing": {
+              "const": false
+            },
+            "provenance_only": {
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "planning": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "by_company": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/json_object"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "report_renderer_authorized",
+        "report_artifact_authorized",
+        "export_execution_authorized",
+        "remote_web_collection_authorized",
+        "workflow_engine_authorized",
+        "full_page_grabs_authorized"
+      ],
+      "properties": {
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "report_artifact_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "remote_web_collection_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        },
+        "full_page_grabs_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "read_only",
+        "provenance_only",
+        "local_fixture_evidence_only",
+        "human_alignment_pack",
+        "arbitrary_n_companies",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        },
+        "local_fixture_evidence_only": {
+          "const": true
+        },
+        "human_alignment_pack": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": [
+                "path",
+                "status",
+                "read_only",
+                "provenance_only",
+                "no_capture_authorization"
+              ],
+              "properties": {
+                "path": {
+                  "const": "human-alignment-pack.md"
+                },
+                "status": {
+                  "const": "human_alignment_required"
+                },
+                "read_only": {
+                  "const": true
+                },
+                "provenance_only": {
+                  "const": true
+                },
+                "no_capture_authorization": {
+                  "const": true
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "arbitrary_n_companies": {
+          "const": true
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

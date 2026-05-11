@@ -1,0 +1,14 @@
+{
+  "name": "gdi",
+  "role": "gdi",
+  "harness": "codex",
+  "hook_timeout_seconds": 3,
+  "stop_notice": "GDI finished.",
+  "handoff": {
+    "requires_goal_prefix": true
+  },
+  "voice": {
+    "gender": "female",
+    "voice_slot": 2
+  }
+}

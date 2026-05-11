@@ -1,0 +1,532 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import {
+  createAnnotationDraftFromNode,
+  createSurfaceZoomInspectorState,
+  draftsGroupedBySelectedSurface,
+  inspectSelectedSurfacePoint,
+  markdownPreviewViewModel,
+  nodeDetailsViewModel,
+  selectSurface,
+  selectSurfaceNode,
+  selectedLineRange,
+  setMapDisplayMode,
+  setMarkdownPreviewState,
+  surfaceChildNodes,
+  surfaceMiniMapViewModel,
+  surfaceZoomInspectorSnapshot,
+  surfaceZoomOuterTree,
+  targetNavigatorViewModel,
+} from '../../packages/toolkit/components/surface-zoom-inspector/model.js'
+import { renderMarkdown } from '../../packages/toolkit/markdown/render.js'
+import { buildAnnotationPerceptionVerificationCase } from '../../packages/toolkit/workbench/annotation-perception-verification.js'
+import { resolveMarkdownSourceUrl } from '../../packages/toolkit/components/surface-zoom-inspector/source-resolution.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '../..')
+const fixturePath = path.join(repoRoot, 'docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json')
+const denseFixturePath = path.join(repoRoot, 'docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json')
+const annotationSchemaPath = path.join(repoRoot, 'shared/schemas/annotation.schema.json')
+const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'))
+const denseFixture = JSON.parse(readFileSync(denseFixturePath, 'utf8'))
+const markdownSourcePath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md'
+
+function assertSchemaValidAnnotation(draft) {
+  const result = spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = {"schema": "annotations", "version": "0.2.0", "annotations": [json.loads(sys.stdin.read())]}
+Draft202012Validator.check_schema(schema)
+errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda e: list(e.path))
+if errors:
+    for error in errors[:8]:
+        print(error.message)
+    sys.exit(1)
+`,
+      annotationSchemaPath,
+    ],
+    { input: JSON.stringify(draft), encoding: 'utf8' },
+  )
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+}
+
+test('Markdown source URL resolution reuses AOS tree content roots for repo-relative paths', () => {
+  assert.equal(
+    resolveMarkdownSourceUrl(markdownSourcePath, {
+      treeUrl: 'aos://repo_codex_docks_session_roots/docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json',
+      importMetaUrl: import.meta.url,
+    }),
+    'aos://repo_codex_docks_session_roots/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md',
+  )
+
+  assert.equal(
+    resolveMarkdownSourceUrl(markdownSourcePath, {
+      treeUrl: 'aos://branch_scoped_root/docs/design/fixtures/spatial-subject-tree-v0/example.json',
+      importMetaUrl: import.meta.url,
+    }),
+    'aos://branch_scoped_root/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md',
+  )
+})
+
+test('Markdown source URL resolution preserves absolute and protocol URLs', () => {
+  assert.equal(
+    resolveMarkdownSourceUrl('https://example.test/source.md', {
+      treeUrl: 'aos://repo_codex_docks_session_roots/tree.json',
+      importMetaUrl: import.meta.url,
+    }),
+    'https://example.test/source.md',
+  )
+  assert.equal(
+    resolveMarkdownSourceUrl('aos://repo_other/source.md', {
+      treeUrl: 'aos://repo_codex_docks_session_roots/tree.json',
+      importMetaUrl: import.meta.url,
+    }),
+    'aos://repo_other/source.md',
+  )
+  assert.equal(
+    resolveMarkdownSourceUrl('/absolute/source.md', {
+      treeUrl: 'aos://repo_codex_docks_session_roots/tree.json',
+      importMetaUrl: import.meta.url,
+    }),
+    '/absolute/source.md',
+  )
+})
+
+test('Markdown source URL resolution keeps non-AOS contexts import-relative', () => {
+  assert.equal(
+    resolveMarkdownSourceUrl(markdownSourcePath, {
+      treeUrl: 'http://localhost:4173/docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json',
+      importMetaUrl: 'file:///repo/packages/toolkit/components/surface-zoom-inspector/source-resolution.js',
+    }),
+    'file:///repo/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md',
+  )
+})
+
+test('normalizes fixture tree and exposes the outer DesktopWorld to surface rows', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+  const outer = surfaceZoomOuterTree(state)
+
+  assert.deepEqual(outer.map((node) => node.kind), [
+    'desktop_world',
+    'display',
+    'window',
+    'canvas',
+    'surface',
+  ])
+  assert.equal(outer.at(-1).id, 'surface:comparative-audit')
+  assert.equal(outer.at(-1).selectable, true)
+  assert.equal(state.selectedSurfaceId, 'surface:comparative-audit')
+})
+
+test('selects a surface and derives visible child nodes for the mini-map', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture, selectedSurfaceId: null })
+
+  assert.equal(selectSurface(state, 'surface:comparative-audit'), true)
+  assert.deepEqual(surfaceChildNodes(state).map((node) => node.id), [
+    'target:primary-cta',
+    'target:evidence-card',
+    'annotation:ann-cta-copy',
+  ])
+
+  const miniMap = surfaceMiniMapViewModel(state)
+  assert.equal(miniMap.surface.id, 'surface:comparative-audit')
+  assert.deepEqual(miniMap.viewport, { width: 852, height: 540 })
+  assert.deepEqual(miniMap.nodes.find((node) => node.id === 'target:primary-cta').bounds, {
+    x: 48,
+    y: 80,
+    width: 160,
+    height: 36,
+  })
+  assert.equal(miniMap.nodes.find((node) => node.id === 'target:primary-cta').coordinate_space, 'viewport')
+})
+
+test('converts selected semantic nodes to structured annotation intent drafts', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+
+  assert.equal(selectSurfaceNode(state, 'target:primary-cta'), true)
+  const draft = createAnnotationDraftFromNode(state, null, { now: '2026-05-09T12:34:56.000Z' })
+
+  assert.equal(draft.kind, 'element_selection')
+  assert.equal(draft.surface_id, 'comparative-audit')
+  assert.equal(draft.source_path, 'Employer_Brand_Audit/report.md')
+  assert.equal(draft.coordinate_space, 'viewport')
+  assert.deepEqual(draft.viewport_bounds, { x: 48, y: 80, width: 160, height: 36 })
+  assert.deepEqual(draft.actor, { role: 'operator', id: 'surface-zoom-inspector' })
+  assert.equal(draft.status, 'draft')
+  assert.equal(draft.note, 'Review Primary CTA')
+  assert.equal(draft.role, 'semantic_target')
+  assert.ok(draft.ancestor_chain.includes('Comparative Audit Surface'))
+  assert.equal(draftsGroupedBySelectedSurface(state).drafts.length, 1)
+  assertSchemaValidAnnotation(draft)
+})
+
+test('preserves adapter boundaries and unsupported child discovery state in details', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+
+  assert.equal(selectSurfaceNode(state, 'annotation:ann-cta-copy'), true)
+  const details = nodeDetailsViewModel(state)
+
+  assert.equal(details.adapter.type, 'generic')
+  assert.equal(details.adapter.child_discovery, 'unsupported')
+  assert.equal(details.capabilities.project_annotation, true)
+  assert.equal(details.source_ids.surface_id, 'comparative-audit')
+})
+
+test('snapshot serializes the mini-map view model and local drafts without live adapters', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+  selectSurfaceNode(state, 'target:evidence-card')
+  createAnnotationDraftFromNode(state, 'target:evidence-card', { now: '2026-05-09T12:35:00.000Z' })
+  state.overlayVisible = false
+
+  const snapshot = surfaceZoomInspectorSnapshot(state)
+  assert.equal(snapshot.schema_version, '2026-05-09-surface-zoom-proof-v0')
+  assert.equal(snapshot.selected_surface, 'surface:comparative-audit')
+  assert.equal(snapshot.selected_surface_label, 'Comparative Audit Surface')
+  assert.equal(snapshot.selected_node, 'target:evidence-card')
+  assert.equal(snapshot.selected_node_label, 'Evidence Card')
+  assert.equal(snapshot.label_density, 'selected_only')
+  assert.equal(snapshot.inspect_status, 'not_inspected')
+  assert.equal(snapshot.active_secondary_view, 'targets')
+  assert.deepEqual(snapshot.selected_target_summary, {
+    id: 'target:evidence-card',
+    label: 'Evidence Card',
+    kind: 'semantic_target',
+    role: 'semantic_target',
+    source_summary: 'evidence-card',
+    bounds_summary: '48, 148, 360 x 180',
+    last_hit_test_status: 'not_inspected',
+  })
+  assert.deepEqual(snapshot.map_view, { mode: 'fit', zoom: 1 })
+  assert.equal(snapshot.layout.responsive, true)
+  assert.equal(snapshot.layout.document_horizontal_overflow_guard, true)
+  assert.equal(snapshot.layout.primary_map_frame_internal_scroll, false)
+  assert.equal(snapshot.layout.raw_json_collapsible, true)
+  assert.equal(snapshot.layout.active_secondary_view, 'targets')
+  assert.deepEqual(snapshot.layout.normal_default_scroll_regions, ['inspector-or-secondary-active-view'])
+  assert.equal(snapshot.mini_map.overlay_visible, false)
+  assert.equal(snapshot.mini_map.label_density, 'selected_only')
+  assert.deepEqual(snapshot.mini_map.map_view, { mode: 'fit', zoom: 1 })
+  assert.equal(snapshot.mini_map.nodes.find((node) => node.id === 'target:evidence-card').overlay_visible, false)
+  assert.equal(snapshot.target_navigator.primary[0].id, 'target:evidence-card')
+  assert.equal(snapshot.draft_group.drafts[0].metadata.adapter.type, 'aos_canvas')
+})
+
+test('dense Markdown mini-map defaults to selected-only labels to avoid all-label overlap', () => {
+  const state = createSurfaceZoomInspectorState({ tree: denseFixture })
+  const miniMap = surfaceMiniMapViewModel(state)
+  const visibleLabels = miniMap.nodes.filter((node) => node.label_visible)
+
+  assert.equal(state.labelDensity, 'selected_only')
+  assert.equal(miniMap.label_density, 'selected_only')
+  assert.equal(visibleLabels.length, 0)
+  assert.equal(miniMap.nodes.find((node) => node.id === 'target:line-041-company-and-competitor-set').decision_target, true)
+  assert.equal(miniMap.nodes.find((node) => node.id === 'text:line-041-companies-and-competitor-set').decision_target, false)
+
+  state.selectedNodeId = 'target:line-041-company-and-competitor-set'
+  const selectedMiniMap = surfaceMiniMapViewModel(state)
+  assert.deepEqual(
+    selectedMiniMap.nodes.filter((node) => node.label_visible).map((node) => node.id),
+    ['target:line-041-company-and-competitor-set'],
+  )
+})
+
+test('dense Markdown target navigator prioritizes decision targets before generated nodes', () => {
+  const state = createSurfaceZoomInspectorState({ tree: denseFixture })
+  const navigator = targetNavigatorViewModel(state)
+
+  assert.ok(navigator.primary.length >= 8)
+  assert.equal(navigator.primary[0].id, 'target:line-005-current-assumptions-0-accepted-live-captures')
+  assert.equal(navigator.primary.every((node) => node.kind === 'semantic_target'), true)
+  assert.equal(navigator.primary.every((node) => node.role === 'decision_target'), true)
+  assert.equal(navigator.primary.some((node) => node.id === 'target:line-041-company-and-competitor-set'), true)
+  assert.ok(navigator.low_level_count > 0)
+  assert.equal(navigator.all_nodes.at(-1).kind, 'text_range')
+})
+
+test('Markdown-backed surfaces expose preview metadata, display modes, and selected line range in snapshot', () => {
+  const state = createSurfaceZoomInspectorState({ tree: denseFixture })
+
+  let snapshot = surfaceZoomInspectorSnapshot(state)
+  assert.equal(snapshot.markdown_preview.markdown_backed, true)
+  assert.equal(snapshot.markdown_preview.available, false)
+  assert.equal(snapshot.markdown_preview.source.file_path, 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md')
+  assert.equal(snapshot.map_display_mode, 'overlay')
+
+  setMarkdownPreviewState(state, { available: true, status: 'ready', html: '<h1 data-source-line="1">Ready</h1>' })
+  snapshot = surfaceZoomInspectorSnapshot(state)
+  assert.equal(snapshot.markdown_preview.available, true)
+  assert.equal(snapshot.map_display_mode, 'both')
+  assert.deepEqual(snapshot.markdown_preview.fit, {
+    mode: 'component_compact_workbench',
+    viewport: 'map_frame',
+    typography: 'compact_markdown_preview',
+    horizontal_overflow_guard: true,
+    internal_scroll: true,
+    max_width: '100%',
+    source: 'surface_zoom_inspector',
+  })
+
+  assert.equal(selectSurfaceNode(state, 'target:line-041-company-and-competitor-set'), true)
+  snapshot = surfaceZoomInspectorSnapshot(state)
+  assert.deepEqual(selectedLineRange(state), { start_line: 41, end_line: 49 })
+  assert.deepEqual(snapshot.selected_line_range, { start_line: 41, end_line: 49 })
+  assert.equal(snapshot.markdown_preview.highlighted_line_count, 9)
+  assert.deepEqual(snapshot.highlighted_source_lines, [41, 42, 43, 44, 45, 46, 47, 48, 49])
+  assert.equal(snapshot.markdown_preview.focus.status, 'pending_dom_focus')
+  assert.equal(snapshot.markdown_preview.focus.strategy, 'scroll_first_highlighted_line')
+  assert.equal(snapshot.markdown_preview.focus.target_node_id, 'target:line-041-company-and-competitor-set')
+  assert.equal(snapshot.markdown_preview.focus.target_line, 41)
+  assert.match(snapshot.markdown_preview.focus.expected_visible_text, /Companies And Competitor Set/)
+})
+
+test('Markdown preview renderer exposes source line anchors used by selected range highlights', () => {
+  const source = readFileSync(path.join(repoRoot, 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md'), 'utf8')
+  const html = renderMarkdown(source)
+
+  assert.match(html, /data-source-line="41"/)
+  assert.match(html, /Companies And Competitor Set/)
+
+  const highlighted = html.replaceAll(/data-source-line="(4[1-9])"/g, 'data-source-line="$1" class="surface-zoom-source-line-highlight" data-surface-zoom-highlight="selected-line-range"')
+  assert.match(highlighted, /class="surface-zoom-source-line-highlight"/)
+  assert.match(highlighted, /data-surface-zoom-highlight="selected-line-range"/)
+})
+
+test('Target selection and inspectPoint update the Markdown selected line range while preserving hit-test bounds', () => {
+  const state = createSurfaceZoomInspectorState({ tree: denseFixture })
+  setMarkdownPreviewState(state, { available: true, status: 'ready', html: '<h2 data-source-line="41">Companies</h2>' })
+
+  assert.equal(selectSurfaceNode(state, 'target:line-041-company-and-competitor-set'), true)
+  assert.deepEqual(markdownPreviewViewModel(state).selected_line_range, { start_line: 41, end_line: 49 })
+
+  const targetNode = denseFixture.nodes.find((node) => node.id === 'target:line-041-company-and-competitor-set')
+  const originalBounds = targetNode.bounds.parent_local
+  let miniMap = surfaceMiniMapViewModel(state)
+  const targetModel = miniMap.nodes.find((node) => node.id === 'target:line-041-company-and-competitor-set')
+  assert.deepEqual(targetModel.bounds, originalBounds)
+  assert.notDeepEqual(targetModel.overlay_presentation.percent_bounds, targetModel.percent_bounds)
+  assert.equal(targetModel.overlay_presentation.presentation_only, true)
+  assert.equal(targetModel.overlay_presentation.role_style, 'decision_target')
+
+  const result = inspectSelectedSurfacePoint(state, { x: 64, y: 850, coordinate_space: 'viewport' }, { now: '2026-05-09T13:00:00.000Z' })
+  assert.equal(result.selected_candidate.id, 'target:line-041-company-and-competitor-set')
+  assert.equal(state.selectedNodeId, 'target:line-041-company-and-competitor-set')
+  assert.deepEqual(markdownPreviewViewModel(state).selected_line_range, { start_line: 41, end_line: 49 })
+  assert.deepEqual(markdownPreviewViewModel(state).highlighted_source_lines, [41, 42, 43, 44, 45, 46, 47, 48, 49])
+  assert.equal(markdownPreviewViewModel(state).focus.target_line, 41)
+  assert.match(markdownPreviewViewModel(state).focus.expected_visible_text, /Companies And Competitor Set/)
+  assert.deepEqual(result.verification_seed.target.perceived_bounds, originalBounds)
+
+  miniMap = surfaceMiniMapViewModel(state)
+  assert.deepEqual(miniMap.nodes.find((node) => node.id === 'target:line-041-company-and-competitor-set').bounds, originalBounds)
+})
+
+test('Both display mode makes Markdown primary while preserving Overlay diagnostics', () => {
+  const state = createSurfaceZoomInspectorState({ tree: denseFixture })
+  setMarkdownPreviewState(state, { available: true, status: 'ready', html: '<h2 data-source-line="41">Companies</h2>' })
+  selectSurfaceNode(state, 'target:line-041-company-and-competitor-set')
+
+  const miniMap = surfaceMiniMapViewModel(state)
+  assert.equal(surfaceZoomInspectorSnapshot(state).map_display_mode, 'both')
+  assert.deepEqual(miniMap.both_mode_overlay, {
+    rendered_markdown_primary: true,
+    generic_bounds: 'hidden',
+    selected_last_hit_and_decision_bounds: 'visible',
+    overlay_mode_preserves_all_bounds: true,
+  })
+
+  const js = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/index.js'), 'utf8')
+  const css = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/styles.css'), 'utf8')
+  assert.match(js, /showPreview && mapMode === 'both' && !structuralNode/)
+  assert.match(js, /data-map-display-mode="\$\{esc\(mapMode\)\}"/)
+  assert.match(css, /\.markdown-backed-map\.show-preview\[data-map-display-mode="both"\] \.mini-node/)
+  assert.match(css, /\.markdown-backed-map\.show-preview\[data-map-display-mode="both"\] \.mini-node\.decision-node/)
+
+  setMapDisplayMode(state, 'overlay')
+  assert.equal(surfaceZoomInspectorSnapshot(state).map_display_mode, 'overlay')
+  assert.equal(surfaceMiniMapViewModel(state).nodes.every((node) => node.overlay_visible), true)
+})
+
+test('display modes are represented in state and non-Markdown subjects retain synthetic map behavior', () => {
+  const markdownState = createSurfaceZoomInspectorState({ tree: denseFixture })
+  setMarkdownPreviewState(markdownState, { available: true, status: 'ready', html: '<p data-source-line="1">Ready</p>' })
+  for (const mode of ['preview', 'overlay', 'both']) {
+    setMapDisplayMode(markdownState, mode)
+    assert.equal(surfaceZoomInspectorSnapshot(markdownState).map_display_mode, mode)
+  }
+
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+  const snapshot = surfaceZoomInspectorSnapshot(state)
+  assert.equal(snapshot.markdown_preview.markdown_backed, false)
+  assert.equal(snapshot.markdown_preview.available, false)
+  assert.equal(snapshot.map_display_mode, 'overlay')
+  assert.equal(snapshot.mini_map.markdown_backed, false)
+  assert.equal(snapshot.mini_map.nodes.find((node) => node.id === 'target:primary-cta').overlay_presentation.inset_px, 0)
+})
+
+test('component shell consumes toolkit chrome, workbench, and control primitives', () => {
+  const html = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/index.html'), 'utf8')
+  const js = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/index.js'), 'utf8')
+  const css = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/styles.css'), 'utf8')
+
+  assert.match(html, /panel\/defaults\.css/)
+  assert.match(html, /controls\/defaults\.css/)
+  assert.match(html, /workbench\/defaults\.css/)
+  assert.match(js, /import \{ mountChrome \} from '..\/..\/panel\/chrome\.js'/)
+  assert.match(js, /title: 'Surface-Zoom Inspector'/)
+  assert.match(js, /close: true/)
+  assert.match(js, /minimize: true/)
+  assert.match(js, /maximize: true/)
+  assert.match(js, /resizable: true/)
+  assert.match(js, /aos-workbench-toolbar surface-zoom-toolbar/)
+  assert.match(js, /data-action="toggle-overlay"/)
+  assert.match(js, /data-action="label-density"/)
+  assert.match(js, /data-action="zoom-fit"/)
+  assert.match(js, /data-action="zoom-out"/)
+  assert.match(js, /data-action="zoom-in"/)
+  assert.match(js, /data-action="zoom-reset"/)
+  assert.match(js, /data-action="reset-selection"/)
+  assert.match(js, /data-action="clear-drafts"/)
+  assert.match(js, /\['targets', 'drafts', 'diagnostics'\]/)
+  assert.match(js, /data-secondary-tab="\$\{tab\}"/)
+  assert.match(js, /Synthetic Subject Map/)
+  assert.match(js, /not screenshot pixels/)
+  assert.match(js, /data-preview-fit="component-compact-workbench"/)
+  assert.match(js, /previewFocusStatus/)
+  assert.match(js, /previewFocusStrategy/)
+  assert.match(js, /target\.scrollTo/)
+  assert.match(css, /\.surface-zoom-workbench\s*\{/)
+  assert.match(css, /grid-template-areas:\s*[\s\S]*"map inspector"/)
+  assert.match(css, /minmax\(0,\s*1fr\)/)
+  assert.match(css, /flex-wrap:\s*wrap/)
+  assert.match(css, /--aos-markdown-preview-font:\s*11\.5px\/1\.45/)
+  assert.match(css, /\.surface-zoom-markdown-preview\s*\{[\s\S]*position:\s*absolute/)
+  assert.match(css, /\.surface-zoom-markdown-preview\s*:where\(table\)/)
+  assert.match(css, /\.mini-node\.kind-semantic-target/)
+  assert.match(css, /\.mini-node\.decision-node/)
+  assert.match(css, /\.mini-node\.last-hit-node/)
+  assert.doesNotMatch(css, /\.aos-window-button\s*\{/)
+  assert.doesNotMatch(css, /\.aos-button\s*\{/)
+})
+
+test('spatial workbench uses one tabbed secondary drawer instead of permanent split panes', () => {
+  const js = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/index.js'), 'utf8')
+  const css = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/styles.css'), 'utf8')
+
+  assert.doesNotMatch(js, /class="surface-zoom-layout"/)
+  assert.doesNotMatch(css, /\.surface-zoom-layout\s*\{/)
+  assert.doesNotMatch(js, /drafts-panel/)
+  assert.doesNotMatch(css, /\.drafts-panel/)
+  assert.match(js, /class="surface-zoom-workbench"/)
+  assert.match(js, /class="surface-panel map-panel"/)
+  assert.match(js, /class="surface-panel inspector-panel"/)
+  assert.match(js, /class="surface-panel secondary-panel"/)
+  assert.match(js, /aria-label="Secondary drawer"/)
+  assert.match(js, /renderSecondaryView/)
+  assert.match(js, /renderSecondaryTabs/)
+  assert.doesNotMatch(js, /Targets \/ Outline/)
+  assert.doesNotMatch(css, /grid-template-columns:\s*minmax\(220px,\s*0\.6fr\)\s*minmax\(0,\s*1fr\)/)
+})
+
+test('layout contracts constrain horizontal overflow and collapse raw diagnostics by default', () => {
+  const js = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/index.js'), 'utf8')
+  const css = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-zoom-inspector/styles.css'), 'utf8')
+  const bodyBlock = css.match(/html,\s*body\s*\{[^}]*\}/)?.[0] || ''
+
+  assert.doesNotMatch(css, /min-width:\s*980px/)
+  assert.doesNotMatch(bodyBlock, /min-width/)
+  assert.match(css, /overflow-x:\s*hidden/)
+  assert.match(css, /overflow-wrap:\s*anywhere/)
+  assert.match(css, /white-space:\s*pre-wrap/)
+  assert.match(css, /max-width:\s*100%/)
+  assert.match(css, /@media\s*\(max-width:\s*900px\)/)
+  assert.match(js, /<details><summary>/)
+  assert.match(js, /Full path/)
+  assert.match(js, /Snapshot payload/)
+  assert.doesNotMatch(js, /<section><h3>Source IDs<\/h3><pre>/)
+  assert.doesNotMatch(js, /<dt>Path<\/dt>/)
+  assert.doesNotMatch(js, /<dt>Adapter<\/dt>/)
+})
+
+test('inspects a mini-map point inside Primary CTA via hit-test and stores structured state', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+  selectSurfaceNode(state, 'target:evidence-card')
+
+  const result = inspectSelectedSurfacePoint(state, { x: 64, y: 92, coordinate_space: 'viewport' }, { now: '2026-05-09T12:36:00.000Z' })
+
+  assert.equal(result.request.point.x, 64)
+  assert.equal(result.request.point.y, 92)
+  assert.equal(result.request.point.coordinate_space, 'viewport')
+  assert.equal(result.selected_candidate.id, 'target:primary-cta')
+  assert.equal(state.selectedNodeId, 'target:primary-cta')
+  assert.equal(result.annotation_draft.metadata.created_from, 'surface_hit_test_inspect')
+  assert.equal(result.annotation_draft.label, 'Primary CTA')
+  assert.equal(result.verification_seed.target.id, 'target:primary-cta')
+  assert.equal(surfaceZoomInspectorSnapshot(state).last_inspect.selected_candidate.id, 'target:primary-cta')
+  assertSchemaValidAnnotation(result.annotation_draft)
+
+  const verification = buildAnnotationPerceptionVerificationCase(result.verification_seed)
+  assert.equal(verification.status, 'adapter_fixture_only')
+})
+
+test('inspects a mini-map point inside Evidence Card via hit-test', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+
+  const result = inspectSelectedSurfacePoint(state, { x: 120, y: 190, coordinate_space: 'viewport' }, { now: '2026-05-09T12:37:00.000Z' })
+
+  assert.equal(result.selected_candidate.id, 'target:evidence-card')
+  assert.equal(state.selectedNodeId, 'target:evidence-card')
+  assert.equal(result.annotation_draft.label, 'Evidence Card')
+  assert.equal(result.verification_seed.target.id, 'target:evidence-card')
+  assertSchemaValidAnnotation(result.annotation_draft)
+})
+
+test('miss preserves candidates and creates no selected candidate or draft', () => {
+  const state = createSurfaceZoomInspectorState({ tree: fixture })
+
+  const result = inspectSelectedSurfacePoint(state, { x: 12, y: 20, coordinate_space: 'viewport' }, { now: '2026-05-09T12:38:00.000Z' })
+
+  assert.equal(result.selected_candidate, null)
+  assert.equal(result.annotation_draft, null)
+  assert.equal(result.verification_seed, null)
+  assert.equal(result.candidates.length, 3)
+  assert.equal(result.candidates.every((candidate) => candidate.hit_test_status === 'miss'), true)
+  assert.equal(state.drafts.length, 0)
+  assert.equal(surfaceZoomInspectorSnapshot(state).last_inspect.summary.candidate_count, 3)
+})
+
+test('hit-test ambiguity metadata is preserved for equal candidates', () => {
+  const tree = JSON.parse(JSON.stringify(fixture))
+  const primary = tree.nodes.find((node) => node.id === 'target:primary-cta')
+  tree.nodes.push({
+    ...JSON.parse(JSON.stringify(primary)),
+    id: 'target:primary-cta-twin',
+    label: 'Primary CTA Twin',
+    path: primary.path.replace('target:primary-cta', 'target:primary-cta-twin'),
+    source: {
+      ...primary.source,
+      subject_id: 'primary-cta-twin',
+      adapter_subject_id: 'button-primary-cta-twin',
+    },
+  })
+  const state = createSurfaceZoomInspectorState({ tree })
+
+  const result = inspectSelectedSurfacePoint(state, { x: 64, y: 92, coordinate_space: 'viewport' }, { now: '2026-05-09T12:39:00.000Z' })
+
+  assert.equal(result.selected_candidate.id, 'target:primary-cta')
+  assert.equal(result.summary.ambiguous, true)
+  assert.deepEqual(result.summary.ambiguous_candidate_paths, [
+    'desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta-twin',
+  ])
+})

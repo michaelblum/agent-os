@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-url-open-run-v0.schema.json",
+  "title": "Employer Brand Live Evidence URL Open Run v0",
+  "description": "Bounded supervised URL-open run for approved Employer Brand live evidence targets. V0 opens only executable approved target URLs, follows only initial navigation redirects, records safe navigation metadata, and forbids locator resolution, codegen, screenshots, clips, element identification, full-page grabs, reports, exports, workflows, crawling, and blocker bypass.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "source_refs",
+    "run_config",
+    "summary",
+    "results",
+    "blocked_entries",
+    "rejected_exclusions",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_url_open_run"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-url-open-run-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "not_run_fixture",
+        "completed",
+        "completed_with_blockers"
+      ]
+    },
+    "source_refs": {
+      "$ref": "#/$defs/source_refs"
+    },
+    "run_config": {
+      "$ref": "#/$defs/run_config"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    },
+    "blocked_entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    },
+    "rejected_exclusions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rejected_exclusion"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "reachable",
+        "redirected",
+        "login_required",
+        "paywall",
+        "captcha",
+        "consent_required",
+        "network_error",
+        "timeout",
+        "safety_gate_blocked",
+        "not_run"
+      ]
+    },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "supervised_locator_plan_id",
+        "supervised_locator_plan_path",
+        "supervised_locator_plan_schema",
+        "url_reachability_check_id",
+        "url_reachability_check_path",
+        "url_reachability_check_schema",
+        "approval_patch_id",
+        "approval_patch_path"
+      ],
+      "properties": {
+        "supervised_locator_plan_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "supervised_locator_plan_path": {
+          "const": "live-evidence-supervised-locator-plan.json"
+        },
+        "supervised_locator_plan_schema": {
+          "const": "shared/schemas/employer-brand-live-evidence-supervised-locator-plan-v0.schema.json"
+        },
+        "url_reachability_check_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "url_reachability_check_path": {
+          "enum": [
+            "live-evidence-url-reachability-check.json",
+            null
+          ]
+        },
+        "url_reachability_check_schema": {
+          "enum": [
+            "shared/schemas/employer-brand-live-evidence-url-reachability-check-v0.schema.json",
+            null
+          ]
+        },
+        "approval_patch_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "approval_patch_path": {
+          "enum": [
+            "live-evidence-target-approval-patch.json",
+            null
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "run_config": {
+      "type": "object",
+      "required": [
+        "timeout_ms",
+        "navigation_scope",
+        "max_redirects",
+        "title_observation",
+        "operator"
+      ],
+      "properties": {
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000
+        },
+        "navigation_scope": {
+          "const": "target_url_initial_navigation_only"
+        },
+        "max_redirects": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "title_observation": {
+          "const": "safe_page_title_only_when_available"
+        },
+        "operator": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "reachable_count",
+        "redirected_count",
+        "login_required_count",
+        "paywall_count",
+        "captcha_count",
+        "consent_required_count",
+        "network_error_count",
+        "timeout_count",
+        "safety_gate_blocked_count",
+        "not_run_count",
+        "supervised_locator_work_unit_count",
+        "executable_target_count",
+        "opened_count",
+        "same_domain_confirmed_count",
+        "same_domain_blocked_count",
+        "non_executable_preserved_count",
+        "rejected_exclusion_count"
+      ],
+      "properties": {
+        "reachable_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "redirected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "login_required_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "paywall_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "captcha_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consent_required_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "network_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "safety_gate_blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_run_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "supervised_locator_work_unit_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "executable_target_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "opened_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "same_domain_confirmed_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "same_domain_blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "non_executable_preserved_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_exclusion_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "result_id",
+        "work_unit_id",
+        "target_id",
+        "executable",
+        "opened",
+        "status",
+        "original_url",
+        "final_url",
+        "same_domain",
+        "redirect_chain",
+        "http_status",
+        "title",
+        "blocker_reason",
+        "checked_at",
+        "operator_notes",
+        "harness_notes",
+        "provenance"
+      ],
+      "properties": {
+        "result_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "executable": {
+          "type": "boolean"
+        },
+        "opened": {
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "original_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "final_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "same_domain": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "redirect_chain": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/redirect"
+          }
+        },
+        "http_status": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "blocker_reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "checked_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "operator_notes": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "harness_notes": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/result_provenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "redirect": {
+      "type": "object",
+      "required": [
+        "from_url",
+        "to_url",
+        "status_code"
+      ],
+      "properties": {
+        "from_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "to_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "result_provenance": {
+      "type": "object",
+      "required": [
+        "source_supervised_locator_plan_target_id",
+        "source_supervised_locator_plan_work_unit_id",
+        "source_index",
+        "source_url_reachability_check_result_id",
+        "target_url_only",
+        "no_locator_resolution",
+        "no_element_identification",
+        "no_capture",
+        "no_report_or_export"
+      ],
+      "properties": {
+        "source_supervised_locator_plan_target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_supervised_locator_plan_work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_url_reachability_check_result_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "target_url_only": {
+          "const": true
+        },
+        "no_locator_resolution": {
+          "const": true
+        },
+        "no_element_identification": {
+          "const": true
+        },
+        "no_capture": {
+          "const": true
+        },
+        "no_report_or_export": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "rejected_exclusion": {
+      "type": "object",
+      "required": [
+        "target_id",
+        "decision",
+        "reason",
+        "source_approval_patch_path"
+      ],
+      "properties": {
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "decision": {
+          "const": "reject"
+        },
+        "reason": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_approval_patch_path": {
+          "const": "live-evidence-target-approval-patch.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "bounded_target_url_open_authorized",
+        "dry_run_only",
+        "autonomous_crawl_authorized",
+        "autonomous_browsing_authorized",
+        "link_following_authorized",
+        "redirect_handling_authorized",
+        "locator_resolution_authorized",
+        "locator_codegen_executed",
+        "element_identification_authorized",
+        "screenshot_capture_authorized",
+        "full_page_grabs_authorized",
+        "clip_generation_authorized",
+        "report_renderer_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized",
+        "login_bypass_authorized",
+        "paywall_bypass_authorized",
+        "captcha_bypass_authorized",
+        "consent_bypass_authorized"
+      ],
+      "properties": {
+        "bounded_target_url_open_authorized": {
+          "type": "boolean"
+        },
+        "dry_run_only": {
+          "type": "boolean"
+        },
+        "autonomous_crawl_authorized": {
+          "const": false
+        },
+        "autonomous_browsing_authorized": {
+          "const": false
+        },
+        "link_following_authorized": {
+          "const": false
+        },
+        "redirect_handling_authorized": {
+          "const": true
+        },
+        "locator_resolution_authorized": {
+          "const": false
+        },
+        "locator_codegen_executed": {
+          "const": false
+        },
+        "element_identification_authorized": {
+          "const": false
+        },
+        "screenshot_capture_authorized": {
+          "const": false
+        },
+        "full_page_grabs_authorized": {
+          "const": false
+        },
+        "clip_generation_authorized": {
+          "const": false
+        },
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        },
+        "login_bypass_authorized": {
+          "const": false
+        },
+        "paywall_bypass_authorized": {
+          "const": false
+        },
+        "captcha_bypass_authorized": {
+          "const": false
+        },
+        "consent_bypass_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "supervised_locator_plan_is_input_source",
+        "url_reachability_check_is_optional_input_source",
+        "executable_only_for_approved_targets",
+        "blocked_draft_targets_preserved_as_non_executed",
+        "rejected_targets_preserved_as_exclusions",
+        "safely_observable_metadata_only",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "supervised_locator_plan_is_input_source": {
+          "const": true
+        },
+        "url_reachability_check_is_optional_input_source": {
+          "type": "boolean"
+        },
+        "executable_only_for_approved_targets": {
+          "const": true
+        },
+        "blocked_draft_targets_preserved_as_non_executed": {
+          "const": true
+        },
+        "rejected_targets_preserved_as_exclusions": {
+          "const": true
+        },
+        "safely_observable_metadata_only": {
+          "const": true
+        },
+        "non_goals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-source-artifact-target-plan-v0.schema.json",
+  "title": "Employer Brand Source Artifact Target Plan v0",
+  "description": "Hand-authored natural-language target plan for Employer Brand source artifacts. V0 records exact page element targets and expected element clips before selector, XPath, Playwright, or codegen fields are available. It does not authorize full-page grabs, browser collection, report rendering, exports, replay, repair, or workflow execution.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "capture_scope",
+    "source_artifact_refs",
+    "expected_totals",
+    "targets",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_source_artifact_target_plan"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-source-artifact-target-plan-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "hand_authored",
+        "reviewed",
+        "archived"
+      ]
+    },
+    "capture_scope": {
+      "$ref": "#/$defs/capture_scope"
+    },
+    "source_artifact_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source_artifact_ref"
+      },
+      "uniqueItems": true
+    },
+    "expected_totals": {
+      "$ref": "#/$defs/expected_totals"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "default": []
+    },
+    "capture_scope": {
+      "type": "object",
+      "required": [
+        "capture_unit",
+        "full_page_grabs",
+        "policy",
+        "non_goals"
+      ],
+      "properties": {
+        "capture_unit": {
+          "const": "page_element"
+        },
+        "full_page_grabs": {
+          "const": false
+        },
+        "policy": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_artifact_ref": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "role"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "enum": [
+            "pptx",
+            "pdf",
+            "html_spa"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "role": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_totals": {
+      "type": "object",
+      "required": [
+        "target_count",
+        "expected_clip_count"
+      ],
+      "properties": {
+        "target_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "kilos_relevance": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "kinship",
+          "impact",
+          "lifestyle",
+          "opportunity",
+          "status"
+        ]
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "locator_placeholders": {
+      "type": "object",
+      "required": [
+        "selector",
+        "xpath",
+        "playwright_locator",
+        "codegen_hint"
+      ],
+      "properties": {
+        "selector": {
+          "type": "null"
+        },
+        "xpath": {
+          "type": "null"
+        },
+        "playwright_locator": {
+          "type": "null"
+        },
+        "codegen_hint": {
+          "type": "null"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "target_id",
+        "source_artifact_id",
+        "target_name",
+        "page_element_target",
+        "capture_type",
+        "expected_clip_count",
+        "kilos_relevance",
+        "acceptance_criteria",
+        "locator_placeholders",
+        "notes"
+      ],
+      "properties": {
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_artifact_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "page_element_target": {
+          "type": "object",
+          "required": [
+            "artifact_location",
+            "element_ref",
+            "natural_language_target"
+          ],
+          "properties": {
+            "artifact_location": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "element_ref": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "natural_language_target": {
+              "$ref": "#/$defs/non_empty_string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "capture_type": {
+          "enum": [
+            "element_clip",
+            "element_text_extract",
+            "element_clip_and_text_extract"
+          ]
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "locator_placeholders": {
+          "$ref": "#/$defs/locator_placeholders"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "full_page_capture_authorized",
+        "remote_web_collection_authorized",
+        "autonomous_browsing_authorized",
+        "report_renderer_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized"
+      ],
+      "properties": {
+        "full_page_capture_authorized": {
+          "const": false
+        },
+        "remote_web_collection_authorized": {
+          "const": false
+        },
+        "autonomous_browsing_authorized": {
+          "const": false
+        },
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "authored_at",
+        "authored_by",
+        "read_only",
+        "provenance_only",
+        "derived_from"
+      ],
+      "properties": {
+        "authored_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "authored_by": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "read_only": {
+          "const": true
+        },
+        "provenance_only": {
+          "const": true
+        },
+        "derived_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_artifact_ref"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

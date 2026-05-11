@@ -1,0 +1,22 @@
+{
+  "adapter": "three_object_fixture",
+  "live_adapter": false,
+  "viewport": { "width": 640, "height": 360 },
+  "camera": {
+    "type": "orthographic",
+    "projection": "fixture"
+  },
+  "objects": [
+    {
+      "id": "cube-primary",
+      "path": "surface:three-fixture/three:cube-primary",
+      "kind": "three_object",
+      "label": "Primary Cube",
+      "world_bounds": {
+        "min": { "x": -0.5, "y": -0.5, "z": -0.5 },
+        "max": { "x": 0.5, "y": 0.5, "z": 0.5 }
+      },
+      "screen_projected_bounds": { "x": 288, "y": 128, "width": 96, "height": 96 }
+    }
+  ]
+}

@@ -11,7 +11,17 @@ const templateMeta = {
   "contentBackground": "./assets/backgrounds/content-bg.jpg",
   "watermarkGraphic": "",
   "generatedFrom": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit",
-  "generatedBy": "scripts/employer-brand-report-data.mjs"
+  "generatedBy": "scripts/employer-brand-report-data.mjs",
+  "dataBundle": {
+    "id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+    "path": "./data-bundle.json",
+    "schema": "shared/schemas/employer-brand-comparative-audit-data-bundle-v0.schema.json",
+    "companyCount": 3,
+    "targetCount": 13,
+    "expectedClipCount": 44,
+    "readOnly": true,
+    "provenanceOnly": true
+  }
 };
 
 const client = {

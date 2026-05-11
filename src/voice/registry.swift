@@ -71,6 +71,7 @@ struct VoiceFilter {
     var region: String?
     var kind: String?
     var quality_tier: String?
+    var quality_tiers: [String] = []
     var tags: [String] = []
 
     var isEmpty: Bool {
@@ -81,6 +82,7 @@ struct VoiceFilter {
             && region == nil
             && kind == nil
             && quality_tier == nil
+            && quality_tiers.isEmpty
             && tags.isEmpty
     }
 }
@@ -269,8 +271,12 @@ final class VoiceRegistry {
         if let kind = filter.kind, record.kind.caseInsensitiveCompare(kind) != .orderedSame {
             return false
         }
-        if let qualityTier = filter.quality_tier, record.quality_tier.caseInsensitiveCompare(qualityTier) != .orderedSame {
-            return false
+        let qualityTiers = filter.qualityTiersForMatching
+        if !qualityTiers.isEmpty {
+            let recordTier = record.quality_tier.lowercased()
+            if !qualityTiers.contains(recordTier) {
+                return false
+            }
         }
         if !filter.tags.isEmpty {
             let availableTags = Set(record.tags.map { $0.lowercased() })
@@ -281,5 +287,19 @@ final class VoiceRegistry {
             }
         }
         return true
+    }
+}
+
+private extension VoiceFilter {
+    var qualityTiersForMatching: Set<String> {
+        var tiers = quality_tiers
+        if let qualityTier = quality_tier {
+            tiers.append(qualityTier)
+        }
+        return Set(
+            tiers.flatMap { $0.split(separator: ",") }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
     }
 }

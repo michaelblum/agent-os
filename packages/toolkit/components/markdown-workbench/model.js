@@ -3,6 +3,13 @@ import { createWikiPageSubject } from '../../workbench/wiki-subject.js';
 
 export const MARKDOWN_WORKBENCH_SCHEMA_VERSION = '2026-05-03';
 const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
+const ANNOTATION_KINDS = new Set([
+  'point_comment',
+  'region_comment',
+  'element_selection',
+  'selection_comment',
+]);
+const VISIBLE_ANNOTATION_STATUSES = new Set(['committed', 'open', 'resolved', 'rejected']);
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').trim();
@@ -19,6 +26,7 @@ export function createMarkdownWorkbenchState({
   savedContent = content,
   dirty = false,
   source = null,
+  annotations = [],
 } = {}) {
   const current = String(content ?? '');
   return {
@@ -27,6 +35,7 @@ export function createMarkdownWorkbenchState({
     content: current,
     savedContent: String(savedContent ?? current),
     dirty: !!dirty,
+    annotations: normalizeMarkdownWorkbenchAnnotations(annotations, { path: normalizePath(path) }),
     lastResult: null,
   };
 }
@@ -61,6 +70,172 @@ function uniqueObjects(values = [], keyFn = (value) => JSON.stringify(value)) {
   return out;
 }
 
+function integer(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizePoint(point = null) {
+  if (!point || typeof point !== 'object') return null;
+  const x = numberOrNull(point.x);
+  const y = numberOrNull(point.y);
+  return x === null || y === null ? null : { x, y };
+}
+
+function normalizeBounds(bounds = null) {
+  if (!bounds || typeof bounds !== 'object') return null;
+  const x = numberOrNull(bounds.x);
+  const y = numberOrNull(bounds.y);
+  const width = numberOrNull(bounds.width);
+  const height = numberOrNull(bounds.height);
+  return [x, y, width, height].some((value) => value === null)
+    ? null
+    : { x, y, width, height };
+}
+
+function cloneJson(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeActor(actor = {}) {
+  return {
+    role: text(actor?.role || actor?.type || actor?.author_role, 'agent'),
+    id: text(actor?.id || actor?.author_id, 'unknown'),
+  };
+}
+
+function normalizeTextRange(range = null) {
+  if (!range || typeof range !== 'object') return null;
+  const startLine = integer(range.start_line ?? range.startLine ?? range.line, 0);
+  const endLine = integer(range.end_line ?? range.endLine ?? range.line ?? startLine, startLine);
+  const normalized = { ...cloneJson(range) };
+  if (startLine > 0) normalized.start_line = startLine;
+  if (endLine > 0) normalized.end_line = Math.max(startLine || endLine, endLine);
+  return normalized;
+}
+
+function isStructuredAnnotationIntent(annotation = {}) {
+  if (!annotation || typeof annotation !== 'object') return false;
+  if (!ANNOTATION_KINDS.has(annotation.kind)) return false;
+  if (integer(annotation.ordinal, 0) < 1) return false;
+  if (!text(annotation.id)) return false;
+  return Boolean(text(annotation.note || annotation.label));
+}
+
+export function normalizeMarkdownWorkbenchAnnotations(annotations = [], { path = '' } = {}) {
+  return (Array.isArray(annotations) ? annotations : [])
+    .filter(isStructuredAnnotationIntent)
+    .map((annotation) => ({
+      id: text(annotation.id),
+      ordinal: integer(annotation.ordinal, 1),
+      kind: annotation.kind,
+      surface_id: text(annotation.surface_id, 'markdown-workbench'),
+      source_url: text(annotation.source_url) || null,
+      source_path: text(annotation.source_path || annotation.path, path) || null,
+      coordinate_space: text(annotation.coordinate_space, 'unknown'),
+      point: normalizePoint(annotation.point),
+      bounds: normalizeBounds(annotation.bounds),
+      viewport_bounds: normalizeBounds(annotation.viewport_bounds),
+      page_bounds: normalizeBounds(annotation.page_bounds),
+      selector_candidates: uniqueTextList(annotation.selector_candidates),
+      text_excerpt: text(annotation.text_excerpt || annotation.excerpt),
+      text_range: normalizeTextRange(annotation.text_range),
+      role: text(annotation.role),
+      label: text(annotation.label),
+      ancestor_chain: uniqueTextList(annotation.ancestor_chain),
+      note: text(annotation.note || annotation.label),
+      actor: normalizeActor(annotation.actor),
+      status: text(annotation.status, 'committed'),
+      lifecycle: annotation.lifecycle && typeof annotation.lifecycle === 'object' ? cloneJson(annotation.lifecycle) : {},
+      capture: annotation.capture && typeof annotation.capture === 'object' ? cloneJson(annotation.capture) : {},
+      created_at: text(annotation.created_at),
+      updated_at: text(annotation.updated_at),
+      metadata: annotation.metadata && typeof annotation.metadata === 'object' ? cloneJson(annotation.metadata) : {},
+    }))
+    .filter((annotation) => VISIBLE_ANNOTATION_STATUSES.has(annotation.status))
+    .sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
+}
+
+export function annotationAnchorSummary(annotation = {}) {
+  const source = text(annotation.source_path || annotation.source_url, 'unknown source');
+  const range = annotation.text_range && typeof annotation.text_range === 'object'
+    ? annotation.text_range
+    : null;
+  const startLine = integer(range?.start_line ?? range?.line, 0);
+  const endLine = integer(range?.end_line ?? range?.line ?? startLine, startLine);
+  if (startLine > 0 && endLine > 0) {
+    const lineText = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`;
+    return annotation.text_excerpt
+      ? `${source} ${lineText}: "${annotation.text_excerpt}"`
+      : `${source} ${lineText}`;
+  }
+  if (annotation.selector_candidates?.length) {
+    return `${source} element ${annotation.selector_candidates[0]}`;
+  }
+  const bounds = annotation.bounds || annotation.viewport_bounds || annotation.page_bounds;
+  if (bounds) {
+    return `${source} ${annotation.coordinate_space} region ${bounds.x},${bounds.y} ${bounds.width}x${bounds.height}`;
+  }
+  if (annotation.point) {
+    return `${source} ${annotation.coordinate_space} point ${annotation.point.x},${annotation.point.y}`;
+  }
+  return source;
+}
+
+export function annotationCanRenderOverlay(annotation = {}) {
+  if (!['viewport', 'page', 'document'].includes(annotation.coordinate_space)) return false;
+  return Boolean(annotation.point || annotation.bounds || annotation.viewport_bounds || annotation.page_bounds);
+}
+
+export function markdownWorkbenchAnnotationViewModels(annotations = []) {
+  return normalizeMarkdownWorkbenchAnnotations(annotations).map((annotation) => ({
+    annotation,
+    ordinal: annotation.ordinal,
+    active: annotation.status === 'committed' || annotation.status === 'open',
+    secondary: annotation.status === 'resolved' || annotation.status === 'rejected',
+    anchor_summary: annotationAnchorSummary(annotation),
+    overlay: annotationCanRenderOverlay(annotation),
+  }));
+}
+
+export function applyMarkdownAnnotations(state, message = {}) {
+  const payload = message.payload || message;
+  const annotations = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.annotations)
+      ? payload.annotations
+      : Array.isArray(payload.resume?.annotations)
+        ? payload.resume.annotations
+        : [];
+  state.annotations = normalizeMarkdownWorkbenchAnnotations(annotations, { path: state.path });
+  state.lastResult = {
+    type: 'markdown_workbench.annotations.replace.result',
+    schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
+    status: 'applied',
+    path: state.path,
+    annotation_count: state.annotations.length,
+  };
+  return state.lastResult;
+}
+
+export function clearMarkdownAnnotations(state) {
+  state.annotations = [];
+  state.lastResult = {
+    type: 'markdown_workbench.annotations.clear.result',
+    schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
+    status: 'cleared',
+    path: state.path,
+    annotation_count: 0,
+  };
+  return state.lastResult;
+}
+
 function markdownWorkbenchHost(facet = '', preferred = false) {
   return {
     kind: 'canvas',
@@ -89,7 +264,7 @@ function markdownWorkbenchFacets() {
       layer: 'narrative',
       label: 'Rendered Markdown Preview',
       capabilities: ['inspectable'],
-      contracts: ['markdown.render', 'markdown.mermaid.detect'],
+      contracts: ['markdown.render', 'markdown.mermaid.preview'],
       hosts: [markdownWorkbenchHost('preview')],
     },
     {
@@ -151,7 +326,7 @@ export function markdownDiagnostics(content = '') {
         fenceStart = index + 1;
       } else {
         if (fenceLang === 'mermaid') {
-          mermaidBlocks.push({ start_line: fenceStart, end_line: index + 1 });
+          mermaidBlocks.push({ start_line: fenceStart, end_line: index + 1, preview: 'diagram_container' });
         }
         inFence = false;
         fenceLang = '';
@@ -176,6 +351,7 @@ export function markdownDiagnostics(content = '') {
     heading_count: headings.length,
     headings,
     mermaid_blocks: mermaidBlocks,
+    mermaid_preview: mermaidBlocks.length > 0 ? 'diagram_container' : 'none',
     unclosed_fence: inFence,
   };
 }
@@ -188,6 +364,9 @@ export function openMarkdownDocument(state, message = {}) {
   state.content = content;
   state.savedContent = content;
   state.dirty = false;
+  state.annotations = Array.isArray(payload.annotations)
+    ? normalizeMarkdownWorkbenchAnnotations(payload.annotations, { path: state.path })
+    : [];
   state.lastResult = {
     type: 'markdown_document.open.result',
     schema_version: MARKDOWN_WORKBENCH_SCHEMA_VERSION,
@@ -266,6 +445,7 @@ export function markdownWorkbenchSnapshot(state) {
     path: state.path,
     content: state.content,
     dirty: state.dirty,
+    annotations: normalizeMarkdownWorkbenchAnnotations(state.annotations, { path: state.path }),
     diagnostics: markdownDiagnostics(state.content),
     last_result: state.lastResult,
   };
@@ -278,6 +458,7 @@ export function buildMarkdownWorkbenchSubject(state = {}) {
     'markdown.diagnostics',
     'markdown.outline',
     'markdown.mermaid.detect',
+    'markdown.mermaid.preview',
     'markdown_document.text.patch',
     'markdown_document.save.requested',
   ];

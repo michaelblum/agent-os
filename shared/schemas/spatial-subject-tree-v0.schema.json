@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/spatial-subject-tree-v0.schema.json",
+  "title": "Spatial Subject Tree V0",
+  "description": "Neutral cross-surface tree projection for visible/addressable subjects across DesktopWorld, displays, windows, canvases, adapter-owned surfaces, semantic targets, annotation projections, AX elements, DOM nodes, 3D objects, capture regions, and workflow/report/export subjects.",
+  "type": "object",
+  "required": ["schema", "version", "created_at", "root", "nodes"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "spatial_subject_tree" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Node" },
+      "minItems": 1
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Edge" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "Rect": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "Bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "parent_local": { "$ref": "#/$defs/Rect" },
+        "desktop_world": { "$ref": "#/$defs/Rect" },
+        "viewport_local": { "$ref": "#/$defs/Rect" },
+        "lcs_local": { "$ref": "#/$defs/Rect" },
+        "image_local": { "$ref": "#/$defs/Rect" },
+        "screen_projected": { "$ref": "#/$defs/Rect" }
+      },
+      "description": "Known rectangles in named coordinate spaces. Missing entries are unavailable, not implied."
+    },
+    "Source": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "file_path": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] },
+        "app_bundle_id": { "type": ["string", "null"] },
+        "app_pid": { "type": ["integer", "string", "null"] },
+        "canvas_id": { "type": ["string", "null"] },
+        "window_id": { "type": ["integer", "string", "null"] },
+        "display_id": { "type": ["integer", "string", "null"] },
+        "surface_id": { "type": ["string", "null"] },
+        "subject_id": { "type": ["string", "null"] },
+        "adapter_subject_id": { "type": ["string", "null"] }
+      }
+    },
+    "Adapter": {
+      "type": "object",
+      "required": ["id", "type", "confidence", "freshness", "child_discovery"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "enum": [
+            "spatial_topology",
+            "aos_canvas",
+            "markdown_workbench",
+            "browser",
+            "mermaid_svg",
+            "three_scene",
+            "pdf",
+            "image",
+            "ax",
+            "capture",
+            "report",
+            "export",
+            "workflow",
+            "employer_brand",
+            "generic"
+          ]
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "freshness": {
+          "enum": ["live", "snapshot", "stale", "planned", "unknown"]
+        },
+        "child_discovery": {
+          "enum": ["complete", "partial", "unsupported", "blocked", "unresolved", "unknown"]
+        },
+        "reason": { "type": "string" }
+      }
+    },
+    "Capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hit_test": { "type": "boolean" },
+        "annotate": { "type": "boolean" },
+        "project_annotation": { "type": "boolean" },
+        "action": { "type": "boolean" },
+        "capture": { "type": "boolean" },
+        "inspect_children": { "type": "boolean" }
+      }
+    },
+    "Transform": {
+      "type": "object",
+      "required": ["from", "to", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "enum": ["parent_local", "desktop_world", "viewport_local", "surface_local", "lcs_local", "image_local", "world_3d", "screen_projected"]
+        },
+        "to": {
+          "enum": ["parent_local", "desktop_world", "viewport_local", "surface_local", "lcs_local", "image_local", "capture_source", "world_3d", "screen_projected"]
+        },
+        "status": {
+          "enum": ["available", "unavailable", "unsupported", "blocked", "placeholder"]
+        },
+        "translation": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "scale": {
+          "type": "object",
+          "required": ["x", "y"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "matrix": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 6
+        },
+        "reason": { "type": "string" }
+      }
+    },
+    "Node": {
+      "type": "object",
+      "required": ["id", "parent_id", "path", "kind", "label", "source", "bounds", "state", "adapter", "capabilities"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "parent_id": { "type": ["string", "null"] },
+        "path": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "desktop_world",
+            "visible_desktop_world",
+            "display",
+            "app",
+            "window",
+            "canvas",
+            "surface",
+            "viewport",
+            "pane",
+            "document",
+            "browser_frame",
+            "dom_element",
+            "svg_node",
+            "three_object",
+            "pdf_page",
+            "image_region",
+            "ax_element",
+            "semantic_target",
+            "annotation_projection",
+            "text_range",
+            "point",
+            "region"
+          ]
+        },
+        "label": { "type": "string" },
+        "source": { "$ref": "#/$defs/Source" },
+        "bounds": { "$ref": "#/$defs/Bounds" },
+        "z_order": { "type": ["number", "null"] },
+        "sibling_order": { "type": ["integer", "null"], "minimum": 0 },
+        "state": {
+          "enum": ["visible", "hidden", "offscreen", "out_of_viewport", "occluded", "unknown"]
+        },
+        "adapter": { "$ref": "#/$defs/Adapter" },
+        "capabilities": { "$ref": "#/$defs/Capabilities" },
+        "transforms": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Transform" }
+        },
+        "points": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/Point" }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Edge": {
+      "type": "object",
+      "required": ["from", "to", "relationship"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "relationship": {
+          "enum": ["parent_child", "owns", "projects", "references", "overlays"]
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

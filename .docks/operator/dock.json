@@ -1,0 +1,13 @@
+{
+  "name": "operator",
+  "role": "operator",
+  "harness": "codex",
+  "hook_timeout_seconds": 3,
+  "stop_notice": "Operator finished.",
+  "handoff": {
+    "requires_goal_prefix": false
+  },
+  "voice": {
+    "voice_slot": 3
+  }
+}

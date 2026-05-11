@@ -1,0 +1,1908 @@
+{
+  "type": "aos.employer_brand_element_clip_manifest",
+  "schema_version": "2026-05-employer-brand-element-clip-manifest-v0",
+  "id": "element-clip-manifest:element-capture-planning-bundle:source-artifact-target-plan:kilos-comp-audit-source-elements-v0",
+  "label": "Employer Brand Element Clip Manifest V0 Planned Skeleton",
+  "status": "planned_only_empty",
+  "planning_bundle": {
+    "id": "element-capture-planning-bundle:source-artifact-target-plan:kilos-comp-audit-source-elements-v0",
+    "path": "source-artifacts/element-capture-planning-bundle.json",
+    "schema": "shared/schemas/employer-brand-element-capture-planning-bundle-v0.schema.json"
+  },
+  "expected": {
+    "target_count": 13,
+    "work_unit_count": 37,
+    "expected_clip_count": 44
+  },
+  "clips": [],
+  "planned_slots": [
+    {
+      "target_id": "target:pdf-method-scope-bullets",
+      "work_unit_id": "work-unit:pdf-method-scope-bullets",
+      "company": null,
+      "source_artifact": {
+        "id": "source:kilos-template-pdf",
+        "kind": "pdf",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+        "role": "rendered_slide_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes all bullets for messaging, tone, campaigns, job listings, social channels, reviews, and awards.",
+          "The clip excludes the full slide frame and does not include unrelated deck chrome.",
+          "The text extract preserves the scope list as separate bullet-like entries."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:pdf-summary-insight-blocks",
+      "work_unit_id": "work-unit:pdf-summary-insight-blocks",
+      "company": null,
+      "source_artifact": {
+        "id": "source:kilos-template-pdf",
+        "kind": "pdf",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+        "role": "rendered_slide_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "Exactly four clips are produced, one per labeled block.",
+          "Each clip includes its label and body text.",
+          "No clip includes the entire slide or another labeled block."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:pdf-messaging-snapshot-table",
+      "work_unit_id": "work-unit:pdf-messaging-snapshot-table",
+      "company": null,
+      "source_artifact": {
+        "id": "source:kilos-template-pdf",
+        "kind": "pdf",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+        "role": "rendered_slide_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes the table headers and all visible company rows on the page.",
+          "The clip preserves headline-to-company alignment.",
+          "The clip does not include adjacent page number or unrelated margins."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:pdf-kilos-top-themes-matrix",
+      "work_unit_id": "work-unit:pdf-kilos-top-themes-matrix",
+      "company": null,
+      "source_artifact": {
+        "id": "source:kilos-template-pdf",
+        "kind": "pdf",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+        "role": "rendered_slide_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes all five KILOS column headings.",
+          "The clip preserves matrix rows and score markers well enough to trace theme placement.",
+          "The clip is not a full-page grab."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:pptx-slide-object-structure",
+      "work_unit_id": "work-unit:pptx-slide-object-structure",
+      "company": null,
+      "source_artifact": {
+        "id": "source:kilos-template-pptx",
+        "kind": "pptx",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pptx",
+        "role": "slide_template_reference"
+      },
+      "capture_type": "element_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The target points back to editable slide objects as source structure.",
+          "No screenshot, deck export, or generated slide artifact is produced.",
+          "Later extraction fields remain nullable until a PPTX object parser or codegen pass fills them."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-header-view-nav",
+      "work_unit_id": "work-unit:spa-header-view-nav",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes the visible view controls and enough header context to identify the audit surface.",
+          "The clip does not include the full browser viewport.",
+          "The active-view styling is visible for the selected state used during capture."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-intro-methodology-elements",
+      "work_unit_id": "work-unit:spa-intro-methodology-elements",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "Exactly two clips are produced: one for the audit introduction and one for methodology/framework context.",
+          "The method clip includes the KILOS framework explanation when visible.",
+          "Neither clip includes the whole overview page."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-competition-logo-grid",
+      "work_unit_id": "work-unit:spa-competition-logo-grid",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes the grid title and all visible company logo tiles.",
+          "The clip excludes the rest of the competition page if additional sections are present.",
+          "The company count can vary in later audits; this target is a repeated-grid element, not a fixed company schema."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-kilos-matrix",
+      "work_unit_id": "work-unit:spa-kilos-matrix",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes the KILOS matrix title and table content.",
+          "The clip preserves company columns and KILOS dimension grouping.",
+          "The clip is scoped to #kilos-matrix, not the full KILOS page."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-kilos-framework-analysis-accordions",
+      "work_unit_id": "work-unit:spa-kilos-framework-analysis-accordions",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "Exactly five clips are produced for the selected company: Kinship, Impact, Lifestyle, Opportunity, and Status.",
+          "Each clip includes the dimension label, summary, and supporting evidence when present.",
+          "Clips are accordion-panel scoped and do not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:sanofi",
+      "company": {
+        "company_ref_id": "company:sanofi",
+        "name": "Sanofi",
+        "slug": "sanofi",
+        "role": "client"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:roche",
+      "company": {
+        "company_ref_id": "company:roche",
+        "name": "Roche",
+        "slug": "roche",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:novo-nordisk",
+      "company": {
+        "company_ref_id": "company:novo-nordisk",
+        "name": "Novo Nordisk",
+        "slug": "novo-nordisk",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:merck-msd",
+      "company": {
+        "company_ref_id": "company:merck-msd",
+        "name": "Merck (MSD)",
+        "slug": "merck-msd",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:glaxosmithkline-pharmaceuticals-gsk",
+      "company": {
+        "company_ref_id": "company:glaxosmithkline-pharmaceuticals-gsk",
+        "name": "GlaxoSmithKline Pharmaceuticals (GSK)",
+        "slug": "glaxosmithkline-pharmaceuticals-gsk",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:bristol-myers-squibb",
+      "company": {
+        "company_ref_id": "company:bristol-myers-squibb",
+        "name": "Bristol Myers Squibb",
+        "slug": "bristol-myers-squibb",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:johnson-johnson",
+      "company": {
+        "company_ref_id": "company:johnson-johnson",
+        "name": "Johnson & Johnson",
+        "slug": "johnson-johnson",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:abbvie",
+      "company": {
+        "company_ref_id": "company:abbvie",
+        "name": "AbbVie",
+        "slug": "abbvie",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:astrazeneca",
+      "company": {
+        "company_ref_id": "company:astrazeneca",
+        "name": "AstraZeneca",
+        "slug": "astrazeneca",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:novartis",
+      "company": {
+        "company_ref_id": "company:novartis",
+        "name": "Novartis",
+        "slug": "novartis",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:amgen",
+      "company": {
+        "company_ref_id": "company:amgen",
+        "name": "Amgen",
+        "slug": "amgen",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:eli-lilly",
+      "company": {
+        "company_ref_id": "company:eli-lilly",
+        "name": "Eli Lilly",
+        "slug": "eli-lilly",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "work_unit_id": "work-unit:spa-company-deep-dive-cards:pfizer",
+      "company": {
+        "company_ref_id": "company:pfizer",
+        "name": "Pfizer",
+        "slug": "pfizer",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One clip is produced for each rendered company deep-dive section in SPv5.",
+          "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+          "Each clip is section scoped and not a full-page or full-viewport screenshot."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:sanofi",
+      "company": {
+        "company_ref_id": "company:sanofi",
+        "name": "Sanofi",
+        "slug": "sanofi",
+        "role": "client"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:roche",
+      "company": {
+        "company_ref_id": "company:roche",
+        "name": "Roche",
+        "slug": "roche",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:novo-nordisk",
+      "company": {
+        "company_ref_id": "company:novo-nordisk",
+        "name": "Novo Nordisk",
+        "slug": "novo-nordisk",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:merck-msd",
+      "company": {
+        "company_ref_id": "company:merck-msd",
+        "name": "Merck (MSD)",
+        "slug": "merck-msd",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:glaxosmithkline-pharmaceuticals-gsk",
+      "company": {
+        "company_ref_id": "company:glaxosmithkline-pharmaceuticals-gsk",
+        "name": "GlaxoSmithKline Pharmaceuticals (GSK)",
+        "slug": "glaxosmithkline-pharmaceuticals-gsk",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:bristol-myers-squibb",
+      "company": {
+        "company_ref_id": "company:bristol-myers-squibb",
+        "name": "Bristol Myers Squibb",
+        "slug": "bristol-myers-squibb",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:johnson-johnson",
+      "company": {
+        "company_ref_id": "company:johnson-johnson",
+        "name": "Johnson & Johnson",
+        "slug": "johnson-johnson",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:abbvie",
+      "company": {
+        "company_ref_id": "company:abbvie",
+        "name": "AbbVie",
+        "slug": "abbvie",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:astrazeneca",
+      "company": {
+        "company_ref_id": "company:astrazeneca",
+        "name": "AstraZeneca",
+        "slug": "astrazeneca",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:novartis",
+      "company": {
+        "company_ref_id": "company:novartis",
+        "name": "Novartis",
+        "slug": "novartis",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:amgen",
+      "company": {
+        "company_ref_id": "company:amgen",
+        "name": "Amgen",
+        "slug": "amgen",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:eli-lilly",
+      "company": {
+        "company_ref_id": "company:eli-lilly",
+        "name": "Eli Lilly",
+        "slug": "eli-lilly",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "work_unit_id": "work-unit:spa-evidence-gallery-active-frames:pfizer",
+      "company": {
+        "company_ref_id": "company:pfizer",
+        "name": "Pfizer",
+        "slug": "pfizer",
+        "role": "competitor"
+      },
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "One active-gallery clip is produced per company with an evidence gallery.",
+          "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+          "The clip does not include the entire company deep-dive section."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    },
+    {
+      "target_id": "target:spa-citation-controls",
+      "work_unit_id": "work-unit:spa-citation-controls",
+      "company": null,
+      "source_artifact": {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference"
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "citation_refs": [],
+      "kilos_relevance": [],
+      "acceptance_result": {
+        "status": "not_run",
+        "criteria": [
+          "The clip includes at least one numbered citation bubble and the related expansion control when present.",
+          "The text extract identifies the source URL or citation index relationship when visible.",
+          "The clip is scoped to the citation cluster, not the whole paragraph or page."
+        ],
+        "notes": null
+      },
+      "provenance": {
+        "planned_only": true,
+        "read_only": true,
+        "non_goal_flags": [
+          "live_browser_collection",
+          "screenshots",
+          "element_clip_generation",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "full_page_grabs"
+        ]
+      }
+    }
+  ],
+  "controls": {
+    "contains_actual_captures": false,
+    "local_spv5_html_only": false,
+    "live_browser_collection_authorized": false,
+    "remote_web_collection_authorized": false,
+    "pdf_capture_execution_authorized": false,
+    "pptx_capture_execution_authorized": false,
+    "screenshot_generation_authorized": false,
+    "element_clip_generation_authorized": false,
+    "report_renderer_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false,
+    "full_page_grabs_authorized": false
+  },
+  "provenance": {
+    "created_at": "2026-05-08T00:00:00Z",
+    "planning_bundle_id": "element-capture-planning-bundle:source-artifact-target-plan:kilos-comp-audit-source-elements-v0",
+    "planning_bundle_path": "source-artifacts/element-capture-planning-bundle.json",
+    "manifest_path": "source-artifacts/element-clip-manifest.planned.json",
+    "source_spv5_html_path": null,
+    "source_spv5_html_url": null,
+    "executor": null,
+    "read_only": true,
+    "planned_only": true,
+    "local_fixture_evidence_only": false,
+    "non_goals": [
+      "live_browser_collection",
+      "screenshots",
+      "element_clip_generation",
+      "report_renderer",
+      "html_css_polish",
+      "pdf_export",
+      "docx_export",
+      "workflow_engine",
+      "full_page_grabs"
+    ]
+  }
+}

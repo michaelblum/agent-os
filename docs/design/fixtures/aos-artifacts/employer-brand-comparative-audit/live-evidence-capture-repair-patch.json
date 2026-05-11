@@ -1,0 +1,1846 @@
+{
+  "type": "aos.employer_brand_live_evidence_capture_repair_patch",
+  "schema_version": "2026-05-employer-brand-live-evidence-capture-repair-patch-v0",
+  "id": "live-evidence-capture-repair-patch:symphony-talent-phenom-radancy",
+  "label": "Symphony Talent Employer Brand Live Evidence Capture Repair Patch Template",
+  "status": "repair_reviewed",
+  "source_refs": {
+    "failure_review_pack_id": "live-evidence-capture-failure-review-pack:symphony-talent-phenom-radancy",
+    "failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+    "failure_review_pack_schema": "shared/schemas/employer-brand-live-evidence-capture-failure-review-pack-v0.schema.json",
+    "manifest_path": "source-artifacts/live-evidence-element-clip-manifest.json",
+    "reviewed_locator_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+    "reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+    "url_open_run_path": "live-evidence-url-open-run.json",
+    "reviewed_target_plan_path": "live-evidence-target-plan.reviewed.json",
+    "data_bundle_path": "data-bundle.json",
+    "read_only": true
+  },
+  "summary": {
+    "patchable_repair_item_count": 5,
+    "read_only_context_entry_count": 14,
+    "filled_repair_decision_count": 5,
+    "proposed_locator_count": 4,
+    "replacement_url_count": 0,
+    "source_unavailable_count": 1,
+    "zero_match_locator_failure_count": 4,
+    "login_or_sign_in_blocker_count": 1,
+    "blocker_reason_counts": {
+      "reviewed_locator_matches_zero_elements": 4,
+      "login_required": 1
+    },
+    "blocker_class_counts": {
+      "zero_match_locator_failure": 4,
+      "login_or_sign_in_blocker": 1
+    },
+    "recommended_next_action_counts": {
+      "needs_operator_locator_repair": 4,
+      "needs_human_source_decision": 1
+    },
+    "all_repair_fields_null": false
+  },
+  "allowed_repair_decisions": [
+    "approve_repaired_locator",
+    "edit_locator",
+    "replace_url",
+    "refine_target",
+    "mark_source_unavailable",
+    "reject_target",
+    "keep_failed",
+    "keep_pending_review"
+  ],
+  "repair_items": [
+    {
+      "repair_item_id": "live-evidence-capture-repair:1",
+      "failure_id": "live-evidence-capture-failure:1",
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:1",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "careers_site",
+      "original_url": "https://www.symphonytalent.com/",
+      "final_url": "https://www.symphonytalent.com/",
+      "status": "failed",
+      "blocker_reason": "reviewed_locator_matches_zero_elements",
+      "blocker_class": "zero_match_locator_failure",
+      "recommended_next_action": "needs_operator_locator_repair",
+      "allowed_repair_decisions": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ],
+      "original_natural_language_target": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+      "kilos_relevance": [
+        "impact",
+        "opportunity"
+      ],
+      "expected_clip_count": 2,
+      "target_context": {
+        "natural_language_target": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+        "evidence_goal": "Confirm Symphony Talent career-site positioning and visible employee value proposition proof for KILOS scoring.",
+        "kilos_relevance": [
+          "impact",
+          "opportunity"
+        ],
+        "expected_clip_count": 2,
+        "page_name": "Symphony Talent Careers or jobs site",
+        "acceptance_criteria": [
+          "The captured evidence is scoped to one visible careers-site element, not the full page.",
+          "The element includes enough surrounding heading or label text to understand the employer promise out of context.",
+          "The element can be reviewed against Impact and Opportunity before capture execution."
+        ]
+      },
+      "reviewed_locator": {
+        "selector": "[data-testid=\"hero-employer-brand\"], main section.hero",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "approve_selector",
+        "review_item_id": "human-locator-review-item:symphony-talent:careers-site",
+        "human_notes": "Operator approved the careers homepage hero/EVP block selector for later supervised capture.",
+        "provenance": {
+          "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+          "source_human_locator_approval_patch_id": "live-evidence-human-locator-approval-patch:symphony-talent-phenom-radancy",
+          "source_human_locator_review_pack_path": "live-evidence-human-locator-review-pack.json",
+          "source_human_locator_work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+          "read_only": true
+        }
+      },
+      "operator_outcome_notes": {
+        "required_next_action": "human_review_new_locator_required",
+        "operator_visual_review": null,
+        "title": "Talent Acquisition Software | Recruitment CRM & Marketing Solutions",
+        "current_url": "https://www.symphonytalent.com/",
+        "match_count": 0,
+        "frame_count": 6,
+        "total_frame_match_count": 0
+      },
+      "citation_source_metadata": {
+        "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+        "source_category": "careers_site",
+        "page_name": "Symphony Talent Careers or jobs site",
+        "evidence_goal": "Confirm Symphony Talent career-site positioning and visible employee value proposition proof for KILOS scoring.",
+        "desired_element": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+        "citation": {
+          "request_id": "symphony_talent_careers_site_planning",
+          "registry_status": "captured",
+          "source_url": "html/symphony-talent-careers.html",
+          "screenshot_path": "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "captured_at": "2026-05-07T15:11:01Z",
+          "provenance_only": true
+        }
+      },
+      "capture_metadata": {
+        "executor": "2026-05-employer-brand-reviewed-live-element-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "locator_kind": "selector",
+        "match_count": 0,
+        "title": "Talent Acquisition Software | Recruitment CRM & Marketing Solutions",
+        "current_url": "https://www.symphonytalent.com/",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "frame_count": 6,
+        "total_frame_match_count": 0,
+        "frame_match_counts": [
+          {
+            "url": "https://www.symphonytalent.com/",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "target_iframe_c474564c-c079-4e2b-9d8d-9921e7d77160",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://s.company-target.com/s/sync?exc=lr",
+            "name": null,
+            "count": 0,
+            "error": null
+          }
+        ],
+        "clip_path_planned": "source-artifacts/live-evidence-element-clips/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-1.png",
+        "text_extract_path_planned": "source-artifacts/live-evidence-text-extracts/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-1.txt"
+      },
+      "acceptance_checks": [
+        {
+          "name": "clip_asset_exists",
+          "status": "fail"
+        },
+        {
+          "name": "text_extract_present",
+          "status": "fail"
+        },
+        {
+          "name": "full_page_grab_false",
+          "status": "pass"
+        },
+        {
+          "name": "target_work_unit_linkage_present",
+          "status": "pass"
+        },
+        {
+          "name": "locator_provenance_present",
+          "status": "pass"
+        },
+        {
+          "name": "kilos_citation_metadata_present",
+          "status": "pass"
+        }
+      ],
+      "full_page_grab": false,
+      "repair": {
+        "repair_decision": "approve_repaired_locator",
+        "proposed_selector": "section#home-hero",
+        "proposed_xpath": null,
+        "proposed_playwright_locator": null,
+        "refined_natural_language_target": null,
+        "replacement_url": null,
+        "replacement_source_category": null,
+        "source_unavailable_reason": null,
+        "repair_notes": "DOM-only supervised review of the approved URL verified section#home-hero resolves to one visible hero section containing the Symphony Talent employer promise; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "reviewed_by": "operator:gdi",
+        "reviewed_at": "2026-05-09T00:13:06Z"
+      },
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": true,
+        "approved_original_or_final_url_only": true,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+        "source_url_open_run_path": "live-evidence-url-open-run.json",
+        "source_failure_id": "live-evidence-capture-failure:1",
+        "source_failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+        "read_only_source_context": true,
+        "patchable_repair_fields_only": true
+      }
+    },
+    {
+      "repair_item_id": "live-evidence-capture-repair:2",
+      "failure_id": "live-evidence-capture-failure:2",
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:2",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "careers_site",
+      "original_url": "https://www.symphonytalent.com/",
+      "final_url": "https://www.symphonytalent.com/",
+      "status": "failed",
+      "blocker_reason": "reviewed_locator_matches_zero_elements",
+      "blocker_class": "zero_match_locator_failure",
+      "recommended_next_action": "needs_operator_locator_repair",
+      "allowed_repair_decisions": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ],
+      "original_natural_language_target": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+      "kilos_relevance": [
+        "impact",
+        "opportunity"
+      ],
+      "expected_clip_count": 2,
+      "target_context": {
+        "natural_language_target": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+        "evidence_goal": "Confirm Symphony Talent career-site positioning and visible employee value proposition proof for KILOS scoring.",
+        "kilos_relevance": [
+          "impact",
+          "opportunity"
+        ],
+        "expected_clip_count": 2,
+        "page_name": "Symphony Talent Careers or jobs site",
+        "acceptance_criteria": [
+          "The captured evidence is scoped to one visible careers-site element, not the full page.",
+          "The element includes enough surrounding heading or label text to understand the employer promise out of context.",
+          "The element can be reviewed against Impact and Opportunity before capture execution."
+        ]
+      },
+      "reviewed_locator": {
+        "selector": "[data-testid=\"hero-employer-brand\"], main section.hero",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "approve_selector",
+        "review_item_id": "human-locator-review-item:symphony-talent:careers-site",
+        "human_notes": "Operator approved the careers homepage hero/EVP block selector for later supervised capture.",
+        "provenance": {
+          "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+          "source_human_locator_approval_patch_id": "live-evidence-human-locator-approval-patch:symphony-talent-phenom-radancy",
+          "source_human_locator_review_pack_path": "live-evidence-human-locator-review-pack.json",
+          "source_human_locator_work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+          "read_only": true
+        }
+      },
+      "operator_outcome_notes": {
+        "required_next_action": "human_review_new_locator_required",
+        "operator_visual_review": null,
+        "title": "Talent Acquisition Software | Recruitment CRM & Marketing Solutions",
+        "current_url": "https://www.symphonytalent.com/",
+        "match_count": 0,
+        "frame_count": 6,
+        "total_frame_match_count": 0
+      },
+      "citation_source_metadata": {
+        "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+        "source_category": "careers_site",
+        "page_name": "Symphony Talent Careers or jobs site",
+        "evidence_goal": "Confirm Symphony Talent career-site positioning and visible employee value proposition proof for KILOS scoring.",
+        "desired_element": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+        "citation": {
+          "request_id": "symphony_talent_careers_site_planning",
+          "registry_status": "captured",
+          "source_url": "html/symphony-talent-careers.html",
+          "screenshot_path": "screenshots/symphony-talent/symphony-talent-fixture-evp-hero.png",
+          "captured_at": "2026-05-07T15:11:01Z",
+          "provenance_only": true
+        }
+      },
+      "capture_metadata": {
+        "executor": "2026-05-employer-brand-reviewed-live-element-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "locator_kind": "selector",
+        "match_count": 0,
+        "title": "Talent Acquisition Software | Recruitment CRM & Marketing Solutions",
+        "current_url": "https://www.symphonytalent.com/",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "frame_count": 6,
+        "total_frame_match_count": 0,
+        "frame_match_counts": [
+          {
+            "url": "https://www.symphonytalent.com/",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "target_iframe_c474564c-c079-4e2b-9d8d-9921e7d77160",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://s.company-target.com/s/sync?exc=lr",
+            "name": null,
+            "count": 0,
+            "error": null
+          }
+        ],
+        "clip_path_planned": "source-artifacts/live-evidence-element-clips/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-2.png",
+        "text_extract_path_planned": "source-artifacts/live-evidence-text-extracts/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-2.txt"
+      },
+      "acceptance_checks": [
+        {
+          "name": "clip_asset_exists",
+          "status": "fail"
+        },
+        {
+          "name": "text_extract_present",
+          "status": "fail"
+        },
+        {
+          "name": "full_page_grab_false",
+          "status": "pass"
+        },
+        {
+          "name": "target_work_unit_linkage_present",
+          "status": "pass"
+        },
+        {
+          "name": "locator_provenance_present",
+          "status": "pass"
+        },
+        {
+          "name": "kilos_citation_metadata_present",
+          "status": "pass"
+        }
+      ],
+      "full_page_grab": false,
+      "repair": {
+        "repair_decision": "approve_repaired_locator",
+        "proposed_selector": "section#section-2-2583",
+        "proposed_xpath": null,
+        "proposed_playwright_locator": null,
+        "refined_natural_language_target": null,
+        "replacement_url": null,
+        "replacement_source_category": null,
+        "source_unavailable_reason": null,
+        "repair_notes": "DOM-only supervised review of the approved URL verified section#section-2-2583 resolves to one visible EVP proof block stating proven talent acquisition technology and creative services; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "reviewed_by": "operator:gdi",
+        "reviewed_at": "2026-05-09T00:13:06Z"
+      },
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": true,
+        "approved_original_or_final_url_only": true,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+        "source_url_open_run_path": "live-evidence-url-open-run.json",
+        "source_failure_id": "live-evidence-capture-failure:2",
+        "source_failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+        "read_only_source_context": true,
+        "patchable_repair_fields_only": true
+      }
+    },
+    {
+      "repair_item_id": "live-evidence-capture-repair:3",
+      "failure_id": "live-evidence-capture-failure:3",
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-linkedin-presence:slot:1",
+      "target_id": "live-target:symphony-talent:linkedin-presence",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-linkedin-presence",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "linkedin_presence",
+      "original_url": "https://www.linkedin.com/company/symphony-talent/",
+      "final_url": "https://www.linkedin.com/company/symphony-talent/",
+      "status": "failed",
+      "blocker_reason": "login_required",
+      "blocker_class": "login_or_sign_in_blocker",
+      "recommended_next_action": "needs_human_source_decision",
+      "allowed_repair_decisions": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ],
+      "original_natural_language_target": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "expected_clip_count": 1,
+      "target_context": {
+        "natural_language_target": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+        "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+        "kilos_relevance": [
+          "status",
+          "impact"
+        ],
+        "expected_clip_count": 1,
+        "page_name": "Symphony Talent LinkedIn company, life, and jobs presence",
+        "acceptance_criteria": [
+          "The captured evidence is scoped to the named element, not the full page.",
+          "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+          "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+          "The element can be reviewed against the stated KILOS relevance before capture execution."
+        ]
+      },
+      "reviewed_locator": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": "page.getByRole('heading', { name: /Symphony Talent/i }).first()"
+      },
+      "locator_provenance": {
+        "decision": "provide_playwright_locator",
+        "review_item_id": "human-locator-review-item:symphony-talent:linkedin-presence",
+        "human_notes": "Operator supplied a role-based locator for the LinkedIn company identity heading.",
+        "provenance": {
+          "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+          "source_human_locator_approval_patch_id": "live-evidence-human-locator-approval-patch:symphony-talent-phenom-radancy",
+          "source_human_locator_review_pack_path": "live-evidence-human-locator-review-pack.json",
+          "source_human_locator_work_unit_id": "live-locator-work-unit:symphony-talent:linkedin-presence",
+          "read_only": true
+        }
+      },
+      "operator_outcome_notes": {
+        "required_next_action": "human_review_new_locator_or_access_plan_required",
+        "operator_visual_review": {
+          "decision": "reject_capture_as_login_gate",
+          "reason": "Captured element is a LinkedIn sign-in prompt, not the intended company identity or hiring evidence target.",
+          "observed_text": "Sign in to see who you already know at Symphony Talent",
+          "observed_image_dimensions": {
+            "width": 200,
+            "height": 75
+          },
+          "observed_clip_bytes": 7777,
+          "observed_bounding_box": {
+            "x": 660,
+            "y": 307,
+            "width": 200,
+            "height": 75
+          }
+        },
+        "title": "Symphony Talent | LinkedIn",
+        "current_url": "https://www.linkedin.com/company/symphony-talent/",
+        "match_count": 1,
+        "frame_count": null,
+        "total_frame_match_count": null
+      },
+      "citation_source_metadata": {
+        "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+        "source_category": "linkedin_presence",
+        "page_name": "Symphony Talent LinkedIn company, life, and jobs presence",
+        "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+        "desired_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+        "citation": {
+          "request_id": null,
+          "registry_status": "not_available_for_live_target",
+          "source_url": "https://www.linkedin.com/company/symphony-talent/",
+          "screenshot_path": null,
+          "captured_at": null,
+          "provenance_only": true
+        }
+      },
+      "capture_metadata": {
+        "executor": "2026-05-employer-brand-reviewed-live-element-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "locator_kind": "playwright_locator",
+        "match_count": 1,
+        "title": "Symphony Talent | LinkedIn",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "bounding_box": {
+          "x": 660,
+          "y": 307,
+          "width": 200,
+          "height": 75
+        },
+        "clip_bytes": 7777,
+        "image_dimensions": {
+          "width": 200,
+          "height": 75
+        },
+        "current_url": "https://www.linkedin.com/company/symphony-talent/",
+        "clip_path_planned": "source-artifacts/live-evidence-element-clips/reviewed-locator/symphony-talent/linkedin-presence/symphony-talent-linkedin-presence-slot-1.png",
+        "text_extract_path_planned": "source-artifacts/live-evidence-text-extracts/reviewed-locator/symphony-talent/linkedin-presence/symphony-talent-linkedin-presence-slot-1.txt",
+        "operator_visual_review": {
+          "decision": "reject_capture_as_login_gate",
+          "reason": "Captured element is a LinkedIn sign-in prompt, not the intended company identity or hiring evidence target.",
+          "observed_text": "Sign in to see who you already know at Symphony Talent",
+          "observed_image_dimensions": {
+            "width": 200,
+            "height": 75
+          },
+          "observed_clip_bytes": 7777,
+          "observed_bounding_box": {
+            "x": 660,
+            "y": 307,
+            "width": 200,
+            "height": 75
+          }
+        }
+      },
+      "acceptance_checks": [
+        {
+          "name": "clip_asset_exists",
+          "status": "fail"
+        },
+        {
+          "name": "text_extract_present",
+          "status": "fail"
+        },
+        {
+          "name": "full_page_grab_false",
+          "status": "pass"
+        },
+        {
+          "name": "target_work_unit_linkage_present",
+          "status": "pass"
+        },
+        {
+          "name": "locator_provenance_present",
+          "status": "pass"
+        },
+        {
+          "name": "kilos_citation_metadata_present",
+          "status": "pass"
+        }
+      ],
+      "full_page_grab": false,
+      "repair": {
+        "repair_decision": "mark_source_unavailable",
+        "proposed_selector": null,
+        "proposed_xpath": null,
+        "proposed_playwright_locator": null,
+        "refined_natural_language_target": null,
+        "replacement_url": null,
+        "replacement_source_category": null,
+        "source_unavailable_reason": "linkedin_login_or_sign_in_required_for_reliable_supervised_capture",
+        "repair_notes": "Approved LinkedIn URL was opened for bounded review only. The page presents LinkedIn sign-in/join controls and the prior failure provenance is login_required, so this repair pass does not attempt login, bypass, or capture; source should remain unavailable unless a human provides an alternate approved source URL.",
+        "reviewed_by": "operator:gdi",
+        "reviewed_at": "2026-05-09T00:13:06Z"
+      },
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": true,
+        "approved_original_or_final_url_only": true,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+        "source_url_open_run_path": "live-evidence-url-open-run.json",
+        "source_failure_id": "live-evidence-capture-failure:3",
+        "source_failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+        "read_only_source_context": true,
+        "patchable_repair_fields_only": true
+      }
+    },
+    {
+      "repair_item_id": "live-evidence-capture-repair:4",
+      "failure_id": "live-evidence-capture-failure:4",
+      "slot_id": "live-reviewed-capture-work-unit:phenom-careers-site:slot:1",
+      "target_id": "live-target:phenom:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:phenom-careers-site",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "careers_site",
+      "original_url": "https://www.phenom.com/",
+      "final_url": "https://www.phenom.com/",
+      "status": "failed",
+      "blocker_reason": "reviewed_locator_matches_zero_elements",
+      "blocker_class": "zero_match_locator_failure",
+      "recommended_next_action": "needs_operator_locator_repair",
+      "allowed_repair_decisions": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ],
+      "original_natural_language_target": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+      "kilos_relevance": [
+        "opportunity",
+        "lifestyle"
+      ],
+      "expected_clip_count": 1,
+      "target_context": {
+        "natural_language_target": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+        "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+        "kilos_relevance": [
+          "opportunity",
+          "lifestyle"
+        ],
+        "expected_clip_count": 1,
+        "page_name": "Phenom Careers or jobs site",
+        "acceptance_criteria": [
+          "The captured evidence is scoped to the named element, not the full page.",
+          "The element visibly supports the Careers or jobs site source category.",
+          "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+          "The element can be reviewed against the stated KILOS relevance before capture execution."
+        ]
+      },
+      "reviewed_locator": {
+        "selector": "main [data-component=\"hero\"], main .hero",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "edit_selector",
+        "review_item_id": "human-locator-review-item:phenom:careers-site",
+        "human_notes": "Operator edited the selector to include the main hero component fallback only.",
+        "provenance": {
+          "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+          "source_human_locator_approval_patch_id": "live-evidence-human-locator-approval-patch:symphony-talent-phenom-radancy",
+          "source_human_locator_review_pack_path": "live-evidence-human-locator-review-pack.json",
+          "source_human_locator_work_unit_id": "live-locator-work-unit:phenom:careers-site",
+          "read_only": true
+        }
+      },
+      "operator_outcome_notes": {
+        "required_next_action": "human_review_new_locator_required",
+        "operator_visual_review": null,
+        "title": "Phenom Applied AI | Talent Intelligence Platform",
+        "current_url": "https://www.phenom.com/",
+        "match_count": 0,
+        "frame_count": 20,
+        "total_frame_match_count": 0
+      },
+      "citation_source_metadata": {
+        "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+        "source_category": "careers_site",
+        "page_name": "Phenom Careers or jobs site",
+        "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+        "desired_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+        "citation": {
+          "request_id": "phenom_careers_site_planning",
+          "registry_status": "captured",
+          "source_url": "html/phenom-careers.html",
+          "screenshot_path": "screenshots/phenom/phenom-fixture-culture-card.png",
+          "captured_at": "2026-05-07T15:11:02Z",
+          "provenance_only": true
+        }
+      },
+      "capture_metadata": {
+        "executor": "2026-05-employer-brand-reviewed-live-element-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "locator_kind": "selector",
+        "match_count": 0,
+        "title": "Phenom Applied AI | Talent Intelligence Platform",
+        "current_url": "https://www.phenom.com/",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "frame_count": 20,
+        "total_frame_match_count": 0,
+        "frame_match_counts": [
+          {
+            "url": "https://www.phenom.com/",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/cv9bfumqz6?autoplay=1&controlsVisibleOnLoad=false&playbar=false&smallPlayButton=false",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/wtruz8laq1?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/t9dvryr07w?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/hnz0uwre8t?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/pc4lyapvhq?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/o3azxp41sq?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/8keykp2bv9?autoPlay=true",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/ngd05njtdj?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/sibujchtw3?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/kr8fe31xku?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/83tgoggeeq?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/trtia93thv?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/11y41qo3mb?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/f8m7wdfybo?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://fast.wistia.net/embed/iframe/5o1hb7z89n?autoPlay=true&controlsVisibleOnLoad=0&playbar=0",
+            "name": "wistia_embed",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "hs-form-iframe-0",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": "target_iframe_f458352a-124e-4621-8eb2-7899b83fbdb4",
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "https://phenom-9268206.hs-sites.com/hs-web-interactive-9268206-212047813047?enableResponsiveStyles=true",
+            "name": null,
+            "count": 0,
+            "error": null
+          }
+        ],
+        "clip_path_planned": "source-artifacts/live-evidence-element-clips/reviewed-locator/phenom/careers-site/phenom-careers-site-slot-1.png",
+        "text_extract_path_planned": "source-artifacts/live-evidence-text-extracts/reviewed-locator/phenom/careers-site/phenom-careers-site-slot-1.txt"
+      },
+      "acceptance_checks": [
+        {
+          "name": "clip_asset_exists",
+          "status": "fail"
+        },
+        {
+          "name": "text_extract_present",
+          "status": "fail"
+        },
+        {
+          "name": "full_page_grab_false",
+          "status": "pass"
+        },
+        {
+          "name": "target_work_unit_linkage_present",
+          "status": "pass"
+        },
+        {
+          "name": "locator_provenance_present",
+          "status": "pass"
+        },
+        {
+          "name": "kilos_citation_metadata_present",
+          "status": "pass"
+        }
+      ],
+      "full_page_grab": false,
+      "repair": {
+        "repair_decision": "approve_repaired_locator",
+        "proposed_selector": null,
+        "proposed_xpath": null,
+        "proposed_playwright_locator": "page.locator('main section').filter({ hasText: /AI for Tomorrow.*Applied by Human Resources/ }).first()",
+        "refined_natural_language_target": null,
+        "replacement_url": null,
+        "replacement_source_category": null,
+        "source_unavailable_reason": null,
+        "repair_notes": "DOM-only supervised review of the approved URL verified the Playwright locator resolves to one visible Phenom hero section with the primary talent/HR promise; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "reviewed_by": "operator:gdi",
+        "reviewed_at": "2026-05-09T00:13:06Z"
+      },
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": true,
+        "approved_original_or_final_url_only": true,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+        "source_url_open_run_path": "live-evidence-url-open-run.json",
+        "source_failure_id": "live-evidence-capture-failure:4",
+        "source_failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+        "read_only_source_context": true,
+        "patchable_repair_fields_only": true
+      }
+    },
+    {
+      "repair_item_id": "live-evidence-capture-repair:5",
+      "failure_id": "live-evidence-capture-failure:5",
+      "slot_id": "live-reviewed-capture-work-unit:radancy-careers-site:slot:1",
+      "target_id": "live-target:radancy:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:radancy-careers-site",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "careers_site",
+      "original_url": "https://www.radancy.com/en/",
+      "final_url": "https://www.radancy.com/en/",
+      "status": "failed",
+      "blocker_reason": "reviewed_locator_matches_zero_elements",
+      "blocker_class": "zero_match_locator_failure",
+      "recommended_next_action": "needs_operator_locator_repair",
+      "allowed_repair_decisions": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ],
+      "original_natural_language_target": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+      "kilos_relevance": [
+        "opportunity",
+        "lifestyle"
+      ],
+      "expected_clip_count": 1,
+      "target_context": {
+        "natural_language_target": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+        "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+        "kilos_relevance": [
+          "opportunity",
+          "lifestyle"
+        ],
+        "expected_clip_count": 1,
+        "page_name": "Radancy Careers or jobs site",
+        "acceptance_criteria": [
+          "The captured evidence is scoped to the named element, not the full page.",
+          "The element visibly supports the Careers or jobs site source category.",
+          "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+          "The element can be reviewed against the stated KILOS relevance before capture execution."
+        ]
+      },
+      "reviewed_locator": {
+        "selector": null,
+        "xpath": "//main//*[self::section or self::div][.//*[contains(normalize-space(.), 'Talent Acquisition')]][1]",
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "provide_xpath",
+        "review_item_id": "human-locator-review-item:radancy:careers-site",
+        "human_notes": "Operator supplied a scoped XPath for the careers-site value proposition block.",
+        "provenance": {
+          "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+          "source_human_locator_approval_patch_id": "live-evidence-human-locator-approval-patch:symphony-talent-phenom-radancy",
+          "source_human_locator_review_pack_path": "live-evidence-human-locator-review-pack.json",
+          "source_human_locator_work_unit_id": "live-locator-work-unit:radancy:careers-site",
+          "read_only": true
+        }
+      },
+      "operator_outcome_notes": {
+        "required_next_action": "human_review_new_locator_required",
+        "operator_visual_review": null,
+        "title": "Radancy | The Talent Acquisition Cloud powered by Agentic AI",
+        "current_url": "https://www.radancy.com/en/",
+        "match_count": 0,
+        "frame_count": 4,
+        "total_frame_match_count": 0
+      },
+      "citation_source_metadata": {
+        "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+        "source_category": "careers_site",
+        "page_name": "Radancy Careers or jobs site",
+        "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+        "desired_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+        "citation": {
+          "request_id": "radancy_careers_site_planning",
+          "registry_status": "captured",
+          "source_url": "html/radancy-careers.html",
+          "screenshot_path": "screenshots/radancy/radancy-fixture-proof-block.png",
+          "captured_at": "2026-05-07T15:11:03Z",
+          "provenance_only": true
+        }
+      },
+      "capture_metadata": {
+        "executor": "2026-05-employer-brand-reviewed-live-element-capture-v0",
+        "backend": "playwright-cli",
+        "backend_command": "playwright-cli",
+        "locator_kind": "xpath",
+        "match_count": 0,
+        "title": "Radancy | The Talent Acquisition Cloud powered by Agentic AI",
+        "current_url": "https://www.radancy.com/en/",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "frame_count": 4,
+        "total_frame_match_count": 0,
+        "frame_match_counts": [
+          {
+            "url": "https://www.radancy.com/en/",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          },
+          {
+            "url": "about:blank",
+            "name": null,
+            "count": 0,
+            "error": null
+          }
+        ],
+        "clip_path_planned": "source-artifacts/live-evidence-element-clips/reviewed-locator/radancy/careers-site/radancy-careers-site-slot-1.png",
+        "text_extract_path_planned": "source-artifacts/live-evidence-text-extracts/reviewed-locator/radancy/careers-site/radancy-careers-site-slot-1.txt"
+      },
+      "acceptance_checks": [
+        {
+          "name": "clip_asset_exists",
+          "status": "fail"
+        },
+        {
+          "name": "text_extract_present",
+          "status": "fail"
+        },
+        {
+          "name": "full_page_grab_false",
+          "status": "pass"
+        },
+        {
+          "name": "target_work_unit_linkage_present",
+          "status": "pass"
+        },
+        {
+          "name": "locator_provenance_present",
+          "status": "pass"
+        },
+        {
+          "name": "kilos_citation_metadata_present",
+          "status": "pass"
+        }
+      ],
+      "full_page_grab": false,
+      "repair": {
+        "repair_decision": "approve_repaired_locator",
+        "proposed_selector": "div.primary-hero",
+        "proposed_xpath": null,
+        "proposed_playwright_locator": null,
+        "refined_natural_language_target": null,
+        "replacement_url": null,
+        "replacement_source_category": null,
+        "source_unavailable_reason": null,
+        "repair_notes": "DOM-only supervised review of the approved URL verified div.primary-hero resolves to one visible Radancy hero block with the primary talent acquisition positioning; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "reviewed_by": "operator:gdi",
+        "reviewed_at": "2026-05-09T00:13:06Z"
+      },
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": true,
+        "approved_original_or_final_url_only": true,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json",
+        "source_url_open_run_path": "live-evidence-url-open-run.json",
+        "source_failure_id": "live-evidence-capture-failure:5",
+        "source_failure_review_pack_path": "live-evidence-capture-failure-review-pack.json",
+        "read_only_source_context": true,
+        "patchable_repair_fields_only": true
+      }
+    }
+  ],
+  "read_only_context": [
+    {
+      "target_id": "live-target:symphony-talent:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-employer-brand-pages",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "employer_brand_pages",
+      "original_url": "https://www.symphonytalent.com/careers/culture",
+      "final_url": "https://www.symphonytalent.com/careers/culture",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:symphony-talent-employer-brand-pages",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:symphony-talent:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-social-campaigns",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "social_campaigns",
+      "original_url": "https://www.symphonytalent.com/news",
+      "final_url": "https://www.symphonytalent.com/news",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:symphony-talent-social-campaigns",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:symphony-talent:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-awards-recognition",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "awards_recognition",
+      "original_url": "https://www.symphonytalent.com/news",
+      "final_url": "https://www.symphonytalent.com/news",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:symphony-talent-awards-recognition",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:symphony-talent:employee-stories",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "employee_stories",
+      "original_url": "https://www.symphonytalent.com/careers/employee-stories",
+      "final_url": null,
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved",
+      "required_next_action": "Use the refined human target text in a later supervised locator pass.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:symphony-talent-employee-stories",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json"
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:phenom:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:phenom-employer-brand-pages",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "employer_brand_pages",
+      "original_url": "https://www.phenom.com/careers/culture",
+      "final_url": "https://www.phenom.com/careers/culture",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:phenom-employer-brand-pages",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:phenom:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:phenom-linkedin-presence",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "linkedin_presence",
+      "original_url": "https://www.linkedin.com/company/phenom/",
+      "final_url": "https://www.linkedin.com/company/phenom/",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:phenom-linkedin-presence",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:phenom:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:phenom-social-campaigns",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "social_campaigns",
+      "original_url": "https://www.phenom.com/news",
+      "final_url": "https://www.phenom.com/news",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:phenom-social-campaigns",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:phenom:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:phenom-awards-recognition",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "awards_recognition",
+      "original_url": "https://www.phenom.com/news",
+      "final_url": "https://www.phenom.com/news",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:phenom-awards-recognition",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:phenom:employee-stories",
+      "work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "employee_stories",
+      "original_url": "https://www.phenom.com/careers/employee-stories",
+      "final_url": null,
+      "status": "blocked_not_run",
+      "blocker_reason": "human_locator_blocked",
+      "required_next_action": "Human reviewer could not identify a stable employee-story target without choosing a new source page.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:phenom-employee-stories",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json"
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:radancy:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:radancy-employer-brand-pages",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "employer_brand_pages",
+      "original_url": "https://www.radancy.com/careers/culture",
+      "final_url": "https://www.radancy.com/careers/culture",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:radancy-employer-brand-pages",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:radancy:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "social_campaigns",
+      "original_url": "https://www.radancy.com/news",
+      "final_url": "https://www.radancy.com/en/news/",
+      "status": "blocked_not_run",
+      "blocker_reason": "human_locator_kept_draft",
+      "required_next_action": "Keep this target in draft until a human supplies a locator or revised target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:radancy-social-campaigns",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json"
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:radancy:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "awards_recognition",
+      "original_url": "https://www.radancy.com/news",
+      "final_url": "https://www.radancy.com/en/news/",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:radancy-awards-recognition",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:radancy:employee-stories",
+      "work_unit_id": "live-locator-work-unit:radancy-employee-stories",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "employee_stories",
+      "original_url": "https://www.radancy.com/careers/employee-stories",
+      "final_url": "https://www.radancy.com/careers/employee-stories",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:radancy-employee-stories",
+        "source_reviewed_locator_readiness_path": "live-evidence-locator-readiness.reviewed.json",
+        "source_human_locator_approval_patch_path": null
+      },
+      "read_only_context": true
+    },
+    {
+      "target_id": "live-target:radancy:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "linkedin_presence",
+      "original_url": "https://www.linkedin.com/company/radancy/",
+      "final_url": "https://www.linkedin.com/company/radancy/",
+      "status": "blocked_not_run",
+      "blocker_reason": "rejected",
+      "required_next_action": "Rejected from locator readiness because the LinkedIn page target duplicates other employer-presence evidence.",
+      "full_page_grab": false,
+      "actionable_repair_item": false,
+      "provenance": {
+        "read_only": true,
+        "reviewed_locator_only": false,
+        "approved_original_or_final_url_only": false,
+        "no_full_page_grab": true,
+        "non_goal_controls": [
+          "autonomous_crawl",
+          "autonomous_browsing",
+          "locator_codegen",
+          "locator_discovery",
+          "unreviewed_locators",
+          "full_page_grabs",
+          "report_renderer",
+          "html_css_polish",
+          "pdf_export",
+          "docx_export",
+          "workflow_engine",
+          "login_bypass",
+          "paywall_bypass",
+          "captcha_bypass",
+          "consent_bypass"
+        ],
+        "source_capture_plan_path": "live-evidence-reviewed-locator-capture-plan.json",
+        "source_context_id": "live-reviewed-capture-context:radancy-linkedin-presence",
+        "source_reviewed_locator_readiness_path": null,
+        "source_human_locator_approval_patch_path": "live-evidence-human-locator-approval-patch.json"
+      },
+      "read_only_context": true
+    }
+  ],
+  "controls": {
+    "open_urls": false,
+    "run_browser_codegen": false,
+    "run_locator_resolution": false,
+    "invent_selectors": false,
+    "invent_xpath": false,
+    "invent_playwright_locators": false,
+    "capture_screenshots": false,
+    "generate_clips": false,
+    "extract_text": false,
+    "bypass_login_or_access_controls": false,
+    "render_reports": false,
+    "export_documents": false,
+    "execute_workflow": false,
+    "broaden_target_set": false,
+    "full_page_grab": false
+  },
+  "provenance": {
+    "created_at": "2026-05-08T00:00:00Z",
+    "deterministic_from_local_inputs": true,
+    "template_only": true,
+    "repair_fields_initialized_null": true,
+    "source_failure_pack_unmodified": true,
+    "preserves_non_executable_context_read_only": true,
+    "no_urls_opened": true,
+    "no_browser_codegen_run": true,
+    "no_locator_resolution_run": true,
+    "no_selectors_invented": true,
+    "no_xpath_invented": true,
+    "no_playwright_locators_invented": true,
+    "no_screenshots": true,
+    "no_element_clips": true,
+    "no_text_extracts": true,
+    "non_goals": [
+      "url_opening",
+      "browser_codegen",
+      "locator_resolution",
+      "selector_invention",
+      "xpath_invention",
+      "playwright_locator_invention",
+      "screenshot_capture",
+      "clip_generation",
+      "text_extraction",
+      "login_bypass",
+      "paywall_bypass",
+      "captcha_bypass",
+      "consent_bypass",
+      "report_rendering",
+      "html_css_polish",
+      "pdf_export",
+      "docx_export",
+      "workflow_execution",
+      "target_broadening"
+    ]
+  }
+}

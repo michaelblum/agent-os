@@ -1,0 +1,37 @@
+{
+  "type": "aos.workbench_human_checkpoint",
+  "schema_version": "2026-05-09",
+  "checkpoint_id": "workbench-checkpoint-fixture-blocked",
+  "status": "blocked_readiness",
+  "subject": {
+    "type": "markdown.document",
+    "subject_type": "markdown.document",
+    "path": "docs/example.md",
+    "source": { "kind": "file", "path": "docs/example.md" },
+    "label": "example.md"
+  },
+  "canvas_id": null,
+  "launch_status": "not_launched",
+  "readiness": {
+    "status": "blocked",
+    "command": "./aos ready",
+    "exit_code": 1,
+    "diagnostics": { "output": "Input Monitoring permission is missing" },
+    "repair_instructions": ["Remove and re-add the repo-mode aos permission grant."]
+  },
+  "initial": {
+    "content_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content": "",
+    "diagnostics": {}
+  },
+  "handoff": {
+    "expected_human_action": "Repair AOS readiness, then rerun the checkpoint start command.",
+    "resume_condition": "AOS readiness passes.",
+    "instructions": "Repair AOS readiness, then rerun the checkpoint start command. Resume condition: AOS readiness passes. Checkpoint: workbench-checkpoint-fixture-blocked."
+  },
+  "resume": null,
+  "annotations": [],
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "created_by": "test",
+  "metadata": { "adapter": "markdown-workbench", "fixture": true }
+}

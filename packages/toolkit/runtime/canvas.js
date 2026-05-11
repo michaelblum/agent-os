@@ -70,6 +70,16 @@ export function removeSelf(opts = {}) {
   })
 }
 
+export function removeCanvas(id, opts = {}) {
+  const payload = { ...opts }
+  if (id) payload.id = id
+  return rpc('canvas.remove', payload, {
+    mapResult() {
+      return undefined
+    },
+  })
+}
+
 export function suspendCanvas(id) {
   const payload = {}
   if (id) payload.id = id

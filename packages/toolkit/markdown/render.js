@@ -98,6 +98,31 @@ function renderInline(text) {
   return html.replace(/@@TOKEN_(\d+)@@/g, (_, index) => tokens[Number(index)] || '');
 }
 
+function sourceLineAttribute(index) {
+  return ` data-source-line="${index + 1}"`;
+}
+
+function renderCodeBlock(source, language = '', sourceLine = null) {
+  const normalizedLanguage = String(language || '').trim().toLowerCase();
+  const escapedSource = escHtml(source);
+  const lineAttribute = Number.isInteger(sourceLine) ? sourceLineAttribute(sourceLine) : '';
+  if (normalizedLanguage === 'mermaid') {
+    return (
+      `<figure${lineAttribute} class="aos-markdown-mermaid" data-markdown-diagram="mermaid"`
+        + ` data-mermaid-source="${escAttribute(source)}">`
+        + '<figcaption>Mermaid diagram</figcaption>'
+        + '<pre class="aos-markdown-mermaid-source"><code>'
+          + escapedSource
+        + '</code></pre>'
+        + '<div class="aos-markdown-mermaid-status" role="status">'
+          + 'Mermaid source is preserved for deterministic preview rendering.'
+        + '</div>'
+      + '</figure>'
+    );
+  }
+  return `<pre${lineAttribute}><code${normalizedLanguage ? ` data-language="${escAttribute(normalizedLanguage)}"` : ''}>${escapedSource}</code></pre>`;
+}
+
 export function renderMarkdown(source) {
   if (!source) return '';
 
@@ -121,17 +146,32 @@ export function renderMarkdown(source) {
       continue;
     }
 
+    const fence = line.match(/^```\s*([a-zA-Z0-9_-]+)?\s*$/);
+    if (fence) {
+      closeList();
+      const language = fence[1] || '';
+      const fenceStart = index;
+      const blockLines = [];
+      index += 1;
+      while (index < lines.length && !/^```\s*$/.test(lines[index])) {
+        blockLines.push(lines[index]);
+        index += 1;
+      }
+      html += renderCodeBlock(blockLines.join('\n'), language, fenceStart);
+      continue;
+    }
+
     const heading = line.match(/^(#{1,3})\s+(.+)/);
     if (heading) {
       closeList();
       const depth = heading[1].length;
-      html += `<h${depth}>${renderInline(heading[2])}</h${depth}>`;
+      html += `<h${depth}${sourceLineAttribute(index)}>${renderInline(heading[2])}</h${depth}>`;
       continue;
     }
 
     if (/^---+$/.test(line.trim())) {
       closeList();
-      html += '<hr>';
+      html += `<hr${sourceLineAttribute(index)}>`;
       continue;
     }
 
@@ -142,7 +182,7 @@ export function renderMarkdown(source) {
         html += '<ul>';
         listTag = 'ul';
       }
-      html += `<li>${renderInline(unordered[1])}</li>`;
+      html += `<li${sourceLineAttribute(index)}>${renderInline(unordered[1])}</li>`;
       continue;
     }
 
@@ -153,7 +193,7 @@ export function renderMarkdown(source) {
         html += '<ol>';
         listTag = 'ol';
       }
-      html += `<li>${renderInline(ordered[1])}</li>`;
+      html += `<li${sourceLineAttribute(index)}>${renderInline(ordered[1])}</li>`;
       continue;
     }
 
@@ -163,7 +203,7 @@ export function renderMarkdown(source) {
     }
 
     closeList();
-    html += `<p>${renderInline(line)}</p>`;
+    html += `<p${sourceLineAttribute(index)}>${renderInline(line)}</p>`;
   }
 
   closeList();

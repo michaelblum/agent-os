@@ -38,6 +38,55 @@ private struct CanvasInspectorBundleRuntimeConfig {
 }
 
 extension UnifiedDaemon {
+    func maybeHandleCanvasInspectorAnnotationHotkey(event: String, data: [String: Any]) -> Bool {
+        guard event == "key_down", canvasInspectorAnnotationHotkeyMatches(data) else {
+            return false
+        }
+        openCanvasInspectorForAnnotationMode()
+        return true
+    }
+
+    private func openCanvasInspectorForAnnotationMode() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.canvasManager.hasCanvas(canvasInspectorBundleCanvasID) {
+                if self.canvasManager.canvas(forID: canvasInspectorBundleCanvasID)?.suspended == true {
+                    var resume = CanvasRequest(action: "resume")
+                    resume.id = canvasInspectorBundleCanvasID
+                    _ = self.canvasManager.handle(resume)
+                }
+            } else {
+                var request = CanvasRequest(action: "create")
+                request.id = canvasInspectorBundleCanvasID
+                request.url = self.resolveContentURL("aos://toolkit/components/canvas-inspector/index.html")
+                request.at = self.defaultCanvasInspectorFrame()
+                request.interactive = true
+                request.focus = true
+                request.suspended = false
+                _ = self.canvasManager.handle(request)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                self.canvasManager.postMessageAsync(canvasID: canvasInspectorBundleCanvasID, payload: [
+                    "type": "canvas_inspector.annotation_toggle",
+                    "reason": "shortcut",
+                ])
+            }
+        }
+    }
+
+    private func defaultCanvasInspectorFrame() -> [CGFloat] {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            return [1120, 40, 360, 520]
+        }
+        let visible = screen.visibleFrame
+        let screenHeight = screen.frame.height
+        let width = min(CGFloat(360.0), max(CGFloat(320.0), visible.width * 0.26))
+        let height = min(CGFloat(520.0), max(CGFloat(420.0), visible.height * 0.55))
+        let x = visible.origin.x + visible.width - width - 20.0
+        let y = screenHeight - visible.origin.y - visible.height + 20.0
+        return [x, y, width, height]
+    }
+
     func maybeHandleCanvasInspectorSeeBundleHotkey(event: String, data: [String: Any]) -> Bool {
         guard event == "key_down",
               canvasExists(canvasInspectorBundleCanvasID),
@@ -454,6 +503,14 @@ extension UnifiedDaemon {
     private func canvasInspectorBundleHotkeyMatches(_ data: [String: Any]) -> Bool {
         let runtimeConfig = resolvedCanvasInspectorBundleConfig()
         guard let combo = runtimeConfig.hotkey else { return false }
+        return hotkeyDataMatches(data, combo: combo)
+    }
+
+    private func canvasInspectorAnnotationHotkeyMatches(_ data: [String: Any]) -> Bool {
+        hotkeyDataMatches(data, combo: "ctrl+opt+a")
+    }
+
+    private func hotkeyDataMatches(_ data: [String: Any], combo: String) -> Bool {
         let keyCode: Int64
         if let raw = data["keyCode"] as? NSNumber {
             keyCode = raw.int64Value

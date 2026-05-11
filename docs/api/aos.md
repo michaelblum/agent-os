@@ -438,10 +438,18 @@ Voice output surface:
 
 ```bash
 aos say "Hello"
+aos say --voice-slot 1 --language en --quality-tier premium,enhanced "Hello"
 aos say --list-voices
 ```
 
 `aos say` is sugar for `aos tell human ...`. Consumers that need one communication surface should prefer `aos tell`.
+Use `--voice <id>` to select a concrete voice id, or `--voice-slot <n>` to
+select the nth currently speakable voice after any `--language`, `--gender`,
+and `--quality-tier` filters are applied. `--quality-tier` accepts repeated
+flags or comma-separated values. Voice slots are 1-based for human readability.
+Slot selection is intentionally ordinal: if the filtered speakable voice list
+changes, the same slot can resolve to a different voice. If filters produce no
+speakable voices, normal CLI use fails with `VOICE_FILTER_EMPTY`.
 
 ## `aos voice`
 
@@ -532,11 +540,11 @@ Voice deliveries and final-response ingress failures append local JSONL records 
 `~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
 voice, purpose, and failure code were involved without storing full message bodies.
 
-Docked sessions should use registered role session ids for final-response TTS
-instead of provider-transient hook ids. Direct dock hooks can use stable ids
-such as `gdi` and `foreman`, register them with `aos tell --register`, bind
-voices with filtered `aos voice bind` calls, and route role-local Stop hook
-speech through `aos voice final-response --session-id <role>`.
+Docked sessions should use registered role session ids for true final-response
+TTS instead of provider-transient hook ids. Dock Stop-hook notices are fixed
+role-local status messages, not the assistant's final answer; route those
+through `aos say --voice-slot <n> "<notice>"` rather than
+`aos voice final-response`.
 
 ## `aos config`
 
@@ -555,10 +563,10 @@ aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
 
 `aos config` dumps the current runtime config as JSON. `aos config get` defaults
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
-Discoverable config subtrees include the Canvas Inspector see-bundle surface
-under `see.canvas_inspector_bundle.*`, including the export hotkey and bundle
-artifact include toggles. `aos set <key> <value>` remains supported as the
-shorthand write form.
+Discoverable config subtrees include the Surface Inspector see-bundle surface
+under the legacy-compatible `see.canvas_inspector_bundle.*` namespace,
+including the export hotkey and bundle artifact include toggles. `aos set
+<key> <value>` remains supported as the shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review
@@ -698,7 +706,11 @@ when judging whether the daemon can actually observe and inject input.
   "attempts": 1,
   "listen_access": true,     // CGPreflightListenEventAccess() in daemon
   "post_access": true,       // CGPreflightPostEventAccess() in daemon
-  "last_error_at": null      // ISO-8601 of most recent CGEventTap failure
+  "last_error_at": null,     // ISO-8601 of most recent CGEventTap failure
+  "panic_passthrough_active": false, // legacy name for Force Quit safety window
+  "panic_passthrough_until": null,
+  "panic_trigger": null,
+  "panic_trigger_count": 0
 },
 "permissions": {
   "accessibility": true      // AXIsProcessTrusted() in daemon
@@ -712,13 +724,16 @@ Consumers:
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
   input tap, because those states commonly appear after a human refreshes macOS
-  privacy grants. `--post-permission` is the explicit agent handoff check after
-  the human has removed/re-added Accessibility or Input Monitoring grants; it is
-  bounded and reports the remaining blocker instead of encouraging repeated
-  ad-hoc repair loops. `--repair` runs the longer safe recovery path: restart,
-  wait/recheck, then report plain-English human instructions when macOS privacy
-  settings still require manual action. It does not open Settings or show
-  permission dialogs by itself.
+  privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
+  must stop the managed daemon first with `./aos service stop --mode repo`, wait
+  for `running=false`, remove/re-add `/Users/Michael/Code/agent-os/aos`, then
+  return to `./aos ready --post-permission`. `--post-permission` is the explicit
+  agent handoff check after the human has removed/re-added Accessibility or
+  Input Monitoring grants; it is bounded and reports the remaining blocker
+  instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
+  longer safe recovery path: restart, wait/recheck, then report plain-English
+  human instructions when macOS privacy settings still require manual action. It
+  does not open Settings or show permission dialogs by itself.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
@@ -729,8 +744,8 @@ Consumers:
 - `aos permissions setup --once` checks the full CLI permission set
   (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
   post). If the CLI grant is present but the daemon reports stale or missing
-  daemon-owned grants, setup returns degraded with remove/re-add guidance
-  instead of silently declaring onboarding complete.
+  daemon-owned grants, setup returns degraded with the same stop-daemon-first
+  remove/re-add guidance instead of silently declaring onboarding complete.
 - The permissions onboarding marker is mode-scoped and proves the operator has
   completed the setup flow for that runtime mode. The marker's recorded
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely

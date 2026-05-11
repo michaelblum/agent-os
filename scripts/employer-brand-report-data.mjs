@@ -2,6 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  loadEmployerBrandComparativeAuditDataBundle,
+} from '../packages/toolkit/workbench/employer-brand-comparative-audit-data-bundle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -351,7 +354,11 @@ function buildReportData({
   const sources = readJson(path.join(fixtureRootAbs, 'sources.json'));
   const project = readJson(path.join(fixtureRootAbs, 'intake/project.json'));
   const registry = readJson(path.join(fixtureRootAbs, 'browser-evidence/registry.json'));
-  const comparative = readJson(path.join(fixtureRootAbs, 'comparative-audits/symphony-talent-phenom-radancy.json'));
+  const normalizedBundle = loadEmployerBrandComparativeAuditDataBundle({
+    fixtureRoot: fixtureRootAbs,
+    createdAt: '2026-05-08T00:00:00Z',
+  });
+  const comparative = readJson(path.join(fixtureRootAbs, normalizedBundle.inputs.comparative_audit_paths[0]));
   const reportMarkdown = fs.readFileSync(path.join(fixtureRootAbs, 'report.md'), 'utf8');
   const browserEvidenceRootAbs = path.join(fixtureRootAbs, 'browser-evidence');
   const registryByRequest = new Map(registry.evidence.map((evidence) => [evidence.request_id, evidence]));
@@ -361,11 +368,8 @@ function buildReportData({
   ];
 
   const sourceByCompany = new Map(sources.sources.map((source) => [source.company, source]));
-  const companyAudits = (sources.company_brand_audits?.paths || [
-    'company-audits/symphony-talent.json',
-    'company-audits/phenom.json',
-    'company-audits/radancy.json',
-  ]).map((relativePath) => readJson(path.join(fixtureRootAbs, relativePath)));
+  const companyAudits = normalizedBundle.inputs.company_audit_paths
+    .map((relativePath) => readJson(path.join(fixtureRootAbs, relativePath)));
 
   const symphonyLogoPath = reportRelative(reportRootAbs, path.join(reportRootAbs, 'assets/branding/symphony-talent-header.png'));
   const profiles = companyAudits.map((audit) => buildCompanyProfile({
@@ -437,6 +441,16 @@ function buildReportData({
       watermarkGraphic: '',
       generatedFrom: toPosix(path.relative(repoRoot, fixtureRootAbs)),
       generatedBy: 'scripts/employer-brand-report-data.mjs',
+      dataBundle: {
+        id: normalizedBundle.id,
+        path: './data-bundle.json',
+        schema: 'shared/schemas/employer-brand-comparative-audit-data-bundle-v0.schema.json',
+        companyCount: normalizedBundle.project.company_count,
+        targetCount: normalizedBundle.source_artifact_targets.target_count,
+        expectedClipCount: normalizedBundle.source_artifact_targets.expected_clip_count,
+        readOnly: normalizedBundle.provenance.read_only,
+        provenanceOnly: normalizedBundle.provenance.provenance_only,
+      },
     },
     client,
     competitors,

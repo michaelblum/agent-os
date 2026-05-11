@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-capture-repair-promotion-v0.schema.json",
+  "title": "Employer Brand Live Evidence Capture Repair Promotion v0",
+  "description": "Deterministic planning artifact that promotes filled live-evidence capture repair decisions into the next repaired capture-attempt plan without opening URLs, resolving locators, inventing selectors, or producing capture assets.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "status",
+    "source_refs",
+    "summary",
+    "promotion_results",
+    "repaired_capture_plan_ref",
+    "repaired_capture_plan",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_capture_repair_promotion"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-capture-repair-promotion-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "const": "repair_promoted_to_next_capture_attempt_plan"
+    },
+    "source_refs": {
+      "$ref": "#/$defs/source_refs"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "promotion_results": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/promotion_result"
+      }
+    },
+    "repaired_capture_plan_ref": {
+      "type": "object"
+    },
+    "repaired_capture_plan": {
+      "type": "object",
+      "required": [
+        "type",
+        "summary",
+        "repaired_capture_slots",
+        "unavailable_source_slots",
+        "non_executable_context",
+        "planned_output_manifest"
+      ],
+      "properties": {
+        "type": {
+          "const": "aos.employer_brand_live_evidence_repaired_locator_capture_plan"
+        },
+        "summary": {
+          "$ref": "#/$defs/summary"
+        },
+        "repaired_capture_slots": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "unavailable_source_slots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "non_executable_context": {
+          "type": "array",
+          "minItems": 14,
+          "maxItems": 14
+        },
+        "planned_output_manifest": {
+          "type": "object",
+          "required": [
+            "contains_actual_captures"
+          ],
+          "properties": {
+            "contains_actual_captures": {
+              "const": false
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "controls": {
+      "$ref": "#/$defs/false_controls"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "deterministic_from_local_inputs",
+        "promotes_approved_repair_decisions_only",
+        "preserves_unavailable_sources_as_context",
+        "no_urls_opened",
+        "no_locator_resolution_run",
+        "no_capture_assets_produced",
+        "read_only",
+        "planning_metadata_only"
+      ],
+      "properties": {
+        "deterministic_from_local_inputs": {
+          "const": true
+        },
+        "promotes_approved_repair_decisions_only": {
+          "const": true
+        },
+        "preserves_unavailable_sources_as_context": {
+          "const": true
+        },
+        "no_urls_opened": {
+          "const": true
+        },
+        "no_locator_resolution_run": {
+          "const": true
+        },
+        "no_capture_assets_produced": {
+          "const": true
+        },
+        "read_only": {
+          "const": true
+        },
+        "planning_metadata_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "repair_patch_path",
+        "repair_patch_application_path",
+        "failure_review_pack_path",
+        "manifest_path",
+        "reviewed_locator_capture_plan_path",
+        "reviewed_locator_readiness_path",
+        "url_open_run_path",
+        "reviewed_target_plan_path",
+        "data_bundle_path",
+        "read_only"
+      ],
+      "properties": {
+        "repair_patch_path": {
+          "const": "live-evidence-capture-repair-patch.json"
+        },
+        "repair_patch_application_path": {
+          "const": "live-evidence-capture-repair-patch.application.json"
+        },
+        "failure_review_pack_path": {
+          "const": "live-evidence-capture-failure-review-pack.json"
+        },
+        "manifest_path": {
+          "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+        },
+        "reviewed_locator_capture_plan_path": {
+          "const": "live-evidence-reviewed-locator-capture-plan.json"
+        },
+        "reviewed_locator_readiness_path": {
+          "const": "live-evidence-locator-readiness.reviewed.json"
+        },
+        "url_open_run_path": {
+          "const": "live-evidence-url-open-run.json"
+        },
+        "reviewed_target_plan_path": {
+          "const": "live-evidence-target-plan.reviewed.json"
+        },
+        "data_bundle_path": {
+          "const": "data-bundle.json"
+        },
+        "read_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "repaired_executable_slot_count",
+        "unavailable_source_slot_count",
+        "previous_failed_executable_slot_count",
+        "read_only_context_entry_count",
+        "accepted_capture_count",
+        "promoted_capture_count",
+        "actual_capture_file_count",
+        "planned_output_slot_count",
+        "full_page_grab_count"
+      ],
+      "properties": {
+        "repaired_executable_slot_count": {
+          "const": 4
+        },
+        "unavailable_source_slot_count": {
+          "const": 1
+        },
+        "previous_failed_executable_slot_count": {
+          "const": 5
+        },
+        "read_only_context_entry_count": {
+          "const": 14
+        },
+        "accepted_capture_count": {
+          "const": 0
+        },
+        "promoted_capture_count": {
+          "const": 0
+        },
+        "actual_capture_file_count": {
+          "const": 0
+        },
+        "planned_output_slot_count": {
+          "const": 4
+        },
+        "full_page_grab_count": {
+          "const": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "promotion_result": {
+      "type": "object",
+      "required": [
+        "slot_id",
+        "failure_id",
+        "repair_item_id",
+        "result",
+        "executable",
+        "repaired_locator",
+        "capture_promoted"
+      ],
+      "properties": {
+        "slot_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "failure_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "repair_item_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "result": {
+          "enum": [
+            "promoted_to_repaired_capture_slot",
+            "preserved_as_source_unavailable_context"
+          ]
+        },
+        "executable": {
+          "type": "boolean"
+        },
+        "repaired_locator": {
+          "type": "object"
+        },
+        "capture_promoted": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "false_controls": {
+      "type": "object",
+      "additionalProperties": {
+        "const": false
+      }
+    }
+  }
+}

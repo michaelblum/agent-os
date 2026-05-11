@@ -212,6 +212,7 @@ Examples:
 - `bash tests/canvas-inspector-tint.sh`
 - `bash tests/panel-tabs-activation.sh`
 - `bash tests/voice-session-leases.sh`
+- `bash tests/say-voice-slot.sh`
 - `bash tests/voice-bind.sh`
 - `bash tests/voice-final-response.sh`
 - `bash tests/voice-telemetry.sh`

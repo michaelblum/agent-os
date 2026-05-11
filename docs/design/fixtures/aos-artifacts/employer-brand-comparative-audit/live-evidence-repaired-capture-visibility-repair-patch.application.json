@@ -1,0 +1,106 @@
+{
+  "type": "aos.employer_brand_repaired_capture_visibility_repair_patch_application",
+  "schema_version": "2026-05-employer-brand-repaired-capture-visibility-repair-patch-v0",
+  "id": "live-evidence-repaired-capture-visibility-repair-patch-application:symphony-talent-phenom-radancy",
+  "label": "Employer Brand Repaired Capture Visibility Repair Patch Application",
+  "status": "no_op_unfilled_template",
+  "source_refs": {
+    "visibility_repair_patch_id": "live-evidence-repaired-capture-visibility-repair-patch:symphony-talent-phenom-radancy",
+    "visibility_repair_patch_path": "live-evidence-repaired-capture-visibility-repair-patch.json",
+    "visibility_review_pack_id": "live-evidence-repaired-capture-visibility-review-pack:symphony-talent-phenom-radancy",
+    "visibility_review_pack_path": "live-evidence-repaired-capture-visibility-review-pack.json",
+    "element_clip_manifest_id": "live-evidence-element-clip-manifest:symphony-talent-phenom-radancy",
+    "element_clip_manifest_path": "source-artifacts/live-evidence-element-clip-manifest.json"
+  },
+  "summary": {
+    "patchable_visibility_repair_item_count": 4,
+    "filled_visibility_repair_decision_count": 0,
+    "prior_accepted_capture_count": 0,
+    "post_accepted_capture_count": 0,
+    "prior_failed_slot_count": 4,
+    "post_failed_slot_count": 4,
+    "prior_clip_asset_count": 0,
+    "post_clip_asset_count": 0,
+    "prior_text_asset_count": 0,
+    "post_text_asset_count": 0,
+    "promoted_capture_count": 0,
+    "new_asset_count": 0,
+    "full_page_grab_count": 0,
+    "no_op": true
+  },
+  "repair_results": [
+    {
+      "repair_item_id": "live-evidence-repaired-capture-visibility-repair:1",
+      "failure_id": "live-evidence-repaired-capture-visibility-failure:1",
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:1",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "visibility_repair_decision": null,
+      "applied": false,
+      "result": "unresolved_empty_repair_fields",
+      "capture_promoted": false,
+      "asset_created": false
+    },
+    {
+      "repair_item_id": "live-evidence-repaired-capture-visibility-repair:2",
+      "failure_id": "live-evidence-repaired-capture-visibility-failure:2",
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:2",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "visibility_repair_decision": null,
+      "applied": false,
+      "result": "unresolved_empty_repair_fields",
+      "capture_promoted": false,
+      "asset_created": false
+    },
+    {
+      "repair_item_id": "live-evidence-repaired-capture-visibility-repair:3",
+      "failure_id": "live-evidence-repaired-capture-visibility-failure:3",
+      "slot_id": "live-reviewed-capture-work-unit:phenom-careers-site:slot:1",
+      "target_id": "live-target:phenom:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:phenom-careers-site",
+      "visibility_repair_decision": null,
+      "applied": false,
+      "result": "unresolved_empty_repair_fields",
+      "capture_promoted": false,
+      "asset_created": false
+    },
+    {
+      "repair_item_id": "live-evidence-repaired-capture-visibility-repair:4",
+      "failure_id": "live-evidence-repaired-capture-visibility-failure:4",
+      "slot_id": "live-reviewed-capture-work-unit:radancy-careers-site:slot:1",
+      "target_id": "live-target:radancy:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:radancy-careers-site",
+      "visibility_repair_decision": null,
+      "applied": false,
+      "result": "unresolved_empty_repair_fields",
+      "capture_promoted": false,
+      "asset_created": false
+    }
+  ],
+  "controls": {
+    "open_urls": false,
+    "run_browser_capture": false,
+    "run_locator_resolution": false,
+    "run_codegen": false,
+    "invent_selectors": false,
+    "invent_xpath": false,
+    "invent_playwright_locators": false,
+    "create_clips": false,
+    "extract_text": false,
+    "promote_captures": false,
+    "full_page_grab": false,
+    "bypass_login_or_access_controls": false
+  },
+  "provenance": {
+    "applied_at": "2026-05-09T00:00:00Z",
+    "empty_patch_no_op": true,
+    "deterministic_from_local_inputs": true,
+    "does_not_modify_visibility_review_pack": true,
+    "does_not_promote_captures": true,
+    "does_not_create_assets": true,
+    "no_urls_opened": true,
+    "no_browser_capture_run": true,
+    "no_locator_resolution_or_codegen": true
+  }
+}

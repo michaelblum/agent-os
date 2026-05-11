@@ -31,6 +31,7 @@ class StatusItemManager {
     private var isAnimating = false
     private var persistentVisible = false
     private var utilityWarmStarted = false
+    private var canvasInspectorAnnotationModeActive = false
     private let positionFile: String
     private let utilityStateFile: String
     private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
@@ -181,10 +182,15 @@ class StatusItemManager {
         logItem.state = isUtilityCanvasVisible(id: logConsoleId) ? .on : .off
         menu.addItem(logItem)
 
-        let inspectorItem = NSMenuItem(title: "Canvas Inspector", action: #selector(menuCanvasInspector), keyEquivalent: "")
+        let inspectorItem = NSMenuItem(title: "Surface Inspector", action: #selector(menuCanvasInspector), keyEquivalent: "")
         inspectorItem.target = self
         inspectorItem.state = isUtilityCanvasVisible(id: canvasInspectorId) ? .on : .off
         menu.addItem(inspectorItem)
+
+        let annotateItem = NSMenuItem(title: "Annotation Mode", action: #selector(menuCanvasInspectorAnnotateMode), keyEquivalent: "")
+        annotateItem.target = self
+        annotateItem.state = isCanvasInspectorAnnotationModeVisibleAndActive ? .on : .off
+        menu.addItem(annotateItem)
 
         if canvasManager.hasCanvas(toggleId) {
             menu.addItem(NSMenuItem.separator())
@@ -224,6 +230,18 @@ class StatusItemManager {
         )
     }
 
+    @objc private func menuCanvasInspectorAnnotateMode() {
+        showUtilityCanvas(
+            id: canvasInspectorId,
+            url: canvasInspectorUrl,
+            frame: canvasInspectorFrame()
+        )
+        canvasManager.postMessageAsync(canvasID: canvasInspectorId, payload: [
+            "type": "canvas_inspector.annotation_toggle",
+            "reason": "status_item_menu",
+        ])
+    }
+
     @objc private func menuLogConsole() {
         toggleUtilityCanvas(
             id: logConsoleId,
@@ -251,6 +269,9 @@ class StatusItemManager {
                 suspend.id = id
                 _ = canvasManager.handle(suspend)
                 persistUtilityCanvasVisible(id: id, visible: false)
+                if id == canvasInspectorId {
+                    resetCanvasInspectorAnnotationMode()
+                }
             }
             return
         }
@@ -261,6 +282,29 @@ class StatusItemManager {
         req.at = frame
         req.interactive = true
         req.focus = !restoring
+        req.suspended = false
+        _ = canvasManager.handle(req)
+        persistUtilityCanvasVisible(id: id, visible: true)
+    }
+
+    private func showUtilityCanvas(id: String, url: String, frame: [CGFloat]) {
+        if canvasManager.hasCanvas(id) {
+            if isUtilityCanvasSuspended(id: id) {
+                var resume = CanvasRequest(action: "resume")
+                resume.id = id
+                _ = canvasManager.handle(resume)
+            }
+            canvasManager.canvas(forID: id)?.grabFocus()
+            persistUtilityCanvasVisible(id: id, visible: true)
+            return
+        }
+
+        var req = CanvasRequest(action: "create")
+        req.id = id
+        req.url = urlResolver?(url) ?? url
+        req.at = frame
+        req.interactive = true
+        req.focus = true
         req.suspended = false
         _ = canvasManager.handle(req)
         persistUtilityCanvasVisible(id: id, visible: true)
@@ -288,6 +332,18 @@ class StatusItemManager {
 
     private func isUtilityCanvasVisible(id: String) -> Bool {
         canvasManager.hasCanvas(id) && !isUtilityCanvasSuspended(id: id)
+    }
+
+    private var isCanvasInspectorAnnotationModeVisibleAndActive: Bool {
+        isUtilityCanvasVisible(id: canvasInspectorId) && canvasInspectorAnnotationModeActive
+    }
+
+    func setCanvasInspectorAnnotationModeActive(_ active: Bool) {
+        canvasInspectorAnnotationModeActive = active && isUtilityCanvasVisible(id: canvasInspectorId)
+    }
+
+    func resetCanvasInspectorAnnotationMode() {
+        canvasInspectorAnnotationModeActive = false
     }
 
     private func isUtilityCanvasSuspended(id: String) -> Bool {

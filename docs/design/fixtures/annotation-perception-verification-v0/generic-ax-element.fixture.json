@@ -1,0 +1,30 @@
+{
+  "adapter": "generic_ax_fixture",
+  "live_adapter": false,
+  "note": "Fixture metadata only. It is inspired by common macOS AX fields but does not import or call pi-computer-use and does not harvest a user app AX tree.",
+  "target": {
+    "id": "ax:button-submit",
+    "path": "desktop-world/display:1/window:ax-window-1/ax:button-submit",
+    "role": "AXButton",
+    "subrole": null,
+    "title": "Submit",
+    "description": "Submit form",
+    "value": null,
+    "actions": ["AXPress"],
+    "frame": { "x": 220, "y": 180, "width": 120, "height": 32 },
+    "center": { "x": 280, "y": 196 },
+    "capabilities": {
+      "hit_test": true,
+      "annotate": true,
+      "action": true,
+      "inspect_children": false
+    },
+    "confidence": 0.82,
+    "source_app": {
+      "bundle_id": "dev.agent-os.fixture",
+      "window_id": "ax-window-1"
+    },
+    "parent_path": "desktop-world/display:1/window:ax-window-1",
+    "depth": 3
+  }
+}

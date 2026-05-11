@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Mermaid SVG fixture">
+  <g id="node-a" data-subject-id="svg:node-a">
+    <rect x="40" y="32" width="160" height="48" rx="6" fill="#f8fafc" stroke="#475569"/>
+    <text x="120" y="61" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14">Node A</text>
+  </g>
+  <path d="M200 56 L280 56" stroke="#64748b" stroke-width="2"/>
+  <g id="node-b" data-subject-id="svg:node-b">
+    <rect x="280" y="32" width="160" height="48" rx="6" fill="#f8fafc" stroke="#475569"/>
+    <text x="360" y="61" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14">Node B</text>
+  </g>
+</svg>

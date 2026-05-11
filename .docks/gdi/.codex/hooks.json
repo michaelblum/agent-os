@@ -8,7 +8,7 @@
             "type": "command",
             "command": "bash /Users/Michael/Code/agent-os/.docks/gdi/hooks/session-start.sh",
             "statusMessage": "Binding GDI voice",
-            "timeout": 10
+            "timeout": 5
           }
         ]
       }
@@ -19,8 +19,8 @@
           {
             "type": "command",
             "command": "bash /Users/Michael/Code/agent-os/.docks/gdi/hooks/stop.sh",
-            "statusMessage": "Speaking GDI handoff notice",
-            "timeout": 20
+            "statusMessage": "Speaking GDI stop notice",
+            "timeout": 5
           }
         ]
       }

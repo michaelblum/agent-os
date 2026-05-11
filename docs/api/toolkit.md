@@ -260,6 +260,336 @@ Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
 vocabulary.
 
+### HTML Workbench Expression V0
+
+`packages/toolkit/workbench/html-workbench-expression.js` builds the V0 rich
+human-facing expression for supported Markdown artifacts. V0 supports only
+`artifact_kind: "work_card"` and `artifact_kind: "human_alignment_pack"`. The
+source Markdown remains the durable file, JSON remains the machine-readable
+sidecar, and generated HTML is only the review and annotation surface. The
+builder uses the shared Markdown renderer path, wraps heading sections in
+stable semantic containers, preserves Mermaid fences as safe preview containers,
+stamps target elements with `data-aos-ref`, `data-aos-surface`,
+`data-semantic-target-id`, source path, and source line metadata, and emits a
+metadata payload next to the HTML.
+
+Canonical metadata schema:
+[`shared/schemas/aos-html-workbench-expression-v0.schema.json`](../../shared/schemas/aos-html-workbench-expression-v0.schema.json)
+
+The fixture and CLI prove the initial work-card path:
+
+```bash
+node scripts/aos-html-workbench-expression.mjs
+packages/toolkit/components/html-workbench-expression/launch.sh \
+  docs/design/fixtures/aos-html-workbench-expression-v0/expression.json
+```
+
+The Employer Brand human-alignment pack fixture uses the same launch helper and
+does not authorize live capture or source-page collection:
+
+```bash
+node scripts/aos-html-workbench-expression.mjs \
+  --input docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md \
+  --output-dir docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit \
+  --output-basename human-alignment-pack.expression \
+  --artifact-kind human_alignment_pack
+packages/toolkit/components/html-workbench-expression/launch.sh \
+  docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.json
+```
+
+The metadata contract records `schema`, `version`, `expression_id`, source kind
+and path, source content hash, generated timestamp, artifact kind, generated
+HTML path, semantic targets, source map entries, Mermaid block records,
+annotation/checkpoint/export capability flags, security policy, and resume
+behavior. Each semantic target has an id, `data-aos-ref`, kind, accessible
+label, source line range, selector, annotation eligibility, and reveal
+eligibility.
+
+The AOS-hosted surface lives at
+`packages/toolkit/components/html-workbench-expression/`. It receives
+`html_workbench_expression.open` with `{ metadata, html }`, renders the HTML in
+the component DOM after stripping script elements and inline event attributes,
+and exposes `window.__htmlWorkbenchExpressionState` for verification. Rendering
+inside the component DOM lets Surface Inspector see the generated
+`data-aos-ref` semantic targets. The surface may show repo-owned generated
+markup, but source-authored script execution is not part of the contract.
+
+Checkpoint/resume helpers emit structured sidecars. `buildHtmlWorkbenchExpressionCheckpoint`
+creates a normal `aos.workbench_human_checkpoint` record whose subject type is
+`html_workbench_expression`. `buildHtmlWorkbenchExpressionResumePayload` can
+return `annotation_sidecar`, `decision_sidecar`, `proposed_markdown_patch`, or
+`noop_approval` payloads. V0 never mutates the Markdown source automatically;
+later Foreman/GDI steps decide whether to apply a proposed patch.
+
+Security defaults are conservative: source-authored HTML is escaped by the
+shared Markdown renderer, unsafe links are stripped, Mermaid source is preserved
+as text/source metadata, source-authored inline event handlers are not emitted,
+and source-authored JavaScript is not executed. The generated HTML fixture may
+include a JSON metadata script tag with escaped content; that tag is
+repo-generated data, not source-authored executable script.
+
+### Workbench Human Checkpoint V0
+
+`packages/toolkit/workbench/human-checkpoint.js` provides the V0 durable record
+for handing an editable workbench surface to a human and resuming later without
+depending on terminal state. The first concrete adapter is
+`packages/toolkit/components/markdown-workbench/checkpoint.js`.
+
+The Operator pattern is:
+
+```text
+readiness -> launch/attach surface -> human edits -> human replies -> resume -> diff/save/continue
+```
+
+Start commands must run `./aos ready` or explicitly record the caller-supplied
+readiness gate before opening a surface. If readiness is blocked, the checkpoint
+record uses `status: "blocked_readiness"`, includes concrete repair
+instructions, and leaves `canvas_id` null. If readiness passes, the Markdown
+adapter launches or attaches the Markdown Workbench, records the subject path or
+wiki source, canvas id, initial content hash, diagnostics, expected human
+action, and resume condition, then emits concise human-facing instructions.
+Launch records only use `status: "launched"` after the Markdown Workbench
+canvas exposes usable state. If the launch command or verification fails, the
+record uses `status: "aborted"`, leaves `canvas_id` null, stores
+`metadata.launch_attempts`, and the handoff text describes repair rather than
+claiming the surface opened.
+
+On resume, the adapter reads `window.__markdownWorkbenchState` from the recorded
+canvas, compares it with the checkpoint's initial snapshot, and stores a
+deterministic diff summary: changed/unchanged, line-count delta,
+heading/diagnostic deltas, and a short unified diff snippet when useful.
+Resume behavior is explicit: `save` persists through the existing
+`markdown-workbench/save-current.sh` helper and records the resulting
+`markdown_document.save.result`; `draft` preserves the edited canvas state
+without saving; `abort` records that the resume was rejected.
+
+Structured annotations are checkpoint metadata in V0. They are intent records,
+not pixels: each record has an explicit ordinal, kind, surface id, source path
+or URL, coordinate space, optional point and bounds, selector candidates, text
+excerpt, role/label, ancestor chain, note, actor, lifecycle state, and capture
+prepare/restore hints. Supported V0 kinds are `point_comment`,
+`region_comment`, `element_selection`, and `selection_comment`. Status values
+are `draft`, `committed`, `resolved`, and `rejected`; resolving or rejecting
+keeps the record for auditability. Resume records include committed, resolved,
+and rejected annotations in `resume.annotations`.
+
+Markdown Workbench can display committed, resolved, and rejected structured
+annotation intent records without editing or saving the Markdown body. Send a
+`markdown_workbench.annotations.replace` message with `payload.annotations` to
+load or reload the visible badge layer, and send
+`markdown_workbench.annotations.clear` to clear it. The visible projection layer
+can also be controlled with `markdown_workbench.annotations.show`,
+`markdown_workbench.annotations.hide`, and
+`markdown_workbench.annotations.toggle`.
+
+The current inspectable `window.__markdownWorkbenchState` snapshot includes
+both durable `annotations` and derived `annotation_projection`. An annotation
+record is stable intent: ordinal, status, actor, note, source identity, and
+anchor metadata. The projection record is current surface output: viewport,
+scroll state, resolution status, viewport-local rects, and decorator placement.
+Line and text-range anchors resolve to source-editor line geometry when the
+source view is active, and to rendered preview elements carrying
+`data-source-line` when preview geometry is available. Decorators are compact
+ordinal badges placed outside the anchor rect where possible; note/details
+expand on hover, click, or focus. Legacy `{ bounds, label }` screenshot records
+are not displayed unless normalized into structured annotation intent records
+first.
+
+`shared/schemas/annotation-projection-v0.schema.json` is the neutral projection
+result contract. In addition to legacy viewport-local annotation projections,
+it carries adapter reachability results for Surface Inspector annotation rows:
+`visible`, `clipped`, `offscreen_scrollable`, `virtualized`, `hidden`,
+`absent`, `stale`, and `unsupported`. Adapter rows also state whether display
+overlay projection and explicit `Reveal Target` are supported, include known
+local/display rects and ancestor clip/scroll chains, and surface blocker
+reasons without using screenshot pixels as source of truth. Browser pages,
+Mermaid/SVG, 3D scenes, PDFs, images, and generic canvases are future consumers
+of the same contract; each future adapter owns coordinate-system-specific
+anchor resolution and returns the shared projection result rather than adding
+Employer Brand-specific fields or treating annotations as fixed UI positions.
+Chrome/browser seams and native AX/window payloads remain conservative slots:
+they may represent explicit structured window/content bounds, but they do not
+pierce arbitrary Chrome DOM or harvest broad background AX trees.
+
+`shared/schemas/spatial-subject-tree-v0.schema.json` is the neutral tree
+contract above topology and projection results. Spatial topology owns
+DesktopWorld, displays, windows, canvas placement, z-order, and coarse
+visibility. Semantic targets describe AOS-owned child controls inside canvases.
+Annotation intent records preserve what a human or agent meant, while
+annotation projection records describe where that intent resolves on the
+current surface. Spatial Subject Tree ties those layers together as visible or
+addressable nodes with stable paths, bounds in named coordinate spaces, adapter
+metadata, child-discovery state, and capabilities such as hit-test, annotate,
+project annotation, action, capture, and inspect children.
+
+Surface Inspector can consume the outer tree to explain display/window/canvas
+state. A future Annotation Inspector or surface-zoom inspector can start from a
+DesktopWorld point, resolve display/window/canvas through spatial topology,
+enter the surface adapter, ask for the deepest adapter-owned hit target, and
+then convert the selected node path into annotation intent. Live global pointer
+capture, arbitrary website browsing, generic user-app AX harvesting, capture
+locator repair, report/export/workflow execution, and Employer Brand capture
+state changes remain outside this tree contract unless a separate bounded
+adapter explicitly owns that work.
+
+`shared/schemas/surface-hit-test-inspect-v0.schema.json` is the neutral inspect
+contract between Spatial Subject Tree and Annotation Perception Verification.
+It takes a surface-bound pointer-like coordinate, normalizes structured
+candidate responses from a surface adapter or explicit fixture adapter, chooses
+the deepest candidate whose bounds contain the point, and emits a structured
+annotation draft plus an optional verification seed. The deterministic selector
+orders hits by path depth, adapter confidence, smaller target area, and stable
+path order; tied candidates are preserved in the case summary as ambiguity even
+when a stable selection is made.
+
+`packages/toolkit/workbench/surface-hit-test-inspect.js` provides the local
+helper. It normalizes inspect requests, normalizes adapter candidate records,
+converts selected candidates into draft annotation intent records, and builds
+reports whose `verification_seed` entries can be passed to
+`buildAnnotationPerceptionVerificationCase`. The representative CLI is:
+
+```bash
+node scripts/surface-hit-test-inspect.mjs --default-output
+```
+
+The generated report lives at
+`docs/design/fixtures/surface-hit-test-inspect-v0/representative-surfaces.report.json`.
+V0 includes passing structured local cases for AOS canvas semantic targets,
+Markdown Workbench text ranges, controlled local HTML/DOM, and AOS-owned Mac
+window/topology. Generic AX, Mermaid/SVG, Three.js, and PDF/image cases are
+fixture-backed and marked with explicit missing-live-adapter blockers.
+
+`packages/toolkit/workbench/markdown-spatial-subject-tree.js` provides a
+deterministic Markdown document builder for Spatial Subject Tree V0. It loads
+Markdown text, creates DesktopWorld/display/window/canvas/surface scaffolding,
+models the Markdown document as the selected surface, and emits direct
+surface-child nodes for headings, decision targets, tables, Mermaid blocks, and
+important text ranges. Node ids and paths are stable line/slug derivatives, and
+each node preserves source file identity, line ranges, text excerpts, role
+metadata, adapter metadata, and capabilities.
+
+The builder is intentionally not a rendered-pixel oracle. Bounds are synthetic,
+line-based rectangles in `markdown_line_document_v0`, stored as the surface's
+local `parent_local` coordinate space so existing Surface-Zoom and Hit-Test
+helpers can inspect them deterministically. The adapter metadata identifies the
+tree as a Markdown fixture/builder, not a live browser, AX tree, screenshot, or
+capture adapter, and generated nodes keep `capture=false`.
+
+The Employer Brand Human Alignment Pack seed is generated by:
+
+```bash
+node scripts/markdown-spatial-subject-tree.mjs
+```
+
+The checked-in fixture lives at
+`docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json`
+and points back to
+`docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md`.
+It includes inspectable targets for current assumptions, company/competitor
+set, desired evidence elements and the 4 visibility-adjusted executable slots,
+what not to collect, the KILOS interpretation table, LinkedIn/source-unavailable
+policy, report tone/direction, and the explicit human decision table.
+
+`shared/schemas/annotation-perception-verification-v0.schema.json` is the
+neutral report contract for deterministic annotation round-trip verification.
+The loop is structured-only: choose a target from perception state, create an
+annotation intent from that target, project/render the annotation, re-perceive
+the surface through structured AOS or adapter state, and assert target identity,
+bounds overlap, decorator discoverability, layer behavior, and content mutation
+guards where the surface exposes them. Bounds checks use explicit
+intersection-over-union ratios with a default threshold of `0.75`.
+
+`packages/toolkit/workbench/annotation-perception-verification.js` provides the
+shared helper. It builds cases from structured targets, derives annotation
+intent, normalizes annotation projection results, normalizes re-perception
+state, classifies cases as `passed`, `failed`, `blocked`, or
+`adapter_fixture_only`, and emits a report shape that can be schema-validated.
+The representative CLI is:
+
+```bash
+node scripts/annotation-perception-verify.mjs --default-output
+```
+
+The generated report lives at
+`docs/design/fixtures/annotation-perception-verification-v0/representative-surfaces.report.json`.
+V0 requires passing structured cases for AOS canvas semantic targets, Markdown
+Workbench text ranges, and Mac window/topology. Controlled local browser/DOM
+verification is represented without external browsing. Generic AX,
+Mermaid/SVG, Three.js, and PDF/image cases are explicit `adapter_fixture_only`
+fixtures until live deterministic adapters exist.
+
+### Surface-Zoom Inspector Proof
+
+`packages/toolkit/components/surface-zoom-inspector/` is the bounded local proof
+of the "select a surface, inspect inside that surface, draft annotation" loop.
+It loads a Spatial Subject Tree V0 fixture, renders only the outer
+DesktopWorld/display/window/canvas/surface rows on the left, treats the selected
+surface as a mini-map, draws surface-child node bounds inside that mini-map, and
+shows the selected node's path, kind, label, source ids, adapter metadata,
+bounds, capabilities, and state.
+
+The proof keeps drafts in local component state. `createAnnotationDraftFromNode`
+maps a selected neutral tree node into a structured annotation intent draft with
+`actor.role=operator`, `actor.id=surface-zoom-inspector`, `status=draft`,
+nearest surface identity, source path/URL when available, best available
+coordinate space and bounds, semantic label/role, ancestor chain, selector
+candidates, and a placeholder note.
+
+The inspector also bridges Spatial Subject Tree mini-map points into Surface
+Hit-Test Inspect V0. `window.surfaceZoomInspector.inspectPoint({ x, y,
+coordinate_space })` builds a selected-surface inspect request, converts the
+selected surface's child nodes into hit-test candidates, runs the neutral
+deepest/most-specific candidate selector, updates `selected_node` from the
+selected candidate, stores the full result as `last_inspect`, and creates a
+distinct hit-test annotation draft with a Surface Hit-Test Inspect verification
+seed when a candidate is selected. Misses keep the normalized candidates and
+summary metadata but create no selected candidate, draft, or verification seed.
+
+The launch path is:
+
+```bash
+packages/toolkit/components/surface-zoom-inspector/launch.sh
+```
+
+The corresponding AOS URL is:
+
+```text
+aos://toolkit/components/surface-zoom-inspector/index.html?tree=aos://repo/docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json
+```
+
+This component is fixture-only. It does not replace Surface Inspector, harvest
+live AX trees, probe browser DOM, run capture/locator/report/export workflows,
+or mutate Employer Brand artifacts.
+
+Operator can add annotations without editing the underlying Markdown by using
+the sidecar CLI before resume:
+
+```bash
+scripts/workbench-human-checkpoint-annotate.mjs \
+  --checkpoint checkpoint.json \
+  --annotation-file annotations.json \
+  --commit \
+  --output checkpoint.annotated.json
+```
+
+The sidecar file may be either an array of annotation records or an object with
+`annotations: [...]`.
+
+Canonical schema:
+[`shared/schemas/workbench-human-checkpoint-v0.schema.json`](../../shared/schemas/workbench-human-checkpoint-v0.schema.json)
+
+CLI helpers:
+
+```bash
+scripts/workbench-human-checkpoint-start.mjs --target docs/example.md --output checkpoint.json
+scripts/workbench-human-checkpoint-start.mjs --target docs/example.md --attach --canvas-id markdown-workbench
+scripts/workbench-human-checkpoint-annotate.mjs --checkpoint checkpoint.json --annotation-json '{"kind":"point_comment","point":{"x":120,"y":80},"note":"Check this spot"}' --output checkpoint.annotated.json
+scripts/workbench-human-checkpoint-annotations-push.mjs --checkpoint checkpoint.annotated.json --canvas-id markdown-workbench
+scripts/workbench-human-checkpoint-resume.mjs --checkpoint checkpoint.json --behavior draft
+scripts/workbench-human-checkpoint-resume.mjs --checkpoint checkpoint.json --behavior save --output resumed.json
+scripts/workbench-human-checkpoint-validate.mjs checkpoint.json --require-committed-annotation
+```
+
 ## Supervised Run Test Console
 
 `packages/toolkit/components/test-console/` provides the V0 human-in-the-loop
@@ -1365,8 +1695,10 @@ Save requests are emitted as `markdown-workbench/save.requested` with payload:
 
 Current renderer support is intentionally small: frontmatter is skipped,
 headings up to depth 3 render, lists render, inline code/bold/emphasis render,
-and unsafe links are stripped. Mermaid fences are detected for diagnostics but
-not rendered yet.
+and unsafe links are stripped. Mermaid fences render as constrained diagram
+containers with escaped source preserved in `data-mermaid-source`, so Markdown
+Workbench and Artifact Bundle previews can show diagram content safely without
+depending on a global Mermaid runtime.
 
 `save-current.sh` persists file-backed documents by writing the source file and
 wiki-backed documents by PUT-ing to the local wiki content server. The canvas
@@ -1380,7 +1712,48 @@ When enabled, the graph controls can also expose:
 - shortest-path highlighting between a saved path start and the current selection
 - selection focus actions that fit the selected node plus its current highlight context
 
-### Canvas Inspector — Object Marks
+### Surface Inspector — Annotation Layer And Object Marks
+
+The user-facing inspector surface is now **Surface Inspector**. The stable
+component id, manifest name, route, and bundle namespace still use the legacy
+`canvas-inspector` / `canvas_inspector_bundle` aliases for compatibility.
+
+Surface Inspector exposes an explicit Annotation Mode for ephemeral human
+annotations over controlled AOS surfaces. Normal inspector use shows the tree
+and minimap without annotation overlays. Annotation Mode can be toggled from
+the lower tree control row, from the status-item `Annotation Mode` menu item, or
+with the daemon-owned `ctrl+opt+a` shortcut. Turning Annotation Mode off clears
+in-memory frame anchors/comments after confirmation when annotations exist.
+
+The annotation snapshot carried in `window.__canvasInspectorState.annotation`
+uses `schema: "surface_inspector_annotation_state"` and includes
+`annotation_mode.active`, `active_edge_id`, `active_frame_id`, `pins[]`
+(the internal payload field for frame anchors),
+`comments[]`, `projection_capabilities[]`, `last_hover_candidate`,
+`last_projection_blocker`, and `snapshot_version`. Frame anchors store subject identity
+and adapter projection metadata, not presentation-only inset geometry. V0
+projects controlled AOS canvas/window geometry; macOS AX, Chrome seam, generic
+DOM, and 3D/canvas adapters report unsupported/planned states until dedicated
+adapters land.
+
+In Annotation Mode, the minimap is passive abstract geometry only. It renders
+the base surface geometry plus active frame-path rectangles and comment markers;
+it does not render add-comment or frame-anchor controls, hover target buttons, or
+object marks that could be mistaken for annotation targets. When the controlled
+AOS canvas/window adapter can prove a current visible rect, Surface Inspector
+uses the owning canvas as a documented V0 action-control helper: it renders
+toolkit-styled add-comment and frame-anchor affordances inside the
+perimeter-only frame-candidate overlay and exposes their projected helper state
+in `window.__canvasInspectorState.annotationActionControlHelperState`. The true
+tiny child-canvas path is deferred until canvas mutation/eval remains stable
+while those child controls are present. When projection is unavailable, Surface
+Inspector exposes explicit tree/list actions for the selected frame anchor
+instead.
+
+`ctrl+opt+c` see bundles include the same annotation state through
+`inspector-state.json`; image data is not embedded in annotation JSON.
+
+### Surface Inspector — Object Marks
 
 Consumer canvases can publish ephemeral "object marks" that the
 `canvas-inspector` renders on its minimap and in the tree list beneath the

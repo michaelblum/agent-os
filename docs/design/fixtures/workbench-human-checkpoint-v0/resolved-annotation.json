@@ -1,0 +1,41 @@
+{
+  "id": "ann-resolved-4",
+  "ordinal": 4,
+  "kind": "selection_comment",
+  "surface_id": "markdown-workbench-test",
+  "source_url": null,
+  "source_path": "docs/example.md",
+  "coordinate_space": "document",
+  "point": null,
+  "bounds": null,
+  "viewport_bounds": null,
+  "page_bounds": null,
+  "selector_candidates": [],
+  "text_excerpt": "Accepted.",
+  "text_range": { "start_line": 7, "end_line": 7 },
+  "role": "",
+  "label": "Resolved copy note",
+  "ancestor_chain": [],
+  "note": "This note was addressed during resume.",
+  "actor": { "role": "agent", "id": "gdi" },
+  "status": "resolved",
+  "lifecycle": {
+    "clearable": true,
+    "committed_at": "2026-05-09T12:03:00.000Z",
+    "resolved_at": "2026-05-09T12:04:00.000Z",
+    "rejected_at": null,
+    "recovered_from": null
+  },
+  "capture": {
+    "prepare": {
+      "hide_annotation_controls": true,
+      "keep_target_evidence_visible": true
+    },
+    "restore": {
+      "restore_annotation_controls": true
+    }
+  },
+  "created_at": "2026-05-09T12:03:00.000Z",
+  "updated_at": "2026-05-09T12:04:00.000Z",
+  "metadata": {}
+}

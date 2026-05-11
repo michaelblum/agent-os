@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/dock-handoff-clipboard --target-dock <dock>
+
+Reads a handoff message from stdin, copies the target-session payload to the
+system clipboard, and prints the chat-visible tail:
+
+  <clipboard payload>
+
+  (copied to clipboard)
+  Fri May 8 6:47AM
+
+Rules:
+  - GDI handoff payloads add one "/goal " prefix if missing.
+  - Non-GDI handoff payloads remove one accidental "/goal " prefix if present.
+  - The parenthetical and timestamp are printed only; they are not copied.
+
+Environment:
+  AOS_HANDOFF_PBCOPY       Override pbcopy command path for tests.
+  AOS_HANDOFF_TIMESTAMP    Override printed timestamp for tests.
+EOF
+}
+
+target_dock=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target-dock)
+      target_dock="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "FAIL: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$target_dock" ]]; then
+  echo "FAIL: --target-dock is required" >&2
+  usage >&2
+  exit 2
+fi
+
+message="$(cat || true)"
+payload="$message"
+
+case "$target_dock" in
+  gdi)
+    if [[ "$payload" != /goal\ * ]]; then
+      payload="/goal ${payload}"
+    fi
+    ;;
+  *)
+    if [[ "$payload" == /goal\ * ]]; then
+      payload="${payload#"/goal "}"
+    fi
+    ;;
+esac
+
+pbcopy_bin="${AOS_HANDOFF_PBCOPY:-$(command -v pbcopy || true)}"
+if [[ -z "$pbcopy_bin" ]]; then
+  echo "FAIL: pbcopy not found; set AOS_HANDOFF_PBCOPY for tests or install pbcopy-compatible command" >&2
+  exit 1
+fi
+
+printf '%s' "$payload" | "$pbcopy_bin"
+
+timestamp="${AOS_HANDOFF_TIMESTAMP:-}"
+if [[ -z "$timestamp" ]]; then
+  timestamp="$(python3 - <<'PY'
+from datetime import datetime
+
+now = datetime.now()
+hour = now.strftime("%I").lstrip("0") or "0"
+print(f"{now:%a %b} {now.day} {hour}:{now:%M%p}")
+PY
+)"
+fi
+
+printf '%s\n\n(copied to clipboard)\n%s\n' "$payload" "$timestamp"

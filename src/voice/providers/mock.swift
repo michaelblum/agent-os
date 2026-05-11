@@ -32,7 +32,7 @@ struct MockVoiceProvider: VoiceProvider {
                 region: "US",
                 gender: idx % 2 == 0 ? "female" : "male",
                 kind: "human",
-                quality_tier: idx == 0 ? "premium" : "standard",
+                quality_tier: idx == 0 ? "premium" : (idx == 1 ? "enhanced" : "standard"),
                 tags: idx == 4 ? ["novelty"] : (idx % 2 == 0 ? ["calm"] : ["bright"]),
                 capabilities: VoiceCapabilities(local: true, streaming: false, ssml: false, speak_supported: true),
                 availability: VoiceAvailability(installed: true, enabled: true, reachable: true),

@@ -20,3 +20,16 @@
 .level.error { color: var(--accent-red); }
 .level.debug { color: #88a; }
 .msg { flex: 1; word-break: break-word; }
+
+.input-safety-countdown {
+  align-items: center;
+  background: rgba(255, 193, 7, 0.16);
+  border: 1px solid rgba(255, 193, 7, 0.42);
+  margin: 6px 8px;
+}
+
+.input-safety-countdown .msg {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}

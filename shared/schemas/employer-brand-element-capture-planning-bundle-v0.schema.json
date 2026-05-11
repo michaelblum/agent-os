@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-element-capture-planning-bundle-v0.schema.json",
+  "title": "Employer Brand Element Capture Planning Bundle v0",
+  "description": "Planned-only expansion of Employer Brand source artifact targets into deterministic element capture work units. V0 may include reviewed locator hints for stable local HTML elements, but does not authorize live collection, screenshots, clip generation, report rendering, exports, workflows, or full-page grabs.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "inputs",
+    "source_plan",
+    "expansion",
+    "readiness",
+    "work_units",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_element_capture_planning_bundle"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-element-capture-planning-bundle-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "planned_ready",
+        "planned_with_blockers"
+      ]
+    },
+    "inputs": {
+      "$ref": "#/$defs/inputs"
+    },
+    "source_plan": {
+      "$ref": "#/$defs/source_plan"
+    },
+    "expansion": {
+      "$ref": "#/$defs/expansion"
+    },
+    "readiness": {
+      "$ref": "#/$defs/readiness"
+    },
+    "work_units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/work_unit"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      }
+    },
+    "kilos_relevance": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "kinship",
+          "impact",
+          "lifestyle",
+          "opportunity",
+          "status"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "inputs": {
+      "type": "object",
+      "required": [
+        "target_plan_path",
+        "source_artifact_data_bundle_path",
+        "comparative_audit_data_bundle_path",
+        "spv5_html_path",
+        "kilos_template_pdf_path",
+        "kilos_template_pptx_path"
+      ],
+      "properties": {
+        "target_plan_path": {
+          "const": "source-artifacts/target-plan.json"
+        },
+        "source_artifact_data_bundle_path": {
+          "const": "source-artifacts/data-bundle.json"
+        },
+        "comparative_audit_data_bundle_path": {
+          "const": "data-bundle.json"
+        },
+        "spv5_html_path": {
+          "const": "/Users/Michael/Desktop/SPv5.html"
+        },
+        "kilos_template_pdf_path": {
+          "const": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf"
+        },
+        "kilos_template_pptx_path": {
+          "const": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pptx"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_plan": {
+      "type": "object",
+      "required": [
+        "id",
+        "schema",
+        "target_count",
+        "expected_clip_count"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "schema": {
+          "const": "shared/schemas/employer-brand-source-artifact-target-plan-v0.schema.json"
+        },
+        "target_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "company_ref": {
+      "type": "object",
+      "required": [
+        "company_ref_id",
+        "name",
+        "slug",
+        "role"
+      ],
+      "properties": {
+        "company_ref_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "slug": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "role": {
+          "enum": [
+            "client",
+            "competitor"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "expansion": {
+      "type": "object",
+      "required": [
+        "company_count",
+        "company_refs",
+        "target_count",
+        "work_unit_count",
+        "expected_clip_count",
+        "expected_clip_count_preserved",
+        "arbitrary_n_companies"
+      ],
+      "properties": {
+        "company_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "company_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/company_ref"
+          }
+        },
+        "target_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "work_unit_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count_preserved": {
+          "const": true
+        },
+        "arbitrary_n_companies": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "readiness": {
+      "type": "object",
+      "required": [
+        "locator_ready_count",
+        "blocked_count",
+        "blockers"
+      ],
+      "properties": {
+        "locator_ready_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockers": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_artifact": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "role"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kind": {
+          "enum": [
+            "pptx",
+            "pdf",
+            "html_spa"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "role": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "locator_hints": {
+      "type": "object",
+      "required": [
+        "selector",
+        "xpath",
+        "playwright_locator",
+        "codegen_hint",
+        "integrity"
+      ],
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "xpath": {
+          "type": "null"
+        },
+        "playwright_locator": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "codegen_hint": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "integrity": {
+          "enum": [
+            "stable_spv5_dom_id_or_direct_child",
+            "unresolved_placeholder"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "work_unit": {
+      "type": "object",
+      "required": [
+        "id",
+        "target_id",
+        "source_artifact",
+        "company_ref",
+        "kilos_relevance",
+        "capture_type",
+        "expected_clip_count",
+        "readiness_state",
+        "blockers",
+        "locator_hints",
+        "acceptance_criteria",
+        "provenance"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_artifact": {
+          "$ref": "#/$defs/source_artifact"
+        },
+        "company_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/company_ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "capture_type": {
+          "enum": [
+            "element_clip",
+            "element_text_extract",
+            "element_clip_and_text_extract"
+          ]
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readiness_state": {
+          "enum": [
+            "locator_ready",
+            "blocked_locator_needed",
+            "blocked_unresolved_pdf_crop",
+            "blocked_parser_needed"
+          ]
+        },
+        "blockers": {
+          "$ref": "#/$defs/string_array"
+        },
+        "locator_hints": {
+          "$ref": "#/$defs/locator_hints"
+        },
+        "acceptance_criteria": {
+          "$ref": "#/$defs/string_array"
+        },
+        "provenance": {
+          "type": "object",
+          "required": [
+            "source_target_name",
+            "natural_language_target",
+            "artifact_location",
+            "non_goal_controls",
+            "read_only",
+            "planned_only"
+          ],
+          "properties": {
+            "source_target_name": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "natural_language_target": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "artifact_location": {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            "non_goal_controls": {
+              "$ref": "#/$defs/string_array"
+            },
+            "read_only": {
+              "const": true
+            },
+            "planned_only": {
+              "const": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "live_browser_collection_authorized",
+        "screenshot_generation_authorized",
+        "element_clip_generation_authorized",
+        "report_renderer_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized",
+        "full_page_grabs_authorized"
+      ],
+      "properties": {
+        "live_browser_collection_authorized": {
+          "const": false
+        },
+        "screenshot_generation_authorized": {
+          "const": false
+        },
+        "element_clip_generation_authorized": {
+          "const": false
+        },
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        },
+        "full_page_grabs_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "comparative_audit_data_bundle_id",
+        "read_only",
+        "planned_only",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "comparative_audit_data_bundle_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "read_only": {
+          "const": true
+        },
+        "planned_only": {
+          "const": true
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -256,6 +256,11 @@ function isPrimarySurfaceSegment() {
 
 function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (isPrimarySurfaceSegment()) return true;
+    if (
+        msg.type === 'status_item.toggle'
+        || msg.type === 'status_item.show'
+        || msg.type === 'status_item.hide'
+    ) return false;
     if (msg.type === 'display_geometry') return false;
     if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) return false;
@@ -1455,6 +1460,7 @@ function setAvatarVisibility(visible) {
     }
     emitStatusItemState();
     emitAvatarMark();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function animateVisibility(visible, lifecycleAction = null, origin = null) {
@@ -1467,6 +1473,7 @@ function animateVisibility(visible, lifecycleAction = null, origin = null) {
         origin,
         avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null,
     });
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function toggleAvatarVisibility(origin = null) {
@@ -2196,6 +2203,7 @@ async function setupHostSurface() {
         },
         onState(snapshot) {
             applySurfaceRenderSnapshot(snapshot);
+            if (!rendererSuspended) scheduleRenderFrame();
         },
     });
     desktopWorldSurface.mountScene({
@@ -2263,7 +2271,6 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
         liveJs._pendingLifecycleComplete = null;
     }
-    scheduleRenderFrame();
 }
 
 function animate() {

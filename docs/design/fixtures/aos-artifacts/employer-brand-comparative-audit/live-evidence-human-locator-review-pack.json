@@ -1,0 +1,979 @@
+{
+  "type": "aos.employer_brand_live_evidence_human_locator_review_pack",
+  "schema_version": "2026-05-employer-brand-live-evidence-human-locator-review-pack-v0",
+  "id": "live-evidence-human-locator-review-pack:symphony-talent-phenom-radancy",
+  "label": "Symphony Talent Employer Brand Comparative Audit Project Human Locator Review Pack",
+  "status": "human_locator_review_required",
+  "source_refs": {
+    "locator_resolution_result_path": "live-evidence-locator-resolution-result.json",
+    "locator_readiness_path": "live-evidence-locator-readiness.json",
+    "supervised_locator_plan_path": "live-evidence-supervised-locator-plan.json",
+    "reviewed_target_plan_path": "live-evidence-target-plan.reviewed.json",
+    "url_open_run_path": "live-evidence-url-open-run.json",
+    "read_only_planning_evidence": true
+  },
+  "summary": {
+    "review_item_count": 9,
+    "ambiguous_locator_attempt_count": 7,
+    "needs_human_target_review_count": 2,
+    "locator_ready_count": 0,
+    "expected_clip_count": 10,
+    "source_counts": {
+      "ambiguous_locator_attempt": 7,
+      "needs_human_target_review": 2
+    },
+    "decision_status_counts": {
+      "pending": 9
+    },
+    "unconfirmed_candidate_count": 7
+  },
+  "groups": [
+    {
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "review_item_count": 3,
+      "expected_clip_count": 4,
+      "source_categories": [
+        {
+          "source_category": "careers_site",
+          "review_item_count": 1,
+          "expected_clip_count": 2,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:symphony-talent:careers-site",
+              "target_id": "live-target:symphony-talent:careers-site",
+              "work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+              "company": "Symphony Talent",
+              "company_role": "client",
+              "source_category": "careers_site",
+              "url": "https://www.symphonytalent.com/",
+              "final_url": "https://www.symphonytalent.com/",
+              "page_name": "Symphony Talent Careers or jobs site",
+              "desired_element": "Human-selected careers homepage hero or EVP proof block that states the employer promise without capturing the full page.",
+              "evidence_goal": "Confirm Symphony Talent career-site positioning and visible employee value proposition proof for KILOS scoring.",
+              "kilos_relevance": [
+                "impact",
+                "opportunity"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 2,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to one visible careers-site element, not the full page.",
+                "The element includes enough surrounding heading or label text to understand the employer promise out of context.",
+                "The element can be reviewed against Impact and Opportunity before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "reachable",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Symphony Talent / careers_site / reachable / Talent Acquisition Software | Recruitment CRM &amp; Marketing Solutions.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:symphony-talent:careers-site",
+                "source_locator_readiness_target": "live-target:symphony-talent:careers-site",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "linkedin_presence",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:symphony-talent:linkedin-presence",
+              "target_id": "live-target:symphony-talent:linkedin-presence",
+              "work_unit_id": "live-locator-work-unit:symphony-talent:linkedin-presence",
+              "company": "Symphony Talent",
+              "company_role": "client",
+              "source_category": "linkedin_presence",
+              "url": "https://www.linkedin.com/company/symphony-talent/",
+              "final_url": "https://www.linkedin.com/company/symphony-talent/",
+              "page_name": "Symphony Talent LinkedIn company, life, and jobs presence",
+              "desired_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+              "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+              "kilos_relevance": [
+                "status",
+                "impact"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "reachable",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Symphony Talent / linkedin_presence / reachable / Symphony Talent | LinkedIn.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:symphony-talent:linkedin-presence",
+                "source_locator_readiness_target": "live-target:symphony-talent:linkedin-presence",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:symphony-talent:linkedin-presence",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "employee_stories",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:symphony-talent:employee-stories",
+              "target_id": "live-target:symphony-talent:employee-stories",
+              "work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+              "company": "Symphony Talent",
+              "company_role": "client",
+              "source_category": "employee_stories",
+              "url": "https://www.symphonytalent.com/careers/employee-stories",
+              "final_url": null,
+              "page_name": "Symphony Talent Employee story or talent community examples",
+              "desired_element": "Human-selected page element that best supports the Employee story or talent community examples evidence goal without capturing the full page.",
+              "evidence_goal": "Capture lived-experience proof and candidate engagement examples.",
+              "kilos_relevance": [
+                "kinship",
+                "lifestyle",
+                "opportunity"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the Employee story or talent community examples source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "needs_human_target_review",
+              "resolution_status": "blocked",
+              "readiness_state": "needs_human_target_review",
+              "url_open_status": "safety_gate_blocked",
+              "ambiguity_or_blocker_reason": "non_executable_target_not_opened; target_review_status_not_approved; locator_placeholders_unresolved; url_reachability_not_checked; non_executable_until_human_target_review; readiness_state_not_needs_locator; approval_decision_not_approve",
+              "unconfirmed_selector_candidates": [],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:symphony-talent:employee-stories",
+                "source_locator_readiness_target": "live-target:symphony-talent:employee-stories",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "company": "Phenom",
+      "company_role": "competitor",
+      "review_item_count": 2,
+      "expected_clip_count": 2,
+      "source_categories": [
+        {
+          "source_category": "careers_site",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:phenom:careers-site",
+              "target_id": "live-target:phenom:careers-site",
+              "work_unit_id": "live-locator-work-unit:phenom:careers-site",
+              "company": "Phenom",
+              "company_role": "competitor",
+              "source_category": "careers_site",
+              "url": "https://www.phenom.com/",
+              "final_url": "https://www.phenom.com/",
+              "page_name": "Phenom Careers or jobs site",
+              "desired_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+              "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+              "kilos_relevance": [
+                "opportunity",
+                "lifestyle"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the Careers or jobs site source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "reachable",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Phenom / careers_site / reachable / Phenom Applied AI | Talent Intelligence Platform.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:phenom:careers-site",
+                "source_locator_readiness_target": "live-target:phenom:careers-site",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:phenom:careers-site",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "employee_stories",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:phenom:employee-stories",
+              "target_id": "live-target:phenom:employee-stories",
+              "work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+              "company": "Phenom",
+              "company_role": "competitor",
+              "source_category": "employee_stories",
+              "url": "https://www.phenom.com/careers/employee-stories",
+              "final_url": null,
+              "page_name": "Phenom Employee story or talent community examples",
+              "desired_element": "Human-selected page element that best supports the Employee story or talent community examples evidence goal without capturing the full page.",
+              "evidence_goal": "Capture lived-experience proof and candidate engagement examples.",
+              "kilos_relevance": [
+                "kinship",
+                "lifestyle",
+                "opportunity"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the Employee story or talent community examples source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "needs_human_target_review",
+              "resolution_status": "blocked",
+              "readiness_state": "needs_human_target_review",
+              "url_open_status": "safety_gate_blocked",
+              "ambiguity_or_blocker_reason": "non_executable_target_not_opened; target_review_status_not_approved; locator_placeholders_unresolved; url_reachability_not_checked; non_executable_until_human_target_review; readiness_state_not_needs_locator; approval_decision_not_approve",
+              "unconfirmed_selector_candidates": [],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:phenom:employee-stories",
+                "source_locator_readiness_target": "live-target:phenom:employee-stories",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "company": "Radancy",
+      "company_role": "competitor",
+      "review_item_count": 4,
+      "expected_clip_count": 4,
+      "source_categories": [
+        {
+          "source_category": "careers_site",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:radancy:careers-site",
+              "target_id": "live-target:radancy:careers-site",
+              "work_unit_id": "live-locator-work-unit:radancy:careers-site",
+              "company": "Radancy",
+              "company_role": "competitor",
+              "source_category": "careers_site",
+              "url": "https://www.radancy.com/en/",
+              "final_url": "https://www.radancy.com/en/",
+              "page_name": "Radancy Careers or jobs site",
+              "desired_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+              "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+              "kilos_relevance": [
+                "opportunity",
+                "lifestyle"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the Careers or jobs site source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "reachable",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Radancy / careers_site / reachable / Radancy | The Talent Acquisition Cloud powered by Agentic AI.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:radancy:careers-site",
+                "source_locator_readiness_target": "live-target:radancy:careers-site",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:radancy:careers-site",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "linkedin_presence",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:radancy:linkedin-presence",
+              "target_id": "live-target:radancy:linkedin-presence",
+              "work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+              "company": "Radancy",
+              "company_role": "competitor",
+              "source_category": "linkedin_presence",
+              "url": "https://www.linkedin.com/company/radancy/",
+              "final_url": "https://www.linkedin.com/company/radancy/",
+              "page_name": "Radancy LinkedIn company, life, and jobs presence",
+              "desired_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+              "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+              "kilos_relevance": [
+                "status",
+                "impact"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "reachable",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Radancy / linkedin_presence / reachable / Radancy | LinkedIn.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:radancy:linkedin-presence",
+                "source_locator_readiness_target": "live-target:radancy:linkedin-presence",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "social_campaigns",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:radancy:social-campaigns",
+              "target_id": "live-target:radancy:social-campaigns",
+              "work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+              "company": "Radancy",
+              "company_role": "competitor",
+              "source_category": "social_campaigns",
+              "url": "https://www.radancy.com/news",
+              "final_url": "https://www.radancy.com/en/news/",
+              "page_name": "Radancy Social or campaign examples",
+              "desired_element": "Human-selected page element that best supports the Social or campaign examples evidence goal without capturing the full page.",
+              "evidence_goal": "Capture recruiting campaign tone, proof points, and engagement examples.",
+              "kilos_relevance": [
+                "kinship",
+                "impact"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to the named element, not the full page.",
+                "The element visibly supports the Social or campaign examples source category.",
+                "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+                "The element can be reviewed against the stated KILOS relevance before capture execution."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "redirected",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Radancy / social_campaigns / redirected.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:radancy:social-campaigns",
+                "source_locator_readiness_target": "live-target:radancy:social-campaigns",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        },
+        {
+          "source_category": "awards_recognition",
+          "review_item_count": 1,
+          "expected_clip_count": 1,
+          "review_items": [
+            {
+              "review_item_id": "human-locator-review-item:radancy:awards-recognition",
+              "target_id": "live-target:radancy:awards-recognition",
+              "work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+              "company": "Radancy",
+              "company_role": "competitor",
+              "source_category": "awards_recognition",
+              "url": "https://www.radancy.com/news",
+              "final_url": "https://www.radancy.com/en/news/",
+              "page_name": "Radancy Awards, rankings, or employer recognition",
+              "desired_element": "Human-selected page element that best supports the Awards, rankings, or employer recognition evidence goal without capturing the full page.",
+              "evidence_goal": "Identify awards, analyst recognition, or public proof that supports Radancy status and market credibility.",
+              "kilos_relevance": [
+                "status",
+                "impact"
+              ],
+              "capture_type": "element_clip_and_text_extract",
+              "expected_clip_count": 1,
+              "acceptance_criteria": [
+                "The captured evidence is scoped to a recognition, award, or credibility element.",
+                "The element visibly names the proof point or recognition source.",
+                "The element preserves surrounding context needed to compare Status and Impact signals."
+              ],
+              "review_source": "ambiguous_locator_attempt",
+              "resolution_status": "ambiguous",
+              "readiness_state": "needs_locator",
+              "url_open_status": "redirected",
+              "ambiguity_or_blocker_reason": "durable_url_open_run_has_no_dom_or_accessibility_snapshot_for_selector_confirmation",
+              "unconfirmed_selector_candidates": [
+                {
+                  "selector": null,
+                  "xpath": null,
+                  "playwright_locator": null,
+                  "selector_type": "unconfirmed_metadata_only",
+                  "confidence": 0.1,
+                  "rationale": "No selector can be confirmed from executed URL-open metadata alone: Radancy / awards_recognition / redirected.",
+                  "provenance": "durable_url_open_metadata_only",
+                  "metadata_only": true
+                }
+              ],
+              "human_locator": {
+                "selector": null,
+                "xpath": null,
+                "playwright_locator": null
+              },
+              "locator_ready": false,
+              "required_human_decision": {
+                "status": "pending",
+                "allowed_decisions": [
+                  "approve_selector",
+                  "edit_selector",
+                  "provide_xpath",
+                  "provide_playwright_locator",
+                  "refine_natural_language_target",
+                  "mark_blocked",
+                  "keep_draft",
+                  "reject_target"
+                ],
+                "selected_decision": null,
+                "human_notes": null
+              },
+              "non_goal_flags": {
+                "locator_execution": false,
+                "codegen_execution": false,
+                "url_opening": false,
+                "screenshot_capture": false,
+                "element_clip_generation": false,
+                "capture_execution": false,
+                "report_rendering": false,
+                "export_execution": false,
+                "workflow_engine": false,
+                "full_page_grabs": false,
+                "autonomous_crawling": false,
+                "bypasses": false
+              },
+              "provenance": {
+                "source_locator_resolution_result_id": "locator-resolution-result:radancy:awards-recognition",
+                "source_locator_readiness_target": "live-target:radancy:awards-recognition",
+                "source_supervised_locator_work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+                "metadata_only": true,
+                "read_only_planning_evidence": true
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "excluded_context": {
+    "blocked_result_count": 11,
+    "rejected_exclusion_count": 3,
+    "hard_blocked_targets_outside_queue": [
+      {
+        "target_id": "live-target:symphony-talent:employer-brand-pages",
+        "work_unit_id": "live-locator-work-unit:symphony-talent:employer-brand-pages",
+        "company": "Symphony Talent",
+        "source_category": "employer_brand_pages",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:symphony-talent:social-campaigns",
+        "work_unit_id": "live-locator-work-unit:symphony-talent:social-campaigns",
+        "company": "Symphony Talent",
+        "source_category": "social_campaigns",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:symphony-talent:awards-recognition",
+        "work_unit_id": "live-locator-work-unit:symphony-talent:awards-recognition",
+        "company": "Symphony Talent",
+        "source_category": "awards_recognition",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:phenom:employer-brand-pages",
+        "work_unit_id": "live-locator-work-unit:phenom:employer-brand-pages",
+        "company": "Phenom",
+        "source_category": "employer_brand_pages",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:phenom:linkedin-presence",
+        "work_unit_id": "live-locator-work-unit:phenom:linkedin-presence",
+        "company": "Phenom",
+        "source_category": "linkedin_presence",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:phenom:social-campaigns",
+        "work_unit_id": "live-locator-work-unit:phenom:social-campaigns",
+        "company": "Phenom",
+        "source_category": "social_campaigns",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:phenom:awards-recognition",
+        "work_unit_id": "live-locator-work-unit:phenom:awards-recognition",
+        "company": "Phenom",
+        "source_category": "awards_recognition",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:radancy:employer-brand-pages",
+        "work_unit_id": "live-locator-work-unit:radancy:employer-brand-pages",
+        "company": "Radancy",
+        "source_category": "employer_brand_pages",
+        "blocker_reason": "url_open_status_network_error"
+      },
+      {
+        "target_id": "live-target:radancy:employee-stories",
+        "work_unit_id": "live-locator-work-unit:radancy:employee-stories",
+        "company": "Radancy",
+        "source_category": "employee_stories",
+        "blocker_reason": "url_open_status_network_error"
+      }
+    ],
+    "rejected_exclusions": [
+      {
+        "target_id": "live-target:symphony-talent:review-platforms",
+        "decision": "reject",
+        "reason": "Rejected in this reviewed plan because review-platform targets need separate human source selection before readiness.",
+        "source_approval_patch_path": "live-evidence-target-approval-patch.json",
+        "resolution_status": "not_run",
+        "blocker_reason": "rejected_target_excluded_before_url_open"
+      },
+      {
+        "target_id": "live-target:phenom:review-platforms",
+        "decision": "reject",
+        "reason": "Rejected in this reviewed plan because review-platform targets need separate human source selection before readiness.",
+        "source_approval_patch_path": "live-evidence-target-approval-patch.json",
+        "resolution_status": "not_run",
+        "blocker_reason": "rejected_target_excluded_before_url_open"
+      },
+      {
+        "target_id": "live-target:radancy:review-platforms",
+        "decision": "reject",
+        "reason": "Rejected in this reviewed plan because review-platform targets need separate human source selection before readiness.",
+        "source_approval_patch_path": "live-evidence-target-approval-patch.json",
+        "resolution_status": "not_run",
+        "blocker_reason": "rejected_target_excluded_before_url_open"
+      }
+    ]
+  },
+  "controls": {
+    "locator_execution": false,
+    "codegen_execution": false,
+    "url_opening": false,
+    "screenshot_capture": false,
+    "element_clip_generation": false,
+    "capture_execution": false,
+    "report_rendering": false,
+    "export_execution": false,
+    "workflow_engine": false,
+    "full_page_grabs": false,
+    "autonomous_crawling": false,
+    "bypasses": false
+  },
+  "provenance": {
+    "created_at": "2026-05-08T00:00:00Z",
+    "read_only": true,
+    "planning_metadata_only": true,
+    "no_locator_execution": true,
+    "no_codegen_execution": true,
+    "no_url_opening": true,
+    "no_screenshots": true,
+    "no_element_clips": true,
+    "no_capture_execution": true,
+    "no_report_renderer": true,
+    "no_export_work": true,
+    "no_workflow_engine": true,
+    "no_full_page_grabs": true,
+    "no_autonomous_crawling_or_bypasses": true,
+    "only_human_approved_locators_become_ready": true
+  }
+}

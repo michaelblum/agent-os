@@ -1,0 +1,551 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-capture-repair-patch-v0.schema.json",
+  "title": "Employer Brand Live Evidence Capture Repair Patch v0",
+  "description": "Deterministic HITL patch template for repairing failed live evidence element-capture slots without fabricating selectors, URLs, clips, or captures.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "source_refs",
+    "summary",
+    "allowed_repair_decisions",
+    "repair_items",
+    "read_only_context",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_capture_repair_patch"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-capture-repair-patch-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "unfilled_template",
+        "repair_reviewed"
+      ]
+    },
+    "source_refs": {
+      "$ref": "#/$defs/source_refs"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "allowed_repair_decisions": {
+      "$ref": "#/$defs/decision_array"
+    },
+    "repair_items": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/repair_item"
+      }
+    },
+    "read_only_context": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "items": {
+        "$ref": "#/$defs/context_item"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "json_object": {
+      "type": "object"
+    },
+    "decision": {
+      "enum": [
+        "approve_repaired_locator",
+        "edit_locator",
+        "replace_url",
+        "refine_target",
+        "mark_source_unavailable",
+        "reject_target",
+        "keep_failed",
+        "keep_pending_review"
+      ]
+    },
+    "decision_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "failure_review_pack_id",
+        "failure_review_pack_path",
+        "failure_review_pack_schema",
+        "manifest_path",
+        "reviewed_locator_capture_plan_path",
+        "reviewed_locator_readiness_path",
+        "url_open_run_path",
+        "reviewed_target_plan_path",
+        "data_bundle_path",
+        "read_only"
+      ],
+      "properties": {
+        "failure_review_pack_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "failure_review_pack_path": {
+          "const": "live-evidence-capture-failure-review-pack.json"
+        },
+        "failure_review_pack_schema": {
+          "const": "shared/schemas/employer-brand-live-evidence-capture-failure-review-pack-v0.schema.json"
+        },
+        "manifest_path": {
+          "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+        },
+        "reviewed_locator_capture_plan_path": {
+          "const": "live-evidence-reviewed-locator-capture-plan.json"
+        },
+        "reviewed_locator_readiness_path": {
+          "const": "live-evidence-locator-readiness.reviewed.json"
+        },
+        "url_open_run_path": {
+          "const": "live-evidence-url-open-run.json"
+        },
+        "reviewed_target_plan_path": {
+          "const": "live-evidence-target-plan.reviewed.json"
+        },
+        "data_bundle_path": {
+          "const": "data-bundle.json"
+        },
+        "read_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "patchable_repair_item_count",
+        "read_only_context_entry_count",
+        "filled_repair_decision_count",
+        "proposed_locator_count",
+        "replacement_url_count",
+        "source_unavailable_count",
+        "zero_match_locator_failure_count",
+        "login_or_sign_in_blocker_count",
+        "blocker_reason_counts",
+        "blocker_class_counts",
+        "recommended_next_action_counts",
+        "all_repair_fields_null"
+      ],
+      "properties": {
+        "patchable_repair_item_count": {
+          "const": 5
+        },
+        "read_only_context_entry_count": {
+          "const": 14
+        },
+        "filled_repair_decision_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "proposed_locator_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "replacement_url_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_unavailable_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "zero_match_locator_failure_count": {
+          "const": 4
+        },
+        "login_or_sign_in_blocker_count": {
+          "const": 1
+        },
+        "blocker_reason_counts": {
+          "$ref": "#/$defs/json_object"
+        },
+        "blocker_class_counts": {
+          "$ref": "#/$defs/json_object"
+        },
+        "recommended_next_action_counts": {
+          "$ref": "#/$defs/json_object"
+        },
+        "all_repair_fields_null": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repair_item": {
+      "type": "object",
+      "required": [
+        "repair_item_id",
+        "failure_id",
+        "slot_id",
+        "target_id",
+        "work_unit_id",
+        "company",
+        "company_role",
+        "source_category",
+        "original_url",
+        "final_url",
+        "status",
+        "blocker_reason",
+        "blocker_class",
+        "recommended_next_action",
+        "allowed_repair_decisions",
+        "original_natural_language_target",
+        "kilos_relevance",
+        "expected_clip_count",
+        "target_context",
+        "reviewed_locator",
+        "locator_provenance",
+        "operator_outcome_notes",
+        "citation_source_metadata",
+        "capture_metadata",
+        "acceptance_checks",
+        "full_page_grab",
+        "repair",
+        "provenance"
+      ],
+      "properties": {
+        "repair_item_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "failure_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "slot_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_role": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "original_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "final_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "const": "failed"
+        },
+        "blocker_reason": {
+          "enum": [
+            "reviewed_locator_matches_zero_elements",
+            "login_required"
+          ]
+        },
+        "blocker_class": {
+          "enum": [
+            "zero_match_locator_failure",
+            "login_or_sign_in_blocker"
+          ]
+        },
+        "recommended_next_action": {
+          "enum": [
+            "needs_operator_locator_repair",
+            "needs_human_source_decision"
+          ]
+        },
+        "allowed_repair_decisions": {
+          "$ref": "#/$defs/decision_array"
+        },
+        "original_natural_language_target": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "kilos_relevance": {
+          "type": "array"
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "target_context": {
+          "$ref": "#/$defs/json_object"
+        },
+        "reviewed_locator": {
+          "$ref": "#/$defs/json_object"
+        },
+        "locator_provenance": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "operator_outcome_notes": {
+          "$ref": "#/$defs/json_object"
+        },
+        "citation_source_metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "capture_metadata": {
+          "$ref": "#/$defs/json_object"
+        },
+        "acceptance_checks": {
+          "type": "array"
+        },
+        "full_page_grab": {
+          "const": false
+        },
+        "repair": {
+          "$ref": "#/$defs/repair_fields"
+        },
+        "provenance": {
+          "$ref": "#/$defs/json_object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repair_fields": {
+      "type": "object",
+      "required": [
+        "repair_decision",
+        "proposed_selector",
+        "proposed_xpath",
+        "proposed_playwright_locator",
+        "refined_natural_language_target",
+        "replacement_url",
+        "replacement_source_category",
+        "source_unavailable_reason",
+        "repair_notes",
+        "reviewed_by",
+        "reviewed_at"
+      ],
+      "properties": {
+        "repair_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decision"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposed_selector": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "proposed_xpath": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "proposed_playwright_locator": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "refined_natural_language_target": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "replacement_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "replacement_source_category": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "source_unavailable_reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "repair_notes": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reviewed_by": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reviewed_at": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "context_item": {
+      "type": "object",
+      "required": [
+        "target_id",
+        "work_unit_id",
+        "company",
+        "company_role",
+        "source_category",
+        "original_url",
+        "final_url",
+        "status",
+        "blocker_reason",
+        "required_next_action",
+        "full_page_grab",
+        "actionable_repair_item",
+        "provenance",
+        "read_only_context"
+      ],
+      "properties": {
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_role": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "original_url": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "final_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "status": {
+          "const": "blocked_not_run"
+        },
+        "blocker_reason": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "required_next_action": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "full_page_grab": {
+          "const": false
+        },
+        "actionable_repair_item": {
+          "const": false
+        },
+        "provenance": {
+          "$ref": "#/$defs/json_object"
+        },
+        "read_only_context": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "additionalProperties": {
+        "const": false
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "deterministic_from_local_inputs",
+        "template_only",
+        "repair_fields_initialized_null",
+        "source_failure_pack_unmodified",
+        "preserves_non_executable_context_read_only",
+        "no_urls_opened",
+        "no_browser_codegen_run",
+        "no_locator_resolution_run",
+        "no_selectors_invented",
+        "no_xpath_invented",
+        "no_playwright_locators_invented",
+        "no_screenshots",
+        "no_element_clips",
+        "no_text_extracts",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "deterministic_from_local_inputs": {
+          "const": true
+        },
+        "template_only": {
+          "const": true
+        },
+        "repair_fields_initialized_null": {
+          "const": true
+        },
+        "source_failure_pack_unmodified": {
+          "const": true
+        },
+        "preserves_non_executable_context_read_only": {
+          "const": true
+        },
+        "no_urls_opened": {
+          "const": true
+        },
+        "no_browser_codegen_run": {
+          "const": true
+        },
+        "no_locator_resolution_run": {
+          "const": true
+        },
+        "no_selectors_invented": {
+          "const": true
+        },
+        "no_xpath_invented": {
+          "const": true
+        },
+        "no_playwright_locators_invented": {
+          "const": true
+        },
+        "no_screenshots": {
+          "const": true
+        },
+        "no_element_clips": {
+          "const": true
+        },
+        "no_text_extracts": {
+          "const": true
+        },
+        "non_goals": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

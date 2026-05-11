@@ -218,3 +218,26 @@ aos_emit_stop_hook_success() {
       ;;
   esac
 }
+
+aos_run_hook_command_bounded() {
+  local timeout_seconds="${1:-4}"
+  shift || return 2
+
+  "$@" &
+  local pid=$!
+  local remaining="$timeout_seconds"
+
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if (( remaining <= 0 )); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+
+  wait "$pid"
+}

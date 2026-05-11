@@ -70,3 +70,37 @@
 .aos-markdown-preview :where(a) {
   color: #8eeeff;
 }
+
+.aos-markdown-preview :where(.aos-markdown-mermaid) {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 18px 0;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(142, 238, 255, 0.28);
+  border-radius: 7px;
+  background: rgba(8, 22, 27, 0.78);
+}
+
+.aos-markdown-preview :where(.aos-markdown-mermaid figcaption) {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.aos-markdown-preview :where(.aos-markdown-mermaid-source) {
+  max-width: 100%;
+  margin: 0;
+}
+
+.aos-markdown-preview :where(.aos-markdown-mermaid-status) {
+  margin-top: 8px;
+  color: rgba(240, 238, 230, 0.74);
+  font-size: 12px;
+}
+
+.aos-markdown-preview :where(.aos-markdown-mermaid svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}

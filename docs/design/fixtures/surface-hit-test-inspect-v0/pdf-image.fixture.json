@@ -1,0 +1,12 @@
+{
+  "fixture_only": true,
+  "page_number": 1,
+  "image_size": { "width": 612, "height": 792 },
+  "regions": [
+    {
+      "id": "image:callout-region",
+      "label": "Callout Region",
+      "bounds": { "x": 96, "y": 160, "width": 180, "height": 72 }
+    }
+  ]
+}

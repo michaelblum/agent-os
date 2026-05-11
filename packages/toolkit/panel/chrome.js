@@ -4,7 +4,7 @@
 // and reports absolute drag updates through the runtime canvas helper.
 
 import { emit, wireBridge } from '../runtime/bridge.js'
-import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { moveAbsolute, mutateSelf, removeSelf, removeCanvas, resumeCanvas, spawnChild, suspendCanvas } from '../runtime/canvas.js'
 import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../runtime/subscribe.js'
 import { createPanelTransferController, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
@@ -91,6 +91,9 @@ export function mountChrome(container, {
   }
 
   if (minimize) {
+    const minimizeController = createMinimizeController({
+      maximizeController,
+    })
     const minimizeButton = document.createElement('button')
     minimizeButton.type = 'button'
     minimizeButton.className = 'aos-window-button aos-window-minimize'
@@ -100,8 +103,20 @@ export function mountChrome(container, {
     minimizeButton.addEventListener('click', (event) => {
       event.preventDefault()
       event.stopPropagation()
-      const action = onMinimize || (() => defaultMinimize({ title: titleEl.textContent || title }))
-      action?.()
+      if (minimizeController.getState().inFlight) return
+      minimizeButton.disabled = true
+      minimizeButton.dataset.inFlight = 'true'
+      const action = onMinimize
+        ? () => onMinimize(minimizeController, event)
+        : () => minimizeController.minimize({ title: titleEl.textContent || title })
+      Promise.resolve(action?.())
+        .catch((error) => {
+          console.warn('[aos-panel] minimize failed', error)
+        })
+        .finally(() => {
+          minimizeButton.disabled = false
+          delete minimizeButton.dataset.inFlight
+        })
     })
     windowControlsEl.appendChild(minimizeButton)
   }
@@ -526,9 +541,18 @@ export function createMaximizeController({
     return state()
   }
 
+  function resetPanel() {
+    if (!maximized && !restoreFrame) return state()
+    maximized = false
+    restoreFrame = null
+    notify()
+    return state()
+  }
+
   return {
     maximize: maximizePanel,
     restore: restorePanel,
+    reset: resetPanel,
     toggle() {
       return maximized ? restorePanel() : maximizePanel()
     },
@@ -597,28 +621,146 @@ function chipUrl({ target, title, restoreFrame, chipId = null, chipFrame = null 
   return url.href
 }
 
-function defaultMinimize({ title = 'AOS' } = {}) {
-  const target = currentCanvasId()
-  if (!target) {
-    console.warn('[aos-panel] minimize failed: missing canvas id')
-    return
+export function createMinimizeController({
+  getCanvasId = currentCanvasId,
+  getFrame = () => frameFromWindow(window),
+  getChipFrame = chipFrame,
+  makeChipUrl = chipUrl,
+  spawn = spawnChild,
+  suspend = suspendCanvas,
+  resume = resumeCanvas,
+  remove = removeCanvas,
+  maximizeController = null,
+  now = () => Date.now(),
+  onStateChange = null,
+} = {}) {
+  let inFlight = false
+  let last = null
+
+  function restoreFrameForMinimize() {
+    const maximizeState = maximizeController?.getState?.()
+    if (maximizeState?.maximized && maximizeState.restoreFrame) return cloneFrame(maximizeState.restoreFrame)
+    return cloneFrame(getFrame())
   }
-  const chipId = `aos-chip-${target}-${Date.now().toString(36)}`
-  const restoreFrame = frameFromWindow(window)
-  const minimizedFrame = chipFrame()
-  spawnChild({
-    id: chipId,
-    url: chipUrl({ target, title, restoreFrame, chipId, chipFrame: minimizedFrame }),
-    frame: minimizedFrame,
-    interactive: true,
-    focus: false,
-    parent: target,
-    cascade: false,
+
+  function snapshot(extra = {}) {
+    return {
+      sourceCanvasId: last?.sourceCanvasId || null,
+      chipCanvasId: last?.chipCanvasId || null,
+      inFlight,
+      restoreFrame: last?.restoreFrame ? cloneFrame(last.restoreFrame) : null,
+      targetSuspendSucceeded: Boolean(last?.targetSuspendSucceeded),
+      rollbackRemovedChip: Boolean(last?.rollbackRemovedChip),
+      status: last?.status || 'idle',
+      error: last?.error || null,
+      ...extra,
+    }
+  }
+
+  function notify(extra = {}) {
+    const state = snapshot(extra)
+    onStateChange?.(state)
+    return state
+  }
+
+  async function rollbackChip(chipId, { resumeSource = false, sourceCanvasId = null } = {}) {
+    let removed = false
+    try {
+      await remove(chipId, { orphan_children: true })
+      removed = true
+    } catch {}
+    if (resumeSource && sourceCanvasId) {
+      try { await resume(sourceCanvasId) } catch {}
+    }
+    return removed
+  }
+
+  async function minimize({ title = 'AOS' } = {}) {
+    if (inFlight) return notify({ status: 'ignored_in_flight' })
+    const target = getCanvasId()
+    if (!target) {
+      last = {
+        sourceCanvasId: null,
+        chipCanvasId: null,
+        restoreFrame: null,
+        targetSuspendSucceeded: false,
+        rollbackRemovedChip: false,
+        status: 'missing_canvas_id',
+        error: 'missing_canvas_id',
+      }
+      return notify()
+    }
+
+    const chipId = `aos-chip-${target}-${now().toString(36)}`
+    const restoreFrame = restoreFrameForMinimize()
+    const minimizedFrame = cloneFrame(getChipFrame())
+    last = {
+      sourceCanvasId: target,
+      chipCanvasId: chipId,
+      restoreFrame,
+      targetSuspendSucceeded: false,
+      rollbackRemovedChip: false,
+      status: 'creating_chip',
+      error: null,
+    }
+    inFlight = true
+    notify()
+
+    let chipCreated = false
+    try {
+      await spawn({
+        id: chipId,
+        url: makeChipUrl({ target, title, restoreFrame, chipId, chipFrame: minimizedFrame }),
+        frame: minimizedFrame,
+        interactive: true,
+        focus: false,
+        parent: target,
+        cascade: false,
+        suspended: true,
+      })
+      chipCreated = true
+      last.status = 'suspending_source'
+      notify()
+      await suspend(target)
+      last.targetSuspendSucceeded = true
+      maximizeController?.reset?.()
+      last.status = 'showing_chip'
+      notify()
+      await resume(chipId)
+      last.status = 'success'
+      notify()
+    } catch (error) {
+      const message = String(error?.message || error || 'unknown')
+      const resumeSource = Boolean(last.targetSuspendSucceeded)
+      if (chipCreated) {
+        last.rollbackRemovedChip = await rollbackChip(chipId, {
+          resumeSource,
+          sourceCanvasId: target,
+        })
+      }
+      last.status = 'failed'
+      last.error = message
+      notify()
+      throw error
+    } finally {
+      inFlight = false
+      notify()
+    }
+    return snapshot()
+  }
+
+  return {
+    minimize,
+    getState() {
+      return snapshot()
+    },
+  }
+}
+
+function defaultMinimize({ title = 'AOS' } = {}) {
+  return createMinimizeController().minimize({ title }).catch((error) => {
+    console.warn('[aos-panel] minimize failed', error)
   })
-    .then(() => suspendCanvas(target))
-    .catch((error) => {
-      console.warn('[aos-panel] minimize failed', error)
-    })
 }
 
 function wirePanelDisplayGeometry() {

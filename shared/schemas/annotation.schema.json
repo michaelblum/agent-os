@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/annotation.schema.json",
   "title": "Annotations",
-  "description": "Labeled regions for agent-os ecosystem tools. Array position = display ordinal (0-based index, render as 1-based label).",
+  "description": "Structured annotation intent records for agent-os surfaces, plus the legacy labeled-region record used by older capture producers.",
   "type": "object",
   "required": ["schema", "version", "annotations"],
   "additionalProperties": false,
@@ -13,15 +13,24 @@
     "version": {
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
-      "description": "Semver. Current: 0.1.0."
+      "description": "Semver. Current: 0.2.0 for structured intent records. Legacy 0.1.0 region records remain accepted."
     },
     "annotations": {
       "type": "array",
-      "items": { "$ref": "#/$defs/Annotation" },
-      "description": "Labeled regions. Array index = ordinal (display as index + 1)."
+      "items": { "oneOf": [{ "$ref": "#/$defs/AnnotationIntent" }, { "$ref": "#/$defs/LegacyRegionAnnotation" }] },
+      "description": "Annotation records. Structured intent records carry explicit ordinals; legacy region records use array position as display ordinal."
     }
   },
   "$defs": {
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
     "Bounds": {
       "type": "object",
       "required": ["x", "y", "width", "height"],
@@ -32,9 +41,96 @@
         "width": { "type": "number", "description": "Width." },
         "height": { "type": "number", "description": "Height." }
       },
-      "description": "Rectangle. Coordinate space is determined by context (LCS for screenshots/windows, global CG for topology)."
+      "description": "Rectangle in the record's declared coordinate space."
     },
-    "Annotation": {
+    "Actor": {
+      "type": "object",
+      "required": ["role", "id"],
+      "additionalProperties": true,
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "AnnotationIntent": {
+      "type": "object",
+      "required": [
+        "id",
+        "ordinal",
+        "kind",
+        "surface_id",
+        "coordinate_space",
+        "note",
+        "actor",
+        "status",
+        "lifecycle",
+        "capture",
+        "created_at",
+        "updated_at"
+      ],
+      "anyOf": [
+        {
+          "required": ["source_url"],
+          "properties": {
+            "source_url": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "required": ["source_path"],
+          "properties": {
+            "source_path": { "type": "string", "minLength": 1 }
+          }
+        }
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 1 },
+        "kind": { "enum": ["point_comment", "region_comment", "element_selection", "element_target", "selection_comment"] },
+        "surface_id": { "type": "string", "minLength": 1 },
+        "source_url": { "type": ["string", "null"] },
+        "source_path": { "type": ["string", "null"] },
+        "coordinate_space": { "enum": ["viewport", "page", "document", "lcs", "desktop_world", "unknown"] },
+        "point": { "oneOf": [{ "$ref": "#/$defs/Point" }, { "type": "null" }] },
+        "bounds": { "oneOf": [{ "$ref": "#/$defs/Bounds" }, { "type": "null" }] },
+        "viewport_bounds": { "oneOf": [{ "$ref": "#/$defs/Bounds" }, { "type": "null" }] },
+        "page_bounds": { "oneOf": [{ "$ref": "#/$defs/Bounds" }, { "type": "null" }] },
+        "selector_candidates": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "text_excerpt": { "type": "string" },
+        "text_range": {},
+        "role": { "type": "string" },
+        "label": { "type": "string" },
+        "ancestor_chain": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "note": { "type": "string" },
+        "actor": { "$ref": "#/$defs/Actor" },
+        "status": { "enum": ["draft", "committed", "resolved", "rejected"] },
+        "lifecycle": {
+          "type": "object",
+          "required": ["clearable", "committed_at", "resolved_at", "rejected_at", "recovered_from"],
+          "additionalProperties": true,
+          "properties": {
+            "clearable": { "type": "boolean" },
+            "committed_at": { "type": ["string", "null"], "format": "date-time" },
+            "resolved_at": { "type": ["string", "null"], "format": "date-time" },
+            "rejected_at": { "type": ["string", "null"], "format": "date-time" },
+            "recovered_from": { "type": ["string", "null"] }
+          }
+        },
+        "capture": {
+          "type": "object",
+          "required": ["prepare", "restore"],
+          "additionalProperties": true,
+          "properties": {
+            "prepare": { "type": "object" },
+            "restore": { "type": "object" }
+          }
+        },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "LegacyRegionAnnotation": {
       "type": "object",
       "required": ["bounds"],
       "additionalProperties": false,

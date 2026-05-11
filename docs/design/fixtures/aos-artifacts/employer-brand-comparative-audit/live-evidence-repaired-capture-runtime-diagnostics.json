@@ -1,0 +1,690 @@
+{
+  "type": "aos.employer_brand_repaired_capture_runtime_diagnostics",
+  "schema_version": "2026-05-employer-brand-repaired-capture-runtime-diagnostics-v0",
+  "id": "live-evidence-repaired-capture-runtime-diagnostics:symphony-talent-phenom-radancy",
+  "label": "Employer Brand Repaired Capture Runtime Diagnostics",
+  "status": "non_runtime_capture_blockers_detected",
+  "source_refs": {
+    "manifest_id": "live-evidence-element-clip-manifest:symphony-talent-phenom-radancy",
+    "manifest_path": "source-artifacts/live-evidence-element-clip-manifest.json",
+    "manifest_schema": "shared/schemas/employer-brand-live-evidence-element-clip-manifest-v0.schema.json",
+    "repaired_locator_capture_plan_id": "live-evidence-repaired-locator-capture-plan:symphony-talent-phenom-radancy",
+    "repaired_locator_capture_plan_path": "live-evidence-repaired-locator-capture-plan.json",
+    "repaired_locator_capture_plan_schema": "shared/schemas/employer-brand-live-evidence-repaired-locator-capture-plan-v0.schema.json",
+    "capture_script_path": "scripts/employer-brand-repaired-live-element-capture.mjs"
+  },
+  "summary": {
+    "repaired_executable_slot_count": 4,
+    "attempted_repaired_slot_count": 4,
+    "accepted_capture_count": 0,
+    "failed_slot_count": 4,
+    "runtime_capture_invocation_failure_count": 0,
+    "locator_failure_count": 4,
+    "content_failure_count": 0,
+    "linked_in_source_unavailable_count": 1,
+    "non_executable_context_count": 14,
+    "actual_capture_file_count": 0,
+    "clip_output_path_null_count": 4,
+    "text_output_path_null_count": 4,
+    "full_page_grab_count": 0
+  },
+  "runtime_invocation": {
+    "capture_script_path": "scripts/employer-brand-repaired-live-element-capture.mjs",
+    "command_surfaces": [],
+    "execution_phases": [
+      "element_visibility_check"
+    ],
+    "runner_types": [
+      "playwright_node_api"
+    ],
+    "failed_phases": [
+      "element_visibility_check"
+    ],
+    "backend_commands": [
+      "playwright-cli"
+    ],
+    "tool_paths": [
+      "/Users/Michael/.nvm/versions/node/v22.22.0/lib/node_modules/@playwright/test/cli.js"
+    ],
+    "timeout_ms_values": [
+      45000
+    ],
+    "working_directories": [
+      "repo_root"
+    ],
+    "environment_assumptions": {
+      "local_playwright_command_required": true,
+      "node_api_runner_preflight_required": true,
+      "local_fixture_smoke_required": true,
+      "browser_readiness_check_required": true,
+      "missing_browser_executable_paths": [],
+      "browser_cache_paths": [],
+      "repair_commands": [],
+      "no_live_capture_attempted_by_diagnostics": true,
+      "no_locator_resolution_or_codegen": true
+    }
+  },
+  "repaired_slots": [
+    {
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:1",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "company": "Symphony Talent",
+      "source_category": "careers_site",
+      "original_url": "https://www.symphonytalent.com/",
+      "final_url": "https://www.symphonytalent.com/",
+      "reviewed_locator": {
+        "selector": "section#home-hero",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "approve_repaired_locator",
+        "repair_item_id": "live-evidence-capture-repair:1",
+        "human_notes": "DOM-only supervised review of the approved URL verified section#home-hero resolves to one visible hero section containing the Symphony Talent employer promise; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "provenance": {
+          "source_repair_patch_path": "live-evidence-capture-repair-patch.json",
+          "operator_reviewed_by": "operator:gdi",
+          "operator_reviewed_at": "2026-05-09T00:13:06Z",
+          "preserves_original_slot_identity": true,
+          "planned_only": true,
+          "read_only_source_context": true
+        }
+      },
+      "status": "failed",
+      "failure_classification": "locator_failure",
+      "locator_failure": true,
+      "content_failure": false,
+      "runtime_capture_invocation_failure": false,
+      "blocker_reason": "reviewed_locator_element_not_visible",
+      "required_next_action": "review_capture_blocker_before_retry",
+      "retry_eligibility": "requires_non_runtime_review",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "planned_clip_path": "source-artifacts/live-evidence-element-clips/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-1.png",
+      "planned_text_extract_path": "source-artifacts/live-evidence-text-extracts/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-1.txt",
+      "full_page_grab": false,
+      "runtime": {
+        "reason": "reviewed_locator_element_not_visible",
+        "kind": "locator_failure",
+        "runner_type": "playwright_node_api",
+        "command": "playwright-cli",
+        "failed_command_surface": "playwright_node_api",
+        "execution_phase": "element_visibility_check",
+        "failed_phase": "element_visibility_check",
+        "started_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "completed_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "phase_timings_ms": {
+          "runner_preflight": 14,
+          "browser_readiness": 203,
+          "browser_launch": 127,
+          "page_navigation": 4289,
+          "locator_evaluation": 8,
+          "element_visibility_check": 4
+        },
+        "phase_timeout_ms": 45000,
+        "tool_path": "/Users/Michael/.nvm/versions/node/v22.22.0/lib/node_modules/@playwright/test/cli.js",
+        "timeout_ms": 45000,
+        "timed_out": false,
+        "exit_status": 0,
+        "exit_signal": null,
+        "error_code": null,
+        "stdout_snippet": null,
+        "stderr_snippet": null,
+        "working_directory": "repo_root",
+        "retry_recommendation": "repair_capture_runtime_before_retry",
+        "environment_assumptions": {
+          "browser_readiness_check": false,
+          "missing_browser_executable_path": null,
+          "browser_cache_path": null,
+          "repair_command": null
+        }
+      }
+    },
+    {
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site:slot:2",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-careers-site",
+      "company": "Symphony Talent",
+      "source_category": "careers_site",
+      "original_url": "https://www.symphonytalent.com/",
+      "final_url": "https://www.symphonytalent.com/",
+      "reviewed_locator": {
+        "selector": "section#section-2-2583",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "approve_repaired_locator",
+        "repair_item_id": "live-evidence-capture-repair:2",
+        "human_notes": "DOM-only supervised review of the approved URL verified section#section-2-2583 resolves to one visible EVP proof block stating proven talent acquisition technology and creative services; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "provenance": {
+          "source_repair_patch_path": "live-evidence-capture-repair-patch.json",
+          "operator_reviewed_by": "operator:gdi",
+          "operator_reviewed_at": "2026-05-09T00:13:06Z",
+          "preserves_original_slot_identity": true,
+          "planned_only": true,
+          "read_only_source_context": true
+        }
+      },
+      "status": "failed",
+      "failure_classification": "locator_failure",
+      "locator_failure": true,
+      "content_failure": false,
+      "runtime_capture_invocation_failure": false,
+      "blocker_reason": "reviewed_locator_element_not_visible",
+      "required_next_action": "review_capture_blocker_before_retry",
+      "retry_eligibility": "requires_non_runtime_review",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "planned_clip_path": "source-artifacts/live-evidence-element-clips/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-2.png",
+      "planned_text_extract_path": "source-artifacts/live-evidence-text-extracts/reviewed-locator/symphony-talent/careers-site/symphony-talent-careers-site-slot-2.txt",
+      "full_page_grab": false,
+      "runtime": {
+        "reason": "reviewed_locator_element_not_visible",
+        "kind": "locator_failure",
+        "runner_type": "playwright_node_api",
+        "command": "playwright-cli",
+        "failed_command_surface": "playwright_node_api",
+        "execution_phase": "element_visibility_check",
+        "failed_phase": "element_visibility_check",
+        "started_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "completed_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "phase_timings_ms": {
+          "runner_preflight": 21,
+          "browser_readiness": 267,
+          "browser_launch": 150,
+          "page_navigation": 3334,
+          "locator_evaluation": 1,
+          "element_visibility_check": 3
+        },
+        "phase_timeout_ms": 45000,
+        "tool_path": "/Users/Michael/.nvm/versions/node/v22.22.0/lib/node_modules/@playwright/test/cli.js",
+        "timeout_ms": 45000,
+        "timed_out": false,
+        "exit_status": 0,
+        "exit_signal": null,
+        "error_code": null,
+        "stdout_snippet": null,
+        "stderr_snippet": null,
+        "working_directory": "repo_root",
+        "retry_recommendation": "repair_capture_runtime_before_retry",
+        "environment_assumptions": {
+          "browser_readiness_check": false,
+          "missing_browser_executable_path": null,
+          "browser_cache_path": null,
+          "repair_command": null
+        }
+      }
+    },
+    {
+      "slot_id": "live-reviewed-capture-work-unit:phenom-careers-site:slot:1",
+      "target_id": "live-target:phenom:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:phenom-careers-site",
+      "company": "Phenom",
+      "source_category": "careers_site",
+      "original_url": "https://www.phenom.com/",
+      "final_url": "https://www.phenom.com/",
+      "reviewed_locator": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": "page.locator('main section').filter({ hasText: /AI for Tomorrow.*Applied by Human Resources/ }).first()"
+      },
+      "locator_provenance": {
+        "decision": "approve_repaired_locator",
+        "repair_item_id": "live-evidence-capture-repair:4",
+        "human_notes": "DOM-only supervised review of the approved URL verified the Playwright locator resolves to one visible Phenom hero section with the primary talent/HR promise; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "provenance": {
+          "source_repair_patch_path": "live-evidence-capture-repair-patch.json",
+          "operator_reviewed_by": "operator:gdi",
+          "operator_reviewed_at": "2026-05-09T00:13:06Z",
+          "preserves_original_slot_identity": true,
+          "planned_only": true,
+          "read_only_source_context": true
+        }
+      },
+      "status": "failed",
+      "failure_classification": "locator_failure",
+      "locator_failure": true,
+      "content_failure": false,
+      "runtime_capture_invocation_failure": false,
+      "blocker_reason": "reviewed_locator_element_not_visible",
+      "required_next_action": "review_capture_blocker_before_retry",
+      "retry_eligibility": "requires_non_runtime_review",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "planned_clip_path": "source-artifacts/live-evidence-element-clips/reviewed-locator/phenom/careers-site/phenom-careers-site-slot-1.png",
+      "planned_text_extract_path": "source-artifacts/live-evidence-text-extracts/reviewed-locator/phenom/careers-site/phenom-careers-site-slot-1.txt",
+      "full_page_grab": false,
+      "runtime": {
+        "reason": "reviewed_locator_element_not_visible",
+        "kind": "locator_failure",
+        "runner_type": "playwright_node_api",
+        "command": "playwright-cli",
+        "failed_command_surface": "playwright_node_api",
+        "execution_phase": "element_visibility_check",
+        "failed_phase": "element_visibility_check",
+        "started_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "completed_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "phase_timings_ms": {
+          "runner_preflight": 39,
+          "browser_readiness": 284,
+          "browser_launch": 150,
+          "page_navigation": 10602,
+          "locator_evaluation": 5,
+          "element_visibility_check": 3
+        },
+        "phase_timeout_ms": 45000,
+        "tool_path": "/Users/Michael/.nvm/versions/node/v22.22.0/lib/node_modules/@playwright/test/cli.js",
+        "timeout_ms": 45000,
+        "timed_out": false,
+        "exit_status": 0,
+        "exit_signal": null,
+        "error_code": null,
+        "stdout_snippet": null,
+        "stderr_snippet": null,
+        "working_directory": "repo_root",
+        "retry_recommendation": "repair_capture_runtime_before_retry",
+        "environment_assumptions": {
+          "browser_readiness_check": false,
+          "missing_browser_executable_path": null,
+          "browser_cache_path": null,
+          "repair_command": null
+        }
+      }
+    },
+    {
+      "slot_id": "live-reviewed-capture-work-unit:radancy-careers-site:slot:1",
+      "target_id": "live-target:radancy:careers-site",
+      "work_unit_id": "live-reviewed-capture-work-unit:radancy-careers-site",
+      "company": "Radancy",
+      "source_category": "careers_site",
+      "original_url": "https://www.radancy.com/en/",
+      "final_url": "https://www.radancy.com/en/",
+      "reviewed_locator": {
+        "selector": "div.primary-hero",
+        "xpath": null,
+        "playwright_locator": null
+      },
+      "locator_provenance": {
+        "decision": "approve_repaired_locator",
+        "repair_item_id": "live-evidence-capture-repair:5",
+        "human_notes": "DOM-only supervised review of the approved URL verified div.primary-hero resolves to one visible Radancy hero block with the primary talent acquisition positioning; no screenshot, clip, full-page grab, text extract, codegen, crawl, or login bypass was performed.",
+        "provenance": {
+          "source_repair_patch_path": "live-evidence-capture-repair-patch.json",
+          "operator_reviewed_by": "operator:gdi",
+          "operator_reviewed_at": "2026-05-09T00:13:06Z",
+          "preserves_original_slot_identity": true,
+          "planned_only": true,
+          "read_only_source_context": true
+        }
+      },
+      "status": "failed",
+      "failure_classification": "locator_failure",
+      "locator_failure": true,
+      "content_failure": false,
+      "runtime_capture_invocation_failure": false,
+      "blocker_reason": "reviewed_locator_element_not_visible",
+      "required_next_action": "review_capture_blocker_before_retry",
+      "retry_eligibility": "requires_non_runtime_review",
+      "clip_path": null,
+      "text_extract_path": null,
+      "text_extract_content": null,
+      "planned_clip_path": "source-artifacts/live-evidence-element-clips/reviewed-locator/radancy/careers-site/radancy-careers-site-slot-1.png",
+      "planned_text_extract_path": "source-artifacts/live-evidence-text-extracts/reviewed-locator/radancy/careers-site/radancy-careers-site-slot-1.txt",
+      "full_page_grab": false,
+      "runtime": {
+        "reason": "reviewed_locator_element_not_visible",
+        "kind": "locator_failure",
+        "runner_type": "playwright_node_api",
+        "command": "playwright-cli",
+        "failed_command_surface": "playwright_node_api",
+        "execution_phase": "element_visibility_check",
+        "failed_phase": "element_visibility_check",
+        "started_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "completed_phases": [
+          "runner_preflight",
+          "browser_readiness",
+          "browser_launch",
+          "page_navigation",
+          "locator_evaluation",
+          "element_visibility_check"
+        ],
+        "phase_timings_ms": {
+          "runner_preflight": 23,
+          "browser_readiness": 244,
+          "browser_launch": 140,
+          "page_navigation": 2370,
+          "locator_evaluation": 1,
+          "element_visibility_check": 2
+        },
+        "phase_timeout_ms": 45000,
+        "tool_path": "/Users/Michael/.nvm/versions/node/v22.22.0/lib/node_modules/@playwright/test/cli.js",
+        "timeout_ms": 45000,
+        "timed_out": false,
+        "exit_status": 0,
+        "exit_signal": null,
+        "error_code": null,
+        "stdout_snippet": null,
+        "stderr_snippet": null,
+        "working_directory": "repo_root",
+        "retry_recommendation": "repair_capture_runtime_before_retry",
+        "environment_assumptions": {
+          "browser_readiness_check": false,
+          "missing_browser_executable_path": null,
+          "browser_cache_path": null,
+          "repair_command": null
+        }
+      }
+    }
+  ],
+  "non_executable_context": [
+    {
+      "slot_id": "live-reviewed-capture-work-unit:symphony-talent-linkedin-presence:slot:1",
+      "target_id": "live-target:symphony-talent:linkedin-presence",
+      "work_unit_id": "live-reviewed-capture-work-unit:symphony-talent-linkedin-presence",
+      "company": "Symphony Talent",
+      "source_category": "linkedin_presence",
+      "status": "blocked_not_run",
+      "blocker_reason": "source_unavailable",
+      "required_next_action": "LinkedIn alternate approved source URL is required before this source can become executable.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "source_unavailable"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:symphony-talent:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-employer-brand-pages",
+      "company": "Symphony Talent",
+      "source_category": "employer_brand_pages",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:symphony-talent:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-social-campaigns",
+      "company": "Symphony Talent",
+      "source_category": "social_campaigns",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:symphony-talent:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:symphony-talent-awards-recognition",
+      "company": "Symphony Talent",
+      "source_category": "awards_recognition",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:symphony-talent:employee-stories",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+      "company": "Symphony Talent",
+      "source_category": "employee_stories",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved",
+      "required_next_action": "Use the refined human target text in a later supervised locator pass.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:phenom:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:phenom-employer-brand-pages",
+      "company": "Phenom",
+      "source_category": "employer_brand_pages",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:phenom:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:phenom-linkedin-presence",
+      "company": "Phenom",
+      "source_category": "linkedin_presence",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:phenom:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:phenom-social-campaigns",
+      "company": "Phenom",
+      "source_category": "social_campaigns",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:phenom:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:phenom-awards-recognition",
+      "company": "Phenom",
+      "source_category": "awards_recognition",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:phenom:employee-stories",
+      "work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+      "company": "Phenom",
+      "source_category": "employee_stories",
+      "status": "blocked_not_run",
+      "blocker_reason": "human_locator_blocked",
+      "required_next_action": "Human reviewer could not identify a stable employee-story target without choosing a new source page.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:radancy:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:radancy-employer-brand-pages",
+      "company": "Radancy",
+      "source_category": "employer_brand_pages",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:radancy:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+      "company": "Radancy",
+      "source_category": "social_campaigns",
+      "status": "blocked_not_run",
+      "blocker_reason": "human_locator_kept_draft",
+      "required_next_action": "Keep this target in draft until a human supplies a locator or revised target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:radancy:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+      "company": "Radancy",
+      "source_category": "awards_recognition",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:radancy:employee-stories",
+      "work_unit_id": "live-locator-work-unit:radancy-employee-stories",
+      "company": "Radancy",
+      "source_category": "employee_stories",
+      "status": "blocked_not_run",
+      "blocker_reason": "locator_placeholders_unresolved; url_reachability_network_error",
+      "required_next_action": "Run supervised locator/codegen planning for this approved target.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    },
+    {
+      "slot_id": null,
+      "target_id": "live-target:radancy:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+      "company": "Radancy",
+      "source_category": "linkedin_presence",
+      "status": "blocked_not_run",
+      "blocker_reason": "rejected",
+      "required_next_action": "Rejected from locator readiness because the LinkedIn page target duplicates other employer-presence evidence.",
+      "clip_path": null,
+      "text_extract_path": null,
+      "full_page_grab": false,
+      "context_kind": "non_executable_context"
+    }
+  ],
+  "invariants": {
+    "failed_slots_classified": true,
+    "accepted_capture_count_zero": true,
+    "actual_capture_file_count_zero": true,
+    "failed_slot_output_paths_null": true,
+    "linkedin_source_unavailable_preserved": true,
+    "non_executable_context_preserved": true,
+    "full_page_grab_false": true
+  },
+  "controls": {
+    "read_only_diagnostics": true,
+    "live_capture_attempted": false,
+    "locator_resolution_authorized": false,
+    "locator_codegen_authorized": false,
+    "report_renderer_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false,
+    "full_page_grabs_authorized": false,
+    "login_bypass_authorized": false,
+    "paywall_bypass_authorized": false,
+    "captcha_bypass_authorized": false,
+    "consent_bypass_authorized": false
+  },
+  "provenance": {
+    "created_at": "2026-05-09T00:44:37.770Z",
+    "diagnostics_path": "live-evidence-repaired-capture-runtime-diagnostics.json",
+    "read_only": true,
+    "derived_from_manifest_path": "source-artifacts/live-evidence-element-clip-manifest.json",
+    "derived_from_repaired_capture_plan_path": "live-evidence-repaired-locator-capture-plan.json",
+    "no_capture_assets_produced": true,
+    "non_goals": [
+      "live_capture_attempt",
+      "locator_resolution",
+      "locator_codegen",
+      "selector_invention",
+      "report_rendering",
+      "export_work",
+      "workflow_execution",
+      "full_page_grabs",
+      "login_bypass",
+      "paywall_bypass",
+      "captcha_bypass",
+      "consent_bypass"
+    ]
+  }
+}

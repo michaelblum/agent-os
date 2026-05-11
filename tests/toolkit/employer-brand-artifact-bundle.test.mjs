@@ -128,6 +128,15 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(report.renderer.id, 'aos.renderer.markdown.report');
   assert.ok(report.files.some((file) => file.path === 'sources.json' && file.role === 'source_metadata'));
   assert.ok(report.files.some((file) => file.path === 'intake/project.json' && file.role === 'employer_brand_audit_project'));
+  assert.ok(report.files.some((file) => file.path === 'source-artifacts/data-bundle.json' && file.role === 'source_artifact_data_bundle'));
+  assert.ok(report.files.some((file) => (
+    file.path === 'live-evidence-capture-failure-review-pack.json'
+    && file.role === 'live_evidence_capture_failure_review_pack'
+    && file.schema === 'shared/schemas/employer-brand-live-evidence-capture-failure-review-pack-v0.schema.json'
+    && file.metadata.failed_executable_slot_count === 5
+    && file.metadata.no_repairs_fabricated === true
+  )));
+  assert.ok(report.files.some((file) => file.path === 'source-artifacts/target-plan.json' && file.role === 'source_artifact_target_plan'));
   assert.ok(report.files.some((file) => file.path === 'work-record.json' && file.role === 'work_record_fixture'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/planning-manifest-skeleton.json' && file.role === 'browser_evidence_planning_manifest'));
   assert.ok(report.files.some((file) => file.path === 'browser-evidence/manifest.json' && file.role === 'browser_evidence_manifest'));
@@ -233,6 +242,27 @@ test('Employer Brand artifact bundle fixture carries a Markdown report and sourc
   assert.equal(sources.employer_brand_audit_project.project_instance_only, true);
   assert.equal(sources.employer_brand_audit_project.read_only, true);
   assert.equal(sources.employer_brand_audit_project.provenance_only, true);
+  assert.equal(sources.source_artifact_data_bundle.schema, 'shared/schemas/employer-brand-source-artifact-data-bundle-v0.schema.json');
+  assert.equal(sources.source_artifact_data_bundle.path, 'source-artifacts/data-bundle.json');
+  assert.equal(sources.source_artifact_data_bundle.target_plan_path, 'source-artifacts/target-plan.json');
+  assert.equal(sources.source_artifact_data_bundle.target_count, 13);
+  assert.equal(sources.source_artifact_data_bundle.expected_clip_count, 44);
+  assert.equal(sources.source_artifact_data_bundle.capture_unit, 'page_element');
+  assert.equal(sources.source_artifact_data_bundle.full_page_grabs, false);
+  assert.equal(sources.source_artifact_data_bundle.selectors_ready, false);
+  assert.equal(sources.source_artifact_data_bundle.xpath_ready, false);
+  assert.equal(sources.source_artifact_data_bundle.playwright_ready, false);
+  assert.equal(sources.source_artifact_data_bundle.codegen_ready, false);
+  assert.equal(sources.source_artifact_data_bundle.report_renderer_authorized, false);
+  assert.equal(sources.source_artifact_data_bundle.report_artifact_authorized, false);
+  assert.equal(sources.source_artifact_data_bundle.export_execution_authorized, false);
+  assert.equal(sources.source_artifact_data_bundle.remote_web_collection_authorized, false);
+  assert.equal(sources.source_artifact_data_bundle.workflow_engine_authorized, false);
+  assert.deepEqual(sources.source_artifact_data_bundle.source_artifact_paths, [
+    '/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pptx',
+    '/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf',
+    '/Users/Michael/Desktop/SPv5.html',
+  ]);
   assert.equal(sources.browser_evidence_registry.path, 'browser-evidence/registry.json');
   assert.equal(sources.browser_evidence_registry.planning_manifest_path, 'browser-evidence/planning-manifest-skeleton.json');
   assert.equal(sources.browser_evidence_registry.local_fixture_pages_only, true);
@@ -294,6 +324,43 @@ test('Employer Brand Audit Project fixture scopes the bundle as one project inst
   assert.ok(record.verifier_report.evidence_refs.includes('evidence:browser-evidence-planning-manifest'));
   assert.ok(record.verifier_report.derived_indexes.verified.includes('claim:employer-brand-audit-project-linked'));
   assert.ok(record.verifier_report.derived_indexes.verified.includes('claim:browser-evidence-planning-manifest-linked'));
+});
+
+test('Employer Brand artifact bundle links the source artifact data bundle without renderer or export authority', async () => {
+  const subject = createArtifactBundleSubject(await fixtureSubject());
+  const sources = await fixtureSources();
+  const report = artifactBundleArtifacts(subject)[0];
+  const dataBundleFile = report.files.find((file) => file.role === 'source_artifact_data_bundle');
+  const targetPlanFile = report.files.find((file) => file.role === 'source_artifact_target_plan');
+  const dataBundle = await readJson(new URL(`${fixtureRoot}source-artifacts/data-bundle.json`, repo));
+  const targetPlan = await readJson(new URL(`${fixtureRoot}source-artifacts/target-plan.json`, repo));
+
+  assert.equal(dataBundleFile.path, 'source-artifacts/data-bundle.json');
+  assert.equal(dataBundleFile.schema, 'shared/schemas/employer-brand-source-artifact-data-bundle-v0.schema.json');
+  assert.equal(dataBundleFile.read_only, true);
+  assert.equal(dataBundleFile.provenance_only, true);
+  assert.equal(dataBundleFile.metadata.target_count, 13);
+  assert.equal(dataBundleFile.metadata.expected_clip_count, 44);
+  assert.equal(dataBundleFile.metadata.full_page_grabs, false);
+  assert.equal(dataBundleFile.metadata.report_renderer_authorized, false);
+  assert.equal(dataBundleFile.metadata.report_artifact_authorized, false);
+  assert.equal(dataBundleFile.metadata.export_execution_authorized, false);
+
+  assert.equal(targetPlanFile.path, 'source-artifacts/target-plan.json');
+  assert.equal(targetPlanFile.schema, 'shared/schemas/employer-brand-source-artifact-target-plan-v0.schema.json');
+  assert.equal(targetPlanFile.read_only, true);
+  assert.equal(targetPlanFile.provenance_only, true);
+  assert.equal(targetPlanFile.metadata.capture_unit, 'page_element');
+  assert.equal(targetPlanFile.metadata.full_page_grabs, false);
+  assert.equal(targetPlanFile.metadata.selector, null);
+  assert.equal(targetPlanFile.metadata.xpath, null);
+  assert.equal(targetPlanFile.metadata.playwright_locator, null);
+  assert.equal(targetPlanFile.metadata.codegen_hint, null);
+
+  assert.equal(dataBundle.target_plan.target_count, targetPlan.targets.length);
+  assert.equal(dataBundle.target_plan.expected_clip_count, targetPlan.expected_totals.expected_clip_count);
+  assert.equal(sources.source_artifact_data_bundle.read_only, true);
+  assert.equal(sources.source_artifact_data_bundle.provenance_only, true);
 });
 
 test('Employer Brand Browser Evidence registry validates and uses local fixture pages only', async () => {

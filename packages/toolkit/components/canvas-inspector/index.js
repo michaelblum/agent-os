@@ -9,7 +9,7 @@
 // docs/archive/superpowers/plans/2026-04-18-canvas-inspector-pivot.md.
 
 import { emit, esc } from '../../runtime/bridge.js'
-import { evalCanvas, mutateSelf } from '../../runtime/canvas.js'
+import { evalCanvas, mutateSelf, spawnChild } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
@@ -30,6 +30,26 @@ import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
 import { canvasActionAttrs, inspectorControlAttrs } from './semantics.js'
 import {
+  addSurfaceInspectorComment,
+  applySurfaceInspectorRevealResult,
+  buildSurfaceInspectorAnnotationTreeRows,
+  buildSurfaceInspectorSnapshotPayload,
+  chooseSurfaceInspectorAnnotationCandidate,
+  computeSurfaceInspectorActiveEdge,
+  createSurfaceInspectorAnnotationState,
+  deleteSurfaceInspectorComment,
+  hasSurfaceInspectorAnnotations,
+  clearSurfaceInspectorAnnotationScope,
+  jumpSurfaceInspectorAnnotationScope,
+  pinSurfaceInspectorFrame,
+  popSurfaceInspectorAnnotationScope,
+  selectSurfaceInspectorAnnotationFrame,
+  setSurfaceInspectorAnnotationMode,
+  setSurfaceInspectorHoverCandidate,
+  unpinSurfaceInspectorFrame,
+  updateSurfaceInspectorComment,
+} from '../../workbench/surface-inspector-annotations.js'
+import {
   applyMouseEffectsInput,
   clearMouseEffectsState,
   createMouseEffectsState,
@@ -39,6 +59,11 @@ import {
   sweepMouseEffectsState,
 } from './mouse-effects.js'
 import { computeInspectorTree } from './tree.js'
+import { buildSemanticTargetProjectionAdapterResult } from '../../workbench/annotation-projection.js'
+import {
+  BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
+  buildBrowserDomProjectionAdapterResult,
+} from '../../workbench/browser-dom-element-picker.js'
 
 export {
   nativeToDesktopWorldPoint,
@@ -59,10 +84,18 @@ const TINT_COLORS = [
   'rgba(255, 140, 60, 0.24)',
 ]
 const TINT_OVERLAY_ID = '__aos_canvas_inspector_tint__'
+const ANNOTATION_OVERLAY_ID = '__aos_surface_inspector_annotation_overlay__'
 const TREE_INDENT_PX = 12
 const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
 const LIST_PANE_CLOSED_HEIGHT = 28
 const LIST_PANE_OPEN_HEIGHT = 240
+const MINIMAP_PANE_MAX_HEIGHT = 260
+const COMMENT_BLUE = '#58c4ff'
+const FRAME_GOLD = '#f4c542'
+const ANNOTATION_ACTION_CANVAS_SIZE = 32
+const ANNOTATION_ACTION_CANVAS_GAP = 6
+const ANNOTATION_ACTION_CONTROL_PATH = './annotation-action-control/index.html'
+const ANNOTATION_HIT_LAYER_PATH = './annotation-hit-layer/index.html'
 
 function escapeHTML(value) {
   if (value === null || value === undefined) return ''
@@ -77,6 +110,139 @@ function escapeHTML(value) {
 function rectToAt(rect) {
   if (!rect) return null
   return [rect.x, rect.y, rect.w, rect.h]
+}
+
+function normalizeDisplayRect(rect = null) {
+  if (!rect || typeof rect !== 'object') return null
+  const x = Number(rect.x ?? rect.left)
+  const y = Number(rect.y ?? rect.top)
+  const w = Number(rect.w ?? rect.width)
+  const h = Number(rect.h ?? rect.height)
+  if (![x, y, w, h].every(Number.isFinite)) return null
+  return { x, y, w, h }
+}
+
+export function projectAnnotationRectToMinimap(layout, rect, {
+  displays = [],
+  coordinateSpace = 'native_display',
+} = {}) {
+  const source = normalizeDisplayRect(rect)
+  if (!source) return null
+  const space = String(coordinateSpace || 'native_display')
+  const desktopRect = space === 'desktop_world'
+    ? source
+    : nativeToDesktopWorldRect(source, displays)
+  if (!desktopRect) return null
+  const topLeft = projectPointToMinimap(layout, { x: desktopRect.x, y: desktopRect.y })
+  const bottomRight = projectPointToMinimap(layout, { x: desktopRect.x + desktopRect.w, y: desktopRect.y + desktopRect.h })
+  if (!topLeft || !bottomRight) return null
+  const x = Math.min(topLeft.x, bottomRight.x)
+  const y = Math.min(topLeft.y, bottomRight.y)
+  return {
+    x,
+    y,
+    w: Math.max(2, Math.abs(bottomRight.x - topLeft.x)),
+    h: Math.max(2, Math.abs(bottomRight.y - topLeft.y)),
+  }
+}
+
+function semanticTargetIdentifier(target = {}) {
+  return String(target.id || target.target_id || target.semantic_target_id || target.ref || target.do_target || target.data_aos_ref || '').trim()
+}
+
+function isBrowserDomElementTarget(target = {}) {
+  return target?.kind === 'element_target' || target?.surface_type === 'browser_page' || target?.adapter_id === BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID
+}
+
+function browserDomRawTargetFromPin(pin = {}) {
+  const metadata = pin.source_tree_node_metadata || {}
+  if (isBrowserDomElementTarget(metadata.raw_target)) return metadata.raw_target
+  if (isBrowserDomElementTarget(metadata.source_tree_node_metadata?.raw_target)) return metadata.source_tree_node_metadata.raw_target
+  if (isBrowserDomElementTarget(metadata.source_tree_node_metadata)) return metadata.source_tree_node_metadata
+  if (isBrowserDomElementTarget(metadata)) return metadata
+  return null
+}
+
+export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
+  const fallback = {
+    subject_id: pin.subject_id,
+    do_target: pin.source_tree_node_metadata?.do_target,
+    source_tree_node_metadata: pin.source_tree_node_metadata,
+  }
+  if (pin.adapter_id !== BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID) return fallback
+  const rawTarget = browserDomRawTargetFromPin(pin)
+  if (!rawTarget) return fallback
+  const target = {
+    ...rawTarget,
+    id: rawTarget.id || pin.subject_id,
+    subject_id: rawTarget.subject_id || rawTarget.id || pin.subject_id,
+    adapter_id: BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
+    kind: 'element_target',
+    surface_id: rawTarget.surface_id || pin.root_id || pin.source_tree_node_metadata?.surface_id,
+    surface_type: 'browser_page',
+    projection_precision: 'browser_dom_element',
+  }
+  return {
+    ...target,
+    source_tree_node_metadata: {
+      ...target,
+      raw_target: rawTarget,
+      precision: 'browser_dom_element',
+    },
+  }
+}
+
+export function buildSurfaceInspectorTargetNodeForAnnotation(canvasId, target = {}, options = {}) {
+  if (isBrowserDomElementTarget(target)) {
+    const rawTarget = {
+      ...target,
+      surface_id: target.surface_id || canvasId,
+      surface_type: 'browser_page',
+      kind: 'element_target',
+    }
+    const projection = buildBrowserDomProjectionAdapterResult({
+      ...rawTarget,
+    }, {
+      refreshed_at: target.refreshed_at || options.refreshed_at || new Date().toISOString(),
+      provenance_source_payload_id: target.payload_id || target.id,
+    })
+    return {
+      id: projection.subject_id,
+      subject_id: projection.subject_id,
+      subject_path: projection.subject_path,
+      label: target.accessible_name || target.label || target.preferred_selector || projection.subject_id,
+      root_id: target.surface_id || canvasId,
+      root_label: target.surface_id || canvasId,
+      adapter_id: BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
+      projection,
+      source_tree_node_metadata: {
+        ...rawTarget,
+        raw_target: rawTarget,
+        surface_type: 'browser_page',
+        precision: 'browser_dom_element',
+      },
+      has_children: false,
+      pinned: Boolean(options.findPinForCandidateId?.(projection.subject_id)),
+    }
+  }
+  const projection = buildSemanticTargetProjectionAdapterResult(target, {
+    canvas_id: canvasId,
+    refreshed_at: target.refreshed_at || options.refreshed_at || new Date().toISOString(),
+    provenance_source_payload_id: target.payload_id,
+  })
+  return {
+    id: projection.subject_id,
+    subject_id: projection.subject_id,
+    subject_path: projection.subject_path,
+    label: target.name || target.label || target.role || projection.subject_id,
+    root_id: canvasId,
+    root_label: canvasId,
+    adapter_id: 'aos-toolkit-semantic-target',
+    projection,
+    source_tree_node_metadata: target,
+    has_children: false,
+    pinned: Boolean(options.findPinForCandidateId?.(projection.subject_id)),
+  }
 }
 
 function rowIndentStyle(depth) {
@@ -152,6 +318,203 @@ export function renderMouseEventsToggleRowHTML(options = {}) {
     })}>${toggleLabel}</button>`
     + `</span>`
     + `</div>`
+}
+
+export function renderAnnotationModeToggleRowHTML(options = {}) {
+  const enabled = !!options.enabled
+  const depth = Number.isFinite(Number(options.depth)) ? Number(options.depth) : 0
+  const toggleClass = enabled ? 'btn annotation-mode-toggle-btn active' : 'btn annotation-mode-toggle-btn'
+  const label = `Annotation Mode: ${enabled ? 'on' : 'off'}`
+  return `<div class="tree-row cursor-toggle-row annotation-mode-row" style="${rowIndentStyle(depth)}">`
+    + `<span class="cursor-toggle-label">annotation mode</span>`
+    + `<span class="cursor-toggle-state">${enabled ? 'active' : 'off'}</span>`
+    + `<span class="canvas-flags">`
+    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" title="${escapeHTML(label)}" ${inspectorControlAttrs('annotation-mode', {
+      name: label,
+      action: 'toggle_annotation_mode',
+      pressed: enabled,
+    })}>${enabled ? 'on' : 'off'}</button>`
+    + `</span>`
+    + `</div>`
+}
+
+export function buildSemanticTargetsRequestMessages(canvases = [], options = {}) {
+  const selfId = options.selfId || SELF_ID
+  const reason = options.reason || 'surface_inspector_refresh'
+  const now = Number.isFinite(Number(options.now)) ? Number(options.now) : Date.now()
+  const minIntervalMs = Number.isFinite(Number(options.minIntervalMs)) ? Number(options.minIntervalMs) : 1000
+  const force = options.force === true
+  const requestedAtByCanvas = options.requestedAtByCanvas instanceof Map ? options.requestedAtByCanvas : new Map()
+  const messages = []
+  for (const canvas of Array.isArray(canvases) ? canvases : []) {
+    const target = String(canvas?.id || '').trim()
+    if (!target || target === selfId || canvas?.suspended === true) continue
+    const lastRequestAt = Number(requestedAtByCanvas.get(target) || 0)
+    if (!force && lastRequestAt && now - lastRequestAt < minIntervalMs) continue
+    requestedAtByCanvas.set(target, now)
+    messages.push({
+      target,
+      message: {
+        type: 'canvas_inspector.semantic_targets.request',
+        requester_canvas_id: selfId,
+        reply_to: selfId,
+        reason,
+        requested_at: new Date(now).toISOString(),
+      },
+    })
+  }
+  return messages
+}
+
+export function buildAnnotationActionControlCanvasRecords(candidate = null, options = {}) {
+  const rect = normalizeDisplayRect(candidate?.projection?.visible_display_rect || candidate?.projection?.display_space_rect)
+  if (!candidate?.projection?.can_project_display_overlay || !rect) return []
+  const selfId = options.selfId || SELF_ID
+  const size = Number.isFinite(Number(options.size)) ? Number(options.size) : ANNOTATION_ACTION_CANVAS_SIZE
+  const gap = Number.isFinite(Number(options.gap)) ? Number(options.gap) : ANNOTATION_ACTION_CANVAS_GAP
+  const inset = Number.isFinite(Number(options.inset)) ? Number(options.inset) : 8
+  const actions = [
+    {
+      action: 'add_comment',
+      label: 'Add comment to frame candidate',
+      icon: 'plus',
+      accent: 'blue',
+    },
+  ]
+  actions.push({
+    action: 'pin_frame',
+    label: candidate.pinned ? 'Remove frame anchor' : 'Create frame anchor',
+    icon: 'pin',
+    accent: 'gold',
+    pressed: Boolean(candidate.pinned),
+  })
+  const totalHeight = actions.length * size + Math.max(0, actions.length - 1) * gap
+  const left = Math.round(rect.x + rect.w - size - inset)
+  const top = Math.round(rect.y + (rect.h - totalHeight) / 2)
+  return actions.map((item, index) => ({
+    ...item,
+    id: `${selfId}-annotation-action-${candidate.id}-${item.action}`,
+    parent: selfId,
+    canvas_id: candidate.id,
+    frame: [
+      left,
+      top + index * (size + gap),
+      size,
+      size,
+    ],
+    interactive: true,
+    window_level: 'screen_saver',
+  }))
+}
+
+export function planAnnotationActionControlCanvasSync({
+  controls = [],
+  existingIds = new Set(),
+  managedIds = new Set(),
+  frameKeys = new Map(),
+} = {}) {
+  const normalizedExisting = existingIds instanceof Set ? existingIds : new Set(existingIds)
+  const normalizedManaged = managedIds instanceof Set ? managedIds : new Set(managedIds)
+  const normalizedFrameKeys = frameKeys instanceof Map ? frameKeys : new Map(Object.entries(frameKeys || {}))
+  const nextIds = new Set(controls.map((control) => control.id))
+  const creates = []
+  const updates = []
+  const removes = []
+  const nextFrameKeys = new Map(normalizedFrameKeys)
+
+  for (const id of normalizedManaged) {
+    if (!nextIds.has(id)) {
+      removes.push(id)
+      nextFrameKeys.delete(id)
+    }
+  }
+
+  for (const control of controls) {
+    const frameKey = control.frame.join(',')
+    const payload = {
+      id: control.id,
+      frame: control.frame,
+      interactive: true,
+      window_level: control.window_level,
+    }
+    if (normalizedExisting.has(control.id)) {
+      if (nextFrameKeys.get(control.id) !== frameKey) updates.push(payload)
+      nextFrameKeys.set(control.id, frameKey)
+    } else if (!normalizedManaged.has(control.id)) {
+      creates.push({ control, payload, frameKey })
+      nextFrameKeys.set(control.id, frameKey)
+    }
+  }
+
+  return {
+    creates,
+    updates,
+    removes,
+    nextIds,
+    nextFrameKeys,
+  }
+}
+
+export function buildAnnotationScopedHitRegions({ canvases = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
+  const internal = (id) => id === selfId || String(id || '').startsWith(`${selfId}-annotation-action-`) || String(id || '').startsWith(`${selfId}-annotation-hit-layer`)
+  const broadRoot = (id) => /^desktop[-_]world$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
+  const parentId = (canvas = {}) => canvas.parent || canvas.parent_id || ''
+  const rectForCanvas = (canvas) => normalizeDisplayRect(canvas.visible_display_rect || canvas.display_space_rect || canvas.rect || rectFromAt(canvas.atResolved ?? canvas.at))
+  const scope = Array.isArray(scopeStack) ? scopeStack.at(-1) : null
+  const visibleCanvases = (Array.isArray(canvases) ? canvases : []).filter((canvas) => !canvas?.suspended && !internal(canvas.id))
+  const ids = new Set(visibleCanvases.map((canvas) => canvas.id))
+  const canvasRegions = visibleCanvases
+    .filter((canvas) => {
+      if (broadRoot(canvas.id)) return false
+      const parent = parentId(canvas)
+      return scope
+        ? parent === scope.subject_id
+        : (!parent || !ids.has(parent) || broadRoot(parent) || internal(parent))
+    })
+    .map((canvas) => {
+      const rect = rectForCanvas(canvas)
+      return rect ? {
+        id: canvas.id,
+        rect,
+        candidate: {
+          id: canvas.id,
+          subject_id: canvas.id,
+          subject_path: scope ? [...(scope.subject_path || [scope.subject_id]), canvas.id] : ['canvas', canvas.id],
+          root_id: scope?.root_id || 'main',
+          root_label: scope?.root_label || 'main',
+          adapter_id: 'aos-canvas-window',
+          projection: { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect },
+          has_children: visibleCanvases.some((item) => parentId(item) === canvas.id),
+        },
+      } : null
+    })
+    .filter(Boolean)
+  const semanticEntries = semanticTargetsByCanvas instanceof Map
+    ? [...semanticTargetsByCanvas.entries()]
+    : Object.entries(semanticTargetsByCanvas || {})
+  const semanticRegions = []
+  if (scope) {
+    for (const [canvasId, targets] of semanticEntries) {
+      if (canvasId !== scope.subject_id && canvasId !== scope.root_id) continue
+      for (const target of Array.isArray(targets) ? targets : []) {
+        const node = buildSurfaceInspectorTargetNodeForAnnotation(canvasId, target)
+        const id = node.id
+        const rect = normalizeDisplayRect(node.projection?.visible_display_rect || node.projection?.display_space_rect || target.visible_display_rect || target.display_space_rect || target.rect || target.bounds)
+        if (!id || !rect) continue
+        const parent = target.parent_id || target.parent || ''
+        if (canvasId !== scope.subject_id && parent !== scope.subject_id) continue
+        semanticRegions.push({
+          id,
+          rect,
+          candidate: {
+            ...node,
+            subject_path: [...(scope.subject_path || [scope.subject_id]), id],
+          },
+        })
+      }
+    }
+  }
+  return [...canvasRegions, ...semanticRegions]
 }
 
 export function renderCanvasListToggleButton(options = {}) {
@@ -246,6 +609,116 @@ function buildStatsStatusEvalScript() {
   })()`
 }
 
+function buildAnnotationOverlayEvalScript({ hover = null, active = null, comments = [] } = {}) {
+  const hoverLiteral = JSON.stringify(hover)
+  const activeLiteral = JSON.stringify(active)
+  const commentsLiteral = JSON.stringify(comments)
+  return `(() => {
+    const existing = document.getElementById(${JSON.stringify(ANNOTATION_OVERLAY_ID)})
+    if (existing) existing.remove()
+    const hover = ${hoverLiteral}
+    const active = ${activeLiteral}
+    const comments = ${commentsLiteral}
+    const highlight = hover || active
+    if (!highlight && comments.length === 0) return true
+    const overlay = document.createElement('div')
+    overlay.id = ${JSON.stringify(ANNOTATION_OVERLAY_ID)}
+    overlay.setAttribute('aria-label', 'Surface Inspector annotation overlay')
+    overlay.style.cssText = [
+      'position:fixed',
+      'inset:0',
+      'pointer-events:none',
+      'z-index:2147483646',
+      'font:11px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'
+    ].join(';')
+    if (highlight) {
+      const frame = document.createElement('div')
+      frame.style.cssText = [
+        'position:absolute',
+        'inset:0',
+        'box-sizing:border-box',
+        'border:2px solid ${FRAME_GOLD}',
+        'background:transparent'
+      ].join(';')
+      frame.setAttribute('data-highlight-kind', hover ? 'frame-candidate' : 'active-edge')
+      overlay.appendChild(frame)
+    }
+    comments.forEach((comment, index) => {
+      const chip = document.createElement('div')
+      chip.textContent = comment.label + '  edit  x'
+      chip.title = comment.text
+      chip.style.cssText = [
+        'position:absolute',
+        'left:8px',
+        'top:' + (8 + index * 24) + 'px',
+        'max-width:180px',
+        'overflow:hidden',
+        'text-overflow:ellipsis',
+        'white-space:nowrap',
+        'box-sizing:border-box',
+        'border:2px solid ${COMMENT_BLUE}',
+        'border-radius:5px',
+        'background:#000',
+        'color:${COMMENT_BLUE}',
+        'padding:2px 6px'
+      ].join(';')
+      overlay.appendChild(chip)
+    })
+    ;(document.body || document.documentElement).appendChild(overlay)
+    return true
+  })()`
+}
+
+function buildRevealTargetEvalScript(target = {}) {
+  const targetLiteral = JSON.stringify(target)
+  return `(() => {
+    const target = ${targetLiteral}
+    const now = new Date().toISOString()
+    try {
+      if (window.aosSurfaceInspector && typeof window.aosSurfaceInspector.revealTarget === 'function') {
+        return JSON.stringify(window.aosSurfaceInspector.revealTarget(target) || { status: 'unsupported', completed_at: now })
+      }
+      const selector = [
+        target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
+        target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
+        target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
+        target.source_tree_node_metadata?.data_aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.data_aos_ref) + '"]' : '',
+        target.source_tree_node_metadata?.aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.aos_ref) + '"]' : '',
+        target.source_tree_node_metadata?.selector || '',
+        target.source_tree_node_metadata?.preferred_selector || '',
+        ...(Array.isArray(target.source_tree_node_metadata?.selector_candidates) ? target.source_tree_node_metadata.selector_candidates : []),
+        target.do_target ? '[data-aos-ref="' + CSS.escape(target.do_target) + '"]' : '',
+        target.do_target ? '[data-aos-action="' + CSS.escape(target.do_target) + '"]' : '',
+        target.subject_id ? '[data-aos-action="' + CSS.escape(target.subject_id) + '"]' : ''
+      ].filter(Boolean).join(',')
+      const element = selector ? document.querySelector(selector) : null
+      if (!element) return JSON.stringify({ status: 'target_absent', blocker_reason: 'semantic_target_not_found', completed_at: now })
+      const before = element.getBoundingClientRect()
+      const alreadyVisible = before && before.bottom >= 0 && before.right >= 0 && before.top <= innerHeight && before.left <= innerWidth
+      if (!alreadyVisible && typeof element.scrollIntoView === 'function') {
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' })
+      }
+      element.focus?.({ preventScroll: true })
+      const rect = element.getBoundingClientRect()
+      const visible = rect.bottom >= 0 && rect.right >= 0 && rect.top <= innerHeight && rect.left <= innerWidth
+      return JSON.stringify({
+        status: alreadyVisible ? 'already_visible' : (visible ? 'revealed' : 'blocked'),
+        blocker_reason: visible ? '' : 'scroll_into_view_did_not_make_target_visible',
+        completed_at: now,
+        projection: {
+          status: visible ? 'visible' : 'clipped',
+          can_reveal: true,
+          display_space_rect: { x: rect.x, y: rect.y, w: rect.width, h: rect.height },
+          local_space_rect: { x: rect.x + scrollX, y: rect.y + scrollY, w: rect.width, h: rect.height },
+          refreshed_at: now
+        }
+      })
+    } catch (error) {
+      return JSON.stringify({ status: 'adapter_error', blocker_reason: String(error), completed_at: now })
+    }
+  })()`
+}
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
@@ -267,12 +740,15 @@ export default function CanvasInspector() {
   let displays = []
   let canvases = []
   let cursor = { x: 0, y: 0, valid: false }
+  let nativeCursor = { x: 0, y: 0, valid: false }
   let cursorTrackingEnabled = false
   let mouseEventsEnabled = false
   let inputSubscriptionActive = false
   let tintedIds = new Set()
   let tintMap = new Map()
   let statsIds = new Set()
+  let semanticTargetsByCanvas = new Map()
+  const semanticTargetRequestAtByCanvas = new Map()
   let tintIndex = 0
   let eventCount = 0
   let resizeObserver = null
@@ -290,6 +766,7 @@ export default function CanvasInspector() {
     trigger: null,
     at: null,
   }
+  let annotationState = createSurfaceInspectorAnnotationState()
 
   const marksState = createMarksState()
   const marksScheduler = createScheduler({
@@ -297,8 +774,24 @@ export default function CanvasInspector() {
     onChange: () => rerender(),
   })
   const mouseEffectsState = createMouseEffectsState()
+  const annotationOverlayCanvasIds = new Set()
+  const annotationOverlaySignatures = new Map()
+  const annotationActionControlCanvasIds = new Set()
+  const annotationActionControlFrames = new Map()
+  let annotationHitLayerCanvasId = ''
+  let annotationHitLayerSignature = ''
+  let annotationHitLayerFrameKey = ''
+  let pendingAnnotationHoverFrame = 0
+  let annotationHoverUpdateReason = ''
+  let annotationHoverStats = { create: 0, update: 0, remove: 0 }
+  let annotationOverlayStats = { create: 0, update: 0, clear: 0 }
+
+  function semanticTargetId(target = {}) {
+    return semanticTargetIdentifier(target)
+  }
 
   function syncDebugState() {
+    const hitRegions = annotationHitRegions()
     window.__canvasInspectorState = {
       displays,
       canvases,
@@ -306,13 +799,27 @@ export default function CanvasInspector() {
       tintedIds: [...tintedIds],
       tintMap: Object.fromEntries(tintMap),
       statsIds: [...statsIds],
+      semanticTargetsByCanvas: Object.fromEntries(semanticTargetsByCanvas),
       cursor,
+      nativeCursor,
       cursorTrackingEnabled,
       mouseEventsEnabled,
       inputSubscriptionActive,
       lastTintError,
       bundleHotkeyLabel,
       bundleCapture,
+      annotation: buildSurfaceInspectorSnapshotPayload(annotationState),
+      annotationScopeStackIds: annotationScopeStackIds(),
+      annotationHitLayerCanvasId,
+      annotationHitRegionCount: hitRegions.length,
+      annotationHitRegionIds: hitRegions.map((region) => region.id),
+      annotationHoverCandidateId: annotationState.last_hover_candidate?.id || null,
+      annotationLastHoverUpdateReason: annotationHoverUpdateReason,
+      annotationOverlayTargetCanvasIds: [...annotationOverlayCanvasIds],
+      annotationActionControlEmitCounts: { ...annotationHoverStats },
+      annotationOverlayEvalCounts: { ...annotationOverlayStats },
+      annotationPendingHoverRefresh: Boolean(pendingAnnotationHoverFrame),
+      annotationActionControlCanvases: annotationActionControlsForHover(),
       mouseEffects: {
         active: mouseEffectsState.active,
         transients: mouseEffectsState.transients,
@@ -340,6 +847,7 @@ export default function CanvasInspector() {
 
   function renderMinimapDynamicLayer(now = Date.now()) {
     if (!lastMinimapLayout) return ''
+    if (annotationState.annotation_mode.active) return ''
     let html = ''
     if (cursorTrackingEnabled && cursor?.valid) {
       const projectedCursor = projectPointToMinimap(lastMinimapLayout, cursor)
@@ -366,6 +874,465 @@ export default function CanvasInspector() {
     } else {
       stopDynamicAnimationFrame()
     }
+  }
+
+  async function clearControlledAnnotationOverlay(canvasId) {
+    if (!canvasId || canvasId === SELF_ID) return
+    try {
+      annotationOverlayStats.clear += 1
+      await evalCanvas(canvasId, buildAnnotationOverlayEvalScript())
+      annotationOverlaySignatures.delete(canvasId)
+    } catch {}
+  }
+
+  function annotationOverlaySignature({ hover = null, active = null, comments = [] } = {}) {
+    return JSON.stringify({
+      hover: hover?.id || '',
+      active: active?.id || '',
+      comments: comments.map((comment) => [comment.id, comment.label, comment.text]),
+    })
+  }
+
+  function syncControlledAnnotationDisplayOverlays() {
+    const nextCanvasIds = new Set()
+    if (annotationState.annotation_mode.active) {
+      const hoverProjectionRect = annotationState.last_hover_candidate?.projection?.visible_display_rect
+        || annotationState.last_hover_candidate?.projection?.display_space_rect
+      const hoverId = annotationState.last_hover_candidate?.projection?.can_project_display_overlay && hoverProjectionRect
+        ? annotationState.last_hover_candidate?.id
+        : null
+      const edge = computeSurfaceInspectorActiveEdge(annotationState)
+      const activeCanvasIds = hoverId
+        ? new Set()
+        : new Set(edge.frame_path
+          .filter((pin) => pin.projection?.can_project_display_overlay)
+          .map((pin) => pin.adapter_id === 'aos-toolkit-semantic-target'
+            ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
+            : (pin?.source_tree_node_metadata?.id || pin?.subject_id))
+          .filter((id) => id && id !== SELF_ID))
+      const commentsByCanvas = new Map()
+      for (const comment of edge.comments) {
+        const pin = edge.frame_path.find((item) => item.id === comment.pin_id)
+        if (!pin?.projection?.can_project_display_overlay) continue
+        const canvasId = pin.adapter_id === 'aos-toolkit-semantic-target'
+          ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
+          : (pin?.source_tree_node_metadata?.id || pin?.subject_id)
+        if (!canvasId || canvasId === SELF_ID) continue
+        if (!commentsByCanvas.has(canvasId)) commentsByCanvas.set(canvasId, [])
+        const label = comment.text.length > 15 ? `${comment.text.slice(0, 15)}...` : comment.text
+        commentsByCanvas.get(canvasId).push({ id: comment.id, text: comment.text, label })
+      }
+      for (const canvas of minimapCanvases()) {
+        const comments = commentsByCanvas.get(canvas.id) || []
+        const hover = hoverId === canvas.id
+          ? { id: canvas.id, can_pin: Boolean(annotationState.last_hover_candidate?.has_children) }
+          : null
+        const active = activeCanvasIds.has(canvas.id) ? { id: canvas.id } : null
+        if (!hover && !active && comments.length === 0) continue
+        nextCanvasIds.add(canvas.id)
+        const signature = annotationOverlaySignature({ hover, active, comments })
+        if (annotationOverlaySignatures.get(canvas.id) === signature) continue
+        if (annotationOverlaySignatures.has(canvas.id)) annotationOverlayStats.update += 1
+        else annotationOverlayStats.create += 1
+        annotationOverlaySignatures.set(canvas.id, signature)
+        evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({ hover, active, comments })).catch(() => {
+          annotationOverlaySignatures.delete(canvas.id)
+        })
+      }
+    }
+    for (const canvasId of annotationOverlayCanvasIds) {
+      if (!nextCanvasIds.has(canvasId)) clearControlledAnnotationOverlay(canvasId)
+    }
+    annotationOverlayCanvasIds.clear()
+    for (const canvasId of nextCanvasIds) annotationOverlayCanvasIds.add(canvasId)
+  }
+
+  function cancelPendingAnnotationHoverRefresh() {
+    if (!pendingAnnotationHoverFrame) return
+    window.cancelAnimationFrame(pendingAnnotationHoverFrame)
+    pendingAnnotationHoverFrame = 0
+  }
+
+  function emitAnnotationModeState(reason = 'state_sync') {
+    emit('canvas_inspector.annotation_state', {
+      canvas_id: SELF_ID,
+      annotation_mode_active: Boolean(annotationState.annotation_mode.active),
+      reason,
+      snapshot_version: annotationState.snapshot_version,
+    })
+  }
+
+  function annotationActionControlsForHover() {
+    if (!annotationState.annotation_mode.active) return []
+    return buildAnnotationActionControlCanvasRecords(annotationState.last_hover_candidate, { selfId: SELF_ID })
+  }
+
+  function annotationCurrentScope() {
+    return annotationState.annotation_scope_stack?.at?.(-1) || null
+  }
+
+  function annotationScopeStackIds() {
+    return (annotationState.annotation_scope_stack || []).map((frame) => frame.subject_id || frame.pin_id).filter(Boolean)
+  }
+
+  function isAnnotationActionControlCanvasId(id) {
+    return typeof id === 'string' && id.startsWith(`${SELF_ID}-annotation-action-`)
+  }
+
+  function isAnnotationHitLayerCanvasId(id) {
+    return typeof id === 'string' && id.startsWith(`${SELF_ID}-annotation-hit-layer`)
+  }
+
+  function isAnnotationInternalCanvasId(id) {
+    return id === SELF_ID || isAnnotationActionControlCanvasId(id) || isAnnotationHitLayerCanvasId(id)
+  }
+
+  function isBroadRootCanvasId(id) {
+    return /^desktop[-_]world$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
+  }
+
+  function canvasParentId(canvas = {}) {
+    return canvas.parent || canvas.parent_id || canvas.owner || canvas.owner_id || ''
+  }
+
+  function scopedCanvasCandidates() {
+    const scope = annotationCurrentScope()
+    const visible = minimapCanvases().filter((canvas) => !isAnnotationInternalCanvasId(canvas.id))
+    if (!scope) {
+      const ids = new Set(visible.map((canvas) => canvas.id))
+      return visible
+        .filter((canvas) => {
+          if (isBroadRootCanvasId(canvas.id)) return false
+          const parent = canvasParentId(canvas)
+          return !parent || !ids.has(parent) || isBroadRootCanvasId(parent) || isAnnotationInternalCanvasId(parent)
+        })
+        .map(canvasNodeForAnnotation)
+    }
+    return visible
+      .filter((canvas) => canvasParentId(canvas) === scope.subject_id)
+      .map((canvas) => ({
+        ...canvasNodeForAnnotation(canvas),
+        subject_path: [...(scope.subject_path || [scope.subject_id]), canvas.id],
+        root_id: scope.root_id || 'main',
+        root_label: scope.root_label || scope.root_id || 'main',
+      }))
+  }
+
+  function scopedSemanticCandidates() {
+    const scope = annotationCurrentScope()
+    if (!scope) return []
+    const candidates = []
+    for (const [canvasId, targets] of semanticTargetsByCanvas) {
+      if (canvasId !== scope.subject_id && scope.root_id !== canvasId) continue
+      for (const target of targets) {
+        const node = semanticTargetNodeForAnnotation(canvasId, target)
+        const path = Array.isArray(node.subject_path) ? node.subject_path : []
+        const scopePath = Array.isArray(scope.subject_path) ? scope.subject_path : []
+        const targetParent = target.parent_id || target.parent || target.owner_id || ''
+        const isImmediateByParent = targetParent && targetParent === scope.subject_id
+        const isImmediateCanvasChild = canvasId === scope.subject_id && !targetParent
+        const isImmediateByPath = scopePath.length > 0
+          && path.length === scopePath.length + 1
+          && scopePath.every((part, index) => String(part) === String(path[index]))
+        if (isImmediateByParent || isImmediateCanvasChild || isImmediateByPath) candidates.push(node)
+      }
+    }
+    return candidates
+  }
+
+  function annotationHitRegions() {
+    return [...scopedCanvasCandidates(), ...scopedSemanticCandidates()]
+      .map((candidate) => ({ candidate, rect: normalizeDisplayRect(candidate.projection?.visible_display_rect || candidate.projection?.display_space_rect || candidate.rect) }))
+      .filter((region) => region.rect && region.candidate?.projection?.can_project_display_overlay !== false)
+      .map(({ candidate, rect }) => ({
+        id: candidate.id,
+        candidate,
+        rect,
+      }))
+  }
+
+  function hitRegionSignature(regions = annotationHitRegions()) {
+    return JSON.stringify({
+      scope: annotationScopeStackIds(),
+      regions: regions.map((region) => [region.id, region.rect.x, region.rect.y, region.rect.w, region.rect.h]),
+    })
+  }
+
+  function rectUnion(rects = []) {
+    const usable = rects.filter(Boolean)
+    if (usable.length === 0) return null
+    const minX = Math.min(...usable.map((rect) => rect.x))
+    const minY = Math.min(...usable.map((rect) => rect.y))
+    const maxX = Math.max(...usable.map((rect) => rect.x + rect.w))
+    const maxY = Math.max(...usable.map((rect) => rect.y + rect.h))
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+  }
+
+  function annotationHitLayerURL() {
+    const url = new URL(ANNOTATION_HIT_LAYER_PATH, window.location.href)
+    url.searchParams.set('target', SELF_ID)
+    return url.href
+  }
+
+  function syncAnnotationHitLayer() {
+    if (!annotationState.annotation_mode.active) {
+      if (annotationHitLayerCanvasId) emit('canvas.remove', { id: annotationHitLayerCanvasId })
+      annotationHitLayerCanvasId = ''
+      annotationHitLayerSignature = ''
+      annotationHitLayerFrameKey = ''
+      return []
+    }
+    const regions = annotationHitRegions()
+    const signature = hitRegionSignature(regions)
+    annotationHitLayerCanvasId = `${SELF_ID}-annotation-hit-layer`
+    const frameRect = rectUnion(regions.map((region) => region.rect)) || currentFrameFallback()
+    const frame = [Math.round(frameRect.x), Math.round(frameRect.y), Math.max(1, Math.round(frameRect.w)), Math.max(1, Math.round(frameRect.h))]
+    const frameKey = frame.join(',')
+    const payload = {
+      id: annotationHitLayerCanvasId,
+      frame,
+      interactive: false,
+      window_level: 'screen_saver',
+    }
+    const existingIds = new Set(canvases.map((canvas) => canvas.id))
+    if (existingIds.has(annotationHitLayerCanvasId)) {
+      if (annotationHitLayerFrameKey !== frameKey) emit('canvas.update', payload)
+    } else if (annotationHitLayerFrameKey !== frameKey) {
+      spawnChild({
+        ...payload,
+        url: annotationHitLayerURL(),
+        parent: SELF_ID,
+      }).catch((error) => {
+        console.error('[canvas-inspector] annotation hit layer create failed', error)
+      })
+    }
+    annotationHitLayerFrameKey = frameKey
+    if (signature !== annotationHitLayerSignature) {
+      annotationHoverUpdateReason = annotationHitLayerSignature ? 'hit_layer_regions_changed' : 'hit_layer_created'
+      annotationHitLayerSignature = signature
+    }
+    return regions
+  }
+
+  function annotationActionControlURL(control) {
+    const url = new URL(ANNOTATION_ACTION_CONTROL_PATH, window.location.href)
+    url.searchParams.set('target', SELF_ID)
+    url.searchParams.set('canvas', control.canvas_id)
+    url.searchParams.set('action', control.action)
+    url.searchParams.set('label', control.label)
+    url.searchParams.set('icon', control.icon)
+    url.searchParams.set('accent', control.accent)
+    url.searchParams.set('pressed', control.pressed ? '1' : '0')
+    return url.href
+  }
+
+  function syncAnnotationActionControlCanvases() {
+    const controls = annotationActionControlsForHover()
+    const existingIds = new Set(canvases.map((canvas) => canvas.id))
+    const plan = planAnnotationActionControlCanvasSync({
+      controls,
+      existingIds,
+      managedIds: annotationActionControlCanvasIds,
+      frameKeys: annotationActionControlFrames,
+    })
+    for (const id of plan.removes) {
+      annotationHoverStats.remove += 1
+      emit('canvas.remove', { id })
+    }
+    for (const update of plan.updates) {
+      annotationHoverStats.update += 1
+      emit('canvas.update', update)
+    }
+    for (const { control, payload } of plan.creates) {
+      annotationHoverStats.create += 1
+      spawnChild({
+        ...payload,
+        url: annotationActionControlURL(control),
+        parent: SELF_ID,
+      }).catch((error) => {
+        annotationActionControlFrames.delete(control.id)
+        console.error('[canvas-inspector] annotation action control create failed', control.id, error)
+      })
+    }
+    annotationActionControlCanvasIds.clear()
+    for (const id of plan.nextIds) annotationActionControlCanvasIds.add(id)
+    annotationActionControlFrames.clear()
+    for (const [id, frameKey] of plan.nextFrameKeys) annotationActionControlFrames.set(id, frameKey)
+  }
+
+  function removeAnnotationRuntimeCanvases() {
+    const ids = new Set([
+      annotationHitLayerCanvasId,
+      ...annotationActionControlCanvasIds,
+      ...canvases
+        .map((canvas) => canvas?.id)
+        .filter((id) => isAnnotationActionControlCanvasId(id) || isAnnotationHitLayerCanvasId(id)),
+    ])
+    for (const id of ids) {
+      if (id && id !== SELF_ID) emit('canvas.remove', { id })
+    }
+    annotationHitLayerCanvasId = ''
+    annotationHitLayerSignature = ''
+    annotationHitLayerFrameKey = ''
+    annotationActionControlCanvasIds.clear()
+    annotationActionControlFrames.clear()
+    for (const canvasId of annotationOverlayCanvasIds) {
+      clearControlledAnnotationOverlay(canvasId)
+    }
+    annotationOverlayCanvasIds.clear()
+    annotationOverlaySignatures.clear()
+  }
+
+  function canvasNodeForAnnotation(canvas) {
+    const rect = rectFromAt(canvas?.atResolved ?? canvas?.at)
+    const hasChildren = canvases.some((item) => item?.parent === canvas?.id || item?.parent_id === canvas?.id)
+    return {
+      id: canvas?.id,
+      subject_id: canvas?.id,
+      subject_path: ['canvas', canvas?.id],
+      label: canvas?.id,
+      root_id: canvas?.root_id || canvas?.display_id || 'main',
+      root_label: canvas?.root_label || canvas?.display_label || 'main',
+      adapter_id: 'aos-canvas-window',
+      projection: rect
+        ? { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect, coordinate_space: 'native_display' }
+        : { status: 'stale', projectable: false, can_reveal: false, blocker: { reason: 'missing_canvas_rect' }, blocker_reason: 'missing_canvas_rect' },
+      has_children: hasChildren,
+      pinned: Boolean(findPinForCandidateId(canvas?.id)),
+      rect,
+    }
+  }
+
+  function findPinForCandidateId(candidateId) {
+    const id = String(candidateId || '')
+    if (!id) return null
+    return annotationState.pins.find((pin) => (
+      pin.status !== 'removed'
+      && (
+        pin.subject_id === id
+        || pin.id === id
+        || pin.source_tree_node_metadata?.id === id
+        || pin.source_tree_node_metadata?.subject_id === id
+      )
+    )) || null
+  }
+
+  function normalizeSemanticTargetsPayload(payload = {}) {
+    const canvasId = payload.canvas_id || payload.surface || payload.id
+    const targets = Array.isArray(payload.semantic_targets)
+      ? payload.semantic_targets
+      : (Array.isArray(payload.targets) ? payload.targets : [])
+    if (!canvasId) return
+    semanticTargetsByCanvas.set(canvasId, targets.map((target) => ({
+      ...target,
+      id: semanticTargetId(target) || target.id,
+      canvas_id: target.canvas_id || canvasId,
+    })))
+  }
+
+  function requestSemanticTargetsForLiveCanvases(reason = 'surface_inspector_refresh', options = {}) {
+    const messages = buildSemanticTargetsRequestMessages(canvases, {
+      selfId: SELF_ID,
+      reason,
+      force: options.force === true,
+      requestedAtByCanvas: semanticTargetRequestAtByCanvas,
+    })
+    for (const request of messages) {
+      emit('canvas.send', request)
+    }
+    return messages.length
+  }
+
+  function semanticTargetNodeForAnnotation(canvasId, target = {}) {
+    return buildSurfaceInspectorTargetNodeForAnnotation(canvasId, target, {
+      findPinForCandidateId,
+    })
+  }
+
+  function candidateAtCursor(regions = annotationHitRegions()) {
+    if (!annotationState.annotation_mode.active || !cursor?.valid) return null
+    const hitPoint = nativeCursor?.valid ? nativeCursor : cursor
+    if (annotationState.last_hover_candidate && annotationActionControlsForHover().some((control) => rectContainsPoint(rectFromAt(control.frame), hitPoint))) {
+      return annotationState.last_hover_candidate
+    }
+    return chooseSurfaceInspectorAnnotationCandidate(regions.map((region) => region.candidate), hitPoint)
+  }
+
+  function rectContainsPoint(rect, point) {
+    return rect && point && point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+  }
+
+  function setHoverCandidateIfChanged(candidate, blocker = null) {
+    const current = annotationState.last_hover_candidate
+    const currentRect = normalizeDisplayRect(current?.projection?.visible_display_rect || current?.projection?.display_space_rect)
+    const nextRect = normalizeDisplayRect(candidate?.projection?.visible_display_rect || candidate?.projection?.display_space_rect)
+    if ((current?.id || '') === (candidate?.id || '') && rectsEqual(currentRect, nextRect)) return false
+    annotationState = setSurfaceInspectorHoverCandidate(annotationState, candidate, blocker)
+    return true
+  }
+
+  function refreshAnnotationHover() {
+    pendingAnnotationHoverFrame = 0
+    if (!annotationState.annotation_mode.active || !cursor?.valid) {
+      setHoverCandidateIfChanged(null)
+      return
+    }
+    const regions = syncAnnotationHitLayer()
+    const candidate = candidateAtCursor(regions)
+    if (!candidate) {
+      setHoverCandidateIfChanged(null, { reason: 'no_projectable_candidate_under_cursor' })
+      annotationHoverUpdateReason = 'no_projectable_candidate_under_cursor'
+      return
+    }
+    if (setHoverCandidateIfChanged(candidate)) annotationHoverUpdateReason = 'hover_candidate_changed'
+  }
+
+  function scheduleAnnotationHoverRefresh(reason = 'mouse_moved') {
+    annotationHoverUpdateReason = reason
+    if (pendingAnnotationHoverFrame) return
+    pendingAnnotationHoverFrame = window.requestAnimationFrame(() => {
+      refreshAnnotationHover()
+      syncMinimapDynamicLayer(Date.now())
+      syncDebugState()
+      syncControlledAnnotationDisplayOverlays()
+      syncAnnotationActionControlCanvases()
+    })
+  }
+
+  function rectsEqual(a, b) {
+    if (!a && !b) return true
+    if (!a || !b) return false
+    return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
+  }
+
+  function renderMinimapAnnotationLayer(layout) {
+    if (!annotationState.annotation_mode.active || !layout) return ''
+    const edge = computeSurfaceInspectorActiveEdge(annotationState)
+    let html = ''
+    for (const pin of edge.frame_path) {
+      if (!pin.projection?.can_project_display_overlay) continue
+      const rect = pin.projection?.visible_display_rect
+      const projected = rect ? projectAnnotationRectToMinimap(layout, rect, {
+        displays,
+        coordinateSpace: pin.projection?.coordinate_space,
+      }) : null
+      if (!projected) continue
+      html += `<div class="minimap-annotation-frame" style="left:${projected.x}px;top:${projected.y}px;width:${projected.w}px;height:${projected.h}px;opacity:${pin.opacity}" title="${esc(pin.subject_path.join(' / '))}"></div>`
+    }
+    for (const comment of edge.comments) {
+      const pin = edge.frame_path.find((item) => item.id === comment.pin_id)
+      if (!pin?.projection?.can_project_display_overlay) continue
+      const rect = pin?.projection?.visible_display_rect
+      const projected = rect ? projectAnnotationRectToMinimap(layout, rect, {
+        displays,
+        coordinateSpace: pin.projection?.coordinate_space,
+      }) : null
+      if (!projected) continue
+      const x = projected.x + projected.w - 8
+      const y = projected.y + Math.min(projected.h, 14)
+      html += `<div class="minimap-annotation-comment" style="left:${x}px;top:${y}px" title="${esc(comment.text)}"></div>`
+    }
+    return `<div class="minimap-annotation-layer">${html}</div>`
   }
 
   function currentFrameFallback() {
@@ -410,11 +1377,12 @@ export default function CanvasInspector() {
   }
 
   function syncInputSubscription({ snapshot = false } = {}) {
-    const wantsInput = cursorTrackingEnabled || mouseEventsEnabled
+    const wantsInput = cursorTrackingEnabled || mouseEventsEnabled || annotationState.annotation_mode.active
     if (!wantsInput) {
       if (inputSubscriptionActive) unsubscribe(['input_event'])
       inputSubscriptionActive = false
       cursor = { x: 0, y: 0, valid: false }
+      nativeCursor = { x: 0, y: 0, valid: false }
       clearMouseEffectsState(mouseEffectsState)
       stopDynamicAnimationFrame()
       syncMinimapDynamicLayer()
@@ -424,7 +1392,7 @@ export default function CanvasInspector() {
 
     if (!inputSubscriptionActive) {
       inputSubscriptionActive = true
-      subscribe(['input_event'], { snapshot: true })
+      subscribe(['input_event'], { snapshot })
       syncDebugState()
       return
     }
@@ -467,6 +1435,223 @@ export default function CanvasInspector() {
     emit('canvas_inspector.capture_bundle', { trigger })
   }
 
+  function setAnnotationMode(enabled, options = {}) {
+    const wasActive = annotationState.annotation_mode.active
+    annotationState = setSurfaceInspectorAnnotationMode(annotationState, enabled, options)
+    if (annotationState.annotation_mode.active) {
+      annotationHoverStats = { create: 0, update: 0, remove: 0 }
+      annotationOverlayStats = { create: 0, update: 0, clear: 0 }
+      annotationHoverUpdateReason = 'annotation_mode_entered'
+      requestSemanticTargetsForLiveCanvases('annotation_mode_entered', { force: true })
+      syncInputSubscription({ snapshot: false })
+      if (listCollapsed) {
+        splitController?.setSidebarOpen?.(true)
+        listCollapsed = false
+        scheduleSelfResizeToListState()
+      }
+    } else if (wasActive && !annotationState.clear_confirmation) {
+      annotationHoverUpdateReason = options.reason || 'annotation_mode_exited'
+      cancelPendingAnnotationHoverRefresh()
+      removeAnnotationRuntimeCanvases()
+      syncInputSubscription({ snapshot: false })
+    }
+    emitAnnotationModeState(options.reason || 'annotation_mode_set')
+    rerender()
+  }
+
+  function confirmAnnotationClear() {
+    const reason = annotationState.clear_confirmation?.reason
+    if (reason === 'unpin_descendants' && annotationState.clear_confirmation?.descendant_pin_id) {
+      annotationState = unpinSurfaceInspectorFrame(annotationState, annotationState.clear_confirmation.descendant_pin_id, { confirmed: true })
+    } else if (reason === 'clear_anchors') {
+      annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { confirmed: true, reason })
+      removeAnnotationRuntimeCanvases()
+    } else {
+      annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { confirmed: true, reason })
+      removeAnnotationRuntimeCanvases()
+    }
+    cancelPendingAnnotationHoverRefresh()
+    syncInputSubscription({ snapshot: false })
+    emitAnnotationModeState(reason || 'annotation_clear_confirmed')
+    rerender()
+  }
+
+  function cancelAnnotationClear() {
+    annotationState = createSurfaceInspectorAnnotationState({ ...annotationState, clear_confirmation: null })
+    rerender()
+  }
+
+  function pinHoverCandidate({ openEditor = false } = {}) {
+    const candidate = annotationState.last_hover_candidate
+    if (!candidate) return null
+    const existing = findPinForCandidateId(candidate.subject_id || candidate.id)
+    if (existing && !openEditor) {
+      annotationState = unpinSurfaceInspectorFrame(annotationState, existing.id)
+      if (annotationState.last_hover_candidate) {
+        annotationState = setSurfaceInspectorHoverCandidate(annotationState, {
+          ...annotationState.last_hover_candidate,
+          pinned: false,
+        })
+      }
+      rerender()
+      return null
+    }
+    annotationState = pinSurfaceInspectorFrame(annotationState, candidate)
+    if (annotationState.last_hover_candidate) {
+      annotationState = setSurfaceInspectorHoverCandidate(annotationState, {
+        ...annotationState.last_hover_candidate,
+        pinned: true,
+      })
+    }
+    if (openEditor) {
+      annotationState.editor = {
+        mode: 'new',
+        pin_id: annotationState.active_frame_id,
+        text: '',
+      }
+    }
+    rerender()
+    return annotationState.active_frame_id
+  }
+
+  function backAnnotationScope() {
+    annotationState = popSurfaceInspectorAnnotationScope(annotationState)
+    annotationHoverUpdateReason = 'scope_popped'
+    rerender()
+  }
+
+  function clearAnnotationAnchors() {
+    annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { reason: 'clear_anchors' })
+    if (!annotationState.clear_confirmation) {
+      cancelPendingAnnotationHoverRefresh()
+      removeAnnotationRuntimeCanvases()
+      syncInputSubscription({ snapshot: false })
+      emitAnnotationModeState('clear_anchors')
+    }
+    rerender()
+  }
+
+  function handleAnnotationActionForCanvas(canvasId, { openEditor = false } = {}) {
+    let candidate = annotationState.last_hover_candidate?.id === canvasId
+      ? annotationState.last_hover_candidate
+      : null
+    if (!candidate) {
+      const canvas = minimapCanvases().find((item) => item.id === canvasId)
+      if (canvas) candidate = canvasNodeForAnnotation(canvas)
+    }
+    if (!candidate) {
+      for (const [ownerCanvasId, targets] of semanticTargetsByCanvas) {
+        const target = targets.find((item) => semanticTargetId(item) === canvasId)
+        if (target) {
+          candidate = semanticTargetNodeForAnnotation(ownerCanvasId, target)
+          break
+        }
+      }
+    }
+    if (!candidate) return null
+    annotationState = setSurfaceInspectorHoverCandidate(annotationState, candidate)
+    return pinHoverCandidate({ openEditor })
+  }
+
+  async function revealAnnotationTarget(pinId) {
+    const pin = annotationState.pins.find((item) => item.id === pinId && item.status !== 'removed')
+    if (!pin) return
+    const requestedAt = new Date().toISOString()
+    annotationState.last_reveal_request = {
+      pin_id: pin.id,
+      adapter_id: pin.adapter_id,
+      subject_id: pin.subject_id,
+      requested_at: requestedAt,
+    }
+    if (!pin.projection?.can_reveal) {
+      annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
+        status: pin.projection?.current_render_status === 'virtualized' ? 'virtualized' : 'unsupported',
+        blocker_reason: pin.projection?.blocker_reason || 'adapter_does_not_support_reveal',
+        requested_at: requestedAt,
+        completed_at: new Date().toISOString(),
+      })
+      rerender()
+      return
+    }
+    if (pin.adapter_id === 'aos-canvas-window' && pin.projection?.current_render_status === 'visible') {
+      annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
+        status: 'already_visible',
+        requested_at: requestedAt,
+        completed_at: new Date().toISOString(),
+        projection: pin.projection,
+      })
+      rerender()
+      return
+    }
+    const canvasId = pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface
+    if (!canvasId || canvasId === SELF_ID) {
+      annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
+        status: 'unsupported',
+        blocker_reason: 'missing_reveal_owner_canvas',
+        requested_at: requestedAt,
+        completed_at: new Date().toISOString(),
+      })
+      rerender()
+      return
+    }
+    rerender()
+    try {
+      const result = parseEvalJsonResult(await evalCanvas(canvasId, buildRevealTargetEvalScript({
+        ...buildRevealPayloadForSurfaceInspectorPin(pin),
+      }))) || { status: 'unsupported', blocker_reason: 'invalid_reveal_response' }
+      annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
+        ...result,
+        requested_at: requestedAt,
+      })
+    } catch (error) {
+      annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
+        status: 'adapter_error',
+        blocker_reason: String(error),
+        requested_at: requestedAt,
+        completed_at: new Date().toISOString(),
+      })
+    }
+    rerender()
+  }
+
+  function addCommentFromEditor() {
+    if (!annotationState.editor?.pin_id || !annotationState.editor.text?.trim()) return
+    if (annotationState.editor.mode === 'edit' && annotationState.editor.comment_id) {
+      annotationState = updateSurfaceInspectorComment(annotationState, annotationState.editor.comment_id, annotationState.editor.text)
+    } else {
+      annotationState = addSurfaceInspectorComment(annotationState, annotationState.editor.pin_id, annotationState.editor.text)
+    }
+    rerender()
+  }
+
+  function renderAnnotationEditor() {
+    if (!annotationState.editor) return ''
+    const isEdit = annotationState.editor.mode === 'edit'
+    const value = escapeHTML(annotationState.editor.text || '')
+    return `<div class="annotation-editor" role="dialog" aria-label="${isEdit ? 'Edit annotation comment' : 'Add annotation comment'}">`
+      + `<input class="annotation-editor-input" placeholder="Leave a comment" value="${value}" ${inspectorControlAttrs('annotation-comment-input', { name: 'Leave a comment', action: 'edit_comment_text' })}>`
+      + `<div class="annotation-editor-actions">`
+      + `<button class="btn annotation-editor-cancel" ${inspectorControlAttrs('annotation-editor-cancel', { name: 'Cancel comment edit', action: 'cancel_comment' })}>Cancel</button>`
+      + `<button class="btn annotation-editor-save ${value.trim() ? '' : 'disabled'}" ${value.trim() ? '' : 'disabled'} ${inspectorControlAttrs('annotation-editor-save', { name: isEdit ? 'Update comment' : 'Add Comment', action: isEdit ? 'update_comment' : 'add_comment' })}>${isEdit ? 'Update' : 'Add Comment'}</button>`
+      + `</div></div>`
+  }
+
+  function renderAnnotationConfirm() {
+    const confirmation = annotationState.clear_confirmation
+    if (!confirmation) return ''
+    return `<div class="annotation-confirm" role="alertdialog" aria-label="Confirm destructive annotation clear">`
+      + `<div class="annotation-confirm-message">${esc(confirmation.message || 'Annotations will be lost.')}</div>`
+      + `<div class="annotation-confirm-actions">`
+      + `<button class="btn annotation-confirm-cancel" ${inspectorControlAttrs('annotation-clear-cancel', { name: 'Cancel annotation clear', action: 'cancel_destructive_clear' })}>Cancel</button>`
+      + `<button class="btn annotation-confirm-ok" ${inspectorControlAttrs('annotation-clear-confirm', { name: 'Confirm annotation clear', action: 'confirm_destructive_clear' })}>Confirm</button>`
+      + `</div></div>`
+  }
+
+  function renderAnnotationOverlays() {
+    if (!annotationState.annotation_mode.active && !annotationState.clear_confirmation) return ''
+    return `<div class="annotation-overlay-surface">${renderAnnotationEditor()}${renderAnnotationConfirm()}</div>`
+  }
+
   async function applyTint(id, color) {
     await evalCanvas(id, buildTintEvalScript(color))
   }
@@ -493,14 +1678,25 @@ export default function CanvasInspector() {
       listPaneEl.innerHTML = renderStatusBar()
         + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
     }
+    contentEl.querySelectorAll('.annotation-overlay-surface').forEach((node) => node.remove())
+    const overlay = renderAnnotationOverlays()
+    if (overlay) contentEl.insertAdjacentHTML('beforeend', overlay)
     const nextListRegion = listPaneEl?.querySelector?.('.canvas-list-region')
     if (nextListRegion && !listCollapsed) nextListRegion.scrollTop = priorListScrollTop
+    syncAnnotationHitLayer()
     syncMinimapDynamicLayer()
     syncDebugState()
+    syncControlledAnnotationDisplayOverlays()
+    syncAnnotationActionControlCanvases()
   }
 
   function getMinimapWidth() {
     return Math.max(120, (minimapPaneEl?.clientWidth || contentEl?.clientWidth || 296) - 16)
+  }
+
+  function getMinimapMaxHeight() {
+    const paneHeight = minimapPaneEl?.clientHeight || MINIMAP_PANE_MAX_HEIGHT
+    return Math.max(96, paneHeight - 16)
   }
 
   function minimapCanvases() {
@@ -528,7 +1724,12 @@ export default function CanvasInspector() {
       return ''
     }
 
-    const layout = computeMinimapLayout(displays, list, getMinimapWidth(), { selfId: SELF_ID })
+    const layout = computeMinimapLayout(displays, list, getMinimapWidth(), {
+      selfId: SELF_ID,
+      maxH: getMinimapMaxHeight(),
+      minW: 120,
+      minH: 96,
+    })
     lastMinimapLayout = layout
     if (!layout) return ''
 
@@ -544,12 +1745,15 @@ export default function CanvasInspector() {
       const tintStyle = tint ? `background:${esc(tint)};border-color:${esc(tint)};` : ''
       html += `<div class="${cls}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px;${tintStyle}" title="${esc(c.id)}"></div>`
     }
-    // Object marks: projected CG position, primitive composition at logical w/h.
-    for (const [canvasId, entry] of marksState.marksByCanvas) {
-      for (const m of entry.marks) {
-        const projected = projectPointToMinimap(layout, { x: m.x, y: m.y })
-        if (!projected) continue
-        html += renderMinimapMark(m, projected, { canvasId })
+    html += renderMinimapAnnotationLayer(layout)
+    if (!annotationState.annotation_mode.active) {
+      // Object marks: projected CG position, primitive composition at logical w/h.
+      for (const [canvasId, entry] of marksState.marksByCanvas) {
+        for (const m of entry.marks) {
+          const projected = projectPointToMinimap(layout, { x: m.x, y: m.y })
+          if (!projected) continue
+          html += renderMinimapMark(m, projected, { canvasId })
+        }
       }
     }
     html += `<div class="minimap-dynamic-layer"></div>`
@@ -579,14 +1783,18 @@ export default function CanvasInspector() {
       return renderLocationRow(node.label, depth)
         + renderCursorToggleRow(depth + 1)
         + renderMouseEventsToggleRow(depth + 1)
+        + renderAnnotationModeToggleRow(depth + 1)
+        + renderAnnotationTree(depth + 1)
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'display') {
       return renderLocationRow(node.label, depth)
+        + (depth === 0 ? renderAnnotationModeToggleRow(depth + 1) + renderAnnotationTree(depth + 1) : '')
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'canvas') {
       return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds })
+        + renderSemanticTargetRows(node.canvas.id, depth + 1)
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
     if (node.type === 'mark') {
@@ -611,6 +1819,79 @@ export default function CanvasInspector() {
 
   function renderMouseEventsToggleRow(depth) {
     return renderMouseEventsToggleRowHTML({ depth, enabled: mouseEventsEnabled })
+  }
+
+  function renderAnnotationModeToggleRow(depth) {
+    return renderAnnotationModeToggleRowHTML({ depth, enabled: annotationState.annotation_mode.active })
+  }
+
+  function renderAnnotationTree(depth) {
+    if (!annotationState.annotation_mode.active) return ''
+    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
+    const fallbackActions = renderAnnotationTreeFallbackActions(depth + 1)
+    const scopeControls = renderAnnotationScopeControls(depth + 1)
+    if (rows.length === 0) {
+      const blocker = annotationState.last_projection_blocker?.reason || ''
+      const detail = blocker ? `blocked: ${blocker}` : 'no annotations'
+      return `${scopeControls}<div class="tree-row annotation-empty" style="${indentStyle(depth + 1)}"><span>${esc(detail)}</span></div>${fallbackActions}`
+    }
+    return `<div class="annotation-tree" role="tree">`
+      + scopeControls
+      + rows.map((row) => renderAnnotationTreeRow(row, depth + 1)).join('')
+      + fallbackActions
+      + `</div>`
+  }
+
+  function renderAnnotationTreeFallbackActions(depth) {
+    return ''
+  }
+
+  function renderAnnotationScopeControls(depth) {
+    const stack = annotationState.annotation_scope_stack || []
+    const canBack = stack.length > 0
+    const rootActive = stack.length === 0
+    const crumbs = [
+      `<button class="annotation-scope-crumb ${rootActive ? 'active' : ''}" data-pin-id="" ${inspectorControlAttrs('annotation-scope-root', { name: 'Annotation scope main', action: 'select_annotation_scope_root' })}>main</button>`,
+      ...stack.map((frame, index) => `<button class="annotation-scope-crumb ${index === stack.length - 1 ? 'active' : ''}" data-pin-id="${esc(frame.pin_id)}" ${inspectorControlAttrs(`annotation-scope-${frame.pin_id}`, { name: `Annotation scope ${frame.subject_id}`, action: 'select_annotation_scope' })}>${esc(frame.subject_id)}</button>`),
+    ].join('<span class="annotation-scope-separator">/</span>')
+    return `<div class="tree-row annotation-scope-row" style="${indentStyle(depth)}">`
+      + `<button class="btn annotation-scope-back" ${canBack ? '' : 'disabled'} ${inspectorControlAttrs('annotation-scope-back', { name: 'Back annotation scope', action: 'back_annotation_scope' })}>Back</button>`
+      + `<span class="annotation-scope-crumbs">${crumbs}</span>`
+      + `<button class="btn annotation-clear-anchors" ${inspectorControlAttrs('annotation-clear-anchors', { name: 'Clear anchors', action: 'clear_anchors' })}>Clear anchors</button>`
+      + `</div>`
+  }
+
+  function renderAnnotationTreeRow(row, depth) {
+    const stateLabel = row.projection_state || row.pin?.projection?.current_render_status || 'unsupported'
+    const blocker = row.blocker_text || row.pin?.projection?.blocker_reason || ''
+    if (row.type === 'comment') {
+      return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth)}" title="${esc(blocker || row.comment.text)}">`
+        + `<span class="annotation-comment-dot"></span>`
+        + `<span class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}">${esc(row.comment.text)}</span>`
+        + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
+        + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
+        + `<button class="btn annotation-comment-delete" data-comment-id="${esc(row.comment.id)}" title="Delete comment" ${inspectorControlAttrs(`annotation-delete-${row.comment.id}`, { name: `Delete comment ${row.comment.id}`, action: 'delete_comment' })}>del</button>`
+        + `</div>`
+    }
+    const expanded = row.pin.expanded === true
+    const address = row.frame_address || { compact: row.label, full: row.pin.subject_path.join(' / ') }
+    const label = address.compact
+    return `<div class="tree-row annotation-row pin ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-pin-id="${esc(row.pin.id)}" style="${indentStyle(depth)}" title="${esc(address.full)}">`
+      + `<span class="annotation-pin-dot"></span>`
+      + `<button class="annotation-pin-label" data-pin-id="${esc(row.pin.id)}" ${inspectorControlAttrs(`annotation-pin-${row.pin.id}`, { name: `Frame address ${address.full}`, action: 'select_frame_anchor' })}>${esc(label)}</button>`
+      + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
+      + `<span class="annotation-reveal-capability">${row.can_reveal ? 'revealable' : 'no reveal'}</span>`
+      + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
+      + (row.can_reveal ? `<button class="btn annotation-pin-reveal" data-pin-id="${esc(row.pin.id)}" ${inspectorControlAttrs(`annotation-reveal-${row.pin.id}`, { name: `Reveal Target ${label}`, action: 'reveal_target' })}>Reveal</button>` : '')
+      + `<button class="btn annotation-pin-expand" data-pin-id="${esc(row.pin.id)}" title="Expand frame address" ${inspectorControlAttrs(`annotation-expand-${row.pin.id}`, { name: `Expand frame address ${label}`, action: 'expand_frame_address' })}>${expanded ? 'less' : 'more'}</button>`
+      + `<button class="btn annotation-pin-copy" data-pin-id="${esc(row.pin.id)}" title="Copy full frame address" ${inspectorControlAttrs(`annotation-copy-${row.pin.id}`, { name: `Copy full frame address ${label}`, action: 'copy_full_frame_address' })}>copy</button>`
+      + `<button class="btn annotation-pin-remove" data-pin-id="${esc(row.pin.id)}" title="Remove frame anchor" ${inspectorControlAttrs(`annotation-remove-${row.pin.id}`, { name: `Remove frame anchor ${label}`, action: 'remove_frame_anchor' })}>remove</button>`
+      + (expanded ? `<span class="annotation-full-path">${esc(address.full)}</span>` : '')
+      + `</div>`
+  }
+
+  function renderSemanticTargetRows(canvasId, depth) {
+    return ''
   }
 
   function renderMarkTreeRow(mark, depth) {
@@ -704,9 +1985,79 @@ export default function CanvasInspector() {
     contentEl.addEventListener('click', (event) => {
       const btn = event.target?.closest?.('button')
       if (!btn || !contentEl.contains(btn)) return
+      if (btn.classList.contains('annotation-mode-toggle-btn')) {
+        setAnnotationMode(!annotationState.annotation_mode.active)
+        return
+      }
+      if (btn.classList.contains('annotation-editor-cancel')) {
+        annotationState = createSurfaceInspectorAnnotationState({ ...annotationState, editor: null })
+        rerender()
+        return
+      }
+      if (btn.classList.contains('annotation-editor-save')) {
+        addCommentFromEditor()
+        return
+      }
+      if (btn.classList.contains('annotation-confirm-ok')) {
+        confirmAnnotationClear()
+        return
+      }
+      if (btn.classList.contains('annotation-confirm-cancel')) {
+        cancelAnnotationClear()
+        return
+      }
+      if (btn.classList.contains('annotation-scope-back')) {
+        backAnnotationScope()
+        return
+      }
+      if (btn.classList.contains('annotation-clear-anchors')) {
+        clearAnnotationAnchors()
+        return
+      }
+      if (btn.classList.contains('annotation-scope-crumb')) {
+        annotationState = jumpSurfaceInspectorAnnotationScope(annotationState, btn.dataset.pinId || '')
+        annotationHoverUpdateReason = btn.dataset.pinId ? 'scope_breadcrumb_selected' : 'scope_root_selected'
+        rerender()
+        return
+      }
+      if (btn.classList.contains('annotation-pin-label')) {
+        annotationState = jumpSurfaceInspectorAnnotationScope(selectSurfaceInspectorAnnotationFrame(annotationState, btn.dataset.pinId || ''), btn.dataset.pinId || '')
+        rerender()
+        return
+      }
+      if (btn.classList.contains('annotation-pin-reveal')) {
+        revealAnnotationTarget(btn.dataset.pinId)
+        return
+      }
+      if (btn.classList.contains('annotation-pin-copy')) {
+        const pin = annotationState.pins.find((item) => item.id === btn.dataset.pinId)
+        navigator.clipboard?.writeText?.(pin?.subject_path?.join(' / ') || '')
+        return
+      }
+      if (btn.classList.contains('annotation-pin-expand')) {
+        annotationState = createSurfaceInspectorAnnotationState({
+          ...annotationState,
+          pins: annotationState.pins.map((pin) => (
+            pin.id === btn.dataset.pinId ? { ...pin, expanded: pin.expanded !== true } : pin
+          )),
+        })
+        rerender()
+        return
+      }
+      if (btn.classList.contains('annotation-pin-remove')) {
+        annotationState = unpinSurfaceInspectorFrame(annotationState, btn.dataset.pinId)
+        rerender()
+        return
+      }
+      if (btn.classList.contains('annotation-comment-delete')) {
+        annotationState = deleteSurfaceInspectorComment(annotationState, btn.dataset.commentId)
+        rerender()
+        return
+      }
       if (btn.classList.contains('canvas-list-toggle')) {
         splitController?.toggleSidebar?.()
         listCollapsed = !(splitController?.getSidebarOpen?.() ?? !listCollapsed)
+        if (!listCollapsed) requestSemanticTargetsForLiveCanvases('surface_inspector_refresh', { force: true })
         rerender()
         scheduleSelfResizeToListState()
         return
@@ -730,6 +2081,30 @@ export default function CanvasInspector() {
       if (btn.classList.contains('remove-btn')) {
         emit('canvas.remove', { id: btn.dataset.id })
       }
+    })
+    contentEl.addEventListener('input', (event) => {
+      if (!event.target?.classList?.contains('annotation-editor-input')) return
+      annotationState.editor = {
+        ...(annotationState.editor || { mode: 'new', pin_id: annotationState.active_frame_id }),
+        text: event.target.value,
+      }
+      const save = contentEl.querySelector('.annotation-editor-save')
+      if (save) {
+        save.disabled = !event.target.value.trim()
+        save.classList.toggle('disabled', save.disabled)
+      }
+    })
+    contentEl.addEventListener('dblclick', (event) => {
+      const row = event.target?.closest?.('.annotation-row.pin')
+      if (!row || !contentEl.contains(row)) return
+      const pin = annotationState.pins.find((item) => item.id === row.dataset.pinId)
+      if (pin?.projection?.can_reveal) revealAnnotationTarget(pin.id)
+    })
+    window.addEventListener('keydown', (event) => {
+      if (!annotationState.annotation_mode.active || event.key !== 'Escape') return
+      if ((annotationState.annotation_scope_stack || []).length === 0) return
+      event.preventDefault()
+      backAnnotationScope()
     })
   }
 
@@ -755,6 +2130,20 @@ export default function CanvasInspector() {
       tintedIds.delete(id)
       tintMap.delete(id)
       statsIds.delete(id)
+      annotationActionControlCanvasIds.delete(id)
+      annotationActionControlFrames.delete(id)
+      if ((annotationState.annotation_scope_stack || []).some((frame) => frame.subject_id === id)) {
+        let next = annotationState
+        while ((next.annotation_scope_stack || []).some((frame) => frame.subject_id === id)) {
+          next = popSurfaceInspectorAnnotationScope(next)
+          if ((next.annotation_scope_stack || []).length === 0) break
+        }
+        annotationState = next
+        annotationHoverUpdateReason = 'scope_candidate_removed'
+      }
+      if (annotationState.last_hover_candidate?.id === id) {
+        annotationState = setSurfaceInspectorHoverCandidate(annotationState, null, { reason: 'target_canvas_removed' })
+      }
       evictCanvas(marksState, id)
       return
     }
@@ -775,9 +2164,9 @@ export default function CanvasInspector() {
   return {
     manifest: {
       name: 'canvas-inspector',
-      title: 'Canvas Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_inspector.see_bundle_status'],
-      emits: [],
+      title: 'Surface Inspector',
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
+      emits: ['canvas.send'],
       channelPrefix: 'canvas-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks'],
       defaultSize: { w: 320, h: 480 },
@@ -803,6 +2192,8 @@ export default function CanvasInspector() {
         openSize: LIST_PANE_OPEN_HEIGHT,
         closedSize: LIST_PANE_CLOSED_HEIGHT,
         minMain: 150,
+        maxMain: MINIMAP_PANE_MAX_HEIGHT,
+        maxSidebar: Infinity,
         initiallyOpen: !listCollapsed,
         dividerSize: 8,
         ariaLabel: 'Resize minimap and canvas list',
@@ -827,6 +2218,8 @@ export default function CanvasInspector() {
       }
       bindListEvents()
       emit('canvas_inspector.request_bundle_config')
+      emitAnnotationModeState('bootstrap')
+      requestSemanticTargetsForLiveCanvases('surface_inspector_launch')
       resizeObserver = new ResizeObserver(() => {
         const nextWidth = getMinimapWidth()
         if (nextWidth !== lastMinimapWidth) {
@@ -843,6 +2236,26 @@ export default function CanvasInspector() {
     },
 
     onMessage(msg, _host) {
+      if (msg.type === 'canvas_inspector.annotation_toggle') {
+        if (annotationState.annotation_mode.active) setAnnotationMode(false, { reason: msg.reason || 'shortcut' })
+        else setAnnotationMode(true, { reason: msg.reason || 'shortcut' })
+        return
+      }
+      if (msg.type === 'lifecycle' && msg.action === 'suspend') {
+        if (annotationState.annotation_mode.active || annotationState.clear_confirmation) {
+          annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { confirmed: true, reason: 'surface_inspector_suspended' })
+        }
+        cancelPendingAnnotationHoverRefresh()
+        removeAnnotationRuntimeCanvases()
+        syncInputSubscription({ snapshot: false })
+        emitAnnotationModeState('surface_inspector_suspended')
+        return
+      }
+      if (msg.type === 'canvas_inspector.annotation_display_action') {
+        if (msg.action === 'pin_frame') handleAnnotationActionForCanvas(msg.canvas_id)
+        if (msg.action === 'add_comment') handleAnnotationActionForCanvas(msg.canvas_id, { openEditor: true })
+        return
+      }
       if (msg.type === 'canvas_inspector.see_bundle_status') {
         const payload = msg.payload || msg
         bundleHotkeyLabel = payload.shortcut || bundleHotkeyLabel
@@ -861,10 +2274,18 @@ export default function CanvasInspector() {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)
         if (p.canvases) canvases = p.canvases
+        if (p.semantic_targets || p.targets) normalizeSemanticTargetsPayload(p)
+        requestSemanticTargetsForLiveCanvases('surface_inspector_bootstrap')
         if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
+          nativeCursor = { x: p.cursor.x, y: p.cursor.y, valid: true }
           cursor = nativeToDesktopWorldPoint({ x: p.cursor.x, y: p.cursor.y }, displays) || { x: p.cursor.x, y: p.cursor.y, valid: true }
           cursor.valid = true
         }
+        rerender()
+        return
+      }
+      if (msg.type === 'canvas_inspector.semantic_targets') {
+        normalizeSemanticTargetsPayload(msg.payload || msg)
         rerender()
         return
       }
@@ -883,9 +2304,14 @@ export default function CanvasInspector() {
           : null
         let changed = false
 
-        if ((cursorTrackingEnabled || mouseEventsEnabled) && worldPoint) {
+        if ((cursorTrackingEnabled || mouseEventsEnabled || annotationState.annotation_mode.active) && worldPoint) {
           cursor = { ...worldPoint, valid: true }
+          nativeCursor = hasPoint ? { x: input.x, y: input.y, valid: true } : { x: worldPoint.x, y: worldPoint.y, valid: true }
           changed = cursorTrackingEnabled
+        }
+        if (annotationState.annotation_mode.active && worldPoint && input.type === 'mouse_moved') {
+          scheduleAnnotationHoverRefresh('mouse_moved')
+          changed = true
         }
         if (mouseEventsEnabled && applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
           changed = true
@@ -893,12 +2319,15 @@ export default function CanvasInspector() {
         if (changed) {
           syncMinimapDynamicLayer(now)
           syncDebugState()
+          syncControlledAnnotationDisplayOverlays()
+          syncAnnotationActionControlCanvases()
         }
         return
       }
       if (msg.type === 'canvas_lifecycle') {
         eventCount++
         applyLifecycle(msg.payload || msg.data || msg)
+        requestSemanticTargetsForLiveCanvases('surface_inspector_lifecycle')
         rerender()
         return
       }

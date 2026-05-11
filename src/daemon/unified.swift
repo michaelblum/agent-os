@@ -4,6 +4,74 @@ import AppKit
 import Darwin
 import Foundation
 
+private let inputSafetyLogCanvasID = "__log__"
+private let inputSafetyLogConsoleURL = "aos://toolkit/components/log-console/index.html"
+
+private final class DaemonInputSafetyVisualFeedbackRuntime: InputSafetyVisualFeedbackRuntime {
+    private let canvasManager: CanvasManager
+
+    init(canvasManager: CanvasManager) {
+        self.canvasManager = canvasManager
+    }
+
+    func logConsoleExists() -> Bool {
+        canvasManager.hasCanvas(inputSafetyLogCanvasID)
+    }
+
+    func createLogConsole() -> Bool {
+        let mainBounds = CGDisplayBounds(CGMainDisplayID())
+        let width: CGFloat = 450
+        let height: CGFloat = 300
+        var request = CanvasRequest(
+            action: "create",
+            id: inputSafetyLogCanvasID,
+            at: [20, mainBounds.height - height - 20, width, height],
+            url: inputSafetyLogConsoleURL,
+            interactive: false,
+            focus: false,
+            scope: "global",
+            owner: CanvasOwnerInfo(
+                consumerID: "daemon.input-safety",
+                harness: "daemon",
+                pid: Int(getpid()),
+                cwd: FileManager.default.currentDirectoryPath,
+                worktreeRoot: aosRepoRootFromBases([FileManager.default.currentDirectoryPath]),
+                runtimeMode: aosCurrentRuntimeMode().rawValue
+            )
+        )
+        request.windowLevel = "floating"
+        let response = canvasManager.handle(request)
+        return response.status == "success"
+    }
+
+    func resumeLogConsole() {
+        let request = CanvasRequest(action: "resume", id: inputSafetyLogCanvasID)
+        _ = canvasManager.handle(request)
+    }
+
+    func bringLogConsoleForward() {
+        let request = CanvasRequest(action: "to-front", id: inputSafetyLogCanvasID)
+        _ = canvasManager.handle(request)
+    }
+
+    func sendCountdown(remaining: Int, deadline: Date, active: Bool) {
+        canvasManager.postMessageAsync(canvasID: inputSafetyLogCanvasID, payload: [
+            "type": "log/input_safety_countdown",
+            "payload": [
+                "title": "AOS input passthrough",
+                "remaining": remaining,
+                "deadline": ISO8601DateFormatter().string(from: deadline),
+                "active": active,
+            ],
+        ])
+    }
+
+    func removeLogConsole() {
+        let request = CanvasRequest(action: "remove", id: inputSafetyLogCanvasID)
+        _ = canvasManager.handle(request)
+    }
+}
+
 class UnifiedDaemon {
     let socketPath: String
     let config: AosConfig
@@ -17,6 +85,9 @@ class UnifiedDaemon {
     let perception: PerceptionEngine
     let spatial = SpatialModel()
     let canvasManager = CanvasManager()
+    private lazy var inputSafetyVisualFeedbackPresenter = InputSafetyVisualFeedbackPresenter(
+        runtime: DaemonInputSafetyVisualFeedbackRuntime(canvasManager: canvasManager)
+    )
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
@@ -71,6 +142,7 @@ class UnifiedDaemon {
     // renderer on boot to resume the avatar where the user last left it.
     // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
     var configChangeHandler: ((AosConfig) -> Void)?
+    var canvasInspectorAnnotationModeHandler: ((Bool) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
 
@@ -141,6 +213,9 @@ class UnifiedDaemon {
         }
         perception.onInputEvent = { [weak self] event, data in
             self?.handleInputEvent(event: event, data: data) ?? false
+        }
+        perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
+            self?.inputSafetyVisualFeedbackPresenter.trigger(deadline: deadline)
         }
 
         // Wire canvas events -> broadcast
@@ -239,6 +314,12 @@ class UnifiedDaemon {
                 case "canvas_inspector.request_bundle_config":
                     self.sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
                     return
+                case "canvas_inspector.annotation_state":
+                    let active = (inner?["annotation_mode_active"] as? Bool) ?? false
+                    DispatchQueue.main.async { [weak self] in
+                        self?.canvasInspectorAnnotationModeHandler?(active)
+                    }
+                    return
                 default:
                     break
                 }
@@ -251,6 +332,12 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
+            if canvasInfo.id == "canvas-inspector",
+               action == "removed" || canvasInfo.suspended == true {
+                DispatchQueue.main.async { [weak self] in
+                    self?.canvasInspectorAnnotationModeHandler?(false)
+                }
+            }
 
             // Drop event subscriptions when the canvas is gone.
             if action == "removed" {
@@ -1651,6 +1738,27 @@ class UnifiedDaemon {
             } else {
                 lastErrorAt = NSNull()
             }
+            let safetyShortcutSnapshot = perception.inputSafetyHotkeySnapshot
+            let panicUntil: Any
+            if let until = safetyShortcutSnapshot.until {
+                panicUntil = ISO8601DateFormatter().string(from: until)
+            } else {
+                panicUntil = NSNull()
+            }
+            let panicTrigger: Any
+            if let trigger = safetyShortcutSnapshot.trigger {
+                panicTrigger = trigger
+            } else {
+                panicTrigger = NSNull()
+            }
+            let visualSnapshot = inputSafetyVisualFeedbackPresenter.snapshot()
+            let visualDeadline: Any
+            if let deadline = visualSnapshot.deadline {
+                visualDeadline = ISO8601DateFormatter().string(from: deadline)
+            } else {
+                visualDeadline = NSNull()
+            }
+            let visualLastRemaining: Any = visualSnapshot.lastDisplayedRemaining ?? NSNull()
 
             var response: [String: Any] = [
                 "status": "ok",
@@ -1671,6 +1779,20 @@ class UnifiedDaemon {
                     "listen_access": perception.inputTapListenAccess,
                     "post_access": perception.inputTapPostAccess,
                     "last_error_at": lastErrorAt,
+                    // Compatibility fields: historically named panic_*.
+                    "panic_passthrough_active": safetyShortcutSnapshot.active,
+                    "panic_passthrough_until": panicUntil,
+                    "panic_trigger": panicTrigger,
+                    "panic_trigger_count": safetyShortcutSnapshot.triggerCount,
+                    "input_safety_visual_feedback": [
+                        "active": visualSnapshot.active,
+                        "reused_existing_log_console": visualSnapshot.reusedExistingLogConsole,
+                        "created_log_console": visualSnapshot.createdLogConsole,
+                        "countdown_deadline": visualDeadline,
+                        "last_displayed_remaining": visualLastRemaining,
+                        "cleanup_pending": visualSnapshot.cleanupPending,
+                        "cleanup_complete": visualSnapshot.cleanupComplete,
+                    ],
                 ] as [String: Any],
                 // New nested permissions block (daemon-sourced)
                 "permissions": [
@@ -2201,13 +2323,14 @@ class UnifiedDaemon {
     }
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {
+        let annotationConsumed = maybeHandleCanvasInspectorAnnotationHotkey(event: event, data: data)
         let inspectorConsumed = maybeHandleCanvasInspectorSeeBundleHotkey(event: event, data: data)
         let genericConsumed = shouldConsumeGenericAOSInputEvent(event: event, data: data)
         let shouldConsume = shouldConsumeSigilInputEvent(event: event, data: data)
-        if !inspectorConsumed {
+        if !inspectorConsumed && !annotationConsumed {
             broadcastInputEvent(service: "input", event: "input_event", data: data)
         }
-        return inspectorConsumed || genericConsumed || shouldConsume
+        return annotationConsumed || inspectorConsumed || genericConsumed || shouldConsume
     }
 
     private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {

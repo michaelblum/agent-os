@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/surface-hit-test-inspect-v0.schema.json",
+  "title": "Surface Hit-Test Inspect Report V0",
+  "description": "Structured local inspect report that resolves a pointer-like point inside a known surface to target candidates, selects the deepest candidate, creates an annotation draft, and emits an Annotation Perception Verification seed.",
+  "type": "object",
+  "required": ["schema", "version", "created_at", "summary", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "surface_hit_test_inspect" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "summary": {
+      "type": "object",
+      "required": ["status", "total_cases", "passed", "failed", "blocked", "adapter_fixture_only", "verification_seed_count", "verification_passed", "verification_failed"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["passed", "failed", "blocked"] },
+        "total_cases": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "adapter_fixture_only": { "type": "integer", "minimum": 0 },
+        "verification_seed_count": { "type": "integer", "minimum": 0 },
+        "verification_passed": { "type": "integer", "minimum": 0 },
+        "verification_failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Case" }
+    }
+  },
+  "$defs": {
+    "Rect": {
+      "type": ["object", "null"],
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y", "coordinate_space"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "coordinate_space": { "type": "string", "minLength": 1 }
+      }
+    },
+    "SurfaceBinding": {
+      "type": "object",
+      "required": ["surface_id", "surface_type", "source_path", "source_url", "subject_id", "canvas_id", "window_id", "tab_id"],
+      "additionalProperties": false,
+      "properties": {
+        "surface_id": { "type": "string", "minLength": 1 },
+        "surface_type": { "type": "string", "minLength": 1 },
+        "source_path": { "type": ["string", "null"] },
+        "source_url": { "type": ["string", "null"] },
+        "subject_id": { "type": ["string", "null"] },
+        "canvas_id": { "type": ["string", "null"] },
+        "window_id": { "type": ["string", "null"] },
+        "tab_id": { "type": ["string", "null"] }
+      }
+    },
+    "SourceIds": {
+      "type": "object",
+      "required": ["canvas_id", "surface_id", "window_id", "display_id", "subject_id", "adapter_subject_id"],
+      "additionalProperties": false,
+      "properties": {
+        "canvas_id": { "type": ["string", "null"] },
+        "surface_id": { "type": ["string", "null"] },
+        "window_id": { "type": ["string", "null"] },
+        "display_id": { "type": ["string", "null"] },
+        "subject_id": { "type": ["string", "null"] },
+        "adapter_subject_id": { "type": ["string", "null"] }
+      }
+    },
+    "Bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "viewport": { "$ref": "#/$defs/Rect" },
+        "document": { "$ref": "#/$defs/Rect" },
+        "page": { "$ref": "#/$defs/Rect" },
+        "desktop_world": { "$ref": "#/$defs/Rect" },
+        "parent_local": { "$ref": "#/$defs/Rect" },
+        "image": { "$ref": "#/$defs/Rect" },
+        "lcs": { "$ref": "#/$defs/Rect" },
+        "screen_projected": { "$ref": "#/$defs/Rect" }
+      }
+    },
+    "Adapter": {
+      "type": "object",
+      "required": ["id", "type", "metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "Candidate": {
+      "type": "object",
+      "required": ["id", "path", "kind", "label", "depth", "ancestor_chain", "role", "text", "source_ids", "source_metadata", "bounds", "hit_test_status", "adapter", "confidence", "child_discovery", "capabilities", "blockers", "reasons", "selector_candidates", "text_range", "request_coordinate_space"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "depth": { "type": "integer", "minimum": 0 },
+        "ancestor_chain": { "type": "array", "items": { "type": "string" } },
+        "role": { "type": ["string", "null"] },
+        "text": { "type": ["string", "null"] },
+        "source_ids": { "$ref": "#/$defs/SourceIds" },
+        "source_metadata": { "type": "object", "additionalProperties": true },
+        "bounds": { "$ref": "#/$defs/Bounds" },
+        "hit_test_status": { "enum": ["hit", "miss", "blocked", "unsupported", "ambiguous"] },
+        "adapter": { "$ref": "#/$defs/Adapter" },
+        "confidence": { "type": "number" },
+        "child_discovery": { "type": "string" },
+        "capabilities": { "type": "object", "additionalProperties": true },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "reasons": { "type": "array", "items": { "type": "string" } },
+        "selector_candidates": { "type": "array", "items": { "type": "string" } },
+        "text_range": {},
+        "request_coordinate_space": { "type": "string" }
+      }
+    },
+    "CaseSummary": {
+      "type": "object",
+      "required": ["status", "candidate_count", "hit_count", "selected_path", "ambiguous", "ambiguous_candidate_paths", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["passed", "failed", "blocked"] },
+        "candidate_count": { "type": "integer", "minimum": 0 },
+        "hit_count": { "type": "integer", "minimum": 0 },
+        "selected_path": { "type": ["string", "null"] },
+        "ambiguous": { "type": "boolean" },
+        "ambiguous_candidate_paths": { "type": "array", "items": { "type": "string" } },
+        "blockers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Case": {
+      "type": "object",
+      "required": ["schema", "version", "created_at", "case_id", "surface_class", "request", "surface", "candidates", "selected_candidate", "annotation_draft", "verification_seed", "summary", "blockers", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": "surface_hit_test_inspect" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "case_id": { "type": "string", "minLength": 1 },
+        "surface_class": { "type": "string", "minLength": 1 },
+        "request": {
+          "type": "object",
+          "required": ["surface_binding", "point", "active_surface_path", "selected_surface_id", "requested_adapter_type", "allowed_target_kinds"],
+          "additionalProperties": false,
+          "properties": {
+            "surface_binding": { "$ref": "#/$defs/SurfaceBinding" },
+            "point": { "$ref": "#/$defs/Point" },
+            "active_surface_path": { "type": ["string", "null"] },
+            "selected_surface_id": { "type": ["string", "null"] },
+            "requested_adapter_type": { "type": "string" },
+            "allowed_target_kinds": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "surface": {
+          "type": "object",
+          "required": ["selected_surface_path", "surface_id", "surface_type", "source_ids", "viewport", "bounds", "adapter", "adapter_fixture_only", "content_fingerprint"],
+          "additionalProperties": false,
+          "properties": {
+            "selected_surface_path": { "type": ["string", "null"] },
+            "surface_id": { "type": "string" },
+            "surface_type": { "type": "string" },
+            "source_ids": { "$ref": "#/$defs/SourceIds" },
+            "viewport": { "type": "object", "additionalProperties": true },
+            "bounds": { "$ref": "#/$defs/Bounds" },
+            "adapter": {
+              "type": "object",
+              "required": ["id", "type", "fixture_only"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "type": { "type": "string" },
+                "fixture_only": { "type": "boolean" }
+              }
+            },
+            "adapter_fixture_only": { "type": "boolean" },
+            "content_fingerprint": { "type": ["string", "number", "boolean", "object", "array", "null"] }
+          }
+        },
+        "candidates": { "type": "array", "items": { "$ref": "#/$defs/Candidate" } },
+        "selected_candidate": { "oneOf": [{ "$ref": "#/$defs/Candidate" }, { "type": "null" }] },
+        "annotation_draft": { "type": ["object", "null"], "additionalProperties": true },
+        "verification_seed": { "type": ["object", "null"], "additionalProperties": true },
+        "summary": { "$ref": "#/$defs/CaseSummary" },
+        "blockers": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

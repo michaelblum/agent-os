@@ -5,6 +5,7 @@ import {
   chipFrameFromWindow,
   createDragController,
   createMaximizeController,
+  createMinimizeController,
   createResizeController,
   dragFrameFromPointer,
   frameFromWindow,
@@ -287,6 +288,147 @@ test('createMaximizeController can use top-left inferred display work area', () 
   assert.deepEqual(frame, [1512, 0, 1920, 1040]);
   controller.restore();
   assert.deepEqual(frame, [1520, 80, 600, 420]);
+});
+
+test('createMinimizeController creates a hidden chip, suspends source, then shows the chip with pre-maximize restore frame', async () => {
+  let frame = [40, 70, 500, 360];
+  const maximize = createMaximizeController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+    },
+  });
+  maximize.maximize();
+  assert.deepEqual(frame, [0, 33, 1512, 949]);
+  assert.deepEqual(maximize.getState().restoreFrame, [40, 70, 500, 360]);
+
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => frame,
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl({ target, title, restoreFrame, chipId, chipFrame }) {
+      assert.equal(target, 'panel-a');
+      assert.equal(title, 'Surface Inspector');
+      assert.equal(chipId, 'aos-chip-panel-a-rs');
+      assert.deepEqual(restoreFrame, [40, 70, 500, 360]);
+      assert.deepEqual(chipFrame, [10, 43, 220, 38]);
+      return 'aos://toolkit/panel/minimized-chip.html?target=panel-a';
+    },
+    async spawn(opts) {
+      calls.push(['spawn', opts]);
+    },
+    async suspend(id) {
+      calls.push(['suspend', id]);
+    },
+    async resume(id) {
+      calls.push(['resume', id]);
+    },
+    async remove(id) {
+      calls.push(['remove', id]);
+    },
+    maximizeController: maximize,
+    now: () => 1000,
+  });
+
+  const result = await controller.minimize({ title: 'Surface Inspector' });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.inFlight, false);
+  assert.equal(controller.getState().inFlight, false);
+  assert.equal(controller.getState().targetSuspendSucceeded, true);
+  assert.equal(controller.getState().rollbackRemovedChip, false);
+  assert.deepEqual(controller.getState().restoreFrame, [40, 70, 500, 360]);
+  assert.deepEqual(calls.map((entry) => entry[0]), ['spawn', 'suspend', 'resume']);
+  assert.deepEqual(calls[0][1], {
+    id: 'aos-chip-panel-a-rs',
+    url: 'aos://toolkit/panel/minimized-chip.html?target=panel-a',
+    frame: [10, 43, 220, 38],
+    interactive: true,
+    focus: false,
+    parent: 'panel-a',
+    cascade: false,
+    suspended: true,
+  });
+  assert.deepEqual(calls[1], ['suspend', 'panel-a']);
+  assert.deepEqual(calls[2], ['resume', 'aos-chip-panel-a-rs']);
+  assert.deepEqual(maximize.getState(), { maximized: false, restoreFrame: null });
+});
+
+test('createMinimizeController ignores duplicate minimize while a source suspend is in flight', async () => {
+  let resolveSuspend;
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async spawn(opts) {
+      calls.push(['spawn', opts.id]);
+    },
+    suspend(id) {
+      calls.push(['suspend', id]);
+      return new Promise((resolve) => {
+        resolveSuspend = resolve;
+      });
+    },
+    async resume(id) {
+      calls.push(['resume', id]);
+    },
+    now: () => 1000,
+  });
+
+  const first = controller.minimize({ title: 'Panel' });
+  const duplicate = await controller.minimize({ title: 'Panel' });
+  assert.equal(duplicate.status, 'ignored_in_flight');
+  assert.equal(controller.getState().inFlight, true);
+  assert.equal(calls.filter((entry) => entry[0] === 'spawn').length, 1);
+  assert.equal(calls.filter((entry) => entry[0] === 'suspend').length, 1);
+
+  resolveSuspend();
+  await first;
+
+  assert.deepEqual(calls.map((entry) => entry[0]), ['spawn', 'suspend', 'resume']);
+  assert.equal(controller.getState().status, 'success');
+  assert.equal(controller.getState().inFlight, false);
+});
+
+test('createMinimizeController removes the hidden chip when source suspend fails', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async spawn(opts) {
+      calls.push(['spawn', opts.id, opts.suspended]);
+    },
+    async suspend(id) {
+      calls.push(['suspend', id]);
+      throw new Error('SUSPEND_FAILED');
+    },
+    async resume(id) {
+      calls.push(['resume', id]);
+    },
+    async remove(id, opts) {
+      calls.push(['remove', id, opts]);
+    },
+    now: () => 1000,
+  });
+
+  await assert.rejects(() => controller.minimize({ title: 'Panel' }), /SUSPEND_FAILED/);
+
+  assert.deepEqual(calls, [
+    ['spawn', 'aos-chip-panel-a-rs', true],
+    ['suspend', 'panel-a'],
+    ['remove', 'aos-chip-panel-a-rs', { orphan_children: true }],
+  ]);
+  assert.equal(controller.getState().status, 'failed');
+  assert.equal(controller.getState().targetSuspendSucceeded, false);
+  assert.equal(controller.getState().rollbackRemovedChip, true);
+  assert.equal(controller.getState().inFlight, false);
+  assert.match(controller.getState().error, /SUSPEND_FAILED/);
 });
 
 test('minimized chip restore keeps saved frame when chip and panel share a display', () => {
