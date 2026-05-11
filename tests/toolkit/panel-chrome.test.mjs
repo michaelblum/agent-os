@@ -560,6 +560,35 @@ test('drag end clamps to the cursor display instead of a seam-adjacent top-left 
   assert.deepEqual(frame, [100, 1012, 320, 480]);
 });
 
+test('drag end clamps daemon-reported frame instead of stale display-local WebKit pointer frame', () => {
+  let frame = [1333, 1130, 360, 230];
+  const updates = [];
+  const controller = createDragController({
+    move() {
+      // Native move_abs uses the real AppKit mouse position. On lower
+      // displays, WebKit can still report display-local screenY to JS.
+      frame = [1300, 1550, 360, 230];
+    },
+    getFrame: () => frame,
+    getWorkArea: (nextFrame) => workAreaForFrameTopLeft(nextFrame, stackedDisplays),
+    getDragWorkArea: (nextFrame, pointer) => (
+      workAreaForPoint(pointer, stackedDisplays, workAreaForFrameTopLeft(nextFrame, stackedDisplays))
+    ),
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+      updates.push(nextFrame);
+    },
+    clampOnEnd: true,
+  });
+
+  controller.start({ pointerId: 1, clientX: 60, clientY: 20, screenX: 1393, screenY: 1150 });
+  controller.move({ pointerId: 1, screenX: 1360, screenY: 80 });
+  controller.end({ pointerId: 1, screenX: 1360, screenY: 1570 });
+
+  assert.deepEqual(updates, []);
+  assert.deepEqual(frame, [1300, 1550, 360, 230]);
+});
+
 test('createResizeController updates frames from pointer deltas', () => {
   let frame = [100, 100, 400, 300];
   const updates = [];
@@ -759,6 +788,83 @@ test('wireDrag follows daemon input events while the cursor leaves the canvas', 
   sendInput({ type: 'input_event', payload: { type: 'left_mouse_up', x: 500, y: 1040 } });
   assert.equal(controller.getState().active, false);
   assert.equal('dragging' in header.dataset, false);
+  assert.deepEqual(emitted.map((message) => message.type), [
+    'drag_start',
+    'subscribe',
+    'drag_end',
+    'unsubscribe',
+  ]);
+});
+
+test('wireDrag does not use DOM pointermove coordinates for global panel placement', async (t) => {
+  const previousNode = globalThis.Node;
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.Node = FakeNode;
+  const emitted = [];
+  globalThis.window = {
+    headsup: {},
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            emitted.push(message);
+          },
+        },
+      },
+    },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.Node = previousNode;
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const header = new FakeElement();
+  const controls = new FakeElement();
+  const starts = [];
+  const moves = [];
+  const ends = [];
+  const controller = {
+    start(pointer) {
+      starts.push(pointer);
+      return { active: true };
+    },
+    move(pointer) {
+      moves.push(pointer);
+      return { active: true };
+    },
+    end(pointer) {
+      ends.push(pointer);
+      return { active: false };
+    },
+    getState() {
+      return { active: starts.length > ends.length };
+    },
+  };
+  wireDrag(header, controls, { controller });
+
+  header.dispatch('pointerdown', {
+    button: 0,
+    pointerId: 7,
+    clientX: 24,
+    clientY: 10,
+    screenX: 1393,
+    screenY: 1150,
+    target: header,
+  });
+  header.dispatch('pointermove', { pointerId: 7, screenX: 1360, screenY: 80 });
+
+  const sendInput = (message) => {
+    window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
+  };
+  sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 1360, y: 1570 } });
+  header.dispatch('pointerup', { pointerId: 7, screenX: 1360, screenY: 80 });
+
+  assert.equal(starts.length, 1);
+  assert.deepEqual(moves, [{ pointerId: 7, screenX: 1360, screenY: 1570, source: 'input_event' }]);
+  assert.deepEqual(ends, [{ pointerId: 7, screenX: 1360, screenY: 1570, source: 'input_event' }]);
   assert.deepEqual(emitted.map((message) => message.type), [
     'drag_start',
     'subscribe',

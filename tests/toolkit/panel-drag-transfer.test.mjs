@@ -26,6 +26,20 @@ const displays = [
   },
 ]
 
+const stackedDisplays = [
+  {
+    id: 'extended-bottom',
+    native_bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+    native_visible_bounds: { x: -207, y: 1012, w: 1920, h: 976 },
+  },
+  {
+    id: 'main-top',
+    native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    native_visible_bounds: { x: 0, y: 33, w: 1512, h: 949 },
+    is_main: true,
+  },
+]
+
 test('computePanelTransfer returns a destination-display outline in DesktopWorld coordinates', () => {
   const transfer = computePanelTransfer(displays, {
     frame: [100, 80, 500, 360],
@@ -175,6 +189,25 @@ test('createDragController applies transfer release frame before fallback clamp'
   assert.deepEqual(frame, [1440, 20, 500, 360])
   assert.equal(states.find((state) => state.phase === 'move')?.transferActive, true)
   assert.equal(states.at(-1)?.transferActive, false)
+})
+
+test('createDragController starts transfer ownership from the frame, not stale DOM pointer coordinates', () => {
+  let frame = [1300, 1550, 360, 230]
+  const transferController = createPanelTransferController({
+    enabled: true,
+    layerId: 'outline',
+    getDisplays: () => stackedDisplays,
+    sendStageMessage() {},
+  })
+  const controller = createDragController({
+    getFrame: () => frame,
+    move() {},
+    transferController,
+  })
+
+  controller.start({ pointerId: 1, clientX: 60, clientY: 20, screenX: 1360, screenY: 80 })
+
+  assert.equal(transferController.getState().originDisplayId, 'extended-bottom')
 })
 
 test('createDragController resumes direct drag once the destination display can contain the panel', () => {

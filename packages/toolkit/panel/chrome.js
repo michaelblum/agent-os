@@ -307,7 +307,7 @@ export function createDragController({
         lastPointer: startPoint,
       }
       frame = cloneFrame(active.frame)
-      panelTransfer?.start({ frame, pointer })
+      panelTransfer?.start({ frame })
       return notify({ phase: 'start' })
     },
     move(pointer = {}) {
@@ -336,13 +336,20 @@ export function createDragController({
     end(pointer = {}) {
       if (!active) return state({ phase: 'idle' })
       const releasePointer = screenPoint(pointer) || active.lastPointer
+      const startFrame = cloneFrame(active.frame)
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
         frame = cloneFrame(transferResult.nativeFrame)
         updateFrame(frame)
       } else if (clampOnEnd) {
-        frame = cloneFrame(frame)
+        const actualFrame = cloneFrame(getFrame())
+        // WKWebView exposes display-local pointer screenY values on some
+        // extended-display arrangements, while the daemon moves canvases with
+        // native desktop coordinates. Prefer the daemon-reported frame at drag
+        // release so the final visibility clamp does not snap a correctly moved
+        // panel back to the display's menu-bar edge.
+        frame = framesEqual(actualFrame, startFrame) ? cloneFrame(frame) : actualFrame
         const clamped = clampFrameToWorkArea(frame, {
           workArea: getDragWorkArea(frame, releasePointer),
           minVisibleWidth,
@@ -794,6 +801,7 @@ export function wireDrag(header, controlsEl, {
   let activePointerId = null
   let finishDrag = null
   let inputBridgeInstalled = false
+  let lastGlobalPointer = null
 
   function installInputBridge() {
     if (inputBridgeInstalled || !globalInput) return
@@ -805,16 +813,17 @@ export function wireDrag(header, controlsEl, {
       const eventType = input.type || input.eventKind || input.sourceEvent
       const x = Number(input.x)
       const y = Number(input.y)
+      const globalPointer = Number.isFinite(x) && Number.isFinite(y)
+        ? { pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' }
+        : null
       if ((eventType === 'left_mouse_dragged' || eventType === 'mouse_moved') && Number.isFinite(x) && Number.isFinite(y)) {
-        dragController.move({
-          pointerId: activePointerId,
-          screenX: x,
-          screenY: y,
-        })
+        lastGlobalPointer = globalPointer
+        dragController.move(globalPointer)
         return
       }
       if (eventType === 'left_mouse_up' || eventType === 'pointer_cancel' || eventType === 'mouse_cancel') {
-        finishDrag({ pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' })
+        if (globalPointer) lastGlobalPointer = globalPointer
+        finishDrag(globalPointer || lastGlobalPointer || { pointerId: activePointerId, source: 'input_event' })
       }
     })
   }
@@ -840,6 +849,7 @@ export function wireDrag(header, controlsEl, {
 
     const onMove = (ev) => {
       if (ev.pointerId !== pointerId) return
+      if (globalInput) return
       dragController.move(ev)
     }
 
@@ -855,6 +865,9 @@ export function wireDrag(header, controlsEl, {
 
     finishDrag = (ev) => {
       if (!finishDrag) return
+      const releasePointer = globalInput && ev?.source !== 'input_event'
+        ? lastGlobalPointer || ev
+        : ev
       delete header.dataset.dragging
       header.removeEventListener('pointermove', onMove)
       header.removeEventListener('pointerup', onUp)
@@ -863,11 +876,12 @@ export function wireDrag(header, controlsEl, {
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
-      dragController.end(ev)
+      dragController.end(releasePointer)
       emit('drag_end')
       if (globalInput) unsubscribe(['input_event'])
       activePointerId = null
       finishDrag = null
+      lastGlobalPointer = null
       onEnd?.(ev, dragController)
     }
 
