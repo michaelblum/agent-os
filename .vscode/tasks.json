@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "AOS Docks: Open Foreman + GDI + Operator",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "AOS Dock: Foreman",
+        "AOS Dock: GDI",
+        "AOS Dock: Operator"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "AOS Dock: Foreman",
+      "type": "shell",
+      "command": "/bin/zsh",
+      "args": [
+        "-lc",
+        "cd '${workspaceFolder}/.docks/foreman' && exec codex"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "AOS_DOCK_NAME": "foreman",
+          "AOS_DOCK_REPO_ROOT": "${workspaceFolder}"
+        }
+      },
+      "presentation": {
+        "group": "aos-docks",
+        "panel": "dedicated",
+        "focus": true,
+        "echo": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "AOS Dock: GDI",
+      "type": "shell",
+      "command": "/bin/zsh",
+      "args": [
+        "-lc",
+        "cd '${workspaceFolder}/.docks/gdi' && exec codex"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "AOS_DOCK_NAME": "gdi",
+          "AOS_DOCK_REPO_ROOT": "${workspaceFolder}"
+        }
+      },
+      "presentation": {
+        "group": "aos-docks",
+        "panel": "dedicated",
+        "focus": false,
+        "echo": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "AOS Dock: Operator",
+      "type": "shell",
+      "command": "/bin/zsh",
+      "args": [
+        "-lc",
+        "cd '${workspaceFolder}/.docks/operator' && exec codex"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "AOS_DOCK_NAME": "operator",
+          "AOS_DOCK_REPO_ROOT": "${workspaceFolder}"
+        }
+      },
+      "presentation": {
+        "group": "aos-docks",
+        "panel": "dedicated",
+        "focus": false,
+        "echo": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}
