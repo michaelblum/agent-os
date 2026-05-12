@@ -200,9 +200,12 @@ idle keyboard/mouse. It opens Sigil through the status item, uses real cursor
 movement and drag input to reveal the radial menu, verifies the radial child
 surface through AOS semantic targets, and removes `avatar-main`,
 `sigil-hit-avatar-main`, `sigil-radial-menu-avatar-main`, and
-`sigil-radial-harness-inspector` on exit. If the run fails, use the structured
-diagnostics it prints before escalating to screenshots, pixel checks, or HITL
-inspection.
+`sigil-radial-harness-inspector` on exit. Passing runs print a compact `PASS`
+summary with the scenario, canvas ids, key semantic proof fields, travel count,
+and artifact path. Full proof JSON and failure diagnostics are written under
+`${AOS_REAL_INPUT_ARTIFACT_DIR:-${TMPDIR:-/tmp}/aos-real-input-artifacts}` unless
+the caller overrides `AOS_REAL_INPUT_ARTIFACT_DIR`; use the reported artifact
+before escalating to screenshots, pixel checks, or HITL inspection.
 
 For live or manual Sigil checks after source edits, do not trust an already-open
 `avatar-main` unless its debug runtime snapshot proves it was reloaded after the

@@ -12,8 +12,12 @@ aos_sigil_radial_verify_real_input() {
 
   python3 - "$aos_bin" "$avatar_id" "$inspector_id" "$scenario" "$SIGIL_RADIAL_LIB_DIR/.." <<'PY'
 import json
+import os
 import sys
+import tempfile
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 
 aos, avatar_id, inspector_id, scenario, tests_lib_dir = sys.argv[1:6]
 sys.path.insert(0, tests_lib_dir)
@@ -24,6 +28,88 @@ aos_client = ris.AOS(aos)
 pointer = ris.RealPointer(aos_client)
 radial_id = f"sigil-radial-menu-{avatar_id}"
 required_semantic_targets = {"context-menu", "wiki-graph"}
+timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def slug(value):
+    return "".join(char if char.isalnum() or char in ("-", "_") else "-" for char in str(value)).strip("-") or "unknown"
+
+
+artifact_dir = Path(os.environ.get("AOS_REAL_INPUT_ARTIFACT_DIR") or Path(tempfile.gettempdir()) / "aos-real-input-artifacts")
+artifact_path = artifact_dir / f"sigil-radial-real-input-{slug(scenario)}-{slug(avatar_id)}-{int(time.time() * 1000)}-{os.getpid()}.json"
+
+
+def write_artifact(kind, payload):
+    artifact = {
+        "kind": kind,
+        "scenario": scenario,
+        "timestamp": timestamp,
+        "canvasIds": {
+            "avatar": avatar_id,
+            "inspector": inspector_id,
+            "radialSurface": radial_id,
+        },
+        kind: payload,
+    }
+    try:
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path = artifact_path.with_suffix(artifact_path.suffix + ".tmp")
+        tmp_path.write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        tmp_path.replace(artifact_path)
+    except Exception as error:
+        raise SystemExit(f"FAIL scenario={scenario} artifactWriteError={error}") from error
+    return str(artifact_path)
+
+
+def primary_error(error):
+    message = str(error)
+    if message.startswith("FAIL: "):
+        message = message[6:]
+    for marker in (": {", ": ["):
+        if marker in message:
+            return message.split(marker, 1)[0]
+    return message or error.__class__.__name__
+
+
+def compact_success(proof, artifact):
+    semantic = proof.get("semanticProof") or {}
+    expected = proof.get("expectedAction") or {}
+    wiki_workbench = expected.get("wikiWorkbench") or {}
+    surface = proof.get("surface") or {}
+    radial_surface = surface.get("surface") or {}
+    path_plan = proof.get("pathPlan") or {}
+    return {
+        "scenario": scenario,
+        "avatarId": avatar_id,
+        "radialSurfaceId": radial_surface.get("id") or semantic.get("surface") or radial_id,
+        "artifact": artifact,
+        "semanticTargetIds": semantic.get("targetIds") or surface.get("targetIds") or [],
+        "openedDestinationSurface": wiki_workbench.get("id"),
+        "travelStepCount": len(proof.get("travelSteps") or []),
+        "figureEightPath": bool(path_plan),
+    }
+
+
+def fail_with_artifact(error, diagnostics):
+    diagnostics = {"primaryError": primary_error(error), **diagnostics}
+    artifact = write_artifact("diagnostics", diagnostics)
+    raise SystemExit(
+        "FAIL "
+        + json.dumps({
+            "scenario": scenario,
+            "avatarId": avatar_id,
+            "radialSurfaceId": radial_id,
+            "artifact": artifact,
+            "error": diagnostics["primaryError"],
+        }, sort_keys=True)
+    )
+
+
+def safe_diagnostic(label, producer):
+    try:
+        return producer()
+    except Exception as error:
+        return {"diagnosticError": label, "message": str(error)}
 
 
 def run(*args):
@@ -319,7 +405,11 @@ initial = wait_until(stable_hit_target, timeout=6.0, interval=0.08, label="stabl
 frame = initial.get("hitTargetFrame")
 avatar_pos = initial.get("avatarPos") or {}
 if not frame or not avatar_pos.get("valid"):
-    raise SystemExit(f"FAIL: avatar not ready for radial real-input check: {initial}")
+    fail_with_artifact("avatar not ready for radial real-input check", {
+        "initial": initial,
+        "inspector": safe_diagnostic("inspector", inspector_probe),
+        "showList": safe_diagnostic("showList", show_list),
+    })
 
 path_plan = None
 if scenario in ("desktop-world-path", "figure-eight"):
@@ -334,7 +424,12 @@ if scenario in ("desktop-world-path", "figure-eight"):
     initial = wait_until(stable_hit_target, timeout=6.0, interval=0.08, label="stable Sigil hit target at DesktopWorld path start")
     avatar_pos = initial.get("avatarPos") or {}
     if not avatar_pos.get("valid"):
-        raise SystemExit(f"FAIL: avatar could not be placed at DesktopWorld path start: {initial}")
+        fail_with_artifact("avatar could not be placed at DesktopWorld path start", {
+            "initial": initial,
+            "pathPlan": path_plan,
+            "inspector": safe_diagnostic("inspector", inspector_probe),
+            "showList": safe_diagnostic("showList", show_list),
+        })
     start = {"x": float(avatar_pos["x"]), "y": float(avatar_pos["y"])}
     travel_targets = path_plan["steps"]
 else:
@@ -347,13 +442,16 @@ time.sleep(0.08)
 pre_drag_cursor = cursor_point()
 start_native = pointer.native(start)
 if distance(pre_drag_cursor, start_native) > 8:
-    raise SystemExit("FAIL: cursor preposition did not land on radial hit target: " + json.dumps({
+    fail_with_artifact("cursor preposition did not land on radial hit target", {
         "start": start,
         "startNative": start_native,
         "cursor": pre_drag_cursor,
         "initial": initial,
-        "inspector": inspector_probe(),
-    }, sort_keys=True))
+        "pathPlan": path_plan,
+        "travelTargets": travel_targets,
+        "inspector": safe_diagnostic("inspector", inspector_probe),
+        "showList": safe_diagnostic("showList", show_list),
+    })
 
 try:
     travel_steps = []
@@ -408,21 +506,33 @@ try:
                 pass
         close_context_menu()
 except SystemExit as error:
-    diagnostics = {
+    fail_with_artifact(error, {
         "proofError": str(error),
-        "inspector": inspector_probe(),
+        "inspector": safe_diagnostic("inspector", inspector_probe),
         "initial": initial,
         "pathPlan": path_plan,
         "start": start,
         "travelTargets": travel_targets,
         "travelSteps": locals().get("travel_steps", []),
         "preDragCursor": pre_drag_cursor,
-        "lastProbe": radial_surface_probe(),
-        "showList": show_list(),
-    }
-    raise SystemExit("FAIL: radial semantic proof failed: " + json.dumps(diagnostics, sort_keys=True))
+        "lastProbe": safe_diagnostic("lastProbe", radial_surface_probe),
+        "showList": safe_diagnostic("showList", show_list),
+    })
+except Exception as error:
+    fail_with_artifact(error, {
+        "proofError": repr(error),
+        "inspector": safe_diagnostic("inspector", inspector_probe),
+        "initial": initial,
+        "pathPlan": path_plan,
+        "start": start,
+        "travelTargets": travel_targets,
+        "travelSteps": locals().get("travel_steps", []),
+        "preDragCursor": pre_drag_cursor,
+        "lastProbe": safe_diagnostic("lastProbe", radial_surface_probe),
+        "showList": safe_diagnostic("showList", show_list),
+    })
 
-print("PASS", json.dumps({
+proof = {
     "inspector": inspector_probe(),
     "initial": initial,
     "travel": travel,
@@ -433,6 +543,8 @@ print("PASS", json.dumps({
     "semanticProof": semantic_proof,
     "preDragCursor": pre_drag_cursor,
     "expectedAction": expected_action,
-}, sort_keys=True))
+}
+artifact = write_artifact("proof", proof)
+print("PASS", json.dumps(compact_success(proof, artifact), sort_keys=True))
 PY
 }
