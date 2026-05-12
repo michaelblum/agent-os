@@ -21,6 +21,14 @@ Preserve the concrete tooling and primitive improvements exposed by the final
 #305 verification work, without letting them expand the completed V0 closure
 slice.
 
+## Queue Status
+
+The five follow-up slices from this queue were routed as PR #307 work cards.
+Items 1-4 have landed in the checkpoint branch; item 5 is addressed by
+`docs/design/work-cards/path-scoped-handoff-and-diff-summaries-v0.md`. There is
+no remaining follow-up recommendation from this queue. Future surface-stack
+follow-ups should start from new evidence rather than this completed queue.
+
 ## Follow-Up Queue
 
 ### 1. Surface Inspector Mark Contract

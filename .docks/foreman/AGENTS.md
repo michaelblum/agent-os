@@ -54,7 +54,9 @@ under `docs/design/work-cards/` and hand off only a thin goal line:
 Use `docs/recipes/gdi-work-card-authoring.md` as the flexible authoring shape:
 fresh context, read-first files, state rediscovery, exact files to inspect,
 hard boundaries, verification, and completion-report slots. Add specialty slots
-only when the slice needs them.
+only when the slice needs them. When dirty worktrees or large proof artifacts
+would make review harder, ask for the recipe's path-scoped completion summary;
+skip that extra shape for tiny fixes where it adds noise.
 
 Do not paste long implementation instructions directly into the clipboard goal
 unless the task is genuinely small. If Foreman creates draft evidence, label it

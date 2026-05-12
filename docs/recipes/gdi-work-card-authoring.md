@@ -162,6 +162,15 @@ Require the information Foreman needs next:
 - draft evidence retained/amended/superseded/reverted;
 - remaining blockers or follow-up slices.
 
+For non-trivial work, especially in a dirty worktree, ask GDI for a lightweight
+path-scoped summary instead of a broad status dump. The report should name the
+changed paths that belong to the slice, exact verification commands with
+pass/fail results, live AOS readiness or the reason live checks were skipped,
+known unrelated dirty state, artifact paths for large proof payloads when
+applicable, and the remaining follow-up recommendation when the source card has
+one. Do not require this shape for tiny one-line fixes where it would add more
+noise than review value.
+
 ## Specialty Slots
 
 Add these only when the slice needs them.

@@ -59,7 +59,18 @@ The frontmatter should be stable and compact:
 - `goal_status`: `achieved`, `failed`, `paused`, `handoff`, or `unknown`;
 - `evidence`: short list of evidence classes, such as `tests`, `runtime_probe`, `diff`, `logs`, `manual_observation`;
 - `generated_at`: local date in `YYYY-MM-DD` form when known;
-- `scope`: short human-readable phrase for the completed work.
+- `scope`: short human-readable phrase for the completed work;
+- `report_path`: absolute path where this report was written, when a file artifact was produced.
+
+## Report Artifact
+
+On each invocation, write the full markdown report to a temp artifact before replying:
+
+- Use `${TMPDIR:-/tmp}/aos-work-retrospective.md` as the default path.
+- Overwrite that file on each invocation; do not append.
+- If an existing file is present, it is expected to be replaced by the current report.
+- After writing, read the file back once to verify the artifact matches the intended report.
+- Reply with the path and a compact summary. Paste the full report only when the user explicitly asks for it in chat.
 
 Use this shape:
 
@@ -70,6 +81,7 @@ goal_status: achieved
 evidence: [tests, runtime_probe, diff]
 generated_at: 2026-05-12
 scope: "radial menu real-input and inspector mini-map"
+report_path: "/tmp/aos-work-retrospective.md"
 ---
 
 Yes. The work exposed a few concrete improvement opportunities:
