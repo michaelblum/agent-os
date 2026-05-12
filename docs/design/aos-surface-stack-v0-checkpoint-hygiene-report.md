@@ -80,18 +80,20 @@ These paths are documentation source-of-truth for the checkpoint:
   checkpoint and retrospective routing cards.
 - This report.
 
-### Hold Or Review Before Commit
+### Inclusion Decisions After Checkpoint Review
 
-These paths should not be swept into a checkpoint commit without an explicit
-decision:
+Foreman reviewed the hold/review paths after the checkpoint commits were
+prepared:
 
-- `.vscode/settings.json`: local editor state, probably leave uncommitted.
+- `.vscode/settings.json` and `.vscode/tasks.json`: removed from the
+  checkpoint branch as local editor convenience state.
 - `.docks/foreman/skills/retirement-handoff/skill.md` and
-  `.docks/gdi/skills/work-retrospective/skill.md`: agent tooling additions;
-  either commit as a separate agent-tools change or leave out.
+  `.docks/gdi/skills/work-retrospective/skill.md`: kept in the PR as a
+  separate agent-tooling commit because they support the Foreman/GDI routing
+  and retrospective workflow used by this checkpoint.
 - Pre-existing modified work cards for spatial-subject-tree and surface-zoom
-  annotation work should be reviewed against their own workstreams before
-  inclusion in a surface-stack checkpoint.
+  annotation work were reviewed through their own workstream commits before
+  inclusion.
 
 ## Verification
 
@@ -163,8 +165,9 @@ Use scoped commits. Do not stage the whole tree blindly.
    helper fix, snapshot smoke fix, checkpoint hygiene cards, retrospective
    follow-up queue, and this report.
 
-Keep `.vscode/` out. Decide separately whether dock-local skill files belong in
-this branch or in an agent-tooling branch.
+Keep `.vscode/` out. Dock-local skill files stay as a separate agent-tooling
+commit in this branch because they are part of the Foreman/GDI workflow used to
+produce and review the checkpoint.
 
 ## Next Work
 
