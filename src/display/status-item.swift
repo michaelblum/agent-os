@@ -11,7 +11,7 @@ class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
     private let lifecycleTimeout: TimeInterval = 1.0
     private let visibilityTimeout: TimeInterval = 1.2
-    private let canvasInspectorId = "canvas-inspector"
+    private let canvasInspectorId = "surface-inspector"
     private let logConsoleId = "__log__"
     private let canvasInspectorUrl = "aos://toolkit/components/canvas-inspector/index.html"
     private let logConsoleUrl = "aos://toolkit/components/log-console/index.html"

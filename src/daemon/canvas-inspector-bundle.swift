@@ -1,7 +1,9 @@
 import AppKit
 import Foundation
 
-private let canvasInspectorBundleCanvasID = "canvas-inspector"
+private let surfaceInspectorBundleCanvasID = "surface-inspector"
+private let legacyCanvasInspectorBundleCanvasID = "canvas-inspector"
+private let canvasInspectorBundleCanvasIDs = [surfaceInspectorBundleCanvasID, legacyCanvasInspectorBundleCanvasID]
 private let canvasInspectorBundleDebounceSeconds: TimeInterval = 0.75
 
 private struct CanvasInspectorBundleResolvedInclude {
@@ -49,15 +51,16 @@ extension UnifiedDaemon {
     private func openCanvasInspectorForAnnotationMode() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if self.canvasManager.hasCanvas(canvasInspectorBundleCanvasID) {
-                if self.canvasManager.canvas(forID: canvasInspectorBundleCanvasID)?.suspended == true {
+            let canvasID = self.currentCanvasInspectorBundleCanvasID() ?? surfaceInspectorBundleCanvasID
+            if self.canvasManager.hasCanvas(canvasID) {
+                if self.canvasManager.canvas(forID: canvasID)?.suspended == true {
                     var resume = CanvasRequest(action: "resume")
-                    resume.id = canvasInspectorBundleCanvasID
+                    resume.id = canvasID
                     _ = self.canvasManager.handle(resume)
                 }
             } else {
                 var request = CanvasRequest(action: "create")
-                request.id = canvasInspectorBundleCanvasID
+                request.id = canvasID
                 request.url = self.resolveContentURL("aos://toolkit/components/canvas-inspector/index.html")
                 request.at = self.defaultCanvasInspectorFrame()
                 request.interactive = true
@@ -66,7 +69,7 @@ extension UnifiedDaemon {
                 _ = self.canvasManager.handle(request)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                self.canvasManager.postMessageAsync(canvasID: canvasInspectorBundleCanvasID, payload: [
+                self.canvasManager.postMessageAsync(canvasID: canvasID, payload: [
                     "type": "canvas_inspector.annotation_toggle",
                     "reason": "shortcut",
                 ])
@@ -89,19 +92,19 @@ extension UnifiedDaemon {
 
     func maybeHandleCanvasInspectorSeeBundleHotkey(event: String, data: [String: Any]) -> Bool {
         guard event == "key_down",
-              canvasExists(canvasInspectorBundleCanvasID),
+              let canvasID = currentCanvasInspectorBundleCanvasID(),
               canvasInspectorBundleHotkeyMatches(data) else {
             return false
         }
         triggerCanvasInspectorSeeBundle(
-            sourceCanvasID: canvasInspectorBundleCanvasID,
+            sourceCanvasID: canvasID,
             trigger: "hotkey"
         )
         return true
     }
 
     func triggerCanvasInspectorSeeBundle(sourceCanvasID: String, trigger: String) {
-        guard sourceCanvasID == canvasInspectorBundleCanvasID,
+        guard canvasInspectorBundleCanvasIDs.contains(sourceCanvasID),
               canvasExists(sourceCanvasID) else {
             return
         }
@@ -140,7 +143,7 @@ extension UnifiedDaemon {
     }
 
     func sendCanvasInspectorSeeBundleConfig(canvasID: String) {
-        guard canvasID == canvasInspectorBundleCanvasID, canvasExists(canvasID) else { return }
+        guard canvasInspectorBundleCanvasIDs.contains(canvasID), canvasExists(canvasID) else { return }
         let runtimeConfig = resolvedCanvasInspectorBundleConfig()
         let message = runtimeConfig.hotkey == nil
             ? "bundle hotkey disabled"
@@ -164,7 +167,7 @@ extension UnifiedDaemon {
         canvasInspectorBundleLock.lock()
         defer { canvasInspectorBundleLock.unlock() }
 
-        guard canvasExists(canvasInspectorBundleCanvasID) else {
+        guard currentCanvasInspectorBundleCanvasID() != nil else {
             return .missing
         }
 
@@ -566,5 +569,12 @@ extension UnifiedDaemon {
             exists = canvasManager.canvas(forID: canvasID) != nil
         }
         return exists
+    }
+
+    private func currentCanvasInspectorBundleCanvasID() -> String? {
+        for canvasID in canvasInspectorBundleCanvasIDs where canvasExists(canvasID) {
+            return canvasID
+        }
+        return nil
     }
 }

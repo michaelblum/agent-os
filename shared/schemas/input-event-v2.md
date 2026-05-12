@@ -11,7 +11,7 @@ This contract separates hardware observation from app behavior routing.
 
 - Raw daemon `input_event` payloads carry observed input facts:
   coordinates, event kind, phase, button state, scroll deltas, key facts,
-  modifiers, timestamps, sequence, and topology version.
+  modifiers, timestamps, sequence, source origin, and topology version.
 - Toolkit `aos_routed_input` envelopes carry behavior-driving delivery roles:
   `observed`, `owned`, or `captured`.
 - Apps should drive pointer behavior from routed events with `delivery_role`
@@ -19,11 +19,32 @@ This contract separates hardware observation from app behavior routing.
 
 ## Versions
 
-Raw events use `input_schema_version: 2`.
+Raw daemon payloads may use `input_schema_version: 2` only when the payload
+contains every required field for its `event_kind`. Event helpers that know an
+event name but cannot yet provide the required v2 facts must leave the payload
+in an explicit legacy shape without `input_schema_version`.
 
-Routed toolkit envelopes use `routed_schema_version: 1`. This is intentionally
-separate from the daemon event stream envelope version in
-`daemon-event.schema.json`.
+Routed toolkit envelopes may use `routed_schema_version: 1` only when the
+payload contains every required routed field for its `event_kind` and
+`delivery_role`. This is intentionally separate from the daemon event stream
+envelope version in `daemon-event.schema.json`.
+
+## Identity Fields
+
+Raw daemon events are identified by `sequence: {source:"daemon", value}` plus
+`timestamp_monotonic_ms`. Pointer and scroll events also carry `gesture_id`
+when they belong to a pointer sequence. Raw events may include
+`source_origin`; daemon-observed hardware input uses `source_origin:"daemon"`,
+while compatibility adapters can use `source_origin:"canvas"` with
+`source_canvas_id` for canvas-origin synthetic input.
+
+Routed envelopes preserve the observed event identity in `source_event` and,
+when available, `source_sequence`. Owned and captured deliveries must include
+`region_id` and `owner_canvas_id`; captured deliveries must also include
+`capture_id`, which stays stable from captured drag through release/cancel.
+`source_canvas_id` is reserved for routed canvas-origin echoes. This lets
+toolkit and app consumers suppress duplicates by identity rather than private
+booleans such as `fromHitTarget`.
 
 ## Coordinate Frames
 
@@ -44,12 +65,17 @@ The schema defines four raw event kinds:
 | `key` | no `phase` | Requires `key.physical_key_code`, `key.logical`, `key.repeat`, and `key.is_printable`. |
 | `cancel` | `cancel` | Requires `cancel_reason`; synthetic cancels should include `caused_by_sequence`. |
 
+The native daemon tap currently emits v2 scroll events from `.scrollWheel`
+because it can populate `scroll.dx`, `scroll.dy`, and `scroll.unit: "point"`.
+Synthetic or helper-only cancel events may claim v2 only when they include
+`cancel_reason`; otherwise they remain legacy-shaped compatibility payloads.
+
 Routed envelopes require `gesture_id`, `desktop_world`,
-`coordinate_authority`, and `source_event`. Routed pointer envelopes also carry
-semantic `phase` values, including toolkit-synthesized `enter`, `hover`,
-`leave`, and `hover_cancel` for region feedback. `region_id` is required for
-`owned` and `captured` delivery. `capture_id` is required for `captured`
-delivery.
+`coordinate_authority`, `source_origin`, and `source_event`. Routed pointer
+envelopes also carry semantic `phase` values, including toolkit-synthesized
+`enter`, `hover`, `leave`, and `hover_cancel` for region feedback. `region_id`
+and `owner_canvas_id` are required for `owned` and `captured` delivery.
+`capture_id` is required for `captured` delivery.
 
 ## Fixtures
 

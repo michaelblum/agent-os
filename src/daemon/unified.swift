@@ -108,6 +108,7 @@ class UnifiedDaemon {
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
     var canvasEventSubscriptions: [String: Set<String>] = [:]
     var canvasObjectRegistries: [String: [String: Any]] = [:]
+    var canvasReadyManifests: [String: [String: Any]] = [:]
     let canvasSubscriptionLock = NSLock()
 
     // Canvas ownership: child canvas ID → parent canvas ID.
@@ -121,8 +122,8 @@ class UnifiedDaemon {
     var canvasChildren: [String: Set<String>] = [:]
     private var activeConnections = Set<UUID>()
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
-    private let sigilInputLock = NSLock()
-    private var sigilInputState = SigilInputState()
+    private let inputRegionLock = NSLock()
+    private var inputRegions = AOSInputRegionRegistry()
 
     // Wiki FSEvents watcher
     private var wikiWatcher: WikiWatcher?
@@ -151,12 +152,6 @@ class UnifiedDaemon {
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
         var wantsInputEvents: Bool
-    }
-
-    private struct SigilInputState {
-        var mode: String = "idle"
-        var avatarRect: CGRect?
-        var chatRect: CGRect?
     }
 
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
@@ -250,6 +245,9 @@ class UnifiedDaemon {
                 case "canvas.eval":
                     self.handleCanvasEval(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "canvas.info":
+                    self.handleCanvasInfo(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "canvas.send":
                     self.handleCanvasSend(callerID: canvasID, payload: inner ?? [:])
                     return
@@ -259,7 +257,17 @@ class UnifiedDaemon {
                 case "canvas.resume":
                     self.handleCanvasResume(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "input_region.register":
+                    self.handleInputRegionRegister(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "input_region.update":
+                    self.handleInputRegionRegister(callerID: canvasID, payload: inner ?? [:], updateOnly: true)
+                    return
+                case "input_region.remove":
+                    self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "lifecycle.ready":
+                    self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
                     DispatchQueue.main.async { [weak self] in
                         self?.canvasManager.receiveLifecycleReady(canvasID)
                     }
@@ -321,6 +329,9 @@ class UnifiedDaemon {
                     }
                     return
                 default:
+                    if type == "ready" {
+                        self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
+                    }
                     break
                 }
             }
@@ -332,11 +343,17 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
-            if canvasInfo.id == "canvas-inspector",
+            if ["surface-inspector", "canvas-inspector"].contains(canvasInfo.id),
                action == "removed" || canvasInfo.suspended == true {
                 DispatchQueue.main.async { [weak self] in
                     self?.canvasInspectorAnnotationModeHandler?(false)
                 }
+            }
+
+            if action == "removed" {
+                self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
+            } else if canvasInfo.suspended == true {
+                self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: false)
             }
 
             // Drop event subscriptions when the canvas is gone.
@@ -345,6 +362,7 @@ class UnifiedDaemon {
                 self.canvasSubscriptionLock.lock()
                 let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
                 let hadRegistry = self.canvasObjectRegistries.removeValue(forKey: canvasID) != nil
+                self.canvasReadyManifests.removeValue(forKey: canvasID)
                 let children = self.canvasChildren.removeValue(forKey: canvasID) ?? []
                 // Detach this canvas from its parent's child set.
                 if let parent = self.canvasCreatedBy.removeValue(forKey: canvasID) {
@@ -533,6 +551,10 @@ class UnifiedDaemon {
         if let ttl = canvasInfo.ttl { payload["ttl"] = ttl }
         if let cascade = canvasInfo.cascade { payload["cascade"] = cascade }
         if let suspended = canvasInfo.suspended { payload["suspended"] = suspended }
+        if let lifecycleState = canvasInfo.lifecycleState {
+            payload["lifecycle_state"] = lifecycleState
+            canvas["lifecycle_state"] = lifecycleState
+        }
         if let windowNumbers = canvasInfo.windowNumbers { payload["windowNumbers"] = windowNumbers }
         if let owner = canvasInfo.owner, let ownerObject = encodedObject(owner) { payload["owner"] = ownerObject }
         if let segments = canvasInfo.segments {
@@ -549,7 +571,6 @@ class UnifiedDaemon {
     }
 
     private func publishCanvasLifecycle(action: String, canvasInfo: CanvasInfo) {
-        updateSigilCanvasState(canvasID: canvasInfo.id, action: action, at: canvasInfo.at)
         guard let data = canvasLifecyclePayload(action: action, canvasInfo: canvasInfo) else { return }
         broadcastEvent(service: "display", event: "canvas_lifecycle", data: data)
         fanOutCanvasLifecycle(data)
@@ -618,6 +639,9 @@ class UnifiedDaemon {
             }
             if requested.contains("canvas_object.registry") {
                 self.broadcastCanvasObjectRegistrySnapshot(to: canvasID)
+            }
+            if requested.contains("input_region") {
+                self.broadcastInputRegionSnapshot(to: canvasID)
             }
         }
     }
@@ -754,6 +778,64 @@ class UnifiedDaemon {
         }
     }
 
+    private func broadcastInputRegionSnapshot(to specificCanvas: String) {
+        canvasSubscriptionLock.lock()
+        let subscribed = canvasEventSubscriptions[specificCanvas]?.contains("input_region") == true
+        canvasSubscriptionLock.unlock()
+        guard subscribed else { return }
+
+        inputRegionLock.lock()
+        let regions = inputRegions.snapshot()
+        inputRegionLock.unlock()
+
+        canvasManager.postMessageAsync(canvasID: specificCanvas, payload: [
+            "type": "input_region.snapshot",
+            "regions": regions.map { inputRegionPayload($0) },
+        ])
+    }
+
+    private func publishInputRegionStateEvent(action: String, region: AOSInputRegionRecord) {
+        let payload: [String: Any] = [
+            "type": "input_region",
+            "action": action,
+            "region": inputRegionPayload(region),
+        ]
+        broadcastEvent(service: "display", event: "input_region", data: payload)
+        forwardInputRegionStateEvent(payload)
+    }
+
+    private func forwardInputRegionStateEvent(_ payload: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains("input_region") }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+        guard !targets.isEmpty else { return }
+        for canvasID in targets {
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: payload)
+        }
+    }
+
+    private func inputRegionPayload(_ region: AOSInputRegionRecord) -> [String: Any] {
+        [
+            "id": region.id,
+            "owner_canvas_id": region.ownerCanvasID,
+            "frame": [
+                Double(region.nativeFrame.origin.x),
+                Double(region.nativeFrame.origin.y),
+                Double(region.nativeFrame.width),
+                Double(region.nativeFrame.height),
+            ],
+            "coordinate_space": region.coordinateSpace,
+            "semantic_label": region.semanticLabel,
+            "priority": region.priority,
+            "consume_policy": region.consumePolicy,
+            "metadata": region.metadata,
+            "remove_on_owner_suspend": region.removeOnOwnerSuspend,
+            "enabled": region.enabled,
+        ]
+    }
+
     private func broadcastCanvasLifecycleSnapshot(to specificCanvas: String) {
         let infos = canvasManager.handle(CanvasRequest(action: "list")).canvases ?? []
         for info in infos {
@@ -854,6 +936,19 @@ class UnifiedDaemon {
         return true  // no recorded owner = CLI-origin = open per mutation-api rule 3
     }
 
+    private func recordCanvasReadyManifest(canvasID: String, payload: [String: Any]?) {
+        guard let payload = payload else { return }
+        canvasSubscriptionLock.lock()
+        canvasReadyManifests[canvasID] = payload
+        canvasSubscriptionLock.unlock()
+    }
+
+    private func readyManifest(for canvasID: String) -> [String: Any]? {
+        canvasSubscriptionLock.lock()
+        defer { canvasSubscriptionLock.unlock() }
+        return canvasReadyManifests[canvasID]
+    }
+
     private func handleCanvasCreate(callerID: String, payload: [String: Any]) {
         let requestID = payload["request_id"] as? String
 
@@ -867,15 +962,24 @@ class UnifiedDaemon {
                 status: "error", code: "MISSING_URL", message: "canvas.create requires url")
             return
         }
-        guard let frameArr = payload["frame"] as? [Any], frameArr.count == 4 else {
+        let surface = payload["surface"] as? String
+        var at: [CGFloat]? = nil
+        if let frameArr = payload["frame"] as? [Any] {
+            guard frameArr.count == 4 else {
+                dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
+                return
+            }
+            let parsedFrame: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+            guard parsedFrame.count == 4 else {
+                dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "INVALID_FRAME", message: "frame values must be numeric")
+                return
+            }
+            at = parsedFrame
+        } else if surface == nil {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
-            return
-        }
-        let at: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-        guard at.count == 4 else {
-            dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_FRAME", message: "frame values must be numeric")
             return
         }
         let interactive = payload["interactive"] as? Bool
@@ -893,9 +997,10 @@ class UnifiedDaemon {
             html: nil, url: resolvedURL,
             interactive: interactive,
             windowLevel: windowLevel,
-            focus: payload["focus"] as? Bool, ttl: nil, js: nil, scope: nil,
+            focus: payload["focus"] as? Bool, ttl: nil, js: nil, scope: payload["scope"] as? String,
             autoProject: nil,
             track: payload["track"] as? String,
+            surface: surface,
             parent: resolvedParent,
             cascade: payload["cascade"] as? Bool,
             suspended: payload["suspended"] as? Bool,
@@ -1053,6 +1158,40 @@ class UnifiedDaemon {
         }
     }
 
+    private func handleCanvasInfo(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let providedID = payload["id"] as? String
+        let targetID = (providedID?.isEmpty == false) ? providedID! : callerID
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            guard let canvas = self.canvasManager.canvas(forID: targetID) else {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "NOT_FOUND", message: "Canvas '\(targetID)' not found")
+                return
+            }
+            let info = canvas.toInfo()
+            var canvasObject = self.encodedObject(info) ?? ["id": targetID]
+            let manifest = self.readyManifest(for: targetID)
+            if let manifest {
+                canvasObject["ready_manifest"] = manifest
+                canvasObject["manifest"] = manifest
+            }
+            let lifecycleState = info.lifecycleState ?? (info.suspended == true ? "suspended" : "active")
+            var ready: [String: Any] = [
+                "ready": manifest != nil,
+                "lifecycle_state": lifecycleState,
+            ]
+            if let manifest { ready["manifest"] = manifest }
+            if let suspended = info.suspended { ready["suspended"] = suspended }
+            self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
+                "canvas": canvasObject,
+                "exists": true,
+                "ready": ready,
+            ])
+        }
+    }
+
     /// Relay an arbitrary message from one canvas to another via headsup.receive.
     /// Payload: { target: "canvas-id", message: { ... } }
     private func handleCanvasSend(callerID: String, payload: [String: Any]) {
@@ -1062,6 +1201,96 @@ class UnifiedDaemon {
             guard let self = self else { return }
             self.canvasManager.postMessageAsync(canvasID: targetID, payload: message)
         }
+    }
+
+    private func handleInputRegionRegister(callerID: String, payload: [String: Any], updateOnly: Bool = false) {
+        let requestID = payload["request_id"] as? String
+        guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ID", message: "input_region.register requires id")
+            return
+        }
+        let ownerCanvasID = (payload["owner_canvas_id"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? callerID
+        guard canvasMutationPermitted(callerID: callerID, targetID: ownerCanvasID) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "FORBIDDEN", message: "caller \(callerID) may not own region \(id) for \(ownerCanvasID)")
+            return
+        }
+        guard let frame = inputRegionFrame(from: payload) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_FRAME", message: "input region frame must be [x,y,w,h]")
+            return
+        }
+
+        let coordinateSpace = normalizedInputRegionCoordinateSpace(payload["coordinate_space"] as? String)
+        guard let nativeFrame = nativeInputRegionFrame(frame, coordinateSpace: coordinateSpace) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_COORDINATE_SPACE", message: "coordinate_space must be native or desktop_world")
+            return
+        }
+        let metadata = (payload["metadata"] as? [String: Any])?.compactMapValues { value -> String? in
+            if let string = value as? String { return string }
+            if let number = value as? NSNumber { return number.stringValue }
+            if let bool = value as? Bool { return bool ? "true" : "false" }
+            return nil
+        } ?? [:]
+        let priority = (payload["priority"] as? NSNumber)?.intValue ?? 0
+        let consumePolicy = normalizedInputRegionConsumePolicy(payload["consume_policy"] as? String)
+        let semanticLabel = payload["semantic_label"] as? String ?? payload["label"] as? String ?? id
+        let removeOnOwnerSuspend = (payload["remove_on_owner_suspend"] as? Bool) ?? true
+        let enabled = (payload["enabled"] as? Bool) ?? true
+        let region = AOSInputRegionRecord(
+            id: id,
+            ownerCanvasID: ownerCanvasID,
+            nativeFrame: nativeFrame,
+            coordinateSpace: coordinateSpace,
+            semanticLabel: semanticLabel,
+            priority: priority,
+            consumePolicy: consumePolicy,
+            metadata: metadata,
+            removeOnOwnerSuspend: removeOnOwnerSuspend,
+            enabled: enabled
+        )
+
+        inputRegionLock.lock()
+        let existed = inputRegions.snapshot().contains { $0.id == id }
+        if updateOnly && !existed {
+            inputRegionLock.unlock()
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "NOT_FOUND", message: "input region \(id) not found")
+            return
+        }
+        inputRegions.register(region)
+        inputRegionLock.unlock()
+
+        let action = existed ? "updated" : "registered"
+        publishInputRegionStateEvent(action: action, region: region)
+        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: ["region": inputRegionPayload(region)])
+    }
+
+    private func handleInputRegionRemove(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard let id = (payload["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ID", message: "input_region.remove requires id")
+            return
+        }
+
+        inputRegionLock.lock()
+        let existing = inputRegions.snapshot().first { $0.id == id }
+        if let existing, !canvasMutationPermitted(callerID: callerID, targetID: existing.ownerCanvasID) {
+            inputRegionLock.unlock()
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "FORBIDDEN", message: "caller \(callerID) may not remove region \(id)")
+            return
+        }
+        let removed = inputRegions.remove(id: id)
+        inputRegionLock.unlock()
+
+        if let removed {
+            publishInputRegionStateEvent(action: "removed", region: removed)
+        }
+        dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
     }
 
     private func handleCanvasSuspend(callerID: String, payload: [String: Any]) {
@@ -1532,14 +1761,6 @@ class UnifiedDaemon {
             sendResponseJSON(to: clientFD, ["status": "ok", "channel_id": channelID.uuidString], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
-        case "sigil_input_mode":
-            guard let mode = json["mode"] as? String, !mode.isEmpty else {
-                sendResponseJSON(to: clientFD, ["error": "sigil_input_mode requires mode", "code": "INVALID_ARG"], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-                return
-            }
-            setSigilInputMode(mode)
-            sendResponseJSON(to: clientFD, ["status": "ok", "mode": mode], envelopeActive: envelopeActive, envelopeRef: envelopeRef)
-
         // -- Display actions (dispatch to CanvasManager on main thread) --
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
@@ -1570,14 +1791,14 @@ class UnifiedDaemon {
                 switch action {
                 case "create":
                     if let id = json["id"] as? String {
-                        announce("Canvas \(id) created")
+                        announce("\(spokenCanvasName(id)) displayed")
                     }
                 case "remove":
                     if let id = json["id"] as? String {
-                        announce("Canvas \(id) removed")
+                        announce("\(spokenCanvasName(id)) removed")
                     }
                 case "remove-all":
-                    announce("All canvases removed")
+                    announce("All surfaces removed")
                 default:
                     break
                 }
@@ -1850,7 +2071,9 @@ class UnifiedDaemon {
             "settle_threshold_ms": new.perception.settle_threshold_ms
         ]
         broadcastEvent(service: "system", event: "config_changed", data: data)
-        sendCanvasInspectorSeeBundleConfig(canvasID: "canvas-inspector")
+        for canvasID in ["surface-inspector", "canvas-inspector"] {
+            sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
+        }
 
         // Voice engine lifecycle
         if new.voice.enabled && !old.voice.enabled {
@@ -1914,6 +2137,17 @@ class UnifiedDaemon {
                 engine.setRate(rate)
             }
             engine.speak(text)
+        }
+    }
+
+    private func spokenCanvasName(_ id: String) -> String {
+        switch id {
+        case "canvas-inspector", "surface-inspector":
+            return "Surface Inspector"
+        case "__log__", "log-console":
+            return "Log Console"
+        default:
+            return "Canvas \(id.replacingOccurrences(of: "-", with: " "))"
         }
     }
 
@@ -2313,6 +2547,7 @@ class UnifiedDaemon {
                 "cmd": false,
                 "opt": false,
                 "fn": false,
+                "caps_lock": false,
             ]
         )
     }
@@ -2326,18 +2561,19 @@ class UnifiedDaemon {
         let annotationConsumed = maybeHandleCanvasInspectorAnnotationHotkey(event: event, data: data)
         let inspectorConsumed = maybeHandleCanvasInspectorSeeBundleHotkey(event: event, data: data)
         let genericConsumed = shouldConsumeGenericAOSInputEvent(event: event, data: data)
-        let shouldConsume = shouldConsumeSigilInputEvent(event: event, data: data)
-        if !inspectorConsumed && !annotationConsumed {
+        if !inspectorConsumed && !annotationConsumed && !genericConsumed {
             broadcastInputEvent(service: "input", event: "input_event", data: data)
         }
-        return annotationConsumed || inspectorConsumed || genericConsumed || shouldConsume
+        return annotationConsumed || inspectorConsumed || genericConsumed
     }
 
     private func shouldConsumeGenericAOSInputEvent(event: String, data: [String: Any]) -> Bool {
-        guard ProcessInfo.processInfo.environment["AOS_GENERIC_INPUT_CONSUME"] == "1" else { return false }
-        guard event == "left_mouse_down" || event == "right_mouse_down" || event == "middle_mouse_down" || event == "other_mouse_down" else {
-            return false
+        if let regionConsumed = routeInputRegionEvent(event: event, data: data) {
+            return regionConsumed
         }
+
+        guard ProcessInfo.processInfo.environment["AOS_GENERIC_INPUT_CONSUME"] == "1" else { return false }
+        guard event == "left_mouse_down" || event == "right_mouse_down" || event == "middle_mouse_down" || event == "other_mouse_down" else { return false }
         guard let point = inputPoint(from: data) else { return false }
         let decision = canvasManager.frontmostHittableInputSurface(
             at: point,
@@ -2383,70 +2619,172 @@ class UnifiedDaemon {
         forwardInputEventToCanvases(data: data)
     }
 
-    private func updateSigilCanvasState(canvasID: String, action: String, at: [CGFloat]?) {
-        sigilInputLock.lock()
-        defer { sigilInputLock.unlock() }
-
-        switch canvasID {
-        case "avatar":
-            sigilInputState.avatarRect = rectForSigilCanvasAction(action: action, at: at)
-        case "agent-chat":
-            sigilInputState.chatRect = rectForSigilCanvasAction(action: action, at: at)
-        default:
-            break
-        }
-    }
-
-    private func rectForSigilCanvasAction(action: String, at: [CGFloat]?) -> CGRect? {
-        guard action == "created" || action == "updated" else { return nil }
-        guard let at, at.count >= 4 else { return nil }
-        return CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-    }
-
-    private func setSigilInputMode(_ mode: String) {
-        sigilInputLock.lock()
-        sigilInputState.mode = mode
-        sigilInputLock.unlock()
-    }
-
-    private func shouldConsumeSigilInputEvent(event: String, data: [String: Any]) -> Bool {
-        sigilInputLock.lock()
-        let state = sigilInputState
-        sigilInputLock.unlock()
-
-        switch event {
-        case "left_mouse_down":
-            guard let point = sigilPoint(from: data) else { return false }
-            let onAvatar = isPointOnSigilAvatar(point, avatarRect: state.avatarRect)
-            switch state.mode {
-            case "idle", "roaming", "followMe":
-                return onAvatar
-            default:
-                return false
-            }
-        case "left_mouse_dragged", "left_mouse_up":
-            return state.mode == "stellating" || state.mode == "radialMenuOpen"
-        default:
-            return false
-        }
-    }
-
-    private func sigilPoint(from data: [String: Any]) -> CGPoint? {
-        inputPoint(from: data)
-    }
-
     private func inputPoint(from data: [String: Any]) -> CGPoint? {
-        guard let x = data["x"] as? Double, let y = data["y"] as? Double else { return nil }
-        return CGPoint(x: x, y: y)
+        if let x = data["x"] as? Double, let y = data["y"] as? Double {
+            return CGPoint(x: x, y: y)
+        }
+        if let native = data["native"] as? [String: Any],
+           let x = native["x"] as? Double,
+           let y = native["y"] as? Double {
+            return CGPoint(x: x, y: y)
+        }
+        return nil
     }
 
-    private func isPointOnSigilAvatar(_ point: CGPoint, avatarRect: CGRect?) -> Bool {
-        guard let avatarRect else { return false }
-        let center = CGPoint(x: avatarRect.midX, y: avatarRect.midY)
-        let radius = avatarRect.width * 0.35
-        let dx = point.x - center.x
-        let dy = point.y - center.y
-        return sqrt(dx * dx + dy * dy) <= radius
+    private func routeInputRegionEvent(event: String, data: [String: Any]) -> Bool? {
+        let point = inputPoint(from: data)
+        let sourceSequence = inputEventSourceSequenceString(data)
+        let sourceSequencePayload = data["sequence"] as? [String: Any]
+        let gestureID = data["gesture_id"] as? String
+        inputRegionLock.lock()
+        let route = inputRegions.route(
+            eventType: event,
+            point: point,
+            sourceSequence: sourceSequence,
+            gestureID: gestureID
+        )
+        inputRegionLock.unlock()
+        guard let route else { return nil }
+
+        let desktopWorld: [String: Any]?
+        if let point {
+            let desktopPoint = inputRegionNativeToDesktopWorldPoint(point)
+            desktopWorld = ["x": Double(desktopPoint.x), "y": Double(desktopPoint.y)]
+        } else {
+            desktopWorld = nil
+        }
+        let routedInput = inputRegionRoutedInputPayload(
+            event: event,
+            data: data,
+            route: route,
+            desktopWorld: desktopWorld,
+            sourceSequence: sourceSequence,
+            sourceSequencePayload: sourceSequencePayload,
+            gestureID: gestureID
+        )
+        var payload: [String: Any] = [
+            "type": "input_region.event",
+            "routed_input": routedInput,
+            "region_id": route.region.id,
+            "owner_canvas_id": route.region.ownerCanvasID,
+            "semantic_label": route.region.semanticLabel,
+            "phase": route.phase,
+            "source_event": event,
+            "source_sequence": sourceSequence ?? NSNull(),
+            "source_origin": "daemon",
+            "captured": route.captured,
+            "capture_id": route.captureID ?? NSNull(),
+            "consume_policy": route.region.consumePolicy,
+            "should_consume": route.shouldConsume,
+            "metadata": route.region.metadata,
+        ]
+        if let point {
+            payload["native"] = ["x": Double(point.x), "y": Double(point.y)]
+            payload["desktop_world"] = desktopWorld
+        }
+        if let flags = data["flags"] { payload["flags"] = flags }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.canvasManager.postMessageAsync(canvasID: route.region.ownerCanvasID, payload: payload)
+        }
+        if ProcessInfo.processInfo.environment["AOS_INPUT_REGION_DIAGNOSTICS"] == "1" {
+            fputs("[input-region] event=\(event) phase=\(route.phase) region=\(route.region.id) owner=\(route.region.ownerCanvasID) consume=\(route.shouldConsume)\n", stderr)
+        }
+        return route.shouldConsume
+    }
+
+    private func inputEventSourceSequenceString(_ data: [String: Any]) -> String? {
+        guard let sequence = data["sequence"] as? [String: Any],
+              let source = sequence["source"] as? String else { return nil }
+        if let value = sequence["value"] as? Int { return "\(source):\(value)" }
+        if let value = sequence["value"] as? UInt64 { return "\(source):\(value)" }
+        if let value = sequence["value"] as? String, !value.isEmpty { return "\(source):\(value)" }
+        return nil
+    }
+
+    private func inputRegionRoutedInputPayload(
+        event: String,
+        data: [String: Any],
+        route: AOSInputRegionRoute,
+        desktopWorld: [String: Any]?,
+        sourceSequence: String?,
+        sourceSequencePayload: [String: Any]?,
+        gestureID: String?
+    ) -> [String: Any] {
+        aosInputRegionRoutedInputPayload(
+            event: event,
+            data: data,
+            route: route,
+            desktopWorld: desktopWorld,
+            sourceSequence: sourceSequence,
+            sourceSequencePayload: sourceSequencePayload,
+            gestureID: gestureID
+        )
+    }
+
+    private func inputRegionFrame(from payload: [String: Any]) -> CGRect? {
+        let raw = payload["frame"] ?? payload["rect"]
+        guard let arr = raw as? [Any], arr.count == 4 else { return nil }
+        let parsed = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard parsed.count == 4, parsed[2] > 0, parsed[3] > 0 else { return nil }
+        return CGRect(x: parsed[0], y: parsed[1], width: parsed[2], height: parsed[3])
+    }
+
+    private func normalizedInputRegionCoordinateSpace(_ value: String?) -> String {
+        let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "desktop_world", "desktopworld":
+            return "desktop_world"
+        default:
+            return "native"
+        }
+    }
+
+    private func normalizedInputRegionConsumePolicy(_ value: String?) -> String {
+        let normalized = value?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "never", "down_only", "captured":
+            return normalized!
+        default:
+            return "always"
+        }
+    }
+
+    private func nativeInputRegionFrame(_ frame: CGRect, coordinateSpace: String) -> CGRect? {
+        switch coordinateSpace {
+        case "native":
+            return frame
+        case "desktop_world":
+            let origin = allDisplaysBounds().origin
+            return CGRect(
+                x: frame.origin.x + origin.x,
+                y: frame.origin.y + origin.y,
+                width: frame.width,
+                height: frame.height
+            )
+        default:
+            return nil
+        }
+    }
+
+    private func inputRegionNativeToDesktopWorldPoint(_ point: CGPoint) -> CGPoint {
+        let origin = allDisplaysBounds().origin
+        return CGPoint(x: point.x - origin.x, y: point.y - origin.y)
+    }
+
+    private func removeInputRegionsOwned(by ownerCanvasID: String, includeSuspendRetained: Bool) {
+        inputRegionLock.lock()
+        let removed = inputRegions.removeOwned(by: ownerCanvasID, includeSuspendRetained: includeSuspendRetained)
+        inputRegionLock.unlock()
+        for region in removed {
+            publishInputRegionStateEvent(action: "removed", region: region)
+        }
     }
 
     // MARK: - Idle Management

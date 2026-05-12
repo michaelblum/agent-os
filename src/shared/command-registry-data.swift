@@ -106,7 +106,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos see capture main --out /tmp/screen.png",
                 "aos see main --base64 --format jpg",
                 "aos see capture user_active --window --xray",
-                "aos see capture --canvas canvas-inspector --perception --out /tmp/inspector.png",
+                "aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png",
                 "aos see capture --channel slack-msgs --perception --out /tmp/messages.png",
                 "aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png",
                 "aos see mouse --radius 200"
@@ -335,7 +335,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSONFlag,
             examples: [
-                "aos show wait --id canvas-inspector --manifest canvas-inspector",
+                "aos show wait --id surface-inspector --manifest canvas-inspector",
                 "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
             ]),
         InvocationForm(id: "show-exists", usage: "aos show exists --id <name>",

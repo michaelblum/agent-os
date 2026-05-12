@@ -99,6 +99,10 @@
       "type": "string",
       "enum": ["daemon", "toolkit"]
     },
+    "SourceOrigin": {
+      "type": "string",
+      "enum": ["daemon", "canvas", "toolkit"]
+    },
     "RawInputBase": {
       "type": "object",
       "required": ["input_schema_version", "event_kind", "type", "timestamp_monotonic_ms", "sequence"],
@@ -113,7 +117,9 @@
           "pattern": "^[a-z][a-z0-9_]*$"
         },
         "timestamp_monotonic_ms": { "type": "number" },
-        "sequence": { "$ref": "#/$defs/Sequence" }
+        "sequence": { "$ref": "#/$defs/Sequence" },
+        "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+        "source_canvas_id": { "type": "string", "minLength": 1 }
       }
     },
     "RawInputEvent": {
@@ -153,7 +159,11 @@
             "device": { "const": "mouse" },
             "timestamp_monotonic_ms": { "type": "number" },
             "sequence": { "$ref": "#/$defs/Sequence" },
+            "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+            "source_canvas_id": { "type": "string", "minLength": 1 },
             "gesture_id": { "type": "string", "minLength": 1 },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
             "native": { "$ref": "#/$defs/Point" },
             "desktop_world": { "$ref": "#/$defs/Point" },
             "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
@@ -162,7 +172,8 @@
             "button": { "$ref": "#/$defs/Button" },
             "buttons": { "$ref": "#/$defs/Buttons" },
             "click_count": { "type": "integer", "minimum": 1 },
-            "modifiers": { "$ref": "#/$defs/Modifiers" }
+            "modifiers": { "$ref": "#/$defs/Modifiers" },
+            "flags": { "$ref": "#/$defs/Modifiers" }
           },
           "dependentRequired": {
             "desktop_world": ["coordinate_authority"],
@@ -199,14 +210,19 @@
             "device": { "const": "mouse" },
             "timestamp_monotonic_ms": { "type": "number" },
             "sequence": { "$ref": "#/$defs/Sequence" },
+            "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+            "source_canvas_id": { "type": "string", "minLength": 1 },
             "gesture_id": { "type": "string", "minLength": 1 },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
             "native": { "$ref": "#/$defs/Point" },
             "desktop_world": { "$ref": "#/$defs/Point" },
             "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
             "display_id": { "type": "integer", "minimum": 1 },
             "topology_version": { "type": "integer", "minimum": 0 },
             "scroll": { "$ref": "#/$defs/Scroll" },
-            "modifiers": { "$ref": "#/$defs/Modifiers" }
+            "modifiers": { "$ref": "#/$defs/Modifiers" },
+            "flags": { "$ref": "#/$defs/Modifiers" }
           },
           "dependentRequired": {
             "desktop_world": ["coordinate_authority"],
@@ -236,8 +252,12 @@
             "type": { "type": "string", "enum": ["key_down", "key_up"] },
             "timestamp_monotonic_ms": { "type": "number" },
             "sequence": { "$ref": "#/$defs/Sequence" },
+            "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+            "source_canvas_id": { "type": "string", "minLength": 1 },
             "key": { "$ref": "#/$defs/Key" },
+            "key_code": { "type": "integer", "minimum": 0 },
             "modifiers": { "$ref": "#/$defs/Modifiers" },
+            "flags": { "$ref": "#/$defs/Modifiers" },
             "native": { "$ref": "#/$defs/Point" },
             "display_id": { "type": "integer", "minimum": 1 },
             "topology_version": { "type": "integer", "minimum": 0 },
@@ -273,6 +293,8 @@
             "phase": { "const": "cancel" },
             "timestamp_monotonic_ms": { "type": "number" },
             "sequence": { "$ref": "#/$defs/Sequence" },
+            "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+            "source_canvas_id": { "type": "string", "minLength": 1 },
             "caused_by_sequence": { "$ref": "#/$defs/Sequence" },
             "gesture_id": { "type": "string", "minLength": 1 },
             "cancel_reason": {
@@ -288,6 +310,8 @@
                 "emergency_command"
               ]
             },
+            "x": { "type": "number" },
+            "y": { "type": "number" },
             "native": { "$ref": "#/$defs/Point" },
             "display_id": { "type": "integer", "minimum": 1 },
             "topology_version": { "type": "integer", "minimum": 0 },
@@ -295,7 +319,8 @@
             "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
             "button": { "$ref": "#/$defs/Button" },
             "buttons": { "$ref": "#/$defs/Buttons" },
-            "modifiers": { "$ref": "#/$defs/Modifiers" }
+            "modifiers": { "$ref": "#/$defs/Modifiers" },
+            "flags": { "$ref": "#/$defs/Modifiers" }
           },
           "dependentRequired": {
             "desktop_world": ["coordinate_authority"],
@@ -315,6 +340,7 @@
         "gesture_id",
         "desktop_world",
         "coordinate_authority",
+        "source_origin",
         "source_event"
       ],
       "additionalProperties": false,
@@ -336,6 +362,10 @@
         "gesture_id": { "type": "string", "minLength": 1 },
         "desktop_world": { "$ref": "#/$defs/Point" },
         "coordinate_authority": { "$ref": "#/$defs/CoordinateAuthority" },
+        "source_origin": { "$ref": "#/$defs/SourceOrigin" },
+        "source_canvas_id": { "type": "string", "minLength": 1 },
+        "owner_canvas_id": { "type": "string", "minLength": 1 },
+        "source_sequence": { "$ref": "#/$defs/Sequence" },
         "source_event": {
           "oneOf": [
             { "$ref": "#/$defs/RawInputEvent" },
@@ -358,9 +388,9 @@
         {
           "if": {
             "properties": { "delivery_role": { "enum": ["owned", "captured"] } },
-            "required": ["delivery_role"]
-          },
-          "then": { "required": ["region_id"] }
+          "required": ["delivery_role"]
+        },
+          "then": { "required": ["region_id", "owner_canvas_id"] }
         },
         {
           "if": {

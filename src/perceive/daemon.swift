@@ -105,6 +105,7 @@ class PerceptionEngine {
             .otherMouseDown,
             .otherMouseUp,
             .otherMouseDragged,
+            .scrollWheel,
             .keyDown,
             .keyUp,
             .tapDisabledByTimeout,
@@ -262,6 +263,8 @@ class PerceptionEngine {
             return "other_mouse_up"
         case .otherMouseDragged:
             return "other_mouse_dragged"
+        case .scrollWheel:
+            return "scroll_wheel"
         case .keyDown:
             return "key_down"
         case .keyUp:
@@ -277,15 +280,19 @@ class PerceptionEngine {
         case .keyDown, .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             return inputEventData(type: eventName, keyCode: keyCode, flags: flags)
+        case .scrollWheel:
+            let point = event.location
+            let dx = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2))
+            let dy = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1))
+            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags, scrollDX: dx, scrollDY: dy)
         default:
             let point = event.location
             return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags)
         }
     }
 
-    /// Map `CGEventFlags` to the shared {shift, ctrl, cmd, opt, fn} dict used
-    /// in every `input_event` payload. `.maskAlphaShift` (capslock) is ignored
-    /// intentionally.
+    /// Map `CGEventFlags` to the shared modifier dict used in every
+    /// `input_event` payload.
     private func modifierFlags(from flags: CGEventFlags) -> [String: Bool] {
         return [
             "shift": flags.contains(.maskShift),
@@ -293,6 +300,7 @@ class PerceptionEngine {
             "cmd": flags.contains(.maskCommand),
             "opt": flags.contains(.maskAlternate),
             "fn": flags.contains(.maskSecondaryFn),
+            "caps_lock": flags.contains(.maskAlphaShift),
         ]
     }
 

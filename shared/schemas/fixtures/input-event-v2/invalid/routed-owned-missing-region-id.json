@@ -3,9 +3,15 @@
   "event_kind": "pointer",
   "type": "left_mouse_down",
   "delivery_role": "owned",
-  "sequence": { "source": "daemon", "value": 42 },
+  "sequence": {
+    "source": "daemon",
+    "value": 42
+  },
   "gesture_id": "g-42",
-  "desktop_world": { "x": 714, "y": 373 },
+  "desktop_world": {
+    "x": 714,
+    "y": 373
+  },
   "coordinate_authority": "daemon",
   "button": "left",
   "buttons": {
@@ -14,5 +20,11 @@
     "middle": false,
     "other_pressed": []
   },
-  "source_event": "daemon:42"
+  "source_event": "daemon:42",
+  "source_origin": "daemon",
+  "owner_canvas_id": "avatar-main",
+  "source_sequence": {
+    "source": "daemon",
+    "value": 42
+  }
 }

@@ -15,6 +15,7 @@ protocol CanvasLike: AnyObject {
     var windowLevel: String? { get set }
     var focusOnReady: Bool { get set }
     var suspended: Bool { get set }
+    var lifecycleState: String { get set }
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
     var owner: CanvasOwnerInfo? { get set }
@@ -155,6 +156,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     }
     var focusOnReady: Bool = false
     var suspended: Bool = false
+    var lifecycleState: String = "active"
     var cascadeFromParent: Bool = true
     var parent: String? = nil
     var owner: CanvasOwnerInfo? = nil
@@ -294,6 +296,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             parent: parent,
             cascade: cascadeFromParent,
             suspended: suspended,
+            lifecycleState: lifecycleState,
             windowNumbers: windowNumbers,
             segments: segmentMetadata(),
             owner: owner
