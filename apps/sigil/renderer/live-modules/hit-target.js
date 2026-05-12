@@ -1,96 +1,128 @@
 import { toolkitSpecifier } from './content-roots.js';
 
-const { createInteractionSurface } = await import(toolkitSpecifier('runtime/interaction-surface.js'));
+const { createDesktopWorldHitRegionController } = await import(toolkitSpecifier('runtime/desktop-world-hit-region.js'));
 
-function frameFor(center, size) {
+function finite(value, fallback = 0) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function worldRectForCenter(center, size) {
     const half = size / 2;
-    return [
-        Math.round(center.x - half),
-        Math.round(center.y - half),
-        size,
-        size,
-    ];
+    return {
+        x: finite(center.x) - half,
+        y: finite(center.y) - half,
+        w: size,
+        h: size,
+    };
 }
 
-function appendQuery(url, params) {
-    const separator = url.includes('?') ? '&' : '?';
-    const query = new URLSearchParams(params).toString();
-    return `${url}${separator}${query}`;
+function nativeRectFromFrame(frame) {
+    if (!Array.isArray(frame) || frame.length < 4) return null;
+    const rect = {
+        x: finite(frame[0], NaN),
+        y: finite(frame[1], NaN),
+        w: finite(frame[2], NaN),
+        h: finite(frame[3], NaN),
+    };
+    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
+    if (rect.w <= 0 || rect.h <= 0) return null;
+    return rect;
 }
 
-function sameFrame(a, b) {
-    return Array.isArray(a)
-        && Array.isArray(b)
-        && a.length >= 4
-        && b.length >= 4
-        && a[0] === b[0]
-        && a[1] === b[1]
-        && a[2] === b[2]
-        && a[3] === b[3];
+function offscreenFrame(size) {
+    const nextSize = Math.max(1, Math.round(finite(size, 1)));
+    return [-10000, -10000, nextSize, nextSize];
 }
 
 export function createHitTargetController({ runtime, url, size = 80, id = null, idPrefix = 'sigil-hit' }) {
-    const hitId = id || `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`;
-    const ownerCanvasId = (
-        typeof window !== 'undefined'
-        && (window.__aosCanvasId || window.__aosSurfaceCanvasId)
-    ) || 'avatar-main';
-    const hit = {
-        id: hitId,
-        ready: false,
-        creating: false,
-        interactive: true,
-        size,
-        frame: [-1000, -1000, size, size],
-    };
-    const surface = createInteractionSurface({
+    const initialSize = Math.max(1, Math.round(finite(size, 80)));
+    const controller = createDesktopWorldHitRegionController({
         runtime,
-        id: hit.id,
-        url: appendQuery(url, { parent: ownerCanvasId, id: hit.id }),
-        parent: ownerCanvasId,
-        frame: hit.frame,
-        interactive: true,
+        url,
+        id,
+        idPrefix,
+        fallbackOwnerCanvasId: 'avatar-main',
+        globalObject: typeof window !== 'undefined' ? window : globalThis,
+        initialSize: [initialSize, initialSize],
         windowLevel: 'screen_saver',
     });
+    const hit = {
+        id: controller.id,
+        parent: controller.parent,
+        ready: false,
+        creating: false,
+        interactive: false,
+        size: initialSize,
+        frame: offscreenFrame(initialSize),
+    };
+
+    function syncControllerState() {
+        const snapshot = controller.snapshot();
+        hit.ready = snapshot.ready;
+        hit.creating = snapshot.creating;
+        hit.interactive = snapshot.interactive;
+        hit.frame = snapshot.frame || offscreenFrame(hit.size);
+        hit.parent = snapshot.parent;
+    }
 
     async function ensureCreated() {
         if (hit.ready || hit.creating) return hit.id;
         hit.creating = true;
         try {
-            await surface.ensureCreated();
-            hit.ready = true;
+            await controller.ensureCreated();
+            syncControllerState();
             return hit.id;
-        } catch (error) {
-            if (String(error?.message || error).includes('DUPLICATE')) {
-                hit.ready = true;
-                return hit.id;
-            }
-            throw error;
         } finally {
             hit.creating = false;
+            syncControllerState();
         }
     }
 
-    function syncFrame(frame, interactive) {
-        if (!hit.ready || !Array.isArray(frame) || frame.length < 4) return;
-        const nextFrame = frame.map((value) => Math.round(Number(value) || 0));
-        const nextInteractive = !!interactive;
-        const targetFrame = nextInteractive ? nextFrame : [-10000, -10000, hit.size, hit.size];
-        if (sameFrame(hit.frame, targetFrame) && hit.interactive === nextInteractive) return;
-        surface.setPlacement(targetFrame, nextInteractive);
-        hit.frame = targetFrame;
-        hit.interactive = nextInteractive;
+    function syncWorldRect(worldRect, interactive, options = {}) {
+        if (!hit.ready) return false;
+        const changed = controller.sync({
+            worldRect,
+            displays: options.displays || [],
+            interactive: !!interactive,
+        });
+        syncControllerState();
+        return changed;
     }
 
-    function sync(center, interactive) {
-        if (!hit.ready || !center?.valid) return;
-        const nextInteractive = !!interactive;
-        const targetCenter = nextInteractive ? center : { x: -10000, y: -10000 };
-        syncFrame(frameFor(targetCenter, hit.size), nextInteractive);
+    function syncWorldCenter(center, interactive, options = {}) {
+        if (!hit.ready) return false;
+        if (!center?.valid || !interactive) {
+            const changed = controller.disable();
+            syncControllerState();
+            return changed;
+        }
+        return syncWorldRect(worldRectForCenter(center, hit.size), true, options);
+    }
+
+    function syncFrame(frame, interactive) {
+        if (!hit.ready) return false;
+        const rect = nativeRectFromFrame(frame);
+        if (!rect || !interactive) {
+            const changed = controller.disable();
+            syncControllerState();
+            return changed;
+        }
+        const changed = controller.sync({
+            worldRect: rect,
+            displays: [],
+            interactive: true,
+        });
+        syncControllerState();
+        return changed;
+    }
+
+    function sync(center, interactive, options = {}) {
+        return syncWorldCenter(center, interactive, options);
     }
 
     function setSize(size) {
-        const nextSize = Math.max(1, Math.round(size));
+        const nextSize = Math.max(1, Math.round(finite(size, hit.size)));
         if (nextSize === hit.size) return;
         hit.size = nextSize;
     }
@@ -98,13 +130,14 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
     async function remove() {
         if (!hit.ready && !hit.creating) return;
         try {
-            await surface.remove();
+            await controller.remove();
         } catch (error) {
             console.warn('[sigil] failed to remove hit target:', error);
         } finally {
             hit.ready = false;
             hit.creating = false;
             hit.interactive = false;
+            hit.frame = offscreenFrame(hit.size);
         }
     }
 
@@ -112,6 +145,8 @@ export function createHitTargetController({ runtime, url, size = 80, id = null, 
         hit,
         ensureCreated,
         sync,
+        syncWorldCenter,
+        syncWorldRect,
         syncFrame,
         setSize,
         remove,

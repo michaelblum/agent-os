@@ -24,7 +24,7 @@ aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sig
 export STATUS_ITEMS_BEFORE_CLICK
 STATUS_ITEMS_BEFORE_CLICK="$(aos_status_item_matches_json || printf '{"matches":[]}')"
 
-aos_visual_launch_sigil_with_inspector_via_status_item "$ROOT" avatar-main canvas-inspector manual-visible
+aos_visual_launch_sigil_with_inspector_via_status_item "$ROOT" avatar-main surface-inspector manual-visible
 
 python3 - <<'PY'
 import json

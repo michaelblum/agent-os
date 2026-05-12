@@ -23,7 +23,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "INFO: this scenario uses real mouse input through the active repo daemon. Keep the keyboard and mouse idle."
+echo "INFO: this scenario uses real mouse input across a centered DesktopWorld figure-eight path. Keep the keyboard and mouse idle."
 aos_real_input_surface_start "$INSPECTOR_ID"
 aos_visual_prepare_live_roots
 aos_visual_seed_sigil repo
@@ -38,7 +38,5 @@ sleep 0.25
 aos_visual_launch_sigil_avatar "$AVATAR_ID"
 aos_visual_wait_sigil_avatar_ready "$AVATAR_ID" "20s"
 aos_visual_show_sigil_avatar "$AVATAR_ID"
-aos_visual_place_sigil_avatar_for_manual_test "$AVATAR_ID"
-aos_visual_avoid_sigil_avatar_overlap "$AVATAR_ID" "$INSPECTOR_ID"
 aos_real_input_surface_assert_inspector_visible "$INSPECTOR_ID" >/dev/null
-aos_sigil_radial_verify_real_input "$AVATAR_ID" "$INSPECTOR_ID"
+aos_sigil_radial_verify_real_input "$AVATAR_ID" "$INSPECTOR_ID" desktop-world-path

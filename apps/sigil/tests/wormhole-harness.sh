@@ -3,7 +3,7 @@
 #
 # This intentionally avoids the outmoded Sigil workbench. It brings up only:
 #   - avatar-main: the live Sigil renderer on the display union
-#   - canvas-inspector: the standalone toolkit inspector
+#   - surface-inspector: the standalone toolkit Surface Inspector
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ source "$REPO_ROOT/tests/lib/visual-harness.sh"
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"
 AVATAR_ID="${AVATAR_ID:-avatar-main}"
-INSPECTOR_ID="${INSPECTOR_ID:-canvas-inspector}"
+INSPECTOR_ID="${INSPECTOR_ID:-surface-inspector}"
 FAST_TRAVEL_EFFECT="${FAST_TRAVEL_EFFECT:-wormhole}"
 
 cd "$REPO_ROOT"
@@ -32,7 +32,7 @@ Sigil wormhole harness launched.
 
 Manual test:
   Drag the avatar dot away from its current position, then release.
-  The Canvas Inspector should show avatar-main plus the sigil-hit child canvas.
+  Surface Inspector should show avatar-main plus the sigil-hit child canvas.
 
 Debug snapshot:
   $AOS show eval --id $AVATAR_ID --js 'JSON.stringify(window.__sigilDebug.snapshot())'

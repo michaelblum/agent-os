@@ -58,7 +58,17 @@ function emit(kind, event) {
     const rect = document.body.getBoundingClientRect();
     const payload = {
         source: HIT_SOURCE,
+        source_origin: 'canvas',
+        source_canvas_id: HIT_ID,
+        sourceCanvasId: HIT_ID,
+        owner_canvas_id: HIT_PARENT_ID,
+        ownerCanvasId: HIT_PARENT_ID,
+        parent_canvas_id: HIT_PARENT_ID,
+        source_event: kind,
+        sourceEvent: kind,
         kind,
+        pointer_id: Number.isFinite(event.pointerId) ? event.pointerId : null,
+        pointerId: Number.isFinite(event.pointerId) ? event.pointerId : null,
         screenX: Number.isFinite(event.screenX) ? event.screenX : null,
         screenY: Number.isFinite(event.screenY) ? event.screenY : null,
         offsetX: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),

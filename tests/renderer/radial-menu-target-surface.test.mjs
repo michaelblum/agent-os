@@ -48,6 +48,7 @@ test('radial menu surface keeps labels in AX attributes, not visible text', asyn
 
   assert.match(html, /applySemanticTargetAttributes/)
   assert.match(html, /aria-label="Sigil radial menu"/)
+  assert.match(html, /radial_surface_ready/)
   assert.match(html, /dataset\.radialItemId/)
   assert.match(html, /dataset\.radialAction/)
   assert.doesNotMatch(html, /Sigil radial item:/)
@@ -146,6 +147,10 @@ test('radial menu target surface creates an offscreen child and posts live item 
       },
     ]
   )
+
+  assert.equal(surface.refreshPayload(), true)
+  assert.equal(posts.length, 2)
+  assert.deepEqual(posts[1], posts[0])
 
   assert.equal(surface.sync({ phase: 'idle', items: [] }, { displays: [] }), false)
   assert.deepEqual(updates[1], {

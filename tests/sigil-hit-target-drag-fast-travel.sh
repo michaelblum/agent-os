@@ -20,7 +20,7 @@ aos_visual_seed_sigil repo
 aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-aos_visual_launch_sigil_with_inspector avatar-main canvas-inspector
+aos_visual_launch_sigil_with_inspector avatar-main surface-inspector
 
 python3 - <<'PY'
 import json

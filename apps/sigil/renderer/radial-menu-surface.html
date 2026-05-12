@@ -84,6 +84,13 @@ function emit(kind, payload = {}) {
                 id: SURFACE_ID,
                 payload: {
                     source: 'sigil-radial-menu-surface',
+                    source_origin: 'canvas',
+                    source_canvas_id: SURFACE_ID,
+                    sourceCanvasId: SURFACE_ID,
+                    owner_canvas_id: PARENT_ID,
+                    ownerCanvasId: PARENT_ID,
+                    source_event: kind,
+                    sourceEvent: kind,
                     kind,
                     ...payload,
                 },
@@ -174,6 +181,7 @@ window.headsup.receive = function receive(b64) {
 };
 
 render({ items: [] });
+emit('radial_surface_ready', { surfaceId: SURFACE_ID });
 console.log('[sigil-radial-menu-surface] ready');
 </script>
 </body>

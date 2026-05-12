@@ -342,7 +342,7 @@ export function menuMarkup() {
                 ${controlRow('Menu Ring', 'sigil-menu-ring', 40, 260, 1, 120)}
                 <label class="checkbox-label"><input type="checkbox" id="sigil-menu-avatar-above-menu"> Avatar Above Menu Bar</label>
                 <div class="ctx-divider"></div>
-                <button class="ctx-trigger" data-sigil-action="toggle-inspector">Canvas Inspector</button>
+                <button class="ctx-trigger" data-sigil-action="toggle-inspector">Surface Inspector</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-trace">Interaction Trace</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-render-performance">Render Performance</button>
                 <button class="ctx-trigger" data-sigil-action="toggle-log">Console Log</button>
@@ -1012,12 +1012,22 @@ export function createSigilContextMenu({
 
     function handlePointerEvent(kind, point, options = {}) {
         if (!menuState.open) return false;
+        const raw = options.raw || {};
+        const sourceIdentity = options.sourceIdentity || raw.sourceIdentity || (
+            raw.sourceOrigin || raw.source_origin || raw.sourceCanvasId || raw.source_canvas_id
+                ? {
+                    sourceOrigin: raw.sourceOrigin ?? raw.source_origin ?? null,
+                    sourceCanvasId: raw.sourceCanvasId ?? raw.source_canvas_id ?? null,
+                    ownerCanvasId: raw.ownerCanvasId ?? raw.owner_canvas_id ?? null,
+                }
+                : null
+        );
         return interactionRouter.route(
-            { type: kind, x: point.x, y: point.y, ...(options.raw || {}) },
+            { type: kind, x: point.x, y: point.y, ...raw },
             {
-                source: options.assumeInside ? 'hit' : 'global',
-                assumeInside: options.assumeInside,
-                regionId: options.assumeInside ? 'sigil-context-menu' : undefined,
+                source: options.source || 'global',
+                sourceIdentity,
+                regionId: options.regionId,
             }
         );
     }
@@ -1295,7 +1305,7 @@ export function createSigilContextMenu({
         onColor('sigil-menu-magnetic2', 'magnetic', 1);
         onColor('sigil-menu-grid1', 'grid', 0);
         onColor('sigil-menu-grid2', 'grid', 1);
-        onAction('toggle-inspector', () => onUtilityAction?.('canvas-inspector'));
+        onAction('toggle-inspector', () => onUtilityAction?.('surface-inspector'));
         onAction('toggle-trace', () => onUtilityAction?.('sigil-interaction-trace'));
         onAction('toggle-render-performance', () => onUtilityAction?.('render-performance'));
         onAction('toggle-log', () => onUtilityAction?.('log-console'));
