@@ -114,9 +114,19 @@ test('ensureDesktopWorldStage creates the shared non-interactive desktop-world s
       created.push(payload)
       return Promise.resolve({ id: payload.id })
     },
+    waitForStage(id, options) {
+      created.push({ ready: id, options })
+      return Promise.resolve({ id, ready: true })
+    },
   })
 
-  assert.equal(result, true)
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'created',
+    id: 'stage-test',
+    url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
+    created: true,
+  })
   assert.deepEqual(created, [{
     id: 'stage-test',
     url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
@@ -125,6 +135,36 @@ test('ensureDesktopWorldStage creates the shared non-interactive desktop-world s
     interactive: false,
     focus: false,
     cascade: false,
+  }, {
+    ready: 'stage-test',
+    options: { timeoutMs: 3000, intervalMs: 50, infoTimeoutMs: 500, requireManifest: true, manifestName: 'desktop-world-stage' },
+  }])
+})
+
+test('ensureDesktopWorldStage treats an existing shared stage as ready', async () => {
+  const readiness = []
+  const result = await ensureDesktopWorldStage({
+    id: 'stage-existing-test',
+    url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
+    createStage() {
+      return Promise.reject(new Error('canvas already exists'))
+    },
+    waitForStage(id, options) {
+      readiness.push({ id, options })
+      return Promise.resolve({ id, ready: true })
+    },
+  })
+
+  assert.deepEqual(result, {
+    ok: true,
+    status: 'already_exists',
+    id: 'stage-existing-test',
+    url: 'aos://toolkit-preview/components/desktop-world-stage/index.html',
+    created: false,
+  })
+  assert.deepEqual(readiness, [{
+    id: 'stage-existing-test',
+    options: { timeoutMs: 3000, intervalMs: 50, infoTimeoutMs: 500, requireManifest: true, manifestName: 'desktop-world-stage' },
   }])
 })
 
@@ -139,16 +179,22 @@ test('createPanelTransferController can ensure the shared transfer stage on drag
       created.push(payload)
       return Promise.resolve({ id: payload.id })
     },
+    waitForStage(id) {
+      created.push({ ready: id })
+      return Promise.resolve({ id, ready: true })
+    },
     getDisplays: () => displays,
     sendStageMessage() {},
   })
 
   controller.start({ frame: [100, 80, 500, 360] })
   await Promise.resolve()
+  await Promise.resolve()
 
-  assert.equal(created.length, 1)
+  assert.equal(created.length, 2)
   assert.equal(created[0].id, 'stage-start-test')
   assert.equal(created[0].surface, 'desktop-world')
+  assert.deepEqual(created[1], { ready: 'stage-start-test' })
 })
 
 test('createDragController applies transfer release frame before fallback clamp', () => {

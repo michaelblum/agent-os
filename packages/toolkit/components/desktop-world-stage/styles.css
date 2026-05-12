@@ -33,6 +33,22 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.42), 0 14px 40px rgba(0, 0, 0, 0.24);
 }
 
+.desktop-world-stage-chip {
+  border: var(--stage-stroke-width, 1px) solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: var(--stage-fill, rgba(27, 31, 38, 0.92));
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.desktop-world-stage-chip::after {
+  content: "x";
+  position: absolute;
+  right: 11px;
+  top: 8px;
+  color: rgba(245, 247, 250, 0.82);
+  font: 700 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 .desktop-world-stage-label {
   position: absolute;
   left: 8px;
@@ -44,4 +60,9 @@ body {
   color: currentColor;
   font: 650 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.desktop-world-stage-chip .desktop-world-stage-label {
+  top: 10px;
+  max-width: calc(100% - 48px);
 }

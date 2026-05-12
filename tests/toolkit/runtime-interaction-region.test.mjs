@@ -171,6 +171,55 @@ test('router suppresses duplicate non-captured streams during drag', () => {
   assert.equal(router.snapshot().capturedRegionId, null)
 })
 
+test('router routes trusted canvas source identity to explicit region id', () => {
+  const events = []
+  const router = createDesktopWorldInteractionRouter()
+  router.registerRegion({
+    id: 'menu',
+    contains: rectContains({ x: 100, y: 100, w: 200, h: 30 }),
+    onPointer(event) {
+      events.push({
+        phase: event.phase,
+        source: event.source,
+        sourceIdentity: event.sourceIdentity,
+        regionId: event.regionId,
+        point: event.point,
+      })
+    },
+  })
+
+  router.route({
+    type: 'left_mouse_down',
+    x: -500,
+    y: -500,
+    sourceOrigin: 'canvas',
+    sourceCanvasId: 'child-hit',
+    ownerCanvasId: 'parent-canvas',
+  }, {
+    regionId: 'menu',
+  })
+
+  assert.deepEqual(events, [
+    {
+      phase: 'down',
+      source: 'canvas:child-hit',
+      sourceIdentity: {
+        sourceOrigin: 'canvas',
+        sourceCanvasId: 'child-hit',
+        ownerCanvasId: 'parent-canvas',
+      },
+      regionId: 'menu',
+      point: { x: -500, y: -500, valid: true },
+    },
+  ])
+  assert.equal(router.snapshot().capturedSource, 'canvas:child-hit')
+  assert.deepEqual(router.snapshot().capturedSourceIdentity, {
+    sourceOrigin: 'canvas',
+    sourceCanvasId: 'child-hit',
+    ownerCanvasId: 'parent-canvas',
+  })
+})
+
 test('router reports outside click after outside down/up', () => {
   const outside = []
   const router = createDesktopWorldInteractionRouter({

@@ -1,9 +1,10 @@
-import { wireBridge } from '../../runtime/bridge.js'
+import { emit, wireBridge } from '../../runtime/bridge.js'
 import { DesktopWorldSurface2D } from '../../runtime/desktop-world-surface-2d.js'
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
 import {
   applyDesktopWorldStageMessage,
   createDesktopWorldStageState,
+  desktopWorldStageRegistry,
   desktopWorldStageSnapshot,
   renderDesktopWorldStageLayers,
 } from './model.js'
@@ -18,6 +19,7 @@ function render() {
   surface.applyWorldTransform(root)
   root.innerHTML = renderDesktopWorldStageLayers(state)
   window.__desktopWorldStageState = desktopWorldStageSnapshot(state)
+  emit('canvas_object.registry', desktopWorldStageRegistry(state, { canvasId }))
 }
 
 declareManifest({
@@ -28,7 +30,7 @@ declareManifest({
     'desktop_world_stage.layers.replace',
     'desktop_world_stage.clear',
   ],
-  emits: ['ready'],
+  emits: ['ready', 'canvas_object.registry'],
   surface: 'desktop-world',
 })
 

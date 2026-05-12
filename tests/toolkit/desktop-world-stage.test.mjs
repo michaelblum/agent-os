@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import {
   applyDesktopWorldStageMessage,
   createDesktopWorldStageState,
+  desktopWorldStageRegistry,
   desktopWorldStageSnapshot,
   normalizeStageLayer,
   renderDesktopWorldStageLayers,
@@ -54,6 +55,52 @@ test('stage messages upsert, remove, replace, and clear visual layers', () => {
 
   assert.equal(applyDesktopWorldStageMessage(state, { type: 'desktop_world_stage.clear' }), true)
   assert.equal(stageLayerList(state).length, 0)
+})
+
+test('desktopWorldStageRegistry publishes inspector-only layer snapshots across mutations', () => {
+  const state = createDesktopWorldStageState()
+
+  applyDesktopWorldStageMessage(state, {
+    type: 'desktop_world_stage.layer.upsert',
+    payload: {
+      id: 'chip',
+      kind: 'chip',
+      label: 'Panel chip',
+      frame: [10, 20, 140, 28],
+      metadata: {
+        toolkit_affordance_id: 'chip',
+        owner_canvas_id: 'panel-a',
+      },
+    },
+  })
+  let registry = desktopWorldStageRegistry(state, { canvasId: 'aos-desktop-world-stage' })
+  assert.equal(registry.type, 'canvas_object.registry')
+  assert.equal(registry.canvas_id, 'aos-desktop-world-stage')
+  assert.equal(registry.objects.length, 1)
+  assert.equal(registry.objects[0].capabilities.length, 0)
+  assert.equal(registry.objects[0].metadata.inspector_only, true)
+  assert.equal(registry.objects[0].metadata.stage_layer_id, 'chip')
+  assert.equal(registry.objects[0].metadata.toolkit_affordance_id, 'chip')
+
+  applyDesktopWorldStageMessage(state, {
+    type: 'desktop_world_stage.layers.replace',
+    payload: { layers: [{ id: 'outline', frame: [0, 0, 10, 10] }] },
+  })
+  registry = desktopWorldStageRegistry(state)
+  assert.deepEqual(registry.objects.map((object) => object.metadata.stage_layer_id), ['outline'])
+
+  applyDesktopWorldStageMessage(state, {
+    type: 'desktop_world_stage.layer.remove',
+    payload: { id: 'outline' },
+  })
+  assert.deepEqual(desktopWorldStageRegistry(state).objects, [])
+
+  applyDesktopWorldStageMessage(state, {
+    type: 'desktop_world_stage.layer.upsert',
+    payload: { id: 'fresh', frame: [0, 0, 10, 10] },
+  })
+  applyDesktopWorldStageMessage(state, { type: 'desktop_world_stage.clear' })
+  assert.deepEqual(desktopWorldStageRegistry(state).objects, [])
 })
 
 test('renderDesktopWorldStageLayers emits click-through DesktopWorld-positioned markup', () => {

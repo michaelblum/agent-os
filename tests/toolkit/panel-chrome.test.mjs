@@ -6,6 +6,7 @@ import {
   createDragController,
   createMaximizeController,
   createMinimizeController,
+  createPanelWindowController,
   createResizeController,
   dragFrameFromPointer,
   frameFromWindow,
@@ -290,7 +291,158 @@ test('createMaximizeController can use top-left inferred display work area', () 
   assert.deepEqual(frame, [1520, 80, 600, 420]);
 });
 
-test('createMinimizeController creates a hidden chip, suspends source, then shows the chip with pre-maximize restore frame', async () => {
+test('createPanelWindowController composes the canonical drag resize maximize and minimize policy', async () => {
+  let frame = [1520, 80, 600, 420];
+  const calls = [];
+  const controller = createPanelWindowController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => frame,
+    getWorkArea: (nextFrame) => workAreaForFrameTopLeft(nextFrame, panelDisplays),
+    getDragWorkArea: (nextFrame, pointer) => (
+      workAreaForPoint(pointer, panelDisplays, workAreaForFrameTopLeft(nextFrame, panelDisplays))
+    ),
+    getChipFrame: () => [1522, 90, 220, 38],
+    updateFrame(nextFrame) {
+      frame = nextFrame;
+      calls.push(['updateFrame', nextFrame]);
+    },
+    move(screenX, screenY, offsetX, offsetY) {
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
+      calls.push(['move', screenX, screenY, offsetX, offsetY]);
+    },
+    drag: { clampOnEnd: true, transfer: false },
+    resize: { minWidth: 300, minHeight: 240 },
+    maximize: true,
+    minimize: {
+      useStageChips: false,
+      makeChipUrl: () => 'chip-url',
+      async spawn(opts) { calls.push(['spawn', opts]); },
+      async suspend(id) { calls.push(['suspend', id]); },
+      async resume(id) { calls.push(['resume', id]); },
+      now: () => 1000,
+    },
+  });
+
+  assert.equal(typeof controller.dragController.start, 'function');
+  assert.equal(typeof controller.resizeController.resize, 'function');
+  assert.equal(typeof controller.maximizeController.toggle, 'function');
+  assert.equal(typeof controller.minimizeController.minimize, 'function');
+
+  controller.dragController.start({ pointerId: 1, clientX: 20, clientY: 20 });
+  controller.dragController.move({ pointerId: 1, screenX: 3500, screenY: 1200 });
+  controller.dragController.end({ pointerId: 1, screenX: 3500, screenY: 1200 });
+  assert.deepEqual(frame, [2832, 620, 600, 420]);
+
+  controller.resizeController.resize('se', 2000, 2000);
+  assert.deepEqual(frame, [2832, 620, 600, 420]);
+
+  controller.maximize();
+  assert.deepEqual(frame, [1512, 0, 1920, 1040]);
+
+  const result = await controller.minimize({ title: 'Panel' });
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'fallback_webview');
+  assert.deepEqual(result.restoreFrame, [2832, 620, 600, 420]);
+  assert.deepEqual(calls.slice(-3).map((entry) => entry[0]), ['spawn', 'suspend', 'resume']);
+});
+
+test('createPanelWindowController prewarms the shared stage before minimize click', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  let resolveEnsure;
+  const ensurePromise = new Promise((resolve) => {
+    resolveEnsure = resolve;
+  });
+  const controller = createPanelWindowController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    drag: false,
+    minimize: {
+      ensureStage(opts) {
+        calls.push(['ensureStage', opts.id]);
+        return ensurePromise;
+      },
+      sendStageMessage(message) { calls.push(['stage', message.type]); },
+      async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+      async suspend(id) { calls.push(['suspend', id]); },
+      now: () => 1000,
+    },
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(calls, [['ensureStage', 'aos-desktop-world-stage']]);
+
+  const minimized = controller.minimize({ title: 'Panel' });
+  await Promise.resolve();
+  assert.equal(calls.filter((entry) => entry[0] === 'ensureStage').length, 1);
+
+  resolveEnsure({ ok: true, status: 'created', id: 'aos-desktop-world-stage', created: true });
+  const result = await minimized;
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'stage');
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'stage',
+    'registerRegion',
+    'registerRegion',
+    'registerRegion',
+    'suspend',
+  ]);
+});
+
+test('createMinimizeController prewarm reuses promises and retries only when requested', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    ensureStage(opts) {
+      calls.push(['ensureStage', opts.id]);
+      return calls.length === 1
+        ? { ok: false, status: 'create_failed', id: opts.id, created: false }
+        : { ok: true, status: 'created', id: opts.id, created: true };
+    },
+    now: () => 1000,
+  });
+
+  assert.equal((await controller.prewarmStage()).ok, false);
+  assert.equal((await controller.prewarmStage()).ok, false);
+  assert.equal(calls.length, 1);
+
+  const retried = await controller.prewarmStage({ retry: true });
+  assert.equal(retried.ok, true);
+  assert.equal(calls.length, 2);
+});
+
+test('createMinimizeController creates a stage chip and input regions before suspending source', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage() {},
+        },
+      },
+    },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
   let frame = [40, 70, 500, 360];
   const maximize = createMaximizeController({
     getFrame: () => frame,
@@ -304,17 +456,24 @@ test('createMinimizeController creates a hidden chip, suspends source, then show
   assert.deepEqual(maximize.getState().restoreFrame, [40, 70, 500, 360]);
 
   const calls = [];
+  const ticks = [0, 1000, 1010, 1020, 1030, 1040, 1050, 1060, 1070, 1080, 1090, 1100];
+  const nextTick = () => ticks.shift() ?? 1100;
   const controller = createMinimizeController({
     getCanvasId: () => 'panel-a',
     getFrame: () => frame,
     getChipFrame: () => [10, 43, 220, 38],
-    makeChipUrl({ target, title, restoreFrame, chipId, chipFrame }) {
-      assert.equal(target, 'panel-a');
-      assert.equal(title, 'Surface Inspector');
-      assert.equal(chipId, 'aos-chip-panel-a-rs');
-      assert.deepEqual(restoreFrame, [40, 70, 500, 360]);
-      assert.deepEqual(chipFrame, [10, 43, 220, 38]);
-      return 'aos://toolkit/panel/minimized-chip.html?target=panel-a';
+    async ensureStage(opts) {
+      calls.push(['ensureStage', opts.id]);
+      return { ok: true, status: 'created', id: opts.id, created: true };
+    },
+    sendStageMessage(message) {
+      calls.push(['stage', message]);
+    },
+    async registerRegion(region) {
+      calls.push(['registerRegion', region]);
+    },
+    async removeRegion(id) {
+      calls.push(['removeRegion', id]);
     },
     async spawn(opts) {
       calls.push(['spawn', opts]);
@@ -329,17 +488,210 @@ test('createMinimizeController creates a hidden chip, suspends source, then show
       calls.push(['remove', id]);
     },
     maximizeController: maximize,
+    now: nextTick,
+  });
+
+  const result = await controller.minimize({ title: 'Surface Inspector' });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'stage');
+  assert.equal(result.inFlight, false);
+  assert.equal(controller.getState().inFlight, false);
+  assert.equal(controller.getState().targetSuspendSucceeded, true);
+  assert.equal(controller.getState().rollbackRemovedChip, false);
+  assert.equal(controller.getState().chipCanvasId, null);
+  assert.equal(controller.getState().chipLayerId, 'aos-chip-panel-a-rs');
+  assert.equal(controller.getState().stageLayerUpsertSent, true);
+  assert.deepEqual(controller.getState().registeredRegionIds, [
+    'aos-chip-panel-a-rs:body',
+    'aos-chip-panel-a-rs:restore',
+    'aos-chip-panel-a-rs:close',
+  ]);
+  assert.deepEqual(controller.getState().stageEnsureStatus, {
+    ok: true,
+    status: 'created',
+    id: 'aos-desktop-world-stage',
+    url: 'aos://toolkit/components/desktop-world-stage/index.html',
+    created: true,
+    error: null,
+  });
+  assert.deepEqual(controller.getState().timing, {
+    handlerStart: 0,
+    stageEnsureStart: 1010,
+    stageEnsureEnd: 1020,
+    stageEnsureDurationMs: 10,
+    stageLayerUpsertSentAt: 1030,
+    inputRegionRegistrationStart: 1040,
+    inputRegionRegistrationCount: 3,
+    inputRegionRegistrationEnd: 1070,
+    inputRegionRegistrationDurationMs: 30,
+    sourceSuspendStart: 1080,
+    sourceSuspendEnd: 1090,
+    sourceSuspendDurationMs: 10,
+    totalElapsedMs: 1100,
+  });
+  assert.deepEqual(controller.getState().regionIds, {
+    restore: 'aos-chip-panel-a-rs:restore',
+    close: 'aos-chip-panel-a-rs:close',
+    body: 'aos-chip-panel-a-rs:body',
+  });
+  assert.deepEqual(controller.getState().restoreFrame, [40, 70, 500, 360]);
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'stage',
+    'registerRegion',
+    'registerRegion',
+    'registerRegion',
+    'suspend',
+  ]);
+  assert.equal(calls[0][1], 'aos-desktop-world-stage');
+  assert.deepEqual(calls[1][1], {
+    type: 'desktop_world_stage.layer.upsert',
+    payload: {
+      id: 'aos-chip-panel-a-rs',
+      kind: 'chip',
+      label: 'Surface Inspector',
+      frame: [10, 43, 220, 38],
+      zIndex: 20000,
+      style: {
+        color: 'rgba(245, 247, 250, 0.96)',
+        fill: 'rgba(27, 31, 38, 0.92)',
+        strokeWidth: 1,
+      },
+      metadata: {
+        toolkit_role: 'minimized_panel_chip',
+        toolkit_affordance_id: 'aos-chip-panel-a-rs',
+        resource_scope_id: 'aos-chip-panel-a-rs',
+        owner_canvas_id: 'panel-a',
+        source_canvas_id: 'panel-a',
+        target_canvas_id: 'aos-desktop-world-stage',
+        stage_affordance_mode: 'minimized_panel_chip',
+      },
+    },
+  });
+  assert.deepEqual(calls.slice(2, 5).map((entry) => [entry[1].id, entry[1].frame, entry[1].semantic_label, entry[1].consume_policy, entry[1].remove_on_owner_suspend]), [
+    ['aos-chip-panel-a-rs:body', [10, 43, 220, 38], 'drag', 'never', false],
+    ['aos-chip-panel-a-rs:restore', [10, 43, 186, 38], 'restore', 'down_only', false],
+    ['aos-chip-panel-a-rs:close', [196, 43, 34, 38], 'close', 'down_only', false],
+  ]);
+  assert.deepEqual(calls[5], ['suspend', 'panel-a']);
+  assert.deepEqual(maximize.getState(), { maximized: false, restoreFrame: null });
+
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:restore',
+    phase: 'down',
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls.slice(6).map((entry) => entry[0]), [
+    'removeRegion',
+    'removeRegion',
+    'removeRegion',
+    'stage',
+    'resume',
+  ]);
+  assert.deepEqual(calls.slice(6, 9).map((entry) => entry[1]), [
+    'aos-chip-panel-a-rs:restore',
+    'aos-chip-panel-a-rs:close',
+    'aos-chip-panel-a-rs:body',
+  ]);
+  assert.deepEqual(calls[9][1], {
+    type: 'desktop_world_stage.layer.remove',
+    payload: { id: 'aos-chip-panel-a-rs' },
+  });
+  assert.deepEqual(calls[10], ['resume', 'panel-a']);
+});
+
+test('createMinimizeController keeps stage mode for a prewarmed stage owned by another canvas', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'surface-inspector',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    async ensureStage(opts) {
+      calls.push(['ensureStage', opts.id]);
+      return {
+        ok: true,
+        status: 'already_exists',
+        id: opts.id,
+        url: 'aos://toolkit/components/desktop-world-stage/index.html',
+        created: false,
+      };
+    },
+    sendStageMessage(message) { calls.push(['stage', message.type]); },
+    async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+    async spawn(opts) { calls.push(['spawn', opts.id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
     now: () => 1000,
   });
 
   const result = await controller.minimize({ title: 'Surface Inspector' });
 
   assert.equal(result.status, 'success');
-  assert.equal(result.inFlight, false);
-  assert.equal(controller.getState().inFlight, false);
-  assert.equal(controller.getState().targetSuspendSucceeded, true);
-  assert.equal(controller.getState().rollbackRemovedChip, false);
-  assert.deepEqual(controller.getState().restoreFrame, [40, 70, 500, 360]);
+  assert.equal(result.mode, 'stage');
+  assert.equal(result.stageEnsureStatus.ok, true);
+  assert.equal(result.stageEnsureStatus.status, 'already_exists');
+  assert.equal(result.stageLayerUpsertSent, true);
+  assert.deepEqual(result.registeredRegionIds, [
+    'aos-chip-surface-inspector-rs:body',
+    'aos-chip-surface-inspector-rs:restore',
+    'aos-chip-surface-inspector-rs:close',
+  ]);
+  assert.equal(calls.some((entry) => entry[0] === 'spawn'), false);
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'stage',
+    'registerRegion',
+    'registerRegion',
+    'registerRegion',
+    'suspend',
+  ]);
+});
+
+test('createMinimizeController can intentionally fall back to a WebView chip', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl({ target, title, chipId, chipFrame }) {
+      assert.equal(target, 'panel-a');
+      assert.equal(title, 'Surface Inspector');
+      assert.equal(chipId, 'aos-chip-panel-a-rs');
+      assert.deepEqual(chipFrame, [10, 43, 220, 38]);
+      return 'aos://toolkit/panel/minimized-chip.html?target=panel-a';
+    },
+    async spawn(opts) {
+      calls.push(['spawn', opts]);
+    },
+    async suspend(id) {
+      calls.push(['suspend', id]);
+    },
+    async resume(id) {
+      calls.push(['resume', id]);
+    },
+    useStageChips: false,
+    now: () => 1000,
+  });
+
+  const result = await controller.minimize({ title: 'Surface Inspector' });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'fallback_webview');
   assert.deepEqual(calls.map((entry) => entry[0]), ['spawn', 'suspend', 'resume']);
   assert.deepEqual(calls[0][1], {
     id: 'aos-chip-panel-a-rs',
@@ -353,7 +705,321 @@ test('createMinimizeController creates a hidden chip, suspends source, then show
   });
   assert.deepEqual(calls[1], ['suspend', 'panel-a']);
   assert.deepEqual(calls[2], ['resume', 'aos-chip-panel-a-rs']);
-  assert.deepEqual(maximize.getState(), { maximized: false, restoreFrame: null });
+});
+
+test('createMinimizeController falls back to WebView when the stage path is unavailable', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async ensureStage() {
+      calls.push(['ensureStage']);
+      return false;
+    },
+    sendStageMessage(message) {
+      calls.push(['stage', message]);
+    },
+    async removeRegion(id) {
+      calls.push(['removeRegion', id]);
+    },
+    async spawn(opts) {
+      calls.push(['spawn', opts.id]);
+    },
+    async suspend(id) {
+      calls.push(['suspend', id]);
+    },
+    async resume(id) {
+      calls.push(['resume', id]);
+    },
+    now: () => 1000,
+  });
+
+  const result = await controller.minimize({ title: 'Panel' });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'fallback_webview');
+  assert.equal(result.fallbackChipCreated, true);
+  assert.equal(result.fallbackChipResumed, true);
+  assert.equal(result.stageLayerUpsertSent, false);
+  assert.deepEqual(result.registeredRegionIds, []);
+  assert.deepEqual(result.stageEnsureStatus, {
+    ok: false,
+    status: 'unavailable',
+    id: 'aos-desktop-world-stage',
+    url: 'aos://toolkit/components/desktop-world-stage/index.html',
+    created: false,
+    error: null,
+  });
+  assert.match(result.error, /STAGE_UNAVAILABLE: unavailable/);
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'removeRegion',
+    'removeRegion',
+    'removeRegion',
+    'stage',
+    'spawn',
+    'suspend',
+    'resume',
+  ]);
+  assert.deepEqual(calls[5], ['spawn', 'aos-chip-panel-a-rs']);
+  assert.deepEqual(calls[6], ['suspend', 'panel-a']);
+  assert.deepEqual(calls[7], ['resume', 'aos-chip-panel-a-rs']);
+});
+
+test('createMinimizeController falls back before source suspend when stage ensure is unknown', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async ensureStage() {
+      calls.push(['ensureStage']);
+    },
+    sendStageMessage(message) { calls.push(['stage', message.type]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async spawn(opts) { calls.push(['spawn', opts.id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
+    now: () => 1000,
+  });
+
+  const result = await controller.minimize({ title: 'Panel' });
+
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'fallback_webview');
+  assert.match(result.error, /STAGE_UNAVAILABLE: unknown/);
+  assert.deepEqual(result.stageEnsureStatus, {
+    ok: false,
+    status: 'unknown',
+    id: 'aos-desktop-world-stage',
+    url: 'aos://toolkit/components/desktop-world-stage/index.html',
+    created: false,
+    error: null,
+  });
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'removeRegion',
+    'removeRegion',
+    'removeRegion',
+    'stage',
+    'spawn',
+    'suspend',
+    'resume',
+  ]);
+  assert.ok(calls.findIndex((entry) => entry[0] === 'spawn') < calls.findIndex((entry) => entry[0] === 'suspend'));
+});
+
+test('createMinimizeController leaves source active when fallback chip creation fails', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async ensureStage() {
+      calls.push(['ensureStage']);
+      return false;
+    },
+    sendStageMessage(message) { calls.push(['stage', message.type]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async spawn(opts) {
+      calls.push(['spawn', opts.id]);
+      throw new Error('CREATE_FAILED');
+    },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
+    async remove(id) { calls.push(['remove', id]); },
+    now: () => 1000,
+  });
+
+  await assert.rejects(() => controller.minimize({ title: 'Panel' }), /CREATE_FAILED/);
+
+  assert.equal(controller.getState().status, 'failed');
+  assert.equal(controller.getState().targetSuspendSucceeded, false);
+  assert.equal(controller.getState().fallbackChipCreated, false);
+  assert.equal(controller.getState().fallbackCleanupAttempted, true);
+  assert.equal(controller.getState().fallbackCleanupAttempts, 1);
+  assert.equal(controller.getState().rollbackRemovedChip, true);
+  assert.equal(calls.some((entry) => entry[0] === 'suspend'), false);
+  assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
+  assert.equal(calls.some((entry) => entry[0] === 'remove' && entry[1] === 'aos-chip-panel-a-rs'), true);
+});
+
+test('createMinimizeController retries fallback cleanup when create failure races delayed materialization', async () => {
+  const calls = [];
+  let removeAttempts = 0;
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async ensureStage() {
+      calls.push(['ensureStage']);
+      return false;
+    },
+    sendStageMessage(message) { calls.push(['stage', message.type]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async spawn(opts) {
+      calls.push(['spawn', opts.id]);
+      throw new Error('TIMEOUT: canvas.create');
+    },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
+    async remove(id) {
+      calls.push(['remove', id]);
+      removeAttempts += 1;
+      if (removeAttempts === 1) throw new Error('NOT_FOUND');
+    },
+    now: () => 1000,
+  });
+
+  await assert.rejects(() => controller.minimize({ title: 'Panel' }), /TIMEOUT: canvas\.create/);
+
+  assert.equal(controller.getState().status, 'failed');
+  assert.equal(controller.getState().targetSuspendSucceeded, false);
+  assert.equal(controller.getState().fallbackChipCreated, false);
+  assert.equal(controller.getState().fallbackCleanupAttempted, true);
+  assert.equal(controller.getState().fallbackCleanupAttempts, 2);
+  assert.equal(controller.getState().rollbackRemovedChip, true);
+  assert.deepEqual(calls.filter((entry) => entry[0] === 'remove'), [
+    ['remove', 'aos-chip-panel-a-rs'],
+    ['remove', 'aos-chip-panel-a-rs'],
+  ]);
+  assert.equal(calls.some((entry) => entry[0] === 'suspend'), false);
+  assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
+});
+
+test('createMinimizeController resumes source and removes fallback chip when fallback resume fails', async () => {
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    makeChipUrl: () => 'chip-url',
+    async ensureStage() {
+      calls.push(['ensureStage']);
+      return false;
+    },
+    sendStageMessage(message) { calls.push(['stage', message.type]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async spawn(opts) { calls.push(['spawn', opts.id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) {
+      calls.push(['resume', id]);
+      if (id === 'aos-chip-panel-a-rs') throw new Error('RESUME_FAILED');
+    },
+    async remove(id, opts) { calls.push(['remove', id, opts]); },
+    now: () => 1000,
+  });
+
+  await assert.rejects(() => controller.minimize({ title: 'Panel' }), /RESUME_FAILED/);
+
+  assert.equal(controller.getState().status, 'failed');
+  assert.equal(controller.getState().targetSuspendSucceeded, true);
+  assert.equal(controller.getState().fallbackChipCreated, true);
+  assert.equal(controller.getState().fallbackChipResumed, false);
+  assert.equal(controller.getState().rollbackRemovedChip, true);
+  assert.deepEqual(calls.slice(-3), [
+    ['resume', 'aos-chip-panel-a-rs'],
+    ['remove', 'aos-chip-panel-a-rs', { orphan_children: true }],
+    ['resume', 'panel-a'],
+  ]);
+});
+
+test('createMinimizeController close region removes the stage chip and source panel', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    async ensureStage() { return true; },
+    sendStageMessage(message) { calls.push(['stage', message]); },
+    async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async remove(id, opts) { calls.push(['remove', id, opts]); },
+    now: () => 1000,
+  });
+
+  await controller.minimize({ title: 'Panel' });
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:close',
+    phase: 'down',
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls.slice(5).map((entry) => entry[0]), [
+    'removeRegion',
+    'removeRegion',
+    'removeRegion',
+    'stage',
+    'remove',
+  ]);
+  assert.deepEqual(calls.at(-1), ['remove', 'panel-a', { orphan_children: true }]);
+});
+
+test('createMinimizeController owner removal clears the orphaned stage chip', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    async ensureStage() { return true; },
+    sendStageMessage(message) { calls.push(['stage', message]); },
+    async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
+    async remove(id) { calls.push(['remove', id]); },
+    now: () => 1000,
+  });
+
+  await controller.minimize({ title: 'Panel' });
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'canvas_lifecycle',
+    payload: {
+      action: 'removed',
+      canvas_id: 'panel-a',
+    },
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls.slice(5).map((entry) => entry[0]), [
+    'removeRegion',
+    'removeRegion',
+    'removeRegion',
+    'stage',
+  ]);
+  assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
+  assert.equal(calls.some((entry) => entry[0] === 'remove'), false);
 });
 
 test('createMinimizeController ignores duplicate minimize while a source suspend is in flight', async () => {
@@ -376,6 +1042,7 @@ test('createMinimizeController ignores duplicate minimize while a source suspend
     async resume(id) {
       calls.push(['resume', id]);
     },
+    useStageChips: false,
     now: () => 1000,
   });
 
@@ -414,6 +1081,7 @@ test('createMinimizeController removes the hidden chip when source suspend fails
     async remove(id, opts) {
       calls.push(['remove', id, opts]);
     },
+    useStageChips: false,
     now: () => 1000,
   });
 
@@ -492,6 +1160,20 @@ test('resize geometry handles edges, corners, constraints, and work-area clamp',
   assert.deepEqual(clampFrameToWorkArea([740, 560, 200, 120], {
     workArea: [0, 0, 800, 600],
   }), [600, 480, 200, 120]);
+});
+
+test('work-area clamp covers off-left off-right and off-bottom panel drops', () => {
+  const workArea = [100, 50, 800, 600];
+
+  assert.deepEqual(clampFrameToWorkArea([-260, 120, 240, 160], {
+    workArea,
+  }), [100, 120, 240, 160]);
+  assert.deepEqual(clampFrameToWorkArea([840, 120, 240, 160], {
+    workArea,
+  }), [660, 120, 240, 160]);
+  assert.deepEqual(clampFrameToWorkArea([240, 620, 240, 160], {
+    workArea,
+  }), [240, 490, 240, 160]);
 });
 
 test('drag geometry derives pointer frames and clamps final placement', () => {
