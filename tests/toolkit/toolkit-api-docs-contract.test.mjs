@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const repoUrl = new URL('../../', import.meta.url);
+
+async function text(path) {
+  return readFile(new URL(path, repoUrl), 'utf8');
+}
+
+function escaped(pattern) {
+  return new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+}
+
+function lineCount(doc) {
+  return doc.trimEnd().split('\n').length;
+}
+
+const scopedFiles = [
+  'docs/api/toolkit/runtime.md',
+  'docs/api/toolkit/panel-window.md',
+  'docs/api/toolkit/workbench.md',
+  'docs/api/toolkit/components.md',
+  'docs/api/toolkit/content-host.md',
+];
+
+test('toolkit API index is an overview with links to scoped references', async () => {
+  const index = await text('docs/api/toolkit.md');
+
+  assert.match(index, /^# Toolkit API/m);
+  assert.match(index, /## API Map/);
+  assert.match(index, /## One-Click Contract Index/);
+  assert.ok(lineCount(index) < 400, `toolkit API index should stay below 400 lines, got ${lineCount(index)}`);
+
+  for (const file of scopedFiles) {
+    assert.match(index, escaped(file.replace('docs/api/', './')));
+  }
+
+  for (const phrase of [
+    'createResourceScope',
+    'createStageAffordance',
+    'createPanelWindowController',
+    'mountChrome',
+    'DesktopWorld stage/surface runtime',
+    'input regions/events',
+    'workbench contracts',
+    'Surface Inspector and Surface-Zoom Inspector',
+    'content/host contract',
+    'styling boundary',
+  ]) {
+    assert.match(index, escaped(phrase));
+  }
+});
+
+test('toolkit scoped API files exist and own expected stable terms', async () => {
+  const docs = Object.fromEntries(await Promise.all(scopedFiles.map(async (file) => [file, await text(file)])));
+
+  assert.match(docs['docs/api/toolkit/runtime.md'], /createResourceScope/);
+  assert.match(docs['docs/api/toolkit/runtime.md'], /DesktopWorldSurfaceAdapter/);
+  assert.match(docs['docs/api/toolkit/runtime.md'], /registerInputRegion/);
+  assert.match(docs['docs/api/toolkit/runtime.md'], /input_region\.event/);
+  assert.match(docs['docs/api/toolkit/runtime.md'], /subscribe\(events, options\?\)/);
+
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /createStageAffordance/);
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /mountChrome/);
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /createPanelWindowController/);
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /createSplitPane/);
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /Tabs\(factoriesOrContents, options\?\)/);
+
+  assert.match(docs['docs/api/toolkit/workbench.md'], /aos\.workbench\.subject/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /HTML Workbench Expression V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Workbench Human Checkpoint V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Artifact Bundle Subject V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Playbook Workbench V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Wiki Subject Browser V0/);
+
+  assert.match(docs['docs/api/toolkit/components.md'], /Surface Inspector/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Surface-Zoom Inspector Proof/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Spatial Telemetry/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Render Performance/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Object Transform Panel/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Supervised Run Test Console/);
+  assert.match(docs['docs/api/toolkit/components.md'], /Integration Hub/);
+
+  assert.match(docs['docs/api/toolkit/content-host.md'], /Import \/ Hosting Model/);
+  assert.match(docs['docs/api/toolkit/content-host.md'], /Content Contract/);
+  assert.match(docs['docs/api/toolkit/content-host.md'], /ContentHost/);
+  assert.match(docs['docs/api/toolkit/content-host.md'], /Styling Boundary/);
+  assert.match(docs['docs/api/toolkit/content-host.md'], /Minimal Standalone Template/);
+});
+
+test('surface interaction decision tree remains discoverable from toolkit API docs', async () => {
+  const requiredPath = 'docs/recipes/aos-surface-interaction-decision-tree.md';
+  const docs = await Promise.all([
+    text('docs/api/toolkit.md'),
+    text('docs/api/toolkit/runtime.md'),
+    text('docs/api/toolkit/panel-window.md'),
+  ]);
+
+  for (const doc of docs) {
+    assert.match(doc, escaped(requiredPath));
+  }
+});
