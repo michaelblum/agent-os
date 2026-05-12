@@ -62,6 +62,21 @@ export function createResourceScope({
     unsubscribed: false,
     retainedSubscriptions: false,
     ranCustomCleanups: false,
+    removed: {
+      childCanvasIds: [],
+      stageLayerIds: [],
+      inputRegionIds: [],
+      subscriptionEvents: [],
+      cleanupIds: [],
+    },
+    preserved: {
+      childCanvasIds: [],
+      subscriptionEvents: [],
+    },
+    orphaned: {
+      childCanvasIds: [],
+    },
+    couldNotClassify: [],
     errors: [],
   }
 
@@ -91,6 +106,21 @@ export function createResourceScope({
       cleanupComplete,
       cleanupStatus: {
         ...cleanupStatus,
+        removed: {
+          childCanvasIds: [...cleanupStatus.removed.childCanvasIds],
+          stageLayerIds: [...cleanupStatus.removed.stageLayerIds],
+          inputRegionIds: [...cleanupStatus.removed.inputRegionIds],
+          subscriptionEvents: [...cleanupStatus.removed.subscriptionEvents],
+          cleanupIds: [...cleanupStatus.removed.cleanupIds],
+        },
+        preserved: {
+          childCanvasIds: [...cleanupStatus.preserved.childCanvasIds],
+          subscriptionEvents: [...cleanupStatus.preserved.subscriptionEvents],
+        },
+        orphaned: {
+          childCanvasIds: [...cleanupStatus.orphaned.childCanvasIds],
+        },
+        couldNotClassify: cleanupStatus.couldNotClassify.map((entry) => ({ ...entry })),
         errors: cleanupStatus.errors.map((error) => ({ ...error })),
       },
       active: isActive,
@@ -168,7 +198,10 @@ export function createResourceScope({
       })
       for (const resource of orderedInputRegions) {
         try {
-          if (await runCleanup(resource.remove, resource)) cleanupStatus.removedInputRegions = true
+          if (await runCleanup(resource.remove, resource)) {
+            cleanupStatus.removedInputRegions = true
+            cleanupStatus.removed.inputRegionIds.push(resource.id)
+          }
         } catch (error) {
           cleanupStatus.errors.push({ kind: 'inputRegion', id: resource.id, message: String(error?.message || error) })
         }
@@ -176,16 +209,32 @@ export function createResourceScope({
 
       for (const resource of [...stageLayers].reverse()) {
         try {
-          if (await runCleanup(resource.remove, resource)) cleanupStatus.removedStageLayers = true
+          if (await runCleanup(resource.remove, resource)) {
+            cleanupStatus.removedStageLayers = true
+            cleanupStatus.removed.stageLayerIds.push(resource.id)
+          } else {
+            cleanupStatus.couldNotClassify.push({
+              kind: 'stageLayer',
+              id: resource.id,
+              reason: 'missing_cleanup_callback',
+            })
+          }
         } catch (error) {
           cleanupStatus.errors.push({ kind: 'stageLayer', id: resource.id, message: String(error?.message || error) })
         }
       }
 
       for (const resource of [...childCanvases].reverse()) {
-        if (resource.owned === false) continue
+        if (resource.owned === false) {
+          cleanupStatus.preserved.childCanvasIds.push(resource.id)
+          cleanupStatus.orphaned.childCanvasIds.push(resource.id)
+          continue
+        }
         try {
-          if (await runCleanup(resource.remove, resource)) cleanupStatus.removedChildCanvases = true
+          if (await runCleanup(resource.remove, resource)) {
+            cleanupStatus.removedChildCanvases = true
+            cleanupStatus.removed.childCanvasIds.push(resource.id)
+          }
         } catch (error) {
           cleanupStatus.errors.push({ kind: 'childCanvas', id: resource.id, message: String(error?.message || error) })
         }
@@ -197,12 +246,14 @@ export function createResourceScope({
             subscription.unsubscribe(subscription.events)
             subscription.cleaned = 'unsubscribed'
             cleanupStatus.unsubscribed = true
+            cleanupStatus.removed.subscriptionEvents.push(...subscription.events)
           } catch (error) {
             cleanupStatus.errors.push({ kind: 'subscription', id: subscription.events.join(','), message: String(error?.message || error) })
           }
         } else {
           subscription.cleaned = 'retained'
           cleanupStatus.retainedSubscriptions = true
+          cleanupStatus.preserved.subscriptionEvents.push(...subscription.events)
         }
       }
 
@@ -210,6 +261,7 @@ export function createResourceScope({
         try {
           await entry.callback()
           cleanupStatus.ranCustomCleanups = true
+          cleanupStatus.removed.cleanupIds.push(entry.id)
         } catch (error) {
           cleanupStatus.errors.push({ kind: 'cleanup', id: entry.id, message: String(error?.message || error) })
         }

@@ -11,10 +11,7 @@ AGENT_TERMINAL_ID="sigil-agent-terminal"
 WIKI_WORKBENCH_ID="sigil-wiki-workbench"
 
 cleanup() {
-  aos_visual_remove_canvas "$AVATAR_ID" 8
-  aos_visual_remove_canvas "$RADIAL_ID" 5
-  aos_visual_remove_canvas "$HIT_ID" 5
-  aos_visual_remove_canvas "$AGENT_TERMINAL_ID" 5
+  aos_real_input_surface_cleanup_subject_family "$AVATAR_ID" >/dev/null || true
   aos_visual_remove_canvas "$WIKI_WORKBENCH_ID" 5
   if [[ "$INSPECTOR_ID" != "surface-inspector" ]]; then
     aos_visual_remove_canvas "$INSPECTOR_ID"

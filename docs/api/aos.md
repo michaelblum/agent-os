@@ -168,6 +168,15 @@ aos show eval --id demo --js 'document.body.style.opacity = "0.7"'
 aos show remove --id demo
 ```
 
+`show remove --id <root>` is the daemon-facing cleanup primitive for a selected
+canvas lifecycle tree. Removing a root canvas removes cascade-owned child
+canvases and daemon input regions owned by those canvases. Children created
+with `cascade: false` are detached and preserved, and unrelated canvases such as
+developer/admin tools remain untouched because they are outside the selected
+tree. Toolkit resources that are not daemon state, such as shared
+DesktopWorld-stage layers, must be cleaned up by their toolkit resource scope;
+see [toolkit/runtime.md](./toolkit/runtime.md).
+
 ### Reload an Existing Canvas From Current Content
 
 When you change web assets under an active content root, reload the existing

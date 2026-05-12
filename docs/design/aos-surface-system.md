@@ -227,6 +227,20 @@ DesktopWorld-to-native placement, disable/remove behavior, and deduplicated
 placement updates, while Sigil keeps radial item product mapping, avatar
 semantics, DOM event interpretation, and its existing child HTML pages.
 
+Subject-family runtime cleanup is expressed through generic ownership, not app
+names. A root subject may own cascade child canvases through daemon canvas
+parentage, input regions through `owner_canvas_id`, and toolkit stage layers
+through `createResourceScope()`. Removing the root canvas removes
+cascade-eligible child canvases and daemon-owned input regions; children marked
+`cascade: false` are detached and preserved. Toolkit-owned stage layers are not
+daemon state, so their owner must register a resource-scope cleanup callback
+that sends the relevant shared-stage remove message. Developer and admin
+surfaces such as Surface Inspector are preserved because they are outside the
+selected parent/resource scope, not because the daemon knows product-specific
+exceptions. Subject cleanup operations should be idempotent and should report
+removed, preserved, orphaned, unclassified, and error details at the layer that
+initiates cleanup.
+
 ## Surface Capabilities
 
 AOS should not recreate macOS window management. It should expose the small set

@@ -33,6 +33,20 @@ scope exclusively owns that event claim. Bridge handlers installed through the
 scope remain registered with the current bridge, but they stop invoking user
 callbacks once the scope is inactive or cleaned up.
 
+For subject-family cleanup, use one resource scope per root subject family and
+register every owned runtime resource at the same boundary: cascade-owned child
+canvases with `addChildCanvas`, stage layers with `addStageLayer` and a
+`desktop_world_stage.layer.remove` callback, daemon input regions with
+`addInputRegion`, and any exclusive event claims with
+`addSubscription(..., { exclusive: true })`. Running `scope.cleanup()` is the
+canonical toolkit operation. It is safe to call repeatedly and returns a report
+under `cleanupStatus` with concrete `removed`, `preserved`, `orphaned`,
+`couldNotClassify`, and `errors` details. Shared subscriptions are reported as
+preserved. Child canvases registered with `owned: false` are preserved and
+reported as orphaned from the scope rather than removed. A stage layer without a
+cleanup callback is reported in `couldNotClassify` because the daemon does not
+own toolkit stage-layer state.
+
 The stock shared stage lives at
 `aos://toolkit/components/desktop-world-stage/index.html`. It should be launched
 as `--surface desktop-world` and stays non-interactive. Consumers update it with
