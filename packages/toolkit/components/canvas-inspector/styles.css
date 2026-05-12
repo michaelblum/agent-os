@@ -68,8 +68,8 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(70, 80, 110, 0.18);
 }
-/* Minimap object marks (canvas_object.marks). Logical w/h in minimap px,
- * independent of display scale — stable visual size as the minimap resizes. */
+/* Minimap object marks (canvas_object.marks). w/h are fixed minimap px by
+ * default; desktop_world marks are projected before the SVG is positioned. */
 .minimap-mark {
   position: absolute;
   pointer-events: none;

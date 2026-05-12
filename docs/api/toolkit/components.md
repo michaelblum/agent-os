@@ -611,13 +611,24 @@ replace payload:
 }
 ```
 
-Required fields: `id`, `x`, `y`. `x` and `y` are in desktop CG coordinates,
-the same space as `canvas.at`. Optional fields:
+Required fields: `id`, `x`, `y`. `x` and `y` are DesktopWorld coordinates,
+not local canvas coordinates; they use the same desktop CG space as
+`canvas.at`. Optional fields:
 
 - `name` — display label (defaults to `id`)
 - `color` — stroke color for the marker (defaults to a stable hash of `id`)
-- `w`, `h` — marker-local logical units in minimap pixels (default `20`,
-  clamped to `[4, 128]`). Stable visual size regardless of display DPI.
+- `w`, `h` — marker-local logical units (default `20`, clamped to
+  `[4, 128]`). By default these are minimap-local logical pixels for stable
+  fixed-size markers.
+- `minimapSizeMode` — size interpretation for `w`/`h`:
+  - `"minimap"` (default) keeps `w`/`h` fixed in mini-map pixels. Use this for
+    points, cursors, debug pings, object centers, and other marks that should
+    remain visually stable as the minimap scale changes.
+  - `"desktop_world"` treats `w`/`h` as DesktopWorld dimensions and projects
+    them by the current mini-map scale. Use this for hit boxes, radial target
+    extents, child surface bounds, or any mark meant to show geographic size.
+  Accepted wire aliases are `minimapSizeMode`, `minimap_size_mode`, `sizeMode`,
+  and `size_mode`; new producers should prefer `minimapSizeMode`.
 - `rect`, `ellipse`, `cross` — boolean primitive toggles (default `true`
   each). The default marker is a `20 × 20` square outline with an inscribed
   ellipse and a corner-to-corner `X`. Any combination is valid; set a

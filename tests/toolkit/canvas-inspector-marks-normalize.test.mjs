@@ -75,13 +75,23 @@ test('normalizeMarks uses explicit name when provided', () => {
   assert.equal(out[0].name, 'Custom');
 });
 
-test('normalizeMarks preserves opt-in DesktopWorld minimap size mode', () => {
+test('normalizeMarks preserves all DesktopWorld minimap size mode aliases and defaults to minimap', () => {
   const out = normalizeMarks('cv', [
-    { id: 'world', x: 0, y: 0, minimap_size_mode: 'desktop_world' },
+    { id: 'camel', x: 0, y: 0, minimapSizeMode: 'desktop_world' },
+    { id: 'snake', x: 0, y: 0, minimap_size_mode: 'desktop_world' },
+    { id: 'legacy-camel', x: 0, y: 0, sizeMode: 'desktop_world' },
+    { id: 'legacy-snake', x: 0, y: 0, size_mode: 'desktop_world' },
     { id: 'default', x: 0, y: 0 },
+    { id: 'unknown', x: 0, y: 0, minimapSizeMode: 'screen' },
   ]);
-  assert.equal(out[0].minimapSizeMode, 'desktop_world');
-  assert.equal(out[1].minimapSizeMode, 'minimap');
+  assert.deepEqual(out.map(mark => mark.minimapSizeMode), [
+    'desktop_world',
+    'desktop_world',
+    'desktop_world',
+    'desktop_world',
+    'minimap',
+    'minimap',
+  ]);
 });
 
 test('stableColorForId returns the same color for the same id', () => {

@@ -101,3 +101,23 @@ test('surface interaction decision tree remains discoverable from toolkit API do
     assert.match(doc, escaped(requiredPath));
   }
 });
+
+test('canvas_object.marks documents fixed minimap and DesktopWorld-projected sizes', async () => {
+  const doc = await text('docs/api/toolkit/components.md');
+  const compact = doc.replace(/\s+/g, ' ');
+
+  for (const phrase of [
+    'x` and `y` are DesktopWorld coordinates',
+    'not local canvas coordinates',
+    'minimap-local logical pixels for stable fixed-size markers',
+    '`"minimap"` (default) keeps `w`/`h` fixed in mini-map pixels',
+    '`"desktop_world"` treats `w`/`h` as DesktopWorld dimensions',
+    'projects them by the current mini-map scale',
+    'Accepted wire aliases are `minimapSizeMode`, `minimap_size_mode`, `sizeMode`,',
+    'and `size_mode`; new producers should prefer `minimapSizeMode`',
+    'Use this for points, cursors, debug pings, object centers',
+    'Use this for hit boxes, radial target extents, child surface bounds',
+  ]) {
+    assert.match(compact, escaped(phrase));
+  }
+});
