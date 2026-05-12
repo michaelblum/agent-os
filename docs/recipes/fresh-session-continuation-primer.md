@@ -51,7 +51,7 @@ Before the demo interruption, the active platform work was not the Employer Bran
 - reduce bespoke panel/sidebar/split-pane behavior into toolkit primitives,
 - make wiki workbench graph controls use a real fixed sidebar split-pane instead of private overlay UI,
 - keep Agent Terminal and future Sigil Chat aligned around shared shell primitives,
-- improve window ownership, minimize/maximize, display placement, and canvas inspector behavior through shared logic,
+- improve window ownership, minimize/maximize, display placement, and Surface Inspector behavior through shared logic,
 - preserve larger workbench/artifact/workflow ideas without letting them derail the short-term toolkit cleanup.
 
 The Employer Brand demo branch is a separate short-term artifact/report harness. Do not merge that work into the toolkit path unless the user explicitly asks.
@@ -145,7 +145,7 @@ Adjust paths if that worktree no longer exists.
 
 The likely next useful slice is to continue toolkit normalization:
 
-- compare the current wiki workbench and canvas inspector against the preferred 3D radial item workbench visual style,
+- compare the current wiki workbench and Surface Inspector against the preferred 3D radial item workbench visual style,
 - identify private CSS/HTML/JS that duplicates toolkit window, titlebar, toolbar, split-pane, fixed-sidebar, and collapsible-panel behavior,
 - extract only the clean shared pieces,
 - update the adopter surfaces,

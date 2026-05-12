@@ -13,7 +13,7 @@ This directory documents the interfaces consumers are expected to build against:
 
 - [`aos.md`](./aos.md) — the unified `aos` CLI contract
 - [`integration-broker.md`](./integration-broker.md) — provider-neutral chat integration broker and snapshot API
-- [`toolkit.md`](./toolkit.md) — the toolkit runtime and panel APIs for WKWebView surfaces
+- [`toolkit.md`](./toolkit.md) — the toolkit API map for WKWebView surfaces, with scoped runtime, panel/window, workbench, component, and content-host references under [`toolkit/`](./toolkit/)
 
 It does **not** try to replace:
 

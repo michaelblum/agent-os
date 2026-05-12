@@ -55,7 +55,7 @@ synthetic-only proof.
 ### Visual Diagnostics
 
 For display, canvas placement, or coordinate routing work, add visual diagnostic
-overlays deliberately. The standard generic add-ons are canvas inspector and
+overlays deliberately. The standard generic add-ons are Surface Inspector and
 spatial telemetry. They are diagnostic surfaces, not app semantics.
 
 Use app-specific diagnostic panels when the missing facts are internal routing

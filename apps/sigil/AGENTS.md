@@ -6,6 +6,39 @@ Sigil is a **Track 2 consumer** of agent-os. It's an opinionated avatar system t
 
 Sigil is pure web — the renderer, configuration, diagnostics, and chat surfaces are HTML/JS loaded into WKWebView canvases created by the AOS daemon. There is no Swift host process; all state, animation, and event handling live in JS inside the canvas. The legacy `avatar-sub` Swift binary was retired 2026-04-13 (see #46).
 
+## Platform Dogfood Boundary
+
+Sigil should be the first opinionated app built on the AOS platform, not a
+parallel platform living under `apps/sigil/`.
+
+Use this rule when touching renderer, hit targets, radial menus, terminal,
+studio, or diagnostics:
+
+- Sigil owns avatar personality, product behavior, effects, agent-facing
+  content, and special visual expression.
+- AOS daemon owns native canvas lifecycle, display topology, input streams,
+  content serving, and generic routing primitives.
+- Toolkit owns reusable surface/windowing policy, DesktopWorld stages,
+  interaction-region helpers, panel chrome, workbench shells, and controls.
+
+If Sigil needs a reusable platform capability, extract it downward before
+growing a private Sigil-only subsystem. The current `avatar-main` private
+full-coverage DesktopWorld surface is acceptable while Sigil's 3D renderer needs
+a distinct lifecycle, but it is not a pattern for ordinary app visuals. Prefer
+the shared toolkit DesktopWorld stage for simple whole-desktop layers and record
+what the stage lacks before adding another private full-display canvas.
+
+Before adding private DesktopWorld/UI behavior, apply
+`docs/recipes/aos-surface-interaction-decision-tree.md`. Do not remodel Sigil
+surface architecture until reusable StageAffordance, input identity, lifecycle,
+and panel/windowing primitives are locked enough for Sigil to become their
+second client.
+
+Sigil may later use the toolkit/daemon lifecycle primitive to warm avatar,
+menu, terminal, or workbench surfaces. New Sigil code should not invent private
+warm-hidden WebView tricks now that explicit `warm_suspended` canvas lifecycle
+state and toolkit warm helpers are available.
+
 ## Run
 
 For canonical `main` checks, start the AOS daemon, then launch the avatar
@@ -55,15 +88,17 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 |------|------|
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
+| `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar/context-menu region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
 | `context-menu/` | Live avatar context menu implementation and agent playbook for menu diagnostics. |
 | `agent-terminal/` | Canonical Agent Terminal entrypoint. Launch with `apps/sigil/agent-terminal/launch.sh`; the implementation currently delegates through the historical `codex-terminal/` path for compatibility. |
 | `codex-terminal/` | Compatibility implementation path for the Agent Terminal evolved from the Codex-only MVP. A Sigil canvas fronts a named tmux session through a dependency-free local bridge, lists local Codex/Claude Code sessions, and resumes provider CLI commands into the terminal carrier. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | `studio/` | Historical URL/path for the avatar configuration surface. Do not use the old product name in new user-facing copy. |
 | `chat/` | Legacy conversational canvas prototype. Do not extend it as the product chat path; a future Sigil Chat 2 should be rebuilt from Agent Terminal/toolkit primitives instead. See Chat Canvas Legacy Notes below. |
+| `radial-item-editor/` | Focused 3D radial item editor. Window movement uses toolkit `createPanelWindowController`; Three.js object/orbit drag remains app-owned product behavior. |
 | `workbench/` | Historical multi-tab surface. Do not use as the standard launch or verification path for current Sigil work unless the task explicitly targets that surface. |
-| `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. Exposes the avatar as an AOS semantic target via `aos see capture --canvas <hit-id> --xray`. |
-| `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see capture --canvas <radial-id> --xray` can discover labeled item targets and `aos do` can act on them. |
+| `renderer/hit-area.html` | Minimal interactive child canvas the renderer spawns at the avatar's position so clicks/drags on the dot land somewhere while the parent canvas stays click-through. Lifecycle and DesktopWorld placement use the toolkit DesktopWorld hit-region controller; Sigil still owns avatar semantics and DOM event interpretation. Exposes the avatar as an AOS semantic target via `aos see capture --canvas <hit-id> --xray`. |
+| `renderer/radial-menu-surface.html` | Minimal interactive child canvas the renderer spawns around live radial-menu items so `aos see capture --canvas <radial-id> --xray` can discover labeled item targets and `aos do` can act on them. Lifecycle and DesktopWorld placement use the toolkit DesktopWorld hit-region controller; Sigil still owns radial item labels, actions, semantic ids, and active-item mapping. |
 | `renderer/appearance.js` / `renderer/state.js` | Runtime appearance and interaction config, including Sigil's radial gesture menu defaults. |
 | `seed/wiki/sigil/` | Seed source for the default agent wiki doc. |
 | `sigilctl-seed.sh` | Wraps `aos wiki seed` for the Sigil namespace. |
@@ -91,9 +126,18 @@ must not independently decide hover, drag, fast-travel, menu selection, or cance
 semantics unless explicitly documented as a temporary convergence adapter with a
 removal gate.
 
+Sigil native input claims use generic daemon input regions registered by the
+renderer, not daemon product hooks. Do not add or revive daemon actions or state
+machines named for Sigil, avatar, chat, radial menu, or context menu; keep that
+policy in Sigil and express native consumption through `input_region.*`.
+
 If a hit canvas forwards native DOM events, the renderer must immediately
 normalize them into the same DesktopWorld event path used by daemon `input_event`
-delivery. Do not add a parallel DOM-owned interaction stream for convenience.
+delivery. Child hit-surface echoes use toolkit canvas-origin input identity
+with `source_origin: "canvas"`, `source_canvas_id`, `owner_canvas_id`, stable
+toolkit source sequence, and parent-resolved DesktopWorld coordinates. Sigil
+keeps avatar and menu product semantics; do not add private input identity
+flags or folklore for child hit surfaces.
 
 Interactive Sigil surfaces must be ergonomic for AOS agents as well as humans.
 Canvas-only visuals that represent actionable controls should have a small

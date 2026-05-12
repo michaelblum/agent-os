@@ -1,4 +1,5 @@
 @../AGENTS.md
+@AGENTS.md
 
 # aos — Agent Operating System
 

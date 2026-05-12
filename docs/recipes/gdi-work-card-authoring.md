@@ -1,0 +1,240 @@
+# Recipe: GDI Work Card Authoring
+
+Use this recipe when Foreman writes or revises a work card for a fresh GDI
+session. The goal is reliable context transfer without freezing one permanent
+prompt format. GDI starts from a new context window, so the work card must carry
+the minimum map needed to rediscover state, inspect the right files, avoid old
+wrong paths, and verify the slice.
+
+This is a recipe, not a schema. Omit slots that do not apply. Add specialty
+slots when the slice crosses a boundary.
+
+## Core Shape
+
+### Tracker
+
+Name the durable workstream:
+
+- GitHub issue or epic.
+- Design note, API doc, schema, or prior work card that owns the plan.
+- Any draft evidence commit or branch that GDI must classify as retain, amend,
+  supersede, or revert.
+
+### Fresh Context Contract
+
+State that GDI must not rely on parent-thread memory:
+
+```md
+GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+canvas, issue, or prior implementation state. Read and rediscover before
+editing.
+```
+
+Keep this short. It is a posture reset, not a second AGENTS file.
+
+### Goal
+
+Write one narrow outcome in product or platform terms. Prefer "make X true" over
+"change files A/B/C." If there is a user report, quote or summarize the observed
+defect before implementation advice.
+
+### Read First
+
+List the smallest durable files GDI should read before searching:
+
+- `AGENTS.md`;
+- nearest subtree `AGENTS.md` for every owned area;
+- the active design note or issue;
+- the relevant `docs/api/` file if behavior crosses an interface;
+- relevant schemas when data shape changes;
+- one or two prior work cards only when they are current and directly adjacent.
+
+Do not create a universal fixed read list for every GDI task. Use a reusable
+foundation plus task-specific files.
+
+### Rediscover State
+
+Include commands when runtime or branch state matters:
+
+```bash
+git status --short --branch
+git worktree list
+./aos ready
+./aos dev recommend --json
+```
+
+Add focused commands only when relevant:
+
+```bash
+gh issue view <n> --json number,title,state,url,body,labels
+./aos show list --json
+./aos dev recommend --json --files <likely-files...>
+```
+
+If the slice is pure docs or pure Node tests, say which runtime checks may be
+skipped.
+
+### Existing Code To Inspect
+
+Name concrete files and why they matter. This is often the highest-leverage
+section in a fresh GDI session.
+
+Good:
+
+```md
+- `packages/toolkit/panel/chrome.js` - owns current minimize sequence.
+- `packages/toolkit/panel/placement.js` - shared chip/frame placement helpers.
+- `tests/toolkit/panel-chrome.test.mjs` - deterministic panel behavior tests.
+```
+
+Avoid broad directories unless the task is explicitly an audit.
+
+### Required Behavior
+
+Describe observable behavior and invariants. Use subsections for state machines,
+failure behavior, cleanup, data shape, or UI behavior. Include rollback and
+idempotence when relevant.
+
+### Scope
+
+Name the likely ownership boundary:
+
+- daemon/native primitive;
+- toolkit runtime;
+- toolkit panel/windowing;
+- toolkit controls;
+- toolkit workbench/component;
+- Sigil app;
+- schema/API/docs;
+- tests/verification only.
+
+This helps GDI keep implementation at the right layer while still allowing it to
+adjust after reading code.
+
+### Hard Boundaries / Non-Goals
+
+Use explicit anti-scope language. Strong prior GDI work cards were good because
+they told GDI what not to resume:
+
+- do not continue adjacent workstreams;
+- do not open live websites;
+- do not add a broad framework;
+- do not move policy into daemon unless the card explicitly says so;
+- do not mutate fixtures or capture artifacts unrelated to this slice.
+
+Keep these concrete. Generic "stay focused" is weak.
+
+### Suggested Implementation Areas
+
+Offer likely files/modules, but label them as suggestions. GDI should inspect
+before editing and may choose the narrower correct layer.
+
+### Verification
+
+Name exact deterministic tests first. Add live AOS smoke only when runtime
+readiness allows.
+
+Prefer this shape:
+
+```bash
+node --test tests/toolkit/<focused>.test.mjs
+git diff --check
+```
+
+Then:
+
+```md
+If `./aos ready` passes, run this bounded smoke:
+1. ...
+```
+
+Say what to do when readiness is blocked: use the repo repair path, or report
+the blocker if the task can still be verified deterministically.
+
+### Completion Report
+
+Require the information Foreman needs next:
+
+- files changed;
+- behavior changed;
+- tests run with exact result;
+- live smoke result or readiness blocker;
+- draft evidence retained/amended/superseded/reverted;
+- remaining blockers or follow-up slices.
+
+## Specialty Slots
+
+Add these only when the slice needs them.
+
+### Daemon / Native Primitive Slot
+
+Use for Swift or daemon contract work:
+
+- require `./aos dev recommend --json` before build choices;
+- name TCC or permission implications;
+- require `./aos dev build` instead of raw `bash build.sh`;
+- separate native primitive from toolkit/app policy;
+- add or update `shared/schemas/` or `docs/api/` when the wire contract changes.
+
+### Toolkit Surface / Windowing Slot
+
+Use for panel, runtime, controls, workbench, or DesktopWorld changes:
+
+- state whether behavior belongs in `runtime/`, `controls/`, `panel/`,
+  `workbench/`, or `components/`;
+- keep default surface/windowing policy in toolkit;
+- use daemon primitives for lifecycle/input/display instead of app workarounds;
+- require accessibility semantics for actionable controls.
+
+### Sigil App Slot
+
+Use for Sigil surfaces:
+
+- separate Sigil product expression from reusable platform behavior;
+- prefer toolkit panel/windowing for panels and workbenches;
+- prefer shared DesktopWorld stages for simple global visuals;
+- keep private 3D DesktopWorld renderers only when a distinct renderer lifecycle
+  is justified;
+- do not add new daemon product branches.
+
+### Browser / Evidence Capture Slot
+
+Use for browser or evidence work:
+
+- name whether live websites are allowed;
+- require fixtures when live capture is out of scope;
+- name selector/locator approval rules;
+- include source-unavailable, login, CAPTCHA, paywall, and consent blockers;
+- prohibit report/export/rendering work unless explicitly in scope.
+
+### Operator / HITL Slot
+
+Use when GDI prepares work for Operator:
+
+- make the human decision point explicit;
+- define what Operator should observe, not implement;
+- require structured artifacts or completion report fields that Foreman can
+  consume;
+- do not make Operator infer hidden terminal state.
+
+### Docs / Governance Slot
+
+Use for architecture, recipe, issue, or instruction work:
+
+- name the source-of-truth boundary: `AGENTS.md`, subtree `AGENTS.md`,
+  `docs/recipes/`, `docs/design/`, `docs/api/`, or `shared/schemas/`;
+- avoid duplicating long policy in multiple files;
+- update provider-specific compatibility files only as pointers when possible;
+- run contradiction scans for retired phrases or superseded paths.
+
+## Quality Checklist
+
+Before handing to GDI, Foreman should be able to answer:
+
+- Could GDI start from a blank context and find the right files?
+- Is the goal narrow enough to finish and verify in one session?
+- Are adjacent tempting workstreams explicitly excluded?
+- Are layer boundaries clear without blocking code-informed adjustment?
+- Is the verification concrete enough that GDI cannot hand-wave success?
+- Does the completion report ask for what Foreman needs to choose the next
+  slice?

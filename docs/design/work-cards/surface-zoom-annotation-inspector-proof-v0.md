@@ -68,8 +68,8 @@ call `pi-computer-use`.
 
 ## Deliverables
 
-Add a generic proof component or workbench surface, preferably as a Canvas
-Inspector sibling rather than a Canvas Inspector rewrite. Suggested path:
+Add a generic proof component or workbench surface, preferably as a Surface
+Inspector sibling rather than a Surface Inspector rewrite. Suggested path:
 
 - `packages/toolkit/components/surface-zoom-inspector/`
 
@@ -160,7 +160,7 @@ This is documentation only in this slice.
 ## Non-Goals
 
 - No full Annotation Inspector product.
-- No Canvas Inspector rewrite.
+- No Surface Inspector rewrite.
 - No global pointer hover mode.
 - No live click/keyboard capture.
 - No live AX harvesting.

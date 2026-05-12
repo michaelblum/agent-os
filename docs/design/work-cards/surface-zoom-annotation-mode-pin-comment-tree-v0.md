@@ -177,7 +177,7 @@ Clicking a blue comment item:
 
 ### 8. Minimap Role
 
-Surface-Zoom should only show abstract boxes like the canvas inspector does, on a minimap, for pinned chains.
+Surface-Zoom should only show abstract boxes like the Surface Inspector does, on a minimap, for pinned chains.
 
 In normal Markdown preview mode:
 

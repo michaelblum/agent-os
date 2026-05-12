@@ -146,13 +146,46 @@ wraps the isolated daemon helpers and provides named launch steps for common
 surfaces:
 
 - `aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil`
-- `aos_visual_launch_canvas_inspector canvas-inspector`
+- `aos_visual_launch_canvas_inspector surface-inspector`
 - `aos_visual_launch_sigil_avatar avatar-main`
-- `aos_visual_launch_sigil_with_inspector avatar-main canvas-inspector`
+- `aos_visual_launch_sigil_with_inspector avatar-main surface-inspector`
 
-Visual Sigil scenarios should default to launching `canvas-inspector` beside the
+Visual Sigil scenarios should default to launching `surface-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,
 window count, or placement without auxiliary canvases.
+
+## Test Authoring Discipline
+
+Test code follows the same primitives-first rule as product code. Do not create
+an ad hoc scenario by copying display math, launch plumbing, input injection, or
+semantic-target parsing into a new script. Start with the existing primitive,
+molecule, or template that owns the behavior:
+
+- **Test primitives** in `tests/lib/` wrap AOS primitives such as readiness,
+  canvas lifecycle, Surface Inspector visibility, DesktopWorld topology, real
+  pointer injection, and semantic-target capture.
+- **Test molecules** compose primitives into reusable fixtures such as "visible
+  Surface Inspector plus Sigil avatar" or "real-input surface scenario with
+  cleanup and diagnostics."
+- **Scenario templates** describe one product behavior using those molecules and
+  keep only product-specific intent and assertions locally.
+
+Add a new test primitive only when there is a clear reusable pattern, a second
+caller, or a boundary that should not be reimplemented by future scenarios. If a
+single scenario needs a one-off assertion, keep it local, but do not let local
+code own platform knowledge such as display DPI, native display origins, content
+root setup, daemon readiness, or generic semantic-target extraction.
+
+Test primitives that perform input should prefer shorthand over public AOS
+actions. If a scenario needs a gesture that `aos do` cannot express cleanly,
+record the missing action primitive instead of letting a private test gesture
+language become the real contract.
+
+Surface/app tests should express positions, paths, and expectations in
+`DesktopWorld` space whenever possible. Native/AppKit coordinates are allowed in
+two cases only: at the final real-input injection boundary where macOS requires
+native CGEvent points, or in explicit boundary tests whose purpose is to verify
+DesktopWorld/native/window-server behavior.
 
 For Sigil radial-menu, avatar hit-target, status-item launch, or physical
 pointer behavior, use the canonical live real-input scenario before creating an
@@ -239,13 +272,13 @@ For live multi-display coordinate work, launch the standard debug pair:
 
 That brings up:
 
-- `canvas-inspector`
+- `surface-inspector`
 - `spatial-telemetry`
 
 Default placement is deterministic:
 
 - `spatial-telemetry` flush bottom-left of the main display's visible bounds
-- `canvas-inspector` flush bottom-right of the main display's visible bounds
+- `surface-inspector` flush bottom-right of the main display's visible bounds
 
 Those placements are operator convenience only. They do not define
 `DesktopWorld`, which is the arranged full-display union.

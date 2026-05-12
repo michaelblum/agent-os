@@ -40,6 +40,13 @@ itself under repair.
 
 `aos` is a single binary with Unix-style subcommand groups.
 
+The binary exposes platform primitives, not product policy. For surfaces, the
+daemon should provide native lifecycle, display, input, content, and routing
+capabilities that any consumer can build on. The default AOS panel/windowing
+policy belongs in `packages/toolkit/`, not in app code and not as
+Sigil-specific branches inside the daemon. A consumer may use toolkit
+windowing, customize it, or bypass it for non-panel surfaces.
+
 Examples:
 
 ```bash
@@ -114,7 +121,7 @@ The current top-level commands are:
 ```bash
 aos see cursor
 aos see capture main --base64
-aos see capture --canvas canvas-inspector --perception --out /tmp/inspector.png
+aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png
 aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png
 aos do click 500,300
 ```
@@ -219,7 +226,7 @@ Shorthand capture is supported:
 ```bash
 aos see main
 aos see external 1
-aos see capture --canvas canvas-inspector --perception
+aos see capture --canvas surface-inspector --perception
 aos see capture --canvas sigil-radial-menu --xray
 aos see capture --region 1172,442,320,480 --perception
 ```
@@ -851,7 +858,7 @@ Then:
 
 ```bash
 aos show create \
-  --id canvas-inspector \
+  --id surface-inspector \
   --at 200,200,320,480 \
   --interactive \
   --url 'aos://toolkit/components/canvas-inspector/index.html'

@@ -7,6 +7,13 @@ inventing its own window chrome, controls, drag behavior, and overlay model.
 The goal is a cohesive agent-first surface system that remains modular enough
 for apps such as Sigil to theme and extend.
 
+For interaction mechanism selection, use the canonical decision tree and first
+conformance audit in
+[`docs/recipes/aos-surface-interaction-decision-tree.md`](../recipes/aos-surface-interaction-decision-tree.md).
+That recipe is the durable answer for whether a surface should use DOM hit
+testing, toolkit panel/windowing, `createStageAffordance`, visual-only stage
+layers, a full interactive canvas, a private renderer, or a daemon primitive.
+
 ## Concepts
 
 ### Canvas Primitive
@@ -14,6 +21,25 @@ for apps such as Sigil to theme and extend.
 The daemon owns canvas lifecycle: create, update, focus, suspend, resume,
 remove, parentage, cascade, and display placement. Canvas primitives should stay
 plain and policy-light.
+
+The V0 lifecycle vocabulary is:
+
+- `cold`: no canvas, window, or owned resource exists.
+- `warming`: an owner has requested a suspended canvas and is waiting for the
+  renderer to load enough for first use.
+- `warm_suspended`: a canvas exists, its renderer has had a bounded readiness
+  check, and the native window remains hidden/suspended.
+- `active`: the canvas is visible and participates in its normal interactivity
+  flags.
+- `suspended`: a previously active canvas is hidden/paused and can be resumed.
+- `removed`: the canvas and daemon-owned resources have been torn down.
+
+Warm V0 uses the existing daemon primitive: create with `suspended: true`, load
+the renderer while hidden, then call `canvas.resume` when the owner wants to
+show it. The toolkit `warmCanvas()` helper wraps that pattern with an explicit
+owner/parent, URL, frame, timeout, readiness check, and cleanup-on-failure.
+There is no global pool in V0; any future pooling policy belongs in toolkit or
+an app-level owner, not in the daemon.
 
 ### Toolkit Panel Shell
 
@@ -93,9 +119,11 @@ control affordances.
 
 ### Desktop-World Stage
 
-A daemon-managed desktop-world stage is a transparent, click-through,
-display-spanning visual layer host. It is for visuals that belong to the whole
-desktop, such as avatars, radial menu graphics, drag ghosts, transfer outlines,
+A platform-hosted DesktopWorld stage is a transparent, click-through,
+display-spanning visual layer host. The daemon owns the underlying
+DesktopWorld canvas primitive. The toolkit owns the default stage model,
+messages, and layer policy. It is for visuals that belong to the whole desktop,
+such as avatars, radial menu graphics, drag ghosts, transfer outlines,
 spotlights, and transient agent telemetry.
 
 Normal inputs, text editors, forms, and workbenches do not live on this stage.
@@ -117,7 +145,7 @@ layer. Sigil already has this pattern informally:
 - context menu as a separate interactive panel
 
 The platform should eventually make these bindings visible to tools such as
-Canvas Inspector and future surface managers.
+Surface Inspector and future surface managers.
 
 ## Cross-Display Panel Policy
 
@@ -155,6 +183,50 @@ click-through `--surface desktop-world` canvas that accepts layer
 upsert/remove/replace/clear messages. Normal forms, editors, and workbenches
 still belong on ordinary panel canvases.
 
+This shared stage is the preferred path for ordinary desktop-wide visuals. A
+private full-coverage DesktopWorld surface is appropriate only when a consumer
+needs a distinct renderer, lifecycle, or isolation boundary. If an app creates
+one, document why the shared stage is insufficient and what would need to move
+into the platform before the private surface can be retired.
+
+Surface Inspector now observes this stack through existing generic routes. The
+shared stage publishes inspector-only `canvas_object.registry` objects for
+visible stage layers, and Surface Inspector subscribes to both
+`canvas_object.registry` and `input_region` with snapshots. It correlates stage
+layers, daemon input regions, and StageAffordance metadata under the owning
+canvas, then marks orphaned owners, visual layers without hit regions, hit
+regions without visual layers, and cleanup-suspect resources. This is the V0
+observability milestone for stage-backed minimized chips and future
+StageAffordance users.
+
+Input identity is part of the same primitive boundary. Raw daemon
+`input_event` payloads own hardware-observed facts and use daemon sequence
+identity. Routed input-region delivery owns behavior routing and carries a
+canonical `routed_input` payload with `region_id`, `owner_canvas_id`,
+`delivery_role`, stable `capture_id` for captured drags, `source_origin`, and
+`source_event` / `source_sequence`. Toolkit consumers normalize these through
+`normalizeCanvasInputMessage` rather than inferring source identity from
+app-specific flags.
+
+Sigil no longer has a daemon product branch for avatar/chat input consumption.
+Its renderer uses `renderer/live-modules/input-regions.js` as the app adapter
+that registers generic daemon input regions for the avatar and open context-menu
+bounds, so native event consumption uses the same primitive as toolkit
+affordances without spreading product policy into the daemon. Child hit surfaces
+that still forward DOM-origin events back to the renderer now normalize through
+the toolkit canvas-origin helper with `source_origin: "canvas"`,
+`source_canvas_id`, `owner_canvas_id`, toolkit coordinate authority, and stable
+source sequence identity. The old Sigil-local `fromHitTarget` flag is retired
+from the live path; `assumeInside` remains only as interaction-router
+compatibility for older callers and tests, not as Sigil glue.
+
+The first #122 toolkit extraction is the runtime DesktopWorld hit-region
+controller. Sigil's radial menu target surface and avatar hit target now use
+that generic controller for owner selection, child canvas lifecycle,
+DesktopWorld-to-native placement, disable/remove behavior, and deduplicated
+placement updates, while Sigil keeps radial item product mapping, avatar
+semantics, DOM event interpretation, and its existing child HTML pages.
+
 ## Surface Capabilities
 
 AOS should not recreate macOS window management. It should expose the small set
@@ -167,8 +239,12 @@ of capabilities needed by agent-created canvases and workbenches:
   pane open/closed docking
 - surface lifecycle: owner-aware close, suspend, resume, restore, and cleanup
 
-These capabilities are toolkit and daemon surface semantics. They should remain
-scoped to AOS canvases instead of becoming a general desktop replacement.
+These capabilities split across daemon primitives and toolkit policy. The
+daemon should expose cheap native lifecycle, frame, display, and input-routing
+primitives. The toolkit should own the default windowing policy for AOS panels:
+state names, chips, snap/restore behavior, theme hooks, and surface-manager UI.
+They should remain scoped to AOS canvases instead of becoming a general desktop
+replacement.
 
 ## Sequencing
 
@@ -187,7 +263,7 @@ scoped to AOS canvases instead of becoming a general desktop replacement.
 10. Add cross-display transfer outline behavior.
 11. Promote the Sigil avatar/radial pattern into a desktop-world stage primitive.
 12. Add a visual/interaction binding registry.
-13. Build a normal-user surface manager, keeping Canvas Inspector as the
+13. Build a normal-user surface manager, keeping Surface Inspector as the
    developer/admin view.
 
 Each step should be useful on its own and reversible.

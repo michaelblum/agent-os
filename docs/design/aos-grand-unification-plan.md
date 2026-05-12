@@ -181,7 +181,7 @@ slices with repo evidence and clear exit criteria.
 ### Phase 7: AOS-Native Runtime Surfaces Stay Native
 
 - Keep these primarily AOS-native:
-  - Canvas Inspector
+  - Surface Inspector
   - DesktopWorld overlays
   - input routing diagnostics
   - spatial telemetry
@@ -190,7 +190,7 @@ slices with repo evidence and clear exit criteria.
   see/do`.
 - They can appear as subjects in the wiki browser, but their runtime projection
   remains AOS-owned.
-- Canvas Inspector *may* implement AOS-Native **Subject Browser** behavior when
+- Surface Inspector *may* implement AOS-Native **Subject Browser** behavior when
   navigating live runtime Subjects (canvas registry, input routes, permission
   state). That does not force every diagnostic panel into the full Subject
   Browser contract — it is an additive capability, not a requirement. See
@@ -229,7 +229,7 @@ slices with repo evidence and clear exit criteria.
 - Playwright remains an adapter behind AOS browser targets.
 - Browser-compatible workbenches are preferred for wiki/editor/artifact
   workflows.
-- Canvas Inspector and runtime diagnostics remain AOS-native.
+- Surface Inspector and runtime diagnostics remain AOS-native.
 - Record + verify ships before guided replay.
 - Macro playback is explicitly out of scope for the first implementation wave.
 

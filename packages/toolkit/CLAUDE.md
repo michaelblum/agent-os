@@ -1,10 +1,17 @@
 @../../AGENTS.md
+@AGENTS.md
 
 # toolkit
 
-Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `AGENTS.md` for the full layering picture.
+Reusable WKWebView components built on agent-os primitives — the middle layer between the `aos` unified binary and Track 2 apps. See root `AGENTS.md` and local `AGENTS.md` for the canonical layer-boundary guidance.
 
-Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md)
+Consumer-facing reference: [docs/api/toolkit.md](../../docs/api/toolkit.md).
+Use the scoped references for detailed contracts:
+[runtime](../../docs/api/toolkit/runtime.md),
+[panel/window](../../docs/api/toolkit/panel-window.md),
+[workbench](../../docs/api/toolkit/workbench.md),
+[components](../../docs/api/toolkit/components.md), and
+[content host](../../docs/api/toolkit/content-host.md).
 
 ## Layered model
 

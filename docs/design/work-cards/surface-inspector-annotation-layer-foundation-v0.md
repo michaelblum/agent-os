@@ -13,7 +13,7 @@
 Create the first implementation slice of the Surface Inspector annotation layer.
 This is the replacement direction for the confusing Surface-Zoom annotation
 prototype. The center of gravity is the actual inspector layer formerly known as
-Canvas Inspector, not a fixture-only Markdown preview.
+Surface Inspector, not a fixture-only Markdown preview.
 
 The outcome should be a usable foundation for ephemeral human annotations over
 visible surfaces:
@@ -89,9 +89,9 @@ Keep the work generic. Do not add Employer Brand fields or workflow assumptions.
 
 ## Naming
 
-Rename user-facing "Canvas Inspector" language touched by this path to
-"Surface Inspector". Keep internal file paths stable unless a narrow rename is
-required for correctness. A broad file/module rename is not required in V0.
+Ensure user-facing inspector language touched by this path says "Surface
+Inspector". Keep internal file paths stable unless a narrow rename is required
+for correctness. A broad file/module rename is not required in V0.
 
 Required user-facing updates:
 
@@ -119,7 +119,7 @@ Required entry points:
     exist, then clear annotations, turn Annotation Mode off, and close Surface
     Inspector.
 - Status/menu item:
-  - rename `Canvas Inspector` to `Surface Inspector`;
+  - keep `Surface Inspector` as the user-facing label;
   - keep it clickable/toggleable for opening and closing SI;
   - add submenu item `Annotate Mode`;
   - clicking `Annotate Mode` opens SI if needed and toggles Annotation Mode.
@@ -478,7 +478,7 @@ Final report must include:
 
 - issue #296 reference;
 - files changed;
-- whether user-facing Canvas Inspector naming was changed to Surface Inspector;
+- whether legacy Canvas Inspector naming was changed to Surface Inspector;
 - implemented Annotation Mode entry points;
 - data model summary;
 - adapter support and unsupported states;

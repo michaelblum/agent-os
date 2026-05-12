@@ -14,7 +14,7 @@ The current system already has pieces of that tree:
 - `shared/schemas/annotation.schema.json` models durable annotation intent.
 - `shared/schemas/annotation-projection-v0.*` models how annotation anchors
   project back into current surface geometry.
-- Canvas Inspector already visualizes canvas/window-level spatial state.
+- Surface Inspector already visualizes canvas/window-level spatial state.
 
 The missing contract is the shared tree model that connects these levels:
 
@@ -133,7 +133,7 @@ Update docs:
   - semantic targets,
   - annotation intent,
   - annotation projection,
-  - Canvas Inspector,
+  - Surface Inspector,
   - future Annotation Inspector / surface-zoom inspector behavior.
 - `docs/design/surface-annotation-intent-convergence-tracker.md` or a nearby
   design note with a short cross-reference to this contract.
@@ -241,7 +241,7 @@ Document how annotations fit:
 ## Non-Goals
 
 - No full Annotation Inspector UI.
-- No Canvas Inspector redesign.
+- No Surface Inspector redesign.
 - No live pointer hover or click capture.
 - No browser DOM adapter implementation.
 - No Mermaid/SVG, 3D, PDF/image, or OCR adapter implementation.
@@ -269,7 +269,7 @@ Report:
 - files added/changed,
 - the core tree shape,
 - how the contract relates to spatial topology, semantic targets, annotation
-  intent, annotation projection, and Canvas Inspector,
+  intent, annotation projection, and Surface Inspector,
 - what helper behavior was implemented,
 - what fixtures/tests were added,
 - what adapters remain future work,

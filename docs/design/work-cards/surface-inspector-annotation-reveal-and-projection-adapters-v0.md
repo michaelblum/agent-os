@@ -33,7 +33,7 @@ workflow.
 
 Surface Inspector Annotation Mode V0 already exists:
 
-- user-facing Canvas Inspector labels touched by this path read Surface
+- user-facing Surface Inspector labels touched by this path read Surface
   Inspector;
 - `ctrl+opt+a` toggles Annotation Mode;
 - `ctrl+opt+c` emits a see bundle with annotation state;

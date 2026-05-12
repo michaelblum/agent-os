@@ -44,7 +44,7 @@ cross-surface world model:
 | Layer | Origin | Used by |
 |-------|--------|---------|
 | **Native desktop compatibility** | Top-left of the macOS main display = `(0,0)` | AppKit/CoreGraphics boundary only; current daemon/native emissions |
-| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Canonical world for toolkit, Sigil, canvas-inspector, tests |
+| **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Canonical world for toolkit, Sigil, Surface Inspector, tests |
 | **VisibleDesktopWorld** | Same DesktopWorld frame, restricted to visible bounds | Usable-area logic such as clamping |
 | **LCS** (Local Coordinate System) | Top-left of captured region = `(0,0)` | `aos see` captures, `--xray` element bounds, annotations |
 
@@ -88,6 +88,30 @@ The ecosystem draws hard lines between three categories of capability:
 | **Projection** | Renders visual feedback for humans | The display subsystem (`src/display/`) draws floating overlays |
 
 No tool crosses these boundaries. A sensor never mutates. An actuator never renders UI. A projection never captures.
+
+### Surface Ownership Boundary
+
+AOS has a native compositor/kernel layer and an optional default surface system.
+Keep those separate:
+
+- The **daemon** owns native primitives: canvas lifecycle, native frames, display
+  topology, content serving, input streams, coordination, and generic routing
+  contracts. It should stay policy-light. It may expose the cheap primitives a
+  windowing system needs, but it is not itself the default AOS window manager.
+- The **toolkit** owns reusable policy for AOS surfaces: panel chrome, controls,
+  workbench shells, minimize/maximize/restore, placement, DesktopWorld visual
+  stages, and visual/interaction bindings. Toolkit windowing is opt-in and
+  customizable; apps can use it, extend it, or bypass it for non-panel surfaces.
+- **Apps** own product expression and domain behavior. Sigil is the first
+  opinionated app built on the platform, not a precedent for private platform
+  forks. If Sigil needs a capability that belongs to future apps, extract that
+  capability into daemon primitives or toolkit policy.
+
+Performance bugs are boundary tests. A slow minimized chip does not imply that
+the daemon should own minimize policy; it implies the toolkit is missing a cheap
+daemon primitive or shared stage contract. App-specific daemon branches and
+private full-display canvases are convergence debt unless they are explicitly
+documented as temporary adapters with removal gates.
 
 ### "Mirror, Don't Reinvent"
 
@@ -213,7 +237,7 @@ agent-os/
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
-| `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, canvas-inspector, integration-hub, legacy single-file overlays |
+| `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, Surface Inspector, integration-hub, legacy single-file overlays |
 | Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
 
 ---
@@ -261,7 +285,11 @@ is the canonical name.
 
 1. **Coordinate system.** DesktopWorld coordinates (top-left origin, Y-down). DesktopWorld surfaces, toolkit minimaps, Sigil stage projection, and cross-surface tests use this frame. Native main-display-anchored coordinates are boundary compatibility only.
 2. **Transparent + passthrough by default.** A DesktopWorld surface is non-interactive — clicks pass through to whatever's underneath. Interactive affordances (e.g., Sigil's avatar hit target) are spawned as separate child canvases positioned over specific regions.
-3. **One canvas, one owner.** A given DesktopWorld surface has a single owning app (e.g., Sigil owns `avatar-main`). Multi-tenant DesktopWorld surfaces are out of scope; composition happens by stacking multiple independently-owned canvases.
+3. **One native surface, one owner.** A raw DesktopWorld surface has one owner.
+   A shared DesktopWorld stage is one toolkit-owned surface that exposes a layer
+   API to multiple consumers. Apps should prefer the shared stage for ordinary
+   desktop-wide visuals and create private full-coverage surfaces only when they
+   need a special renderer, lifecycle, or isolation boundary.
 4. **Opt-in topology tracking.** A DesktopWorld surface created with `--surface desktop-world` or `--track union` resolves its segments from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
 5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") lives in the owning app's state, not in the canvas subsystem. The canvas only knows about its bounds.
 
@@ -286,7 +314,9 @@ is the canonical name.
 
 ### Known gaps
 
-Tracked as sub-issues under the umbrella #50. Do not duplicate the list here — the issue is the source of truth.
+Tracked under the active AOS Surface System epic (#223) and the current
+surface-boundary alignment plan in `docs/design/`. Do not duplicate issue-level
+task lists here.
 
 ### Moniker
 
