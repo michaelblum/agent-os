@@ -168,6 +168,41 @@ aos show eval --id demo --js 'document.body.style.opacity = "0.7"'
 aos show remove --id demo
 ```
 
+### Reload an Existing Canvas From Current Content
+
+When you change web assets under an active content root, reload the existing
+canvas by updating it to the same `aos://` URL, then gate on `show wait`:
+
+```bash
+aos show update --id inspector --url 'aos://toolkit/components/inspector-panel/index.html'
+aos show wait --id inspector --manifest inspector-panel
+```
+
+This is the canonical reload workflow for existing URL-backed canvases. It does
+not remove or recreate the canvas, so unrelated developer/admin surfaces such as
+`surface-inspector` are not disturbed. When the update only supplies `--url`,
+AOS preserves the canvas id, frame, DesktopWorld segments/track/surface when
+applicable, scope, interactivity, window level, parent relationship, and any
+active TTL timer. The page reloads through the current active content server
+root for the URL host.
+
+If the content root is not live, make that explicit before reloading:
+
+```bash
+aos content wait --root toolkit --auto-start
+```
+
+Topic worktrees should use branch-scoped root names from
+`scripts/aos-content-scope.sh` or pass explicit root query parameters where the
+surface supports them. Do not overwrite canonical `content.roots.toolkit` or
+`content.roots.sigil` from a topic worktree just to refresh a canvas.
+
+For inline `--html` or `--file` canvases, `show update --html ...` or
+`show update --file ...` replaces the content in place. `--file` is resolved by
+the CLI at update time, so repeat the `--file` update after editing the file.
+Use `show wait` after either form when the reloaded page has a readiness
+manifest or observable JavaScript condition.
+
 ### 3. Load Toolkit Content Through the Content Server
 
 Use the canonical `toolkit` root for `main` or installed examples. Topic
