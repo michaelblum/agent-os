@@ -91,7 +91,7 @@ for role in ("gdi", "foreman", "operator"):
         for entry in matcher:
             for hook in entry.get("hooks", []):
                 timeout = hook.get("timeout")
-                if not isinstance(timeout, int) or timeout > 5:
+                if not isinstance(timeout, int) or timeout > 10:
                     raise SystemExit(f"FAIL: {role} hook timeout is not bounded tightly: {hook}")
 
     dock_config = json.loads((root / ".docks" / role / "dock.json").read_text())
@@ -99,8 +99,8 @@ for role in ("gdi", "foreman", "operator"):
         raise SystemExit(f"FAIL: {role} dock.json does not preserve dock-local identity: {dock_config}")
     if dock_config.get("harness") != "codex":
         raise SystemExit(f"FAIL: {role} dock.json harness should be codex: {dock_config}")
-    if dock_config.get("hook_timeout_seconds") != 3:
-        raise SystemExit(f"FAIL: {role} dock.json should bound AOS calls to 3 seconds: {dock_config}")
+    if dock_config.get("hook_timeout_seconds") != 8:
+        raise SystemExit(f"FAIL: {role} dock.json should bound AOS calls to 8 seconds: {dock_config}")
     if dock_config.get("stop_notice") != expected[role]["stop_notice"]:
         raise SystemExit(f"FAIL: {role} stop notice mismatch: {dock_config}")
     if dock_config.get("handoff", {}).get("requires_goal_prefix") is not expected[role]["requires_goal_prefix"]:
@@ -179,6 +179,18 @@ import sys
 payload = json.loads(sys.argv[1])
 if payload.get("continue") is not True:
     raise SystemExit(f"FAIL: expected Stop hook success JSON, got {payload}")
+PY
+done
+
+payload_without_session='{"last_assistant_message":"No session id should still allow fixed stop notice."}'
+for role in gdi foreman operator; do
+  out="$(printf '%s' "$payload_without_session" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_FAKE_CLIPBOARD_LOG="$clipboard_log" AOS_FAKE_CLIPBOARD_ROLE="$role" bash ".docks/$role/hooks/stop.sh")"
+  python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected no-session Stop hook success JSON, got {payload}")
 PY
 done
 

@@ -8,7 +8,7 @@
             "type": "command",
             "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/session-start.sh",
             "statusMessage": "Binding Foreman voice",
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }
@@ -20,7 +20,7 @@
             "type": "command",
             "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/stop.sh",
             "statusMessage": "Speaking Foreman stop notice",
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }

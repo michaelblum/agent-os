@@ -116,7 +116,7 @@ run_optional_hook() {
 }
 
 run_aos_bounded() {
-  if [[ -n "$SESSION_ID" && -x "$AOS_BIN" ]]; then
+  if [[ -x "$AOS_BIN" ]]; then
     aos_run_hook_command_bounded "$hook_timeout" "$@" >/dev/null 2>&1 || true
   fi
 }
@@ -164,22 +164,24 @@ fi
 
 run_optional_hook "pre-$phase"
 
-if [[ -n "$SESSION_ID" && -x "$AOS_BIN" ]]; then
-  run_aos_bounded "$AOS_BIN" tell --register --session-id "$SESSION_ID" --name "$name" --role "$role" --harness "$harness"
+if [[ -x "$AOS_BIN" ]]; then
+  if [[ -n "$SESSION_ID" ]]; then
+    run_aos_bounded "$AOS_BIN" tell --register --session-id "$SESSION_ID" --name "$name" --role "$role" --harness "$harness"
 
-  if [[ "$phase" == "session-start" && "$voice_enabled" == "true" ]]; then
-    voice_args=("$AOS_BIN" voice bind --session-id "$SESSION_ID")
-    if [[ -n "$voice_language" ]]; then
-      voice_args+=(--language "$voice_language")
+    if [[ "$phase" == "session-start" && "$voice_enabled" == "true" ]]; then
+      voice_args=("$AOS_BIN" voice bind --session-id "$SESSION_ID")
+      if [[ -n "$voice_language" ]]; then
+        voice_args+=(--language "$voice_language")
+      fi
+      if [[ "${#voice_quality_tiers[@]}" -gt 0 ]]; then
+        voice_quality_tier_csv="$(IFS=,; echo "${voice_quality_tiers[*]}")"
+        voice_args+=(--quality-tier "$voice_quality_tier_csv")
+      fi
+      if [[ -n "$voice_gender" ]]; then
+        voice_args+=(--gender "$voice_gender")
+      fi
+      run_aos_bounded "${voice_args[@]}"
     fi
-    if [[ "${#voice_quality_tiers[@]}" -gt 0 ]]; then
-      voice_quality_tier_csv="$(IFS=,; echo "${voice_quality_tiers[*]}")"
-      voice_args+=(--quality-tier "$voice_quality_tier_csv")
-    fi
-    if [[ -n "$voice_gender" ]]; then
-      voice_args+=(--gender "$voice_gender")
-    fi
-    run_aos_bounded "${voice_args[@]}"
   fi
 
   if [[ "$phase" == "stop" && "$voice_enabled" == "true" && -n "$voice_slot" ]]; then

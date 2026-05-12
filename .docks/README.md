@@ -48,7 +48,9 @@ voice bucket. The shared harness uses it for bounded Stop-hook notices with
 `aos say --voice-slot <n> --language en --quality-tier premium --quality-tier
 enhanced`. Session-start registration may still bind a voice for true session
 speech, but Stop hooks should not call `aos voice bind` or
-`aos voice final-response` for their fixed notices.
+`aos voice final-response` for their fixed notices. Stop notices do not require
+a resolved session id; the timeout budget should leave enough room for macOS
+speech synthesis to return.
 
 ## Config Split
 

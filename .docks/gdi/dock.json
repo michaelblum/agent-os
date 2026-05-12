@@ -2,7 +2,7 @@
   "name": "gdi",
   "role": "gdi",
   "harness": "codex",
-  "hook_timeout_seconds": 3,
+  "hook_timeout_seconds": 8,
   "stop_notice": "GDI finished.",
   "handoff": {
     "requires_goal_prefix": true
