@@ -58,7 +58,7 @@ import json, subprocess, time, sys
 
 def eval_inspector(js):
     out = subprocess.check_output([
-        "./aos", "show", "eval", "--id", "canvas-inspector", "--js", js,
+        "./aos", "show", "eval", "--id", "surface-inspector", "--js", js,
     ], text=True)
     wrap = json.loads(out)
     return json.loads(wrap.get("result") or "null")

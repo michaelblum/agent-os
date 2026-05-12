@@ -75,6 +75,15 @@ test('normalizeMarks uses explicit name when provided', () => {
   assert.equal(out[0].name, 'Custom');
 });
 
+test('normalizeMarks preserves opt-in DesktopWorld minimap size mode', () => {
+  const out = normalizeMarks('cv', [
+    { id: 'world', x: 0, y: 0, minimap_size_mode: 'desktop_world' },
+    { id: 'default', x: 0, y: 0 },
+  ]);
+  assert.equal(out[0].minimapSizeMode, 'desktop_world');
+  assert.equal(out[1].minimapSizeMode, 'minimap');
+});
+
 test('stableColorForId returns the same color for the same id', () => {
   const a1 = stableColorForId('a');
   const a2 = stableColorForId('a');

@@ -85,17 +85,22 @@ export function renderMarkListRow(mark, { showCoords = false } = {}) {
 
 // Render a minimap-placed mark as a positioned SVG element.
 // `projected` is the center point from projectPointToMinimap.
-export function renderMinimapMark(mark, projected, { canvasId = mark.canvasId || 'unknown' } = {}) {
+export function renderMinimapMark(mark, projected, { canvasId = mark.canvasId || 'unknown', layout = null } = {}) {
   const { id, name, w, h } = mark;
-  const left = Math.round(projected.x - w / 2);
-  const top = Math.round(projected.y - h / 2);
-  const inner = buildMarkLayers(mark);
+  const layoutScale = Number(layout?.scale);
+  const scaleWithMinimap = mark.minimapSizeMode === 'desktop_world' && Number.isFinite(layoutScale) && layoutScale > 0;
+  const displayW = scaleWithMinimap ? Math.max(2, Math.round(w * layoutScale)) : w;
+  const displayH = scaleWithMinimap ? Math.max(2, Math.round(h * layoutScale)) : h;
+  const left = Math.round(projected.x - displayW / 2);
+  const top = Math.round(projected.y - displayH / 2);
+  const inner = buildMarkLayers({ ...mark, w: displayW, h: displayH });
   return (
     `<svg class="minimap-mark" ${markSemanticAttrs(mark, canvasId)}`
     + ` data-canvas-id="${escAttr(canvasId)}" data-mark-id="${escAttr(id)}"`
     + ` data-mark-x="${escAttr(mark.x)}" data-mark-y="${escAttr(mark.y)}"`
-    + ` style="left:${left}px;top:${top}px;width:${w}px;height:${h}px"`
-    + ` viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"`
+    + ` data-mark-minimap-size-mode="${escAttr(mark.minimapSizeMode || 'minimap')}"`
+    + ` style="left:${left}px;top:${top}px;width:${displayW}px;height:${displayH}px"`
+    + ` viewBox="0 0 ${displayW} ${displayH}" width="${displayW}" height="${displayH}"`
     + ` xmlns="http://www.w3.org/2000/svg">`
     + `<title>${escText(name)}</title>`
     + inner

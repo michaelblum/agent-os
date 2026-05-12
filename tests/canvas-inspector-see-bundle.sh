@@ -33,7 +33,7 @@ fi
 aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-INSPECTOR_ID="canvas-inspector"
+INSPECTOR_ID="surface-inspector"
 
 bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
 
@@ -56,7 +56,7 @@ import json, subprocess, time
 deadline = time.time() + 15
 while time.time() < deadline:
     payload = json.loads(subprocess.check_output([
-        "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+        "./aos", "show", "eval", "--id", "surface-inspector", "--js",
         'JSON.stringify(window.__canvasInspectorState?.bundleCapture || null)'
     ], text=True))
     result = payload.get("result")
@@ -117,4 +117,4 @@ if clipboard != str(bundle):
     raise SystemExit(f"FAIL: clipboard mismatch: expected {bundle}, got {clipboard!r}")
 PY
 
-echo "PASS: canvas inspector see bundle"
+echo "PASS: Surface Inspector see bundle"

@@ -25,7 +25,7 @@ import json, subprocess, time
 
 for _ in range(50):
     payload = json.loads(subprocess.check_output([
-        "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+        "./aos", "show", "eval", "--id", "surface-inspector", "--js",
         'JSON.stringify({text: document.body.textContent.replace(/\\s+/g," ").trim(), selfDims: document.querySelector(".tree-row.canvas.self .canvas-dims")?.textContent ?? null, minimapDisplays: document.querySelectorAll(".minimap-display").length})'
     ], text=True))
     result = json.loads(payload.get("result") or "{}")
@@ -42,14 +42,15 @@ print("FAIL: inspector did not populate from subscription snapshots", flush=True
 raise SystemExit(1)
 PY
 
-./aos show post --id canvas-inspector --event '{"type":"mouse_moved","x":140,"y":170}' >/dev/null
+./aos show eval --id surface-inspector --js 'document.querySelector(".cursor-toggle-btn")?.click()' >/dev/null
+./aos show post --id surface-inspector --event '{"type":"mouse_moved","x":140,"y":170}' >/dev/null
 
 python3 - <<'PY'
 import json, subprocess, time
 
 for _ in range(50):
     payload = json.loads(subprocess.check_output([
-        "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+        "./aos", "show", "eval", "--id", "surface-inspector", "--js",
         '''JSON.stringify((() => {
           const state = window.__canvasInspectorState ?? {}
           const displays = state.displays ?? []

@@ -15,10 +15,10 @@ bash packages/toolkit/components/spatial-telemetry/launch.sh >/dev/null
 
 echo "Display debug battery launched:"
 echo "- spatial-telemetry (flush bottom-left of main visible bounds)"
-echo "- canvas-inspector (flush bottom-right of main visible bounds)"
+echo "- surface-inspector (flush bottom-right of main visible bounds)"
 echo ""
 echo "Useful probes:"
 echo "  ./aos show eval --id spatial-telemetry --js 'JSON.stringify(window.__spatialTelemetryState?.snapshot)'"
-echo "  ./aos show eval --id canvas-inspector --js 'JSON.stringify(window.__canvasInspectorState)'"
+echo "  ./aos show eval --id surface-inspector --js 'JSON.stringify(window.__canvasInspectorState)'"
 echo ""
 echo "If Sigil is running, its mark heartbeat should appear automatically within a few seconds."

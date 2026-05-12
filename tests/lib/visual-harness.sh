@@ -140,21 +140,79 @@ import time
 
 aos, canvas_id, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
 deadline = time.time() + timeout
+last_remove_at = 0.0
 
 while time.time() < deadline:
+    completed = subprocess.run(
+        [aos, "show", "list", "--json"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if completed.returncode != 0:
+        time.sleep(0.1)
+        continue
     try:
-        payload = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True, stderr=subprocess.DEVNULL))
+        payload = json.loads(completed.stdout or "{}")
     except Exception:
-        raise SystemExit(0)
+        time.sleep(0.1)
+        continue
     ids = {canvas.get("id") for canvas in payload.get("canvases") or []}
     if canvas_id not in ids:
         raise SystemExit(0)
+    now = time.time()
+    if now - last_remove_at >= 0.5:
+        subprocess.run([aos, "show", "remove", "--id", canvas_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        last_remove_at = now
     time.sleep(0.1)
 PY
 }
 
+aos_visual_wait_canvas_absent() {
+  local canvas_id="$1"
+  local timeout="${2:-5}"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  python3 - "$aos_bin" "$canvas_id" "$timeout" <<'PY'
+import json
+import subprocess
+import sys
+import time
+
+aos, canvas_id, timeout = sys.argv[1], sys.argv[2], float(sys.argv[3])
+deadline = time.time() + timeout
+last_error = None
+last_ids = None
+
+while time.time() < deadline:
+    completed = subprocess.run(
+        [aos, "show", "list", "--json"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if completed.returncode == 0:
+        try:
+            payload = json.loads(completed.stdout or "{}")
+            ids = {canvas.get("id") for canvas in payload.get("canvases") or []}
+            last_ids = sorted(canvas_id for canvas_id in ids if canvas_id)
+            if canvas_id not in ids:
+                raise SystemExit(0)
+        except Exception as error:
+            last_error = f"invalid show list payload: {error}; output={completed.stdout!r}"
+    else:
+        last_error = completed.stdout.strip() or f"show list exited {completed.returncode}"
+    time.sleep(0.1)
+
+detail = {"canvas": canvas_id, "last_ids": last_ids, "last_error": last_error}
+print("FAIL: canvas still present or absence could not be confirmed: " + json.dumps(detail, sort_keys=True), file=sys.stderr)
+raise SystemExit(1)
+PY
+}
+
 aos_visual_launch_canvas_inspector() {
-  local inspector_id="${1:-canvas-inspector}"
+  local inspector_id="${1:-surface-inspector}"
   local aos_bin panel_w panel_h display_json x y
   aos_bin="$(aos_visual_aos)"
   panel_w="${AOS_CANVAS_INSPECTOR_W:-320}"
@@ -301,7 +359,7 @@ aos_visual_show_sigil_avatar_via_live_status_click() {
 
 aos_visual_avoid_sigil_avatar_overlap() {
   local avatar_id="${1:-avatar-main}"
-  local inspector_id="${2:-canvas-inspector}"
+  local inspector_id="${2:-surface-inspector}"
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
@@ -416,7 +474,7 @@ aos_visual_place_sigil_avatar_for_manual_test() {
 
 aos_visual_launch_sigil_with_inspector() {
   local avatar_id="${1:-avatar-main}"
-  local inspector_id="${2:-canvas-inspector}"
+  local inspector_id="${2:-surface-inspector}"
   local fast_travel_effect="${3:-}"
   local placement="${4:-default}"
 
@@ -435,7 +493,7 @@ aos_visual_launch_sigil_with_inspector() {
 aos_visual_launch_sigil_with_inspector_via_status_item() {
   local state_root="$1"
   local avatar_id="${2:-avatar-main}"
-  local inspector_id="${3:-canvas-inspector}"
+  local inspector_id="${3:-surface-inspector}"
   local placement="${4:-default}"
 
   aos_visual_configure_sigil_status_item "$avatar_id"
@@ -451,7 +509,7 @@ aos_visual_launch_sigil_with_inspector_via_status_item() {
 
 aos_visual_launch_sigil_with_inspector_via_live_status_item() {
   local avatar_id="${1:-avatar-main}"
-  local inspector_id="${2:-canvas-inspector}"
+  local inspector_id="${2:-surface-inspector}"
   local placement="${3:-default}"
 
   aos_visual_configure_sigil_status_item "$avatar_id"

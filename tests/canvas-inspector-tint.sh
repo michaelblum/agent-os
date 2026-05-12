@@ -32,7 +32,7 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 TARGET_ID="tint-target"
-INSPECTOR_ID="canvas-inspector"
+INSPECTOR_ID="surface-inspector"
 
 ./aos show create \
   --id "$TARGET_ID" \

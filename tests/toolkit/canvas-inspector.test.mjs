@@ -23,6 +23,7 @@ import {
 } from '../../packages/toolkit/workbench/controlled-browser-dom-surface.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const inspectorSource = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.js'), 'utf8');
 
 class RevealFixtureElement {
   constructor(tagName, attrs = {}, rect = { x: 0, y: 0, width: 1, height: 1 }, text = '') {
@@ -136,6 +137,13 @@ const displays = [
     bounds: { x: 0, y: 0, w: 1512, h: 982 },
   },
 ];
+
+test('Surface Inspector exposes surface resource subscriptions and debug counts', () => {
+  assert.match(inspectorSource, /requires: \[[^\]]*'canvas_object\.registry'[^\]]*'input_region'/s);
+  assert.match(inspectorSource, /subscribe\(\['canvas_object\.registry', 'input_region'\], \{ snapshot: true \}\)/);
+  assert.match(inspectorSource, /surfaceResourceCounts/);
+  assert.match(inspectorSource, /window\.__canvasInspectorState/);
+});
 
 test('computeMinimapLayout preserves a visible inset for displays at the union edge', () => {
   const layout = computeMinimapLayout(displays, [], 300);

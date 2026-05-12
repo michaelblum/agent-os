@@ -309,6 +309,37 @@
   font-family: var(--font-mono);
   font-size: 10px;
 }
+.tree-row.surface-affordance,
+.tree-row.stage-layer,
+.tree-row.input-region {
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+.surface-resource-kind {
+  flex: 0 0 auto;
+  min-width: 54px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.surface-resource-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.surface-resource-status {
+  flex: 0 1 auto;
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
 .tree-row.annotation-row,
 .tree-row.semantic-target-row,
 .tree-row.annotation-scope-row {

@@ -59,6 +59,13 @@ import {
   sweepMouseEffectsState,
 } from './mouse-effects.js'
 import { computeInspectorTree } from './tree.js'
+import {
+  applyInputRegionMessage,
+  applyStageLayerRegistryMessage,
+  buildSurfaceResourceSnapshot,
+  createSurfaceResourceState,
+  removeSurfaceResourcesForCanvas,
+} from './surface-resources.js'
 import { buildSemanticTargetProjectionAdapterResult } from '../../workbench/annotation-projection.js'
 import {
   BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
@@ -75,7 +82,7 @@ export {
   resolveCanvasFrames,
 } from '../../runtime/spatial.js'
 
-const SELF_ID = 'canvas-inspector'
+const SELF_ID = (typeof window !== 'undefined' && (window.__aosCanvasId || window.__aosSurfaceCanvasId)) || 'canvas-inspector'
 const TINT_COLORS = [
   'rgba(80, 190, 255, 0.28)',
   'rgba(80, 255, 120, 0.26)',
@@ -769,6 +776,7 @@ export default function CanvasInspector() {
   let annotationState = createSurfaceInspectorAnnotationState()
 
   const marksState = createMarksState()
+  const surfaceResourceState = createSurfaceResourceState()
   const marksScheduler = createScheduler({
     state: marksState,
     onChange: () => rerender(),
@@ -792,6 +800,7 @@ export default function CanvasInspector() {
 
   function syncDebugState() {
     const hitRegions = annotationHitRegions()
+    const surfaceResources = buildSurfaceResourceSnapshot(surfaceResourceState, { canvases })
     window.__canvasInspectorState = {
       displays,
       canvases,
@@ -827,6 +836,8 @@ export default function CanvasInspector() {
       marksByCanvas: Object.fromEntries(
         [...marksState.marksByCanvas].map(([k, v]) => [k, v.marks]),
       ),
+      surfaceResources,
+      surfaceResourceCounts: surfaceResources.counts,
     }
   }
 
@@ -1752,7 +1763,7 @@ export default function CanvasInspector() {
         for (const m of entry.marks) {
           const projected = projectPointToMinimap(layout, { x: m.x, y: m.y })
           if (!projected) continue
-          html += renderMinimapMark(m, projected, { canvasId })
+          html += renderMinimapMark(m, projected, { canvasId, layout })
         }
       }
     }
@@ -1770,6 +1781,7 @@ export default function CanvasInspector() {
       displays: normalizeDisplays(displays),
       canvases: resolvedCanvases,
       marksByCanvas: marksState.marksByCanvas,
+      surfaceResources: buildSurfaceResourceSnapshot(surfaceResourceState, { canvases }),
     })
     if (!tree || tree.type === 'empty') {
       return '<div class="empty-state">No canvases active</div>'
@@ -1792,6 +1804,10 @@ export default function CanvasInspector() {
         + (depth === 0 ? renderAnnotationModeToggleRow(depth + 1) + renderAnnotationTree(depth + 1) : '')
         + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
     }
+    if (node.type === 'surface_resource_group') {
+      return renderLocationRow(node.label, depth)
+        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+    }
     if (node.type === 'canvas') {
       return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds })
         + renderSemanticTargetRows(node.canvas.id, depth + 1)
@@ -1799,6 +1815,16 @@ export default function CanvasInspector() {
     }
     if (node.type === 'mark') {
       return renderMarkTreeRow(node.mark, depth)
+    }
+    if (node.type === 'surface_affordance') {
+      return renderAffordanceTreeRow(node.affordance, depth)
+        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+    }
+    if (node.type === 'stage_layer') {
+      return renderStageLayerTreeRow(node.stageLayer, depth)
+    }
+    if (node.type === 'input_region') {
+      return renderInputRegionTreeRow(node.inputRegion, depth)
     }
     return ''
   }
@@ -1897,6 +1923,42 @@ export default function CanvasInspector() {
   function renderMarkTreeRow(mark, depth) {
     return `<div class="tree-row mark" data-mark-id="${esc(mark.id)}" style="${indentStyle(depth)}">`
       + `<span class="mark-name" style="color:${esc(mark.color)}">${esc(mark.name)}</span>`
+      + `</div>`
+  }
+
+  function compactStatus(statuses = []) {
+    const notable = statuses.filter((status) => status !== 'active')
+    return notable.length ? notable.join(', ') : 'active'
+  }
+
+  function renderAffordanceTreeRow(affordance, depth) {
+    const status = compactStatus(affordance.statuses)
+    return `<div class="tree-row surface-affordance" data-resource-type="surface-affordance" data-affordance-id="${esc(affordance.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+      + `<span class="surface-resource-kind">affordance</span>`
+      + `<span class="surface-resource-label">${esc(affordance.id)}</span>`
+      + `<span class="surface-resource-status">${esc(status)}</span>`
+      + `</div>`
+  }
+
+  function renderStageLayerTreeRow(layer, depth) {
+    const status = compactStatus(layer.statuses)
+    const dims = Array.isArray(layer.frame) ? formatAt(layer.frame) : ''
+    return `<div class="tree-row stage-layer" data-resource-type="stage-layer" data-stage-layer-id="${esc(layer.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+      + `<span class="surface-resource-kind">stage</span>`
+      + `<span class="surface-resource-label">${esc(layer.label || layer.id)}</span>`
+      + `<span class="canvas-dims">${esc(layer.kind)} ${esc(dims)}</span>`
+      + `<span class="surface-resource-status">${esc(status)}</span>`
+      + `</div>`
+  }
+
+  function renderInputRegionTreeRow(region, depth) {
+    const status = compactStatus(region.statuses)
+    const dims = Array.isArray(region.frame) ? formatAt(region.frame) : ''
+    return `<div class="tree-row input-region" data-resource-type="input-region" data-input-region-id="${esc(region.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+      + `<span class="surface-resource-kind">region</span>`
+      + `<span class="surface-resource-label">${esc(region.semanticLabel || region.id)}</span>`
+      + `<span class="canvas-dims">${esc(region.consumePolicy)} ${esc(dims)}</span>`
+      + `<span class="surface-resource-status">${esc(status)}</span>`
       + `</div>`
   }
 
@@ -2145,6 +2207,7 @@ export default function CanvasInspector() {
         annotationState = setSurfaceInspectorHoverCandidate(annotationState, null, { reason: 'target_canvas_removed' })
       }
       evictCanvas(marksState, id)
+      removeSurfaceResourcesForCanvas(surfaceResourceState, id)
       return
     }
 
@@ -2165,10 +2228,10 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Surface Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
       emits: ['canvas.send'],
       channelPrefix: 'canvas-inspector',
-      requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks'],
+      requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
       defaultSize: { w: 320, h: 480 },
     },
 
@@ -2217,6 +2280,7 @@ export default function CanvasInspector() {
         },
       }
       bindListEvents()
+      subscribe(['canvas_object.registry', 'input_region'], { snapshot: true })
       emit('canvas_inspector.request_bundle_config')
       emitAnnotationModeState('bootstrap')
       requestSemanticTargetsForLiveCanvases('surface_inspector_launch')
@@ -2340,6 +2404,20 @@ export default function CanvasInspector() {
         applySnapshot(marksState, canvasId, normalized, Date.now())
         if (marksState.marksByCanvas.size > 0) marksScheduler.start()
         rerender()
+        return
+      }
+      if (msg.type === 'input_region.snapshot' || msg.type === 'input_region') {
+        if (applyInputRegionMessage(surfaceResourceState, msg)) {
+          eventCount++
+          rerender()
+        }
+        return
+      }
+      if (msg.type === 'canvas_object.registry') {
+        if (applyStageLayerRegistryMessage(surfaceResourceState, msg)) {
+          eventCount++
+          rerender()
+        }
       }
     },
   }

@@ -37,6 +37,11 @@ function normBool(v, fallback) {
   return Boolean(v);
 }
 
+function normalizeMinimapSizeMode(raw = {}) {
+  const value = String(raw.minimapSizeMode || raw.minimap_size_mode || raw.sizeMode || raw.size_mode || '').trim();
+  return value === 'desktop_world' ? 'desktop_world' : 'minimap';
+}
+
 export function normalizeMarks(canvasId, objects, { warn = console.warn } = {}) {
   if (!Array.isArray(objects)) return [];
   const out = [];
@@ -77,6 +82,7 @@ export function normalizeMarks(canvasId, objects, { warn = console.warn } = {}) 
       h: clampDim(raw.h),
       color: typeof raw.color === 'string' && raw.color.length ? raw.color : stableColorForId(id),
       name: typeof raw.name === 'string' && raw.name.length ? raw.name : id,
+      minimapSizeMode: normalizeMinimapSizeMode(raw),
       rect: normBool(raw.rect, true),
       ellipse: normBool(raw.ellipse, true),
       cross: normBool(raw.cross, true),
