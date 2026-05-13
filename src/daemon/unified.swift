@@ -1062,6 +1062,26 @@ class UnifiedDaemon {
         return true  // no recorded owner = CLI-origin = open per mutation-api rule 3
     }
 
+    private func parseCanvasFrame(_ value: Any?, required: Bool) -> (frame: [CGFloat]?, code: String?, message: String?) {
+        guard let value = value else {
+            if required {
+                return (nil, "INVALID_FRAME", "frame must be [x,y,w,h]")
+            }
+            return (nil, nil, nil)
+        }
+        guard let frameArr = value as? [Any], frameArr.count == 4 else {
+            return (nil, "INVALID_FRAME", "frame must be [x,y,w,h]")
+        }
+        let parsedFrame: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard parsedFrame.count == 4 else {
+            return (nil, "INVALID_FRAME", "frame values must be numeric")
+        }
+        guard parsedFrame.allSatisfy({ $0.isFinite }) else {
+            return (nil, "INVALID_FRAME", "frame values must be finite")
+        }
+        return (parsedFrame, nil, nil)
+    }
+
     private func recordCanvasReadyManifest(canvasID: String, payload: [String: Any]?) {
         guard let payload = payload else { return }
         canvasSubscriptionLock.lock()
@@ -1089,25 +1109,13 @@ class UnifiedDaemon {
             return
         }
         let surface = payload["surface"] as? String
-        var at: [CGFloat]? = nil
-        if let frameArr = payload["frame"] as? [Any] {
-            guard frameArr.count == 4 else {
-                dispatchCanvasResponse(to: callerID, requestID: requestID,
-                    status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
-                return
-            }
-            let parsedFrame: [CGFloat] = frameArr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-            guard parsedFrame.count == 4 else {
-                dispatchCanvasResponse(to: callerID, requestID: requestID,
-                    status: "error", code: "INVALID_FRAME", message: "frame values must be numeric")
-                return
-            }
-            at = parsedFrame
-        } else if surface == nil {
+        let parsedFrame = parseCanvasFrame(payload["frame"], required: surface == nil)
+        if let code = parsedFrame.code {
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "INVALID_FRAME", message: "frame must be [x,y,w,h]")
+                status: "error", code: code, message: parsedFrame.message)
             return
         }
+        let at = parsedFrame.frame
         let interactive = payload["interactive"] as? Bool
         let windowLevel = payload["window_level"] as? String
 
@@ -1167,16 +1175,21 @@ class UnifiedDaemon {
         }
 
         // Build the CanvasRequest. Only `frame`, `interactive`, and `window_level` are accepted for update.
-        var at: [CGFloat]? = nil
-        if let arr = payload["frame"] as? [Any], arr.count == 4 {
-            let parsed: [CGFloat] = arr.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
-            if parsed.count == 4 { at = parsed }
+        let requestID = payload["request_id"] as? String
+        let parsedFrame = parseCanvasFrame(payload["frame"], required: false)
+        if let code = parsedFrame.code {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: code, message: parsedFrame.message)
+            return
         }
+        let at = parsedFrame.frame
         let interactive = payload["interactive"] as? Bool
         let windowLevel = payload["window_level"] as? String
 
         guard at != nil || interactive != nil || windowLevel != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "NO_FIELDS", message: "canvas.update requires frame, interactive, or window_level")
             return
         }
 

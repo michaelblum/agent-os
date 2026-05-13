@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
   buildAnnotationActionControlCanvasRecords,
+  buildAnnotationHitLayerFrame,
   buildAnnotationNativeHitRegions,
   buildAnnotationScopedHitRegions,
   buildRevealPayloadForSurfaceInspectorPin,
@@ -576,6 +577,17 @@ test('Surface Inspector models hover annotation actions as real overlay canvases
   assert.match(actionStyles, /background:\s*#f4c542/);
   assert.match(hitLayerHtml, /annotation-hit-layer/);
   assert.match(hitLayerStyles, /background:\s*transparent/);
+});
+
+test('Surface Inspector annotation hit layer skips empty or non-finite regions', () => {
+  assert.equal(buildAnnotationHitLayerFrame([]), null);
+  assert.equal(buildAnnotationHitLayerFrame([{ id: 'bad-array-fallback', rect: [10, 20, 100, 80] }]), null);
+  assert.equal(buildAnnotationHitLayerFrame([{ id: 'bad-nan', rect: { x: NaN, y: 20, w: 100, h: 80 } }]), null);
+
+  assert.deepEqual(buildAnnotationHitLayerFrame([
+    { id: 'one', rect: { x: 10.2, y: 20.6, w: 90.1, h: 40.2 } },
+    { id: 'two', rect: { left: 80, top: 10, width: 50, height: 90 } },
+  ]), [10, 10, 120, 90]);
 });
 
 test('Surface Inspector action-control sync is idempotent for unchanged hover candidates', () => {

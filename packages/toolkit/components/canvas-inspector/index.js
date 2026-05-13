@@ -131,6 +131,29 @@ function normalizeDisplayRect(rect = null) {
   return { x, y, w, h }
 }
 
+function unionDisplayRects(rects = []) {
+  const usable = rects.map((rect) => normalizeDisplayRect(rect)).filter(Boolean)
+  if (usable.length === 0) return null
+  const minX = Math.min(...usable.map((rect) => rect.x))
+  const minY = Math.min(...usable.map((rect) => rect.y))
+  const maxX = Math.max(...usable.map((rect) => rect.x + rect.w))
+  const maxY = Math.max(...usable.map((rect) => rect.y + rect.h))
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+}
+
+export function buildAnnotationHitLayerFrame(regions = []) {
+  if (!Array.isArray(regions) || regions.length === 0) return null
+  const frameRect = unionDisplayRects(regions.map((region) => region?.rect))
+  if (!frameRect) return null
+  const frame = [
+    Math.round(frameRect.x),
+    Math.round(frameRect.y),
+    Math.max(1, Math.round(frameRect.w)),
+    Math.max(1, Math.round(frameRect.h)),
+  ]
+  return frame.every(Number.isFinite) ? frame : null
+}
+
 export function projectAnnotationRectToMinimap(layout, rect, {
   displays = [],
   coordinateSpace = 'native_display',
@@ -1126,14 +1149,13 @@ export default function CanvasInspector() {
     })
   }
 
-  function rectUnion(rects = []) {
-    const usable = rects.filter(Boolean)
-    if (usable.length === 0) return null
-    const minX = Math.min(...usable.map((rect) => rect.x))
-    const minY = Math.min(...usable.map((rect) => rect.y))
-    const maxX = Math.max(...usable.map((rect) => rect.x + rect.w))
-    const maxY = Math.max(...usable.map((rect) => rect.y + rect.h))
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY }
+  function removeAnnotationHitLayerCanvas() {
+    const id = annotationHitLayerCanvasId || `${SELF_ID}-annotation-hit-layer`
+    if (annotationHitLayerCanvasId || canvases.some((canvas) => canvas.id === id)) {
+      emit('canvas.remove', { id })
+    }
+    annotationHitLayerCanvasId = ''
+    annotationHitLayerFrameKey = ''
   }
 
   function annotationHitLayerURL() {
@@ -1144,17 +1166,19 @@ export default function CanvasInspector() {
 
   function syncAnnotationHitLayer() {
     if (!annotationState.annotation_mode.active) {
-      if (annotationHitLayerCanvasId) emit('canvas.remove', { id: annotationHitLayerCanvasId })
-      annotationHitLayerCanvasId = ''
+      removeAnnotationHitLayerCanvas()
       annotationHitLayerSignature = ''
-      annotationHitLayerFrameKey = ''
       return []
     }
     const regions = annotationHitRegions()
     const signature = hitRegionSignature(regions)
+    const frame = buildAnnotationHitLayerFrame(regions)
+    if (!frame) {
+      removeAnnotationHitLayerCanvas()
+      annotationHitLayerSignature = ''
+      return regions
+    }
     annotationHitLayerCanvasId = `${SELF_ID}-annotation-hit-layer`
-    const frameRect = rectUnion(regions.map((region) => region.rect)) || currentFrameFallback()
-    const frame = [Math.round(frameRect.x), Math.round(frameRect.y), Math.max(1, Math.round(frameRect.w)), Math.max(1, Math.round(frameRect.h))]
     const frameKey = frame.join(',')
     const payload = {
       id: annotationHitLayerCanvasId,
