@@ -532,7 +532,7 @@ export function normalizeAdapterCapabilitySummary(input = []) {
 }
 
 export function normalizePinRecord(pin = {}) {
-  const node = pin.source_node_metadata || pin.node || {}
+  const node = pin.source_node_metadata || pin.source_tree_node_metadata || pin.source_metadata || pin.node || {}
   const subjectPath = subjectPathFromNode(pin.subject_path ? pin : node)
   const id = text(pin.id, stableId('pin', [pin.root_id, ...subjectPath]))
   const created = isoNow(pin.created_at || pin.updated_at || Date.now())
@@ -547,7 +547,7 @@ export function normalizePinRecord(pin = {}) {
     parent_pin_id: pin.parent_pin_id ? text(pin.parent_pin_id) : null,
     depth: Number.isFinite(Number(pin.depth)) ? Number(pin.depth) : Math.max(0, subjectPath.length - 1),
     adapter_id: text(pin.adapter_id || node.adapter_id, 'aos-canvas-window'),
-    source_tree_node_metadata: clone(pin.source_tree_node_metadata || node),
+    source_tree_node_metadata: clone(pin.source_tree_node_metadata || pin.source_node_metadata || pin.source_metadata || node),
     projection: normalizeProjectionStatus(pin.projection || pin),
     created_at: created,
     updated_at: isoNow(pin.updated_at || created),

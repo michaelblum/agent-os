@@ -194,6 +194,47 @@ test('native AX element candidate is scoped to the selected native window root',
   assert.deepEqual(ax.source_metadata.context_path, ['Privacy & Security', 'Allow'])
 })
 
+test('pinning a native window root preserves root kind for scoped native AX candidates', () => {
+  const root = buildNativeWindowSurfaceInspectorCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bundle_id: 'com.apple.systempreferences',
+    title: 'Privacy & Security',
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  })
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, root, { id: 'pin-native-root' })
+
+  assert.equal(state.pins[0].adapter_id, 'macos-ax')
+  assert.equal(state.pins[0].root_kind, 'native_window')
+  assert.equal(state.pins[0].source_tree_node_metadata.root_kind, 'native_window')
+  assert.equal(state.annotation_scope_stack.at(-1).adapter_id, 'macos-ax')
+  assert.equal(state.annotation_scope_stack.at(-1).root_kind, 'native_window')
+
+  const ax = buildNativeAxElementSurfaceInspectorCandidate({
+    role: 'AXButton',
+    title: 'Allow',
+    bounds: { x: 620, y: 700, width: 92, height: 32 },
+    action_names: ['AXPress'],
+    context_path: ['Privacy & Security', 'Allow'],
+  }, {
+    selected_root: state.annotation_scope_stack.at(-1),
+    window: {
+      window_id: 918,
+      app: 'System Settings',
+      pid: 1234,
+      bundle_id: 'com.apple.systempreferences',
+      bounds: { x: 40, y: 80, width: 900, height: 680 },
+    },
+  })
+
+  assert.equal(ax.projection.current_render_status, 'visible')
+  assert.equal(ax.projection.can_project_display_overlay, true)
+  assert.equal(ax.projection.can_reveal, false)
+  assert.equal(ax.blocker_reason, '')
+})
+
 test('native AX candidates reject stale or root-mismatched cursor context explicitly', () => {
   const root = buildNativeWindowSurfaceInspectorCandidate({
     window_id: 918,
