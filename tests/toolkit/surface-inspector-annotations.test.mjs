@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   addSurfaceInspectorComment,
   applySurfaceInspectorRevealResult,
+  buildNativeAxElementSurfaceInspectorCandidate,
+  buildNativeWindowSurfaceInspectorCandidate,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorFrameAddress,
   buildSurfaceInspectorSnapshotPayload,
@@ -118,6 +120,113 @@ test('annotation candidates normalize shared adapter fields, capabilities, and s
   assert.equal(candidate.state_id, 'see_123')
   assert.equal(candidate.confidence, 0.88)
   assert.deepEqual(candidate.source_metadata.context_path, ['Settings', 'OK'])
+})
+
+test('native window payload becomes a bounded macOS AX root candidate', () => {
+  assert.equal(buildNativeWindowSurfaceInspectorCandidate(null), null)
+
+  const candidate = buildNativeWindowSurfaceInspectorCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bundle_id: 'com.apple.systempreferences',
+    title: 'Privacy & Security',
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  }, {
+    refreshed_at: '2026-05-13T00:00:00.000Z',
+  })
+
+  assert.equal(candidate.adapter_id, 'macos-ax')
+  assert.equal(candidate.root_kind, 'native_window')
+  assert.equal(candidate.subject_kind, 'native_window')
+  assert.equal(candidate.root_label, 'Privacy & Security')
+  assert.equal(candidate.projection.can_project_display_overlay, true)
+  assert.equal(candidate.projection.can_reveal, false)
+  assert.equal(candidate.display_space_rect.w, 900)
+  assert.equal(candidate.source_metadata.reveal_blocker_reason, 'bounded_ax_reveal_unavailable')
+  assert.equal(candidate.source_metadata.window_id, '918')
+  assert.equal(candidate.source_metadata.pid, 1234)
+  assert.equal(candidate.source_metadata.bundle_id, 'com.apple.systempreferences')
+})
+
+test('native AX element candidate is scoped to the selected native window root', () => {
+  assert.equal(buildNativeAxElementSurfaceInspectorCandidate(null), null)
+
+  const root = buildNativeWindowSurfaceInspectorCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bundle_id: 'com.apple.systempreferences',
+    title: 'Privacy & Security',
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  })
+  const ax = buildNativeAxElementSurfaceInspectorCandidate({
+    role: 'AXButton',
+    title: 'Allow',
+    label: 'Allow',
+    value: '',
+    enabled: true,
+    bounds: { x: 620, y: 700, width: 92, height: 32 },
+    action_names: ['AXPress'],
+    capabilities: ['press'],
+    context_path: ['Privacy & Security', 'Allow'],
+  }, {
+    selected_root: root,
+    window: {
+      window_id: 918,
+      app: 'System Settings',
+      pid: 1234,
+      bundle_id: 'com.apple.systempreferences',
+      bounds: { x: 40, y: 80, width: 900, height: 680 },
+    },
+  })
+
+  assert.equal(ax.adapter_id, 'macos-ax')
+  assert.equal(ax.root_id, root.root_id)
+  assert.equal(ax.subject_kind, 'AXButton')
+  assert.equal(ax.label, 'Allow')
+  assert.deepEqual(ax.action_names, ['AXPress'])
+  assert.deepEqual(ax.capabilities, ['press'])
+  assert.equal(ax.projection.can_project_display_overlay, true)
+  assert.equal(ax.projection.can_reveal, false)
+  assert.equal(ax.blocker_reason, '')
+  assert.equal(ax.source_metadata.reveal_blocker_reason, 'bounded_ax_reveal_unavailable')
+  assert.deepEqual(ax.source_metadata.context_path, ['Privacy & Security', 'Allow'])
+})
+
+test('native AX candidates reject stale or root-mismatched cursor context explicitly', () => {
+  const root = buildNativeWindowSurfaceInspectorCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  })
+  const mismatched = buildNativeAxElementSurfaceInspectorCandidate({
+    role: 'AXButton',
+    title: 'Send',
+    bounds: { x: 20, y: 20, width: 60, height: 28 },
+    action_names: ['AXPress'],
+  }, {
+    selected_root: root,
+    window: { window_id: 999, app: 'Mail', pid: 8888, bounds: { x: 0, y: 0, width: 800, height: 600 } },
+  })
+
+  assert.equal(mismatched.projection.current_render_status, 'stale')
+  assert.equal(mismatched.projection.can_project_display_overlay, false)
+  assert.equal(mismatched.blocker_reason, 'native_ax_root_mismatch')
+
+  const unbounded = buildNativeAxElementSurfaceInspectorCandidate({
+    role: 'AXGroup',
+    title: 'Sidebar',
+    context_path: ['Privacy & Security', 'Sidebar'],
+  }, {
+    selected_root: root,
+    window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },
+  })
+
+  assert.equal(unbounded.projection.current_render_status, 'unsupported')
+  assert.equal(unbounded.projection.can_project_display_overlay, false)
+  assert.equal(unbounded.blocker_reason, 'bounded_ax_projection_unavailable')
 })
 
 test('adapter-result-shaped annotation candidates preserve projection adapter id', () => {

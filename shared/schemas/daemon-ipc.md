@@ -163,6 +163,10 @@ the response may include:
 - `mode` — `repo` or `installed`
 - `socket_path` — the socket the daemon is currently serving
 - `lock_owner_pid` — pid recorded in `daemon.lock` for the current mode
+- `perception_channels` — total active perception attention channels
+- `canvas_perception_channels` (array) — daemon-owned perception attention
+  channels created from canvas event subscriptions. Each item includes
+  `canvas_id`, `channel_id`, `depth`, `scope`, and `rate`.
 - `input_tap_status` — `active`, `retrying`, or `unavailable`
 - `input_tap_attempts` — startup attempt count for the global input tap
 - `input_tap` (object) — daemon-sourced structured view of the global input tap. Always present.

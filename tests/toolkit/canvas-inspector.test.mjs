@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
   buildAnnotationActionControlCanvasRecords,
+  buildAnnotationNativeHitRegions,
   buildAnnotationScopedHitRegions,
   buildRevealPayloadForSurfaceInspectorPin,
   buildSemanticTargetsRequestMessages,
@@ -429,7 +430,11 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /canvas_inspector\.annotation_toggle/);
   assert.match(source, /syncInputSubscription\(\{ snapshot: false \}\)/);
   assert.match(source, /const wantsInput = cursorTrackingEnabled \|\| mouseEventsEnabled \|\| annotationState\.annotation_mode\.active/);
-  assert.match(source, /subscribe\(\['input_event'\], \{ snapshot \}\)/);
+  assert.match(source, /const inputEvents = annotationState\.annotation_mode\.active/);
+  assert.match(source, /\['input_event', 'window_entered', 'element_focused'\]/);
+  assert.match(source, /const inputEventsChanged = obsoleteEvents\.length > 0 \|\| inputEvents\.some/);
+  assert.match(source, /if \(!snapshot && !inputEventsChanged\)/);
+  assert.match(source, /subscribe\(inputEvents, \{ snapshot \}\)/);
   assert.match(source, /buildSurfaceInspectorSnapshotPayload\(annotationState\)/);
   assert.doesNotMatch(source, /annotation-hover-add/);
   assert.doesNotMatch(source, /annotation-hover-pin/);
@@ -640,6 +645,50 @@ test('Surface Inspector scoped hit regions expose root and nested immediate chil
   });
 
   assert.deepEqual(nestedRegions.map((region) => region.id).sort(), ['cta', 'panel-a']);
+});
+
+test('Surface Inspector native hit regions expose native window roots and scoped AX elements only', () => {
+  const nativeWindowCandidate = {
+    id: 'native-window:918:System-Settings',
+    adapter_id: 'macos-ax',
+    root_kind: 'native_window',
+    subject_id: 'native-window:918:System-Settings',
+    projection: {
+      can_project_display_overlay: true,
+      visible_display_rect: { x: 40, y: 80, w: 900, h: 680 },
+    },
+  };
+  const nativeAxCandidate = {
+    id: 'ax-element:allow',
+    adapter_id: 'macos-ax',
+    root_kind: 'native_window',
+    subject_id: 'ax-element:allow',
+    projection: {
+      can_project_display_overlay: true,
+      visible_display_rect: { x: 620, y: 700, w: 92, h: 32 },
+    },
+  };
+
+  assert.deepEqual(
+    buildAnnotationNativeHitRegions({ nativeWindowCandidate, nativeAxCandidate }).map((region) => region.id),
+    ['native-window:918:System-Settings'],
+  );
+  assert.deepEqual(
+    buildAnnotationNativeHitRegions({
+      nativeWindowCandidate,
+      nativeAxCandidate,
+      scopeStack: [{ adapter_id: 'macos-ax', root_kind: 'native_window', subject_id: 'native-window:918:System-Settings' }],
+    }).map((region) => region.id),
+    ['ax-element:allow'],
+  );
+  assert.deepEqual(
+    buildAnnotationNativeHitRegions({
+      nativeWindowCandidate,
+      nativeAxCandidate,
+      scopeStack: [{ adapter_id: 'aos-canvas-window', subject_id: 'canvas-a' }],
+    }),
+    [],
+  );
 });
 
 test('Surface Inspector treats browser DOM element targets as first-class annotation candidates', () => {

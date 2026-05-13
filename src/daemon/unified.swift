@@ -107,6 +107,7 @@ class UnifiedDaemon {
     // Canvas-side event subscriptions: canvas ID → set of event-type names it wants.
     // Populated when a canvas posts {type: 'subscribe', payload: {events: [...]}}.
     var canvasEventSubscriptions: [String: Set<String>] = [:]
+    var canvasPerceptionChannels: [String: CanvasPerceptionChannel] = [:]
     var canvasObjectRegistries: [String: [String: Any]] = [:]
     var canvasReadyManifests: [String: [String: Any]] = [:]
     let canvasSubscriptionLock = NSLock()
@@ -152,6 +153,12 @@ class UnifiedDaemon {
         var perceptionChannelIDs: Set<UUID>
         var isSubscribed: Bool  // subscribed to display events too
         var wantsInputEvents: Bool
+    }
+
+    struct CanvasPerceptionChannel {
+        let id: UUID
+        let depth: Int
+        let rate: String
     }
 
     init(config: AosConfig, idleTimeout: TimeInterval = 300) {
@@ -205,6 +212,7 @@ class UnifiedDaemon {
         // Wire perception events -> broadcast
         perception.onEvent = { [weak self] event, data in
             self?.broadcastEvent(service: "perceive", event: event, data: data)
+            self?.forwardSubscribedEventToCanvases(type: event, data: data)
         }
         perception.onInputEvent = { [weak self] event, data in
             self?.handleInputEvent(event: event, data: data) ?? false
@@ -361,6 +369,7 @@ class UnifiedDaemon {
                 let canvasID = canvasInfo.id
                 self.canvasSubscriptionLock.lock()
                 let had = self.canvasEventSubscriptions.removeValue(forKey: canvasID) != nil
+                let canvasPerceptionChannel = self.canvasPerceptionChannels.removeValue(forKey: canvasID)
                 let hadRegistry = self.canvasObjectRegistries.removeValue(forKey: canvasID) != nil
                 self.canvasReadyManifests.removeValue(forKey: canvasID)
                 let children = self.canvasChildren.removeValue(forKey: canvasID) ?? []
@@ -376,6 +385,10 @@ class UnifiedDaemon {
                     }
                 }
                 self.canvasSubscriptionLock.unlock()
+                if let channel = canvasPerceptionChannel {
+                    self.perception.attention.removeChannel(channel.id)
+                    fputs("[canvas-sub] removed perception channel for removed canvas=\(canvasID) channel=\(channel.id.uuidString)\n", stderr)
+                }
                 if had {
                     fputs("[canvas-sub] cleared subscriptions for removed canvas=\(canvasID)\n", stderr)
                 }
@@ -612,11 +625,107 @@ class UnifiedDaemon {
         }
         let currentEvents = canvasEventSubscriptions[canvasID]
         canvasSubscriptionLock.unlock()
+        reconcileCanvasPerceptionChannel(canvasID: canvasID, currentEvents: currentEvents)
         fputs("[canvas-sub] \(type) canvas=\(canvasID) events=\(events) current=\(currentEvents ?? [])\n", stderr)
 
         if type == "subscribe" && (snapshot || events.contains("display_geometry")) {
             dispatchCanvasSubscriptionSnapshots(to: canvasID, events: events)
         }
+    }
+
+    private func canvasPerceptionRequest(for events: Set<String>?) -> (depth: Int, rate: String)? {
+        guard let events else { return nil }
+        var depth: Int?
+        var rateRank = 0
+
+        func require(depth requiredDepth: Int, rate requiredRate: String) {
+            depth = max(depth ?? requiredDepth, requiredDepth)
+            switch requiredRate {
+            case "continuous":
+                rateRank = max(rateRank, 3)
+            case "on-change":
+                rateRank = max(rateRank, 2)
+            case "on-settle":
+                rateRank = max(rateRank, 1)
+            default:
+                break
+            }
+        }
+
+        if events.contains("cursor_settled") {
+            require(depth: 0, rate: "on-settle")
+        }
+        if events.contains("window_entered") || events.contains("app_entered") {
+            require(depth: 1, rate: "on-change")
+        }
+        if events.contains("element_focused") {
+            require(depth: 2, rate: "on-settle")
+        }
+        if events.contains("cursor_moved") {
+            require(depth: 0, rate: "continuous")
+        }
+
+        guard let requestedDepth = depth else { return nil }
+        let rate: String
+        switch rateRank {
+        case 3:
+            rate = "continuous"
+        case 2:
+            rate = "on-change"
+        default:
+            rate = "on-settle"
+        }
+        return (requestedDepth, rate)
+    }
+
+    private func reconcileCanvasPerceptionChannel(canvasID: String, currentEvents: Set<String>?) {
+        let requested = canvasPerceptionRequest(for: currentEvents)
+
+        canvasSubscriptionLock.lock()
+        let existing = canvasPerceptionChannels[canvasID]
+        if existing?.depth == requested?.depth && existing?.rate == requested?.rate {
+            canvasSubscriptionLock.unlock()
+            return
+        }
+
+        if existing != nil {
+            canvasPerceptionChannels.removeValue(forKey: canvasID)
+        }
+        let newChannel: CanvasPerceptionChannel?
+        if let requested {
+            let channelID = perception.attention.addChannel(depth: requested.depth, scope: "cursor", rate: requested.rate)
+            let channel = CanvasPerceptionChannel(id: channelID, depth: requested.depth, rate: requested.rate)
+            canvasPerceptionChannels[canvasID] = channel
+            newChannel = channel
+        } else {
+            newChannel = nil
+        }
+        canvasSubscriptionLock.unlock()
+
+        if let existing {
+            perception.attention.removeChannel(existing.id)
+            fputs("[canvas-sub] removed perception channel canvas=\(canvasID) channel=\(existing.id.uuidString)\n", stderr)
+        }
+        if let newChannel {
+            fputs("[canvas-sub] added perception channel canvas=\(canvasID) channel=\(newChannel.id.uuidString) depth=\(newChannel.depth) rate=\(newChannel.rate)\n", stderr)
+        }
+    }
+
+    private func canvasPerceptionChannelSnapshot() -> [[String: Any]] {
+        canvasSubscriptionLock.lock()
+        let snapshot = canvasPerceptionChannels
+            .map { canvasID, channel in
+                [
+                    "canvas_id": canvasID,
+                    "channel_id": channel.id.uuidString,
+                    "depth": channel.depth,
+                    "scope": "cursor",
+                    "rate": channel.rate,
+                ] as [String: Any]
+            }
+            .sorted { ($0["canvas_id"] as? String ?? "") < ($1["canvas_id"] as? String ?? "") }
+        canvasSubscriptionLock.unlock()
+        return snapshot
     }
 
     private func dispatchCanvasSubscriptionSnapshots(to canvasID: String, events: [String]) {
@@ -657,6 +766,23 @@ class UnifiedDaemon {
 
         for canvasID in targets {
             canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
+        }
+    }
+
+    private func forwardSubscribedEventToCanvases(type: String, data: [String: Any]) {
+        canvasSubscriptionLock.lock()
+        let targets = canvasEventSubscriptions
+            .filter { $0.value.contains(type) }
+            .map { $0.key }
+        canvasSubscriptionLock.unlock()
+
+        guard !targets.isEmpty else { return }
+
+        var msg: [String: Any] = ["type": type]
+        for (key, value) in data { msg[key] = value }
+
+        for canvasID in targets {
+            canvasManager.postMessageAsync(canvasID: canvasID, payload: msg)
         }
     }
 
@@ -1946,6 +2072,7 @@ class UnifiedDaemon {
         case "ping":
             let uptime = Date().timeIntervalSince(startTime)
             let perceptionChannels = perception.attention.channelCount
+            let canvasPerceptionChannelDetails = canvasPerceptionChannelSnapshot()
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
@@ -1989,6 +2116,7 @@ class UnifiedDaemon {
                 "socket_path": socketPath,
                 "started_at": startedAt,
                 "perception_channels": perceptionChannels,
+                "canvas_perception_channels": canvasPerceptionChannelDetails,
                 "subscribers": subscriberCount,
                 // Legacy flat fields preserved
                 "input_tap_status": perception.inputTapStatus,

@@ -50,6 +50,15 @@ assert "uptime" in payload, f"uptime missing: {d}"
 assert isinstance(payload.get("pid"), int), f"pid missing: {d}"
 assert payload.get("mode") in ("repo", "installed"), f"mode missing: {d}"
 assert isinstance(payload.get("socket_path"), str) and payload["socket_path"], f"socket_path missing: {d}"
+assert isinstance(payload.get("perception_channels"), int), f"perception_channels missing: {d}"
+canvas_channels = payload.get("canvas_perception_channels")
+assert isinstance(canvas_channels, list), f"canvas_perception_channels missing: {d}"
+for channel in canvas_channels:
+    assert isinstance(channel.get("canvas_id"), str) and channel["canvas_id"], f"canvas channel id missing: {channel}"
+    assert isinstance(channel.get("channel_id"), str) and channel["channel_id"], f"channel id missing: {channel}"
+    assert isinstance(channel.get("depth"), int), f"channel depth missing: {channel}"
+    assert channel.get("scope") == "cursor", f"channel scope invalid: {channel}"
+    assert channel.get("rate") in ("continuous", "on-change", "on-settle"), f"channel rate invalid: {channel}"
 
 # Legacy flat fields preserved
 assert payload.get("input_tap_status") in ("active", "retrying", "unavailable"), f"input_tap_status missing: {d}"

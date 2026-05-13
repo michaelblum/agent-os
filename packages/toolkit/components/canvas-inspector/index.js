@@ -32,6 +32,8 @@ import { canvasActionAttrs, inspectorControlAttrs } from './semantics.js'
 import {
   addSurfaceInspectorComment,
   applySurfaceInspectorRevealResult,
+  buildNativeAxElementSurfaceInspectorCandidate,
+  buildNativeWindowSurfaceInspectorCandidate,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorSnapshotPayload,
   chooseSurfaceInspectorAnnotationCandidate,
@@ -542,6 +544,17 @@ export function buildAnnotationScopedHitRegions({ canvases = [], semanticTargets
   return [...canvasRegions, ...semanticRegions]
 }
 
+export function buildAnnotationNativeHitRegions({ nativeWindowCandidate = null, nativeAxCandidate = null, scopeStack = [] } = {}) {
+  const scope = Array.isArray(scopeStack) ? scopeStack.at(-1) : null
+  const candidates = []
+  if (!scope && nativeWindowCandidate) candidates.push(nativeWindowCandidate)
+  if (scope?.adapter_id === 'macos-ax' && scope.root_kind === 'native_window' && nativeAxCandidate) candidates.push(nativeAxCandidate)
+  return candidates
+    .map((candidate) => ({ candidate, rect: normalizeDisplayRect(candidate?.projection?.visible_display_rect || candidate?.projection?.display_space_rect || candidate?.display_space_rect || candidate?.rect) }))
+    .filter((region) => region.rect && region.candidate?.projection?.can_project_display_overlay !== false)
+    .map(({ candidate, rect }) => ({ id: candidate.id, candidate, rect }))
+}
+
 export function renderCanvasListToggleButton(options = {}) {
   const collapsed = options.collapsed !== false
   const label = collapsed ? 'Show canvas list' : 'Hide canvas list'
@@ -766,9 +779,12 @@ export default function CanvasInspector() {
   let canvases = []
   let cursor = { x: 0, y: 0, valid: false }
   let nativeCursor = { x: 0, y: 0, valid: false }
+  let latestNativeWindowEvent = null
+  let latestNativeAxElementEvent = null
   let cursorTrackingEnabled = false
   let mouseEventsEnabled = false
   let inputSubscriptionActive = false
+  let inputSubscriptionEvents = []
   let tintedIds = new Set()
   let tintMap = new Map()
   let statsIds = new Set()
@@ -829,6 +845,8 @@ export default function CanvasInspector() {
       semanticTargetsByCanvas: Object.fromEntries(semanticTargetsByCanvas),
       cursor,
       nativeCursor,
+      latestNativeWindowCandidate: nativeWindowCandidateForAnnotation(),
+      latestNativeAxCandidate: nativeAxCandidateForAnnotation(),
       cursorTrackingEnabled,
       mouseEventsEnabled,
       inputSubscriptionActive,
@@ -1000,6 +1018,19 @@ export default function CanvasInspector() {
     return annotationState.annotation_scope_stack?.at?.(-1) || null
   }
 
+  function nativeWindowCandidateForAnnotation() {
+    return buildNativeWindowSurfaceInspectorCandidate(latestNativeWindowEvent)
+  }
+
+  function nativeAxCandidateForAnnotation() {
+    const scope = annotationCurrentScope()
+    if (scope?.adapter_id !== 'macos-ax' || scope.root_kind !== 'native_window') return null
+    return buildNativeAxElementSurfaceInspectorCandidate(latestNativeAxElementEvent, {
+      selected_root: scope,
+      window: latestNativeWindowEvent,
+    })
+  }
+
   function annotationScopeStackIds() {
     return (annotationState.annotation_scope_stack || []).map((frame) => frame.subject_id || frame.pin_id).filter(Boolean)
   }
@@ -1070,7 +1101,15 @@ export default function CanvasInspector() {
   }
 
   function annotationHitRegions() {
-    return [...scopedCanvasCandidates(), ...scopedSemanticCandidates()]
+    return [
+      ...scopedCanvasCandidates(),
+      ...scopedSemanticCandidates(),
+      ...buildAnnotationNativeHitRegions({
+        nativeWindowCandidate: nativeWindowCandidateForAnnotation(),
+        nativeAxCandidate: nativeAxCandidateForAnnotation(),
+        scopeStack: annotationState.annotation_scope_stack,
+      }).map((region) => region.candidate),
+    ]
       .map((candidate) => ({ candidate, rect: normalizeDisplayRect(candidate.projection?.visible_display_rect || candidate.projection?.display_space_rect || candidate.rect) }))
       .filter((region) => region.rect && region.candidate?.projection?.can_project_display_overlay !== false)
       .map(({ candidate, rect }) => ({
@@ -1300,6 +1339,13 @@ export default function CanvasInspector() {
     return true
   }
 
+  function nativeAxHoverBlocker() {
+    const scope = annotationCurrentScope()
+    if (scope?.adapter_id !== 'macos-ax' || scope.root_kind !== 'native_window') return null
+    const candidate = nativeAxCandidateForAnnotation()
+    return candidate?.blocker_reason ? { reason: candidate.blocker_reason, candidate_id: candidate.id } : null
+  }
+
   function refreshAnnotationHover() {
     pendingAnnotationHoverFrame = 0
     if (!annotationState.annotation_mode.active || !cursor?.valid) {
@@ -1309,8 +1355,9 @@ export default function CanvasInspector() {
     const regions = syncAnnotationHitLayer()
     const candidate = candidateAtCursor(regions)
     if (!candidate) {
-      setHoverCandidateIfChanged(null, { reason: 'no_projectable_candidate_under_cursor' })
-      annotationHoverUpdateReason = 'no_projectable_candidate_under_cursor'
+      const blocker = nativeAxHoverBlocker() || { reason: 'no_projectable_candidate_under_cursor' }
+      setHoverCandidateIfChanged(null, blocker)
+      annotationHoverUpdateReason = blocker.reason || 'no_projectable_candidate_under_cursor'
       return
     }
     if (setHoverCandidateIfChanged(candidate)) annotationHoverUpdateReason = 'hover_candidate_changed'
@@ -1407,11 +1454,17 @@ export default function CanvasInspector() {
 
   function syncInputSubscription({ snapshot = false } = {}) {
     const wantsInput = cursorTrackingEnabled || mouseEventsEnabled || annotationState.annotation_mode.active
+    const inputEvents = annotationState.annotation_mode.active
+      ? ['input_event', 'window_entered', 'element_focused']
+      : ['input_event']
     if (!wantsInput) {
-      if (inputSubscriptionActive) unsubscribe(['input_event'])
+      if (inputSubscriptionActive) unsubscribe(['input_event', 'window_entered', 'element_focused'])
       inputSubscriptionActive = false
+      inputSubscriptionEvents = []
       cursor = { x: 0, y: 0, valid: false }
       nativeCursor = { x: 0, y: 0, valid: false }
+      latestNativeWindowEvent = null
+      latestNativeAxElementEvent = null
       clearMouseEffectsState(mouseEffectsState)
       stopDynamicAnimationFrame()
       syncMinimapDynamicLayer()
@@ -1421,12 +1474,21 @@ export default function CanvasInspector() {
 
     if (!inputSubscriptionActive) {
       inputSubscriptionActive = true
-      subscribe(['input_event'], { snapshot })
+      inputSubscriptionEvents = inputEvents
+      subscribe(inputEvents, { snapshot })
       syncDebugState()
       return
     }
 
-    if (snapshot) subscribe(['input_event'], { snapshot: true })
+    const obsoleteEvents = inputSubscriptionEvents.filter((event) => !inputEvents.includes(event))
+    if (obsoleteEvents.length > 0) unsubscribe(obsoleteEvents)
+    const inputEventsChanged = obsoleteEvents.length > 0 || inputEvents.some((event) => !inputSubscriptionEvents.includes(event))
+    if (!snapshot && !inputEventsChanged) {
+      syncDebugState()
+      return
+    }
+    inputSubscriptionEvents = inputEvents
+    subscribe(inputEvents, { snapshot })
     syncDebugState()
   }
 
@@ -2249,7 +2311,7 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Surface Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
       emits: ['canvas.send'],
       channelPrefix: 'canvas-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
@@ -2361,6 +2423,8 @@ export default function CanvasInspector() {
         if (p.canvases) canvases = p.canvases
         if (p.semantic_targets || p.targets) normalizeSemanticTargetsPayload(p)
         requestSemanticTargetsForLiveCanvases('surface_inspector_bootstrap')
+        if (p.window) latestNativeWindowEvent = { ...p.window, ts: p.ts || Date.now(), ref: p.ref || '' }
+        if (p.element) latestNativeAxElementEvent = { ...p.element, ts: p.ts || Date.now(), ref: p.ref || '' }
         if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
           nativeCursor = { x: p.cursor.x, y: p.cursor.y, valid: true }
           cursor = nativeToDesktopWorldPoint({ x: p.cursor.x, y: p.cursor.y }, displays) || { x: p.cursor.x, y: p.cursor.y, valid: true }
@@ -2378,6 +2442,32 @@ export default function CanvasInspector() {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)
         rerender()
+        return
+      }
+      if (msg.type === 'window_entered' || msg.event === 'window_entered') {
+        const p = msg.payload || msg.data || msg
+        latestNativeWindowEvent = {
+          ...p,
+          ts: msg.ts || p.ts || Date.now(),
+          ref: msg.ref || p.ref || '',
+        }
+        if (annotationState.annotation_mode.active) {
+          scheduleAnnotationHoverRefresh('native_window_entered')
+          syncDebugState()
+        }
+        return
+      }
+      if (msg.type === 'element_focused' || msg.event === 'element_focused') {
+        const p = msg.payload || msg.data || msg
+        latestNativeAxElementEvent = {
+          ...p,
+          ts: msg.ts || p.ts || Date.now(),
+          ref: msg.ref || p.ref || '',
+        }
+        if (annotationState.annotation_mode.active) {
+          scheduleAnnotationHoverRefresh('native_ax_element_focused')
+          syncDebugState()
+        }
         return
       }
       const input = normalizeCanvasInputMessage(msg)
