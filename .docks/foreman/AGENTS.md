@@ -55,9 +55,15 @@ blocker with the safe recovery path.
 ## Work-Card Routing
 
 For non-trivial GDI implementation work, create or update a Markdown work card
-under `docs/design/work-cards/` and hand off only a thin goal line:
+under `docs/design/work-cards/` and hand off only a thin plain instruction:
 
-`attn: GDI, follow the instructions in docs/design/work-cards/<card>.md`
+`follow the instructions in docs/design/work-cards/<card>.md`
+
+Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
+handoff helper that adds command or addressee prefixes. Do not prepend `/goal`,
+`attn: GDI`, or similar ceremony to the clipboard text. If a shared helper would
+inject that preamble, use a Foreman-specific plain clipboard copy path and
+report the copied payload plus timestamp in the same chat-visible shape.
 
 Use `docs/recipes/gdi-work-card-authoring.md` as the flexible authoring shape:
 fresh context, read-first files, state rediscovery, exact files to inspect,
@@ -72,7 +78,7 @@ clearly in the work card so GDI knows whether to retain, amend, supersede, or
 revert it.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
-the thin `attn: GDI...` goal, then add human-facing manual steps in Foreman's
+the thin plain work-card instruction, then add human-facing manual steps in Foreman's
 chat response. The default helper is:
 
 - paste/send the clipboard contents to GDI;
