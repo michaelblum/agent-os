@@ -71,6 +71,10 @@ import {
 } from './surface-resources.js'
 import { buildSemanticTargetProjectionAdapterResult } from '../../workbench/annotation-projection.js'
 import {
+  buildAnnotationOverlayRenderPlan,
+  surfaceInspectorAnnotationStateToSession,
+} from '../../workbench/annotation-overlay-renderer.js'
+import {
   BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
   buildBrowserDomProjectionAdapterResult,
 } from '../../workbench/browser-dom-element-picker.js'
@@ -671,20 +675,45 @@ function buildStatsStatusEvalScript() {
   })()`
 }
 
-function buildAnnotationOverlayEvalScript({ hover = null, active = null, comments = [] } = {}) {
-  const hoverLiteral = JSON.stringify(hover)
-  const activeLiteral = JSON.stringify(active)
-  const commentsLiteral = JSON.stringify(comments)
+export function buildAnnotationOverlayEvalScript(group = null) {
+  const groupLiteral = JSON.stringify(group)
   return `(() => {
     const existing = document.getElementById(${JSON.stringify(ANNOTATION_OVERLAY_ID)})
-    if (existing) existing.remove()
-    const hover = ${hoverLiteral}
-    const active = ${activeLiteral}
-    const comments = ${commentsLiteral}
-    const highlight = hover || active
-    if (!highlight && comments.length === 0) return true
-    const overlay = document.createElement('div')
+    const group = ${groupLiteral}
+    const overlayFrame = normalizeRect(group?.overlay_frame) || { x: 0, y: 0, width: innerWidth || 0, height: innerHeight || 0 }
+    function normalizeRect(rect) {
+      if (!rect || typeof rect !== 'object') return null
+      const x = Number(rect.x ?? rect.left)
+      const y = Number(rect.y ?? rect.top)
+      const width = Number(rect.width ?? rect.w)
+      const height = Number(rect.height ?? rect.h)
+      if (![x, y, width, height].every(Number.isFinite)) return null
+      return { x, y, width, height }
+    }
+    function overlayRectForFrame(framePlan) {
+      if (!framePlan || framePlan.status !== 'live') return null
+      const rect = normalizeRect(framePlan.rect)
+      if (!rect) return null
+      const coordinateSpace = String(framePlan.projection?.coordinate_space || 'native_display')
+      const local = coordinateSpace === 'local' || coordinateSpace === 'canvas_local' || coordinateSpace === 'target_overlay'
+        ? rect
+        : { x: rect.x - overlayFrame.x, y: rect.y - overlayFrame.y, width: rect.width, height: rect.height }
+      if (local.width <= 0 || local.height <= 0) return null
+      return local
+    }
+    const frames = [
+      ...(group?.committed_frames || []).map((item) => ({ ...item, display_kind: 'active-edge' })),
+      ...(group?.preview_frames || []),
+      ...(group?.hover_candidate ? [group.hover_candidate] : [])
+    ].filter((framePlan) => framePlan?.status === 'live' && framePlan?.rect)
+    const comments = group?.comment_chips || []
+    if (!group || (frames.length === 0 && comments.length === 0)) {
+      if (existing) existing.remove()
+      return true
+    }
+    const overlay = existing || document.createElement('div')
     overlay.id = ${JSON.stringify(ANNOTATION_OVERLAY_ID)}
+    overlay.replaceChildren()
     overlay.setAttribute('aria-label', 'Surface Inspector annotation overlay')
     overlay.style.cssText = [
       'position:fixed',
@@ -693,21 +722,35 @@ function buildAnnotationOverlayEvalScript({ hover = null, active = null, comment
       'z-index:2147483646',
       'font:11px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'
     ].join(';')
-    if (highlight) {
+    frames.forEach((framePlan) => {
+      const localRect = overlayRectForFrame(framePlan)
+      if (!localRect) return
       const frame = document.createElement('div')
+      const opacity = Number.isFinite(Number(framePlan.opacity)) ? Number(framePlan.opacity) : 1
+      const status = framePlan.status || 'live'
+      const border = framePlan.layer === 'hover'
+        ? '2px dashed ${FRAME_GOLD}'
+        : (framePlan.layer === 'preview' ? '2px dashed rgba(244,197,66,0.78)' : '2px solid ${FRAME_GOLD}')
       frame.style.cssText = [
         'position:absolute',
-        'inset:0',
+        'left:' + Math.round(localRect.x) + 'px',
+        'top:' + Math.round(localRect.y) + 'px',
+        'width:' + Math.round(localRect.width) + 'px',
+        'height:' + Math.round(localRect.height) + 'px',
         'box-sizing:border-box',
-        'border:2px solid ${FRAME_GOLD}',
-        'background:transparent'
+        'border:' + border,
+        'background:transparent',
+        'opacity:' + opacity,
+        status === 'live' ? '' : 'filter:grayscale(1)'
       ].join(';')
-      frame.setAttribute('data-highlight-kind', hover ? 'frame-candidate' : 'active-edge')
+      frame.setAttribute('data-highlight-kind', framePlan.layer === 'hover' ? 'frame-candidate' : (framePlan.display_kind || framePlan.layer || 'frame'))
+      frame.setAttribute('data-projection-status', status)
+      if (framePlan.reason) frame.setAttribute('title', framePlan.reason)
       overlay.appendChild(frame)
-    }
+    })
     comments.forEach((comment, index) => {
       const chip = document.createElement('div')
-      chip.textContent = comment.label + '  edit  x'
+      chip.textContent = comment.label
       chip.title = comment.text
       chip.style.cssText = [
         'position:absolute',
@@ -724,9 +767,11 @@ function buildAnnotationOverlayEvalScript({ hover = null, active = null, comment
         'color:${COMMENT_BLUE}',
         'padding:2px 6px'
       ].join(';')
+      chip.setAttribute('data-comment-id', comment.id)
+      chip.setAttribute('data-projection-status', comment.status || 'live')
       overlay.appendChild(chip)
     })
-    ;(document.body || document.documentElement).appendChild(overlay)
+    if (!existing) (document.body || document.documentElement).appendChild(overlay)
     return true
   })()`
 }
@@ -968,57 +1013,31 @@ export default function CanvasInspector() {
     } catch {}
   }
 
-  function annotationOverlaySignature({ hover = null, active = null, comments = [] } = {}) {
-    return JSON.stringify({
-      hover: hover?.id || '',
-      active: active?.id || '',
-      comments: comments.map((comment) => [comment.id, comment.label, comment.text]),
-    })
+  function annotationOverlaySignature(group = null) {
+    return group?.signature || ''
   }
 
   function syncControlledAnnotationDisplayOverlays() {
     const nextCanvasIds = new Set()
     if (annotationState.annotation_mode.active) {
-      const hoverProjectionRect = annotationState.last_hover_candidate?.projection?.visible_display_rect
-        || annotationState.last_hover_candidate?.projection?.display_space_rect
-      const hoverId = annotationState.last_hover_candidate?.projection?.can_project_display_overlay && hoverProjectionRect
-        ? annotationState.last_hover_candidate?.id
-        : null
-      const edge = computeSurfaceInspectorActiveEdge(annotationState)
-      const activeCanvasIds = hoverId
-        ? new Set()
-        : new Set(edge.frame_path
-          .filter((pin) => pin.projection?.can_project_display_overlay)
-          .map((pin) => pin.adapter_id === 'aos-toolkit-semantic-target'
-            ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
-            : (pin?.source_tree_node_metadata?.id || pin?.subject_id))
-          .filter((id) => id && id !== SELF_ID))
-      const commentsByCanvas = new Map()
-      for (const comment of edge.comments) {
-        const pin = edge.frame_path.find((item) => item.id === comment.pin_id)
-        if (!pin?.projection?.can_project_display_overlay) continue
-        const canvasId = pin.adapter_id === 'aos-toolkit-semantic-target'
-          ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
-          : (pin?.source_tree_node_metadata?.id || pin?.subject_id)
-        if (!canvasId || canvasId === SELF_ID) continue
-        if (!commentsByCanvas.has(canvasId)) commentsByCanvas.set(canvasId, [])
-        const label = comment.text.length > 15 ? `${comment.text.slice(0, 15)}...` : comment.text
-        commentsByCanvas.get(canvasId).push({ id: comment.id, text: comment.text, label })
-      }
+      const session = surfaceInspectorAnnotationStateToSession(annotationState)
+      const plan = buildAnnotationOverlayRenderPlan(session)
+      const groupsByCanvas = new Map(plan.groups
+        .filter((group) => group.target.canvas_id && group.target.canvas_id !== SELF_ID)
+        .map((group) => [group.target.canvas_id, group]))
       for (const canvas of minimapCanvases()) {
-        const comments = commentsByCanvas.get(canvas.id) || []
-        const hover = hoverId === canvas.id
-          ? { id: canvas.id, can_pin: Boolean(annotationState.last_hover_candidate?.has_children) }
-          : null
-        const active = activeCanvasIds.has(canvas.id) ? { id: canvas.id } : null
-        if (!hover && !active && comments.length === 0) continue
+        const group = groupsByCanvas.get(canvas.id)
+        if (!group) continue
         nextCanvasIds.add(canvas.id)
-        const signature = annotationOverlaySignature({ hover, active, comments })
+        const signature = annotationOverlaySignature(group)
         if (annotationOverlaySignatures.get(canvas.id) === signature) continue
         if (annotationOverlaySignatures.has(canvas.id)) annotationOverlayStats.update += 1
         else annotationOverlayStats.create += 1
         annotationOverlaySignatures.set(canvas.id, signature)
-        evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({ hover, active, comments })).catch(() => {
+        evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({
+          ...group,
+          overlay_frame: normalizeDisplayRect(rectFromAt(canvas.atResolved || canvas.at)),
+        })).catch(() => {
           annotationOverlaySignatures.delete(canvas.id)
         })
       }
