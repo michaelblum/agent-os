@@ -39,7 +39,12 @@ the report as an input to Foreman's next-step loop:
 5. When accepted work has a clear reversible checkpoint, take it before moving
    on. Keep the checkpoint scoped and reviewable so the worktree stays
    understandable for the next handoff.
-6. Pause only for decisions that require human judgment, irreversible git/GitHub
+6. If live runtime verification is the next meaningful step and `./aos ready`
+   reports a repo-mode TCC/input-tap blocker, stop treating it as background
+   noise. State the blocker directly, use the safe permission handoff path from
+   the repo-wide contract, and avoid routing more live-dependent work until the
+   human has either resolved it or explicitly chosen a deterministic-only slice.
+7. Pause only for decisions that require human judgment, irreversible git/GitHub
    action, credential or permission changes, or a real ambiguity in product
    direction.
 
