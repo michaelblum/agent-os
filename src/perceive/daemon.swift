@@ -425,6 +425,8 @@ class PerceptionEngine {
                 let data = elementFocusedData(
                     role: hit.role, title: hit.title, label: hit.label, value: hit.value,
                     bounds: hit.bounds.map { Bounds(from: $0) },
+                    action_names: hit.actionNames,
+                    capabilities: hit.capabilities,
                     context_path: hit.contextPath)
                 onEvent?("element_focused", data)
             }

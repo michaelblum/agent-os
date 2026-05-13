@@ -14,6 +14,7 @@ import {
   deleteSurfaceInspectorComment,
   jumpSurfaceInspectorAnnotationScope,
   hasSurfaceInspectorAnnotations,
+  normalizeSurfaceInspectorAnnotationCandidate,
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
   refreshSurfaceInspectorPinProjection,
@@ -80,6 +81,92 @@ test('annotation candidate selection prefers specific visible child frames and s
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root], { x: 150, y: 150 }), null)
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench], { x: 150, y: 150 }).id, 'html-workbench-expression')
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench, semantic], { x: 230, y: 250 }).id, 'cta-button')
+})
+
+test('annotation candidates normalize shared adapter fields, capabilities, and source metadata', () => {
+  const candidate = normalizeSurfaceInspectorAnnotationCandidate({
+    id: 'native-ok',
+    adapter_id: 'macos-ax',
+    root_id: 'window-1',
+    root_label: 'Settings',
+    root_kind: 'native_window',
+    role: 'AXButton',
+    title: 'OK',
+    value: 'OK button value',
+    action_names: ['AXPress'],
+    state_id: 'see_123',
+    confidence: 0.88,
+    rect: { x: 40, y: 50, width: 80, height: 28 },
+    local_space_rect: { x: 4, y: 5, width: 80, height: 28 },
+    source_tree_node_metadata: { pid: 123, context_path: ['Settings', 'OK'] },
+  })
+
+  assert.equal(candidate.adapter_id, 'macos-ax')
+  assert.equal(candidate.root_id, 'window-1')
+  assert.equal(candidate.root_label, 'Settings')
+  assert.equal(candidate.root_kind, 'native_window')
+  assert.equal(candidate.subject_id, 'native-ok')
+  assert.equal(candidate.subject_kind, 'AXButton')
+  assert.equal(candidate.label, 'OK')
+  assert.equal(candidate.display_space_rect.w, 80)
+  assert.equal(candidate.local_space_rect.h, 28)
+  assert.deepEqual(candidate.action_names, ['AXPress'])
+  assert.deepEqual(candidate.capabilities, ['press'])
+  assert.equal(candidate.state_id, 'see_123')
+  assert.equal(candidate.confidence, 0.88)
+  assert.deepEqual(candidate.source_metadata.context_path, ['Settings', 'OK'])
+})
+
+test('adapter-result-shaped annotation candidates preserve projection adapter id', () => {
+  const candidate = normalizeSurfaceInspectorAnnotationCandidate({
+    id: 'ax-submit',
+    projection: {
+      adapter_id: 'macos-ax',
+      root_id: 'native-window',
+      subject_id: 'ax-submit',
+      subject_kind: 'AXButton',
+      status: 'visible',
+      display_space_rect: { x: 12, y: 24, w: 90, h: 30 },
+    },
+  })
+
+  assert.equal(candidate.adapter_id, 'macos-ax')
+  assert.equal(candidate.root_id, 'native-window')
+  assert.equal(candidate.subject_id, 'ax-submit')
+  assert.equal(candidate.projection.can_project_display_overlay, true)
+})
+
+test('candidate ranking prefers actionable labeled targets over passive containers and blocked candidates', () => {
+  const container = node('panel', ['main', 'window', 'panel'])
+  container.subject_kind = 'container'
+  container.label = ''
+  container.projection.visible_display_rect = { x: 100, y: 100, w: 500, h: 300 }
+
+  const blocked = node('blocked-button', ['main', 'window', 'blocked-button'])
+  blocked.adapter_id = 'aos-toolkit-semantic-target'
+  blocked.role = 'button'
+  blocked.label = 'Blocked'
+  blocked.capabilities = ['press']
+  blocked.blocker_reason = 'stale'
+  blocked.projection.visible_display_rect = { x: 140, y: 140, w: 80, h: 32 }
+
+  const button = node('save-button', ['main', 'window', 'save-button'])
+  button.adapter_id = 'aos-toolkit-semantic-target'
+  button.role = 'button'
+  button.label = 'Save changes'
+  button.capabilities = ['press']
+  button.projection.visible_display_rect = { x: 160, y: 150, w: 96, h: 32 }
+
+  assert.equal(chooseSurfaceInspectorAnnotationCandidate([container, blocked, button], { x: 170, y: 160 }).id, 'save-button')
+})
+
+test('browser-class adapter capability keeps live page DOM/CDP deferred explicitly', () => {
+  const state = createSurfaceInspectorAnnotationState()
+  const chrome = state.projection_capabilities.find((item) => item.adapter_id === 'chrome-seam')
+  assert.equal(chrome.status, 'unsupported')
+  assert.equal(chrome.display_overlay, false)
+  assert.equal(chrome.can_reveal, false)
+  assert.equal(chrome.blocker_reason, 'browser_dom_cdp_deferred')
 })
 
 test('pin creation, comment creation, edit, delete, and snapshot version are data operations', () => {

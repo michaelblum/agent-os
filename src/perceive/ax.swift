@@ -67,6 +67,42 @@ func axActions(_ element: AXUIElement) -> [String] {
     return arr
 }
 
+func axCapabilities(role: String, actions: [String], element: AXUIElement? = nil) -> [String] {
+    var capabilities = Set<String>()
+    if actions.contains(kAXPressAction as String) { capabilities.insert("press") }
+    if actions.contains(kAXIncrementAction as String) { capabilities.insert("increment") }
+    if actions.contains(kAXDecrementAction as String) { capabilities.insert("decrement") }
+    if actions.contains(kAXShowMenuAction as String) { capabilities.insert("press") }
+
+    switch role {
+    case "AXButton", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuItem", "AXMenuBarItem", "AXLink":
+        capabilities.insert("press")
+    case "AXTextField", "AXTextArea", "AXComboBox":
+        capabilities.insert("focus")
+        capabilities.insert("set_value")
+    case "AXSlider", "AXIncrementor":
+        capabilities.insert("focus")
+        capabilities.insert("increment")
+        capabilities.insert("decrement")
+    case "AXScrollArea":
+        capabilities.insert("scroll")
+    default:
+        break
+    }
+
+    if let element {
+        var settable = DarwinBoolean(false)
+        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success, settable.boolValue {
+            capabilities.insert("set_value")
+        }
+        if AXUIElementIsAttributeSettable(element, kAXFocusedAttribute as CFString, &settable) == .success, settable.boolValue {
+            capabilities.insert("focus")
+        }
+    }
+
+    return Array(capabilities).sorted()
+}
+
 // MARK: - Context Path
 
 /// Walk up the AX tree to build a breadcrumb path like ["Finder", "Main Window", "Toolbar", "Open"].
@@ -96,6 +132,8 @@ struct AXHitResult {
     let value: String?
     let enabled: Bool
     let bounds: CGRect?
+    let actionNames: [String]
+    let capabilities: [String]
     let contextPath: [String]
 }
 
@@ -106,14 +144,18 @@ func axElementAtPoint(pid: pid_t, point: CGPoint) -> AXHitResult? {
     let result = AXUIElementCopyElementAtPosition(axApp, Float(point.x), Float(point.y), &elementRef)
     guard result == .success, let el = elementRef else { return nil }
 
+    let role = axString(el, kAXRoleAttribute) ?? "unknown"
+    let actions = axActions(el)
     return AXHitResult(
         element: el,
-        role: axString(el, kAXRoleAttribute) ?? "unknown",
+        role: role,
         title: axString(el, kAXTitleAttribute),
         label: axString(el, kAXDescriptionAttribute),
         value: axValue(el),
         enabled: axBool(el, kAXEnabledAttribute) ?? true,
         bounds: axBounds(el),
+        actionNames: actions,
+        capabilities: axCapabilities(role: role, actions: actions, element: el),
         contextPath: axContextPath(el)
     )
 }

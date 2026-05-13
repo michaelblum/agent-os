@@ -625,6 +625,9 @@ test('Surface Inspector scoped hit regions expose root and nested immediate chil
 
   const rootRegions = buildAnnotationScopedHitRegions({ canvases, selfId: 'canvas-inspector' });
   assert.deepEqual(rootRegions.map((region) => region.id).sort(), ['window-a', 'window-b']);
+  assert.deepEqual(rootRegions.map((region) => region.candidate.subject_path).sort(), [['canvas', 'window-a'], ['canvas', 'window-b']]);
+  assert.equal(rootRegions.every((region) => region.candidate.adapter_id === 'aos-canvas-window'), true);
+  assert.equal(rootRegions.every((region) => region.candidate.projection.can_project_display_overlay), true);
 
   const nestedRegions = buildAnnotationScopedHitRegions({
     canvases,

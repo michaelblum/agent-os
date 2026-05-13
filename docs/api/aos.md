@@ -288,6 +288,14 @@ Work-record and recipe layers can carry that id into the next action as the
 perception state the agent acted from. The id is a correlation handle, not a
 stable object reference or cache key.
 
+`aos see cursor` returns the cursor point, display ordinal, the frontmost
+visible window under the cursor when available, and an optional AX `element`.
+When present, the element includes `role`, `title`, `label`, `value`, `enabled`,
+`bounds`, `context_path`, `action_names`, and normalized `capabilities` such as
+`press`, `focus`, `set_value`, `scroll`, `increment`, or `decrement`. The
+capture-pipeline cursor response uses the same AX element fields when it can
+resolve the element explicitly under the cursor.
+
 `--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
 canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
 semantic target probe inside that canvas and returns `semantic_targets`. Those

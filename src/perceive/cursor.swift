@@ -62,6 +62,8 @@ func cursorCommand() {
                 value: hit.value,
                 enabled: hit.enabled,
                 bounds: hit.bounds.map { Bounds(from: $0) },
+                action_names: hit.actionNames,
+                capabilities: hit.capabilities,
                 context_path: hit.contextPath
             )
         }

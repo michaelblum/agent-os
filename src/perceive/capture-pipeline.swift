@@ -1698,29 +1698,18 @@ func seeCursorCommand() {
     }
 
     var matchedElement: CursorElementJSON? = nil
-    if let pid = matchedPID, AXIsProcessTrusted() {
-        let axApp = AXUIElementCreateApplication(pid)
-        var elementRef: AXUIElement?
-        let axResult = AXUIElementCopyElementAtPosition(axApp, Float(cursorPt.x), Float(cursorPt.y), &elementRef)
-        if axResult == .success, let el = elementRef {
-            let role = axString(el, kAXRoleAttribute) ?? "unknown"
-            let title = axString(el, kAXTitleAttribute)
-            let label = axString(el, kAXDescriptionAttribute)
-            var valueStr: String? = nil
-            var valRef: AnyObject?
-            if AXUIElementCopyAttributeValue(el, kAXValueAttribute as CFString, &valRef) == .success {
-                if let s = valRef as? String {
-                    valueStr = s.count > 200 ? String(s.prefix(200)) + "..." : s
-                } else if let n = valRef as? NSNumber {
-                    valueStr = n.stringValue
-                }
-            }
-            let enabled = axBool(el, kAXEnabledAttribute) ?? true
-
-            matchedElement = CursorElementJSON(
-                role: role, title: title, label: label, value: valueStr, enabled: enabled
-            )
-        }
+    if let pid = matchedPID, AXIsProcessTrusted(), let hit = axElementAtPoint(pid: pid, point: cursorPt) {
+        matchedElement = CursorElementJSON(
+            role: hit.role,
+            title: hit.title,
+            label: hit.label,
+            value: hit.value,
+            enabled: hit.enabled,
+            action_names: hit.actionNames,
+            capabilities: hit.capabilities,
+            bounds: hit.bounds.map { STBounds(x: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) },
+            context_path: hit.contextPath
+        )
     }
 
     let response = CaptureCursorResponse(

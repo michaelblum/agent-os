@@ -68,7 +68,7 @@ their topology before normal boot side effects run.
 | `app_entered` | `{app, pid, bundle_id}` | Cursor crossed into a different app (tier 1) |
 | `focus_changed` | `{pid, window_id}` | Frontmost app/window changed |
 | `channel_updated` | `{id}` | Focus channel state changed |
-| `element_focused` | `{role, title, label, value, bounds, context_path}` | AX element under cursor changed (tier 2) |
+| `element_focused` | `{role, title, label, value, bounds, action_names, capabilities, context_path}` | AX element under cursor changed (tier 2) |
 | `element_detail` | `{...element_focused fields, children, parent, siblings}` | Subtree around element (tier 3, on demand) |
 
 ### display

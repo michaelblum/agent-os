@@ -6,6 +6,15 @@ const COMMENT_KIND = 'comment'
 const DEFAULT_ACTOR = Object.freeze({ role: 'operator', id: 'human' })
 const RENDER_STATUSES = new Set(['visible', 'clipped', 'offscreen_scrollable', 'virtualized', 'hidden', 'absent', 'stale', 'unsupported'])
 const REVEAL_STATUSES = new Set(['already_visible', 'revealed', 'blocked', 'virtualized', 'unsupported', 'target_absent', 'adapter_error'])
+const CANDIDATE_ADAPTER_PRIORITY = new Map([
+  ['aos-toolkit-semantic-target', 80],
+  ['aos-browser-dom-element-picker', 72],
+  ['aos-canvas-window', 60],
+  ['macos-ax', 50],
+  ['chrome-seam', 30],
+])
+const ACTIONABLE_CAPABILITIES = new Set(['press', 'focus', 'set_value', 'scroll', 'increment', 'decrement'])
+const NOISY_SUBJECT_KINDS = new Set(['group', 'container', 'region', 'main', 'section', 'generic', 'div'])
 const IMPLICIT_ROOT_ID_PATTERNS = [
   /^desktop[-_]world$/i,
   /^desktop-world:/i,
@@ -110,23 +119,123 @@ function candidateVisibleRect(candidate = {}) {
   )
 }
 
+function normalizeCapabilities(input = {}) {
+  const raw = input.capabilities || input.normalized_capabilities || input.actions || input.action_names || input.ax_actions || []
+  const values = Array.isArray(raw)
+    ? raw
+    : (typeof raw === 'object' ? Object.entries(raw).filter(([, enabled]) => enabled).map(([name]) => name) : [])
+  const mapped = values.map((value) => {
+    const name = text(value).replace(/^AX/i, '').replace(/_/g, '-').toLowerCase()
+    if (name === 'press') return 'press'
+    if (name === 'focus' || name === 'focused') return 'focus'
+    if (name === 'setvalue' || name === 'set-value') return 'set_value'
+    if (name === 'scroll') return 'scroll'
+    if (name === 'increment') return 'increment'
+    if (name === 'decrement') return 'decrement'
+    return name.replace(/-/g, '_')
+  }).filter(Boolean)
+  return [...new Set(mapped)]
+}
+
+function normalizedCandidateAdapterPriority(candidate = {}) {
+  const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
+  return Number(candidate.adapter_priority ?? CANDIDATE_ADAPTER_PRIORITY.get(adapter) ?? 0)
+}
+
+function candidateLabelQuality(candidate = {}) {
+  const label = text(candidate.label || candidate.accessible_name || candidate.title || candidate.name || candidate.role)
+  if (!label) return 0
+  if (label.length < 2) return 1
+  return Math.min(8, 2 + Math.floor(label.length / 12))
+}
+
+function candidateActionability(candidate = {}) {
+  const capabilities = normalizeCapabilities(candidate)
+  return capabilities.some((capability) => ACTIONABLE_CAPABILITIES.has(capability)) ? 12 : 0
+}
+
+function candidateKindPenalty(candidate = {}) {
+  const kind = text(candidate.subject_kind || candidate.kind || candidate.role || candidate.type).toLowerCase()
+  if (!kind) return 0
+  return NOISY_SUBJECT_KINDS.has(kind) ? 8 : 0
+}
+
+export function normalizeSurfaceInspectorAnnotationCandidate(candidate = {}, options = {}) {
+  if (!candidate || typeof candidate !== 'object') return null
+  const projection = normalizeProjectionStatus(candidate.projection || {
+    ...candidate,
+    display_space_rect: candidate.display_space_rect || candidate.visible_display_rect || candidate.rect,
+  })
+  const rect = candidateVisibleRect({ ...candidate, projection }) || projection.visible_display_rect || projection.display_space_rect
+  const rootId = text(candidate.root_id || candidate.projection?.root_id || candidate.canvas_id || candidate.window_id || options.root_id, 'main')
+  const rootLabel = text(candidate.root_label || candidate.projection?.root_label || candidate.display_label || rootId, rootId)
+  const subjectId = text(candidate.subject_id || candidate.id || candidate.projection?.subject_id, stableId('candidate', [rootId, candidate.label || candidate.role]))
+  const subjectPath = subjectPathFromNode(candidate.subject_path ? candidate : (candidate.projection || candidate))
+  const actionNames = [
+    ...(Array.isArray(candidate.action_names) ? candidate.action_names : []),
+    ...(Array.isArray(candidate.actions) ? candidate.actions : []),
+    ...(Array.isArray(candidate.ax_actions) ? candidate.ax_actions : []),
+  ].map((item) => text(item)).filter(Boolean)
+  const capabilities = normalizeCapabilities({ ...candidate, action_names: actionNames })
+  const blockerReason = text(candidate.blocker_reason || candidate.reason || projection.blocker_reason)
+  return {
+    ...clone(candidate),
+    id: text(candidate.id, subjectId),
+    adapter_id: text(candidate.adapter_id || candidate.projection?.adapter_id || projection.adapter_id, 'aos-canvas-window'),
+    root_id: rootId,
+    root_label: rootLabel,
+    root_kind: text(candidate.root_kind || candidate.root_type || candidate.display_kind || 'surface_root'),
+    subject_id: subjectId,
+    subject_path: subjectPath.length ? subjectPath : [rootId, subjectId],
+    subject_kind: text(candidate.subject_kind || candidate.kind || candidate.role || candidate.type || projection.subject_kind, 'surface_subject'),
+    role: text(candidate.role || candidate.subject_kind || candidate.kind),
+    label: text(candidate.label || candidate.accessible_name || candidate.title || candidate.name || subjectId),
+    value_excerpt: text(candidate.value_excerpt || candidate.text_excerpt || candidate.value || candidate.text).slice(0, 200),
+    display_space_rect: rect ? clone(rect) : null,
+    local_space_rect: normalizeRectLike(candidate.local_space_rect || projection.local_space_rect),
+    projection,
+    current_render_status: projection.current_render_status,
+    action_names: [...new Set(actionNames)],
+    capabilities,
+    normalized_capabilities: capabilities,
+    state_id: text(candidate.state_id || candidate.source_event_id || candidate.projection?.state_id),
+    source_event_id: text(candidate.source_event_id),
+    confidence: Number.isFinite(Number(candidate.confidence)) ? Number(candidate.confidence) : null,
+    priority_evidence: candidate.priority_evidence ? clone(candidate.priority_evidence) : {
+      adapter_priority: normalizedCandidateAdapterPriority(candidate),
+      actionable: candidateActionability({ ...candidate, capabilities }) > 0,
+      label_quality: candidateLabelQuality(candidate),
+    },
+    blocker_reason: blockerReason,
+    blocker: candidate.blocker ? clone(candidate.blocker) : (blockerReason ? { reason: blockerReason } : projection.blocker),
+    source_metadata: clone(candidate.source_metadata || candidate.source_tree_node_metadata || candidate.metadata || {}),
+  }
+}
+
 export function chooseSurfaceInspectorAnnotationCandidate(candidates = [], point = null) {
   const ranked = (Array.isArray(candidates) ? candidates : [])
+    .map((candidate) => normalizeSurfaceInspectorAnnotationCandidate(candidate))
     .filter((candidate) => candidate && !isImplicitSurfaceInspectorRootCandidate(candidate))
     .map((candidate) => ({ candidate, rect: candidateVisibleRect(candidate) }))
     .filter(({ candidate, rect }) => {
       if (!rect) return false
       if (candidate.projection && candidate.projection.can_project_display_overlay === false) return false
+      if (candidate.blocker_reason) return false
       return point ? rectContainsPoint(rect, point) : true
     })
     .sort((a, b) => {
       const areaDelta = rectArea(a.rect) - rectArea(b.rect)
       if (areaDelta !== 0) return areaDelta
+      const adapterDelta = normalizedCandidateAdapterPriority(b.candidate) - normalizedCandidateAdapterPriority(a.candidate)
+      if (adapterDelta !== 0) return adapterDelta
+      const actionDelta = candidateActionability(b.candidate) - candidateActionability(a.candidate)
+      if (actionDelta !== 0) return actionDelta
+      const labelDelta = candidateLabelQuality(b.candidate) - candidateLabelQuality(a.candidate)
+      if (labelDelta !== 0) return labelDelta
+      const noisyDelta = candidateKindPenalty(a.candidate) - candidateKindPenalty(b.candidate)
+      if (noisyDelta !== 0) return noisyDelta
       const depthDelta = candidateDepth(b.candidate) - candidateDepth(a.candidate)
       if (depthDelta !== 0) return depthDelta
-      const semanticDelta = (b.candidate.adapter_id === 'aos-toolkit-semantic-target' ? 1 : 0)
-        - (a.candidate.adapter_id === 'aos-toolkit-semantic-target' ? 1 : 0)
-      if (semanticDelta !== 0) return semanticDelta
       return text(a.candidate.id).localeCompare(text(b.candidate.id))
     })
   return ranked[0]?.candidate || null
@@ -208,7 +317,7 @@ export function normalizeProjectionCapabilities(input = []) {
     { adapter_id: 'aos-toolkit-semantic-target', status: 'visible', display_overlay: true, minimap: true, tree: true, can_reveal: true },
     { adapter_id: 'aos-object-registry', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'object_registry_no_display_projection' },
     { adapter_id: 'macos-ax', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'bounded_ax_reveal_unavailable' },
-    { adapter_id: 'chrome-seam', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'chrome_dom_piercing_deferred' },
+    { adapter_id: 'chrome-seam', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'browser_dom_cdp_deferred' },
     { adapter_id: 'generic-dom', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
     { adapter_id: 'three-canvas', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
   ]
@@ -712,7 +821,9 @@ export function buildSurfaceInspectorSnapshotPayload(state) {
 
 export function setSurfaceInspectorHoverCandidate(state, candidate = null, blocker = null) {
   const next = createSurfaceInspectorAnnotationState(state)
-  next.last_hover_candidate = candidate && !isImplicitSurfaceInspectorRootCandidate(candidate) ? clone(candidate) : null
+  next.last_hover_candidate = candidate && !isImplicitSurfaceInspectorRootCandidate(candidate)
+    ? normalizeSurfaceInspectorAnnotationCandidate(candidate)
+    : null
   next.last_projection_blocker = blocker ? clone(blocker) : null
   return next
 }

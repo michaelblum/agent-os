@@ -218,7 +218,8 @@ func appEnteredData(app: String, pid: Int, bundle_id: String?) -> [String: Any] 
 }
 
 func elementFocusedData(role: String, title: String?, label: String?, value: String?,
-                         bounds: Bounds?, context_path: [String]) -> [String: Any] {
+                         bounds: Bounds?, action_names: [String] = [], capabilities: [String] = [],
+                         context_path: [String]) -> [String: Any] {
     var d: [String: Any] = ["role": role, "context_path": context_path]
     if let t = title { d["title"] = t }
     if let l = label { d["label"] = l }
@@ -226,5 +227,7 @@ func elementFocusedData(role: String, title: String?, label: String?, value: Str
     if let b = bounds {
         d["bounds"] = ["x": b.x, "y": b.y, "width": b.width, "height": b.height]
     }
+    d["action_names"] = action_names
+    d["capabilities"] = capabilities
     return d
 }
