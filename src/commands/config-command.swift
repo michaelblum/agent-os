@@ -56,6 +56,7 @@ private func lookupConfigValue(key: String, config: AosConfig) -> ConfigLookupRe
             "capture_image": include?.capture_image ?? false,
             "capture_metadata": include?.capture_metadata ?? false,
             "inspector_state": include?.inspector_state ?? false,
+            "annotation_snapshot": include?.annotation_snapshot ?? false,
             "display_geometry": include?.display_geometry ?? false,
             "canvas_list": include?.canvas_list ?? false,
             "xray": include?.xray ?? false,
@@ -73,6 +74,8 @@ private func lookupConfigValue(key: String, config: AosConfig) -> ConfigLookupRe
         return .found(effectiveCanvasInspectorBundleConfig(config).include?.capture_metadata)
     case "see.canvas_inspector_bundle.include.inspector_state":
         return .found(effectiveCanvasInspectorBundleConfig(config).include?.inspector_state)
+    case "see.canvas_inspector_bundle.include.annotation_snapshot":
+        return .found(effectiveCanvasInspectorBundleConfig(config).include?.annotation_snapshot)
     case "see.canvas_inspector_bundle.include.display_geometry":
         return .found(effectiveCanvasInspectorBundleConfig(config).include?.display_geometry)
     case "see.canvas_inspector_bundle.include.canvas_list":

@@ -5,6 +5,7 @@ import {
   applySurfaceInspectorRevealResult,
   buildNativeAxElementSurfaceInspectorCandidate,
   buildNativeWindowSurfaceInspectorCandidate,
+  buildSurfaceInspectorAnnotationSnapshotArtifact,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorFrameAddress,
   buildSurfaceInspectorSnapshotPayload,
@@ -51,6 +52,84 @@ test('Surface Inspector annotation state normalizes mode, capabilities, and snap
   const snapshot = buildSurfaceInspectorSnapshotPayload(state)
   assert.equal(snapshot.schema, 'surface_inspector_annotation_state')
   assert.deepEqual(snapshot.pins, [])
+})
+
+test('Surface Inspector annotation snapshot artifact exposes stable bundle contract', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, {
+    ...node('semantic-cta', ['main', 'semantic', 'cta']),
+    root_kind: 'aos_canvas',
+    role: 'button',
+    label: 'Apply',
+    text_excerpt: 'Apply now',
+    source_metadata: {
+      data_aos_ref: 'html-workbench-expression:apply',
+    },
+  }, {
+    id: 'pin-semantic-cta',
+    adapter_id: 'aos-toolkit-semantic-target',
+    created_at: '2026-05-13T03:39:00.000Z',
+    updated_at: '2026-05-13T03:39:30.000Z',
+    projection: {
+      status: 'visible',
+      can_reveal: true,
+      visible_display_rect: { x: 10, y: 20, w: 100, h: 80 },
+      local_space_rect: { x: 5, y: 10, w: 100, h: 80 },
+      refreshed_at: '2026-05-13T03:39:30.000Z',
+    },
+  })
+  state = addSurfaceInspectorComment(state, 'pin-semantic-cta', 'CTA note', {
+    id: 'comment-cta',
+    created_at: '2026-05-13T03:40:00.000Z',
+    updated_at: '2026-05-13T03:40:00.000Z',
+  })
+
+  const artifact = buildSurfaceInspectorAnnotationSnapshotArtifact(state, {
+    captured_at: '2026-05-13T03:41:00.000Z',
+    trigger: 'test',
+    source_canvas_id: 'surface-inspector',
+    surface_inspector_frame: [1020, 40, 360, 520],
+    assets: { capture_image: 'capture.png' },
+  })
+
+  assert.equal(artifact.schema, 'surface_inspector_annotation_snapshot')
+  assert.equal(artifact.version, '0.1.0')
+  assert.equal(artifact.capture.trigger, 'test')
+  assert.equal(artifact.empty_state, false)
+  assert.equal(artifact.selection.active_frame_id, 'pin-semantic-cta')
+  assert.equal(artifact.active_context.current_scope_id, 'semantic-cta')
+  assert.equal(artifact.pins[0].subject.id, 'semantic-cta')
+  assert.equal(artifact.pins[0].projection.can_project_display_overlay, true)
+  assert.equal(artifact.comments[0].text, 'CTA note')
+  assert.equal(artifact.adapter_capability_summary.find((item) => item.adapter_id === 'aos-toolkit-semantic-target').can_reveal, true)
+  assert.deepEqual(artifact.capture.assets, { capture_image: 'capture.png' })
+})
+
+test('Surface Inspector annotation snapshot artifact keeps empty state explicit and rejects embedded images', () => {
+  const artifact = buildSurfaceInspectorAnnotationSnapshotArtifact(createSurfaceInspectorAnnotationState(), {
+    captured_at: '2026-05-13T03:41:00.000Z',
+    trigger: 'empty-test',
+  })
+  assert.equal(artifact.empty_state, true)
+  assert.deepEqual(artifact.pins, [])
+  assert.deepEqual(artifact.comments, [])
+
+  assert.throws(() => buildSurfaceInspectorAnnotationSnapshotArtifact(createSurfaceInspectorAnnotationState(), {
+    assets: { image_data: 'data:image/png;base64,abc' },
+  }), /external assets/)
+
+  assert.throws(() => buildSurfaceInspectorAnnotationSnapshotArtifact(createSurfaceInspectorAnnotationState(), {
+    assets: { capture_image: 'data:image/png;base64,abc' },
+  }), /external assets/)
+})
+
+test('Surface Inspector annotation snapshot artifact accepts long base64-like user text', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('target'), { id: 'pin-target' })
+  state = addSurfaceInspectorComment(state, 'pin-target', 'A'.repeat(121), { id: 'comment-long' })
+
+  const artifact = buildSurfaceInspectorAnnotationSnapshotArtifact(state)
+  assert.equal(artifact.comments[0].text, 'A'.repeat(121))
 })
 
 test('annotation mode entry clears stale or implicit root hover candidates', () => {

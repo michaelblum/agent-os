@@ -1,5 +1,31 @@
 # Surface Inspector Annotation Layer Foundation V0
 
+## Superseded Direction
+
+This card is historical context for the first Surface Inspector-oriented
+annotation experiments. Do not use it as the active #296 implementation route.
+
+The current direction is display-first Annotation Mode:
+`docs/design/display-first-annotation-mode-and-sigil-reticle.md`.
+
+Key corrections:
+
+- Surface Inspector is an entry, snapshot, current-path, adapter-evidence, and
+  debug/support surface. It is not the primary annotation authoring UI.
+- A frame is a commentless annotation anchor. Comments are optional.
+- Subject address is truth; live projection is derived.
+- Snapshots are explicit point-in-time artifacts, not persistence for a live
+  annotation database.
+- User-facing new UI should avoid making visible pin controls or inspector list
+  rows the main workflow. Internal `pin` names may remain where renaming would
+  add churn.
+- Frame opacity now runs from outer/root floor `0.75` to deepest/current `1`.
+
+Use the replacement sequence and next implementation cards:
+
+- `docs/design/work-cards/display-first-annotation-mode-implementation-sequence-v0.md`
+- `docs/design/work-cards/display-first-annotation-session-model-v0.md`
+
 ## Tracker
 
 - Parent epic: https://github.com/michaelblum/agent-os/issues/295

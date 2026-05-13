@@ -28,6 +28,7 @@ struct AosConfig: Codable {
         var capture_image: Bool?
         var capture_metadata: Bool?
         var inspector_state: Bool?
+        var annotation_snapshot: Bool?
         var display_geometry: Bool?
         var canvas_list: Bool?
         var xray: Bool?
@@ -119,6 +120,7 @@ struct AosConfig: Codable {
                     capture_image: true,
                     capture_metadata: true,
                     inspector_state: true,
+                    annotation_snapshot: true,
                     display_geometry: true,
                     canvas_list: true,
                     xray: false
@@ -138,6 +140,7 @@ private func canvasInspectorBundleDefaults() -> AosConfig.CanvasInspectorBundleC
                 capture_image: true,
                 capture_metadata: true,
                 inspector_state: true,
+                annotation_snapshot: true,
                 display_geometry: true,
                 canvas_list: true,
                 xray: false
@@ -162,6 +165,7 @@ func effectiveCanvasInspectorBundleConfig(_ config: AosConfig) -> AosConfig.Canv
             capture_image: configuredInclude?.capture_image ?? defaultInclude?.capture_image,
             capture_metadata: configuredInclude?.capture_metadata ?? defaultInclude?.capture_metadata,
             inspector_state: configuredInclude?.inspector_state ?? defaultInclude?.inspector_state,
+            annotation_snapshot: configuredInclude?.annotation_snapshot ?? defaultInclude?.annotation_snapshot,
             display_geometry: configuredInclude?.display_geometry ?? defaultInclude?.display_geometry,
             canvas_list: configuredInclude?.canvas_list ?? defaultInclude?.canvas_list,
             xray: configuredInclude?.xray ?? defaultInclude?.xray
@@ -402,6 +406,9 @@ func setConfigValue(key: String, value: String) {
     case "see.canvas_inspector_bundle.include.inspector_state":
         ensureCanvasInspectorBundleConfig(&config)
         config.see?.canvas_inspector_bundle?.include?.inspector_state = (value == "true" || value == "1")
+    case "see.canvas_inspector_bundle.include.annotation_snapshot":
+        ensureCanvasInspectorBundleConfig(&config)
+        config.see?.canvas_inspector_bundle?.include?.annotation_snapshot = (value == "true" || value == "1")
     case "see.canvas_inspector_bundle.include.display_geometry":
         ensureCanvasInspectorBundleConfig(&config)
         config.see?.canvas_inspector_bundle?.include?.display_geometry = (value == "true" || value == "1")

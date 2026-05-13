@@ -1,0 +1,52 @@
+{
+  "schema": "surface_inspector_annotation_snapshot",
+  "version": "0.1.0",
+  "capture": {
+    "captured_at": "2026-05-13T03:40:00.000Z",
+    "trigger": "test",
+    "source_canvas_id": "surface-inspector",
+    "surface_inspector_frame": [1020, 40, 360, 520],
+    "assets": {
+      "capture_image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+    }
+  },
+  "active_context": {
+    "current_scope_id": "root",
+    "root_id": "root",
+    "root_kind": "surface_root",
+    "root_label": "main",
+    "adapter_id": "",
+    "subject_id": "",
+    "subject_path": [],
+    "display_space_rect": null,
+    "local_space_rect": null,
+    "source_metadata": {}
+  },
+  "selection": {
+    "active_edge_id": "",
+    "active_frame_id": "",
+    "current_scope_id": "root",
+    "frame_path_pin_ids": []
+  },
+  "annotation_mode": { "active": false },
+  "empty_state": true,
+  "pins": [],
+  "comments": [],
+  "hover_candidate": null,
+  "projection_capabilities": [],
+  "adapter_capability_summary": [],
+  "blockers": {
+    "last_projection_blocker": null,
+    "unsupported_stale_absent": []
+  },
+  "reveal": {
+    "last_request": null,
+    "last_result": null
+  },
+  "annotation_scope_stack": [],
+  "source_state": {
+    "schema": "surface_inspector_annotation_state",
+    "version": "0.1.0",
+    "snapshot_version": 0
+  }
+}

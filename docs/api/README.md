@@ -36,5 +36,7 @@ That includes:
 - changing the styling boundary between toolkit primitives and consumers
 - changing discoverable config surfaces or notable config subtrees such as
   `see.canvas_inspector_bundle.*`
+- changing public artifact schemas such as
+  `surface_inspector_annotation_snapshot`
 
 If a surface is experimental, label it explicitly here instead of leaving consumers to infer stability from source.

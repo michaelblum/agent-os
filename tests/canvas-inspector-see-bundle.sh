@@ -89,6 +89,7 @@ required = [
     "bundle.json",
     "capture.json",
     "capture.png",
+    "annotation-snapshot.json",
     "inspector-state.json",
     "display-geometry.json",
     "canvas-list.json",
@@ -102,10 +103,22 @@ if manifest.get("status") != "success":
     raise SystemExit(f"FAIL: bundle manifest is not success: {manifest}")
 if manifest.get("trigger") != "test":
     raise SystemExit(f"FAIL: expected trigger 'test', got: {manifest.get('trigger')}")
+if manifest.get("files", {}).get("annotation_snapshot_json") != "annotation-snapshot.json":
+    raise SystemExit(f"FAIL: bundle manifest missing annotation snapshot entry: {manifest.get('files')}")
 
 state = json.loads((bundle / "inspector-state.json").read_text())
 if "state" not in state:
     raise SystemExit(f"FAIL: inspector-state.json missing state payload: {state}")
+
+annotation = json.loads((bundle / "annotation-snapshot.json").read_text())
+if annotation.get("schema") != "surface_inspector_annotation_snapshot" or annotation.get("version") != "0.1.0":
+    raise SystemExit(f"FAIL: unexpected annotation snapshot identity: {annotation}")
+if annotation.get("capture", {}).get("trigger") != "test":
+    raise SystemExit(f"FAIL: unexpected annotation snapshot trigger: {annotation.get('capture')}")
+if "pins" not in annotation or "comments" not in annotation or "adapter_capability_summary" not in annotation:
+    raise SystemExit(f"FAIL: annotation snapshot missing public state arrays: {annotation}")
+if "data:image/" in json.dumps(annotation):
+    raise SystemExit("FAIL: annotation snapshot embedded image data")
 
 capture = json.loads((bundle / "capture.json").read_text())
 files = capture.get("files") or []

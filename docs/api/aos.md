@@ -618,14 +618,18 @@ aos config set voice.enabled true
 aos config set voice.filter.language en
 aos config set voice.filter.tiers premium,enhanced
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 ```
 
 `aos config` dumps the current runtime config as JSON. `aos config get` defaults
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
 Discoverable config subtrees include the Surface Inspector see-bundle surface
 under the legacy-compatible `see.canvas_inspector_bundle.*` namespace,
-including the export hotkey and bundle artifact include toggles. `aos set
-<key> <value>` remains supported as the shorthand write form.
+including the export hotkey and bundle artifact include toggles. The default-on
+`see.canvas_inspector_bundle.include.annotation_snapshot` toggle controls the
+public `annotation-snapshot.json` artifact recorded in
+`bundle.json.files.annotation_snapshot_json`. `aos set <key> <value>` remains
+supported as the shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review

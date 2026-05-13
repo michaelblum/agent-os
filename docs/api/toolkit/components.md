@@ -550,7 +550,7 @@ the lower tree control row, from the status-item `Annotation Mode` menu item, or
 with the daemon-owned `ctrl+opt+a` shortcut. Turning Annotation Mode off clears
 in-memory frame anchors/comments after confirmation when annotations exist.
 
-The annotation snapshot carried in `window.__canvasInspectorState.annotation`
+The live annotation snapshot carried in `window.__canvasInspectorState.annotation`
 uses `schema: "surface_inspector_annotation_state"` and includes
 `annotation_mode.active`, `active_edge_id`, `active_frame_id`, `pins[]`
 (the internal payload field for frame anchors),
@@ -575,8 +575,15 @@ while those child controls are present. When projection is unavailable, Surface
 Inspector exposes explicit tree/list actions for the selected frame anchor
 instead.
 
-`ctrl+opt+c` see bundles include the same annotation state through
-`inspector-state.json`; image data is not embedded in annotation JSON.
+`ctrl+opt+c` see bundles include a first-class public
+`annotation-snapshot.json` artifact using
+`schema: "surface_inspector_annotation_snapshot"` and `version: "0.1.0"`.
+The artifact is distinct from the raw debug state and records capture metadata,
+active root/scope context, selected edge/frame ids, frame pins, comments,
+projection and reveal proof, adapter capability summaries, explicit blockers,
+and bundle-relative asset references. It is written even when Annotation Mode is
+inactive or empty, with `empty_state=true`. Image data is not embedded in
+annotation JSON.
 
 ### Surface Inspector — Object Marks
 
@@ -869,6 +876,7 @@ writes a temp bundle directory containing:
 
 - `capture.png` — a `see capture --region <inspector-at-trigger> --perception` image
 - `capture.json` — the capture response metadata
+- `annotation-snapshot.json` — the public point-in-time Annotation Mode artifact
 - `inspector-state.json` — the surface's live JS/debug snapshot
 - `display-geometry.json` — the daemon display snapshot at export time
 - `canvas-list.json` — the daemon canvas list at export time
@@ -883,6 +891,7 @@ Sigil or toolkit-local settings:
 ```bash
 aos config get see.canvas_inspector_bundle --json
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 aos config set see.canvas_inspector_bundle.include.canvas_list false
 aos config set see.canvas_inspector_bundle.include.xray true
 ```
@@ -891,6 +900,7 @@ Supported include toggles today:
 
 - `capture_image`
 - `capture_metadata`
+- `annotation_snapshot`
 - `inspector_state`
 - `display_geometry`
 - `canvas_list`

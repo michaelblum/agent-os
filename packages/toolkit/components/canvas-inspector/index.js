@@ -34,6 +34,7 @@ import {
   applySurfaceInspectorRevealResult,
   buildNativeAxElementSurfaceInspectorCandidate,
   buildNativeWindowSurfaceInspectorCandidate,
+  buildSurfaceInspectorAnnotationSnapshotArtifact,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorSnapshotPayload,
   chooseSurfaceInspectorAnnotationCandidate,
@@ -858,6 +859,7 @@ export default function CanvasInspector() {
   function syncDebugState() {
     const hitRegions = annotationHitRegions()
     const surfaceResources = buildSurfaceResourceSnapshot(surfaceResourceState, { canvases })
+    const annotationSnapshotArtifact = buildAnnotationSnapshotArtifact({ trigger: 'state_sync' })
     window.__canvasInspectorState = {
       displays,
       canvases,
@@ -877,6 +879,7 @@ export default function CanvasInspector() {
       bundleHotkeyLabel,
       bundleCapture,
       annotation: buildSurfaceInspectorSnapshotPayload(annotationState),
+      annotation_snapshot_artifact: annotationSnapshotArtifact,
       annotationScopeStackIds: annotationScopeStackIds(),
       annotationHitLayerCanvasId,
       annotationHitRegionCount: hitRegions.length,
@@ -898,6 +901,16 @@ export default function CanvasInspector() {
       surfaceResources,
       surfaceResourceCounts: surfaceResources.counts,
     }
+  }
+
+  function buildAnnotationSnapshotArtifact(options = {}) {
+    return buildSurfaceInspectorAnnotationSnapshotArtifact(annotationState, {
+      captured_at: options.captured_at || new Date().toISOString(),
+      trigger: options.trigger || 'manual',
+      source_canvas_id: SELF_ID,
+      surface_inspector_frame: currentFrameFallback(),
+      assets: options.assets || {},
+    })
   }
 
   function stopDynamicAnimationFrame() {
@@ -2378,6 +2391,7 @@ export default function CanvasInspector() {
         setCursorTrackingEnabled,
         setMouseEventsEnabled,
         requestSeeBundle,
+        buildAnnotationSnapshotArtifact,
         toggleStats,
         toggleCanvasList() {
           splitController?.toggleSidebar?.()

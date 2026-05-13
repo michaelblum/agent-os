@@ -99,11 +99,16 @@ if config.get("hotkey") != "cmd+shift+x":
     raise SystemExit(f"FAIL: expected manifest hotkey cmd+shift+x, got {config.get('hotkey')!r}")
 if include.get("canvas_list") is not False:
     raise SystemExit(f"FAIL: expected canvas_list include false, got {include}")
+if include.get("annotation_snapshot") is not True:
+    raise SystemExit(f"FAIL: expected annotation_snapshot include true by default, got {include}")
 if (bundle / "canvas-list.json").exists():
     raise SystemExit("FAIL: canvas-list.json should be excluded by config")
-for required in ["bundle.json", "capture.json", "capture.png", "display-geometry.json", "inspector-state.json"]:
+for required in ["bundle.json", "capture.json", "capture.png", "annotation-snapshot.json", "display-geometry.json", "inspector-state.json"]:
     if not (bundle / required).exists():
         raise SystemExit(f"FAIL: missing required file {required}")
+manifest_files = manifest.get("files") or {}
+if manifest_files.get("annotation_snapshot_json") != "annotation-snapshot.json":
+    raise SystemExit(f"FAIL: manifest missing annotation snapshot entry: {manifest_files}")
 
 clipboard = subprocess.check_output(["/usr/bin/pbpaste"], text=True).strip()
 if clipboard != str(bundle):

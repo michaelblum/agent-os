@@ -1,5 +1,7 @@
 export const SURFACE_INSPECTOR_ANNOTATION_SCHEMA = 'surface_inspector_annotation_state'
 export const SURFACE_INSPECTOR_ANNOTATION_VERSION = '0.1.0'
+export const SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_SCHEMA = 'surface_inspector_annotation_snapshot'
+export const SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_VERSION = '0.1.0'
 
 const FRAME_PIN_KIND = 'frame_pin'
 const COMMENT_KIND = 'comment'
@@ -1012,6 +1014,180 @@ export function buildSurfaceInspectorSnapshotPayload(state) {
     last_projection_blocker: clone(normalized.last_projection_blocker),
     snapshot_version: normalized.snapshot_version,
   }
+}
+
+function currentAnnotationScope(normalized = {}) {
+  return normalized.annotation_scope_stack?.at?.(-1) || null
+}
+
+function activeAnnotationRootContext(normalized = {}) {
+  const scope = currentAnnotationScope(normalized)
+  const activePin = normalized.pins.find((pin) => pin.id === normalized.active_frame_id) || normalized.pins.at(-1) || null
+  const source = scope || activePin || normalized.last_hover_candidate || null
+  return {
+    current_scope_id: scope?.subject_id || 'root',
+    root_id: text(source?.root_id || source?.subject_id, 'root'),
+    root_kind: text(source?.root_kind || source?.subject_kind, 'surface_root'),
+    root_label: text(source?.root_label || source?.label || source?.root_id || source?.subject_id, 'main'),
+    adapter_id: text(source?.adapter_id, ''),
+    subject_id: text(source?.subject_id || source?.id, ''),
+    subject_path: Array.isArray(source?.subject_path) ? clone(source.subject_path) : [],
+    display_space_rect: clone(source?.projection?.visible_display_rect || source?.projection?.display_space_rect || source?.display_space_rect || null),
+    local_space_rect: clone(source?.projection?.local_space_rect || source?.local_space_rect || null),
+    source_metadata: clone(source?.source_metadata || source?.source_tree_node_metadata || {}),
+  }
+}
+
+function snapshotSubjectFromAnnotationRecord(record = {}) {
+  const metadata = record.source_tree_node_metadata || record.source_metadata || {}
+  return {
+    id: text(record.subject_id || metadata.subject_id || metadata.id),
+    path: Array.isArray(record.subject_path) ? clone(record.subject_path) : subjectPathFromNode(record),
+    kind: text(record.subject_kind || metadata.subject_kind || metadata.kind || record.root_kind),
+    role: text(record.role || metadata.role || metadata.ax_role),
+    label: text(record.label || metadata.label || metadata.title || metadata.name),
+    value: record.value ?? metadata.value ?? null,
+    text_excerpt: text(record.text_excerpt || metadata.text_excerpt || metadata.text || metadata.accessible_name),
+    source_metadata: clone(metadata),
+  }
+}
+
+function snapshotProjectionProof(projection = {}) {
+  const normalized = normalizeProjectionStatus(projection)
+  return {
+    current_render_status: normalized.current_render_status,
+    projectable: normalized.projectable,
+    can_project_display_overlay: normalized.can_project_display_overlay,
+    can_reveal: normalized.can_reveal,
+    visible_display_rect: clone(normalized.visible_display_rect),
+    display_space_rect: clone(normalized.display_space_rect),
+    local_space_rect: clone(normalized.local_space_rect),
+    coordinate_space: normalized.coordinate_space,
+    blocker_reason: normalized.blocker_reason,
+    blocker: clone(normalized.blocker),
+    reveal_status: normalized.can_reveal ? 'available' : 'unsupported',
+    reveal_blocker_reason: normalized.can_reveal ? '' : (normalized.blocker_reason || 'reveal_unavailable'),
+    ancestor_viewport_clip_chain: clone(normalized.ancestor_viewport_clip_chain),
+    scrollable_ancestor_chain: clone(normalized.scrollable_ancestor_chain),
+    z_order_evidence: clone(normalized.z_order_evidence),
+    refreshed_at: normalized.refreshed_at,
+  }
+}
+
+function snapshotPin(pin = {}) {
+  return {
+    id: pin.id,
+    kind: pin.kind,
+    root_id: pin.root_id,
+    root_label: pin.root_label,
+    root_kind: pin.root_kind,
+    adapter_id: pin.adapter_id,
+    parent_pin_id: pin.parent_pin_id,
+    depth: pin.depth,
+    actor: clone(pin.actor),
+    created_at: pin.created_at,
+    updated_at: pin.updated_at,
+    status: pin.status,
+    subject: snapshotSubjectFromAnnotationRecord(pin),
+    projection: snapshotProjectionProof(pin.projection || pin),
+  }
+}
+
+function snapshotComment(comment = {}, pinsById = new Map()) {
+  const pin = pinsById.get(comment.pin_id)
+  return {
+    id: comment.id,
+    kind: comment.kind,
+    pin_id: comment.pin_id,
+    annotation_kind: 'comment',
+    actor: clone(comment.actor),
+    created_at: comment.created_at,
+    updated_at: comment.updated_at,
+    status: comment.status,
+    text: comment.text,
+    subject: snapshotSubjectFromAnnotationRecord({
+      ...comment,
+      source_tree_node_metadata: pin?.source_tree_node_metadata || {},
+    }),
+    projection: pin ? snapshotProjectionProof(pin.projection || pin) : null,
+  }
+}
+
+function isSuspiciousImageDataPath(path = []) {
+  return path.some((part) => /^(assets|base64|image_data|binary)$/i.test(String(part)))
+}
+
+function noEmbeddedImageData(value, path = []) {
+  if (typeof value === 'string') {
+    if (/^data:image\//i.test(value)) return false
+    return !isSuspiciousImageDataPath(path) || !/^[A-Za-z0-9+/]{120,}={0,2}$/.test(value)
+  }
+  if (Array.isArray(value)) return value.every((item, index) => noEmbeddedImageData(item, [...path, index]))
+  if (value && typeof value === 'object') {
+    return Object.entries(value).every(([key, item]) => !/base64|image_data|binary/i.test(key) && noEmbeddedImageData(item, [...path, key]))
+  }
+  return true
+}
+
+export function buildSurfaceInspectorAnnotationSnapshotArtifact(state, options = {}) {
+  const normalized = createSurfaceInspectorAnnotationState(state)
+  const pins = normalized.pins.map(snapshotPin)
+  const pinsById = new Map(normalized.pins.map((pin) => [pin.id, pin]))
+  const activeEdge = computeSurfaceInspectorActiveEdge(normalized)
+  const artifact = {
+    schema: SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_SCHEMA,
+    version: SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_VERSION,
+    capture: {
+      captured_at: isoNow(options.captured_at || Date.now()),
+      trigger: text(options.trigger, 'manual'),
+      source_canvas_id: text(options.source_canvas_id || options.canvas_id || 'surface-inspector'),
+      surface_inspector_frame: clone(options.surface_inspector_frame || null),
+      assets: clone(options.assets || {}),
+    },
+    active_context: activeAnnotationRootContext(normalized),
+    selection: {
+      active_edge_id: normalized.active_edge_id,
+      active_frame_id: normalized.active_frame_id,
+      current_scope_id: currentAnnotationScope(normalized)?.subject_id || 'root',
+      frame_path_pin_ids: activeEdge.frame_path.map((pin) => pin.id),
+    },
+    annotation_mode: clone(normalized.annotation_mode),
+    empty_state: normalized.pins.length === 0 && normalized.comments.length === 0,
+    pins,
+    comments: normalized.comments.map((comment) => snapshotComment(comment, pinsById)),
+    hover_candidate: normalized.last_hover_candidate ? {
+      id: normalized.last_hover_candidate.id,
+      adapter_id: normalized.last_hover_candidate.adapter_id,
+      root_id: normalized.last_hover_candidate.root_id,
+      root_kind: normalized.last_hover_candidate.root_kind,
+      root_label: normalized.last_hover_candidate.root_label,
+      subject: snapshotSubjectFromAnnotationRecord(normalized.last_hover_candidate),
+      projection: snapshotProjectionProof(normalized.last_hover_candidate.projection || normalized.last_hover_candidate),
+      blocker_reason: text(normalized.last_hover_candidate.blocker_reason),
+    } : null,
+    projection_capabilities: normalized.projection_capabilities.map(clone),
+    adapter_capability_summary: normalized.adapter_capability_summary.map(clone),
+    blockers: {
+      last_projection_blocker: clone(normalized.last_projection_blocker),
+      unsupported_stale_absent: normalized.pins
+        .filter((pin) => ['unsupported', 'stale', 'absent'].includes(pin.projection.current_render_status) || pin.projection.blocker_reason)
+        .map((pin) => ({ pin_id: pin.id, status: pin.projection.current_render_status, blocker_reason: pin.projection.blocker_reason })),
+    },
+    reveal: {
+      last_request: clone(normalized.last_reveal_request),
+      last_result: clone(normalized.last_reveal_result),
+    },
+    annotation_scope_stack: clone(normalized.annotation_scope_stack),
+    source_state: {
+      schema: normalized.schema,
+      version: normalized.version,
+      snapshot_version: normalized.snapshot_version,
+    },
+  }
+  if (!noEmbeddedImageData(artifact)) {
+    throw new TypeError('annotation snapshot artifact must reference external assets instead of embedding image data')
+  }
+  return artifact
 }
 
 export function setSurfaceInspectorHoverCandidate(state, candidate = null, blocker = null) {
