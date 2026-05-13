@@ -2,16 +2,14 @@
 import { createServer, Socket } from 'node:net';
 import { mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { CoordinationDB } from './db.js';
 import * as aosProxy from './aos-proxy.js';
 
 export interface SDKSocketOptions {
   socketPath: string;
-  db: CoordinationDB;
 }
 
 export function startSDKSocket(opts: SDKSocketOptions) {
-  const { socketPath, db } = opts;
+  const { socketPath } = opts;
   mkdirSync(dirname(socketPath), { recursive: true });
   if (existsSync(socketPath)) unlinkSync(socketPath);
 
@@ -23,7 +21,7 @@ export function startSDKSocket(opts: SDKSocketOptions) {
       while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
         const line = buffer.slice(0, newlineIdx);
         buffer = buffer.slice(newlineIdx + 1);
-        handleRequest(conn, line, db);
+        handleRequest(conn, line);
       }
     });
   });
@@ -32,15 +30,13 @@ export function startSDKSocket(opts: SDKSocketOptions) {
   return server;
 }
 
-async function handleRequest(conn: Socket, line: string, db: CoordinationDB) {
+async function handleRequest(conn: Socket, line: string) {
   let req: { id: string; domain: string; method: string; params: any };
   try { req = JSON.parse(line); } catch { return; }
 
   let result: unknown;
   try {
-    if (req.domain === 'coordination') {
-      result = await handleCoordination(req.method, req.params, db);
-    } else if (req.domain === 'system') {
+    if (req.domain === 'system') {
       result = await handleSystem(req.method, req.params);
     } else {
       result = { error: `Unknown domain: ${req.domain}` };
@@ -50,18 +46,6 @@ async function handleRequest(conn: Socket, line: string, db: CoordinationDB) {
   }
 
   conn.write(JSON.stringify({ id: req.id, result }) + '\n');
-}
-
-async function handleCoordination(method: string, params: any, db: CoordinationDB): Promise<unknown> {
-  switch (method) {
-    case 'register': return db.registerSession(params.name, params.role, params.harness, params.capabilities);
-    case 'whoIsOnline': return db.whoIsOnline();
-    case 'getState': return db.getState(params.key);
-    case 'setState': return db.setState(params.key, params.value, params.options);
-    case 'postMessage': return { id: db.postMessage(params.channel, params.payload, params.from) };
-    case 'readStream': return db.readStream(params.channel, params.options);
-    default: return { error: `Unknown coordination method: ${method}` };
-  }
 }
 
 async function handleSystem(method: string, params: any): Promise<unknown> {

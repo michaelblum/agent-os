@@ -24,6 +24,16 @@ Current pilot shape:
 The broker is intentionally transport-neutral at the contract layer. Slack is a
 runtime adapter, not the schema.
 
+The broker is not the agent/session coordination bus. Daemon-native
+`aos tell`, `aos listen`, and the daemon session service behind
+`aos tell --register` and `aos tell --who` own communication between agents,
+humans, sessions, and channels. Gateway/broker state is scoped to external
+provider adapters, workflow launch records, and broker-local UI state.
+
+Slack is useful integration infrastructure, but it is not part of the normal
+agent-os development readiness path. Missing Slack credentials should leave the
+provider disabled without making `./aos ready` or repo development unhealthy.
+
 ## Start
 
 From `packages/gateway/`:

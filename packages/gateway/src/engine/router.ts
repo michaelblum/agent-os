@@ -11,7 +11,7 @@ const DEFAULT_CONFIG: RouterConfig = {
   intentPolicy: {
     perception: ['node-subprocess'],
     action: ['node-subprocess'],
-    coordination: ['node-subprocess'],
+    automation: ['node-subprocess'],
     mixed: ['node-subprocess'],
   },
 };

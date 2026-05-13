@@ -69,20 +69,6 @@ const aos = {
   waitFor: (pattern, opts) => call('system', 'waitFor', { pattern, ...opts }),
   showOverlay: (opts) => call('system', 'showOverlay', opts),
   updateOverlay: (id, opts) => call('system', 'updateOverlay', { id, ...opts }),
-
-  // --- Coordination ---
-  coordination: {
-    register: (name, role, harness, capabilities) =>
-      call('coordination', 'register', { name, role, harness, capabilities }),
-    whoIsOnline: () => call('coordination', 'whoIsOnline', {}),
-    getState: (key) => call('coordination', 'getState', { key }),
-    setState: (key, value, options) =>
-      call('coordination', 'setState', { key, value, options }),
-    postMessage: (channel, payload, from) =>
-      call('coordination', 'postMessage', { channel, payload, from: from ?? globalThis.__aos_config?.sessionId }),
-    readStream: (channel, options) =>
-      call('coordination', 'readStream', { channel, options }),
-  },
 };
 
 globalThis.aos = aos;

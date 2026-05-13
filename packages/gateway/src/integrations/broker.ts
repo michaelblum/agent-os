@@ -19,7 +19,7 @@ import type {
   IntegrationSurfaceDescriptor,
   WorkflowRunResult,
 } from './types.js';
-import type { CoordinationDB, IntegrationJob } from '../db.js';
+import type { GatewayStore, IntegrationJob } from '../db.js';
 import {
   buildWikiBrowserModel,
   defaultWikiBrowserState,
@@ -28,7 +28,7 @@ import {
 import { runCommand, tryParseJson } from './command-runner.js';
 
 interface IntegrationBrokerOptions {
-  db: CoordinationDB;
+  db: GatewayStore;
   repoRoot: string;
   brokerUrl: string;
   label?: string;
@@ -144,7 +144,7 @@ class IntegrationJobTransitionError extends Error {
 }
 
 export class IntegrationBroker {
-  private readonly db: CoordinationDB;
+  private readonly db: GatewayStore;
   private readonly repoRoot: string;
   private workflows: IntegrationWorkflowDefinition[];
   private workflowById: Map<string, IntegrationWorkflowDefinition>;
