@@ -171,6 +171,32 @@ applicable, and the remaining follow-up recommendation when the source card has
 one. Do not require this shape for tiny one-line fixes where it would add more
 noise than review value.
 
+### Post-GDI Review Option
+
+For non-trivial implementation cards, Foreman should plan for an optional
+human-triggered GDI review after completion:
+
+- keep `/review` out of the clipboard goal unless the user explicitly asks to
+  make review part of GDI's assigned task;
+- after copying the GDI handoff, tell the human to paste/send the goal to GDI,
+  optionally send `/review` after GDI reports completion when the work is
+  complex enough to benefit from adversarial review, and return the final copied
+  GDI tail response to Foreman;
+- do not require the human to copy separate completion and review messages;
+  Foreman should rediscover diff, status, and verification evidence locally
+  when deciding acceptance or correction routing;
+- Foreman owns acceptance after reading the returned GDI tail and locally
+  inspecting the relevant diff, status, and test evidence;
+- if the returned tail is only a work report and the slice has meaningful
+  behavioral, architectural, or integration risk, Foreman may recommend a
+  `/review` round before acceptance;
+- route correction work through Foreman when review findings affect behavior,
+  architecture, scope, or priority;
+- Foreman may send a follow-up or correction prompt for the same GDI session
+  when the context is still useful and the fix is narrow;
+- let GDI address only tiny mechanical review fixes directly when no acceptance
+  judgment is needed.
+
 ## Specialty Slots
 
 Add these only when the slice needs them.

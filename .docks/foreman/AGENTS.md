@@ -36,7 +36,10 @@ the report as an input to Foreman's next-step loop:
 4. If exactly one next slice is implied by the active plan, create/update that
    work card and hand it off. If several plausible slices exist, recommend the
    best one and state the tradeoff instead of silently stopping.
-5. Pause only for decisions that require human judgment, irreversible git/GitHub
+5. When accepted work has a clear reversible checkpoint, take it before moving
+   on. Keep the checkpoint scoped and reviewable so the worktree stays
+   understandable for the next handoff.
+6. Pause only for decisions that require human judgment, irreversible git/GitHub
    action, credential or permission changes, or a real ambiguity in product
    direction.
 
@@ -62,6 +65,24 @@ Do not paste long implementation instructions directly into the clipboard goal
 unless the task is genuinely small. If Foreman creates draft evidence, label it
 clearly in the work card so GDI knows whether to retain, amend, supersede, or
 revert it.
+
+When routing non-trivial GDI implementation work, keep the clipboard payload to
+the thin `attn: GDI...` goal, then add human-facing manual steps in Foreman's
+chat response. The default helper is:
+
+- paste/send the clipboard contents to GDI;
+- after GDI reports completion, optionally send `/review` in that same GDI
+  session when the slice is complex enough to benefit from adversarial review;
+- bring the final copied GDI tail response back to Foreman, either review
+  results or the GDI work report. Do not require the human to copy separate
+  completion and review messages; Foreman should rediscover diff, status, and
+  verification evidence locally when deciding acceptance, correction routing,
+  same-session follow-up, whether to recommend another review round, or
+  next-slice selection.
+
+Do not make GDI self-accept a non-trivial review. Tiny mechanical review fixes
+may stay with GDI, but behavioral, architectural, or priority-bearing review
+findings come back to Foreman.
 
 ## Implementation Boundary
 
