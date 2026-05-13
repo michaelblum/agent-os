@@ -1,0 +1,64 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.node-tests",
+  "label": "Node Test Capabilities",
+  "summary": "Scoped Node test execution as an explicit developer/testing capability.",
+  "applies_to": {
+    "roles": ["gdi", "foreman"],
+    "entry_paths": ["aos_developer", "testing"]
+  },
+  "capabilities": [
+    {
+      "id": "dev.test.node_schema",
+      "label": "Node Schema Test",
+      "summary": "Run a bounded Node schema test file from the repo root.",
+      "status": "draft",
+      "roles": ["gdi", "foreman"],
+      "entry_paths": ["aos_developer", "testing"],
+      "adapter": {
+        "kind": "node",
+        "command": ["node", "--test", "tests/schemas/<test>.mjs"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 120,
+        "network": "forbidden",
+        "raw_process": true,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "test",
+          "summary": "Repo-relative schema test stem.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.-]+$"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "tap_output",
+          "summary": "Node test TAP output.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

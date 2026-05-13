@@ -1,0 +1,114 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.docked-github",
+  "label": "Docked GitHub Capabilities",
+  "summary": "Typed GitHub capabilities for docked repo-development sessions.",
+  "applies_to": {
+    "roles": ["foreman", "gdi", "operator"],
+    "entry_paths": ["aos_developer", "testing"]
+  },
+  "capabilities": [
+    {
+      "id": "dev.github.context",
+      "label": "GitHub Context",
+      "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "context", "--json"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": false,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "allowed",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "context_json",
+          "summary": "Repository, branch, upstream, dirty state, and gh availability/authentication status.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.issue_comment",
+      "label": "GitHub Issue Comment",
+      "summary": "Write a GitHub issue comment through a body file using the local gh CLI via ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "comment"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_comment"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Markdown file containing the comment body.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "comment_url",
+          "summary": "GitHub URL for the posted comment.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

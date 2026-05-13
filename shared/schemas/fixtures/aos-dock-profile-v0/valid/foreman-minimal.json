@@ -1,47 +1,32 @@
 {
-  "$schema": "../../shared/schemas/aos-dock-profile-v0.schema.json",
+  "$schema": "../../../aos-dock-profile-v0.schema.json",
   "type": "aos.dock_profile",
   "schema_version": "2026-05-dock-profile-v0",
   "name": "foreman",
   "role": "foreman",
   "harness": "codex",
-  "summary": "Coordination, review, work-card routing, git/GitHub hygiene, and workstream state.",
+  "summary": "Coordination profile.",
   "default_entry_path": "aos_developer",
   "allowed_entry_paths": [
     "agent_harness",
     "aos_developer",
-    "testing",
-    "visual_diagnostics",
-    "user_input_diagnostics",
-    "app_specific"
+    "testing"
   ],
   "capability_manifest": "docs/dev/agent-capabilities.json",
   "allowed_capability_classes": [
     "read_only",
-    "repo_write",
-    "runtime_mutation",
     "external_write",
     "host_write"
   ],
   "allowed_capabilities": [
     "dev.github.context",
-    "dev.github.issue_comment",
-    "dev.github.ci_inspect",
-    "dev.github.review_comments",
-    "dev.build.aos",
-    "dev.test.schema_node"
+    "dev.github.issue_comment"
   ],
   "requires_explicit_assignment_for": [
     "external_write",
     "host_write"
   ],
-  "hook_timeout_seconds": 8,
-  "stop_notice": "Foreman finished.",
   "handoff": {
     "requires_goal_prefix": false
-  },
-  "voice": {
-    "gender": "male",
-    "voice_slot": 1
   }
 }

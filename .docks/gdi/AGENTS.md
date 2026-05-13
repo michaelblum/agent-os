@@ -28,9 +28,6 @@ handoff to Foreman instead of inventing scope.
 
 Do not commit, push, open PRs, close issues, or rewrite branch history unless
 the assigned `/goal` explicitly requests it. Foreman is the default git/GitHub
-steward.
-
-For cross-session handoffs, pipe the raw target message through
-`scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. The helper preserves the GDI-only
-`/goal ` convention when GDI is the target.
+steward. If a goal explicitly assigns GitHub, CI, or issue-comment work, use
+the shared docked-session GitHub control surface, `./aos dev gh`, and report the
+exact operation and result in the completion summary.
