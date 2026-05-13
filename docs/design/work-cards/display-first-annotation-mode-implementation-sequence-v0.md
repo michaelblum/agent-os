@@ -97,6 +97,9 @@ Existing internal `pin` names may remain if renaming is not worth the churn.
 
 ### 4. Sigil Reticle Visual Validation
 
+Work card:
+`docs/design/work-cards/display-first-annotation-sigil-reticle-visual-validation-v0.md`
+
 Build the Sigil radial reticle prototype in tandem with the shared session and
 overlay renderer:
 
