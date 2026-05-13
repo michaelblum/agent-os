@@ -79,6 +79,9 @@ hover.
 
 ### 3. Surface Inspector Support Demotion
 
+Work card:
+`docs/design/work-cards/display-first-annotation-surface-inspector-support-demotion-v0.md`
+
 Refactor the current partial Surface Inspector annotation UI around the shared
 session instead of owning it:
 
