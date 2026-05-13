@@ -616,6 +616,7 @@ test('Surface Inspector action-control sync is idempotent for unchanged hover ca
 test('Surface Inspector scoped hit regions expose root and nested immediate children only', () => {
   const canvases = [
     { id: 'avatar-main', at: [0, 0, 1000, 800] },
+    { id: 'aos-desktop-world-stage', parent: '__log__', at: [0, 0, 1000, 800] },
     { id: 'window-a', parent: 'avatar-main', at: [20, 30, 400, 300] },
     { id: 'window-b', parent: 'avatar-main', at: [450, 30, 400, 300] },
     { id: 'panel-a', parent: 'window-a', at: [40, 60, 160, 120] },

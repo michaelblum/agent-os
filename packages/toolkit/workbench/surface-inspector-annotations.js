@@ -17,6 +17,7 @@ const ACTIONABLE_CAPABILITIES = new Set(['press', 'focus', 'set_value', 'scroll'
 const NOISY_SUBJECT_KINDS = new Set(['group', 'container', 'region', 'main', 'section', 'generic', 'div'])
 const IMPLICIT_ROOT_ID_PATTERNS = [
   /^desktop[-_]world$/i,
+  /^aos-desktop-world-stage$/i,
   /^desktop-world:/i,
   /^display[-_:]/i,
   /^avatar-main$/i,

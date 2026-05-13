@@ -63,6 +63,9 @@ test('annotation mode entry clears stale or implicit root hover candidates', () 
 
   const implicit = setSurfaceInspectorHoverCandidate(active, node('avatar-main', ['desktop-world', 'avatar-main']))
   assert.equal(implicit.last_hover_candidate, null)
+
+  const stage = setSurfaceInspectorHoverCandidate(active, node('aos-desktop-world-stage', ['desktop-world', 'stage']))
+  assert.equal(stage.last_hover_candidate, null)
 })
 
 test('annotation candidate selection prefers specific visible child frames and semantic targets over roots', () => {
