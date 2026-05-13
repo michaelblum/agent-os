@@ -1632,6 +1632,22 @@ export default function CanvasInspector() {
     const candidate = annotationState.last_hover_candidate
     if (!candidate) return null
     const existing = findPinForCandidateId(candidate.subject_id || candidate.id)
+    if (existing && openEditor) {
+      annotationState = selectSurfaceInspectorAnnotationFrame(annotationState, existing.id)
+      if (annotationState.last_hover_candidate) {
+        annotationState = setSurfaceInspectorHoverCandidate(annotationState, {
+          ...annotationState.last_hover_candidate,
+          pinned: true,
+        })
+      }
+      annotationState.editor = {
+        mode: 'new',
+        pin_id: existing.id,
+        text: '',
+      }
+      rerender()
+      return existing.id
+    }
     if (existing && !openEditor) {
       annotationState = unpinSurfaceInspectorFrame(annotationState, existing.id)
       if (annotationState.last_hover_candidate) {
@@ -1992,17 +2008,13 @@ export default function CanvasInspector() {
 
   function renderAnnotationTree(depth) {
     if (!annotationState.annotation_mode.active) return ''
-    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
     const fallbackActions = renderAnnotationTreeFallbackActions(depth + 1)
     const scopeControls = renderAnnotationScopeControls(depth + 1)
-    if (rows.length === 0) {
-      const blocker = annotationState.last_projection_blocker?.reason || ''
-      const detail = blocker ? `blocked: ${blocker}` : 'no annotations'
-      return `${scopeControls}<div class="tree-row annotation-empty" style="${indentStyle(depth + 1)}"><span>${esc(detail)}</span></div>${fallbackActions}`
-    }
-    return `<div class="annotation-tree" role="tree">`
+    const managementRows = renderAnnotationManagementRows(depth + 1)
+    return `<div class="annotation-support" role="group" aria-label="Annotation support state">`
       + scopeControls
-      + rows.map((row) => renderAnnotationTreeRow(row, depth + 1)).join('')
+      + renderAnnotationSupportRows(depth + 1)
+      + managementRows
       + fallbackActions
       + `</div>`
   }
@@ -2026,13 +2038,82 @@ export default function CanvasInspector() {
       + `</div>`
   }
 
-  function renderAnnotationTreeRow(row, depth) {
+  function renderAnnotationSupportRows(depth) {
+    const session = surfaceInspectorAnnotationStateToSession(annotationState)
+    const anchors = session.anchors || []
+    const comments = anchors.filter((anchor) => (anchor.comment_text || '').trim())
+    const stale = anchors.filter((anchor) => anchor.status !== 'live' || anchor.projection?.can_project_display_overlay === false)
+    const blocker = annotationState.last_projection_blocker?.reason || ''
+    const current = session.committed_scope_stack?.at?.(-1) || session.root
+    const currentPath = current?.subject?.path?.join(' / ') || current?.address || 'main'
+    const snapshotState = 'snapshot ready'
+    const hover = session.hover_candidate
+    const minimapCount = anchors.filter((anchor) => anchor.projection?.can_project_display_overlay).length
+    let html = ''
+    html += renderAnnotationSupportRow('mode', 'active', depth)
+    html += renderAnnotationSupportRow('root', session.root?.root?.label || session.root?.address || 'pending', depth)
+    html += renderAnnotationSupportRow('scope', currentPath, depth)
+    html += renderAnnotationSupportRow('anchors', `${anchors.length} frames / ${comments.length} comments`, depth)
+    html += renderAnnotationSupportRow('snapshot', snapshotState, depth)
+    html += renderAnnotationSupportRow('minimap', `${minimapCount} projected markers, passive`, depth)
+    if (hover) {
+      html += renderAnnotationSupportRow('hover preview', `${hover.adapter_id}:${hover.subject?.id || hover.address}`, depth, {
+        state: hover.projection?.current_render_status || hover.status || 'preview',
+        blocker: hover.projection?.blocker_reason || '',
+      })
+    }
+    for (const anchor of anchors) {
+      html += renderAnnotationSupportRow(anchor.comment_text ? 'comment anchor' : 'frame anchor', anchor.address, depth, {
+        state: anchor.projection?.current_render_status || anchor.status || 'unknown',
+        adapter: anchor.subject?.adapter_id || anchor.projection?.adapter_id || 'unknown-adapter',
+        subject: anchor.subject?.subject?.id || anchor.projection?.subject_id || '',
+        blocker: anchor.projection?.blocker_reason || '',
+      })
+    }
+    if (stale.length > 0) {
+      html += renderAnnotationSupportRow('diagnostics', `${stale.length} stale/blocked anchors`, depth, {
+        state: 'blocked',
+        blocker: stale.map((anchor) => anchor.projection?.blocker_reason || anchor.status).filter(Boolean).join(', '),
+      })
+    } else if (blocker) {
+      html += renderAnnotationSupportRow('diagnostics', blocker, depth, { state: 'blocked', blocker })
+    } else if (anchors.length === 0 && !hover) {
+      html += `<div class="tree-row annotation-empty" style="${indentStyle(depth)}"><span>waiting for display anchor evidence</span></div>`
+    }
+    return html
+  }
+
+  function renderAnnotationSupportRow(label, value, depth, options = {}) {
+    const state = options.state || ''
+    const adapter = options.adapter ? ` · ${options.adapter}` : ''
+    const subject = options.subject ? ` · ${options.subject}` : ''
+    const blocker = options.blocker ? `<span class="annotation-blocker">${esc(options.blocker)}</span>` : ''
+    const stateClass = state ? ` state-${esc(state)}` : ''
+    return `<div class="tree-row annotation-support-row${stateClass}" style="${indentStyle(depth)}" title="${esc(value)}">`
+      + `<span class="annotation-support-label">${esc(label)}</span>`
+      + `<span class="annotation-support-value">${esc(value)}</span>`
+      + (state ? `<span class="annotation-projection-state">${esc(state)}</span>` : '')
+      + (adapter || subject ? `<span class="annotation-support-evidence">${esc(`${adapter}${subject}`.replace(/^ · /, ''))}</span>` : '')
+      + blocker
+      + `</div>`
+  }
+
+  function renderAnnotationManagementRows(depth) {
+    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
+    if (rows.length === 0) return ''
+    return `<div class="annotation-management" role="tree" aria-label="Saved annotation management">`
+      + `<div class="tree-row annotation-management-heading" style="${indentStyle(depth)}"><span>saved annotation management</span></div>`
+      + rows.map((row) => renderAnnotationManagementRow(row, depth + 1)).join('')
+      + `</div>`
+  }
+
+  function renderAnnotationManagementRow(row, depth) {
     const stateLabel = row.projection_state || row.pin?.projection?.current_render_status || 'unsupported'
     const blocker = row.blocker_text || row.pin?.projection?.blocker_reason || ''
     if (row.type === 'comment') {
       return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth)}" title="${esc(blocker || row.comment.text)}">`
         + `<span class="annotation-comment-dot"></span>`
-        + `<span class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}">${esc(row.comment.text)}</span>`
+        + `<button class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}" data-pin-id="${esc(row.comment.pin_id)}" ${inspectorControlAttrs(`annotation-comment-${row.comment.id}`, { name: `Edit comment ${row.comment.id}`, action: 'edit_comment' })}>${esc(row.comment.text)}</button>`
         + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
         + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
         + `<button class="btn annotation-comment-delete" data-comment-id="${esc(row.comment.id)}" title="Delete comment" ${inspectorControlAttrs(`annotation-delete-${row.comment.id}`, { name: `Delete comment ${row.comment.id}`, action: 'delete_comment' })}>del</button>`
@@ -2226,6 +2307,23 @@ export default function CanvasInspector() {
         rerender()
         return
       }
+      if (btn.classList.contains('annotation-comment-text')) {
+        const comment = annotationState.comments.find((item) => item.id === btn.dataset.commentId && item.status !== 'removed')
+        if (comment) {
+          annotationState = createSurfaceInspectorAnnotationState({
+            ...annotationState,
+            active_frame_id: comment.pin_id || annotationState.active_frame_id,
+            editor: {
+              mode: 'edit',
+              pin_id: comment.pin_id,
+              comment_id: comment.id,
+              text: comment.text,
+            },
+          })
+          rerender()
+        }
+        return
+      }
       if (btn.classList.contains('annotation-pin-reveal')) {
         revealAnnotationTarget(btn.dataset.pinId)
         return
@@ -2294,12 +2392,6 @@ export default function CanvasInspector() {
         save.disabled = !event.target.value.trim()
         save.classList.toggle('disabled', save.disabled)
       }
-    })
-    contentEl.addEventListener('dblclick', (event) => {
-      const row = event.target?.closest?.('.annotation-row.pin')
-      if (!row || !contentEl.contains(row)) return
-      const pin = annotationState.pins.find((item) => item.id === row.dataset.pinId)
-      if (pin?.projection?.can_reveal) revealAnnotationTarget(pin.id)
     })
     window.addEventListener('keydown', (event) => {
       if (!annotationState.annotation_mode.active || event.key !== 'Escape') return
