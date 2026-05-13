@@ -1,6 +1,8 @@
 # Display-First Annotation Mode And Sigil Reticle
 
 Status: design direction for follow-on work cards.
+Ancestry report:
+`docs/archive/draw-extension-annotation-ancestry-report.md`
 
 This note records the current product direction for Annotation Mode after the
 Surface Inspector annotation experiments, native AX candidate work, AOS semantic
@@ -312,4 +314,3 @@ Responsibilities to avoid:
 - Live annotations disappear when their subject disappears.
 - Snapshot captures point-in-time evidence without claiming future
   reproducibility.
-
