@@ -17,6 +17,27 @@ will read, skip, test, or modify, say the current path briefly. If the session
 pivots and the agent adds a layer, call out the change before acting through the
 new capability.
 
+## Host Shell Boundary
+
+Treat AOS as the agent shell. The base harness should use typed AOS primitives
+and control surfaces before reaching for raw host process execution.
+
+The practical layers are:
+
+- `see`, `do`, `show`, `tell`, and `listen` are the base harness shell.
+- `./aos dev ...` is the AOS developer shell for repo workflow, builds, audits,
+  and regularized integrations such as GitHub.
+- Raw Bash, Node, npm, Python, and arbitrary process execution are
+  developer/testing escape hatches. They are useful for building the platform,
+  but they should not become the default interface that user-facing agents
+  inherit.
+
+When the AOS developer or testing path needs raw process execution, keep the
+scope explicit: narrow cwd, bounded command, clear reason, and reviewable side
+effects. Prefer a typed AOS control surface when one exists. Add a new control
+surface when the same raw command cluster becomes repeated, risky, or easy to
+misuse.
+
 ### Agent Harness
 
 Start from the base harness model. The agent should prefer AOS primitives:
@@ -133,16 +154,18 @@ starting point.
 3. Skip sections outside the active path, but backtrack when the session pivots
    or the evidence requires another layer.
 4. Use AOS primitives first unless the task explicitly needs repo-level powers.
-5. Pick the smallest test loop that matches the changed behavior.
-6. For visual/display work, launch the relevant diagnostics instead of relying
+5. Treat raw shell, Node, npm, Python, and arbitrary process execution as
+   developer/testing capabilities, not base harness primitives.
+6. Pick the smallest test loop that matches the changed behavior.
+7. For visual/display work, launch the relevant diagnostics instead of relying
    on memory or screenshots alone.
-7. When a repo-owned scenario harness exists for the behavior, use that harness
+8. When a repo-owned scenario harness exists for the behavior, use that harness
    before inventing an ad hoc verification path.
-8. For real-input bugs, capture or run at least one real-input verification.
-9. If the task touches runtime knowledge, check whether the AOS wiki needs to be
+9. For real-input bugs, capture or run at least one real-input verification.
+10. If the task touches runtime knowledge, check whether the AOS wiki needs to be
    read or updated in addition to repo docs or code.
-10. Before building a new browser, workbench, editor, inspector, or artifact
+11. Before building a new browser, workbench, editor, inspector, or artifact
     panel, identify the subject's layered expressions. See
     `docs/recipes/layered-subject-expressions.md`.
-11. If a lesson should survive the session, place it using the placement rules
+12. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.

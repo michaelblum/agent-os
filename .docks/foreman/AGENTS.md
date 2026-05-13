@@ -70,10 +70,3 @@ coordination edits. Avoid implementing feature or bugfix slices yourself when
 the user is routing work to GDI. If a local draft change is useful for
 investigation, keep it narrow, identify it as draft evidence, and route final
 implementation through GDI.
-
-For cross-session handoffs, pipe the raw target message through
-`scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. GDI is the only target dock that
-receives a `/goal ` prefix; Operator and other non-GDI docks receive plain
-instructions so supervised/HITL sessions can stop for ambiguity instead of
-forcing autonomous goal completion.

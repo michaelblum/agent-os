@@ -1,0 +1,35 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.invalid-raw-process-assignment",
+  "label": "Invalid Raw Process Assignment",
+  "capabilities": [
+    {
+      "id": "dev.test.raw_python",
+      "label": "Raw Python Without Explicit Assignment",
+      "summary": "Invalid because raw process execution must require explicit assignment.",
+      "status": "draft",
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "python",
+        "command": ["python3", "scripts/example.py"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 60,
+        "network": "forbidden",
+        "raw_process": true,
+        "audit": "required"
+      },
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

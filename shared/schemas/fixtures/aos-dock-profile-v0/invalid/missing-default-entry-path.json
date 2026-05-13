@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../aos-dock-profile-v0.schema.json",
+  "type": "aos.dock_profile",
+  "schema_version": "2026-05-dock-profile-v0",
+  "name": "gdi",
+  "role": "gdi",
+  "harness": "codex",
+  "allowed_entry_paths": [
+    "aos_developer"
+  ],
+  "capability_manifest": "docs/dev/agent-capabilities.json",
+  "allowed_capability_classes": [
+    "read_only"
+  ],
+  "allowed_capabilities": [],
+  "handoff": {
+    "requires_goal_prefix": true
+  }
+}

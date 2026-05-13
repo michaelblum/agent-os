@@ -67,6 +67,33 @@ private struct DevAuditOptions {
     var manifest: String?
 }
 
+private struct DevCapabilitiesOptions {
+    var json = false
+    var repo: String?
+    var manifest: String?
+    var role: String?
+    var entryPath: String?
+    var positionals: [String] = []
+}
+
+private struct DevDocksOptions {
+    var json = false
+    var repo: String?
+    var dockRoot: String?
+    var capabilitiesManifest: String?
+    var entryPath: String?
+    var positionals: [String] = []
+}
+
+private struct DevGhOptions {
+    var json = false
+    var repo: String?
+    var cwd: String?
+    var bodyFile: String?
+    var prNumber: String?
+    var positionals: [String] = []
+}
+
 private struct DevClassifiedFile {
     let path: String
     let rules: [DevWorkflowRule]
@@ -117,6 +144,8 @@ private struct DevAuditClaim {
 }
 
 private let devWorkflowDefaultManifestRelativePath = "docs/dev/workflow-rules.json"
+private let devCapabilitiesDefaultManifestRelativePath = "docs/dev/agent-capabilities.json"
+private let devDocksDefaultRootRelativePath = ".docks"
 private let devWorkflowRuleID = "dev-workflow-manifest"
 
 func devCommand(args: [String]) {
@@ -145,6 +174,12 @@ func devCommand(args: [String]) {
         devBuildCommand(args: subArgs)
     case "audit":
         devAuditCommand(args: subArgs)
+    case "capabilities":
+        devCapabilitiesCommand(args: subArgs)
+    case "docks":
+        devDocksCommand(args: subArgs)
+    case "gh":
+        devGhCommand(args: subArgs)
     default:
         exitError("Unknown dev subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -232,6 +267,493 @@ private func devBuildCommand(args: [String]) {
         }
     }
     exit(result.exitCode)
+}
+
+private func devCapabilitiesCommand(args: [String]) {
+    guard let action = args.first else {
+        printCommandHelp(["dev", "capabilities"], json: false)
+        exit(0)
+    }
+
+    let options = parseDevCapabilitiesOptions(Array(args.dropFirst()))
+    switch action {
+    case "list":
+        devCapabilitiesListCommand(options: options)
+    case "explain":
+        devCapabilitiesExplainCommand(options: options)
+    default:
+        exitError("Unknown dev capabilities subcommand: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func devCapabilitiesListCommand(options: DevCapabilitiesOptions) {
+    guard options.positionals.isEmpty else {
+        exitError("dev capabilities list does not accept positional arguments", code: "UNKNOWN_ARG")
+    }
+    let loaded = loadDevCapabilityManifest(options: options)
+    let capabilities = filterDevCapabilities(loaded.capabilities, options: options)
+    let payload: [String: Any] = [
+        "status": "success",
+        "manifest": normalizeRepoRelativePath(loaded.path, repoRoot: loaded.repoRoot),
+        "manifest_id": loaded.manifest["id"] ?? NSNull(),
+        "manifest_schema_version": loaded.manifest["schema_version"] ?? NSNull(),
+        "role": devGhNullable(options.role),
+        "entry_path": devGhNullable(options.entryPath),
+        "count": capabilities.count,
+        "capabilities": capabilities.map { compactDevCapability($0) },
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevCapabilitiesListText(payload)
+    }
+}
+
+private func devCapabilitiesExplainCommand(options: DevCapabilitiesOptions) {
+    guard options.positionals.count == 1, let capabilityID = options.positionals.first else {
+        exitError("dev capabilities explain requires exactly one capability id", code: "MISSING_ARG")
+    }
+    let loaded = loadDevCapabilityManifest(options: options)
+    guard let capability = loaded.capabilities.first(where: { ($0["id"] as? String) == capabilityID }) else {
+        exitError("Unknown capability id: \(capabilityID)", code: "UNKNOWN_CAPABILITY")
+    }
+    let payload: [String: Any] = [
+        "status": "success",
+        "manifest": normalizeRepoRelativePath(loaded.path, repoRoot: loaded.repoRoot),
+        "manifest_id": loaded.manifest["id"] ?? NSNull(),
+        "manifest_schema_version": loaded.manifest["schema_version"] ?? NSNull(),
+        "capability": capability,
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevCapabilityExplainText(payload)
+    }
+}
+
+private func devDocksCommand(args: [String]) {
+    guard let action = args.first else {
+        printCommandHelp(["dev", "docks"], json: false)
+        exit(0)
+    }
+
+    let options = parseDevDocksOptions(Array(args.dropFirst()))
+    switch action {
+    case "list":
+        devDocksListCommand(options: options)
+    case "explain":
+        devDocksExplainCommand(options: options)
+    case "capabilities":
+        devDocksCapabilitiesCommand(options: options)
+    default:
+        exitError("Unknown dev docks subcommand: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func devDocksListCommand(options: DevDocksOptions) {
+    guard options.positionals.isEmpty else {
+        exitError("dev docks list does not accept positional arguments", code: "UNKNOWN_ARG")
+    }
+    let loaded = loadDevDockProfiles(options: options)
+    let profiles = loaded.profiles.map { compactDevDockProfile($0) }
+    let payload: [String: Any] = [
+        "status": "success",
+        "dock_root": normalizeRepoRelativePath(loaded.dockRoot, repoRoot: loaded.repoRoot),
+        "count": profiles.count,
+        "docks": profiles,
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevDocksListText(payload)
+    }
+}
+
+private func devDocksExplainCommand(options: DevDocksOptions) {
+    guard options.positionals.count == 1, let dockName = options.positionals.first else {
+        exitError("dev docks explain requires exactly one dock name", code: "MISSING_ARG")
+    }
+    let loaded = loadDevDockProfiles(options: options)
+    guard let profile = loaded.profiles.first(where: { devString($0["name"]) == dockName }) else {
+        exitError("Unknown dock profile: \(dockName)", code: "UNKNOWN_DOCK")
+    }
+    let payload: [String: Any] = [
+        "status": "success",
+        "dock_root": normalizeRepoRelativePath(loaded.dockRoot, repoRoot: loaded.repoRoot),
+        "profile": profile,
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevDockExplainText(payload)
+    }
+}
+
+private func devDocksCapabilitiesCommand(options: DevDocksOptions) {
+    guard options.positionals.count == 1, let dockName = options.positionals.first else {
+        exitError("dev docks capabilities requires exactly one dock name", code: "MISSING_ARG")
+    }
+    let loaded = loadDevDockProfiles(options: options)
+    guard let profile = loaded.profiles.first(where: { devString($0["name"]) == dockName }) else {
+        exitError("Unknown dock profile: \(dockName)", code: "UNKNOWN_DOCK")
+    }
+
+    let defaultEntryPath = devString(profile["default_entry_path"]) ?? "agent_harness"
+    let activeEntryPath = options.entryPath ?? defaultEntryPath
+    let allowedEntryPaths = devStringArray(profile["allowed_entry_paths"])
+    guard allowedEntryPaths.contains(activeEntryPath) else {
+        exitError("Dock \(dockName) does not allow entry path: \(activeEntryPath)", code: "ENTRY_PATH_NOT_ALLOWED")
+    }
+
+    var capabilityOptions = DevCapabilitiesOptions()
+    capabilityOptions.repo = options.repo
+    capabilityOptions.manifest = options.capabilitiesManifest ?? devString(profile["capability_manifest"])
+    let capabilityManifest = loadDevCapabilityManifest(options: capabilityOptions)
+    let capabilities = resolveDevDockCapabilities(
+        profile: profile,
+        capabilities: capabilityManifest.capabilities,
+        entryPath: activeEntryPath)
+    let payload: [String: Any] = [
+        "status": "success",
+        "dock": dockName,
+        "role": devGhNullable(devString(profile["role"])),
+        "dock_root": normalizeRepoRelativePath(loaded.dockRoot, repoRoot: loaded.repoRoot),
+        "default_entry_path": defaultEntryPath,
+        "active_entry_path": activeEntryPath,
+        "allowed_entry_paths": allowedEntryPaths,
+        "allowed_capability_classes": devStringArray(profile["allowed_capability_classes"]),
+        "capability_manifest": normalizeRepoRelativePath(capabilityManifest.path, repoRoot: capabilityManifest.repoRoot),
+        "count": capabilities.count,
+        "capabilities": capabilities.map { compactDevCapability($0) },
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevDockCapabilitiesText(payload)
+    }
+}
+
+private func devGhCommand(args: [String]) {
+    guard let group = args.first else {
+        printCommandHelp(["dev", "gh"], json: false)
+        exit(0)
+    }
+
+    let remaining = Array(args.dropFirst())
+    switch group {
+    case "context":
+        devGhContextCommand(args: remaining)
+    case "issue":
+        devGhIssueCommand(args: remaining)
+    case "pr":
+        devGhPRCommand(args: remaining)
+    case "ci":
+        devGhCICommand(args: remaining)
+    case "review-comments":
+        devGhReviewCommentsCommand(args: remaining)
+    default:
+        exitError("Unknown dev gh group: \(group)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func devGhContextCommand(args: [String]) {
+    let options = parseDevGhOptions(args)
+    if !options.positionals.isEmpty {
+        exitError("dev gh context does not accept positional arguments", code: "UNKNOWN_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.cwd)
+    let repoFullName = devGhRepositoryFullName(options: options, repoRoot: repoRoot)
+    let ghPath = findExecutable("gh")
+    let auth = runGh(["auth", "status"], cwd: repoRoot)
+    let repoInfo = devGhRepositoryInfo(repoFullName: repoFullName, repoRoot: repoRoot)
+    let prInfo = devGhCurrentPRInfo(repoFullName: repoFullName, repoRoot: repoRoot)
+    let branch = runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd: repoRoot).stdoutLines.first
+    let upstream = runGit(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], cwd: repoRoot).stdoutLines.first
+    let dirtyFiles = gitStatusFiles(repoRoot: repoRoot, untrackedOnly: false)
+    let defaultBranch = (repoInfo?["defaultBranchRef"] as? [String: Any])?["name"] as? String
+
+    let status: String
+    if ghPath == nil {
+        status = "error"
+    } else if auth.exitCode == 0 {
+        status = "success"
+    } else {
+        status = "degraded"
+    }
+
+    let payload: [String: Any] = [
+        "status": status,
+        "authority": "gh_cli",
+        "tool": "gh",
+        "repo_root": repoRoot,
+        "repository": devGhNullable(repoFullName ?? (repoInfo?["nameWithOwner"] as? String)),
+        "branch": devGhNullable(branch),
+        "upstream": devGhNullable(upstream),
+        "default_branch": devGhNullable(defaultBranch),
+        "gh": [
+            "available": ghPath != nil,
+            "path": devGhNullable(ghPath),
+            "auth_exit_code": Int(auth.exitCode),
+            "authenticated": auth.exitCode == 0,
+            "auth_stdout": devGhSanitizeAuthStatus(auth.stdout),
+            "auth_stderr": devGhSanitizeAuthStatus(auth.stderr),
+        ],
+        "current_pr": devGhNullable(prInfo),
+        "dirty": [
+            "count": dirtyFiles.count,
+            "files": dirtyFiles,
+        ],
+    ]
+
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevGhContextText(payload)
+    }
+}
+
+private func devGhIssueCommand(args: [String]) {
+    guard let action = args.first else {
+        exitError("dev gh issue requires a subcommand: view or comment", code: "MISSING_SUBCOMMAND")
+    }
+    let options = parseDevGhOptions(Array(args.dropFirst()))
+    let repoRoot = resolveRepoRoot(options.cwd)
+    let repoFullName = devGhRepositoryFullName(options: options, repoRoot: repoRoot)
+
+    switch action {
+    case "view":
+        guard options.positionals.count == 1, let number = options.positionals.first else {
+            exitError("dev gh issue view requires exactly one issue number", code: "MISSING_ARG")
+        }
+        var ghArgs = ["issue", "view", number]
+        devGhAppendRepo(&ghArgs, repoFullName: repoFullName)
+        if options.json {
+            ghArgs += ["--json", "number,title,state,url,body,labels,comments"]
+        }
+        devGhRunAndExit(ghArgs, cwd: repoRoot)
+    case "comment":
+        guard options.positionals.count == 1, let number = options.positionals.first else {
+            exitError("dev gh issue comment requires exactly one issue number", code: "MISSING_ARG")
+        }
+        guard let bodyFile = options.bodyFile else {
+            exitError("dev gh issue comment requires --body-file <path>", code: "MISSING_ARG")
+        }
+        let absoluteBodyFile = devGhResolveUserPath(bodyFile)
+        guard FileManager.default.fileExists(atPath: absoluteBodyFile) else {
+            exitError("Missing issue comment body file: \(absoluteBodyFile)", code: "MISSING_BODY_FILE")
+        }
+        var ghArgs = ["issue", "comment", number]
+        devGhAppendRepo(&ghArgs, repoFullName: repoFullName)
+        ghArgs += ["--body-file", absoluteBodyFile]
+        devGhRunAndExit(ghArgs, cwd: repoRoot)
+    default:
+        exitError("Unknown dev gh issue subcommand: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func devGhPRCommand(args: [String]) {
+    guard let action = args.first else {
+        exitError("dev gh pr requires a subcommand: view, checks, or comment", code: "MISSING_SUBCOMMAND")
+    }
+    let options = parseDevGhOptions(Array(args.dropFirst()))
+    let repoRoot = resolveRepoRoot(options.cwd)
+    let repoFullName = devGhRepositoryFullName(options: options, repoRoot: repoRoot)
+
+    switch action {
+    case "view":
+        guard options.positionals.count <= 1 else {
+            exitError("dev gh pr view accepts at most one PR number", code: "UNKNOWN_ARG")
+        }
+        var ghArgs = ["pr", "view"]
+        if let number = options.positionals.first {
+            ghArgs.append(number)
+        }
+        devGhAppendRepo(&ghArgs, repoFullName: repoFullName)
+        if options.json {
+            ghArgs += ["--json", "number,title,state,url,headRefName,baseRefName,isDraft,body,comments,reviews"]
+        }
+        devGhRunAndExit(ghArgs, cwd: repoRoot)
+    case "checks":
+        guard options.positionals.count <= 1 else {
+            exitError("dev gh pr checks accepts at most one PR number", code: "UNKNOWN_ARG")
+        }
+        var ghArgs = ["pr", "checks"]
+        if let number = options.positionals.first {
+            ghArgs.append(number)
+        }
+        devGhAppendRepo(&ghArgs, repoFullName: repoFullName)
+        if options.json {
+            ghArgs += ["--json", "name,state,bucket,link,startedAt,completedAt,workflow"]
+        }
+        devGhRunAndExit(ghArgs, cwd: repoRoot)
+    case "comment":
+        guard options.positionals.count == 1, let number = options.positionals.first else {
+            exitError("dev gh pr comment requires exactly one PR number", code: "MISSING_ARG")
+        }
+        guard let bodyFile = options.bodyFile else {
+            exitError("dev gh pr comment requires --body-file <path>", code: "MISSING_ARG")
+        }
+        let absoluteBodyFile = devGhResolveUserPath(bodyFile)
+        guard FileManager.default.fileExists(atPath: absoluteBodyFile) else {
+            exitError("Missing PR comment body file: \(absoluteBodyFile)", code: "MISSING_BODY_FILE")
+        }
+        var ghArgs = ["pr", "comment", number]
+        devGhAppendRepo(&ghArgs, repoFullName: repoFullName)
+        ghArgs += ["--body-file", absoluteBodyFile]
+        devGhRunAndExit(ghArgs, cwd: repoRoot)
+    default:
+        exitError("Unknown dev gh pr subcommand: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func devGhCICommand(args: [String]) {
+    guard let action = args.first else {
+        exitError("dev gh ci requires a subcommand: inspect", code: "MISSING_SUBCOMMAND")
+    }
+    guard action == "inspect" else {
+        exitError("Unknown dev gh ci subcommand: \(action)", code: "UNKNOWN_SUBCOMMAND")
+    }
+
+    let options = parseDevGhOptions(Array(args.dropFirst()))
+    guard options.positionals.count <= 1 else {
+        exitError("dev gh ci inspect accepts at most one PR number", code: "UNKNOWN_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.cwd)
+    let repoFullName = devGhRepositoryFullName(options: options, repoRoot: repoRoot)
+    let prNumber = devGhResolvePRNumber(options.prNumber ?? options.positionals.first, repoFullName: repoFullName, repoRoot: repoRoot, json: options.json)
+    var checksArgs = ["pr", "checks", prNumber]
+    devGhAppendRepo(&checksArgs, repoFullName: repoFullName)
+    checksArgs += ["--json", "name,state,bucket,link,startedAt,completedAt,workflow"]
+
+    let checksResult = runGh(checksArgs, cwd: repoRoot)
+    guard checksResult.exitCode == 0 else {
+        devGhEmitCompositeErrorAndExit(command: checksArgs, result: checksResult, json: options.json)
+    }
+    let checks = parseDevGhJSON(checksResult.stdout) as? [[String: Any]] ?? []
+    var failedLogs: [[String: Any]] = []
+    for check in checks where devGhCheckFailed(check) {
+        let link = check["link"] as? String ?? ""
+        guard let runID = devGhActionsRunID(from: link) else {
+            failedLogs.append([
+                "check": check,
+                "source": "external",
+                "status": "report_only",
+                "reason": "check link is not a GitHub Actions run URL",
+            ])
+            continue
+        }
+
+        var logArgs = ["run", "view", runID]
+        devGhAppendRepo(&logArgs, repoFullName: repoFullName)
+        logArgs.append("--log-failed")
+        let logResult = runGh(logArgs, cwd: repoRoot)
+        failedLogs.append([
+            "check": check,
+            "source": "github_actions",
+            "run_id": runID,
+            "status": logResult.exitCode == 0 ? "success" : "error",
+            "exit_code": Int(logResult.exitCode),
+            "stdout": logResult.stdout,
+            "stderr": logResult.stderr,
+        ])
+    }
+
+    let payload: [String: Any] = [
+        "status": "success",
+        "authority": "gh_cli",
+        "pr": prNumber,
+        "repository": devGhNullable(repoFullName),
+        "checks": checks,
+        "failed_logs": failedLogs,
+    ]
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevGhCIText(payload)
+    }
+}
+
+private func devGhReviewCommentsCommand(args: [String]) {
+    let options = parseDevGhOptions(args)
+    guard options.positionals.count <= 1 else {
+        exitError("dev gh review-comments accepts at most one PR number", code: "UNKNOWN_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.cwd)
+    let repoFullName = devGhRepositoryFullName(options: options, repoRoot: repoRoot)
+    guard let repoFullName else {
+        exitError("Could not infer GitHub repository. Pass --repo owner/name.", code: "MISSING_REPO")
+    }
+    guard let repoParts = devGhSplitRepoFullName(repoFullName) else {
+        exitError("Invalid GitHub repository '\(repoFullName)'. Expected owner/name.", code: "INVALID_REPO")
+    }
+
+    let prNumber = devGhResolvePRNumber(options.prNumber ?? options.positionals.first, repoFullName: repoFullName, repoRoot: repoRoot, json: options.json)
+    guard Int(prNumber) != nil else {
+        exitError("PR number must be numeric for review-comments: \(prNumber)", code: "INVALID_PR")
+    }
+
+    let query = """
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          number
+          url
+          reviewThreads(first: 100) {
+            nodes {
+              isResolved
+              isOutdated
+              path
+              line
+              startLine
+              comments(first: 50) {
+                nodes {
+                  id
+                  url
+                  body
+                  createdAt
+                  author { login }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    let graphQLArgs = [
+        "api", "graphql",
+        "-f", "owner=\(repoParts.owner)",
+        "-f", "name=\(repoParts.name)",
+        "-F", "number=\(prNumber)",
+        "-f", "query=\(query)",
+    ]
+    let result = runGh(graphQLArgs, cwd: repoRoot)
+    guard result.exitCode == 0 else {
+        devGhEmitCompositeErrorAndExit(command: graphQLArgs, result: result, json: options.json)
+    }
+
+    let raw = parseDevGhJSON(result.stdout) as? [String: Any] ?? [:]
+    let threads = devGhFlattenReviewThreads(raw)
+    let unresolved = threads.filter { ($0["is_resolved"] as? Bool) == false }
+    let payload: [String: Any] = [
+        "status": "success",
+        "authority": "gh_cli",
+        "repository": repoFullName,
+        "pr": prNumber,
+        "thread_count": threads.count,
+        "unresolved_count": unresolved.count,
+        "threads": threads,
+    ]
+
+    if options.json {
+        printDevJSON(payload)
+    } else {
+        printDevGhReviewCommentsText(payload)
+    }
 }
 
 private func runProcessCapturingOutput(_ executable: String, arguments: [String], cwd: String? = nil) -> ProcessOutput {
@@ -333,6 +855,138 @@ private func parseDevOptions(_ args: [String]) -> DevOptions {
     return options
 }
 
+private func parseDevCapabilitiesOptions(_ args: [String]) -> DevCapabilitiesOptions {
+    var options = DevCapabilitiesOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--manifest":
+            guard i + 1 < args.count else {
+                exitError("--manifest requires a path", code: "MISSING_ARG")
+            }
+            options.manifest = args[i + 1]
+            i += 2
+        case "--role":
+            guard i + 1 < args.count else {
+                exitError("--role requires a dock role", code: "MISSING_ARG")
+            }
+            options.role = args[i + 1]
+            i += 2
+        case "--entry-path":
+            guard i + 1 < args.count else {
+                exitError("--entry-path requires an entry path", code: "MISSING_ARG")
+            }
+            options.entryPath = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev capabilities flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            options.positionals.append(arg)
+            i += 1
+        }
+    }
+    return options
+}
+
+private func parseDevDocksOptions(_ args: [String]) -> DevDocksOptions {
+    var options = DevDocksOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--dock-root":
+            guard i + 1 < args.count else {
+                exitError("--dock-root requires a path", code: "MISSING_ARG")
+            }
+            options.dockRoot = args[i + 1]
+            i += 2
+        case "--capabilities-manifest":
+            guard i + 1 < args.count else {
+                exitError("--capabilities-manifest requires a path", code: "MISSING_ARG")
+            }
+            options.capabilitiesManifest = args[i + 1]
+            i += 2
+        case "--entry-path":
+            guard i + 1 < args.count else {
+                exitError("--entry-path requires an entry path", code: "MISSING_ARG")
+            }
+            options.entryPath = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev docks flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            options.positionals.append(arg)
+            i += 1
+        }
+    }
+    return options
+}
+
+private func parseDevGhOptions(_ args: [String]) -> DevGhOptions {
+    var options = DevGhOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a GitHub repository in owner/name form", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--cwd":
+            guard i + 1 < args.count else {
+                exitError("--cwd requires a local checkout path", code: "MISSING_ARG")
+            }
+            options.cwd = args[i + 1]
+            i += 2
+        case "--body-file":
+            guard i + 1 < args.count else {
+                exitError("--body-file requires a path", code: "MISSING_ARG")
+            }
+            options.bodyFile = args[i + 1]
+            i += 2
+        case "--pr":
+            guard i + 1 < args.count else {
+                exitError("--pr requires a PR number", code: "MISSING_ARG")
+            }
+            options.prNumber = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev gh flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            options.positionals.append(arg)
+            i += 1
+        }
+    }
+    return options
+}
+
 private func parseDevAuditOptions(_ args: [String]) -> DevAuditOptions {
     var options = DevAuditOptions()
     var i = 0
@@ -399,6 +1053,157 @@ private func buildDevRecommendation(from classification: [String: Any]) -> [Stri
         "verification": verification,
         "notes": notes,
         "summary": summary,
+    ]
+}
+
+private func loadDevCapabilityManifest(options: DevCapabilitiesOptions) -> (
+    repoRoot: String,
+    path: String,
+    manifest: [String: Any],
+    capabilities: [[String: Any]]
+) {
+    let repoRoot = resolveRepoRoot(options.repo)
+    let manifestPath = resolveCapabilityManifestPath(options.manifest, repoRoot: repoRoot)
+    guard let data = FileManager.default.contents(atPath: manifestPath) else {
+        exitError("Missing dev capability manifest: \(manifestPath)", code: "MISSING_MANIFEST")
+    }
+    do {
+        guard let manifest = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            exitError("Invalid dev capability manifest \(manifestPath): expected JSON object", code: "INVALID_MANIFEST")
+        }
+        let capabilities = manifest["capabilities"] as? [[String: Any]] ?? []
+        return (repoRoot, manifestPath, manifest, capabilities)
+    } catch {
+        exitError("Invalid dev capability manifest \(manifestPath): \(error)", code: "INVALID_MANIFEST")
+    }
+}
+
+private func filterDevCapabilities(_ capabilities: [[String: Any]], options: DevCapabilitiesOptions) -> [[String: Any]] {
+    capabilities.filter { capability in
+        if let role = options.role {
+            let roles = capability["roles"] as? [String] ?? []
+            if !roles.isEmpty && !roles.contains(role) {
+                return false
+            }
+        }
+        if let entryPath = options.entryPath {
+            let entryPaths = capability["entry_paths"] as? [String] ?? []
+            if !entryPaths.contains(entryPath) {
+                return false
+            }
+        }
+        return true
+    }
+}
+
+private func compactDevCapability(_ capability: [String: Any]) -> [String: Any] {
+    let adapter = capability["adapter"] as? [String: Any] ?? [:]
+    let mutability = capability["mutability"] as? [String: Any] ?? [:]
+    let execution = capability["execution"] as? [String: Any] ?? [:]
+    return [
+        "id": capability["id"] ?? NSNull(),
+        "label": capability["label"] ?? NSNull(),
+        "summary": capability["summary"] ?? NSNull(),
+        "status": capability["status"] ?? NSNull(),
+        "roles": capability["roles"] ?? [],
+        "entry_paths": capability["entry_paths"] ?? [],
+        "adapter_kind": adapter["kind"] ?? NSNull(),
+        "command": adapter["command"] ?? [],
+        "mutability_class": mutability["class"] ?? NSNull(),
+        "requires_explicit_assignment": mutability["requires_explicit_assignment"] ?? NSNull(),
+        "requires_human_approval": mutability["requires_human_approval"] ?? NSNull(),
+        "requires_body_file": mutability["requires_body_file"] ?? NSNull(),
+        "raw_process": execution["raw_process"] ?? NSNull(),
+        "cwd_policy": execution["cwd_policy"] ?? NSNull(),
+        "timeout_seconds": execution["timeout_seconds"] ?? NSNull(),
+        "audit": execution["audit"] ?? NSNull(),
+    ]
+}
+
+private func loadDevDockProfiles(options: DevDocksOptions) -> (
+    repoRoot: String,
+    dockRoot: String,
+    profiles: [[String: Any]]
+) {
+    let repoRoot = resolveRepoRoot(options.repo)
+    let dockRoot = resolveDockRootPath(options.dockRoot, repoRoot: repoRoot)
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: dockRoot, isDirectory: &isDirectory), isDirectory.boolValue else {
+        exitError("Missing dock root: \(dockRoot)", code: "MISSING_DOCK_ROOT")
+    }
+
+    let entries: [String]
+    do {
+        entries = try FileManager.default.contentsOfDirectory(atPath: dockRoot).sorted()
+    } catch {
+        exitError("Unable to read dock root \(dockRoot): \(error)", code: "DOCK_ROOT_UNREADABLE")
+    }
+
+    var profiles: [[String: Any]] = []
+    for entry in entries {
+        let entryPath = (dockRoot as NSString).appendingPathComponent(entry)
+        var entryIsDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: entryPath, isDirectory: &entryIsDirectory),
+              entryIsDirectory.boolValue else {
+            continue
+        }
+        let profilePath = (entryPath as NSString).appendingPathComponent("dock.json")
+        guard FileManager.default.fileExists(atPath: profilePath) else {
+            continue
+        }
+        profiles.append(loadDevJSONObject(path: profilePath, missingCode: "MISSING_DOCK_PROFILE", invalidCode: "INVALID_DOCK_PROFILE"))
+    }
+
+    return (repoRoot, dockRoot, profiles.sorted { (devString($0["name"]) ?? "") < (devString($1["name"]) ?? "") })
+}
+
+private func resolveDevDockCapabilities(
+    profile: [String: Any],
+    capabilities: [[String: Any]],
+    entryPath: String
+) -> [[String: Any]] {
+    let role = devString(profile["role"])
+    let allowedClasses = Set(devStringArray(profile["allowed_capability_classes"]))
+    let allowedIDs = Set(devStringArray(profile["allowed_capabilities"]))
+    return capabilities.filter { capability in
+        if let status = devString(capability["status"]), status == "deprecated" {
+            return false
+        }
+        guard let capabilityID = devString(capability["id"]) else {
+            return false
+        }
+        if !allowedIDs.isEmpty && !allowedIDs.contains(capabilityID) {
+            return false
+        }
+        let capabilityRoles = devStringArray(capability["roles"])
+        if let role, !capabilityRoles.isEmpty, !capabilityRoles.contains(role) {
+            return false
+        }
+        let capabilityEntryPaths = devStringArray(capability["entry_paths"])
+        if !capabilityEntryPaths.contains(entryPath) {
+            return false
+        }
+        let mutability = capability["mutability"] as? [String: Any] ?? [:]
+        guard let capabilityClass = devString(mutability["class"]),
+              allowedClasses.contains(capabilityClass) else {
+            return false
+        }
+        return true
+    }
+}
+
+private func compactDevDockProfile(_ profile: [String: Any]) -> [String: Any] {
+    return [
+        "name": profile["name"] ?? NSNull(),
+        "role": profile["role"] ?? NSNull(),
+        "harness": profile["harness"] ?? NSNull(),
+        "summary": profile["summary"] ?? NSNull(),
+        "default_entry_path": profile["default_entry_path"] ?? NSNull(),
+        "allowed_entry_paths": profile["allowed_entry_paths"] ?? [],
+        "allowed_capability_classes": profile["allowed_capability_classes"] ?? [],
+        "allowed_capabilities": profile["allowed_capabilities"] ?? [],
+        "requires_explicit_assignment_for": profile["requires_explicit_assignment_for"] ?? [],
+        "requires_goal_prefix": (profile["handoff"] as? [String: Any])?["requires_goal_prefix"] ?? NSNull(),
     ]
 }
 
@@ -582,6 +1387,42 @@ private func resolveManifestPath(_ requested: String?, repoRoot: String) -> Stri
     return (repoRoot as NSString).appendingPathComponent(devWorkflowDefaultManifestRelativePath)
 }
 
+private func resolveCapabilityManifestPath(_ requested: String?, repoRoot: String) -> String {
+    if let requested = requested {
+        let expanded = NSString(string: requested).expandingTildeInPath
+        if expanded.hasPrefix("/") {
+            return NSString(string: expanded).standardizingPath
+        }
+        return NSString(string: (repoRoot as NSString).appendingPathComponent(expanded)).standardizingPath
+    }
+    return (repoRoot as NSString).appendingPathComponent(devCapabilitiesDefaultManifestRelativePath)
+}
+
+private func resolveDockRootPath(_ requested: String?, repoRoot: String) -> String {
+    if let requested = requested {
+        let expanded = NSString(string: requested).expandingTildeInPath
+        if expanded.hasPrefix("/") {
+            return NSString(string: expanded).standardizingPath
+        }
+        return NSString(string: (repoRoot as NSString).appendingPathComponent(expanded)).standardizingPath
+    }
+    return (repoRoot as NSString).appendingPathComponent(devDocksDefaultRootRelativePath)
+}
+
+private func loadDevJSONObject(path: String, missingCode: String, invalidCode: String) -> [String: Any] {
+    guard let data = FileManager.default.contents(atPath: path) else {
+        exitError("Missing JSON file: \(path)", code: missingCode)
+    }
+    do {
+        guard let object = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+            exitError("Invalid JSON file \(path): expected object", code: invalidCode)
+        }
+        return object
+    } catch {
+        exitError("Invalid JSON file \(path): \(error)", code: invalidCode)
+    }
+}
+
 private func loadDevWorkflowManifest(path: String) -> DevWorkflowManifest {
     switch readDevWorkflowManifest(path: path) {
     case .success(let manifest):
@@ -619,7 +1460,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
 
     var claims: [DevAuditClaim] = []
     let forms = Dictionary(uniqueKeysWithValues: dev.forms.map { ($0.id, $0) })
-    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-audit"]
+    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
     let observedForms = dev.forms.map { $0.id }.sorted()
     claims.append(auditClaim(
         id: "dev-help-forms",
@@ -646,6 +1487,21 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
         form: forms["dev-audit"],
         expectedFlags: ["--manifest", "--repo", "--json"],
         defaultManifestRequired: true))
+    claims.append(auditFormFlagClaim(
+        id: "dev-capabilities-help-flags",
+        form: forms["dev-capabilities"],
+        expectedFlags: ["--manifest", "--repo", "--role", "--entry-path", "--json"],
+        defaultManifestRequired: false))
+    claims.append(auditFormFlagClaim(
+        id: "dev-docks-help-flags",
+        form: forms["dev-docks"],
+        expectedFlags: ["--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"],
+        defaultManifestRequired: false))
+    claims.append(auditFormFlagClaim(
+        id: "dev-gh-help-flags",
+        form: forms["dev-gh"],
+        expectedFlags: ["--repo", "--cwd", "--json", "--body-file", "--pr"],
+        defaultManifestRequired: false))
     return claims
 }
 
@@ -800,6 +1656,162 @@ private func printDevAuditText(_ payload: [String: Any]) {
     }
 }
 
+private func printDevCapabilitiesListText(_ payload: [String: Any]) {
+    let count = payload["count"] as? Int ?? 0
+    print("dev capabilities: \(count)")
+    if let manifest = payload["manifest"] as? String {
+        print("Manifest: \(manifest)")
+    }
+    for capability in payload["capabilities"] as? [[String: Any]] ?? [] {
+        let id = capability["id"] as? String ?? "unknown"
+        let label = capability["label"] as? String ?? id
+        let adapter = capability["adapter_kind"] as? String ?? "unknown"
+        let mutability = capability["mutability_class"] as? String ?? "unknown"
+        let raw = capability["raw_process"] as? Bool ?? false
+        print("- \(id) (\(label)): adapter=\(adapter) mutability=\(mutability) raw_process=\(raw)")
+    }
+}
+
+private func printDevCapabilityExplainText(_ payload: [String: Any]) {
+    guard let capability = payload["capability"] as? [String: Any] else {
+        print("dev capability: missing")
+        return
+    }
+    let id = capability["id"] as? String ?? "unknown"
+    let label = capability["label"] as? String ?? id
+    print("\(id) - \(label)")
+    if let summary = capability["summary"] as? String {
+        print(summary)
+    }
+    let adapter = capability["adapter"] as? [String: Any] ?? [:]
+    let mutability = capability["mutability"] as? [String: Any] ?? [:]
+    let execution = capability["execution"] as? [String: Any] ?? [:]
+    print("Adapter: \(adapter["kind"] as? String ?? "unknown")")
+    if let command = adapter["command"] as? [String], !command.isEmpty {
+        print("Command: \(command.joined(separator: " "))")
+    }
+    print("Mutability: \(mutability["class"] as? String ?? "unknown")")
+    print("Raw process: \(execution["raw_process"] as? Bool ?? false)")
+    print("Audit: \(execution["audit"] as? String ?? "unknown")")
+}
+
+private func printDevDocksListText(_ payload: [String: Any]) {
+    let count = payload["count"] as? Int ?? 0
+    print("dev docks: \(count)")
+    if let dockRoot = payload["dock_root"] as? String {
+        print("Dock root: \(dockRoot)")
+    }
+    for dock in payload["docks"] as? [[String: Any]] ?? [] {
+        let name = dock["name"] as? String ?? "unknown"
+        let role = dock["role"] as? String ?? "unknown"
+        let defaultEntryPath = dock["default_entry_path"] as? String ?? "unknown"
+        let classes = (dock["allowed_capability_classes"] as? [String] ?? []).joined(separator: ",")
+        print("- \(name): role=\(role) default_entry_path=\(defaultEntryPath) classes=\(classes)")
+    }
+}
+
+private func printDevDockExplainText(_ payload: [String: Any]) {
+    guard let profile = payload["profile"] as? [String: Any] else {
+        print("dev dock: missing")
+        return
+    }
+    let name = profile["name"] as? String ?? "unknown"
+    let role = profile["role"] as? String ?? "unknown"
+    print("\(name) - \(role)")
+    if let summary = profile["summary"] as? String {
+        print(summary)
+    }
+    print("Default entry path: \(profile["default_entry_path"] as? String ?? "unknown")")
+    print("Allowed entry paths: \((profile["allowed_entry_paths"] as? [String] ?? []).joined(separator: ", "))")
+    print("Allowed classes: \((profile["allowed_capability_classes"] as? [String] ?? []).joined(separator: ", "))")
+}
+
+private func printDevDockCapabilitiesText(_ payload: [String: Any]) {
+    let dock = payload["dock"] as? String ?? "unknown"
+    let activeEntryPath = payload["active_entry_path"] as? String ?? "unknown"
+    let count = payload["count"] as? Int ?? 0
+    print("dev dock capabilities: \(dock) entry_path=\(activeEntryPath) count=\(count)")
+    for capability in payload["capabilities"] as? [[String: Any]] ?? [] {
+        let id = capability["id"] as? String ?? "unknown"
+        let adapter = capability["adapter_kind"] as? String ?? "unknown"
+        let mutability = capability["mutability_class"] as? String ?? "unknown"
+        let raw = capability["raw_process"] as? Bool ?? false
+        print("- \(id): adapter=\(adapter) mutability=\(mutability) raw_process=\(raw)")
+    }
+}
+
+private func printDevGhContextText(_ payload: [String: Any]) {
+    let status = payload["status"] as? String ?? "unknown"
+    print("dev gh context: \(status)")
+    print("Authority: gh CLI")
+    print("Repo root: \(payload["repo_root"] as? String ?? "unknown")")
+    if let repository = payload["repository"] as? String {
+        print("Repository: \(repository)")
+    }
+    if let branch = payload["branch"] as? String {
+        print("Branch: \(branch)")
+    }
+    if let gh = payload["gh"] as? [String: Any] {
+        let available = gh["available"] as? Bool ?? false
+        let authenticated = gh["authenticated"] as? Bool ?? false
+        print("gh: available=\(available) authenticated=\(authenticated)")
+    }
+    if let currentPR = payload["current_pr"] as? [String: Any],
+       let number = currentPR["number"] {
+        print("Current PR: #\(number)")
+    }
+    if let dirty = payload["dirty"] as? [String: Any],
+       let count = dirty["count"] as? Int {
+        print("Dirty files: \(count)")
+    }
+}
+
+private func printDevGhCIText(_ payload: [String: Any]) {
+    let pr = payload["pr"] as? String ?? "unknown"
+    let checks = payload["checks"] as? [[String: Any]] ?? []
+    let failedLogs = payload["failed_logs"] as? [[String: Any]] ?? []
+    print("dev gh ci inspect: PR #\(pr)")
+    print("Checks: \(checks.count)")
+    for check in checks {
+        let name = check["name"] as? String ?? "unknown"
+        let state = check["state"] as? String ?? check["bucket"] as? String ?? "unknown"
+        print("- \(name): \(state)")
+    }
+    if !failedLogs.isEmpty {
+        print("Failed check evidence:")
+        for item in failedLogs {
+            let check = item["check"] as? [String: Any] ?? [:]
+            let name = check["name"] as? String ?? "unknown"
+            let source = item["source"] as? String ?? "unknown"
+            print("- \(name): \(source)")
+            if let stdout = item["stdout"] as? String, !stdout.isEmpty {
+                print(devGhTruncate(stdout.trimmingCharacters(in: .whitespacesAndNewlines), limit: 2000))
+            }
+            if let stderr = item["stderr"] as? String, !stderr.isEmpty {
+                print(devGhTruncate(stderr.trimmingCharacters(in: .whitespacesAndNewlines), limit: 2000))
+            }
+        }
+    }
+}
+
+private func printDevGhReviewCommentsText(_ payload: [String: Any]) {
+    let pr = payload["pr"] as? String ?? "unknown"
+    let count = payload["thread_count"] as? Int ?? 0
+    let unresolved = payload["unresolved_count"] as? Int ?? 0
+    print("dev gh review-comments: PR #\(pr)")
+    print("Threads: \(count), unresolved: \(unresolved)")
+    for thread in payload["threads"] as? [[String: Any]] ?? [] {
+        guard (thread["is_resolved"] as? Bool) == false else { continue }
+        let path = thread["path"] as? String ?? "unknown"
+        let line = thread["line"] ?? thread["start_line"] ?? "?"
+        let comments = thread["comments"] as? [[String: Any]] ?? []
+        let first = comments.first
+        let author = first?["author"] as? String ?? "unknown"
+        let body = devGhOneLine(first?["body"] as? String ?? "", limit: 140)
+        print("- \(path):\(line) @\(author) \(body)")
+    }
+}
+
 private func resolveChangedFiles(options: DevOptions, repoRoot: String) -> (files: [String], base: String?) {
     if !options.files.isEmpty {
         return (options.files, "explicit")
@@ -897,6 +1909,248 @@ private func runGit(_ args: [String], cwd: String) -> (status: Int32, stdout: St
     let stderr = String(data: errData, encoding: .utf8) ?? ""
     let lines = stdout.split(whereSeparator: \.isNewline).map(String.init)
     return (proc.terminationStatus, stdout, stderr, lines)
+}
+
+private func runGh(_ args: [String], cwd: String) -> ProcessOutput {
+    guard let gh = findExecutable("gh") else {
+        return ProcessOutput(exitCode: 127, stdout: "", stderr: "gh CLI not found in PATH\n")
+    }
+    return runProcessCapturingOutput(gh, arguments: args, cwd: cwd)
+}
+
+private func devGhRunAndExit(_ args: [String], cwd: String) -> Never {
+    let result = runGh(args, cwd: cwd)
+    devGhWriteProcessOutput(result)
+    exit(result.exitCode)
+}
+
+private func devGhWriteProcessOutput(_ result: ProcessOutput) {
+    if !result.stdout.isEmpty, let data = result.stdout.data(using: .utf8) {
+        FileHandle.standardOutput.write(data)
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private func devGhEmitCompositeErrorAndExit(command: [String], result: ProcessOutput, json: Bool) -> Never {
+    if json {
+        printDevJSON([
+            "status": "error",
+            "authority": "gh_cli",
+            "command": (["gh"] + command).joined(separator: " "),
+            "exit_code": Int(result.exitCode),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        ])
+    } else {
+        devGhWriteProcessOutput(result)
+    }
+    exit(result.exitCode)
+}
+
+private func findExecutable(_ name: String) -> String? {
+    let pathValue = ProcessInfo.processInfo.environment["PATH"] ?? ""
+    for dir in pathValue.split(separator: ":").map(String.init) {
+        let candidate = (dir as NSString).appendingPathComponent(name)
+        if FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+    }
+    return nil
+}
+
+private func devGhRepositoryFullName(options: DevGhOptions, repoRoot: String) -> String? {
+    if let repo = options.repo, !repo.isEmpty {
+        return repo
+    }
+    let remote = runGit(["remote", "get-url", "origin"], cwd: repoRoot)
+    if remote.status == 0,
+       let value = remote.stdoutLines.first,
+       let parsed = devGhParseGitHubRemote(value) {
+        return parsed
+    }
+    if let info = devGhRepositoryInfo(repoFullName: nil, repoRoot: repoRoot),
+       let nameWithOwner = info["nameWithOwner"] as? String {
+        return nameWithOwner
+    }
+    return nil
+}
+
+private func devGhRepositoryInfo(repoFullName: String?, repoRoot: String) -> [String: Any]? {
+    var args = ["repo", "view"]
+    if let repoFullName, !repoFullName.isEmpty {
+        args.append(repoFullName)
+    }
+    args += ["--json", "nameWithOwner,defaultBranchRef"]
+    let result = runGh(args, cwd: repoRoot)
+    guard result.exitCode == 0 else { return nil }
+    return parseDevGhJSON(result.stdout) as? [String: Any]
+}
+
+private func devGhCurrentPRInfo(repoFullName: String?, repoRoot: String) -> [String: Any]? {
+    var args = ["pr", "view"]
+    devGhAppendRepo(&args, repoFullName: repoFullName)
+    args += ["--json", "number,url,headRefName,baseRefName,state"]
+    let result = runGh(args, cwd: repoRoot)
+    guard result.exitCode == 0 else { return nil }
+    return parseDevGhJSON(result.stdout) as? [String: Any]
+}
+
+private func devGhResolvePRNumber(_ requested: String?, repoFullName: String?, repoRoot: String, json: Bool = false) -> String {
+    if let requested, !requested.isEmpty {
+        return requested
+    }
+    var args = ["pr", "view"]
+    devGhAppendRepo(&args, repoFullName: repoFullName)
+    args += ["--json", "number,url"]
+    let result = runGh(args, cwd: repoRoot)
+    guard result.exitCode == 0 else {
+        devGhEmitCompositeErrorAndExit(command: args, result: result, json: json)
+    }
+    guard let payload = parseDevGhJSON(result.stdout) as? [String: Any],
+          let number = payload["number"] else {
+        exitError("Could not infer current PR number from gh pr view", code: "MISSING_PR")
+    }
+    return "\(number)"
+}
+
+private func devGhAppendRepo(_ args: inout [String], repoFullName: String?) {
+    if let repoFullName, !repoFullName.isEmpty {
+        args += ["--repo", repoFullName]
+    }
+}
+
+private func parseDevGhJSON(_ text: String) -> Any? {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else {
+        return nil
+    }
+    return try? JSONSerialization.jsonObject(with: data, options: [])
+}
+
+private func devGhParseGitHubRemote(_ remote: String) -> String? {
+    var value = remote.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.hasSuffix(".git") {
+        value = String(value.dropLast(4))
+    }
+    if value.hasPrefix("git@github.com:") {
+        let tail = String(value.dropFirst("git@github.com:".count))
+        return devGhNormalizeRepoTail(tail)
+    }
+    if let range = value.range(of: "github.com/") {
+        let tail = String(value[range.upperBound...])
+        return devGhNormalizeRepoTail(tail)
+    }
+    return nil
+}
+
+private func devGhNormalizeRepoTail(_ tail: String) -> String? {
+    var clean = tail
+    if let query = clean.firstIndex(of: "?") {
+        clean = String(clean[..<query])
+    }
+    if let fragment = clean.firstIndex(of: "#") {
+        clean = String(clean[..<fragment])
+    }
+    let parts = clean.split(separator: "/").map(String.init)
+    guard parts.count >= 2 else { return nil }
+    return "\(parts[0])/\(parts[1])"
+}
+
+private func devGhSplitRepoFullName(_ value: String) -> (owner: String, name: String)? {
+    let parts = value.split(separator: "/").map(String.init)
+    guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+        return nil
+    }
+    return (parts[0], parts[1])
+}
+
+private func devGhResolveUserPath(_ value: String) -> String {
+    let expanded = NSString(string: value).expandingTildeInPath
+    if expanded.hasPrefix("/") {
+        return NSString(string: expanded).standardizingPath
+    }
+    return NSString(string: (FileManager.default.currentDirectoryPath as NSString).appendingPathComponent(expanded)).standardizingPath
+}
+
+private func devGhNullable(_ value: Any?) -> Any {
+    value ?? NSNull()
+}
+
+private func devString(_ value: Any?) -> String? {
+    value as? String
+}
+
+private func devStringArray(_ value: Any?) -> [String] {
+    value as? [String] ?? []
+}
+
+private func devGhSanitizeAuthStatus(_ value: String) -> String {
+    value
+        .split(whereSeparator: \.isNewline)
+        .map(String.init)
+        .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("- Token") }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func devGhCheckFailed(_ check: [String: Any]) -> Bool {
+    let state = (check["state"] as? String ?? "").lowercased()
+    let bucket = (check["bucket"] as? String ?? "").lowercased()
+    let failed = ["fail", "failure", "failed", "cancelled", "timed_out", "action_required"]
+    return failed.contains(state) || failed.contains(bucket)
+}
+
+private func devGhActionsRunID(from link: String) -> String? {
+    guard let range = link.range(of: #"/actions/runs/[0-9]+"#, options: .regularExpression) else {
+        return nil
+    }
+    return link[range].split(separator: "/").last.map(String.init)
+}
+
+private func devGhFlattenReviewThreads(_ raw: [String: Any]) -> [[String: Any]] {
+    let data = raw["data"] as? [String: Any] ?? [:]
+    let repository = data["repository"] as? [String: Any] ?? [:]
+    let pullRequest = repository["pullRequest"] as? [String: Any] ?? [:]
+    let reviewThreads = pullRequest["reviewThreads"] as? [String: Any] ?? [:]
+    let nodes = reviewThreads["nodes"] as? [[String: Any]] ?? []
+    return nodes.map { node in
+        let commentsNode = node["comments"] as? [String: Any] ?? [:]
+        let comments = (commentsNode["nodes"] as? [[String: Any]] ?? []).map { comment -> [String: Any] in
+            let author = comment["author"] as? [String: Any] ?? [:]
+            return [
+                "id": devGhNullable(comment["id"]),
+                "url": devGhNullable(comment["url"]),
+                "body": devGhNullable(comment["body"]),
+                "created_at": devGhNullable(comment["createdAt"]),
+                "author": devGhNullable(author["login"]),
+            ]
+        }
+        return [
+            "is_resolved": node["isResolved"] as? Bool ?? false,
+            "is_outdated": node["isOutdated"] as? Bool ?? false,
+            "path": devGhNullable(node["path"]),
+            "line": devGhNullable(node["line"]),
+            "start_line": devGhNullable(node["startLine"]),
+            "comments": comments,
+        ]
+    }
+}
+
+private func devGhOneLine(_ value: String, limit: Int) -> String {
+    let collapsed = value
+        .replacingOccurrences(of: "\n", with: " ")
+        .replacingOccurrences(of: "\t", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return devGhTruncate(collapsed, limit: limit)
+}
+
+private func devGhTruncate(_ value: String, limit: Int) -> String {
+    if value.count <= limit {
+        return value
+    }
+    return String(value.prefix(max(0, limit - 3))) + "..."
 }
 
 private func splitNul(_ value: String) -> [String] {

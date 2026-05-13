@@ -176,6 +176,72 @@
       "verification": []
     },
     {
+      "id": "agent-capability-manifest",
+      "summary": "Agent capability manifest schema, canonical manifest, or tests changed.",
+      "patterns": [
+        "docs/dev/agent-capabilities.json",
+        "shared/schemas/aos-agent-capability-manifest-v0.md",
+        "shared/schemas/aos-agent-capability-manifest-v0.schema.json",
+        "shared/schemas/fixtures/aos-agent-capability-manifest-v0/**",
+        "tests/schemas/aos-agent-capability-manifest-v0.test.mjs"
+      ],
+      "classes": [
+        "capability_manifest",
+        "schema"
+      ],
+      "actions": [
+        "schema_test",
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "agent-capability-schema-test",
+          "command": "node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs",
+          "reason": "Validate the capability manifest schema, canonical manifest, and fixtures."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "dock-profiles",
+      "summary": "Dock profile metadata, schema, docs, or tests changed.",
+      "patterns": [
+        ".docks/*/dock.json",
+        ".docks/dock-defaults.json",
+        ".docks/README.md",
+        ".docks/AGENTS.md",
+        "shared/schemas/aos-dock-profile-v0.md",
+        "shared/schemas/aos-dock-profile-v0.schema.json",
+        "shared/schemas/fixtures/aos-dock-profile-v0/**",
+        "tests/schemas/aos-dock-profile-v0.test.mjs"
+      ],
+      "classes": [
+        "dock_profile",
+        "schema"
+      ],
+      "actions": [
+        "schema_test",
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "dock-profile-schema-test",
+          "command": "node --test tests/schemas/aos-dock-profile-v0.test.mjs",
+          "reason": "Validate dock profiles, fixtures, and capability-envelope semantics."
+        },
+        {
+          "id": "dev-workflow-router-test",
+          "command": "bash tests/dev-workflow-router.sh",
+          "reason": "Verify dock profile discovery remains exposed through the dev control surface."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "package-gateway",
       "summary": "Gateway package TypeScript changed.",
       "patterns": [

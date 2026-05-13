@@ -1141,7 +1141,64 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
             output: outJSONFlag,
-            examples: ["aos dev audit --json"])
+            examples: ["aos dev audit --json"]),
+        InvocationForm(id: "dev-capabilities", usage: "aos dev capabilities <list|explain> [capability-id] [--manifest <path>] [--repo <path>] [--role <role>] [--entry-path <path>] [--json]",
+            args: [
+                pos("action", "Capability discovery action: list or explain"),
+                pos("capability-id", "Capability id for explain", required: false),
+                flag("manifest", "--manifest", "Agent capability manifest path", default: .string("docs/dev/agent-capabilities.json")),
+                flag("repo", "--repo", "Repository root path"),
+                flag("role", "--role", "Filter list output by dock role"),
+                flag("entry-path", "--entry-path", "Filter list output by entry path"),
+                flag("json", "--json", "Emit machine-readable capability metadata", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev capabilities list --json",
+                "aos dev capabilities list --role foreman --entry-path aos_developer --json",
+                "aos dev capabilities explain dev.github.issue_comment --json"
+            ]),
+        InvocationForm(id: "dev-docks", usage: "aos dev docks <list|explain|capabilities> [dock] [--dock-root <path>] [--capabilities-manifest <path>] [--entry-path <path>] [--repo <path>] [--json]",
+            args: [
+                pos("action", "Dock profile discovery action: list, explain, or capabilities"),
+                pos("dock", "Dock name for explain or capabilities", required: false),
+                flag("dock-root", "--dock-root", "Dock root path", default: .string(".docks")),
+                flag("capabilities-manifest", "--capabilities-manifest", "Agent capability manifest path", default: .string("docs/dev/agent-capabilities.json")),
+                flag("entry-path", "--entry-path", "Resolve dock capabilities for a non-default entry path"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("json", "--json", "Emit machine-readable dock profile metadata", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev docks list --json",
+                "aos dev docks explain foreman --json",
+                "aos dev docks capabilities gdi --json",
+                "aos dev docks capabilities operator --entry-path aos_developer --json"
+            ]),
+        InvocationForm(id: "dev-gh", usage: "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n]",
+            args: [
+                pos("group", "GitHub workflow group: context, issue, pr, ci, or review-comments"),
+                flag("repo", "--repo", "GitHub repository in owner/name form"),
+                flag("cwd", "--cwd", "Local checkout path used for git context and gh execution"),
+                flag("json", "--json", "Emit machine-readable output where the selected operation supports it", type: .bool),
+                flag("body-file", "--body-file", "Markdown file used for issue or PR comment writes"),
+                flag("pr", "--pr", "PR number for CI inspection or review-thread reads"),
+                pos("arg", "Subcommand-specific argument", required: false, variadic: true)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev gh context --json",
+                "aos dev gh issue view 298 --json",
+                "aos dev gh issue comment 298 --body-file /tmp/comment.md",
+                "aos dev gh ci inspect --pr 298 --json",
+                "aos dev gh review-comments --pr 298 --json"
+            ])
     ]))
 
     // ── status ────────────────────────────────────────────
