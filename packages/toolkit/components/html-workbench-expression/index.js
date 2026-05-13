@@ -111,6 +111,65 @@ function resolveTargetElement(document_, target = {}) {
   return null
 }
 
+export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
+  document_ = globalThis.document,
+  contentViewport = null,
+  scheduleRefresh = null,
+  now = new Date().toISOString(),
+} = {}) {
+  const candidateIds = [target.subject_id, target.id, target.target_id, target.semantic_target_id]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+  const metadataTarget = state.metadata?.semantic_targets?.find?.((item) => {
+    const id = targetId(item)
+    return id && candidateIds.includes(String(id))
+  }) || target.source_tree_node_metadata || target
+  const element = resolveTargetElement(document_, metadataTarget)
+  if (!element) {
+    return {
+      status: 'target_absent',
+      adapter_id: 'aos-toolkit-semantic-target',
+      subject_id: target.subject_id || target.id || targetId(metadataTarget),
+      blocker_reason: 'semantic_target_not_found',
+      completed_at: now,
+    }
+  }
+  const before = rectPayload(element.getBoundingClientRect())
+  const viewport = contentViewport || rectPayload(document_?.querySelector?.('.html-expression-content-wrap')?.getBoundingClientRect?.())
+  const alreadyVisible = before && viewport
+    ? before.x + before.w >= viewport.x && before.y + before.h >= viewport.y && before.x <= viewport.x + viewport.w && before.y <= viewport.y + viewport.h
+    : Boolean(before)
+  if (!alreadyVisible && typeof element.scrollIntoView === 'function') {
+    element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
+  }
+  if (typeof element.focus === 'function' && (element.tabIndex >= 0 || /^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/i.test(element.tagName))) {
+    element.focus({ preventScroll: true })
+  }
+  const rect = rectPayload(element.getBoundingClientRect())
+  const nextViewport = contentViewport || rectPayload(document_?.querySelector?.('.html-expression-content-wrap')?.getBoundingClientRect?.())
+  const visible = rect && nextViewport
+    ? rect.x + rect.w >= nextViewport.x && rect.y + rect.h >= nextViewport.y && rect.x <= nextViewport.x + nextViewport.w && rect.y <= nextViewport.y + nextViewport.h
+    : Boolean(rect)
+  scheduleRefresh?.()
+  return {
+    status: alreadyVisible ? 'already_visible' : (visible ? 'revealed' : 'blocked'),
+    adapter_id: 'aos-toolkit-semantic-target',
+    subject_id: target.subject_id || target.id || targetId(metadataTarget),
+    blocker_reason: visible ? '' : 'scroll_into_view_did_not_make_target_visible',
+    completed_at: now,
+    projection: {
+      status: visible ? 'visible' : 'clipped',
+      current_render_status: visible ? 'visible' : 'clipped',
+      can_reveal: true,
+      can_project_display_overlay: Boolean(visible && rect),
+      display_space_rect: visible ? rect : null,
+      visible_display_rect: visible ? rect : null,
+      local_space_rect: rect,
+      refreshed_at: now,
+    },
+  }
+}
+
 export function buildHtmlWorkbenchSemanticTargetsPayload(state, {
   document_ = globalThis.document,
   viewport = null,
@@ -280,42 +339,11 @@ export default function HtmlWorkbenchExpression(options = {}) {
   }
 
   function revealTarget(target = {}) {
-    const now = new Date().toISOString()
-    const metadataTarget = state.metadata?.semantic_targets?.find?.((item) => {
-      const id = targetId(item)
-      return id && [target.subject_id, target.id, target.target_id].map(String).includes(String(id))
-    }) || target.source_tree_node_metadata || target
-    const element = resolveTargetElement(document, metadataTarget)
-    if (!element) return { status: 'target_absent', blocker_reason: 'semantic_target_not_found', completed_at: now }
-    const before = rectPayload(element.getBoundingClientRect())
-    const viewport = rectPayload(dom.content?.parentElement?.getBoundingClientRect?.())
-    const alreadyVisible = before && viewport
-      ? before.x + before.w >= viewport.x && before.y + before.h >= viewport.y && before.x <= viewport.x + viewport.w && before.y <= viewport.y + viewport.h
-      : Boolean(before)
-    if (!alreadyVisible && typeof element.scrollIntoView === 'function') {
-      element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' })
-    }
-    if (typeof element.focus === 'function' && (element.tabIndex >= 0 || /^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/i.test(element.tagName))) {
-      element.focus({ preventScroll: true })
-    }
-    const rect = rectPayload(element.getBoundingClientRect())
-    const nextViewport = rectPayload(dom.content?.parentElement?.getBoundingClientRect?.())
-    const visible = rect && nextViewport
-      ? rect.x + rect.w >= nextViewport.x && rect.y + rect.h >= nextViewport.y && rect.x <= nextViewport.x + nextViewport.w && rect.y <= nextViewport.y + nextViewport.h
-      : Boolean(rect)
-    scheduleSemanticTargetsPublish()
-    return {
-      status: alreadyVisible ? 'already_visible' : (visible ? 'revealed' : 'blocked'),
-      blocker_reason: visible ? '' : 'scroll_into_view_did_not_make_target_visible',
-      completed_at: now,
-      projection: {
-        status: visible ? 'visible' : 'clipped',
-        can_reveal: true,
-        display_space_rect: visible ? rect : null,
-        local_space_rect: rect,
-        refreshed_at: now,
-      },
-    }
+    return revealHtmlWorkbenchSemanticTarget(state, target, {
+      document_: document,
+      contentViewport: rectPayload(dom.content?.parentElement?.getBoundingClientRect?.()),
+      scheduleRefresh: scheduleSemanticTargetsPublish,
+    })
   }
 
   function onMessage(message = {}) {

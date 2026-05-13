@@ -16,6 +16,7 @@ import {
   default as HtmlWorkbenchExpression,
   htmlWorkbenchExpressionSnapshot,
   openHtmlWorkbenchExpression,
+  revealHtmlWorkbenchSemanticTarget,
 } from '../../packages/toolkit/components/html-workbench-expression/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -238,6 +239,66 @@ test('HTML expression surface keeps offscreen semantic targets revealable withou
   assert.equal(payload.semantic_targets[0].current_render_status, 'offscreen_scrollable');
   assert.equal(payload.semantic_targets[0].can_reveal, true);
   assert.equal(payload.semantic_targets[0].display_space_rect, null);
+});
+
+test('HTML expression reveal hook scrolls an offscreen semantic target and returns refreshed visible projection', () => {
+  const state = createHtmlWorkbenchExpressionState({
+    metadata: {
+      expression_id: 'sample-expression',
+      semantic_targets: [{
+        target_id: 'suggested-verification',
+        data_aos_ref: 'html-workbench-expression:suggested-verification',
+        selector: '[data-semantic-target-id="suggested-verification"]',
+        reveal_eligible: true,
+      }],
+    },
+  });
+  let refreshed = false;
+  const targetElement = {
+    tagName: 'SECTION',
+    tabIndex: -1,
+    rect: { x: 20, y: 900, width: 300, height: 60 },
+    getBoundingClientRect() {
+      return this.rect;
+    },
+    scrollIntoView() {
+      this.rect = { x: 20, y: 90, width: 300, height: 60 };
+    },
+  };
+  const document_ = {
+    querySelector(selector) {
+      if (selector === '.html-expression-content-wrap') return {
+        getBoundingClientRect: () => ({ x: 0, y: 0, width: 800, height: 200 }),
+      };
+      if (selector === '[data-semantic-target-id="suggested-verification"]') return targetElement;
+      return null;
+    },
+  };
+
+  const result = revealHtmlWorkbenchSemanticTarget(state, {
+    subject_id: 'suggested-verification',
+    source_tree_node_metadata: {
+      selector: '[data-semantic-target-id="suggested-verification"]',
+    },
+  }, {
+    document_,
+    now: '2026-05-10T00:00:00.000Z',
+    scheduleRefresh: () => { refreshed = true; },
+  });
+
+  assert.equal(result.status, 'revealed');
+  assert.equal(result.adapter_id, 'aos-toolkit-semantic-target');
+  assert.equal(result.projection.current_render_status, 'visible');
+  assert.equal(result.projection.can_project_display_overlay, true);
+  assert.deepEqual(result.projection.display_space_rect, { x: 20, y: 90, w: 300, h: 60 });
+  assert.equal(refreshed, true);
+
+  const refreshedPayload = buildHtmlWorkbenchSemanticTargetsPayload(state, {
+    document_,
+    now: '2026-05-10T00:00:01.000Z',
+  });
+  assert.equal(refreshedPayload.semantic_targets[0].current_render_status, 'visible');
+  assert.deepEqual(refreshedPayload.semantic_targets[0].display_space_rect, { x: 20, y: 90, w: 300, h: 60 });
 });
 
 test('HTML expression surface replays current semantic targets when Surface Inspector attaches late', () => {

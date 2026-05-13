@@ -171,10 +171,28 @@ function browserDomRawTargetFromPin(pin = {}) {
 }
 
 export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
+  const sourceMetadata = pin.source_tree_node_metadata && typeof pin.source_tree_node_metadata === 'object'
+    ? pin.source_tree_node_metadata
+    : {}
   const fallback = {
+    adapter_id: pin.adapter_id,
     subject_id: pin.subject_id,
-    do_target: pin.source_tree_node_metadata?.do_target,
-    source_tree_node_metadata: pin.source_tree_node_metadata,
+    subject_path: Array.isArray(pin.subject_path) ? [...pin.subject_path] : [],
+    root_id: pin.root_id,
+    root_path: Array.isArray(pin.projection?.root_path) ? [...pin.projection.root_path] : [],
+    owner_canvas_id: pin.root_id || sourceMetadata.canvas_id || sourceMetadata.surface,
+    canvas_id: sourceMetadata.canvas_id || pin.root_id,
+    target_id: sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
+    semantic_target_id: sourceMetadata.semantic_target_id || sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
+    data_aos_ref: sourceMetadata.data_aos_ref || sourceMetadata.aos_ref,
+    aos_ref: sourceMetadata.aos_ref || sourceMetadata.data_aos_ref,
+    do_target: sourceMetadata.do_target,
+    selector: sourceMetadata.selector,
+    selector_candidates: Array.isArray(sourceMetadata.selector_candidates) ? [...sourceMetadata.selector_candidates] : [],
+    source_path: sourceMetadata.source_path,
+    source_url: sourceMetadata.source_url,
+    source_tree_node_metadata: sourceMetadata,
+    prior_projection: pin.projection,
   }
   if (pin.adapter_id !== BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID) return fallback
   const rawTarget = browserDomRawTargetFromPin(pin)
@@ -1614,6 +1632,9 @@ export default function CanvasInspector() {
         ...result,
         requested_at: requestedAt,
       })
+      if (result.status === 'revealed' || result.status === 'already_visible') {
+        requestSemanticTargetsForLiveCanvases('surface_inspector_reveal_refresh', { force: true })
+      }
     } catch (error) {
       annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
         status: 'adapter_error',
