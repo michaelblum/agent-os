@@ -3,28 +3,22 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { NodeSubprocessEngine } from '../src/engine/node-subprocess.js';
 import { EngineRouter } from '../src/engine/router.js';
-import { CoordinationDB } from '../src/db.js';
 import { startSDKSocket } from '../src/sdk-socket.js';
 import { unlinkSync } from 'node:fs';
 
-const TEST_DB = '/tmp/aos-gw-engine-test.db';
 const TEST_SOCK = '/tmp/aos-gw-engine-test.sock';
 
 describe('NodeSubprocessEngine', () => {
-  let db: CoordinationDB;
   let sdkServer: ReturnType<typeof startSDKSocket>;
   let engine: NodeSubprocessEngine;
 
   before(() => {
-    db = new CoordinationDB(TEST_DB);
-    sdkServer = startSDKSocket({ socketPath: TEST_SOCK, db });
+    sdkServer = startSDKSocket({ socketPath: TEST_SOCK });
     engine = new NodeSubprocessEngine();
   });
 
   after(() => {
     sdkServer.close();
-    db.close();
-    try { unlinkSync(TEST_DB); } catch {}
     try { unlinkSync(TEST_SOCK); } catch {}
   });
 
@@ -73,19 +67,17 @@ describe('NodeSubprocessEngine', () => {
     assert.equal(r.result, 42);
   });
 
-  it('accesses coordination via SDK', async () => {
+  it('does not expose gateway-local coordination helpers through the SDK', async () => {
     const r = await engine.execute({
       script: `
-        await aos.coordination.setState("test-key", { from: "script" }, { mode: "set" });
-        const entries = await aos.coordination.getState("test-key");
-        return entries[0]?.value;
+        return Object.prototype.hasOwnProperty.call(aos, "coordination");
       `,
       params: {},
-      intent: 'coordination',
+      intent: 'automation',
       timeout: 5000,
       context: { gatewaySocket: TEST_SOCK, sessionId: 'test' },
     });
-    assert.deepEqual(r.result, { from: 'script' });
+    assert.equal(r.result, false);
   });
 });
 

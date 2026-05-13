@@ -13,9 +13,7 @@ function seedShared(stateDir: string) {
   const db = new Database(join(stateDir, 'gateway.db'));
   db.pragma('journal_mode = WAL');
   db.exec(`
-    CREATE TABLE sessions (id TEXT PRIMARY KEY);
-    CREATE TABLE state (key TEXT PRIMARY KEY, owner TEXT, expires_at INTEGER);
-    CREATE TABLE messages (id TEXT PRIMARY KEY);
+    CREATE TABLE state (key TEXT PRIMARY KEY, value TEXT, version INTEGER, updated_at INTEGER);
     CREATE TABLE integration_jobs (id TEXT PRIMARY KEY);
   `);
   db.close();

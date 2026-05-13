@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CoordinationDB } from './db.js';
+import { GatewayStore } from './db.js';
 import { loadGatewayEnv } from './env.js';
 import { IntegrationBroker } from './integrations/broker.js';
 import {
@@ -54,7 +54,7 @@ try {
   process.exit(1);
 }
 
-const db = new CoordinationDB(paths.dbPath);
+const db = new GatewayStore(paths.dbPath);
 const broker = new IntegrationBroker({
   db,
   repoRoot,
