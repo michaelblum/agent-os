@@ -7,6 +7,7 @@ import {
   buildAnnotationActionControlCanvasRecords,
   buildAnnotationHitLayerFrame,
   buildAnnotationNativeHitRegions,
+  buildAnnotationOverlayEvalScript,
   buildAnnotationScopedHitRegions,
   buildRevealPayloadForSurfaceInspectorPin,
   buildSemanticTargetsRequestMessages,
@@ -119,6 +120,65 @@ function createRevealFixtureDocument() {
   main.append(hero);
   body.append(offscreen);
   return { doc, hero, offscreen };
+}
+
+class OverlayFixtureElement {
+  constructor(tagName) {
+    this.tagName = tagName.toUpperCase();
+    this.children = [];
+    this.attrs = new Map();
+    this.style = { cssText: '' };
+    this.parentElement = null;
+    this.textContent = '';
+    this.title = '';
+    this.id = '';
+  }
+
+  setAttribute(name, value) {
+    this.attrs.set(name, String(value));
+  }
+
+  getAttribute(name) {
+    return this.attrs.get(name) ?? null;
+  }
+
+  appendChild(child) {
+    child.parentElement = this;
+    this.children.push(child);
+    return child;
+  }
+
+  replaceChildren(...children) {
+    this.children = [];
+    for (const child of children) this.appendChild(child);
+  }
+
+  remove() {
+    if (!this.parentElement) return;
+    this.parentElement.children = this.parentElement.children.filter((child) => child !== this);
+    this.parentElement = null;
+  }
+}
+
+function createOverlayFixtureDocument() {
+  const body = new OverlayFixtureElement('body');
+  const doc = {
+    body,
+    documentElement: body,
+    createElement: (tagName) => new OverlayFixtureElement(tagName),
+    getElementById: (id) => {
+      const visit = (node) => {
+        if (node.id === id) return node;
+        for (const child of node.children) {
+          const found = visit(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      return visit(body);
+    },
+  };
+  return doc;
 }
 
 const displays = [
@@ -484,7 +544,8 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /syncControlledAnnotationDisplayOverlays/);
   assert.match(source, /annotationOverlaySignature/);
   assert.match(source, /annotationOverlaySignatures\.get\(canvas\.id\) === signature/);
-  assert.match(source, /activeCanvasIds/);
+  assert.match(source, /surfaceInspectorAnnotationStateToSession/);
+  assert.match(source, /buildAnnotationOverlayRenderPlan/);
   assert.match(source, /active-edge/);
   assert.doesNotMatch(source, /textContent = icon/);
   assert.doesNotMatch(source, /makeButton/);
@@ -498,6 +559,44 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(styles, /\.annotation-projection-state/);
   assert.match(styles, /\.annotation-row\.state-absent/);
   assert.doesNotMatch(source, /semantic-target-row/);
+});
+
+test('annotation overlay eval script places only live rect-backed frames in canvas-local coordinates', () => {
+  const doc = createOverlayFixtureDocument();
+  const script = buildAnnotationOverlayEvalScript({
+    overlay_frame: { x: 100, y: 200, width: 300, height: 180 },
+    committed_frames: [
+      {
+        layer: 'committed',
+        status: 'live',
+        rect: { x: 112, y: 224, width: 80, height: 44 },
+        opacity: 0.75,
+        projection: { coordinate_space: 'native_display' },
+      },
+      {
+        layer: 'committed',
+        status: 'stale',
+        rect: null,
+        evidence_rect: { x: 10, y: 20, width: 30, height: 40 },
+        reason: 'projection_outdated',
+      },
+    ],
+    preview_frames: [],
+    hover_candidate: null,
+    comment_chips: [],
+  });
+
+  const result = Function('document', 'innerWidth', 'innerHeight', `return ${script}`)(doc, 300, 180);
+  assert.equal(result, true);
+  assert.equal(doc.body.children.length, 1);
+  const overlay = doc.body.children[0];
+  assert.equal(overlay.children.length, 1);
+  const frameStyle = overlay.children[0].style.cssText;
+  assert.match(frameStyle, /left:12px/);
+  assert.match(frameStyle, /top:24px/);
+  assert.match(frameStyle, /width:80px/);
+  assert.match(frameStyle, /height:44px/);
+  assert.doesNotMatch(frameStyle, /inset:0/);
 });
 
 test('Surface Inspector annotation clear removes only annotation runtime canvases', () => {

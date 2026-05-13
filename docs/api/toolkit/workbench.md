@@ -103,6 +103,73 @@ Subject descriptors are included in lock-in/save handoff payloads so agents,
 apps, and future workbench shells can reason about different editors using one
 vocabulary.
 
+### Annotation Session V0
+
+`packages/toolkit/workbench/annotation-session.js` provides the neutral
+display-first in-memory Annotation Mode session model. It is shared toolkit
+state for future display overlays, Surface Inspector support views, and Sigil
+reticle entry; it is not a persistent annotation database.
+
+Sessions use schema `aos_annotation_session` version `0.1.0` and carry
+`active`, `entry_source`, `root`, `committed_scope_stack`,
+`preview_scope_stack`, `hover_candidate`, `anchors`, `snapshot_count`, and
+`updated_at`. Subject addresses are authoritative. Projection records are copied
+only as current evidence, so absent or stale subjects use `absent` or `stale`
+anchor status rather than preserving old overlay rectangles as truth.
+
+Frames are represented as anchors whose `comment_text` is an empty string.
+Adding comment text updates the anchor at the same subject address or creates a
+new anchor with text. Hover candidates update preview state only, while
+committing preview creates or updates anchors for the selected scope chain.
+Clearing or exiting resets live session state and preserves `snapshot_count`;
+snapshots remain explicit point-in-time artifacts.
+
+The display-first opacity helper is:
+
+```js
+import { opacityForDepth } from '../workbench/annotation-session.js'
+```
+
+`opacityForDepth(index, count, floor = 0.75)` returns `1` for the current or
+only frame, `0.75` for the outer/root frame when ancestry exists, and evenly
+interpolates intermediate frames between those values.
+
+### Annotation Overlay Renderer V0
+
+`packages/toolkit/workbench/annotation-overlay-renderer.js` converts an
+`aos_annotation_session` into an adapter-neutral display overlay render plan.
+The renderer is pure toolkit policy: it does not discover AX, DOM, CDP, or
+canvas state, and it does not create overlay canvases. Callers provide the
+current session and projection evidence; the renderer groups frames and chips by
+target display/root/canvas and emits stable signatures for idempotent updates.
+
+Render plans use schema `aos_annotation_overlay_render_plan` version `0.1.0`.
+Each group carries `target`, `committed_frames`, `preview_frames`,
+`hover_candidate`, `comment_chips`, optional `active_comment_input`, and
+explicit `frame_states` for stale, absent, blocked, or non-projectable records.
+Each group also carries its own `signature` so overlay consumers can update one
+target without treating the whole plan as changed.
+Live frame rectangles require current visible projection evidence. Last-known
+rectangles are retained only as `evidence_rect` on non-live states and must not
+be treated as live overlay truth.
+
+Use:
+
+```js
+import {
+  buildAnnotationOverlayRenderPlan,
+  surfaceInspectorAnnotationStateToSession,
+} from '../workbench/annotation-overlay-renderer.js'
+```
+
+`buildAnnotationOverlayRenderPlan(session)` applies the display-first opacity
+ladder from `annotation-session.js`, keeps committed, preview, and hover frames
+distinguishable, renders commentless anchors as frames, and emits comment chips
+only for anchors with non-empty `comment_text`.
+`surfaceInspectorAnnotationStateToSession(state)` is a compatibility adapter for
+the current Surface Inspector support path; future entry paths should produce
+the shared session model directly.
+
 ### HTML Workbench Expression V0
 
 `packages/toolkit/workbench/html-workbench-expression.js` builds the V0 rich
