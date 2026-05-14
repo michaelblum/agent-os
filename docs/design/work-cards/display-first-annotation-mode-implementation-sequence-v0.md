@@ -123,7 +123,21 @@ stale/absent updates, and AOS semantic target refresh. During motion, keep the
 hot path cheap and mark projection stale rather than rediscovering on every
 mousemove.
 
-### 6. Snapshot Continuity
+### 6. Regression Repair
+
+Work card:
+`docs/design/work-cards/display-first-annotation-regression-repair-v0.md`
+
+Repair the post-reprojection regressions before continuing:
+
+- minimap main-display lines are spatially wrong;
+- visible pin/lightbulb frame affordance still leaks into the UX;
+- Sigil radial menu has frame drops/jank;
+- annotation reticle fast-travel acquisition is too broad and must require a
+  direct pass over the reticle item followed by an exit through the overlapping
+  outer-radius margin.
+
+### 7. Snapshot Continuity
 
 Integrate explicit snapshots with the shared session model. Snapshot artifacts
 remain point-in-time evidence and must not become a hidden persistent live
