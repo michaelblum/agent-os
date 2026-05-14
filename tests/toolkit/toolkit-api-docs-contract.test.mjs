@@ -18,6 +18,7 @@ function lineCount(doc) {
 
 const scopedFiles = [
   'docs/api/toolkit/runtime.md',
+  'docs/api/toolkit/controls.md',
   'docs/api/toolkit/panel-window.md',
   'docs/api/toolkit/workbench.md',
   'docs/api/toolkit/components.md',
@@ -41,6 +42,7 @@ test('toolkit API index is an overview with links to scoped references', async (
     'createStageAffordance',
     'createPanelWindowController',
     'mountChrome',
+    'controls API',
     'DesktopWorld stage/surface runtime',
     'input regions/events',
     'workbench contracts',
@@ -61,8 +63,15 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/runtime.md'], /input_region\.event/);
   assert.match(docs['docs/api/toolkit/runtime.md'], /subscribe\(events, options\?\)/);
 
+  assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);
+  assert.match(docs['docs/api/toolkit/controls.md'], /createButtonGroup/);
+  assert.match(docs['docs/api/toolkit/controls.md'], /createTextField/);
+  assert.match(docs['docs/api/toolkit/controls.md'], /createTimerBar/);
+  assert.match(docs['docs/api/toolkit/controls.md'], /wireNumberFieldControls/);
+
   assert.match(docs['docs/api/toolkit/panel-window.md'], /createStageAffordance/);
   assert.match(docs['docs/api/toolkit/panel-window.md'], /mountChrome/);
+  assert.match(docs['docs/api/toolkit/panel-window.md'], /createForm/);
   assert.match(docs['docs/api/toolkit/panel-window.md'], /createPanelWindowController/);
   assert.match(docs['docs/api/toolkit/panel-window.md'], /createSplitPane/);
   assert.match(docs['docs/api/toolkit/panel-window.md'], /Tabs\(factoriesOrContents, options\?\)/);

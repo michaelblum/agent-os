@@ -36,6 +36,7 @@ Public entrypoint:
 
 ```js
 import {
+  createForm,
   createDragController,
   createPanelWindowController,
   createPanelTransferController,
@@ -54,6 +55,28 @@ import {
   wireResize,
 } from 'aos://toolkit/panel/index.js'
 ```
+
+### `createForm(container, fields, options?)`
+
+Renders a schema-driven form into a panel container and returns a controller:
+`{ el, getValues, isValid, setValues, focus, on, destroy }`.
+
+`fields` is the reusable panel field vocabulary used by the gate request schema:
+
+| Field kind | Control |
+| --- | --- |
+| `exclusive_choice` | `createButtonGroup` |
+| `multi_choice` | `createCheckboxGroup` |
+| `boolean` | `createToggle` |
+| `text` | `createTextField` |
+| `number` | semantic number input enhanced by `wireNumberFieldControls` |
+| `select` | `createSelect` |
+
+Fields render inside `.aos-form-field` wrappers within an `.aos-form` root. A
+field with `visible_when: { field, equals }` is hidden until the referenced
+visible or hidden field value equals the requested value. Hidden fields are
+excluded from `getValues()` and `isValid()`. Visible fields are required unless
+`optional: true` is present.
 
 ### `mountChrome(container, options?)`
 

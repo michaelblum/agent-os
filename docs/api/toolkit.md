@@ -9,6 +9,7 @@ Use this index when you are building an AOS canvas surface, composing reusable t
 | Boundary | Scoped reference | Use it for |
 | --- | --- | --- |
 | Runtime primitives | [toolkit/runtime.md](./toolkit/runtime.md) | runtime bridge, canvas lifecycle helpers, subscriptions, `createResourceScope`, DesktopWorld surface runtime, input regions/events |
+| Controls | [toolkit/controls.md](./toolkit/controls.md) | plain DOM control factories, stock control CSS classes, timer bar, number-field enhancement |
 | Panel/window policy | [toolkit/panel-window.md](./toolkit/panel-window.md) | `mountChrome`, `createPanelWindowController`, drag/resize/maximize/minimize/restore, placement, `createStageAffordance`, split panes, tabs, single layout |
 | Workbench contracts | [toolkit/workbench.md](./toolkit/workbench.md) | `aos.workbench.subject`, human checkpoint, HTML/Markdown/work-record/artifact/playbook/wiki workbench contracts |
 | Components | [toolkit/components.md](./toolkit/components.md) | Surface Inspector, Surface-Zoom Inspector, Spatial Telemetry, Render Performance, Object Transform Panel, Test Console, Integration Hub, component launch surfaces, controls, theme tokens, Markdown preview |
@@ -54,6 +55,7 @@ Before adding a WebView, daemon policy, app-private hit testing, or a new Deskto
 - `createStageAffordance`: [panel/window StageAffordance](./toolkit/panel-window.md#stageaffordance).
 - `createPanelWindowController`: [panel/window controller](./toolkit/panel-window.md#createpanelwindowcontrolleroptions).
 - `mountChrome`: [panel chrome](./toolkit/panel-window.md#mountchromecontainer-options).
+- controls: [controls API](./toolkit/controls.md#factories) and [form harness](./toolkit/panel-window.md#createformcontainer-fields-options).
 - DesktopWorld stage/surface runtime: [runtime DesktopWorld surface runtime](./toolkit/runtime.md#desktopworld-surface-runtime) and [components DesktopWorld stage](./toolkit/components.md#stock-components-snapshot).
 - input regions/events: [runtime input regions and events](./toolkit/runtime.md#input-regions-and-events).
 - workbench contracts: [workbench API](./toolkit/workbench.md#workbench-contracts).

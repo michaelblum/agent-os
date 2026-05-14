@@ -20,6 +20,7 @@
 // @property {(state: unknown, host: ContentHost) => void} [restore]
 
 export { mountPanel } from './mount.js'
+export { createForm } from './form.js'
 export {
   computePanelTransfer,
   createPanelTransferController,
