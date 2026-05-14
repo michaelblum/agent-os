@@ -4,6 +4,7 @@ export class FakeEvent {
     this.bubbles = !!init.bubbles;
     this.detail = init.detail;
     this.key = init.key;
+    this.shiftKey = !!init.shiftKey;
     this.defaultPrevented = false;
   }
 
@@ -122,6 +123,7 @@ export class FakeElement {
     event.target ||= this;
     for (const callback of this.listeners.get(event.type) || []) callback(event);
     if (event.bubbles && this.parentElement) this.parentElement.dispatchEvent(event);
+    else if (event.bubbles) this.ownerDocument?.dispatchEvent?.(event);
     return true;
   }
 
@@ -141,6 +143,11 @@ export class FakeElement {
       }
       return this.getAttribute(body) !== null;
     }
+    const attrMatch = selector.match(/^([a-z]+)\[([^=]+)=["']?([^"'\]]+)["']?\]$/i);
+    if (attrMatch) {
+      const [, tagName, attr, value] = attrMatch;
+      return this.tagName.toLowerCase() === tagName.toLowerCase() && this.getAttribute(attr) === value;
+    }
     return this.tagName.toLowerCase() === selector.toLowerCase();
   }
 
@@ -149,6 +156,14 @@ export class FakeElement {
   }
 
   querySelectorAll(selector) {
+    if (selector.includes(' ')) {
+      const parts = selector.trim().split(/\s+/);
+      let current = [this];
+      for (const part of parts) {
+        current = current.flatMap((node) => node.querySelectorAll(part));
+      }
+      return current;
+    }
     const results = [];
     const visit = (node) => {
       for (const child of node.children) {
@@ -162,18 +177,36 @@ export class FakeElement {
 }
 
 export function createFakeDocument() {
+  const listeners = new Map();
   const doc = {
     activeElement: null,
     defaultView: {
       Event: FakeEvent,
       CustomEvent: FakeEvent,
       performance: { now: () => 0 },
+      setTimeout: (callback) => {
+        callback();
+        return 0;
+      },
     },
     createElement(tagName) {
       return new FakeElement(tagName, doc);
     },
     createElementNS(_namespace, tagName) {
       return new FakeElement(tagName, doc);
+    },
+    addEventListener(type, callback) {
+      const set = listeners.get(type) || new Set();
+      set.add(callback);
+      listeners.set(type, set);
+    },
+    removeEventListener(type, callback) {
+      listeners.get(type)?.delete(callback);
+    },
+    dispatchEvent(event) {
+      event.target ||= doc;
+      for (const callback of listeners.get(event.type) || []) callback(event);
+      return true;
     },
   };
   doc.body = doc.createElement('body');
