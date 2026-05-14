@@ -14,6 +14,6 @@
   ],
   "allowed_capabilities": [],
   "handoff": {
-    "requires_goal_prefix": true
+    "requires_goal_prefix": false
   }
 }

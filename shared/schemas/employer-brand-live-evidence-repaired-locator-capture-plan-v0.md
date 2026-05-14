@@ -9,4 +9,3 @@ The plan contains four executable repaired capture slots, one non-executable
 source-unavailable slot, and fourteen preserved non-executable context entries.
 All clip and text output paths remain null, full-page grabs remain disabled, and
 the plan does not authorize capture execution.
-

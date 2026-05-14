@@ -20,4 +20,3 @@ Fixture:
 Generator:
 
 `node scripts/employer-brand-element-capture-planning-bundle.mjs`
-

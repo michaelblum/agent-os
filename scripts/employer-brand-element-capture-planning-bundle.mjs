@@ -90,4 +90,3 @@ try {
   console.error(caught.message);
   process.exitCode = 1;
 }
-

@@ -199,4 +199,3 @@ debug that interaction, not replace it.
 - `/Users/Michael/Documents/GitHub/DRAW/draw-extension/.agent/knowledge/arcs/capture_pipeline.md`
 - `/Users/Michael/Documents/GitHub/DRAW/draw-extension/architecture/OVERLAY_CONTROL_ROUTING.md`
 - `/Users/Michael/Code/agent-os/AGENTS.md`
-

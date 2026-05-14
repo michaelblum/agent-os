@@ -88,6 +88,5 @@ that work.
 
 For cross-session handoffs, pipe the raw target message through
 `scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. GDI is the only target dock that
-receives a `/goal ` prefix; non-GDI handoffs remain plain supervised or steering
-instructions.
+the script output as the final chat reply. Handoffs are plain instructions for
+every target dock; do not prepend command prefixes or addressee ceremony.

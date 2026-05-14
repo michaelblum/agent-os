@@ -9,4 +9,3 @@ repaired capture slots. It preserves source-unavailable decisions and prior
 non-executable context as non-executable context, keeps all planned output paths
 null, and records that no URLs, browser codegen, locator resolution, capture,
 report rendering, export, or workflow execution occurred.
-

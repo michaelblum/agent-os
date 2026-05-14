@@ -9,4 +9,3 @@ human/operator work.
 V0 explicitly does not open URLs, run browser/codegen/locator resolution,
 invent selectors or XPath, bypass access controls, capture screenshots or clips,
 render reports, export documents, execute workflows, or broaden targets.
-

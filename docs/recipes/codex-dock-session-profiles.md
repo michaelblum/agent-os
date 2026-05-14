@@ -38,9 +38,9 @@ belong in the real repo root unless the dock says otherwise.
 - A Dock is not a Workflow.
 - A Docked Session may work on a Workflow, such as the Employer Brand
   Comparative Audit Workflow.
-- GDI is the only dock that should receive `/goal ` handoff payloads. Use that
-  prefix for bounded deterministic implementation work only.
-- Operator receives plain supervised instructions, not `/goal`, so it can stop
+- GDI receives plain assigned implementation handoffs. Do not add `/goal` or
+  addressee prefixes to clipboard payloads.
+- Operator receives plain supervised instructions, so it can stop
   for clarification, visual confirmation, sign-off, or blockers instead of
   forcing autonomous goal completion.
 - Operator is a docked role for bounded supervised page operation, locator

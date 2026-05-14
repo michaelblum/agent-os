@@ -96,10 +96,8 @@ printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock op
 
 The helper copies only the target-session payload. It then prints that same raw
 payload for chat, followed by `(copied to clipboard)` and a human-readable local
-timestamp. GDI is the only dock that receives a `/goal ` prefix because it runs
-bounded deterministic implementation goals. Non-GDI handoffs are plain
-supervised or steering instructions; the helper removes one accidental `/goal `
-prefix for those targets if present.
+timestamp. Handoffs are plain instructions for every dock; the helper removes
+one accidental `/goal ` prefix if present.
 
 ## Canonical Docks
 
@@ -107,7 +105,7 @@ prefix for those targets if present.
   workstream hygiene role. Foreman tracks who is doing what, where the work
   lives, what is complete, what remains blocked, and when commits, pushes, PRs,
   or issue updates are appropriate.
-- `gdi/` is the Goal-Driven Implementation role. GDI consumes `/goal`
+- `gdi/` is the Goal-Driven Implementation role. GDI consumes assigned
   handoffs, implements the assigned deterministic slice, runs verification, and
   reports exact results. GDI does not own next-work selection, PRs, issues, or
   branch hygiene unless a goal explicitly says so.
@@ -120,5 +118,5 @@ For non-trivial GDI work, Foreman should prefer a Markdown work card under
 `docs/design/work-cards/` plus a thin GDI handoff such as:
 
 ```text
-attn: GDI, follow the instructions in docs/design/work-cards/<card>.md
+follow the instructions in docs/design/work-cards/<card>.md
 ```

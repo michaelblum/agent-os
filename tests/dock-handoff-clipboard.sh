@@ -26,8 +26,8 @@ import pathlib
 import sys
 
 message, out, clipboard_path = sys.argv[1:]
-payload = f"/goal {message}"
 clipboard = pathlib.Path(clipboard_path).read_text()
+payload = message
 expected_out = f"{payload}\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: GDI clipboard payload mismatch: {clipboard!r}")
@@ -71,13 +71,14 @@ python3 - "$prefixed" "$out" "$clipboard" <<'PY'
 import pathlib
 import sys
 
-payload, out, clipboard_path = sys.argv[1:]
+_, out, clipboard_path = sys.argv[1:]
+payload = "Already prefixed."
 clipboard = pathlib.Path(clipboard_path).read_text()
 expected_out = f"{payload}\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
-    raise SystemExit(f"FAIL: Foreman pre-prefixed clipboard payload mismatch: {clipboard!r}")
+    raise SystemExit(f"FAIL: GDI accidental /goal strip clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
-    raise SystemExit(f"FAIL: GDI pre-prefixed chat tail mismatch: {out!r}")
+    raise SystemExit(f"FAIL: GDI accidental /goal strip chat tail mismatch: {out!r}")
 PY
 
 out="$(printf '%s' "$prefixed" | AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/dock-handoff-clipboard --target-dock operator)"
@@ -95,4 +96,4 @@ if out != expected_out:
     raise SystemExit(f"FAIL: Operator accidental /goal strip chat tail mismatch: {out!r}")
 PY
 
-echo "PASS: dock handoff clipboard script applies GDI-only /goal behavior and prints chat tail."
+echo "PASS: dock handoff clipboard script copies plain handoffs and prints chat tail."

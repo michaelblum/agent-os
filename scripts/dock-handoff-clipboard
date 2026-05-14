@@ -14,8 +14,8 @@ system clipboard, and prints the chat-visible tail:
   Fri May 8 6:47AM
 
 Rules:
-  - GDI handoff payloads add one "/goal " prefix if missing.
-  - Non-GDI handoff payloads remove one accidental "/goal " prefix if present.
+  - Handoff payloads are copied as plain instructions.
+  - One accidental "/goal " prefix is removed for every target dock.
   - The parenthetical and timestamp are printed only; they are not copied.
 
 Environment:
@@ -52,18 +52,9 @@ fi
 message="$(cat || true)"
 payload="$message"
 
-case "$target_dock" in
-  gdi)
-    if [[ "$payload" != /goal\ * ]]; then
-      payload="/goal ${payload}"
-    fi
-    ;;
-  *)
-    if [[ "$payload" == /goal\ * ]]; then
-      payload="${payload#"/goal "}"
-    fi
-    ;;
-esac
+if [[ "$payload" == /goal\ * ]]; then
+  payload="${payload#"/goal "}"
+fi
 
 pbcopy_bin="${AOS_HANDOFF_PBCOPY:-$(command -v pbcopy || true)}"
 if [[ -z "$pbcopy_bin" ]]; then

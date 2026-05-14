@@ -13,4 +13,3 @@ execution, or full-page grabs.
 
 Canonical fixture:
 `docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/source-artifacts/element-clip-acceptance-report.json`
-

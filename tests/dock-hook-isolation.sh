@@ -60,7 +60,7 @@ expected = {
         "gender": "female",
         "voice_slot": 2,
         "stop_notice": "GDI finished.",
-        "requires_goal_prefix": True,
+        "requires_goal_prefix": False,
     },
     "operator": {
         "gender": "female",
@@ -104,7 +104,7 @@ for role in ("gdi", "foreman", "operator"):
     if dock_config.get("stop_notice") != expected[role]["stop_notice"]:
         raise SystemExit(f"FAIL: {role} stop notice mismatch: {dock_config}")
     if dock_config.get("handoff", {}).get("requires_goal_prefix") is not expected[role]["requires_goal_prefix"]:
-        raise SystemExit(f"FAIL: {role} GDI-only /goal metadata mismatch: {dock_config}")
+        raise SystemExit(f"FAIL: {role} goal-prefix metadata mismatch: {dock_config}")
     voice = dock_config.get("voice", {})
     configured_gender = voice.get("gender")
     effective_gender = configured_gender if configured_gender is not None else defaults["voice"].get("gender")
