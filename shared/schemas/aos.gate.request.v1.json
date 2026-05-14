@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos.gate.request.v1.json",
+  "title": "AOS Gate Request",
+  "description": "Envelope for bounded structured human-input gate requests.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "prompt", "timeout_ms"],
+  "properties": {
+    "schema_version": {
+      "const": "aos.gate.request.v1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "response_schema": {
+      "type": "object"
+    },
+    "fields": {
+      "$ref": "#/$defs/fields"
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "variant": {
+          "type": ["string", "null"],
+          "enum": [
+            "yes_no_with_escape",
+            "approve_deny",
+            "single_choice",
+            "multi_choice",
+            "freetext",
+            null
+          ]
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        },
+        "timer": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "visible": { "type": "boolean" },
+            "display": { "type": "string", "enum": ["digital", "pie"] },
+            "direction": { "type": "string", "enum": ["countDown", "countUp"] },
+            "flash_threshold_ms": { "type": "number", "minimum": 0 },
+            "flash_interval_ms": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "timeout_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "surface": { "type": "string" },
+        "session_id": { "type": ["string", "null"] },
+        "agent": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "$defs": {
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "kind"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["boolean", "exclusive_choice", "multi_choice", "text", "number"]
+          },
+          "label": {
+            "type": "string"
+          },
+          "style": {
+            "type": "string"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["value", "label"],
+              "properties": {
+                "value": {
+                  "type": ["string", "number", "boolean"]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "danger": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "visible_when": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "equals"],
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equals": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

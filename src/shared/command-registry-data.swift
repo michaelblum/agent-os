@@ -713,6 +713,36 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ])
     ]))
 
+    // ── gate ──────────────────────────────────────────────
+    reg.append(CommandDescriptor(path: ["gate"], summary: "Request a bounded structured human decision", forms: [
+        InvocationForm(id: "gate-ask", usage: "aos gate ask [prompt] [--preset name] [--title text] [--timeout seconds] [--json request] [--request file]",
+            args: [
+                pos("prompt", "Prompt title", required: false, variadic: true),
+                flag("preset", "--preset", "Gate preset",
+                     type: .enumeration([
+                        EnumValue(value: "yes_no_with_escape", summary: "Yes / No with escape text"),
+                        EnumValue(value: "approve_deny", summary: "Approve / Deny"),
+                        EnumValue(value: "single_choice", summary: "Choose one option"),
+                        EnumValue(value: "multi_choice", summary: "Choose many options"),
+                        EnumValue(value: "freetext", summary: "Free text response")
+                     ])),
+                flag("title", "--title", "Prompt title"),
+                flag("message", "--message", "Prompt body"),
+                flag("timeout", "--timeout", "Timeout in seconds", type: .float),
+                flag("json", "--json", "Inline aos.gate.request.v1 JSON"),
+                flag("request", "--request", "Path to aos.gate.request.v1 JSON file")
+            ],
+            stdin: StdinDescriptor(supported: true, usedWhen: "no prompt, --json, or --request", contentType: "aos.gate.request.v1 JSON"),
+            constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
+            execution: execInteractive(daemon: true),
+            output: outJSON,
+            examples: [
+                "aos gate ask \"Continue?\"",
+                "aos gate ask --preset approve_deny --title \"Run disruptive test?\" --timeout 30",
+                "aos gate ask --request gate-request.json"
+            ])
+    ]))
+
     // ── tell ──────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["tell"], summary: "Communication — send to human, channel, or session", forms: [
         InvocationForm(id: "tell-message", usage: "aos tell <audience>|--session-id <id> [--json <payload>] [--from <name>] [--from-session-id <id>] [--purpose <name>] [<text> | stdin]",

@@ -32,6 +32,8 @@ struct AOS {
             handleTell(args: Array(args.dropFirst()))
         case "listen":
             handleListen(args: Array(args.dropFirst()))
+        case "gate":
+            gateCommand(args: Array(args.dropFirst()))
         case "voice":
             voiceCommand(args: Array(args.dropFirst()))
         case "config":
