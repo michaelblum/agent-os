@@ -176,26 +176,33 @@ assert d.get("mode") == "repo", d
 assert d.get("tcc_identifier"), d
 assert d.get("service_stop", {}).get("status") == "planned", d
 assert d.get("tcc_reset", {}).get("command") == f"tccutil reset All {d.get('tcc_identifier')}", d
-service_resets = d.get("service_resets", [])
-assert [s.get("command") for s in service_resets] == [
-    "tccutil reset Accessibility",
-    "tccutil reset ListenEvent",
-    "tccutil reset PostEvent",
-], d
-assert all(s.get("status") == "available_with_allow_service_reset" for s in service_resets), d
+assert d.get("service_resets", []) == [], d
+assert any("emergency-only" in note for note in d.get("notes", [])), d
 commands = [a.get("command") for a in d.get("next_actions", [])]
 assert "./aos permissions setup --once" in commands, d
 assert "./aos ready --post-permission" in commands, d
 PY
 echo "PASS: permissions reset-runtime dry-run"
 
-BROAD_DRY_RUN="$(./aos permissions reset-runtime --mode repo --allow-service-reset --dry-run --json)"
-python3 - "$BROAD_DRY_RUN" <<'PY'
+set +e
+MISSING_EMERGENCY_ACK="$(./aos permissions reset-runtime --mode repo --allow-service-reset --dry-run --json 2>&1)"
+MISSING_EMERGENCY_ACK_RC=$?
+set -e
+if [[ "$MISSING_EMERGENCY_ACK_RC" -eq 0 ]] ||
+   [[ "$MISSING_EMERGENCY_ACK" != *"EMERGENCY_ACK_REQUIRED"* ]]; then
+  echo "FAIL: --allow-service-reset did not require emergency acknowledgement: $MISSING_EMERGENCY_ACK"
+  exit 1
+fi
+echo "PASS: permissions reset-runtime emergency ack guard"
+
+EMERGENCY_DRY_RUN="$(./aos permissions reset-runtime --mode repo --allow-service-reset --emergency-ack-other-apps --dry-run --json)"
+python3 - "$EMERGENCY_DRY_RUN" <<'PY'
 import json, sys
 d = json.loads(sys.argv[1])
 assert d.get("status") == "ok", d
+assert any("Emergency dry run" in note for note in d.get("notes", [])), d
 assert all(s.get("status") == "planned" for s in d.get("service_resets", [])), d
 PY
-echo "PASS: permissions reset-runtime broad dry-run"
+echo "PASS: permissions reset-runtime emergency dry-run"
 
 echo "PASS"

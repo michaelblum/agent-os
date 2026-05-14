@@ -157,8 +157,8 @@ window count, or placement without auxiliary canvases.
 ## Manual Disruptive TCC Recovery Test
 
 The repo-mode TCC reset recovery path has an explicit manual test because a full
-passing run can reset macOS Accessibility, Input Monitoring, and PostEvent grants.
-Do not add this test to broad or default test runners.
+passing run can trigger macOS privacy prompts and temporarily disrupt AOS input
+control. Do not add this test to broad or default test runners.
 
 Use the non-mutating preview after changing the permission handoff contract:
 
@@ -174,11 +174,12 @@ AOS_RUN_DISRUPTIVE_TCC_TEST=1 \
   bash tests/manual/tcc-reset-agent-user-path.sh
 ```
 
-If the targeted reset reaches the broad fallback boundary and the human has
-approved resetting the relevant TCC services, run the full recovery path with:
+Service-wide TCC reset is not part of normal recovery because it can affect other
+apps. Treat it as break-glass only. Run the emergency path only when Michael
+explicitly asks for emergency recovery:
 
 ```bash
-AOS_RUN_DISRUPTIVE_TCC_TEST=1 AOS_ALLOW_BROAD_TCC_RESET=1 \
+AOS_RUN_DISRUPTIVE_TCC_TEST=1 AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET=1 \
   bash tests/manual/tcc-reset-agent-user-path.sh
 ```
 

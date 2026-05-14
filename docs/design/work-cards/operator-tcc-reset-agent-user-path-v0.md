@@ -52,40 +52,41 @@ for the command, stop and report that blocker.
 
 Before running a mutating command, tell Michael:
 
-- the test may reset Accessibility, Input Monitoring, and PostEvent grants;
+- the normal test attempts only the targeted repo-mode AOS TCC reset;
 - macOS may prompt for fresh approvals;
 - the script stops the repo daemon by default on exit;
-- the first full run does not authorize the broad TCC service reset.
+- service-wide TCC reset can affect other apps and is emergency-only.
 
 Ask Michael for explicit approval in the Operator session before continuing.
 
 ### 2. Run The First Full Path
 
-Run the guarded test without broad fallback:
+Run the guarded test without emergency service-wide reset:
 
 ```bash
 AOS_RUN_DISRUPTIVE_TCC_TEST=1 \
   bash tests/manual/tcc-reset-agent-user-path.sh
 ```
 
-Follow the script prompts exactly. If the script reaches the broad-reset boundary
-and exits with the "Broad service reset was not authorized" PASS message, treat
-that as valid evidence for the human-approval boundary.
+Follow the script prompts exactly. If targeted reset fails and the script exits
+with the emergency service-wide reset not requested message, treat that as valid
+evidence that the normal path stopped before affecting other apps.
 
-### 3. Broad Reset Requires A Second Explicit Approval
+### 3. Emergency Service-Wide Reset Requires A Named Break-Glass Request
 
-Do not run broad reset by default.
+Do not run service-wide reset by default.
 
-Only if Michael explicitly asks to validate full recovery after seeing the
-targeted-reset result, run:
+Only if Michael explicitly asks for break-glass emergency recovery after seeing
+the targeted-reset result, run:
 
 ```bash
-AOS_RUN_DISRUPTIVE_TCC_TEST=1 AOS_ALLOW_BROAD_TCC_RESET=1 \
+AOS_RUN_DISRUPTIVE_TCC_TEST=1 AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET=1 \
   bash tests/manual/tcc-reset-agent-user-path.sh
 ```
 
 Follow the script prompts exactly. Do not improvise manual System Settings
-remove/re-add steps outside the harness.
+remove/re-add steps outside the harness, and do not translate normal approval
+into emergency approval.
 
 ### 4. Cleanup And Final Runtime State
 
@@ -109,7 +110,7 @@ Do not leave a running repo daemon as an accident of the test.
 Stop and report instead of continuing when:
 
 - Michael does not explicitly approve the disruptive run;
-- Michael does not explicitly approve broad TCC service reset;
+- Michael does not explicitly ask for emergency service-wide TCC reset;
 - the command is not running in an interactive TTY;
 - macOS prompts are ambiguous or cannot be completed;
 - the script asks for a step not described in this card;
@@ -122,8 +123,8 @@ The script prints an artifact directory. Preserve and report:
 - artifact directory path;
 - whether `--dry-run` passed;
 - whether the first full run was attempted;
-- whether it stopped at the broad-reset approval boundary or completed targeted reset;
-- whether broad reset was run, and only after what explicit Michael approval;
+- whether it stopped before emergency service-wide reset or completed targeted reset;
+- whether emergency service-wide reset was run, and only after what explicit Michael request;
 - final `./aos service status --mode repo --json` summary.
 
 ## Completion Report

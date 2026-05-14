@@ -2099,6 +2099,7 @@ private struct PermissionsResetRuntimeOptions {
     let asJSON: Bool
     let dryRun: Bool
     let allowServiceReset: Bool
+    let emergencyServiceReset: Bool
     let mode: AOSRuntimeMode
 }
 
@@ -2145,6 +2146,7 @@ private func parsePermissionsResetRuntimeArgs(_ args: [String]) -> PermissionsRe
     var asJSON = false
     var dryRun = false
     var allowServiceReset = false
+    var emergencyServiceReset = false
     var mode: AOSRuntimeMode? = nil
     var i = 0
 
@@ -2156,6 +2158,8 @@ private func parsePermissionsResetRuntimeArgs(_ args: [String]) -> PermissionsRe
             dryRun = true
         case "--allow-service-reset":
             allowServiceReset = true
+        case "--emergency-ack-other-apps":
+            emergencyServiceReset = true
         case "--mode":
             i += 1
             guard i < args.count, let parsed = AOSRuntimeMode(rawValue: args[i]) else {
@@ -2163,16 +2167,26 @@ private func parsePermissionsResetRuntimeArgs(_ args: [String]) -> PermissionsRe
             }
             mode = parsed
         default:
-            exitError("Unknown flag: \(args[i]). Usage: aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset] [--dry-run] [--json]",
+            exitError("Unknown flag: \(args[i]). Usage: aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]",
                       code: "UNKNOWN_FLAG")
         }
         i += 1
+    }
+
+    if allowServiceReset && !emergencyServiceReset {
+        exitError("--allow-service-reset is emergency-only and requires --emergency-ack-other-apps. Do not use it unless Michael explicitly asks for break-glass TCC service reset.",
+                  code: "EMERGENCY_ACK_REQUIRED")
+    }
+    if emergencyServiceReset && !allowServiceReset {
+        exitError("--emergency-ack-other-apps requires --allow-service-reset.",
+                  code: "INVALID_ARG")
     }
 
     return PermissionsResetRuntimeOptions(
         asJSON: asJSON,
         dryRun: dryRun,
         allowServiceReset: allowServiceReset,
+        emergencyServiceReset: emergencyServiceReset,
         mode: mode ?? aosCurrentRuntimeMode()
     )
 }
@@ -2185,16 +2199,18 @@ private func runPermissionsResetRuntime(options: PermissionsResetRuntimeOptions)
     let stopCommand = "\(prefix) \(stopArgs.joined(separator: " "))"
     let resetArgs = ["reset", "All", identifier]
     let resetCommand = "tccutil \(resetArgs.joined(separator: " "))"
-    let serviceResetCommands = permissionResetServiceNames().map { service in
-        PermissionsResetRuntimeStep(
-            command: "tccutil reset \(service)",
-            attempted: false,
-            exit_code: nil,
-            status: options.allowServiceReset ? "planned" : "available_with_allow_service_reset",
-            stdout: nil,
-            stderr: nil
-        )
-    }
+    let serviceResetCommands: [PermissionsResetRuntimeStep] = options.allowServiceReset
+        ? permissionResetServiceNames().map { service in
+            PermissionsResetRuntimeStep(
+                command: "tccutil reset \(service)",
+                attempted: false,
+                exit_code: nil,
+                status: "planned",
+                stdout: nil,
+                stderr: nil
+            )
+        }
+        : []
 
     if options.dryRun {
         return PermissionsResetRuntimeResponse(
@@ -2226,8 +2242,8 @@ private func runPermissionsResetRuntime(options: PermissionsResetRuntimeOptions)
                 "Dry run only; no service or TCC state was changed.",
                 "The real command stops the managed daemon before calling tccutil.",
                 options.allowServiceReset
-                    ? "If targeted bundle reset fails, the command will reset Accessibility/ListenEvent/PostEvent decisions for all apps."
-                    : "If targeted bundle reset fails for the bare repo binary, re-run with --allow-service-reset only when broad service resets are acceptable."
+                    ? "Emergency dry run only: if targeted bundle reset fails, the command would reset Accessibility/ListenEvent/PostEvent decisions for all apps."
+                    : "Service-wide TCC reset is not part of normal recovery; it is an emergency-only capability that requires an explicit break-glass request."
             ]
         )
     }
@@ -2315,13 +2331,13 @@ private func runPermissionsResetRuntime(options: PermissionsResetRuntimeOptions)
             ]
             : serviceResetOK
             ? [
-                "Targeted bundle reset failed, but broad Accessibility/ListenEvent/PostEvent resets completed after the managed daemon stopped.",
+                "Targeted bundle reset failed, but emergency Accessibility/ListenEvent/PostEvent service resets completed after the managed daemon stopped.",
                 "The next command should request fresh macOS prompts."
             ]
             : [
                 "The managed daemon is stopped, but tccutil reset failed.",
                 "The repo ./aos binary is not a LaunchServices bundle, so targeted tccutil reset may be unavailable for it.",
-                "Re-run with --allow-service-reset only if resetting Accessibility/Input Monitoring decisions for all apps is acceptable."
+                "Do not run service-wide TCC reset unless Michael explicitly asks for break-glass recovery."
             ]
     )
 }
@@ -2382,9 +2398,9 @@ private func permissionResetPostActions(prefix: String) -> [ReadyNextAction] {
 
 private func permissionResetFallbackLines(mode: AOSRuntimeMode, targetPath: String) -> [String] {
     [
-        "Optional broad reset: \(aosInvocationDisplayName()) permissions reset-runtime --mode \(mode.rawValue) --allow-service-reset",
         "Confirm the managed daemon is stopped: \(aosInvocationDisplayName()) service status --mode \(mode.rawValue)",
-        "Only if running=false, remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
+        "Normal fallback only if running=false: remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
+        "Service-wide TCC reset is break-glass only; do not run it unless Michael explicitly asks for emergency recovery.",
         "Return and run: \(aosInvocationDisplayName()) ready --post-permission"
     ]
 }

@@ -222,7 +222,8 @@ assert "Preferred reset sequence if readiness reports stale TCC/input tap:" in s
 assert "1. ./aos permissions reset-runtime --mode repo" in source
 assert "2. ./aos permissions setup --once" in source
 assert "3. ./aos ready --post-permission" in source
-assert "--allow-service-reset is the explicit broad fallback" in source
+assert "Service-wide TCC reset is emergency-only" in source
+assert "--allow-service-reset --emergency-ack-other-apps" in source
 PY
 then
     pass "dev build warning includes preferred permission reset sequence"

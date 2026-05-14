@@ -830,16 +830,17 @@ Consumers:
   longer safe recovery path: restart, wait/recheck, then report plain-English
   human instructions when macOS privacy settings still require manual action. It
   does not open Settings or show permission dialogs by itself.
-- `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset] [--dry-run] [--json]`
+- `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]`
   is the preferred repo-development TCC reset transaction. It does not grant
   permissions. It stops the managed daemon first, resets the runtime identity's
   TCC decisions with `tccutil reset All <identifier>`, and returns next actions:
   `aos permissions setup --once` to request fresh prompts and
   `aos ready --post-permission` to verify the recovered daemon. Bare repo
   binaries may not be LaunchServices bundles, so targeted `tccutil reset` can
-  fail with "No such bundle identifier"; `--allow-service-reset` is the explicit
-  fallback that resets Accessibility, ListenEvent, and PostEvent decisions for
-  all apps after the daemon is stopped.
+  fail with "No such bundle identifier"; service-wide TCC reset is not part of
+  normal recovery because it can affect other apps. It is a break-glass capability
+  only: `--allow-service-reset` requires `--emergency-ack-other-apps` and should
+  be used only when Michael explicitly asks for emergency recovery.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.

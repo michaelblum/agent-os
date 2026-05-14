@@ -168,9 +168,10 @@ or ad hoc scripts.
   `./aos permissions reset-runtime --mode repo`. It stops the managed daemon,
   verifies `running=false`, and runs `tccutil reset All <runtime-identifier>` so
   the next setup flow can request fresh macOS prompts. Manual Settings removal
-  is fallback only if that command reports that `tccutil` failed. Only use
-  `--allow-service-reset` when the human accepts resetting Accessibility/Input
-  Monitoring decisions for all apps.
+  is fallback only if that command reports that `tccutil` failed. Service-wide
+  TCC reset affects other apps and is a break-glass capability only; do not use
+  `--allow-service-reset --emergency-ack-other-apps` unless Michael explicitly
+  asks for emergency recovery.
 - If `./aos ready` reports blockers and the user wants repair, run
   `./aos ready --repair`. It performs safe automated recovery steps, records a
   trace, and prints plain-English human instructions when macOS privacy settings

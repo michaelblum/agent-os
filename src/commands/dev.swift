@@ -241,7 +241,7 @@ private func devBuildCommand(args: [String]) {
     1. ./aos permissions reset-runtime --mode repo
     2. ./aos permissions setup --once
     3. ./aos ready --post-permission
-    reset-runtime stops the managed daemon before calling tccutil reset; --allow-service-reset is the explicit broad fallback when the bare repo binary has no bundle identifier.
+    reset-runtime stops the managed daemon before calling targeted tccutil reset. Service-wide TCC reset is emergency-only and requires an explicit break-glass request plus --allow-service-reset --emergency-ack-other-apps.
     """
     let result = runProcessCapturingOutput("/bin/bash", arguments: [buildScript] + passthrough, cwd: repoRoot)
 

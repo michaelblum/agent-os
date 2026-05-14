@@ -14,12 +14,12 @@ This is a manual agent/user path test for repo-mode macOS TCC recovery.
 
 Default full mode is intentionally disruptive:
   - stops the repo-mode daemon
-  - may reset Accessibility, Input Monitoring, and PostEvent grants
-  - may require System Settings re-approval prompts
+  - attempts a targeted repo-mode AOS TCC reset
+  - may require AOS macOS re-approval prompts
 
 Safety gates:
   - full mode skips unless AOS_RUN_DISRUPTIVE_TCC_TEST=1 is set
-  - broad service reset skips unless AOS_ALLOW_BROAD_TCC_RESET=1 is set
+  - emergency service-wide reset skips unless AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET=1 is set
   - every mutating step requires an interactive typed confirmation
 
 Options:
@@ -120,8 +120,8 @@ reset path instead of asking you to remove rows in System Settings by hand.
 1. I will stop the repo-mode daemon and verify it is no longer running.
 2. I will run `./aos permissions reset-runtime --mode repo`.
 3. If that targeted reset cannot address the bare repo binary, I will stop and
-   ask before using `--allow-service-reset`, because that fallback resets the
-   relevant TCC services more broadly.
+   report the blocker. Service-wide TCC reset is break-glass only and requires
+   Michael to explicitly ask for emergency recovery.
 4. After the reset, I will run `./aos permissions setup --once`.
 5. When you finish the macOS prompts and say `ready`, I will run
    `./aos ready --post-permission`.
@@ -154,11 +154,10 @@ if "./aos permissions setup --once" not in commands:
     raise SystemExit("dry-run omitted permissions setup next_action")
 if "./aos ready --post-permission" not in commands:
     raise SystemExit("dry-run omitted post-permission ready next_action")
-service_resets = data.get("service_resets") or []
-if not service_resets:
-    raise SystemExit("dry-run omitted broad service reset boundary")
-if any(item.get("status") != "available_with_allow_service_reset" for item in service_resets):
-    raise SystemExit(f"unexpected service reset dry-run status: {service_resets}")
+if data.get("service_resets", []) != []:
+    raise SystemExit(f"normal dry-run unexpectedly advertised service resets: {data.get('service_resets')}")
+if not any("emergency-only" in note for note in data.get("notes", [])):
+    raise SystemExit("dry-run did not label service-wide reset as emergency-only")
 print("PASS: dry-run reset-runtime contract is intact")
 PY
 }
@@ -225,32 +224,32 @@ if service_stop.get("status") != "ok":
     raise SystemExit(f"targeted reset failed before safe daemon stop: {service_stop}")
 
 tcc_reset = data.get("tcc_reset", {})
-if tcc_reset.get("fallback_available") is True:
-    print("BROAD_RESET_REQUIRED")
+if tcc_reset.get("status") == "failed":
+    print("TARGETED_FAILED")
     raise SystemExit(0)
 
-raise SystemExit(f"targeted reset failed without broad fallback contract: {data}")
+raise SystemExit(f"targeted reset failed without expected stopped-daemon contract: {data}")
 PY
 }
 
-validate_broad_reset() {
-  python3 - "$ARTIFACT_DIR/reset-broad.json" <<'PY'
+validate_emergency_reset() {
+  python3 - "$ARTIFACT_DIR/reset-emergency.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 data = json.loads(Path(sys.argv[1]).read_text())
 if data.get("status") != "ok":
-    raise SystemExit(f"broad reset did not report ok: {data}")
-services = data.get("tcc_reset", {}).get("service_resets") or []
+    raise SystemExit(f"emergency reset did not report ok: {data}")
+services = data.get("service_resets") or []
 if not services:
-    raise SystemExit("broad reset did not report service reset results")
+    raise SystemExit("emergency reset did not report service reset results")
 failed = [item for item in services if item.get("status") != "ok"]
 if failed:
-    raise SystemExit(f"broad reset reported failed services: {failed}")
+    raise SystemExit(f"emergency reset reported failed services: {failed}")
 if data.get("service_stop", {}).get("status") != "ok":
-    raise SystemExit("broad reset did not stop daemon first")
-print("PASS: broad reset completed after explicit authorization")
+    raise SystemExit("emergency reset did not stop daemon first")
+print("PASS: emergency service-wide reset completed after explicit authorization")
 PY
 }
 
@@ -288,10 +287,16 @@ require_tty
 trap cleanup EXIT
 
 cat <<'EOF'
-WARNING: this test may reset repo-mode AOS Accessibility, Input Monitoring, and
-PostEvent permissions. It may trigger macOS privacy prompts and can temporarily
-remove AOS input control until grants are restored.
+WARNING: this test may reset repo-mode AOS TCC decisions and trigger macOS
+privacy prompts. The normal path does not reset TCC services for other apps.
 EOF
+if [[ "${AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET:-0}" == "1" ]]; then
+  cat <<'EOF'
+EMERGENCY WARNING: AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET=1 is set. If targeted
+reset fails and you confirm the emergency phrase, this test may reset
+Accessibility, ListenEvent, and PostEvent decisions for other apps.
+EOF
+fi
 
 require_phrase "Type RUN AOS TCC AGENT USER TEST to continue." "RUN AOS TCC AGENT USER TEST"
 
@@ -304,18 +309,18 @@ capture_json reset-targeted ./aos permissions reset-runtime --mode repo --json
 targeted_state="$(classify_targeted_reset)"
 echo "$targeted_state"
 
-if [[ "$targeted_state" == "BROAD_RESET_REQUIRED" ]]; then
-  if [[ "${AOS_ALLOW_BROAD_TCC_RESET:-0}" != "1" ]]; then
+if [[ "$targeted_state" == "TARGETED_FAILED" ]]; then
+  if [[ "${AOS_ALLOW_EMERGENCY_TCC_SERVICE_RESET:-0}" != "1" ]]; then
     cat <<'EOF'
-PASS: targeted reset stopped the daemon and reached the human approval boundary.
-Broad service reset was not authorized, so the test stopped before disruptive TCC mutation.
-Rerun with AOS_ALLOW_BROAD_TCC_RESET=1 to test the full recovery path.
+PASS: targeted reset stopped the daemon and reported the targeted-reset blocker.
+Emergency service-wide reset was not requested, so the test stopped before any
+TCC mutation that could affect other apps.
 EOF
     exit 0
   fi
-  require_phrase "Type RESET ACCESSIBILITY INPUT MONITORING to run the broad TCC service reset." "RESET ACCESSIBILITY INPUT MONITORING"
-  capture_json reset-broad ./aos permissions reset-runtime --mode repo --allow-service-reset --json
-  validate_broad_reset
+  require_phrase "Type EMERGENCY RESET OTHER APPS to run the service-wide TCC reset." "EMERGENCY RESET OTHER APPS"
+  capture_json reset-emergency ./aos permissions reset-runtime --mode repo --allow-service-reset --emergency-ack-other-apps --json
+  validate_emergency_reset
 fi
 
 ./aos permissions setup --once
