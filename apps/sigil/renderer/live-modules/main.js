@@ -17,7 +17,7 @@ import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../o
 import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
-import { createRenderLoopScheduler } from './render-loop.js';
+import { createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
@@ -130,6 +130,7 @@ const liveJs = {
     lastPublishedAppearanceVersion: null,
     surfaceRenderSnapshot: null,
     renderPerformanceTelemetry: { attempted: 0, sent: 0, skipped: null, lastError: null },
+    renderLoop: { queued: false, suspended: false, mode: 'idle', continuationReasons: [], lastFrameAt: null },
     _resolveFirstDisplayGeometry: null,
     _pendingLifecycleComplete: null,
 };
@@ -285,6 +286,34 @@ function scheduleRenderFrame() {
     renderLoop.schedule(animate);
 }
 
+function updateRenderLoopDebug(mode = renderLoop.lastMode, continuationReasons = []) {
+    liveJs.renderLoop = {
+        queued: renderLoop.queued,
+        suspended: renderLoop.suspended || rendererSuspended,
+        mode,
+        continuationReasons,
+        lastFrameAt: Date.now(),
+    };
+}
+
+function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVitality) {
+    const radialGesture = liveJs.radialGestureMenu;
+    return renderLoopContinuationReasons({
+        rendererSuspended,
+        visibilityTransitionActive: !!visibilityTransition.active,
+        fastTravelActive: !!liveJs.travel,
+        radialActivationTransitionActive: radialActivationTransition.active(),
+        radialGestureActive: !!radialGesture && radialGesture.phase !== 'idle',
+        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        annotationReticleActive: !!annotationReticle.active,
+        currentState: liveJs.currentState,
+        avatarHover: liveJs.avatarHover && liveJs.avatarVisible,
+        avatarHoverProgress: liveJs.avatarHoverProgress,
+        sessionVitalityRefreshing: liveJs.sessionVitality?.refreshing,
+        sessionVitalityFlickerAmount: vitalityFrame?.flickerAmount,
+    });
+}
+
 function isPrimarySurfaceSegment() {
     return !desktopWorldSurface || desktopWorldSurface.isPrimary;
 }
@@ -334,6 +363,7 @@ function syncTopologyDisplays(topology = []) {
         recordBoot('boot:firstDisplayGeometry', { displays: liveJs.displays.length, boot_elapsed_ms: bootElapsedMs() });
         resolve(liveJs.displays);
     }
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function applySurfaceRenderSnapshot(snapshot) {
@@ -381,6 +411,7 @@ function applySurfaceRenderSnapshot(snapshot) {
     }
     fastTravel.applySnapshot(snapshot.fastTravel);
     syncOmegaTrailToTravelOrigin();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function surfaceRenderSnapshot(renderAvatarPos) {
@@ -680,10 +711,12 @@ function markAppearanceChanged() {
     defaultAvatarDirty = true;
     updateDefaultAvatarSaveState({ lastError: null });
     emitRadialMenuObjectRegistry();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 state._onAppearanceChanged = () => {
     applyAvatarWindowLevel();
+    if (!rendererSuspended) scheduleRenderFrame();
 };
 
 function mainDisplayVisibleBounds() {
@@ -1231,6 +1264,7 @@ function onWindowResize() {
     }
     state.camera.updateProjectionMatrix();
     state.renderer.setSize(width, height);
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function setInteractionState(next, reason) {
@@ -1241,6 +1275,7 @@ function setInteractionState(next, reason) {
     if (next === 'IDLE' && !liveJs.travel) postLastPositionToDaemon();
     emitAvatarMark();
     syncSigilInputRegions();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function postLastPositionToDaemon() {
@@ -1720,6 +1755,7 @@ function setAvatarPosition(x, y) {
     postLastPositionToDaemon();
     emitAvatarMark();
     syncSigilInputRegions();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function syncHitTargetToAvatar() {
@@ -1806,6 +1842,7 @@ function openContextMenuAt(x, y, options = {}) {
     lastContextMenuOpenAt = performance.now();
     lastContextMenuOpenPoint = { x, y };
     syncSigilInputRegions();
+    if (!rendererSuspended) scheduleRenderFrame();
     recordInteraction('context-menu:open-request', { x, y, options });
     return true;
 }
@@ -2607,6 +2644,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
         liveJs._pendingLifecycleComplete = null;
     }
+    updateRenderLoopDebug('idle', []);
 }
 
 function animate() {
@@ -2780,7 +2818,11 @@ function animate() {
         liveJs._pendingLifecycleComplete = null;
     }
 
-    scheduleRenderFrame();
+    const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
+    updateRenderLoopDebug(continuationReasons.length ? 'continuous' : 'idle', continuationReasons);
+    if (continuationReasons.length > 0) {
+        renderLoop.schedule(animate, { mode: 'continuous' });
+    }
 }
 
 window.__sigilDebug = {
@@ -2826,6 +2868,7 @@ window.__sigilDebug = {
                 enabled: interactionTrace.snapshot().enabled,
             },
             avatarVisible: liveJs.avatarVisible,
+            renderLoop: liveJs.renderLoop,
             sessionVitality: liveJs.sessionVitality,
             hitTargetId: hitTarget.hit.id,
             hitTargetReady: hitTarget.hit.ready,

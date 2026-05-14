@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createRenderLoopScheduler } from '../../apps/sigil/renderer/live-modules/render-loop.js';
+import {
+  createRenderLoopScheduler,
+  renderLoopContinuationReasons,
+  shouldContinueRenderLoop,
+} from '../../apps/sigil/renderer/live-modules/render-loop.js';
 
 test('suspend blocks reschedule until resume', () => {
   const queued = [];
@@ -37,4 +41,44 @@ test('suspend blocks reschedule until resume', () => {
 
   queued.shift()();
   assert.deepEqual(frames, ['frame-1', 'frame-2', 'frame-3']);
+});
+
+test('visible idle avatar does not require continuous rendering', () => {
+  assert.equal(shouldContinueRenderLoop({
+    rendererSuspended: false,
+    currentState: 'IDLE',
+    avatarHover: false,
+    avatarHoverProgress: 0,
+    visibilityTransitionActive: false,
+    fastTravelActive: false,
+    radialActivationTransitionActive: false,
+    radialGestureActive: false,
+    contextMenuOpen: false,
+    annotationReticleActive: false,
+    sessionVitalityRefreshing: false,
+    sessionVitalityFlickerAmount: 0,
+  }), false);
+});
+
+test('transitions and interaction states keep render loop continuous', () => {
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    visibilityTransitionActive: true,
+  }), ['visibility-transition']);
+
+  assert.ok(shouldContinueRenderLoop({
+    currentState: 'RADIAL',
+    radialGestureActive: true,
+  }));
+
+  assert.ok(shouldContinueRenderLoop({
+    currentState: 'IDLE',
+    avatarHover: true,
+    avatarHoverProgress: 0.5,
+  }));
+
+  assert.ok(shouldContinueRenderLoop({
+    currentState: 'IDLE',
+    sessionVitalityRefreshing: true,
+  }));
 });
