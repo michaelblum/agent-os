@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   annotationReticleReleaseDisposition,
+  buildAnnotationReticleOverlayModel,
   chooseAnnotationTravelPlacement,
   createAnnotationReticleAcquisitionState,
   createSigilAnnotationReticleController,
@@ -212,6 +213,18 @@ test('reticle acquisition requires crossing the item before an outward overlappi
   assert.equal(tracker.update(outward, reticleMetrics(outward)).acquire, true)
 })
 
+test('reticle acquisition keeps candidate while exiting outward before handoff', () => {
+  const tracker = createAnnotationReticleAcquisitionState()
+  const inside = radialSnapshotForPointer({ x: 100, y: 0 }, 'radial')
+  const radialOutward = radialSnapshotForPointer({ x: 150, y: 0 }, 'radial')
+  const fastTravelOutward = radialSnapshotForPointer({ x: 180, y: 0 }, 'fastTravel')
+
+  tracker.update(inside, reticleMetrics(inside))
+  assert.equal(tracker.update(radialOutward, reticleMetrics(radialOutward)).acquire, false)
+  assert.deepEqual(tracker.snapshot(), { candidateItemId: 'annotation-mode' })
+  assert.equal(tracker.update(fastTravelOutward, reticleMetrics(fastTravelOutward)).acquire, true)
+})
+
 test('reticle acquisition resets on radial interior return', () => {
   const tracker = createAnnotationReticleAcquisitionState()
   const inside = radialSnapshotForPointer({ x: 100, y: 0 }, 'radial')
@@ -251,11 +264,40 @@ test('Sigil records and recovers delayed radial camera target-surface clicks', (
 
   assert.match(source, /type: event\.type/)
   assert.match(source, /radialTargetSurfaceReceiptEvidence/)
-  assert.match(source, /payload\.kind === 'radial_item_pointer_down' \|\| payload\.kind === 'radial_item_pointer_up'/)
+  assert.match(source, /applyRadialTargetSurfaceDragPayload/)
+  assert.match(source, /payload\.kind === 'radial_item_pointer_move' \|\| payload\.kind === 'radial_surface_pointer_move'/)
+  assert.match(source, /handleLeftMouseUp\(receipt\.worldPoint\.x, receipt\.worldPoint\.y\)/)
   assert.match(source, /payload\.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID \|\| payload\.itemAction === 'annotationSnapshot'/)
   assert.match(source, /requestAnnotationSnapshot\('radial-camera-target-surface-recovery'\)/)
   assert.match(source, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
   assert.match(source, /reason: 'camera-click-after-radial-cleanup'/)
   assert.match(source, /radialTargetSurfaceActive: radialTargetSurface\.snapshot\(\)\.interactive/)
   assert.match(source, /pointerInsideRadialTargetSurface: pointInRadialTargetSurface/)
+})
+
+test('annotation reticle overlay model exposes current scope hover and live anchors', () => {
+  const controller = createSigilAnnotationReticleController({
+    getDisplays: () => [display],
+    getAvatarPos: () => ({ x: 80, y: 80, valid: true }),
+    getAvatarHitRadius: () => 20,
+  })
+
+  controller.enter({ x: 120, y: 120, valid: true })
+  controller.updatePreview({ x: 220, y: 140, valid: true })
+  const activeOverlay = buildAnnotationReticleOverlayModel(controller.snapshot())
+
+  assert.equal(activeOverlay.visible, true)
+  assert.equal(activeOverlay.frames.length, 2)
+  assert.equal(activeOverlay.frames[0].kind, 'scope')
+  assert.equal(activeOverlay.frames[1].kind, 'current_scope')
+  assert.deepEqual(activeOverlay.frames[0].rect, { x: 0, y: 0, width: 400, height: 300 })
+  assert.deepEqual(activeOverlay.frames[1].rect, { x: 0, y: 0, width: 400, height: 300 })
+  assert.equal(activeOverlay.hover.kind, 'hover_candidate')
+  assert.deepEqual(activeOverlay.hover.rect, { x: 0, y: 0, width: 400, height: 300 })
+
+  controller.commitRelease({ x: 220, y: 140, valid: true })
+  const committedOverlay = buildAnnotationReticleOverlayModel(controller.snapshot())
+  assert.equal(committedOverlay.visible, true)
+  assert.equal(committedOverlay.anchors.length >= 1, true)
+  assert.equal(committedOverlay.anchors[0].kind, 'live_anchor')
 })

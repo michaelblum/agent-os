@@ -1,3 +1,23 @@
+function drawFrame(ctx, frame = {}, style = {}) {
+    const rect = frame.rect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, Number(frame.opacity) || 1));
+    ctx.setLineDash(style.dash || []);
+    ctx.lineWidth = style.lineWidth || 1.5;
+    ctx.strokeStyle = style.stroke || 'rgba(255, 224, 120, 0.9)';
+    ctx.fillStyle = style.fill || 'rgba(255, 224, 120, 0.04)';
+    ctx.beginPath();
+    ctx.rect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height));
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+}
+
 export function createInteractionOverlay() {
     let canvas = null;
     let resize = null;
@@ -185,6 +205,37 @@ export function createInteractionOverlay() {
                 ctx.stroke();
                 ctx.restore();
             }
+        }
+
+        const annotationOverlay = snapshot.annotationReticleOverlay;
+        if (annotationOverlay?.visible) {
+            ctx.save();
+            ctx.lineJoin = 'round';
+            for (const frame of annotationOverlay.frames || []) {
+                drawFrame(ctx, frame, {
+                    stroke: frame.active ? 'rgba(255, 224, 120, 0.96)' : 'rgba(255, 224, 120, 0.72)',
+                    fill: 'rgba(255, 224, 120, 0.035)',
+                    dash: frame.active ? [] : [10, 8],
+                    lineWidth: frame.active ? 2.4 : 1.6,
+                });
+            }
+            for (const anchor of annotationOverlay.anchors || []) {
+                drawFrame(ctx, anchor, {
+                    stroke: 'rgba(255, 245, 176, 0.82)',
+                    fill: 'rgba(255, 245, 176, 0.05)',
+                    dash: [5, 5],
+                    lineWidth: 1.5,
+                });
+            }
+            if (annotationOverlay.hover) {
+                drawFrame(ctx, annotationOverlay.hover, {
+                    stroke: 'rgba(255, 255, 255, 0.9)',
+                    fill: 'rgba(255, 255, 255, 0.04)',
+                    dash: [4, 4],
+                    lineWidth: 1.4,
+                });
+            }
+            ctx.restore();
         }
 
     }

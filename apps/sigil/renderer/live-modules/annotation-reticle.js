@@ -387,6 +387,9 @@ export function createAnnotationReticleAcquisitionState({ itemId = SIGIL_ANNOTAT
             candidateItemId = metrics.itemId;
             return { acquire: false, candidateItemId };
         }
+        if (radial.phase === 'radial' && candidateItemId === metrics.itemId && metrics.relation === 'outward') {
+            return { acquire: false, candidateItemId };
+        }
         if (radial.phase === 'fastTravel' && candidateItemId === metrics.itemId && reticleOuterMarginExit(metrics, radial)) {
             return { acquire: true, candidateItemId };
         }
@@ -419,5 +422,70 @@ export function annotationReticleReleaseDisposition(result = null) {
     return {
         exit: true,
         reason: 'annotation-reticle-item-click',
+    };
+}
+
+function projectionRectForSubject(subject = null) {
+    const projection = objectOrEmpty(subject?.projection);
+    const rect = objectOrEmpty(projection.visible_display_rect || projection.display_space_rect);
+    const x = finite(rect.x ?? rect.left, NaN);
+    const y = finite(rect.y ?? rect.top, NaN);
+    const width = finite(rect.width ?? rect.w, NaN);
+    const height = finite(rect.height ?? rect.h, NaN);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+    return { x, y, width, height };
+}
+
+function frameEntry(kind, subject = null, options = {}) {
+    const rect = projectionRectForSubject(subject);
+    if (!rect) return null;
+    return {
+        kind,
+        address: subject?.address || null,
+        label: subject?.label || subject?.root_label || kind,
+        rect,
+        active: !!options.active,
+        opacity: Number.isFinite(Number(options.opacity)) ? Number(options.opacity) : 1,
+    };
+}
+
+function opacityForDepth(index, count, floor = 0.75) {
+    if (count <= 1) return 1;
+    const t = index / (count - 1);
+    return floor + (t * (1 - floor));
+}
+
+export function buildAnnotationReticleOverlayModel(snapshot = null) {
+    if (!snapshot || typeof snapshot !== 'object') {
+        return { visible: false, frames: [], anchors: [], hover: null };
+    }
+    const session = objectOrEmpty(snapshot.session);
+    const previewStack = Array.isArray(session.preview_scope_stack) ? session.preview_scope_stack : [];
+    const committedStack = Array.isArray(session.committed_scope_stack) ? session.committed_scope_stack : [];
+    const scopeStack = previewStack.length ? previewStack : committedStack;
+    const frames = scopeStack
+        .map((subject, index) => frameEntry(index === scopeStack.length - 1 ? 'current_scope' : 'scope', subject, {
+            active: index === scopeStack.length - 1,
+            opacity: opacityForDepth(index, scopeStack.length),
+        }))
+        .filter(Boolean);
+    const hover = frameEntry('hover_candidate', session.hover_candidate || snapshot.preview_target, {
+        active: true,
+        opacity: 0.92,
+    });
+    const anchors = Array.isArray(session.anchors)
+        ? session.anchors
+            .map((anchor) => frameEntry('live_anchor', {
+                address: anchor.address,
+                label: anchor.label || anchor.address || 'Annotation anchor',
+                projection: anchor.projection,
+            }, { opacity: 0.82 }))
+            .filter(Boolean)
+        : [];
+    return {
+        visible: !!snapshot.active || anchors.length > 0,
+        frames,
+        hover,
+        anchors,
     };
 }

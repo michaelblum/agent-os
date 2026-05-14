@@ -43,10 +43,11 @@ test('suspend blocks reschedule until resume', () => {
   assert.deepEqual(frames, ['frame-1', 'frame-2', 'frame-3']);
 });
 
-test('visible idle avatar does not require continuous rendering', () => {
+test('hidden or paused idle avatar does not require continuous rendering', () => {
   assert.equal(shouldContinueRenderLoop({
     rendererSuspended: false,
     currentState: 'IDLE',
+    avatarMotionActive: false,
     avatarHover: false,
     avatarHoverProgress: 0,
     visibilityTransitionActive: false,
@@ -58,6 +59,24 @@ test('visible idle avatar does not require continuous rendering', () => {
     sessionVitalityRefreshing: false,
     sessionVitalityFlickerAmount: 0,
   }), false);
+});
+
+test('visible idle avatar motion keeps render loop continuous with explicit reason', () => {
+  assert.deepEqual(renderLoopContinuationReasons({
+    rendererSuspended: false,
+    currentState: 'IDLE',
+    avatarMotionActive: true,
+    avatarHover: false,
+    avatarHoverProgress: 0,
+    visibilityTransitionActive: false,
+    fastTravelActive: false,
+    radialActivationTransitionActive: false,
+    radialGestureActive: false,
+    contextMenuOpen: false,
+    annotationReticleActive: false,
+    sessionVitalityRefreshing: false,
+    sessionVitalityFlickerAmount: 0,
+  }), ['avatar-motion']);
 });
 
 test('transitions and interaction states keep render loop continuous', () => {

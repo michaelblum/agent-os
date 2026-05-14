@@ -74,9 +74,11 @@ export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
     function move(pointer) {
         if (!model) return null;
         const priorPhase = snapshot?.phase || 'idle';
+        const priorActiveItemId = snapshot?.activeItemId || null;
         snapshot = decorateSnapshot(model.move(pointer));
         return {
             snapshot,
+            priorActiveItemId,
             enteredFastTravel: priorPhase !== 'fastTravel' && snapshot.phase === 'fastTravel',
             reenteredRadial: priorPhase === 'fastTravel' && snapshot.phase === 'radial',
         };

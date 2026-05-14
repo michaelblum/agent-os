@@ -9,6 +9,7 @@ export function renderLoopContinuationReasons(frame = {}) {
     if (frame.radialGestureActive) reasons.push('radial-gesture');
     if (frame.contextMenuOpen) reasons.push('context-menu');
     if (frame.annotationReticleActive) reasons.push('annotation-reticle');
+    if (frame.avatarMotionActive) reasons.push('avatar-motion');
     if (frame.currentState && frame.currentState !== 'IDLE') reasons.push('interaction-state');
     const hoverProgress = Number(frame.avatarHoverProgress);
     if (Number.isFinite(hoverProgress)) {

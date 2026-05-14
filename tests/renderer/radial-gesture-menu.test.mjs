@@ -5,6 +5,7 @@ import {
   DEFAULT_SIGIL_RADIAL_ITEMS,
 } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
 import { normalizeSigilRadialGestureMenu } from '../../apps/sigil/renderer/radial-menu-defaults.js'
+import defaultState from '../../apps/sigil/renderer/state.js'
 
 function createMenu(options = {}) {
   const commits = []
@@ -143,6 +144,42 @@ test('Sigil radial menu hides camera affordance until live annotation anchors ex
   assert.equal(visible.items.some((item) => item.id === 'annotation-camera'), true)
 })
 
+test('Sigil default radial geometry leaves adjacent four and five item targets separated', () => {
+  function assertSeparated(snapshot) {
+    const sorted = [...snapshot.items].sort((a, b) => a.angle - b.angle)
+    for (let i = 1; i < sorted.length; i += 1) {
+      const previous = sorted[i - 1]
+      const current = sorted[i]
+      const centerDistance = Math.hypot(current.center.x - previous.center.x, current.center.y - previous.center.y)
+      const minSemanticSpacing = previous.hitRadius + current.hitRadius
+      const minVisualSpacing = previous.visualRadius + current.visualRadius
+      assert.ok(centerDistance > minSemanticSpacing, `${previous.id} overlaps ${current.id} semantic hit targets`)
+      assert.ok(centerDistance > minVisualSpacing, `${previous.id} overlaps ${current.id} visual targets`)
+      assert.ok(centerDistance >= 56, `${previous.id} and ${current.id} are too close for AOS target surfaces`)
+    }
+  }
+
+  const hiddenCamera = createSigilRadialGestureMenu({
+    state: {
+      avatarHitRadius: defaultState.avatarHitRadius,
+      radialGestureMenu: defaultState.radialGestureMenu,
+      annotationReticle: { camera_available: false, live_anchor_count: 0 },
+    },
+  }).start({ x: 200, y: 200, valid: true })
+  assert.equal(hiddenCamera.items.length, 4)
+  assertSeparated(hiddenCamera)
+
+  const visibleCamera = createSigilRadialGestureMenu({
+    state: {
+      avatarHitRadius: defaultState.avatarHitRadius,
+      radialGestureMenu: defaultState.radialGestureMenu,
+      annotationReticle: { camera_available: true, live_anchor_count: 1 },
+    },
+  }).start({ x: 200, y: 200, valid: true })
+  assert.equal(visibleCamera.items.length, 5)
+  assertSeparated(visibleCamera)
+})
+
 test('Sigil radial menu normalizes stale wiki brain item geometry from saved config', () => {
   const staleMenu = {
     items: [
@@ -243,6 +280,7 @@ test('Sigil radial menu reports fast-travel handoff and reentry', () => {
 
   const handoff = menu.move({ x: 190, y: 0, valid: true })
   assert.equal(handoff.enteredFastTravel, true)
+  assert.equal(handoff.priorActiveItemId, null)
   assert.equal(handoff.snapshot.phase, 'fastTravel')
 
   const stillFast = menu.move({ x: 160, y: 0, valid: true })
@@ -253,6 +291,28 @@ test('Sigil radial menu reports fast-travel handoff and reentry', () => {
   const reentered = menu.move({ x: 140, y: 0, valid: true })
   assert.equal(reentered.reenteredRadial, true)
   assert.equal(reentered.snapshot.phase, 'radial')
+})
+
+test('Sigil radial menu reports active item crossed at fast-travel handoff', () => {
+  const { menu } = createMenu()
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const annotationItem = started.items.find((item) => item.id === 'annotation-mode')
+
+  const hover = menu.move({ ...annotationItem.center, valid: true })
+  assert.equal(hover.snapshot.activeItemId, 'annotation-mode')
+
+  const origin = started.origin
+  const dx = annotationItem.center.x - origin.x
+  const dy = annotationItem.center.y - origin.y
+  const length = Math.hypot(dx, dy)
+  const handoff = menu.move({
+    x: origin.x + (dx / length) * (started.radii.handoff + 12),
+    y: origin.y + (dy / length) * (started.radii.handoff + 12),
+    valid: true,
+  })
+
+  assert.equal(handoff.enteredFastTravel, true)
+  assert.equal(handoff.priorActiveItemId, 'annotation-mode')
 })
 
 test('Sigil radial menu commits item when release lands on item after fast-travel handoff', () => {

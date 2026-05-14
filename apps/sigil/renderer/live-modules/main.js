@@ -43,9 +43,11 @@ import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
     annotationReticleReleaseDisposition,
+    buildAnnotationReticleOverlayModel,
     createAnnotationReticleAcquisitionState,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
+    reticleOuterMarginExit,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
     SIGIL_ANNOTATION_RETICLE_ITEM_ID,
 } from './annotation-reticle.js';
@@ -306,6 +308,9 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
         radialGestureActive: !!radialGesture && radialGesture.phase !== 'idle',
         contextMenuOpen: contextMenu?.isOpen?.() ?? false,
         annotationReticleActive: !!annotationReticle.active,
+        avatarMotionActive: liveJs.avatarVisible
+            && !state.isPaused
+            && Number(vitalityFrame?.rotationMultiplier ?? 1) !== 0,
         currentState: liveJs.currentState,
         avatarHover: liveJs.avatarHover && liveJs.avatarVisible,
         avatarHoverProgress: liveJs.avatarHoverProgress,
@@ -1325,6 +1330,7 @@ function clearGestureState() {
     liveJs.mousedownAvatarPos = null;
     liveJs.radialGestureMenu = null;
     annotationReticleAcquisition?.reset?.();
+    radialReticleItemWasActive = false;
     setAvatarHover(false);
 }
 
@@ -1354,7 +1360,10 @@ const annotationReticle = createSigilAnnotationReticleController({
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
 });
 const annotationReticleAcquisition = createAnnotationReticleAcquisitionState();
+let radialTargetSurfaceDragActive = false;
+let radialReticleItemWasActive = false;
 liveJs.annotationReticle = annotationReticle.snapshot();
+liveJs.annotationReticleOverlay = null;
 const radialActivationTransition = createRadialActivationTransitionController({
     now: () => state.globalTime,
 });
@@ -1469,7 +1478,37 @@ function queueFastTravel(x, y) {
 function syncAnnotationReticleSnapshot() {
     liveJs.annotationReticle = annotationReticle.snapshot();
     state.annotationReticle = liveJs.annotationReticle;
+    liveJs.annotationReticleOverlay = buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle);
     return liveJs.annotationReticle;
+}
+
+function projectAnnotationRect(rect = null) {
+    if (!rect) return null;
+    const origin = stagePoint({ x: rect.x, y: rect.y, valid: true });
+    if (!origin) return null;
+    return {
+        x: origin.x,
+        y: origin.y,
+        width: rect.width,
+        height: rect.height,
+    };
+}
+
+function projectAnnotationOverlayEntry(entry = null) {
+    if (!entry?.rect) return null;
+    const rect = projectAnnotationRect(entry.rect);
+    if (!rect) return null;
+    return { ...entry, rect };
+}
+
+function buildProjectedAnnotationReticleOverlay(snapshot = liveJs.annotationReticle) {
+    const model = buildAnnotationReticleOverlayModel(snapshot);
+    return {
+        ...model,
+        frames: model.frames.map(projectAnnotationOverlayEntry).filter(Boolean),
+        hover: projectAnnotationOverlayEntry(model.hover),
+        anchors: model.anchors.map(projectAnnotationOverlayEntry).filter(Boolean),
+    };
 }
 
 function recordAnnotationReticleEvent(stage, event = {}) {
@@ -1585,9 +1624,9 @@ function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
     return radialItemPointerMetrics(radial, item);
 }
 
-function shouldEnterAnnotationReticle(radial = liveJs.radialGestureMenu) {
+function updateAnnotationReticleAcquisition(radial = liveJs.radialGestureMenu) {
     const metrics = annotationReticleItemMetrics(radial);
-    return annotationReticleAcquisition.update(radial, metrics).acquire;
+    return annotationReticleAcquisition.update(radial, metrics);
 }
 
 function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
@@ -1599,7 +1638,9 @@ function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.
 
 function radialTargetSurfaceReceiptEvidence(payload = {}) {
     const surface = radialTargetSurface.snapshot();
-    const localPoint = Number.isFinite(Number(payload.itemX)) && Number.isFinite(Number(payload.itemY))
+    const localPoint = Number.isFinite(Number(payload.clientX)) && Number.isFinite(Number(payload.clientY))
+        ? { x: Number(payload.clientX), y: Number(payload.clientY) }
+        : Number.isFinite(Number(payload.itemX)) && Number.isFinite(Number(payload.itemY))
         ? { x: Number(payload.itemX), y: Number(payload.itemY) }
         : null;
     const worldPoint = localPoint && Array.isArray(surface.frame)
@@ -1618,6 +1659,14 @@ function radialTargetSurfaceReceiptEvidence(payload = {}) {
         worldPoint,
         pointInsideSurfaceAtReceipt: pointInRadialTargetSurface(worldPoint, surface),
     };
+}
+
+function applyRadialTargetSurfaceDragPayload(payload = {}, receipt = radialTargetSurfaceReceiptEvidence(payload)) {
+    const point = receipt.worldPoint;
+    if (!point || (liveJs.currentState !== 'RADIAL' && liveJs.currentState !== 'FAST_TRAVEL')) return false;
+    const update = radialGestureMenu.move(point);
+    applyRadialGestureMove(update, point.x, point.y);
+    return true;
 }
 
 function emitStatusItemState() {
@@ -1856,7 +1905,24 @@ function applyRadialGestureMove(update, x, y) {
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
     syncRadialTargetSurface();
     emitAvatarMark();
-    if (liveJs.radialGestureMenu?.phase === 'fastTravel' && shouldEnterAnnotationReticle(liveJs.radialGestureMenu)) {
+    const reticleAcquisition = updateAnnotationReticleAcquisition(liveJs.radialGestureMenu);
+    if (liveJs.radialGestureMenu?.phase === 'radial') {
+        if (liveJs.radialGestureMenu.activeItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
+            radialReticleItemWasActive = true;
+        } else {
+            const metrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
+            if (metrics && metrics.relation !== 'outward') radialReticleItemWasActive = false;
+        }
+    }
+    const reticleMetrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
+    const crossedReticleAtHandoff = update?.enteredFastTravel
+        && update?.priorActiveItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID
+        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
+    const liveReticleHandoff = radialReticleItemWasActive
+        && liveJs.radialGestureMenu?.phase === 'fastTravel'
+        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
+    if (liveJs.radialGestureMenu?.phase === 'fastTravel' && (reticleAcquisition.acquire || crossedReticleAtHandoff || liveReticleHandoff)) {
+        radialReticleItemWasActive = false;
         if (!annotationReticle.active) enterAnnotationReticle({ x, y, valid: true }, 'drag-through-reticle');
         else updateAnnotationReticlePreview({ x, y, valid: true });
     } else if (annotationReticle.active) {
@@ -2187,7 +2253,27 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         radialTargetSurface.refreshPayload();
         return;
     }
-    if (payload.kind === 'radial_item_pointer_down' || payload.kind === 'radial_item_pointer_up') {
+    if (payload.kind === 'radial_item_pointer_down') {
+        radialTargetSurfaceDragActive = false;
+        return;
+    }
+    if (payload.kind === 'radial_item_pointer_move' || payload.kind === 'radial_surface_pointer_move') {
+        if ((Number(payload.buttons) & 1) === 1) {
+            radialTargetSurfaceDragActive = applyRadialTargetSurfaceDragPayload(payload, receipt) || radialTargetSurfaceDragActive;
+        }
+        return;
+    }
+    if (payload.kind === 'radial_item_pointer_enter' || payload.kind === 'radial_item_pointer_leave') {
+        if ((Number(payload.buttons) & 1) === 1) {
+            applyRadialTargetSurfaceDragPayload(payload, receipt);
+        }
+        return;
+    }
+    if (payload.kind === 'radial_item_pointer_up') {
+        if (radialTargetSurfaceDragActive && receipt.worldPoint) {
+            radialTargetSurfaceDragActive = false;
+            handleLeftMouseUp(receipt.worldPoint.x, receipt.worldPoint.y);
+        }
         return;
     }
     if (payload.kind === 'radial_cancel') {
@@ -2706,6 +2792,8 @@ function animate() {
     const visualActive = liveJs.avatarVisible
         || !!visibilityTransition.active
         || !!liveJs.travel
+        || !!annotationReticle.active
+        || !!liveJs.annotationReticleOverlay?.visible
         || radialActivationTransition.active()
         || state.appScale > 0.001;
     if (!visualActive) {
@@ -2777,6 +2865,7 @@ function animate() {
         avatarHoverProgress: liveJs.avatarHoverProgress,
         radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
         annotationReticle: liveJs.annotationReticle,
+        annotationReticleOverlay: liveJs.annotationReticleOverlay || buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle),
         fastTravelEffect: state.transitionFastTravelEffect,
         time: state.globalTime,
         gotoRingRadius: liveJs.gotoRingRadius,
@@ -2857,6 +2946,7 @@ window.__sigilDebug = {
             radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
             radialActivationTransition: radialActivationTransition.snapshot(),
             annotationReticle: liveJs.annotationReticle,
+            annotationReticleOverlay: liveJs.annotationReticleOverlay,
             annotationReticleEvents: liveJs.annotationReticleEvents,
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,

@@ -74,6 +74,7 @@ const SURFACE_ID = PARAMS.get('id') || 'sigil-radial-menu';
 const root = document.getElementById('radial-surface');
 const buttons = new Map();
 let latestItems = [];
+let activePointerId = null;
 
 function emit(kind, payload = {}) {
     window.webkit?.messageHandlers?.headsup?.postMessage({
@@ -147,10 +148,28 @@ function createButton(item) {
     button.className = 'radial-item';
     button.dataset.radialItemId = item.id;
     button.addEventListener('pointerdown', (event) => {
+        activePointerId = event.pointerId;
+        button.setPointerCapture?.(event.pointerId);
         emit('radial_item_pointer_down', itemPayload(latestItemFor(item.id, item), event));
     });
+    button.addEventListener('pointermove', (event) => {
+        emit('radial_item_pointer_move', itemPayload(latestItemFor(item.id, item), event));
+    });
+    button.addEventListener('pointerenter', (event) => {
+        emit('radial_item_pointer_enter', itemPayload(latestItemFor(item.id, item), event));
+    });
+    button.addEventListener('pointerleave', (event) => {
+        emit('radial_item_pointer_leave', itemPayload(latestItemFor(item.id, item), event));
+    });
     button.addEventListener('pointerup', (event) => {
+        if (activePointerId === event.pointerId) activePointerId = null;
+        button.releasePointerCapture?.(event.pointerId);
         emit('radial_item_pointer_up', itemPayload(latestItemFor(item.id, item), event));
+    });
+    button.addEventListener('pointercancel', (event) => {
+        if (activePointerId === event.pointerId) activePointerId = null;
+        button.releasePointerCapture?.(event.pointerId);
+        emit('radial_cancel', itemPayload(latestItemFor(item.id, item), event));
     });
     button.addEventListener('click', (event) => {
         event.preventDefault();
@@ -162,6 +181,10 @@ function createButton(item) {
     buttons.set(item.id, button);
     return button;
 }
+
+root.addEventListener('pointermove', (event) => {
+    emit('radial_surface_pointer_move', eventPayload(event));
+});
 
 function updateButton(button, item) {
     const size = Math.max(44, Math.round(Number(item.size) || 56));
