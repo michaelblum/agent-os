@@ -145,6 +145,7 @@ class UnifiedDaemon {
     // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
     var configChangeHandler: ((AosConfig) -> Void)?
     var canvasInspectorAnnotationModeHandler: ((Bool) -> Void)?
+    var statusItemStateHandler: ((String, Bool) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
 
@@ -334,6 +335,15 @@ class UnifiedDaemon {
                     let active = (inner?["annotation_mode_active"] as? Bool) ?? false
                     DispatchQueue.main.async { [weak self] in
                         self?.canvasInspectorAnnotationModeHandler?(active)
+                    }
+                    return
+                case "status_item.state":
+                    let visible = (inner?["visible"] as? Bool)
+                        ?? (dict["visible"] as? Bool)
+                    if let visible {
+                        DispatchQueue.main.async { [weak self] in
+                            self?.statusItemStateHandler?(canvasID, visible)
+                        }
                     }
                     return
                 default:

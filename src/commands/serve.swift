@@ -65,6 +65,13 @@ func serveCommand(args: [String]) {
         }
     }
 
+    daemon.statusItemStateHandler = { [weak statusItem] canvasID, visible in
+        DispatchQueue.main.async {
+            guard let mgr = statusItem?.manager, canvasID == mgr.toggleId else { return }
+            mgr.setPersistentVisible(visible)
+        }
+    }
+
     // Watch config for status item changes.
     // ConfigWatcher fires on a background queue; NSStatusBar requires main thread.
     daemon.configChangeHandler = { [weak statusItem, weak daemon] newConfig in

@@ -89,6 +89,27 @@ wait_for_ready
 wait_for_avatar_visible true 3.0
 assert_canvas_present
 
+./aos show eval \
+  --id sigil-status-demo \
+  --js 'window.__sigilDebug.dispatch({ type: "status_item.hide" }); "ok"' >/dev/null
+wait_for_avatar_visible false 3.0
+press_aos_status_item "$PID"
+wait_for_avatar_visible true 3.0
+assert_canvas_present
+
+./aos show eval \
+  --id sigil-status-demo \
+  --js 'window.__sigilDebug.dispatch({ type: "status_item.show" }); "ok"' >/dev/null
+wait_for_avatar_visible true 3.0
+press_aos_status_item "$PID"
+wait_for_avatar_visible false 3.0
+assert_canvas_present
+
+press_aos_status_item "$PID"
+wait_for_ready
+wait_for_avatar_visible true 3.0
+assert_canvas_present
+
 ./aos show remove --id sigil-status-demo >/dev/null
 press_aos_status_item "$PID"
 wait_for_ready

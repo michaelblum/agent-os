@@ -30,6 +30,7 @@ class StatusItemManager {
     // handleClick is always called on main; isAnimating is read/written on main only.
     private var isAnimating = false
     private var persistentVisible = false
+    private var hasPersistentStateSource = false
     private var utilityWarmStarted = false
     private var canvasInspectorAnnotationModeActive = false
     private let positionFile: String
@@ -72,12 +73,19 @@ class StatusItemManager {
     }
 
     func updateConfig(_ config: AosConfig.StatusItemConfig) {
+        let targetChanged = toggleId != config.toggle_id
+            || toggleUrl != config.toggle_url
+            || toggleTrack != config.toggle_track
         toggleId = config.toggle_id
         toggleUrl = config.toggle_url
         toggleAt = config.toggle_at
         toggleTrack = config.toggle_track
         iconStyle = config.icon
+        if targetChanged {
+            hasPersistentStateSource = false
+        }
         if !usesPersistentCanvas {
+            hasPersistentStateSource = false
             persistentVisible = canvasManager.hasCanvas(toggleId) && !isCanvasSuspended()
         } else if !canvasManager.hasCanvas(toggleId) {
             persistentVisible = false
@@ -121,6 +129,8 @@ class StatusItemManager {
     }
 
     func setPersistentVisible(_ visible: Bool) {
+        guard usesPersistentCanvas else { return }
+        hasPersistentStateSource = true
         persistentVisible = visible
         updateIcon()
     }
@@ -587,6 +597,10 @@ class StatusItemManager {
         let iconPos = statusItemCGPosition()
         persistentVisible = true
         updateIcon()
+        if !hasPersistentStateSource, canvasManager.hasCanvas(toggleId), isCanvasSuspended() {
+            resumeCanvas()
+            return
+        }
         sendToggleIntent(targetState: "visible", origin: iconPos)
     }
 
@@ -594,6 +608,10 @@ class StatusItemManager {
         let iconPos = statusItemCGPosition()
         persistentVisible = false
         updateIcon()
+        if !hasPersistentStateSource {
+            suspendCanvas()
+            return
+        }
         sendToggleIntent(targetState: "hidden", origin: iconPos)
     }
 
