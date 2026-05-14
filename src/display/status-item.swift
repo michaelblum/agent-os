@@ -33,6 +33,8 @@ class StatusItemManager {
     private var hasPersistentStateSource = false
     private var utilityWarmStarted = false
     private var canvasInspectorAnnotationModeActive = false
+    private var filledIcon: NSImage?
+    private var unfilledIcon: NSImage?
     private let positionFile: String
     private let utilityStateFile: String
     private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
@@ -97,29 +99,49 @@ class StatusItemManager {
     @objc func handleClick(_ sender: Any?) {
         guard !isAnimating else { return }
         let event = NSApp.currentEvent
+        let eventType = event.map { "\($0.type)" } ?? "unknown"
+        let modifiers = modifierNames(from: event?.modifierFlags ?? [])
+        let origin = statusItemCGPosition()
 
         if event?.type == .rightMouseUp {
+            log("click entry event=\(eventType) modifiers=\(modifiers.joined(separator: ",")) path=context_menu")
             showContextMenu()
             return
         }
 
         if event?.modifierFlags.contains(.option) == true {
+            log("click entry event=\(eventType) modifiers=\(modifiers.joined(separator: ",")) path=context_menu")
             showContextMenu()
             return
         }
 
         if usesPersistentCanvas {
-            togglePersistentCanvas()
+            let visible = persistentVisible
+            let exists = canvasManager.hasCanvas(toggleId)
+            log(
+                "click entry event=\(eventType) modifiers=\(modifiers.joined(separator: ",")) path=persistent_deferred target=\(toggleId) exists=\(exists) visible=\(visible) stateSource=\(hasPersistentStateSource)"
+            )
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.log(
+                    "deferred click execution target=\(self.toggleId) exists=\(self.canvasManager.hasCanvas(self.toggleId)) visible=\(self.persistentVisible) stateSource=\(self.hasPersistentStateSource)"
+                )
+                self.togglePersistentCanvas(origin: origin, modifiers: modifiers)
+            }
             return
         }
 
+        log("click entry event=\(eventType) modifiers=\(modifiers.joined(separator: ",")) path=legacy_canvas")
         if canvasManager.hasCanvas(toggleId) {
             if isCanvasSuspended() {
+                log("fallback resume target=\(toggleId) reason=non_persistent_click")
                 resumeCanvas()
             } else {
+                log("fallback suspend target=\(toggleId) reason=non_persistent_click")
                 suspendCanvas()
             }
         } else {
+            log("fallback summon target=\(toggleId) reason=non_persistent_missing")
             summonCanvas()  // cold boot
         }
     }
@@ -139,34 +161,56 @@ class StatusItemManager {
         toggleTrack != nil
     }
 
-    private func togglePersistentCanvas() {
+    private func togglePersistentCanvas(origin: CGPoint, modifiers: [String]) {
         if !canvasManager.hasCanvas(toggleId) {
-            fputs("[status-item] toggle target '\(toggleId)' is missing; recreating warm canvas\n", stderr)
+            log("missing persistent target=\(toggleId); recreating via warm canvas path")
             isAnimating = true
             updateIcon()
             summonCanvas()
-            waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
+            DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
-                if !ready {
-                    fputs("[status-item] recreated persistent canvas did not become ready before timeout\n", stderr)
+                self.waitUntilPersistentCanvasReady(timeout: self.visibilityTimeout) { [weak self] ready in
+                    guard let self = self else { return }
+                    if !ready {
+                        self.log("recreated persistent target=\(self.toggleId) did not become ready before timeout")
+                    } else {
+                        self.log("recreated persistent target=\(self.toggleId) ready; posting visible intent")
+                    }
+                    self.isAnimating = false
+                    self.showPersistentCanvas(origin: origin, modifiers: modifiers)
                 }
-                self.isAnimating = false
-                self.showPersistentCanvas()
             }
             return
         }
-        if persistentVisible { hidePersistentCanvas() }
-        else { showPersistentCanvas() }
+        if !persistentVisible && !hasPersistentStateSource {
+            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before visible intent")
+            isAnimating = true
+            updateIcon()
+            waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
+                guard let self = self else { return }
+                if !ready {
+                    self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent anyway")
+                } else {
+                    self.log("persistent target=\(self.toggleId) ready; posting visible intent")
+                }
+                self.isAnimating = false
+                self.showPersistentCanvas(origin: origin, modifiers: modifiers)
+            }
+            return
+        }
+        if persistentVisible { hidePersistentCanvas(origin: origin, modifiers: modifiers) }
+        else { showPersistentCanvas(origin: origin, modifiers: modifiers) }
     }
 
-    private func sendToggleIntent(targetState: String, origin: CGPoint) {
+    private func sendToggleIntent(targetState: String, origin: CGPoint, modifiers: [String]) {
+        log("posting persistent \(targetState) intent target=\(toggleId) origin=\(Int(origin.x)),\(Int(origin.y)) modifiers=\(modifiers.joined(separator: ","))")
         canvasManager.postMessageAsync(canvasID: toggleId, payload: [
             "type": "status_item.toggle",
             "target_state": targetState,
             "source": "status_item",
             "origin_x": Int(origin.x),
             "origin_y": Int(origin.y),
-            "modifiers": currentModifierNames(),
+            "modifiers": modifiers,
         ])
     }
 
@@ -593,26 +637,16 @@ class StatusItemManager {
 
     // MARK: - Persistent Intent Flow
 
-    private func showPersistentCanvas() {
-        let iconPos = statusItemCGPosition()
+    private func showPersistentCanvas(origin: CGPoint, modifiers: [String]) {
         persistentVisible = true
         updateIcon()
-        if !hasPersistentStateSource, canvasManager.hasCanvas(toggleId), isCanvasSuspended() {
-            resumeCanvas()
-            return
-        }
-        sendToggleIntent(targetState: "visible", origin: iconPos)
+        sendToggleIntent(targetState: "visible", origin: origin, modifiers: modifiers)
     }
 
-    private func hidePersistentCanvas() {
-        let iconPos = statusItemCGPosition()
+    private func hidePersistentCanvas(origin: CGPoint, modifiers: [String]) {
         persistentVisible = false
         updateIcon()
-        if !hasPersistentStateSource {
-            suspendCanvas()
-            return
-        }
-        sendToggleIntent(targetState: "hidden", origin: iconPos)
+        sendToggleIntent(targetState: "hidden", origin: origin, modifiers: modifiers)
     }
 
     // MARK: - Suspend / Resume
@@ -922,8 +956,7 @@ class StatusItemManager {
         return CGPoint(x: frame.midX, y: primaryHeight - frame.midY)
     }
 
-    private func currentModifierNames() -> [String] {
-        guard let flags = NSApp.currentEvent?.modifierFlags else { return [] }
+    private func modifierNames(from flags: NSEvent.ModifierFlags) -> [String] {
         var names: [String] = []
         if flags.contains(.command) { names.append("command") }
         if flags.contains(.option) { names.append("option") }
@@ -933,14 +966,35 @@ class StatusItemManager {
     }
 
     func updateIcon() {
+        let image = cachedHexagonIcon(filled: persistentIconFilled)
+        statusItem?.button?.image = image
+    }
+
+    private var persistentIconFilled: Bool {
         if usesPersistentCanvas {
-            statusItem?.button?.image = drawHexagonIcon(filled: persistentVisible || isAnimating)
-            return
+            return persistentVisible || isAnimating
         }
         let exists = canvasManager.hasCanvas(toggleId)
         let suspended = isCanvasSuspended()
         // Filled = active or animating. Unfilled = suspended, absent, or idle.
-        statusItem?.button?.image = drawHexagonIcon(filled: (exists && !suspended) || isAnimating)
+        return (exists && !suspended) || isAnimating
+    }
+
+    private func cachedHexagonIcon(filled: Bool) -> NSImage {
+        if filled {
+            if let filledIcon { return filledIcon }
+            let image = drawHexagonIcon(filled: true)
+            filledIcon = image
+            return image
+        }
+        if let unfilledIcon { return unfilledIcon }
+        let image = drawHexagonIcon(filled: false)
+        unfilledIcon = image
+        return image
+    }
+
+    private func log(_ message: String) {
+        fputs("[status-item] \(message)\n", stderr)
     }
 
     private func drawHexagonIcon(filled: Bool) -> NSImage {

@@ -48,21 +48,44 @@ print("PASS")
 PY
 }
 
-canvas_is_suspended() {
+assert_received_at_least() {
   local canvas_id="$1"
   local state_file="$2"
+  local key="$3"
+  local expected_min="$4"
 
   mkdir -p "$(dirname "$state_file")"
-  ./aos show list --json >"$state_file"
-  python3 - "$canvas_id" "$state_file" <<'PY'
+  ./aos show eval --id "$canvas_id" --js 'JSON.stringify(window.__smokeState)' >"$state_file"
+  python3 - "$state_file" "$key" "$expected_min" <<'PY'
 import json, pathlib, sys
 
-canvas_id = sys.argv[1]
-payload = json.loads(pathlib.Path(sys.argv[2]).read_text())
-for canvas in payload.get("canvases", []):
-    if canvas.get("id") == canvas_id and canvas.get("suspended") is True:
-        raise SystemExit(0)
-raise SystemExit(1)
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+state = json.loads(payload["result"])
+key = sys.argv[2]
+expected_min = int(sys.argv[3])
+count = sum(1 for event in state.get("events", []) if event.get("type") == key)
+if count < expected_min:
+    raise SystemExit(f"FAIL: {key} count {count} < {expected_min}; state={state}")
+print("PASS")
+PY
+}
+
+assert_smoke_visible() {
+  local canvas_id="$1"
+  local expected_visible="$2"
+  local state_file="$3"
+
+  mkdir -p "$(dirname "$state_file")"
+  ./aos show eval --id "$canvas_id" --js 'JSON.stringify(window.__smokeState)' >"$state_file"
+  python3 - "$state_file" "$expected_visible" <<'PY'
+import json, pathlib, sys
+
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+state = json.loads(payload["result"])
+expected = sys.argv[2] == "true"
+if state.get("visible") is not expected:
+    raise SystemExit(f"FAIL: smoke visible={state.get('visible')} expected {expected}; state={state}")
+print("PASS")
 PY
 }
 
@@ -103,38 +126,52 @@ run_case() (
     --manifest runtime-lifecycle-timeout-smoke \
     --js 'document.body.dataset.ready === "1"' \
     --timeout 5s >/dev/null
+  local initial_state_file="$root/initial-state.json"
+  for _ in $(seq 1 20); do
+    if assert_smoke_visible "$canvas_id" true "$initial_state_file" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+  assert_smoke_visible "$canvas_id" true "$initial_state_file"
 
   case "$prefix" in
     *exit*)
       press_aos_status_item "$pid"
-      sleep 1.5
       local state_file="$root/state.json"
-      assert_canvas_state "$canvas_id" true "$state_file"
-      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 1
-      press_aos_status_item "$pid"
-      sleep 2.0
+      sleep 0.4
       assert_canvas_state "$canvas_id" false "$state_file"
-      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 1
+      assert_smoke_visible "$canvas_id" false "$state_file"
+      assert_received_at_least "$canvas_id" "$state_file" "received_status_item.toggle_none" 1
+      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 0
+      press_aos_status_item "$pid"
+      sleep 0.4
+      assert_canvas_state "$canvas_id" false "$state_file"
+      assert_smoke_visible "$canvas_id" true "$state_file"
+      assert_received_at_least "$canvas_id" "$state_file" "received_status_item.toggle_none" 2
+      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 0
       ;;
     *enter*)
       press_aos_status_item "$pid"
       local state_file="$root/state.json"
-      for _ in $(seq 1 30); do
-        if canvas_is_suspended "$canvas_id" "$state_file"; then
-          break
-        fi
-        sleep 0.1
-      done
-      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 1
+      sleep 0.4
+      assert_canvas_state "$canvas_id" false "$state_file"
+      assert_smoke_visible "$canvas_id" false "$state_file"
+      assert_received_at_least "$canvas_id" "$state_file" "received_status_item.toggle_none" 1
+      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 0
 
       press_aos_status_item "$pid"
-      sleep 2.4
+      sleep 0.4
       assert_canvas_state "$canvas_id" false "$state_file"
-      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 1
+      assert_smoke_visible "$canvas_id" true "$state_file"
+      assert_received_at_least "$canvas_id" "$state_file" "received_status_item.toggle_none" 2
+      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_enter" 0
       press_aos_status_item "$pid"
       sleep 0.4
-      assert_canvas_state "$canvas_id" true "$state_file"
-      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 2
+      assert_canvas_state "$canvas_id" false "$state_file"
+      assert_smoke_visible "$canvas_id" false "$state_file"
+      assert_received_at_least "$canvas_id" "$state_file" "received_status_item.toggle_none" 3
+      assert_received_count "$canvas_id" "$state_file" "received_lifecycle_exit" 0
       ;;
     *)
       echo "FAIL: unknown case prefix $prefix"
