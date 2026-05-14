@@ -23,8 +23,8 @@ button.setAttribute('aria-pressed', pressed ? 'true' : 'false')
 button.classList.toggle('accent-gold', accent === 'gold')
 button.classList.toggle('accent-blue', accent !== 'gold')
 button.classList.toggle('is-pressed', pressed)
-button.innerHTML = icon === 'pin'
-  ? '<span class="pin-icon" aria-hidden="true"></span>'
+button.innerHTML = icon === 'frame_anchor'
+  ? '<span class="frame-anchor-icon" aria-hidden="true"></span>'
   : '<span class="plus-icon" aria-hidden="true"></span>'
 
 button.addEventListener('click', (event) => {

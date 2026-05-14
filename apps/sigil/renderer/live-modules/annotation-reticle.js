@@ -357,6 +357,55 @@ export function createSigilAnnotationReticleController({
     };
 }
 
+export function reticleOuterMarginExit(metrics = null, radial = null) {
+    if (!metrics || !radial) return false;
+    if (metrics.relation !== 'outward') return false;
+    const item = Array.isArray(radial.items)
+        ? radial.items.find((candidate) => candidate?.id === metrics.itemId)
+        : null;
+    if (!item) return false;
+    const lateralLimit = Math.max(0, finite(item.hitRadius, finite(item.visualRadius, 0)));
+    if (metrics.lateralDistance > lateralLimit) return false;
+    const handoffRadius = finite(radial.radii?.handoff, finite(radial.handoffRadius, metrics.pointerDistance));
+    const outerMargin = Math.max(lateralLimit, handoffRadius - metrics.centerDistance + lateralLimit);
+    return metrics.axialDistance > 0 && metrics.axialDistance <= outerMargin;
+}
+
+export function createAnnotationReticleAcquisitionState({ itemId = SIGIL_ANNOTATION_RETICLE_ITEM_ID } = {}) {
+    let candidateItemId = null;
+
+    function reset() {
+        candidateItemId = null;
+    }
+
+    function update(radial = null, metrics = null) {
+        if (!radial || !metrics || metrics.itemId !== itemId) {
+            reset();
+            return { acquire: false, candidateItemId };
+        }
+        if (radial.phase === 'radial' && metrics.relation === 'inside') {
+            candidateItemId = metrics.itemId;
+            return { acquire: false, candidateItemId };
+        }
+        if (radial.phase === 'fastTravel' && candidateItemId === metrics.itemId && reticleOuterMarginExit(metrics, radial)) {
+            return { acquire: true, candidateItemId };
+        }
+        if (radial.phase === 'radial') reset();
+        if (radial.phase === 'fastTravel' && candidateItemId === metrics.itemId) reset();
+        return { acquire: false, candidateItemId };
+    }
+
+    function snapshot() {
+        return { candidateItemId };
+    }
+
+    return {
+        reset,
+        update,
+        snapshot,
+    };
+}
+
 export function annotationReticleReleaseDisposition(result = null) {
     const committed = result?.committed || null;
     if (committed?.type !== 'item') return {

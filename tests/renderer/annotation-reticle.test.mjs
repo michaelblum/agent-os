@@ -6,9 +6,15 @@ import { fileURLToPath } from 'node:url'
 import {
   annotationReticleReleaseDisposition,
   chooseAnnotationTravelPlacement,
+  createAnnotationReticleAcquisitionState,
   createSigilAnnotationReticleController,
+  reticleOuterMarginExit,
   SIGIL_ANNOTATION_ENTRY_SOURCE,
 } from '../../apps/sigil/renderer/live-modules/annotation-reticle.js'
+import {
+  radialItemPointerMetrics,
+  resolveRadialGestureItems,
+} from '../../packages/toolkit/runtime/radial-gesture.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -16,6 +22,36 @@ const display = {
   id: 'main',
   display_id: 'main',
   visibleBounds: { x: 0, y: 0, w: 400, h: 300 },
+}
+
+function radialSnapshotForPointer(pointer, phase = 'radial') {
+  const config = {
+    radiusBasis: 100,
+    itemRadius: 1,
+    itemHitRadius: 0.25,
+    itemVisualRadius: 0.2,
+    handoffRadius: 1.8,
+    startAngle: 0,
+    spreadDegrees: 0,
+  }
+  const origin = { x: 0, y: 0 }
+  const items = resolveRadialGestureItems([{ id: 'annotation-mode', label: 'Annotate' }], config, { origin, triggerAngle: 0 })
+  return {
+    phase,
+    origin,
+    pointer,
+    activeItemId: phase === 'radial' && Math.hypot(pointer.x - items[0].center.x, pointer.y - items[0].center.y) <= items[0].hitRadius
+      ? 'annotation-mode'
+      : null,
+    radii: {
+      handoff: 180,
+    },
+    items,
+  }
+}
+
+function reticleMetrics(radial) {
+  return radialItemPointerMetrics(radial, radial.items[0])
 }
 
 test('annotation reticle session enters with sigil radial source and commits bounded display target', () => {
@@ -153,6 +189,42 @@ test('annotation reticle item-click releases are bounded exits, not sticky activ
   assert.equal(annotationReticleReleaseDisposition({ committed: { type: 'fastTravel' } }).exit, false)
 })
 
+test('reticle acquisition requires crossing the item before an outward overlapping exit', () => {
+  const tracker = createAnnotationReticleAcquisitionState()
+
+  const radialMiss = radialSnapshotForPointer({ x: 180, y: 0 }, 'fastTravel')
+  assert.equal(tracker.update(radialMiss, reticleMetrics(radialMiss)).acquire, false)
+
+  const inside = radialSnapshotForPointer({ x: 100, y: 0 }, 'radial')
+  assert.equal(tracker.update(inside, reticleMetrics(inside)).acquire, false)
+  assert.deepEqual(tracker.snapshot(), { candidateItemId: 'annotation-mode' })
+
+  const sideways = radialSnapshotForPointer({ x: 130, y: 34 }, 'fastTravel')
+  assert.equal(reticleOuterMarginExit(reticleMetrics(sideways), sideways), false)
+  assert.equal(tracker.update(sideways, reticleMetrics(sideways)).acquire, false)
+  assert.deepEqual(tracker.snapshot(), { candidateItemId: null })
+
+  const outward = radialSnapshotForPointer({ x: 180, y: 0 }, 'fastTravel')
+  assert.equal(reticleOuterMarginExit(reticleMetrics(outward), outward), true)
+  assert.equal(tracker.update(outward, reticleMetrics(outward)).acquire, false)
+
+  tracker.update(inside, reticleMetrics(inside))
+  assert.equal(tracker.update(outward, reticleMetrics(outward)).acquire, true)
+})
+
+test('reticle acquisition resets on radial interior return', () => {
+  const tracker = createAnnotationReticleAcquisitionState()
+  const inside = radialSnapshotForPointer({ x: 100, y: 0 }, 'radial')
+  const inward = radialSnapshotForPointer({ x: 60, y: 0 }, 'radial')
+  const outward = radialSnapshotForPointer({ x: 180, y: 0 }, 'fastTravel')
+
+  tracker.update(inside, reticleMetrics(inside))
+  assert.deepEqual(tracker.snapshot(), { candidateItemId: 'annotation-mode' })
+  tracker.update(inward, reticleMetrics(inward))
+  assert.deepEqual(tracker.snapshot(), { candidateItemId: null })
+  assert.equal(tracker.update(outward, reticleMetrics(outward)).acquire, false)
+})
+
 test('Sigil applies annotation item-click lifecycle guard to avatar and target-surface releases', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const uses = source.match(/annotationReticleReleaseDisposition\(result\)/g) || []
@@ -160,6 +232,18 @@ test('Sigil applies annotation item-click lifecycle guard to avatar and target-s
   assert.equal(uses.length, 2)
   assert.match(source, /function handleRadialTargetSurfaceEvent[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
   assert.match(source, /case 'RADIAL': \{[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
+})
+
+test('Sigil defers Canvas Inspector opening out of the radial drag reticle entry path', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const enterStart = source.indexOf('function enterAnnotationReticle')
+  const updateStart = source.indexOf('function updateAnnotationReticlePreview', enterStart)
+  const enterBlock = source.slice(enterStart, updateStart)
+
+  assert.match(source, /createAnnotationReticleAcquisitionState/)
+  assert.match(source, /requestAnimationFrame\(flushAnnotationReticlePreview\)/)
+  assert.doesNotMatch(enterBlock, /ensureUtilityCanvasVisible/)
+  assert.doesNotMatch(enterBlock, /requestCanvasInspectorAnnotationToggle/)
 })
 
 test('Sigil records and recovers delayed radial camera target-surface clicks', () => {

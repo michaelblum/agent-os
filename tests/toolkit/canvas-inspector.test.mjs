@@ -338,6 +338,43 @@ test('computeMinimapLayout aligns global native child canvas frames with Desktop
   assert.ok(avatarMark.y <= avatarHit.y + avatarHit.h);
 });
 
+test('computeMinimapLayout keeps daemon DesktopWorld display bounds authoritative', () => {
+  const liveDisplays = [
+    {
+      id: 'extended',
+      is_main: false,
+      native_bounds: { x: -185, y: 982, w: 1920, h: 1080 },
+      native_visible_bounds: { x: -185, y: 982, w: 1920, h: 1040 },
+      desktop_world_bounds: { x: -185, y: 982, w: 1920, h: 1080 },
+      visible_desktop_world_bounds: { x: -185, y: 982, w: 1920, h: 1040 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      native_visible_bounds: { x: 0, y: 38, w: 1512, h: 944 },
+      desktop_world_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_desktop_world_bounds: { x: 0, y: 38, w: 1512, h: 944 },
+    },
+  ];
+  const layout = computeMinimapLayout(liveDisplays, [
+    { id: 'main-window', at: [0, 38, 300, 200] },
+    { id: 'extended-window', at: [-100, 1200, 240, 160] },
+  ], 300);
+  assert.ok(layout);
+
+  const mainDisplay = layout.displays.find((entry) => entry.display.id === 'main');
+  const extendedDisplay = layout.displays.find((entry) => entry.display.id === 'extended');
+  assert.ok(mainDisplay);
+  assert.ok(extendedDisplay);
+  assert.ok(extendedDisplay.x < mainDisplay.x);
+
+  const mainCanvas = layout.canvases.find((entry) => entry.canvas.id === 'main-window');
+  const mainPoint = projectPointToMinimap(layout, { x: 0, y: 38 });
+  assert.ok(mainCanvas);
+  assert.deepEqual({ x: mainCanvas.x, y: mainCanvas.y }, mainPoint);
+});
+
 test('annotation minimap projection resolves display rects through desktop-world basis', () => {
   const layout = computeMinimapLayout(displays, [
     { id: 'main-window', at: [0, 0, 300, 200] },
@@ -740,6 +777,7 @@ test('Surface Inspector models hover annotation actions as real overlay canvases
   }, { selfId: 'canvas-inspector' });
 
   assert.deepEqual(records.map((record) => record.action), ['add_comment', 'pin_frame']);
+  assert.deepEqual(records.map((record) => record.icon), ['plus', 'frame_anchor']);
   assert.deepEqual(records.map((record) => record.canvas_id), ['target-canvas', 'target-canvas']);
   assert.equal(records[0].id, 'canvas-inspector-annotation-action-target-canvas-add_comment');
   assert.equal(records[1].id, 'canvas-inspector-annotation-action-target-canvas-pin_frame');
@@ -781,10 +819,14 @@ test('Surface Inspector models hover annotation actions as real overlay canvases
   assert.match(actionSource, /data-aos-ref', 'canvas-inspector:annotation-action'/);
   assert.match(actionSource, /data-aos-action', action/);
   assert.match(actionSource, /aria-pressed/);
+  assert.doesNotMatch(actionSource, /pin-icon/);
+  assert.match(actionSource, /frame-anchor-icon/);
   assert.match(actionStyles, /box-shadow:\s*0 12px 28px/);
   assert.match(actionStyles, /is-pressed/);
   assert.match(actionStyles, /background:\s*#168cff/);
   assert.match(actionStyles, /background:\s*#f4c542/);
+  assert.doesNotMatch(actionStyles, /pin-icon/);
+  assert.match(actionStyles, /frame-anchor-icon/);
   assert.match(hitLayerHtml, /annotation-hit-layer/);
   assert.match(hitLayerStyles, /background:\s*transparent/);
 });

@@ -441,7 +441,7 @@ export function buildAnnotationActionControlCanvasRecords(candidate = null, opti
   actions.push({
     action: 'pin_frame',
     label: candidate.pinned ? 'Remove frame anchor' : 'Create frame anchor',
-    icon: 'pin',
+    icon: 'frame_anchor',
     accent: 'gold',
     pressed: Boolean(candidate.pinned),
   })

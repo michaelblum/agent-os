@@ -262,13 +262,53 @@ function resolveNativeDesktopBounds(displaysOrBounds) {
   return null
 }
 
+function rectCenter(rect) {
+  if (!rect) return null
+  return {
+    x: rect.x + rect.w / 2,
+    y: rect.y + rect.h / 2,
+  }
+}
+
+function displayForNativeRect(rect, displays = []) {
+  if (!rect) return null
+  const point = rectCenter(rect)
+  const normalized = normalizeDisplayEntries(displays)
+  return normalized.find((display) => displayContainsRect(display, rect, { rectKey: 'nativeBounds' }))
+    || normalized.find((display) => point && displayContainsPoint(display, point, { rectKey: 'nativeBounds' }))
+    || null
+}
+
+function nativeToDesktopWorldViaDisplays(rect, displays = []) {
+  const display = displayForNativeRect(rect, displays)
+  if (!display) return null
+  const nativeBounds = rectForDisplay(display, 'nativeBounds')
+  const desktopBounds = rectForDisplay(display, 'bounds')
+  if (!nativeBounds || !desktopBounds) return null
+  return {
+    x: rect.x - nativeBounds.x + desktopBounds.x,
+    y: rect.y - nativeBounds.y + desktopBounds.y,
+    w: rect.w,
+    h: rect.h,
+  }
+}
+
 export function nativeToDesktopWorldPoint(point, displaysOrNativeDesktopBounds) {
+  if (Array.isArray(displaysOrNativeDesktopBounds)) {
+    const nativeRect = point ? { x: point.x, y: point.y, w: 1, h: 1 } : null
+    const rect = nativeToDesktopWorldViaDisplays(nativeRect, displaysOrNativeDesktopBounds)
+    if (rect) return { x: rect.x, y: rect.y }
+  }
   const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
   if (!nativeDesktopBounds) return null
   return translatePoint(point, nativeDesktopBounds)
 }
 
 export function nativeToDesktopWorldRect(rect, displaysOrNativeDesktopBounds) {
+  if (Array.isArray(displaysOrNativeDesktopBounds)) {
+    const mapped = nativeToDesktopWorldViaDisplays(rect, displaysOrNativeDesktopBounds)
+    if (mapped) return mapped
+  }
   const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
   if (!nativeDesktopBounds) return null
   return translateRect(rect, nativeDesktopBounds)
@@ -462,7 +502,7 @@ export function computeMinimapLayout(displays, canvases, mapW, {
     })),
     canvases: resolvedCanvases.flatMap((canvas) => {
       const nativeRect = rectFromAt(canvas.atResolved ?? canvas.at)
-      const rect = nativeToDesktopWorldRect(nativeRect, nativeDesktopBounds)
+      const rect = nativeToDesktopWorldRect(nativeRect, normalizedDisplays) ?? nativeToDesktopWorldRect(nativeRect, nativeDesktopBounds)
       if (!rect) return []
       return [{
         canvas,

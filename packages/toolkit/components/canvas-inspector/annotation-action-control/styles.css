@@ -32,7 +32,7 @@ body {
 }
 
 .plus-icon,
-.pin-icon {
+.frame-anchor-icon {
   position: relative;
   display: block;
   width: 18px;
@@ -57,26 +57,22 @@ body {
   height: 18px;
 }
 
-.pin-icon::before {
+.frame-anchor-icon::before {
   content: "";
   position: absolute;
-  left: 50%;
-  top: 1px;
-  width: 12px;
-  height: 12px;
-  border-radius: 8px 8px 8px 1px;
-  background: #f4c542;
-  transform: translateX(-50%) rotate(-45deg);
+  inset: 2px;
+  border: 2px solid #f4c542;
+  border-radius: 3px;
 }
 
-.pin-icon::after {
+.frame-anchor-icon::after {
   content: "";
   position: absolute;
-  left: 50%;
+  right: 0;
   bottom: 0;
-  width: 4px;
-  height: 12px;
-  border-radius: 999px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: #f4c542;
-  transform: translateX(-50%);
+  box-shadow: 0 0 0 2px rgba(10, 12, 16, 0.96);
 }

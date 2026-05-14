@@ -43,6 +43,7 @@ import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
     annotationReticleReleaseDisposition,
+    createAnnotationReticleAcquisitionState,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
@@ -1288,6 +1289,7 @@ function clearGestureState() {
     liveJs.mousedownPos = null;
     liveJs.mousedownAvatarPos = null;
     liveJs.radialGestureMenu = null;
+    annotationReticleAcquisition?.reset?.();
     setAvatarHover(false);
 }
 
@@ -1316,6 +1318,7 @@ const annotationReticle = createSigilAnnotationReticleController({
     getAvatarPos: () => liveJs.avatarPos,
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
 });
+const annotationReticleAcquisition = createAnnotationReticleAcquisitionState();
 liveJs.annotationReticle = annotationReticle.snapshot();
 const radialActivationTransition = createRadialActivationTransitionController({
     now: () => state.globalTime,
@@ -1455,18 +1458,37 @@ function enterAnnotationReticle(pointer = null, reason = 'radial-reticle') {
         pointer,
         root_evidence: liveJs.annotationReticle.root_evidence,
     });
-    requestCanvasInspectorAnnotationToggle(reason);
     return liveJs.annotationReticle;
+}
+
+let pendingAnnotationReticlePreviewPointer = null;
+let pendingAnnotationReticlePreviewFrame = 0;
+
+function flushAnnotationReticlePreview() {
+    pendingAnnotationReticlePreviewFrame = 0;
+    const pointer = pendingAnnotationReticlePreviewPointer;
+    pendingAnnotationReticlePreviewPointer = null;
+    if (!pointer || !annotationReticle.active) return;
+    annotationReticle.updatePreview(pointer);
+    syncAnnotationReticleSnapshot();
 }
 
 function updateAnnotationReticlePreview(pointer = null) {
     if (!annotationReticle.active) return liveJs.annotationReticle;
-    annotationReticle.updatePreview(pointer);
-    syncAnnotationReticleSnapshot();
+    if (!pointer) return liveJs.annotationReticle;
+    pendingAnnotationReticlePreviewPointer = { x: Number(pointer.x), y: Number(pointer.y), valid: true };
+    if (!pendingAnnotationReticlePreviewFrame) {
+        pendingAnnotationReticlePreviewFrame = requestAnimationFrame(flushAnnotationReticlePreview);
+    }
     return liveJs.annotationReticle;
 }
 
 function exitAnnotationReticle(reason = 'exit') {
+    pendingAnnotationReticlePreviewPointer = null;
+    if (pendingAnnotationReticlePreviewFrame) {
+        cancelAnimationFrame(pendingAnnotationReticlePreviewFrame);
+        pendingAnnotationReticlePreviewFrame = 0;
+    }
     if (!annotationReticle.active) {
         syncAnnotationReticleSnapshot();
         return liveJs.annotationReticle;
@@ -1479,6 +1501,10 @@ function exitAnnotationReticle(reason = 'exit') {
 
 function commitAnnotationReticleRelease(x, y) {
     if (!annotationReticle.active) return null;
+    if (pendingAnnotationReticlePreviewFrame) {
+        cancelAnimationFrame(pendingAnnotationReticlePreviewFrame);
+        flushAnnotationReticlePreview();
+    }
     const event = annotationReticle.commitRelease({ x, y, valid: true });
     syncAnnotationReticleSnapshot();
     if (event) recordAnnotationReticleEvent('commit', event);
@@ -1526,8 +1552,7 @@ function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
 
 function shouldEnterAnnotationReticle(radial = liveJs.radialGestureMenu) {
     const metrics = annotationReticleItemMetrics(radial);
-    if (!metrics) return false;
-    return metrics.relation === 'inside' || metrics.relation === 'outward';
+    return annotationReticleAcquisition.update(radial, metrics).acquire;
 }
 
 function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
