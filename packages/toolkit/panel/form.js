@@ -32,6 +32,11 @@ function isEmptyValue(value) {
     || (Array.isArray(value) && value.length === 0);
 }
 
+function isRequiredField(field) {
+  if (field?.required !== undefined) return !!field.required;
+  return !field?.optional;
+}
+
 function equalValue(a, b) {
   if (Array.isArray(a)) return a.includes(b);
   return a === b;
@@ -192,7 +197,7 @@ export function createForm(container, fields = [], options = {}) {
       for (const record of records.values()) {
         if (record.hidden) continue;
         const value = record.control.getValue();
-        if (!record.field.optional && isEmptyValue(value)) return false;
+        if (isRequiredField(record.field) && isEmptyValue(value)) return false;
         if (typeof record.field.validate === 'function' && record.field.validate(value)) return false;
       }
       return true;
@@ -215,6 +220,9 @@ export function createForm(container, fields = [], options = {}) {
     },
     on(type, callback) {
       return type === 'change' ? hub.on(type, callback) : () => {};
+    },
+    onChange(callback) {
+      return hub.on('change', callback);
     },
     destroy() {
       if (destroyed) return;
