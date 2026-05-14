@@ -216,9 +216,57 @@ function createFallbackGlyph() {
     return group;
 }
 
+function createAnnotationReticleGlyph() {
+    const group = new THREE.Group();
+    const gold = material('#f4c542', 0.72);
+    const bright = edgeMaterial('#fff3b0', 0.9);
+
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.012, 8, 40), gold);
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.008, 8, 32), material('#ffe48a', 0.52));
+    group.add(outer);
+    group.add(inner);
+
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.24, 0, 0.01),
+        new THREE.Vector3(-0.095, 0, 0.01),
+        new THREE.Vector3(0.095, 0, 0.01),
+        new THREE.Vector3(0.24, 0, 0.01),
+        new THREE.Vector3(0, -0.24, 0.01),
+        new THREE.Vector3(0, -0.095, 0.01),
+        new THREE.Vector3(0, 0.095, 0.01),
+        new THREE.Vector3(0, 0.24, 0.01),
+    ]);
+    const marks = new THREE.LineSegments(lineGeometry, bright);
+    group.add(marks);
+
+    const center = new THREE.Mesh(new THREE.OctahedronGeometry(0.025, 0), material('#fff8d5', 0.86));
+    group.add(center);
+    return group;
+}
+
+function createAnnotationCameraGlyph() {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.07), material('#f4c542', 0.66));
+    body.position.y = -0.015;
+    group.add(body);
+    addEdges(group, body, '#fff3b0', 0.56);
+
+    const lens = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 28), material('#ffe48a', 0.78));
+    lens.position.z = 0.043;
+    lens.position.y = -0.015;
+    group.add(lens);
+
+    const prism = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.04, 0.06), material('#fff2a0', 0.7));
+    prism.position.set(-0.055, 0.09, 0);
+    group.add(prism);
+    return group;
+}
+
 function createFallbackForItem(item = {}) {
     if (item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
     if (item.action === 'wikiGraph' || item.id === 'wiki-graph') return createWikiGraphGlyph();
+    if (item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
+    if (item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
     return createFallbackGlyph();
 }
 
@@ -1662,6 +1710,8 @@ function createGlyph(item = {}) {
     if (kind === 'gltf' || kind === 'glb') return createGltfGlyph(item);
     if (item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
     if (item.action === 'wikiGraph' || item.id === 'wiki-graph') return createWikiGraphGlyph();
+    if (item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
+    if (item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
     return createFallbackGlyph();
 }
 

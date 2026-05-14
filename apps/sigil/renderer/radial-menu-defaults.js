@@ -97,6 +97,30 @@ export const AGENT_TERMINAL_TABLET_MODEL = {
     },
 };
 
+export const ANNOTATION_RETICLE_GEOMETRY = {
+    type: 'glyph',
+    glyph: 'annotation-reticle',
+    title: 'Annotation Reticle',
+    material: 'sigil-gold-reticle',
+    normalizedRadius: 0.3,
+    radiusScale: 1,
+    itemMotion: {
+        shapeHoverSpinSpeed: 0.35,
+    },
+};
+
+export const ANNOTATION_CAMERA_GEOMETRY = {
+    type: 'glyph',
+    glyph: 'annotation-camera',
+    title: 'Annotation Snapshot Camera',
+    material: 'sigil-gold-camera',
+    normalizedRadius: 0.3,
+    radiusScale: 1,
+    itemMotion: {
+        shapeHoverSpinSpeed: 0.2,
+    },
+};
+
 export const DEFAULT_SIGIL_RADIAL_ITEMS = [
     {
         id: 'context-menu',
@@ -109,6 +133,19 @@ export const DEFAULT_SIGIL_RADIAL_ITEMS = [
         label: 'Agent Terminal',
         action: 'agentTerminal',
         geometry: AGENT_TERMINAL_TABLET_MODEL,
+    },
+    {
+        id: 'annotation-mode',
+        label: 'Annotate',
+        action: 'annotationMode',
+        geometry: ANNOTATION_RETICLE_GEOMETRY,
+    },
+    {
+        id: 'annotation-camera',
+        label: 'Snapshot',
+        action: 'annotationSnapshot',
+        requiresLiveAnnotationAnchors: true,
+        geometry: ANNOTATION_CAMERA_GEOMETRY,
     },
     {
         id: 'wiki-graph',

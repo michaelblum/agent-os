@@ -31,9 +31,17 @@ function configFromState(state) {
         ? state.radialGestureMenu
         : {};
     const radial = normalizeSigilRadialGestureMenu(source);
+    const cameraAvailable = state.annotationReticle?.camera_available
+        || state.annotationReticle?.cameraAvailable
+        || state.annotationReticle?.live_anchor_count > 0;
+    const items = radial.items.filter((item) => {
+        if (!item?.requiresLiveAnnotationAnchors) return true;
+        return !!cameraAvailable;
+    });
     return {
         ...DEFAULT_CONFIG,
         ...radial,
+        items,
         radiusBasis: numberOr(radial.radiusBasis, numberOr(state.avatarHitRadius, DEFAULT_CONFIG.radiusBasis)),
     };
 }

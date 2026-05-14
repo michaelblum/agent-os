@@ -79,6 +79,9 @@ hover.
 
 ### 3. Surface Inspector Support Demotion
 
+Work card:
+`docs/design/work-cards/display-first-annotation-surface-inspector-support-demotion-v0.md`
+
 Refactor the current partial Surface Inspector annotation UI around the shared
 session instead of owning it:
 
@@ -94,6 +97,9 @@ Existing internal `pin` names may remain if renaming is not worth the churn.
 
 ### 4. Sigil Reticle Visual Validation
 
+Work card:
+`docs/design/work-cards/display-first-annotation-sigil-reticle-visual-validation-v0.md`
+
 Build the Sigil radial reticle prototype in tandem with the shared session and
 overlay renderer:
 
@@ -108,6 +114,9 @@ This is not a separate product fork; it is visual validation that Annotation
 Mode is display-first and not inspector-first.
 
 ### 5. Settled Reprojection
+
+Work card:
+`docs/design/work-cards/display-first-annotation-settled-reprojection-v0.md`
 
 Add settled reprojection after scroll, resize, window move, DOM mutation, AX
 stale/absent updates, and AOS semantic target refresh. During motion, keep the

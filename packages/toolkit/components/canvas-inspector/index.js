@@ -71,6 +71,10 @@ import {
 } from './surface-resources.js'
 import { buildSemanticTargetProjectionAdapterResult } from '../../workbench/annotation-projection.js'
 import {
+  buildAnnotationOverlayRenderPlan,
+  surfaceInspectorAnnotationStateToSession,
+} from '../../workbench/annotation-overlay-renderer.js'
+import {
   BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
   buildBrowserDomProjectionAdapterResult,
 } from '../../workbench/browser-dom-element-picker.js'
@@ -671,20 +675,45 @@ function buildStatsStatusEvalScript() {
   })()`
 }
 
-function buildAnnotationOverlayEvalScript({ hover = null, active = null, comments = [] } = {}) {
-  const hoverLiteral = JSON.stringify(hover)
-  const activeLiteral = JSON.stringify(active)
-  const commentsLiteral = JSON.stringify(comments)
+export function buildAnnotationOverlayEvalScript(group = null) {
+  const groupLiteral = JSON.stringify(group)
   return `(() => {
     const existing = document.getElementById(${JSON.stringify(ANNOTATION_OVERLAY_ID)})
-    if (existing) existing.remove()
-    const hover = ${hoverLiteral}
-    const active = ${activeLiteral}
-    const comments = ${commentsLiteral}
-    const highlight = hover || active
-    if (!highlight && comments.length === 0) return true
-    const overlay = document.createElement('div')
+    const group = ${groupLiteral}
+    const overlayFrame = normalizeRect(group?.overlay_frame) || { x: 0, y: 0, width: innerWidth || 0, height: innerHeight || 0 }
+    function normalizeRect(rect) {
+      if (!rect || typeof rect !== 'object') return null
+      const x = Number(rect.x ?? rect.left)
+      const y = Number(rect.y ?? rect.top)
+      const width = Number(rect.width ?? rect.w)
+      const height = Number(rect.height ?? rect.h)
+      if (![x, y, width, height].every(Number.isFinite)) return null
+      return { x, y, width, height }
+    }
+    function overlayRectForFrame(framePlan) {
+      if (!framePlan || framePlan.status !== 'live') return null
+      const rect = normalizeRect(framePlan.rect)
+      if (!rect) return null
+      const coordinateSpace = String(framePlan.projection?.coordinate_space || 'native_display')
+      const local = coordinateSpace === 'local' || coordinateSpace === 'canvas_local' || coordinateSpace === 'target_overlay'
+        ? rect
+        : { x: rect.x - overlayFrame.x, y: rect.y - overlayFrame.y, width: rect.width, height: rect.height }
+      if (local.width <= 0 || local.height <= 0) return null
+      return local
+    }
+    const frames = [
+      ...(group?.committed_frames || []).map((item) => ({ ...item, display_kind: 'active-edge' })),
+      ...(group?.preview_frames || []),
+      ...(group?.hover_candidate ? [group.hover_candidate] : [])
+    ].filter((framePlan) => framePlan?.status === 'live' && framePlan?.rect)
+    const comments = group?.comment_chips || []
+    if (!group || (frames.length === 0 && comments.length === 0)) {
+      if (existing) existing.remove()
+      return true
+    }
+    const overlay = existing || document.createElement('div')
     overlay.id = ${JSON.stringify(ANNOTATION_OVERLAY_ID)}
+    overlay.replaceChildren()
     overlay.setAttribute('aria-label', 'Surface Inspector annotation overlay')
     overlay.style.cssText = [
       'position:fixed',
@@ -693,21 +722,35 @@ function buildAnnotationOverlayEvalScript({ hover = null, active = null, comment
       'z-index:2147483646',
       'font:11px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif'
     ].join(';')
-    if (highlight) {
+    frames.forEach((framePlan) => {
+      const localRect = overlayRectForFrame(framePlan)
+      if (!localRect) return
       const frame = document.createElement('div')
+      const opacity = Number.isFinite(Number(framePlan.opacity)) ? Number(framePlan.opacity) : 1
+      const status = framePlan.status || 'live'
+      const border = framePlan.layer === 'hover'
+        ? '2px dashed ${FRAME_GOLD}'
+        : (framePlan.layer === 'preview' ? '2px dashed rgba(244,197,66,0.78)' : '2px solid ${FRAME_GOLD}')
       frame.style.cssText = [
         'position:absolute',
-        'inset:0',
+        'left:' + Math.round(localRect.x) + 'px',
+        'top:' + Math.round(localRect.y) + 'px',
+        'width:' + Math.round(localRect.width) + 'px',
+        'height:' + Math.round(localRect.height) + 'px',
         'box-sizing:border-box',
-        'border:2px solid ${FRAME_GOLD}',
-        'background:transparent'
+        'border:' + border,
+        'background:transparent',
+        'opacity:' + opacity,
+        status === 'live' ? '' : 'filter:grayscale(1)'
       ].join(';')
-      frame.setAttribute('data-highlight-kind', hover ? 'frame-candidate' : 'active-edge')
+      frame.setAttribute('data-highlight-kind', framePlan.layer === 'hover' ? 'frame-candidate' : (framePlan.display_kind || framePlan.layer || 'frame'))
+      frame.setAttribute('data-projection-status', status)
+      if (framePlan.reason) frame.setAttribute('title', framePlan.reason)
       overlay.appendChild(frame)
-    }
+    })
     comments.forEach((comment, index) => {
       const chip = document.createElement('div')
-      chip.textContent = comment.label + '  edit  x'
+      chip.textContent = comment.label
       chip.title = comment.text
       chip.style.cssText = [
         'position:absolute',
@@ -724,9 +767,11 @@ function buildAnnotationOverlayEvalScript({ hover = null, active = null, comment
         'color:${COMMENT_BLUE}',
         'padding:2px 6px'
       ].join(';')
+      chip.setAttribute('data-comment-id', comment.id)
+      chip.setAttribute('data-projection-status', comment.status || 'live')
       overlay.appendChild(chip)
     })
-    ;(document.body || document.documentElement).appendChild(overlay)
+    if (!existing) (document.body || document.documentElement).appendChild(overlay)
     return true
   })()`
 }
@@ -968,57 +1013,31 @@ export default function CanvasInspector() {
     } catch {}
   }
 
-  function annotationOverlaySignature({ hover = null, active = null, comments = [] } = {}) {
-    return JSON.stringify({
-      hover: hover?.id || '',
-      active: active?.id || '',
-      comments: comments.map((comment) => [comment.id, comment.label, comment.text]),
-    })
+  function annotationOverlaySignature(group = null) {
+    return group?.signature || ''
   }
 
   function syncControlledAnnotationDisplayOverlays() {
     const nextCanvasIds = new Set()
     if (annotationState.annotation_mode.active) {
-      const hoverProjectionRect = annotationState.last_hover_candidate?.projection?.visible_display_rect
-        || annotationState.last_hover_candidate?.projection?.display_space_rect
-      const hoverId = annotationState.last_hover_candidate?.projection?.can_project_display_overlay && hoverProjectionRect
-        ? annotationState.last_hover_candidate?.id
-        : null
-      const edge = computeSurfaceInspectorActiveEdge(annotationState)
-      const activeCanvasIds = hoverId
-        ? new Set()
-        : new Set(edge.frame_path
-          .filter((pin) => pin.projection?.can_project_display_overlay)
-          .map((pin) => pin.adapter_id === 'aos-toolkit-semantic-target'
-            ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
-            : (pin?.source_tree_node_metadata?.id || pin?.subject_id))
-          .filter((id) => id && id !== SELF_ID))
-      const commentsByCanvas = new Map()
-      for (const comment of edge.comments) {
-        const pin = edge.frame_path.find((item) => item.id === comment.pin_id)
-        if (!pin?.projection?.can_project_display_overlay) continue
-        const canvasId = pin.adapter_id === 'aos-toolkit-semantic-target'
-          ? (pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface)
-          : (pin?.source_tree_node_metadata?.id || pin?.subject_id)
-        if (!canvasId || canvasId === SELF_ID) continue
-        if (!commentsByCanvas.has(canvasId)) commentsByCanvas.set(canvasId, [])
-        const label = comment.text.length > 15 ? `${comment.text.slice(0, 15)}...` : comment.text
-        commentsByCanvas.get(canvasId).push({ id: comment.id, text: comment.text, label })
-      }
+      const session = surfaceInspectorAnnotationStateToSession(annotationState)
+      const plan = buildAnnotationOverlayRenderPlan(session)
+      const groupsByCanvas = new Map(plan.groups
+        .filter((group) => group.target.canvas_id && group.target.canvas_id !== SELF_ID)
+        .map((group) => [group.target.canvas_id, group]))
       for (const canvas of minimapCanvases()) {
-        const comments = commentsByCanvas.get(canvas.id) || []
-        const hover = hoverId === canvas.id
-          ? { id: canvas.id, can_pin: Boolean(annotationState.last_hover_candidate?.has_children) }
-          : null
-        const active = activeCanvasIds.has(canvas.id) ? { id: canvas.id } : null
-        if (!hover && !active && comments.length === 0) continue
+        const group = groupsByCanvas.get(canvas.id)
+        if (!group) continue
         nextCanvasIds.add(canvas.id)
-        const signature = annotationOverlaySignature({ hover, active, comments })
+        const signature = annotationOverlaySignature(group)
         if (annotationOverlaySignatures.get(canvas.id) === signature) continue
         if (annotationOverlaySignatures.has(canvas.id)) annotationOverlayStats.update += 1
         else annotationOverlayStats.create += 1
         annotationOverlaySignatures.set(canvas.id, signature)
-        evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({ hover, active, comments })).catch(() => {
+        evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({
+          ...group,
+          overlay_frame: normalizeDisplayRect(rectFromAt(canvas.atResolved || canvas.at)),
+        })).catch(() => {
           annotationOverlaySignatures.delete(canvas.id)
         })
       }
@@ -1613,6 +1632,22 @@ export default function CanvasInspector() {
     const candidate = annotationState.last_hover_candidate
     if (!candidate) return null
     const existing = findPinForCandidateId(candidate.subject_id || candidate.id)
+    if (existing && openEditor) {
+      annotationState = selectSurfaceInspectorAnnotationFrame(annotationState, existing.id)
+      if (annotationState.last_hover_candidate) {
+        annotationState = setSurfaceInspectorHoverCandidate(annotationState, {
+          ...annotationState.last_hover_candidate,
+          pinned: true,
+        })
+      }
+      annotationState.editor = {
+        mode: 'new',
+        pin_id: existing.id,
+        text: '',
+      }
+      rerender()
+      return existing.id
+    }
     if (existing && !openEditor) {
       annotationState = unpinSurfaceInspectorFrame(annotationState, existing.id)
       if (annotationState.last_hover_candidate) {
@@ -1973,17 +2008,13 @@ export default function CanvasInspector() {
 
   function renderAnnotationTree(depth) {
     if (!annotationState.annotation_mode.active) return ''
-    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
     const fallbackActions = renderAnnotationTreeFallbackActions(depth + 1)
     const scopeControls = renderAnnotationScopeControls(depth + 1)
-    if (rows.length === 0) {
-      const blocker = annotationState.last_projection_blocker?.reason || ''
-      const detail = blocker ? `blocked: ${blocker}` : 'no annotations'
-      return `${scopeControls}<div class="tree-row annotation-empty" style="${indentStyle(depth + 1)}"><span>${esc(detail)}</span></div>${fallbackActions}`
-    }
-    return `<div class="annotation-tree" role="tree">`
+    const managementRows = renderAnnotationManagementRows(depth + 1)
+    return `<div class="annotation-support" role="group" aria-label="Annotation support state">`
       + scopeControls
-      + rows.map((row) => renderAnnotationTreeRow(row, depth + 1)).join('')
+      + renderAnnotationSupportRows(depth + 1)
+      + managementRows
       + fallbackActions
       + `</div>`
   }
@@ -2007,13 +2038,82 @@ export default function CanvasInspector() {
       + `</div>`
   }
 
-  function renderAnnotationTreeRow(row, depth) {
+  function renderAnnotationSupportRows(depth) {
+    const session = surfaceInspectorAnnotationStateToSession(annotationState)
+    const anchors = session.anchors || []
+    const comments = anchors.filter((anchor) => (anchor.comment_text || '').trim())
+    const stale = anchors.filter((anchor) => anchor.status !== 'live' || anchor.projection?.can_project_display_overlay === false)
+    const blocker = annotationState.last_projection_blocker?.reason || ''
+    const current = session.committed_scope_stack?.at?.(-1) || session.root
+    const currentPath = current?.subject?.path?.join(' / ') || current?.address || 'main'
+    const snapshotState = 'snapshot ready'
+    const hover = session.hover_candidate
+    const minimapCount = anchors.filter((anchor) => anchor.projection?.can_project_display_overlay).length
+    let html = ''
+    html += renderAnnotationSupportRow('mode', 'active', depth)
+    html += renderAnnotationSupportRow('root', session.root?.root?.label || session.root?.address || 'pending', depth)
+    html += renderAnnotationSupportRow('scope', currentPath, depth)
+    html += renderAnnotationSupportRow('anchors', `${anchors.length} frames / ${comments.length} comments`, depth)
+    html += renderAnnotationSupportRow('snapshot', snapshotState, depth)
+    html += renderAnnotationSupportRow('minimap', `${minimapCount} projected markers, passive`, depth)
+    if (hover) {
+      html += renderAnnotationSupportRow('hover preview', `${hover.adapter_id}:${hover.subject?.id || hover.address}`, depth, {
+        state: hover.projection?.current_render_status || hover.status || 'preview',
+        blocker: hover.projection?.blocker_reason || '',
+      })
+    }
+    for (const anchor of anchors) {
+      html += renderAnnotationSupportRow(anchor.comment_text ? 'comment anchor' : 'frame anchor', anchor.address, depth, {
+        state: anchor.projection?.current_render_status || anchor.status || 'unknown',
+        adapter: anchor.subject?.adapter_id || anchor.projection?.adapter_id || 'unknown-adapter',
+        subject: anchor.subject?.subject?.id || anchor.projection?.subject_id || '',
+        blocker: anchor.projection?.blocker_reason || '',
+      })
+    }
+    if (stale.length > 0) {
+      html += renderAnnotationSupportRow('diagnostics', `${stale.length} stale/blocked anchors`, depth, {
+        state: 'blocked',
+        blocker: stale.map((anchor) => anchor.projection?.blocker_reason || anchor.status).filter(Boolean).join(', '),
+      })
+    } else if (blocker) {
+      html += renderAnnotationSupportRow('diagnostics', blocker, depth, { state: 'blocked', blocker })
+    } else if (anchors.length === 0 && !hover) {
+      html += `<div class="tree-row annotation-empty" style="${indentStyle(depth)}"><span>waiting for display anchor evidence</span></div>`
+    }
+    return html
+  }
+
+  function renderAnnotationSupportRow(label, value, depth, options = {}) {
+    const state = options.state || ''
+    const adapter = options.adapter ? ` · ${options.adapter}` : ''
+    const subject = options.subject ? ` · ${options.subject}` : ''
+    const blocker = options.blocker ? `<span class="annotation-blocker">${esc(options.blocker)}</span>` : ''
+    const stateClass = state ? ` state-${esc(state)}` : ''
+    return `<div class="tree-row annotation-support-row${stateClass}" style="${indentStyle(depth)}" title="${esc(value)}">`
+      + `<span class="annotation-support-label">${esc(label)}</span>`
+      + `<span class="annotation-support-value">${esc(value)}</span>`
+      + (state ? `<span class="annotation-projection-state">${esc(state)}</span>` : '')
+      + (adapter || subject ? `<span class="annotation-support-evidence">${esc(`${adapter}${subject}`.replace(/^ · /, ''))}</span>` : '')
+      + blocker
+      + `</div>`
+  }
+
+  function renderAnnotationManagementRows(depth) {
+    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
+    if (rows.length === 0) return ''
+    return `<div class="annotation-management" role="tree" aria-label="Saved annotation management">`
+      + `<div class="tree-row annotation-management-heading" style="${indentStyle(depth)}"><span>saved annotation management</span></div>`
+      + rows.map((row) => renderAnnotationManagementRow(row, depth + 1)).join('')
+      + `</div>`
+  }
+
+  function renderAnnotationManagementRow(row, depth) {
     const stateLabel = row.projection_state || row.pin?.projection?.current_render_status || 'unsupported'
     const blocker = row.blocker_text || row.pin?.projection?.blocker_reason || ''
     if (row.type === 'comment') {
       return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth)}" title="${esc(blocker || row.comment.text)}">`
         + `<span class="annotation-comment-dot"></span>`
-        + `<span class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}">${esc(row.comment.text)}</span>`
+        + `<button class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}" data-pin-id="${esc(row.comment.pin_id)}" ${inspectorControlAttrs(`annotation-comment-${row.comment.id}`, { name: `Edit comment ${row.comment.id}`, action: 'edit_comment' })}>${esc(row.comment.text)}</button>`
         + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
         + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
         + `<button class="btn annotation-comment-delete" data-comment-id="${esc(row.comment.id)}" title="Delete comment" ${inspectorControlAttrs(`annotation-delete-${row.comment.id}`, { name: `Delete comment ${row.comment.id}`, action: 'delete_comment' })}>del</button>`
@@ -2207,6 +2307,23 @@ export default function CanvasInspector() {
         rerender()
         return
       }
+      if (btn.classList.contains('annotation-comment-text')) {
+        const comment = annotationState.comments.find((item) => item.id === btn.dataset.commentId && item.status !== 'removed')
+        if (comment) {
+          annotationState = createSurfaceInspectorAnnotationState({
+            ...annotationState,
+            active_frame_id: comment.pin_id || annotationState.active_frame_id,
+            editor: {
+              mode: 'edit',
+              pin_id: comment.pin_id,
+              comment_id: comment.id,
+              text: comment.text,
+            },
+          })
+          rerender()
+        }
+        return
+      }
       if (btn.classList.contains('annotation-pin-reveal')) {
         revealAnnotationTarget(btn.dataset.pinId)
         return
@@ -2276,12 +2393,6 @@ export default function CanvasInspector() {
         save.classList.toggle('disabled', save.disabled)
       }
     })
-    contentEl.addEventListener('dblclick', (event) => {
-      const row = event.target?.closest?.('.annotation-row.pin')
-      if (!row || !contentEl.contains(row)) return
-      const pin = annotationState.pins.find((item) => item.id === row.dataset.pinId)
-      if (pin?.projection?.can_reveal) revealAnnotationTarget(pin.id)
-    })
     window.addEventListener('keydown', (event) => {
       if (!annotationState.annotation_mode.active || event.key !== 'Escape') return
       if ((annotationState.annotation_scope_stack || []).length === 0) return
@@ -2348,7 +2459,7 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Surface Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.annotation_open', 'canvas_inspector.semantic_targets'],
       emits: ['canvas.send'],
       channelPrefix: 'canvas-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
@@ -2424,6 +2535,11 @@ export default function CanvasInspector() {
       if (msg.type === 'canvas_inspector.annotation_toggle') {
         if (annotationState.annotation_mode.active) setAnnotationMode(false, { reason: msg.reason || 'shortcut' })
         else setAnnotationMode(true, { reason: msg.reason || 'shortcut' })
+        return
+      }
+      if (msg.type === 'canvas_inspector.annotation_open') {
+        if (!annotationState.annotation_mode.active) setAnnotationMode(true, { reason: msg.reason || 'external_open' })
+        else emitAnnotationModeState(msg.reason || 'external_open')
         return
       }
       if (msg.type === 'lifecycle' && msg.action === 'suspend') {

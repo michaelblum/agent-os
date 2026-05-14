@@ -7,6 +7,7 @@ import {
   buildAnnotationActionControlCanvasRecords,
   buildAnnotationHitLayerFrame,
   buildAnnotationNativeHitRegions,
+  buildAnnotationOverlayEvalScript,
   buildAnnotationScopedHitRegions,
   buildRevealPayloadForSurfaceInspectorPin,
   buildSemanticTargetsRequestMessages,
@@ -119,6 +120,65 @@ function createRevealFixtureDocument() {
   main.append(hero);
   body.append(offscreen);
   return { doc, hero, offscreen };
+}
+
+class OverlayFixtureElement {
+  constructor(tagName) {
+    this.tagName = tagName.toUpperCase();
+    this.children = [];
+    this.attrs = new Map();
+    this.style = { cssText: '' };
+    this.parentElement = null;
+    this.textContent = '';
+    this.title = '';
+    this.id = '';
+  }
+
+  setAttribute(name, value) {
+    this.attrs.set(name, String(value));
+  }
+
+  getAttribute(name) {
+    return this.attrs.get(name) ?? null;
+  }
+
+  appendChild(child) {
+    child.parentElement = this;
+    this.children.push(child);
+    return child;
+  }
+
+  replaceChildren(...children) {
+    this.children = [];
+    for (const child of children) this.appendChild(child);
+  }
+
+  remove() {
+    if (!this.parentElement) return;
+    this.parentElement.children = this.parentElement.children.filter((child) => child !== this);
+    this.parentElement = null;
+  }
+}
+
+function createOverlayFixtureDocument() {
+  const body = new OverlayFixtureElement('body');
+  const doc = {
+    body,
+    documentElement: body,
+    createElement: (tagName) => new OverlayFixtureElement(tagName),
+    getElementById: (id) => {
+      const visit = (node) => {
+        if (node.id === id) return node;
+        for (const child of node.children) {
+          const found = visit(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      return visit(body);
+    },
+  };
+  return doc;
 }
 
 const displays = [
@@ -429,6 +489,9 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /renderAnnotationModeToggleRowHTML/);
   assert.match(source, /Annotation Mode: \$\{enabled \? 'on' : 'off'\}/);
   assert.match(source, /canvas_inspector\.annotation_toggle/);
+  assert.match(source, /canvas_inspector\.annotation_open/);
+  assert.match(source, /if \(!annotationState\.annotation_mode\.active\) setAnnotationMode\(true, \{ reason: msg\.reason \|\| 'external_open' \}\)/);
+  assert.match(source, /else emitAnnotationModeState\(msg\.reason \|\| 'external_open'\)/);
   assert.match(source, /syncInputSubscription\(\{ snapshot: false \}\)/);
   assert.match(source, /const wantsInput = cursorTrackingEnabled \|\| mouseEventsEnabled \|\| annotationState\.annotation_mode\.active/);
   assert.match(source, /const inputEvents = annotationState\.annotation_mode\.active/);
@@ -464,8 +527,15 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /nativeCursor/);
   assert.match(source, /const hitPoint = nativeCursor\?\.valid \? nativeCursor : cursor/);
   assert.match(source, /pinned: true/);
+  assert.match(source, /Saved annotation management/);
   assert.match(source, /Reveal Target/);
   assert.match(source, /annotation-pin-reveal/);
+  assert.match(source, /annotation-pin-label/);
+  assert.match(source, /annotation-pin-copy/);
+  assert.match(source, /annotation-pin-expand/);
+  assert.match(source, /annotation-pin-remove/);
+  assert.match(source, /annotation-comment-text/);
+  assert.match(source, /annotation-comment-delete/);
   assert.match(source, /buildRevealTargetEvalScript/);
   assert.match(source, /applySurfaceInspectorRevealResult/);
   assert.match(source, /canvas_inspector\.semantic_targets/);
@@ -477,6 +547,15 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /Frame address/);
   assert.match(source, /Copy full frame address/);
   assert.match(source, /Expand frame address/);
+  assert.match(source, /renderAnnotationSupportRows/);
+  assert.match(source, /surfaceInspectorAnnotationStateToSession\(annotationState\)/);
+  assert.match(source, /hover preview/);
+  assert.match(source, /frame anchor/);
+  assert.match(source, /comment anchor/);
+  assert.match(source, /projected markers, passive/);
+  assert.match(source, /waiting for display anchor evidence/);
+  assert.match(source, /const snapshotState = 'snapshot ready'/);
+  assert.doesNotMatch(source, /`\$\{annotationState\.snapshot_version\} snapshots`/);
   assert.match(source, /if \(!annotationState\.annotation_mode\.active\) \{\s*\/\/ Object marks/s);
   assert.match(source, /if \(annotationState\.annotation_mode\.active\) return ''/);
   assert.match(source, /chip\.textContent/);
@@ -484,7 +563,8 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /syncControlledAnnotationDisplayOverlays/);
   assert.match(source, /annotationOverlaySignature/);
   assert.match(source, /annotationOverlaySignatures\.get\(canvas\.id\) === signature/);
-  assert.match(source, /activeCanvasIds/);
+  assert.match(source, /surfaceInspectorAnnotationStateToSession/);
+  assert.match(source, /buildAnnotationOverlayRenderPlan/);
   assert.match(source, /active-edge/);
   assert.doesNotMatch(source, /textContent = icon/);
   assert.doesNotMatch(source, /makeButton/);
@@ -496,8 +576,124 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(styles, /\.minimap-annotation-frame/);
   assert.match(styles, /\.minimap-annotation-comment/);
   assert.match(styles, /\.annotation-projection-state/);
+  assert.match(styles, /\.annotation-support-row\.state-absent/);
   assert.match(styles, /\.annotation-row\.state-absent/);
+  assert.match(styles, /\.annotation-support-label/);
   assert.doesNotMatch(source, /semantic-target-row/);
+});
+
+test('active Annotation Mode keeps saved annotation management controls separate from support summary', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.js'), 'utf8');
+  const renderStart = source.indexOf('function renderAnnotationTree(depth)');
+  const semanticStart = source.indexOf('function renderSemanticTargetRows');
+  const bindStart = source.indexOf('function bindListEvents()');
+  const bindEnd = source.indexOf("contentEl.addEventListener('input'", bindStart);
+  assert.ok(renderStart >= 0);
+  assert.ok(semanticStart > renderStart);
+  assert.ok(bindStart >= 0);
+  assert.ok(bindEnd > bindStart);
+  const renderBlock = source.slice(renderStart, semanticStart);
+  const bindBlock = source.slice(bindStart, bindEnd);
+
+  assert.match(renderBlock, /renderAnnotationSupportRows\(depth \+ 1\)/);
+  assert.match(renderBlock, /renderAnnotationManagementRows\(depth \+ 1\)/);
+  assert.match(renderBlock, /buildSurfaceInspectorAnnotationTreeRows\(annotationState\)/);
+  assert.match(renderBlock, /aria-label="Saved annotation management"/);
+  assert.match(renderBlock, /annotation-pin-label/);
+  assert.match(renderBlock, /annotation-pin-reveal/);
+  assert.match(renderBlock, /annotation-pin-expand/);
+  assert.match(renderBlock, /annotation-pin-copy/);
+  assert.match(renderBlock, /annotation-pin-remove/);
+  assert.match(renderBlock, /annotation-comment-text/);
+  assert.match(renderBlock, /annotation-comment-delete/);
+  assert.match(bindBlock, /selectSurfaceInspectorAnnotationFrame\(annotationState, btn\.dataset\.pinId/);
+  assert.match(bindBlock, /navigator\.clipboard\?\.writeText/);
+  assert.match(bindBlock, /unpinSurfaceInspectorFrame\(annotationState, btn\.dataset\.pinId\)/);
+  assert.match(bindBlock, /deleteSurfaceInspectorComment\(annotationState, btn\.dataset\.commentId\)/);
+  assert.match(bindBlock, /mode: 'edit'/);
+});
+
+test('display add-comment action opens editor for an existing frame anchor without re-pinning', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.js'), 'utf8');
+  const pinStart = source.indexOf('function pinHoverCandidate({ openEditor = false } = {})');
+  const backStart = source.indexOf('function backAnnotationScope()', pinStart);
+  const displayActionStart = source.indexOf("if (msg.type === 'canvas_inspector.annotation_display_action')");
+  const displayActionEnd = source.indexOf("if (msg.type === 'canvas_inspector.see_bundle_status')", displayActionStart);
+  assert.ok(pinStart >= 0);
+  assert.ok(backStart > pinStart);
+  assert.ok(displayActionStart >= 0);
+  assert.ok(displayActionEnd > displayActionStart);
+  const pinBlock = source.slice(pinStart, backStart);
+  const displayActionBlock = source.slice(displayActionStart, displayActionEnd);
+
+  assert.match(displayActionBlock, /if \(msg\.action === 'add_comment'\) handleAnnotationActionForCanvas\(msg\.canvas_id, \{ openEditor: true \}\)/);
+  assert.match(pinBlock, /const existing = findPinForCandidateId\(candidate\.subject_id \|\| candidate\.id\)/);
+  assert.match(pinBlock, /if \(existing && openEditor\)/);
+  assert.match(pinBlock, /selectSurfaceInspectorAnnotationFrame\(annotationState, existing\.id\)/);
+  assert.match(pinBlock, /pin_id: existing\.id/);
+  assert.match(pinBlock, /return existing\.id/);
+  assert.match(pinBlock, /if \(existing && !openEditor\)/);
+  assert.ok(pinBlock.indexOf('if (existing && openEditor)') < pinBlock.indexOf('annotationState = pinSurfaceInspectorFrame(annotationState, candidate)'));
+});
+
+test('annotation scope breadcrumbs remain actionable buttons for root and ancestor jumps', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/canvas-inspector/index.js'), 'utf8');
+  const scopeStart = source.indexOf('function renderAnnotationScopeControls(depth)');
+  const supportStart = source.indexOf('function renderAnnotationSupportRows(depth)');
+  const bindStart = source.indexOf('function bindListEvents()');
+  const bindEnd = source.indexOf("if (btn.classList.contains('annotation-pin-label'))", bindStart);
+  assert.ok(scopeStart >= 0);
+  assert.ok(supportStart > scopeStart);
+  assert.ok(bindStart >= 0);
+  assert.ok(bindEnd > bindStart);
+  const scopeBlock = source.slice(scopeStart, supportStart);
+  const bindBlock = source.slice(bindStart, bindEnd);
+
+  assert.match(scopeBlock, /<button class="annotation-scope-crumb \$\{rootActive \? 'active' : ''\}" data-pin-id=""/);
+  assert.match(scopeBlock, /data-pin-id="\$\{esc\(frame\.pin_id\)\}"/);
+  assert.match(scopeBlock, /inspectorControlAttrs\('annotation-scope-root'/);
+  assert.match(scopeBlock, /action: 'select_annotation_scope_root'/);
+  assert.match(scopeBlock, /action: 'select_annotation_scope'/);
+  assert.match(bindBlock, /btn\.classList\.contains\('annotation-scope-crumb'\)/);
+  assert.match(bindBlock, /jumpSurfaceInspectorAnnotationScope\(annotationState, btn\.dataset\.pinId \|\| ''\)/);
+});
+
+test('annotation overlay eval script places only live rect-backed frames in canvas-local coordinates', () => {
+  const doc = createOverlayFixtureDocument();
+  const script = buildAnnotationOverlayEvalScript({
+    overlay_frame: { x: 100, y: 200, width: 300, height: 180 },
+    committed_frames: [
+      {
+        layer: 'committed',
+        status: 'live',
+        rect: { x: 112, y: 224, width: 80, height: 44 },
+        opacity: 0.75,
+        projection: { coordinate_space: 'native_display' },
+      },
+      {
+        layer: 'committed',
+        status: 'stale',
+        rect: null,
+        evidence_rect: { x: 10, y: 20, width: 30, height: 40 },
+        reason: 'projection_outdated',
+      },
+    ],
+    preview_frames: [],
+    hover_candidate: null,
+    comment_chips: [],
+  });
+
+  const result = Function('document', 'innerWidth', 'innerHeight', `return ${script}`)(doc, 300, 180);
+  assert.equal(result, true);
+  assert.equal(doc.body.children.length, 1);
+  const overlay = doc.body.children[0];
+  assert.equal(overlay.children.length, 1);
+  const frameStyle = overlay.children[0].style.cssText;
+  assert.match(frameStyle, /left:12px/);
+  assert.match(frameStyle, /top:24px/);
+  assert.match(frameStyle, /width:80px/);
+  assert.match(frameStyle, /height:44px/);
+  assert.doesNotMatch(frameStyle, /inset:0/);
 });
 
 test('Surface Inspector annotation clear removes only annotation runtime canvases', () => {
