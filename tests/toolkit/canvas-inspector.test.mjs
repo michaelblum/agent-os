@@ -512,6 +512,8 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /annotationActionControlCanvases/);
   assert.match(source, /annotationOverlayTargetCanvasIds/);
   assert.match(source, /annotationOverlayEvalCounts/);
+  assert.match(source, /annotationPendingProjectionSettle/);
+  assert.match(source, /annotationProjectionRefresh/);
   assert.match(source, /buildAnnotationActionControlCanvasRecords/);
   assert.match(source, /spawnChild/);
   assert.match(source, /canvas\.update/);
@@ -542,6 +544,18 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /canvas_inspector\.semantic_targets\.request/);
   assert.match(source, /requestSemanticTargetsForLiveCanvases/);
   assert.match(source, /buildSemanticTargetProjectionAdapterResult/);
+  assert.match(source, /markSurfaceInspectorAnnotationProjectionsStale/);
+  assert.match(source, /refreshSurfaceInspectorAnnotationProjectionsFromEvidence/);
+  assert.match(source, /invalidateAnnotationProjections\('display_geometry_changed'/);
+  assert.match(source, /invalidateAnnotationProjections\('canvas_lifecycle_changed'/);
+  assert.match(source, /else \{\s*requestSemanticTargetsForLiveCanvases\('surface_inspector_lifecycle'\)\s*\}/);
+  assert.match(source, /annotationCanvasLifecycleAffectsProjection/);
+  assert.match(source, /return ids\.some\(\(id\) => !isAnnotationInternalCanvasId\(id\)\)/);
+  assert.match(source, /invalidateAnnotationProjections\('native_window_moved_or_changed'/);
+  assert.match(source, /invalidateAnnotationProjections\('native_ax_stale_or_absent'/);
+  assert.match(source, /refreshSettledAnnotationProjections\('semantic_targets_refreshed'\)/);
+  assert.match(source, /requestSemanticTargetsForLiveCanvases\(options\.request_semantic_targets/);
+  assert.match(source, /currentAnnotationProjectionEvidence/);
   assert.doesNotMatch(source, /annotation-semantic-pin/);
   assert.doesNotMatch(source, /annotation-selected-add/);
   assert.match(source, /Frame address/);

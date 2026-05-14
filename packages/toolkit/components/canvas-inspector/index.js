@@ -44,8 +44,10 @@ import {
   hasSurfaceInspectorAnnotations,
   clearSurfaceInspectorAnnotationScope,
   jumpSurfaceInspectorAnnotationScope,
+  markSurfaceInspectorAnnotationProjectionsStale,
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
+  refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
@@ -893,6 +895,7 @@ export default function CanvasInspector() {
   let annotationHitLayerSignature = ''
   let annotationHitLayerFrameKey = ''
   let pendingAnnotationHoverFrame = 0
+  let pendingAnnotationProjectionSettleTimer = 0
   let annotationHoverUpdateReason = ''
   let annotationHoverStats = { create: 0, update: 0, remove: 0 }
   let annotationOverlayStats = { create: 0, update: 0, clear: 0 }
@@ -935,6 +938,8 @@ export default function CanvasInspector() {
       annotationActionControlEmitCounts: { ...annotationHoverStats },
       annotationOverlayEvalCounts: { ...annotationOverlayStats },
       annotationPendingHoverRefresh: Boolean(pendingAnnotationHoverFrame),
+      annotationPendingProjectionSettle: Boolean(pendingAnnotationProjectionSettleTimer),
+      annotationProjectionRefresh: annotationState.projection_refresh,
       annotationActionControlCanvases: annotationActionControlsForHover(),
       mouseEffects: {
         active: mouseEffectsState.active,
@@ -1055,6 +1060,12 @@ export default function CanvasInspector() {
     pendingAnnotationHoverFrame = 0
   }
 
+  function cancelPendingAnnotationProjectionSettle() {
+    if (!pendingAnnotationProjectionSettleTimer) return
+    window.clearTimeout(pendingAnnotationProjectionSettleTimer)
+    pendingAnnotationProjectionSettleTimer = 0
+  }
+
   function emitAnnotationModeState(reason = 'state_sync') {
     emit('canvas_inspector.annotation_state', {
       canvas_id: SELF_ID,
@@ -1100,6 +1111,26 @@ export default function CanvasInspector() {
 
   function isAnnotationInternalCanvasId(id) {
     return id === SELF_ID || isAnnotationActionControlCanvasId(id) || isAnnotationHitLayerCanvasId(id)
+  }
+
+  function canvasLifecycleIds(payload = {}) {
+    const ids = [
+      payload.id,
+      payload.canvas_id,
+      payload.canvas?.id,
+      payload.data?.id,
+      payload.data?.canvas_id,
+    ]
+    if (Array.isArray(payload.canvases)) {
+      for (const canvas of payload.canvases) ids.push(canvas?.id)
+    }
+    return ids.map((id) => String(id || '')).filter(Boolean)
+  }
+
+  function annotationCanvasLifecycleAffectsProjection(payload = {}) {
+    const ids = canvasLifecycleIds(payload)
+    if (ids.length === 0) return true
+    return ids.some((id) => !isAnnotationInternalCanvasId(id))
   }
 
   function isBroadRootCanvasId(id) {
@@ -1367,6 +1398,55 @@ export default function CanvasInspector() {
     return messages.length
   }
 
+  function currentAnnotationProjectionEvidence() {
+    const evidence = []
+    for (const canvas of minimapCanvases()) {
+      if (!isAnnotationInternalCanvasId(canvas.id)) evidence.push(canvasNodeForAnnotation(canvas))
+    }
+    for (const [canvasId, targets] of semanticTargetsByCanvas) {
+      for (const target of targets) evidence.push(semanticTargetNodeForAnnotation(canvasId, target))
+    }
+    const nativeWindow = nativeWindowCandidateForAnnotation()
+    if (nativeWindow) evidence.push(nativeWindow)
+    const nativeAx = nativeAxCandidateForAnnotation()
+    if (nativeAx) evidence.push(nativeAx)
+    return evidence
+  }
+
+  function refreshSettledAnnotationProjections(reason = 'settled_projection_refresh') {
+    pendingAnnotationProjectionSettleTimer = 0
+    if (!annotationState.annotation_mode.active) return
+    annotationState = refreshSurfaceInspectorAnnotationProjectionsFromEvidence(annotationState, currentAnnotationProjectionEvidence(), { reason })
+    annotationHoverUpdateReason = annotationState.projection_refresh?.last_result?.blocker_reason || reason
+    syncDebugState()
+    syncControlledAnnotationDisplayOverlays()
+    syncAnnotationActionControlCanvases()
+    rerender()
+  }
+
+  function scheduleSettledAnnotationProjectionRefresh(reason = 'settled_projection_refresh', options = {}) {
+    if (!annotationState.annotation_mode.active) return
+    if (pendingAnnotationProjectionSettleTimer) window.clearTimeout(pendingAnnotationProjectionSettleTimer)
+    pendingAnnotationProjectionSettleTimer = window.setTimeout(() => {
+      refreshSettledAnnotationProjections(reason)
+    }, Number.isFinite(Number(options.delay_ms)) ? Number(options.delay_ms) : 180)
+  }
+
+  function invalidateAnnotationProjections(reason = 'projection_stale', options = {}) {
+    if (!annotationState.annotation_mode.active) return
+    annotationState = markSurfaceInspectorAnnotationProjectionsStale(annotationState, reason, {
+      pending_settle_reason: options.settle_reason || reason,
+    })
+    annotationHoverUpdateReason = reason
+    if (options.request_semantic_targets) {
+      requestSemanticTargetsForLiveCanvases(options.request_semantic_targets, { force: options.force_semantic_targets === true })
+    }
+    syncDebugState()
+    syncControlledAnnotationDisplayOverlays()
+    rerender()
+    scheduleSettledAnnotationProjectionRefresh(options.settle_reason || reason, options)
+  }
+
   function semanticTargetNodeForAnnotation(canvasId, target = {}) {
     return buildSurfaceInspectorTargetNodeForAnnotation(canvasId, target, {
       findPinForCandidateId,
@@ -1599,6 +1679,7 @@ export default function CanvasInspector() {
     } else if (wasActive && !annotationState.clear_confirmation) {
       annotationHoverUpdateReason = options.reason || 'annotation_mode_exited'
       cancelPendingAnnotationHoverRefresh()
+      cancelPendingAnnotationProjectionSettle()
       removeAnnotationRuntimeCanvases()
       syncInputSubscription({ snapshot: false })
     }
@@ -1618,6 +1699,7 @@ export default function CanvasInspector() {
       removeAnnotationRuntimeCanvases()
     }
     cancelPendingAnnotationHoverRefresh()
+    cancelPendingAnnotationProjectionSettle()
     syncInputSubscription({ snapshot: false })
     emitAnnotationModeState(reason || 'annotation_clear_confirmed')
     rerender()
@@ -1687,6 +1769,7 @@ export default function CanvasInspector() {
     annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { reason: 'clear_anchors' })
     if (!annotationState.clear_confirmation) {
       cancelPendingAnnotationHoverRefresh()
+      cancelPendingAnnotationProjectionSettle()
       removeAnnotationRuntimeCanvases()
       syncInputSubscription({ snapshot: false })
       emitAnnotationModeState('clear_anchors')
@@ -2547,6 +2630,7 @@ export default function CanvasInspector() {
           annotationState = setSurfaceInspectorAnnotationMode(annotationState, false, { confirmed: true, reason: 'surface_inspector_suspended' })
         }
         cancelPendingAnnotationHoverRefresh()
+        cancelPendingAnnotationProjectionSettle()
         removeAnnotationRuntimeCanvases()
         syncInputSubscription({ snapshot: false })
         emitAnnotationModeState('surface_inspector_suspended')
@@ -2589,12 +2673,20 @@ export default function CanvasInspector() {
       }
       if (msg.type === 'canvas_inspector.semantic_targets') {
         normalizeSemanticTargetsPayload(msg.payload || msg)
+        if (annotationState.annotation_mode.active) {
+          refreshSettledAnnotationProjections('semantic_targets_refreshed')
+        }
         rerender()
         return
       }
       if (msg.type === 'display_geometry') {
         const p = msg.payload || msg
         if (p.displays) displays = normalizeDisplays(p.displays)
+        invalidateAnnotationProjections('display_geometry_changed', {
+          settle_reason: 'display_geometry_settled',
+          request_semantic_targets: 'display_geometry_changed',
+          force_semantic_targets: true,
+        })
         rerender()
         return
       }
@@ -2606,6 +2698,9 @@ export default function CanvasInspector() {
           ref: msg.ref || p.ref || '',
         }
         if (annotationState.annotation_mode.active) {
+          invalidateAnnotationProjections('native_window_moved_or_changed', {
+            settle_reason: 'native_window_settled',
+          })
           scheduleAnnotationHoverRefresh('native_window_entered')
           syncDebugState()
         }
@@ -2619,6 +2714,9 @@ export default function CanvasInspector() {
           ref: msg.ref || p.ref || '',
         }
         if (annotationState.annotation_mode.active) {
+          invalidateAnnotationProjections('native_ax_stale_or_absent', {
+            settle_reason: 'native_ax_settled',
+          })
           scheduleAnnotationHoverRefresh('native_ax_element_focused')
           syncDebugState()
         }
@@ -2655,8 +2753,19 @@ export default function CanvasInspector() {
       }
       if (msg.type === 'canvas_lifecycle') {
         eventCount++
-        applyLifecycle(msg.payload || msg.data || msg)
-        requestSemanticTargetsForLiveCanvases('surface_inspector_lifecycle')
+        const lifecycle = msg.payload || msg.data || msg
+        applyLifecycle(lifecycle)
+        if (annotationCanvasLifecycleAffectsProjection(lifecycle)) {
+          if (annotationState.annotation_mode.active) {
+            invalidateAnnotationProjections('canvas_lifecycle_changed', {
+              settle_reason: 'canvas_lifecycle_settled',
+              request_semantic_targets: 'surface_inspector_lifecycle',
+              force_semantic_targets: true,
+            })
+          } else {
+            requestSemanticTargetsForLiveCanvases('surface_inspector_lifecycle')
+          }
+        }
         rerender()
         return
       }

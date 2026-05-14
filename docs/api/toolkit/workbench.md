@@ -170,6 +170,33 @@ only for anchors with non-empty `comment_text`.
 the current Surface Inspector support path; future entry paths should produce
 the shared session model directly.
 
+### Annotation Settled Reprojection V0
+
+`packages/toolkit/workbench/surface-inspector-annotations.js` provides the first
+Surface Inspector support helpers for settled reprojection:
+
+```js
+import {
+  markSurfaceInspectorAnnotationProjectionsStale,
+  refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
+} from '../workbench/surface-inspector-annotations.js'
+```
+
+`markSurfaceInspectorAnnotationProjectionsStale(state, reason)` marks saved frame
+anchors, committed scope entries, preview/hover evidence, and support diagnostics
+as stale without dropping subject addresses, comments, or scope paths. Stale
+projection records clear live `display_space_rect` values so display overlays do
+not draw old rectangles as truth.
+
+`refreshSurfaceInspectorAnnotationProjectionsFromEvidence(state, evidence)` uses
+already-available bounded evidence, such as canvas frames, AOS semantic target
+broadcasts, native window events, or native AX focus events, to restore live
+projections after a source settles. If no matching source evidence exists, the
+anchor remains present with blocker reason `projection_refresh_source_missing`.
+Canvas Inspector exposes `projection_refresh` in annotation snapshots and debug
+state so support surfaces can show pending settle reason, refresh generation,
+and the last refresh result.
+
 ### HTML Workbench Expression V0
 
 `packages/toolkit/workbench/html-workbench-expression.js` builds the V0 rich

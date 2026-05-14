@@ -6,7 +6,7 @@ export const SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_VERSION = '0.1.0'
 const FRAME_PIN_KIND = 'frame_pin'
 const COMMENT_KIND = 'comment'
 const DEFAULT_ACTOR = Object.freeze({ role: 'operator', id: 'human' })
-const RENDER_STATUSES = new Set(['visible', 'clipped', 'offscreen_scrollable', 'virtualized', 'hidden', 'absent', 'stale', 'unsupported'])
+const RENDER_STATUSES = new Set(['visible', 'clipped', 'offscreen_scrollable', 'virtualized', 'hidden', 'absent', 'stale', 'blocked', 'unsupported'])
 const REVEAL_STATUSES = new Set(['already_visible', 'revealed', 'blocked', 'virtualized', 'unsupported', 'target_absent', 'adapter_error'])
 const CANDIDATE_ADAPTER_PRIORITY = new Map([
   ['aos-toolkit-semantic-target', 80],
@@ -17,6 +17,7 @@ const CANDIDATE_ADAPTER_PRIORITY = new Map([
 ])
 const ACTIONABLE_CAPABILITIES = new Set(['press', 'focus', 'set_value', 'scroll', 'increment', 'decrement'])
 const NOISY_SUBJECT_KINDS = new Set(['group', 'container', 'region', 'main', 'section', 'generic', 'div'])
+const REPROJECTION_MISSING_SOURCE_REASON = 'projection_refresh_source_missing'
 const IMPLICIT_ROOT_ID_PATTERNS = [
   /^desktop[-_]world$/i,
   /^aos-desktop-world-stage$/i,
@@ -483,6 +484,15 @@ function normalizeRevealResult(input = null) {
   }
 }
 
+function normalizeProjectionRefreshState(input = {}) {
+  return {
+    generation: Number.isFinite(Number(input.generation)) ? Number(input.generation) : 0,
+    pending_settle_reason: text(input.pending_settle_reason),
+    stale_reason: text(input.stale_reason),
+    last_result: input.last_result ? clone(input.last_result) : null,
+  }
+}
+
 export function createSurfaceInspectorAnnotationState(input = {}) {
   const state = {
     schema: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
@@ -501,10 +511,89 @@ export function createSurfaceInspectorAnnotationState(input = {}) {
     last_projection_blocker: input.last_projection_blocker ? clone(input.last_projection_blocker) : null,
     clear_confirmation: input.clear_confirmation ? clone(input.clear_confirmation) : null,
     editor: input.editor ? clone(input.editor) : null,
+    projection_refresh: normalizeProjectionRefreshState(input.projection_refresh),
     snapshot_version: Number.isFinite(Number(input.snapshot_version)) ? Number(input.snapshot_version) : 0,
   }
   reconcileActiveFrame(state)
   return state
+}
+
+function staleProjectionFromProjection(projection = {}, reason = 'projection_stale', options = {}) {
+  const current = normalizeProjectionStatus(projection || {})
+  const blockerReason = text(options.blocker_reason || reason, 'projection_stale')
+  return normalizeProjectionStatus({
+    ...current,
+    status: options.status || 'stale',
+    current_render_status: options.status || 'stale',
+    projectable: false,
+    can_project_display_overlay: false,
+    can_reveal: Boolean(current.can_reveal),
+    display_space_rect: null,
+    visible_display_rect: options.keep_visible_evidence === true ? current.visible_display_rect : null,
+    blocker_reason: blockerReason,
+    refreshed_at: options.refreshed_at || Date.now(),
+  })
+}
+
+function markScopeProjectionStale(scope = {}, reason = 'projection_stale', options = {}) {
+  return {
+    ...scope,
+    projection: staleProjectionFromProjection(scope.projection || scope, reason, options),
+  }
+}
+
+function projectionRefreshResult(reason, options = {}) {
+  return {
+    reason: text(reason),
+    refreshed_at: isoNow(options.refreshed_at || options.now || Date.now()),
+    matched_count: Number.isFinite(Number(options.matched_count)) ? Number(options.matched_count) : 0,
+    missing_count: Number.isFinite(Number(options.missing_count)) ? Number(options.missing_count) : 0,
+    refreshed_pin_ids: Array.isArray(options.refreshed_pin_ids) ? [...options.refreshed_pin_ids] : [],
+    missing_pin_ids: Array.isArray(options.missing_pin_ids) ? [...options.missing_pin_ids] : [],
+    blocker_reason: text(options.blocker_reason),
+  }
+}
+
+function candidateMatchKeys(candidate = {}) {
+  const metadata = candidate.source_metadata || candidate.source_tree_node_metadata || candidate.metadata || {}
+  return new Set([
+    candidate.id,
+    candidate.subject_id,
+    metadata.id,
+    metadata.subject_id,
+    candidate.projection?.subject_id,
+  ].map((item) => text(item)).filter(Boolean))
+}
+
+function pinMatchKeys(pin = {}) {
+  const metadata = pin.source_tree_node_metadata || pin.source_metadata || {}
+  return new Set([
+    pin.id,
+    pin.subject_id,
+    metadata.id,
+    metadata.subject_id,
+    pin.projection?.subject_id,
+  ].map((item) => text(item)).filter(Boolean))
+}
+
+function pinMatchesCandidate(pin = {}, candidate = {}) {
+  const pinKeys = pinMatchKeys(pin)
+  const candidateKeys = candidateMatchKeys(candidate)
+  for (const key of pinKeys) {
+    if (candidateKeys.has(key)) return true
+  }
+  return false
+}
+
+function candidateForPin(pin = {}, candidates = []) {
+  return candidates.find((candidate) => {
+    if (!candidate) return false
+    if (pin.adapter_id && candidate.adapter_id && pin.adapter_id !== candidate.adapter_id) {
+      const compatibleCanvasSemantic = pin.adapter_id === 'aos-canvas-window' && candidate.adapter_id === 'aos-toolkit-semantic-target'
+      if (!compatibleCanvasSemantic) return false
+    }
+    return pinMatchesCandidate(pin, candidate)
+  }) || null
 }
 
 export function normalizeProjectionCapabilities(input = []) {
@@ -747,6 +836,115 @@ export function refreshSurfaceInspectorPinProjection(state, pinId, projection = 
   pin.projection = normalizeProjectionStatus(projection)
   pin.updated_at = isoNow(projection.refreshed_at || Date.now())
   if (pin.id === next.active_frame_id) next.last_projection_blocker = pin.projection.can_project_display_overlay ? null : pin.projection.blocker
+  return bump(next)
+}
+
+export function markSurfaceInspectorAnnotationProjectionsStale(state, reason = 'projection_stale', options = {}) {
+  const next = createSurfaceInspectorAnnotationState(state)
+  const staleReason = text(reason, 'projection_stale')
+  const refreshedAt = options.refreshed_at || options.now || Date.now()
+  next.pins = next.pins.map((pin) => {
+    if (pin.status === 'removed') return pin
+    return {
+      ...pin,
+      projection: staleProjectionFromProjection(pin.projection, staleReason, { refreshed_at: refreshedAt }),
+      updated_at: isoNow(refreshedAt),
+    }
+  })
+  next.annotation_scope_stack = next.annotation_scope_stack.map((frame) => markScopeProjectionStale(frame, staleReason, { refreshed_at: refreshedAt }))
+  if (next.last_hover_candidate) {
+    next.last_hover_candidate = markScopeProjectionStale(next.last_hover_candidate, staleReason, { refreshed_at: refreshedAt })
+  }
+  next.last_projection_blocker = { reason: staleReason }
+  next.projection_refresh = {
+    generation: next.projection_refresh.generation + 1,
+    pending_settle_reason: text(options.pending_settle_reason || staleReason),
+    stale_reason: staleReason,
+    last_result: next.projection_refresh.last_result,
+  }
+  return bump(next)
+}
+
+export function refreshSurfaceInspectorAnnotationProjectionsFromEvidence(state, evidence = [], options = {}) {
+  const next = createSurfaceInspectorAnnotationState(state)
+  const reason = text(options.reason, 'settled_projection_refresh')
+  const candidates = (Array.isArray(evidence) ? evidence : [evidence])
+    .map((candidate) => normalizeSurfaceInspectorAnnotationCandidate(candidate))
+    .filter(Boolean)
+  const refreshedPinIds = []
+  const missingPinIds = []
+
+  next.pins = next.pins.map((pin) => {
+    if (pin.status === 'removed') return pin
+    const candidate = candidateForPin(pin, candidates)
+    if (!candidate) {
+      const projection = staleProjectionFromProjection(pin.projection, REPROJECTION_MISSING_SOURCE_REASON, {
+        status: 'blocked',
+        refreshed_at: options.refreshed_at || options.now || Date.now(),
+      })
+      missingPinIds.push(pin.id)
+      return { ...pin, projection, updated_at: isoNow(options.refreshed_at || options.now || Date.now()) }
+    }
+    refreshedPinIds.push(pin.id)
+    return normalizePinRecord({
+      ...pin,
+      root_id: candidate.root_id || pin.root_id,
+      root_label: candidate.root_label || pin.root_label,
+      root_kind: candidate.root_kind || pin.root_kind,
+      subject_id: candidate.subject_id || pin.subject_id,
+      subject_path: candidate.subject_path || pin.subject_path,
+      adapter_id: candidate.adapter_id || pin.adapter_id,
+      source_tree_node_metadata: {
+        ...pin.source_tree_node_metadata,
+        ...candidate.source_metadata,
+        id: candidate.id,
+        subject_id: candidate.subject_id,
+      },
+      projection: candidate.projection,
+      updated_at: options.refreshed_at || options.now || Date.now(),
+    })
+  })
+
+  const pinsById = new Map(next.pins.map((pin) => [pin.id, pin]))
+  next.annotation_scope_stack = next.annotation_scope_stack.map((frame) => {
+    const pin = pinsById.get(frame.pin_id)
+    return pin ? scopeFrameFromPin(pin) : markScopeProjectionStale(frame, REPROJECTION_MISSING_SOURCE_REASON, {
+      status: 'blocked',
+      refreshed_at: options.refreshed_at || options.now || Date.now(),
+    })
+  })
+  if (next.last_hover_candidate) {
+    const candidate = candidateForPin({
+      id: next.last_hover_candidate.id,
+      subject_id: next.last_hover_candidate.subject_id,
+      root_id: next.last_hover_candidate.root_id,
+      adapter_id: next.last_hover_candidate.adapter_id,
+      projection: next.last_hover_candidate.projection,
+      source_tree_node_metadata: next.last_hover_candidate.source_metadata,
+    }, candidates)
+    next.last_hover_candidate = candidate || markScopeProjectionStale(next.last_hover_candidate, REPROJECTION_MISSING_SOURCE_REASON, {
+      status: 'blocked',
+      refreshed_at: options.refreshed_at || options.now || Date.now(),
+    })
+  }
+
+  next.last_projection_blocker = missingPinIds.length > 0
+    ? { reason: REPROJECTION_MISSING_SOURCE_REASON, pin_ids: missingPinIds }
+    : null
+  next.projection_refresh = {
+    generation: next.projection_refresh.generation + 1,
+    pending_settle_reason: '',
+    stale_reason: '',
+    last_result: projectionRefreshResult(reason, {
+      ...options,
+      matched_count: refreshedPinIds.length,
+      missing_count: missingPinIds.length,
+      refreshed_pin_ids: refreshedPinIds,
+      missing_pin_ids: missingPinIds,
+      blocker_reason: missingPinIds.length > 0 ? REPROJECTION_MISSING_SOURCE_REASON : '',
+    }),
+  }
+  reconcileActiveFrame(next)
   return bump(next)
 }
 
@@ -1012,6 +1210,7 @@ export function buildSurfaceInspectorSnapshotPayload(state) {
     annotation_scope_stack: clone(normalized.annotation_scope_stack),
     current_scope_id: normalized.annotation_scope_stack.at(-1)?.subject_id || 'root',
     last_projection_blocker: clone(normalized.last_projection_blocker),
+    projection_refresh: clone(normalized.projection_refresh),
     snapshot_version: normalized.snapshot_version,
   }
 }

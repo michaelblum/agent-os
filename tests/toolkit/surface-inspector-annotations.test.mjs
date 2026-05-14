@@ -17,9 +17,11 @@ import {
   deleteSurfaceInspectorComment,
   jumpSurfaceInspectorAnnotationScope,
   hasSurfaceInspectorAnnotations,
+  markSurfaceInspectorAnnotationProjectionsStale,
   normalizeSurfaceInspectorAnnotationCandidate,
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
+  refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
   refreshSurfaceInspectorPinProjection,
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
@@ -28,14 +30,15 @@ import {
   updateSurfaceInspectorComment,
 } from '../../packages/toolkit/workbench/surface-inspector-annotations.js'
 
-const node = (id, path = ['main', id]) => ({
+const node = (id, path = ['main', id], extra = {}) => ({
   id,
   subject_id: id,
   subject_path: path,
-  root_id: 'main',
-  root_label: 'main',
-  adapter_id: 'aos-canvas-window',
-  projection: {
+  root_id: extra.root_id || 'main',
+  root_label: extra.root_label || 'main',
+  adapter_id: extra.adapter_id || 'aos-canvas-window',
+  ...extra,
+  projection: extra.projection || {
     status: 'projectable',
     projectable: true,
     visible_display_rect: { x: 10, y: 20, w: 100, h: 80 },
@@ -619,4 +622,82 @@ test('stale and absent roots clear display projection and surface blocker eviden
   assert.deepEqual(snapshot.unsupported_stale_absent_blockers, [
     { pin_id: 'pin-removed', status: 'absent', blocker_reason: 'root_canvas_removed' },
   ])
+})
+
+test('settled reprojection marks anchors stale then refreshes from bounded evidence', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('workbench', ['main', 'workbench'], {
+    projection: {
+      status: 'visible',
+      projectable: true,
+      can_project_display_overlay: true,
+      visible_display_rect: { x: 10, y: 20, w: 100, h: 60 },
+      display_space_rect: { x: 10, y: 20, w: 100, h: 60 },
+    },
+  }), { id: 'pin-workbench' })
+  state = setSurfaceInspectorHoverCandidate(state, node('button', ['main', 'workbench', 'button']))
+
+  state = markSurfaceInspectorAnnotationProjectionsStale(state, 'display_geometry_changed', {
+    pending_settle_reason: 'display_geometry_settled',
+    now: '2026-05-14T00:00:00.000Z',
+  })
+
+  const stalePin = state.pins.find((pin) => pin.id === 'pin-workbench')
+  assert.equal(stalePin.projection.current_render_status, 'stale')
+  assert.equal(stalePin.projection.can_project_display_overlay, false)
+  assert.equal(stalePin.projection.display_space_rect, null)
+  assert.equal(state.last_hover_candidate.projection.current_render_status, 'stale')
+  assert.equal(state.projection_refresh.pending_settle_reason, 'display_geometry_settled')
+  assert.equal(buildSurfaceInspectorSnapshotPayload(state).projection_refresh.stale_reason, 'display_geometry_changed')
+
+  state = refreshSurfaceInspectorAnnotationProjectionsFromEvidence(state, [
+    node('workbench', ['main', 'workbench'], {
+      projection: {
+        status: 'visible',
+        projectable: true,
+        can_project_display_overlay: true,
+        visible_display_rect: { x: 30, y: 40, w: 120, h: 70 },
+        display_space_rect: { x: 30, y: 40, w: 120, h: 70 },
+        refreshed_at: '2026-05-14T00:00:01.000Z',
+      },
+    }),
+    node('button', ['main', 'workbench', 'button'], {
+      projection: {
+        status: 'visible',
+        projectable: true,
+        can_project_display_overlay: true,
+        visible_display_rect: { x: 50, y: 60, w: 40, h: 20 },
+        display_space_rect: { x: 50, y: 60, w: 40, h: 20 },
+      },
+    }),
+  ], {
+    reason: 'display_geometry_settled',
+    now: '2026-05-14T00:00:01.000Z',
+  })
+
+  const refreshedPin = state.pins.find((pin) => pin.id === 'pin-workbench')
+  assert.equal(refreshedPin.projection.current_render_status, 'visible')
+  assert.equal(refreshedPin.projection.display_space_rect.x, 30)
+  assert.equal(state.last_hover_candidate.projection.current_render_status, 'visible')
+  assert.equal(state.projection_refresh.pending_settle_reason, '')
+  assert.deepEqual(state.projection_refresh.last_result.refreshed_pin_ids, ['pin-workbench'])
+})
+
+test('settled reprojection keeps identity and reports a concrete missing-source blocker', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('gone', ['main', 'gone']), { id: 'pin-gone' })
+  state = markSurfaceInspectorAnnotationProjectionsStale(state, 'semantic_targets_refresh_pending')
+  state = refreshSurfaceInspectorAnnotationProjectionsFromEvidence(state, [], {
+    reason: 'semantic_targets_refreshed',
+    now: '2026-05-14T00:00:02.000Z',
+  })
+
+  const pin = state.pins.find((item) => item.id === 'pin-gone')
+  assert.equal(pin.id, 'pin-gone')
+  assert.deepEqual(pin.subject_path, ['main', 'gone'])
+  assert.equal(pin.projection.current_render_status, 'blocked')
+  assert.equal(pin.projection.can_project_display_overlay, false)
+  assert.equal(pin.projection.blocker_reason, 'projection_refresh_source_missing')
+  assert.deepEqual(state.projection_refresh.last_result.missing_pin_ids, ['pin-gone'])
+  assert.equal(buildSurfaceInspectorSnapshotPayload(state).unsupported_stale_absent_blockers[0].blocker_reason, 'projection_refresh_source_missing')
 })

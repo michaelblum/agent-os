@@ -452,7 +452,7 @@ export function surfaceInspectorPinToAnnotationAnchor(pin = {}, options = {}) {
     actor: pin.actor || options.actor,
     created_at: pin.created_at,
     updated_at: pin.updated_at,
-    status: pin.status,
+    status: pin.projection?.current_render_status || pin.projection?.status || pin.status,
   }, options)
 }
 
