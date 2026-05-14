@@ -343,11 +343,33 @@ Do not run `./aos ready` — no daemon integration in this slice.
 
 ---
 
+## Git
+
+The active workflow profile is `hybrid_trunk`. This work is small and
+incremental — commit directly to `main`.
+
+- Make **one commit per logical unit**: `panel-window-button.js` + its test,
+  the `chrome.js` refactor, and the decision-gate component + its tests may
+  each be their own commit or combined if the diff is clean. Use judgment —
+  prefer atomic commits over one giant squash.
+- Commit message format: `<type>(<scope>): <short description>`
+  - `feat(toolkit): add createPanelWindowButton panel-layer control`
+  - `refactor(toolkit): use createPanelWindowButton in chrome.js`
+  - `feat(toolkit): add decision-gate component`
+- Do **not** add `Co-Authored-By`, `Generated with`, or any AI attribution
+  trailer to commit messages.
+- After all commits: `git push origin main`.
+- Confirm the push succeeded and include the final commit SHA(s) in the
+  Completion Report.
+
+---
+
 ## Completion Report
 
 Report:
 
 - Files created or modified
 - Test results (pass count per file)
+- Final commit SHA(s) and confirmation that `origin/main` is up to date
 - Any deviation from this spec and why
 - Any open question for the next work card (LocalCanvas receptor)
