@@ -20,17 +20,12 @@ export interface DoctorReport {
     path: string;
     size_bytes: number;
     row_counts?: {
-      sessions: number;
       state: number;
-      messages: number;
       integration_jobs: number;
-      locks_held: number;
     };
     integrity?: 'ok' | string;
   };
   processes: { mcp: ProcessBlock; broker: ProcessBlock };
-  sessions?: Array<{ name: string; role: string; harness: string; last_seen: string }>;
-  lock_holders?: Array<{ key: string; owner: string; acquired: string; ttl: number | null }>;
   warnings: string[];
   exit_code: 0 | 1 | 2;
 }
@@ -119,9 +114,6 @@ export async function collectReport(
     size_bytes: existsSync(common.dbPath) ? statSync(common.dbPath).size : 0,
   };
 
-  let sessions: DoctorReport['sessions'];
-  let lock_holders: DoctorReport['lock_holders'];
-
   if (!opts.quick && existsSync(common.dbPath)) {
     let handle: Database.Database | undefined;
     try {
@@ -130,13 +122,8 @@ export async function collectReport(
       db.integrity = integrity === 'ok' ? 'ok' : String(integrity);
       try {
         db.row_counts = {
-          sessions: (handle.prepare('SELECT COUNT(*) AS n FROM sessions').get() as any)?.n ?? 0,
           state: (handle.prepare('SELECT COUNT(*) AS n FROM state').get() as any)?.n ?? 0,
-          messages: (handle.prepare('SELECT COUNT(*) AS n FROM messages').get() as any)?.n ?? 0,
           integration_jobs: (handle.prepare('SELECT COUNT(*) AS n FROM integration_jobs').get() as any)?.n ?? 0,
-          locks_held: (handle.prepare(
-            "SELECT COUNT(*) AS n FROM state WHERE owner IS NOT NULL AND (expires_at IS NULL OR expires_at > CAST(strftime('%s','now') AS INTEGER) * 1000)",
-          ).get() as any)?.n ?? 0,
         };
       } catch (err: any) {
         warnings.push(`db row_counts unavailable: ${err.message}`);
@@ -162,8 +149,6 @@ export async function collectReport(
     scripts_dir: common.scriptsDir,
     db,
     processes: { mcp, broker },
-    sessions,
-    lock_holders,
     warnings,
     exit_code,
   };
@@ -177,7 +162,7 @@ export function renderText(r: DoctorReport): string {
   if (r.db.row_counts) {
     const rc = r.db.row_counts;
     lines.push(
-      `  row_counts: sessions=${rc.sessions} state=${rc.state} messages=${rc.messages} integration_jobs=${rc.integration_jobs} locks_held=${rc.locks_held}`,
+      `  row_counts: state=${rc.state} integration_jobs=${rc.integration_jobs}`,
     );
   }
 

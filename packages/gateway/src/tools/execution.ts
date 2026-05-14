@@ -52,7 +52,7 @@ export function registerExecutionTools(
       let types: string;
       try { types = readFileSync(TYPES_PATH, 'utf-8'); } catch { types = '(type definitions not found)'; }
       return {
-        namespaces: ['perception', 'action', 'voice', 'coordination'],
+        namespaces: ['perception', 'action', 'voice'],
         description: 'Use the `aos` global object in scripts. Call with a namespace filter for full method signatures.',
         types,
         scripts: registry.list(),

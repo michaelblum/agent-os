@@ -1,5 +1,5 @@
 // src/engine/interface.ts
-export type Intent = 'perception' | 'action' | 'coordination' | 'mixed';
+export type Intent = 'perception' | 'action' | 'automation' | 'mixed';
 
 export interface ScriptRequest {
   script: string;

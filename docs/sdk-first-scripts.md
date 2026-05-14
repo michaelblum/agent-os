@@ -102,12 +102,9 @@ const health = await aos.selfCheck();
 //   ],
 //   services: {
 //     sigil: { running: true, pid: 67001 },
-//     gateway: { running: true, tools: 10 }
+//     gateway: { running: true }
 //   }
 // }
-
-// Post to coordination bus so other sessions can see it
-await aos.coordination.setState("system:health", health);
 
 // If something's wrong, say so
 if (!health.permissions.accessibility) {
@@ -126,7 +123,6 @@ return health;
 **What this tells us the SDK needs:**
 - `aos.selfCheck()` — runtime health in one call (wraps `aos doctor --json`)
 - `aos.listCanvases()` — what overlays/surfaces are currently displayed
-- The coordination store is already there — this script is a real consumer of it
 - `aos.say()` already exists
 - This script would be the first saved workflow: `run_os_script({ script_id: "self-check" })`
 
@@ -141,7 +137,6 @@ Comparing "wish it worked" to "what exists today":
 | `aos.getWindows()` | 1 | Yes | Works |
 | `aos.click({ x, y })` | 1 | Yes | Works |
 | `aos.say(text)` | 1 | Yes | Works |
-| `aos.coordination.*` | 1 | Yes | All 6 methods work |
 | `aos.capture(opts)` | 1 | **No** | Wrap `aos see capture` |
 | `aos.getCursor()` | 1 | **No** | Wrap `aos see cursor` |
 | `aos.getDisplays()` | 1 | **No** | Wrap display enumeration |
@@ -159,7 +154,7 @@ Comparing "wish it worked" to "what exists today":
 | `aos.updateOverlay(id, opts)` | 2 | **No** | evalCanvas with smart diffing |
 | `aos.selfCheck()` | 2 | **No** | Wrap `aos doctor --json` |
 
-**Current state: 4 methods. Target: ~20 methods. Ratio: 10 primitives + 6 smart ops + keep 4 existing.**
+**Current state: 3 methods. Target: ~19 methods. Ratio: 10 primitives + 6 smart ops + keep 3 existing.**
 
 ## Build Order
 

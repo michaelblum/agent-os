@@ -4,7 +4,6 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { mkdirSync, watch, type FSWatcher } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CoordinationDB } from './db.js';
 import { EngineRouter } from './engine/router.js';
 import { NodeSubprocessEngine } from './engine/node-subprocess.js';
 import { createLogger, type Logger } from './logger.js';
@@ -14,7 +13,6 @@ import { mcpPaths } from './paths.js';
 import { ScriptRegistry } from './scripts.js';
 import { startSDKSocket } from './sdk-socket.js';
 import { acquirePidLock, PeerAliveError, type PidLock } from './singleton.js';
-import { registerCoordinationTools } from './tools/coordination.js';
 import { registerExecutionTools } from './tools/execution.js';
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -47,11 +45,9 @@ try {
   process.exit(1);
 }
 
-let db: CoordinationDB | undefined;
 let sdkServer: ReturnType<typeof startSDKSocket> | undefined;
 try {
-  db = new CoordinationDB(paths.dbPath);
-  sdkServer = startSDKSocket({ socketPath: paths.socketPath, db });
+  sdkServer = startSDKSocket({ socketPath: paths.socketPath });
 } catch (err: any) {
   logger.error('init failed', { message: err.message });
   pidLock?.release();
@@ -69,37 +65,14 @@ const router = new EngineRouter();
 router.register(engine);
 const registry = new ScriptRegistry(paths.scriptsDir);
 
-const coordTools = registerCoordinationTools(db!);
 const execTools = registerExecutionTools(router, registry, paths.socketPath);
-const allHandlers: Record<string, (args: any) => any> = { ...coordTools, ...execTools };
+const allHandlers: Record<string, (args: any) => any> = { ...execTools };
 
 const TOOL_DEFS = [
-  { name: 'register_session', description: 'Register this agent session on the coordination bus.',
-    inputSchema: { type: 'object' as const, properties: {
-      name: { type: 'string' }, role: { type: 'string' }, harness: { type: 'string' },
-      capabilities: { type: 'array', items: { type: 'string' } },
-    }, required: ['name', 'role', 'harness'] } },
-  { name: 'set_state', description: 'Write to the shared key-value store. Supports set, cas, acquire_lock, release_lock.',
-    inputSchema: { type: 'object' as const, properties: {
-      key: { type: 'string' }, value: {}, mode: { type: 'string', enum: ['set','cas','acquire_lock','release_lock'] },
-      expected_version: { type: 'number' }, owner: { type: 'string' }, ttl: { type: 'number' },
-    }, required: ['key'] } },
-  { name: 'get_state', description: 'Read from the shared key-value store. Exact key or glob.',
-    inputSchema: { type: 'object' as const, properties: { key: { type: 'string' } }, required: ['key'] } },
-  { name: 'post_message', description: 'Post a message to a channel.',
-    inputSchema: { type: 'object' as const, properties: {
-      channel: { type: 'string' }, payload: {}, from: { type: 'string' },
-    }, required: ['channel', 'payload', 'from'] } },
-  { name: 'read_stream', description: 'Read messages from a channel.',
-    inputSchema: { type: 'object' as const, properties: {
-      channel: { type: 'string' }, since: { type: 'string' }, limit: { type: 'number' },
-    }, required: ['channel'] } },
-  { name: 'who_is_online', description: 'List all sessions currently registered and online on the coordination bus.',
-    inputSchema: { type: 'object' as const, properties: {} } },
   { name: 'run_os_script', description: 'Execute a TS/JS script against the aos SDK. Runs off-stage.',
     inputSchema: { type: 'object' as const, properties: {
       script: { type: 'string' }, script_id: { type: 'string' }, params: { type: 'object' },
-      intent: { type: 'string', enum: ['perception','action','coordination','mixed'] },
+      intent: { type: 'string', enum: ['perception','action','automation','mixed'] },
       timeout: { type: 'number' }, engine: { type: 'string', enum: ['auto','node-subprocess'] },
     } } },
   { name: 'save_script', description: 'Save a script for reuse.',
@@ -162,7 +135,6 @@ function shutdown(code: number): void {
   shuttingDown = true;
   try { distWatcher?.close(); } catch {}
   try { sdkServer?.close(); } catch {}
-  try { db?.close(); } catch {}
   try { pidLock?.release(); } catch {}
   try { logger.close(); } catch {}
   process.exit(code);

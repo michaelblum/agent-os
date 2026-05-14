@@ -3,18 +3,18 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CoordinationDB } from '../src/db.js';
+import { GatewayStore } from '../src/db.js';
 import { IntegrationBroker } from '../src/integrations/broker.js';
 import { startIntegrationHttpServer } from '../src/integrations/http-api.js';
 import type { IntegrationWorkflowDefinition } from '../src/integrations/types.js';
 
 describe('IntegrationBroker', () => {
   let dbDir: string;
-  let db: CoordinationDB;
+  let db: GatewayStore;
 
   before(() => {
     dbDir = mkdtempSync(join(tmpdir(), 'aos-integration-broker-'));
-    db = new CoordinationDB(join(dbDir, 'broker.db'));
+    db = new GatewayStore(join(dbDir, 'broker.db'));
   });
 
   after(() => {

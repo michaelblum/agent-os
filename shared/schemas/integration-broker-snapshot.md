@@ -18,6 +18,10 @@ The same snapshot should work for:
 The contract keeps provider state, workflow catalog, and recent job history in
 one place instead of baking Slack-specific assumptions into toolkit or Sigil.
 
+It does not model the agent/session coordination bus. Session presence,
+channels, and direct agent or human communication remain daemon-owned `tell`,
+`listen`, and session-service concerns.
+
 ## Top-Level Shape
 
 ```json

@@ -133,6 +133,11 @@ design context is archived at
 
 - `aos` CLI is the canonical interface for development inside agent-os. MCP tools
   exist as an optional adapter for external consumers, not for dev work.
+- Gateway and broker integrations are appendages around AOS, not alternate
+  authorities. Keep Slack, future chat providers, and MCP adapters scoped to
+  provider/workflow ingress; daemon-native `tell`, `listen`, and `session`
+  remain the source of truth for human, agent, channel, and session
+  communication.
 - In repo mode, start with `./aos ready`. That is the primary readiness gate for
   agent work inside this repo: it starts/checks the managed daemon, reports
   blockers, performs one short daemon restart/recheck for ownership mismatch or

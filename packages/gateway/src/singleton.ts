@@ -1,6 +1,6 @@
 // src/singleton.ts
-// Advisory pidfile lock so dev-mode and MCP-mode gateways don't collide on
-// ~/.config/aos-gateway/{gateway.db,sdk.sock}. See issue #102.
+// Advisory pidfile lock so gateway MCP and broker processes do not collide
+// inside ~/.config/aos/{repo|installed}/gateway/.
 
 import { openSync, writeSync, closeSync, readFileSync, unlinkSync } from 'node:fs';
 
