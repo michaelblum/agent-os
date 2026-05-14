@@ -36,10 +36,18 @@ import {
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
+import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import { createSigilRadialActivationRequest } from './radial-menu-activation.js';
 import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
+import {
+    annotationReticleReleaseDisposition,
+    CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
+    createSigilAnnotationReticleController,
+    SIGIL_ANNOTATION_CAMERA_ITEM_ID,
+    SIGIL_ANNOTATION_RETICLE_ITEM_ID,
+} from './annotation-reticle.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
@@ -114,6 +122,8 @@ const liveJs = {
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
     sessionVitality: null,
     lastRadialActivation: null,
+    annotationReticle: null,
+    annotationReticleEvents: [],
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
@@ -364,6 +374,10 @@ function applySurfaceRenderSnapshot(snapshot) {
     if (snapshot.contextMenu && typeof snapshot.contextMenu === 'object') {
         contextMenu.applySnapshot(snapshot.contextMenu);
     }
+    if (snapshot.annotationReticle && typeof snapshot.annotationReticle === 'object') {
+        annotationReticle.applySnapshot(snapshot.annotationReticle);
+        syncAnnotationReticleSnapshot();
+    }
     fastTravel.applySnapshot(snapshot.fastTravel);
     syncOmegaTrailToTravelOrigin();
 }
@@ -389,6 +403,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         },
         contextMenu: contextMenu?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
+        annotationReticle: liveJs.annotationReticle,
     };
     if (liveJs.lastPublishedAppearanceVersion !== liveJs.appearanceVersion) {
         snapshot.appearance = snapshotAppearance();
@@ -1296,12 +1311,32 @@ const fastTravel = createFastTravelController({
     },
     canCaptureDisplayImages: isPrimarySurfaceSegment,
 });
+const annotationReticle = createSigilAnnotationReticleController({
+    getDisplays: () => liveJs.displays,
+    getAvatarPos: () => liveJs.avatarPos,
+    getAvatarHitRadius: () => liveJs.avatarHitRadius,
+});
+liveJs.annotationReticle = annotationReticle.snapshot();
 const radialActivationTransition = createRadialActivationTransitionController({
     now: () => state.globalTime,
 });
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
     onCommitItem(item, snapshot, context = {}) {
+        if (item?.action === 'annotationMode' || item?.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
+            enterAnnotationReticle(context.pointer || snapshot?.pointer || liveJs.pointerPos, 'radial-item');
+            host.post('sigil.annotation_reticle.enter', {
+                item_id: item?.id,
+                entry_source: liveJs.annotationReticle?.entry_source,
+                input: context.input || null,
+                snapshot: liveJs.annotationReticle,
+            });
+            return;
+        }
+        if (item?.action === 'annotationSnapshot' || item?.id === SIGIL_ANNOTATION_CAMERA_ITEM_ID) {
+            requestAnnotationSnapshot('radial-camera');
+            return;
+        }
         const input = context.input && typeof context.input === 'object'
             ? {
                 ...context.input,
@@ -1391,6 +1426,138 @@ function queueFastTravel(x, y) {
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(liveJs.avatarPos));
     }
+}
+
+function syncAnnotationReticleSnapshot() {
+    liveJs.annotationReticle = annotationReticle.snapshot();
+    state.annotationReticle = liveJs.annotationReticle;
+    return liveJs.annotationReticle;
+}
+
+function recordAnnotationReticleEvent(stage, event = {}) {
+    const entry = {
+        ts: Date.now(),
+        stage,
+        ...event,
+    };
+    if (!Array.isArray(liveJs.annotationReticleEvents)) liveJs.annotationReticleEvents = [];
+    liveJs.annotationReticleEvents.push(entry);
+    if (liveJs.annotationReticleEvents.length > 40) liveJs.annotationReticleEvents.shift();
+    host.post('sigil.annotation_reticle.event', entry);
+    return entry;
+}
+
+function enterAnnotationReticle(pointer = null, reason = 'radial-reticle') {
+    annotationReticle.enter(pointer);
+    syncAnnotationReticleSnapshot();
+    recordAnnotationReticleEvent('enter', {
+        reason,
+        pointer,
+        root_evidence: liveJs.annotationReticle.root_evidence,
+    });
+    requestCanvasInspectorAnnotationToggle(reason);
+    return liveJs.annotationReticle;
+}
+
+function updateAnnotationReticlePreview(pointer = null) {
+    if (!annotationReticle.active) return liveJs.annotationReticle;
+    annotationReticle.updatePreview(pointer);
+    syncAnnotationReticleSnapshot();
+    return liveJs.annotationReticle;
+}
+
+function exitAnnotationReticle(reason = 'exit') {
+    if (!annotationReticle.active) {
+        syncAnnotationReticleSnapshot();
+        return liveJs.annotationReticle;
+    }
+    annotationReticle.exit(reason);
+    syncAnnotationReticleSnapshot();
+    recordAnnotationReticleEvent('exit', { reason });
+    return liveJs.annotationReticle;
+}
+
+function commitAnnotationReticleRelease(x, y) {
+    if (!annotationReticle.active) return null;
+    const event = annotationReticle.commitRelease({ x, y, valid: true });
+    syncAnnotationReticleSnapshot();
+    if (event) recordAnnotationReticleEvent('commit', event);
+    return event;
+}
+
+function requestAnnotationSnapshot(reason = 'radial-camera') {
+    const event = annotationReticle.requestSnapshotEvent();
+    syncAnnotationReticleSnapshot();
+    recordAnnotationReticleEvent('snapshot_request', {
+        type: event.type,
+        reason,
+        request: event,
+    });
+    if (!event.available) return false;
+    host.post('canvas_inspector.capture_bundle', {
+        trigger: 'sigil_radial_camera',
+        reason,
+        anchor_count: event.anchor_count,
+    });
+    return true;
+}
+
+function requestCanvasInspectorAnnotationToggle(reason = 'sigil-radial') {
+    void ensureUtilityCanvasVisible('canvas-inspector', { focus: false }).then((canvas) => {
+        window.setTimeout(() => {
+            sendCanvasMessage(canvas.id, {
+                type: CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
+                reason: `sigil_${reason}`,
+            });
+        }, canvas.created ? 250 : 0);
+    }).catch((error) => {
+        recordAnnotationReticleEvent('annotation_toggle_failed', {
+            reason,
+            error: String(error?.message || error),
+        });
+    });
+}
+
+function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
+    const item = radial?.items?.find((candidate) => candidate.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID);
+    if (!item) return null;
+    return radialItemPointerMetrics(radial, item);
+}
+
+function shouldEnterAnnotationReticle(radial = liveJs.radialGestureMenu) {
+    const metrics = annotationReticleItemMetrics(radial);
+    if (!metrics) return false;
+    return metrics.relation === 'inside' || metrics.relation === 'outward';
+}
+
+function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
+    if (!point || !Array.isArray(surface?.frame) || surface.frame.length < 4) return false;
+    const [x, y, w, h] = surface.frame.map(Number);
+    if (![x, y, w, h].every(Number.isFinite)) return false;
+    return point.x >= x && point.x <= x + w && point.y >= y && point.y <= y + h;
+}
+
+function radialTargetSurfaceReceiptEvidence(payload = {}) {
+    const surface = radialTargetSurface.snapshot();
+    const localPoint = Number.isFinite(Number(payload.itemX)) && Number.isFinite(Number(payload.itemY))
+        ? { x: Number(payload.itemX), y: Number(payload.itemY) }
+        : null;
+    const worldPoint = localPoint && Array.isArray(surface.frame)
+        ? { x: Number(surface.frame[0]) + localPoint.x, y: Number(surface.frame[1]) + localPoint.y, valid: true }
+        : null;
+    return {
+        itemId: payload.itemId,
+        itemAction: payload.itemAction ?? null,
+        currentState: liveJs.currentState,
+        radialPhase: liveJs.radialGestureMenu?.phase ?? null,
+        surfaceInteractive: surface.interactive,
+        surfaceFrame: surface.frame,
+        surfaceTargets: surface.targets,
+        childSurfaceBounds: payload.surfaceBounds ?? null,
+        childLocalPoint: localPoint,
+        worldPoint,
+        pointInsideSurfaceAtReceipt: pointInRadialTargetSurface(worldPoint, surface),
+    };
 }
 
 function emitStatusItemState() {
@@ -1544,6 +1711,7 @@ function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
     recordInteraction('interaction:cancel', { reason });
     radialGestureMenu.cancel(reason);
+    exitAnnotationReticle(reason);
     clearGestureState();
     fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
@@ -1626,6 +1794,12 @@ function applyRadialGestureMove(update, x, y) {
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
     syncRadialTargetSurface();
     emitAvatarMark();
+    if (liveJs.radialGestureMenu?.phase === 'fastTravel' && shouldEnterAnnotationReticle(liveJs.radialGestureMenu)) {
+        if (!annotationReticle.active) enterAnnotationReticle({ x, y, valid: true }, 'drag-through-reticle');
+        else updateAnnotationReticlePreview({ x, y, valid: true });
+    } else if (annotationReticle.active) {
+        updateAnnotationReticlePreview({ x, y, valid: true });
+    }
     if (update?.enteredFastTravel) {
         fastTravel.beginGesture({ ...liveJs.avatarPos });
         fastTravel.updateGesture({ x, y, valid: true });
@@ -1634,6 +1808,7 @@ function applyRadialGestureMove(update, x, y) {
     }
     if (update?.reenteredRadial) {
         fastTravel.clearGesture('radial-reentry');
+        exitAnnotationReticle('radial-reentry');
         setInteractionState('RADIAL', 'radial-reentry');
         return true;
     }
@@ -1680,6 +1855,8 @@ function handleLeftMouseUp(x, y) {
                     state: liveJs.currentState,
                 },
             });
+            const annotationDisposition = annotationReticleReleaseDisposition(result);
+            if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
             clearGestureState();
             fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-item' : 'radial-release');
             setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-release-item' : 'radial-release-cancel');
@@ -1694,7 +1871,14 @@ function handleLeftMouseUp(x, y) {
                     state: liveJs.currentState,
                 },
             });
+            const annotationCommit = commitAnnotationReticleRelease(x, y);
             clearGestureState();
+            if (annotationCommit?.placement?.point) {
+                const point = annotationCommit.placement.point;
+                queueFastTravel(point.x, point.y);
+                setInteractionState('IDLE', 'annotation-reticle-release');
+                return;
+            }
             if (result?.committed?.type === 'fastTravel') {
                 queueFastTravel(x, y);
                 setInteractionState('IDLE', 'radial-release-fast-travel');
@@ -1750,6 +1934,12 @@ function handleInputEvent(msg) {
             sourceOrigin: msg.sourceOrigin ?? msg.source_origin ?? null,
             sourceCanvasId: msg.sourceCanvasId ?? msg.source_canvas_id ?? null,
             envelopeType: msg.envelope_type ?? null,
+            radialTargetSurfaceActive: radialTargetSurface.snapshot().interactive,
+            pointerInsideRadialTargetSurface: pointInRadialTargetSurface(
+                Number.isFinite(Number(msg.x)) && Number.isFinite(Number(msg.y))
+                    ? { x: Number(msg.x), y: Number(msg.y), valid: true }
+                    : null
+            ),
         });
     }
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
@@ -1926,17 +2116,21 @@ function handleHitCanvasEvent(payload = {}) {
 
 function handleRadialTargetSurfaceEvent(payload = {}) {
     if (payload.source !== 'sigil-radial-menu-surface') return;
+    const receipt = radialTargetSurfaceReceiptEvidence(payload);
     interactionTrace.record('radial-surface', {
         kind: payload.kind,
-        itemId: payload.itemId,
-        radialPhase: liveJs.radialGestureMenu?.phase ?? null,
+        ...receipt,
     });
     if (payload.kind === 'radial_surface_ready') {
         radialTargetSurface.refreshPayload();
         return;
     }
+    if (payload.kind === 'radial_item_pointer_down' || payload.kind === 'radial_item_pointer_up') {
+        return;
+    }
     if (payload.kind === 'radial_cancel') {
         radialGestureMenu.cancel('radial-surface-cancel');
+        exitAnnotationReticle('radial-surface-cancel');
         clearGestureState();
         fastTravel.clearGesture('radial-surface-cancel');
         setInteractionState('IDLE', 'radial-surface-cancel');
@@ -1944,9 +2138,22 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
     }
     if (payload.kind !== 'radial_item_click') return;
     if (liveJs.currentState !== 'RADIAL' || !liveJs.radialGestureMenu) {
+        if (payload.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID || payload.itemAction === 'annotationSnapshot') {
+            const requested = requestAnnotationSnapshot('radial-camera-target-surface-recovery');
+            interactionTrace.record('radial-surface:recovered', {
+                reason: 'camera-click-after-radial-cleanup',
+                requested,
+                ...receipt,
+            });
+            clearGestureState();
+            fastTravel.clearGesture('radial-surface-camera-recovery');
+            setInteractionState('IDLE', 'radial-surface-camera-recovery');
+            return;
+        }
         interactionTrace.record('radial-surface:ignored', {
             reason: 'state-not-radial',
             itemId: payload.itemId,
+            ...receipt,
         });
         return;
     }
@@ -1955,6 +2162,7 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         interactionTrace.record('radial-surface:ignored', {
             reason: 'missing-item',
             itemId: payload.itemId,
+            ...receipt,
         });
         return;
     }
@@ -1968,6 +2176,8 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         },
         source: 'sigil.radial-target-surface',
     });
+    const annotationDisposition = annotationReticleReleaseDisposition(result);
+    if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
     clearGestureState();
     fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
     setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
@@ -2503,6 +2713,7 @@ function animate() {
         avatarHover: liveJs.avatarHover,
         avatarHoverProgress: liveJs.avatarHoverProgress,
         radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
+        annotationReticle: liveJs.annotationReticle,
         fastTravelEffect: state.transitionFastTravelEffect,
         time: state.globalTime,
         gotoRingRadius: liveJs.gotoRingRadius,
@@ -2578,6 +2789,8 @@ window.__sigilDebug = {
             radialGestureMenu: liveJs.radialGestureMenu,
             radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
             radialActivationTransition: radialActivationTransition.snapshot(),
+            annotationReticle: liveJs.annotationReticle,
+            annotationReticleEvents: liveJs.annotationReticleEvents,
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
             contextMenu: contextMenu?.snapshot?.(),

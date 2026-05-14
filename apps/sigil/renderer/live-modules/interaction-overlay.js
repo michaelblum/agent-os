@@ -105,17 +105,24 @@ export function createInteractionOverlay() {
                 const handoffRadius = radial.radii?.handoff ?? snapshot.menuRingRadius;
                 const startX = origin.x + (nx * Math.min(handoffRadius, length - 1));
                 const startY = origin.y + (ny * Math.min(handoffRadius, length - 1));
+                const annotationReticle = snapshot.annotationReticle?.active === true;
                 const arrowLength = Math.min(24, Math.max(12, length * 0.11));
                 const wing = Math.PI * 0.78;
                 const tailFade = Math.min(1, Math.max(0.18, (length - handoffRadius) / Math.max(1, handoffRadius * 0.72)));
                 const glowGradient = ctx.createLinearGradient(startX, startY, pointer.x, pointer.y);
-                glowGradient.addColorStop(0, 'rgba(83, 245, 215, 0)');
-                glowGradient.addColorStop(Math.min(0.42, 0.18 + (0.18 * tailFade)), 'rgba(83, 245, 215, 0.42)');
-                glowGradient.addColorStop(1, 'rgba(83, 245, 215, 0.95)');
+                glowGradient.addColorStop(0, annotationReticle ? 'rgba(244, 197, 66, 0)' : 'rgba(83, 245, 215, 0)');
+                glowGradient.addColorStop(
+                    Math.min(0.42, 0.18 + (0.18 * tailFade)),
+                    annotationReticle ? 'rgba(244, 197, 66, 0.46)' : 'rgba(83, 245, 215, 0.42)'
+                );
+                glowGradient.addColorStop(1, annotationReticle ? 'rgba(255, 224, 120, 0.96)' : 'rgba(83, 245, 215, 0.95)');
                 const dashGradient = ctx.createLinearGradient(startX, startY, pointer.x, pointer.y);
                 dashGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-                dashGradient.addColorStop(Math.min(0.48, 0.22 + (0.18 * tailFade)), 'rgba(255, 255, 255, 0.42)');
-                dashGradient.addColorStop(1, 'rgba(255, 255, 255, 0.86)');
+                dashGradient.addColorStop(
+                    Math.min(0.48, 0.22 + (0.18 * tailFade)),
+                    annotationReticle ? 'rgba(255, 223, 126, 0.46)' : 'rgba(255, 255, 255, 0.42)'
+                );
+                dashGradient.addColorStop(1, annotationReticle ? 'rgba(255, 243, 176, 0.9)' : 'rgba(255, 255, 255, 0.86)');
 
                 ctx.save();
                 ctx.lineCap = 'round';
@@ -141,24 +148,34 @@ export function createInteractionOverlay() {
                 ctx.setLineDash([]);
 
                 ctx.beginPath();
-                ctx.strokeStyle = 'rgba(83, 245, 215, 0.95)';
+                ctx.strokeStyle = annotationReticle ? 'rgba(255, 224, 120, 0.96)' : 'rgba(83, 245, 215, 0.95)';
                 ctx.lineWidth = 2.2;
                 ctx.arc(pointer.x, pointer.y, 13 + (pulse * 3), 0, Math.PI * 2);
                 ctx.stroke();
 
                 const angle = Math.atan2(dy, dx);
-                ctx.beginPath();
-                ctx.moveTo(pointer.x, pointer.y);
-                ctx.lineTo(
-                    pointer.x + Math.cos(angle + wing) * arrowLength,
-                    pointer.y + Math.sin(angle + wing) * arrowLength
-                );
-                ctx.moveTo(pointer.x, pointer.y);
-                ctx.lineTo(
-                    pointer.x + Math.cos(angle - wing) * arrowLength,
-                    pointer.y + Math.sin(angle - wing) * arrowLength
-                );
-                ctx.stroke();
+                if (annotationReticle) {
+                    const cross = 10 + (pulse * 2);
+                    ctx.beginPath();
+                    ctx.moveTo(pointer.x - cross, pointer.y);
+                    ctx.lineTo(pointer.x + cross, pointer.y);
+                    ctx.moveTo(pointer.x, pointer.y - cross);
+                    ctx.lineTo(pointer.x, pointer.y + cross);
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(pointer.x, pointer.y);
+                    ctx.lineTo(
+                        pointer.x + Math.cos(angle + wing) * arrowLength,
+                        pointer.y + Math.sin(angle + wing) * arrowLength
+                    );
+                    ctx.moveTo(pointer.x, pointer.y);
+                    ctx.lineTo(
+                        pointer.x + Math.cos(angle - wing) * arrowLength,
+                        pointer.y + Math.sin(angle - wing) * arrowLength
+                    );
+                    ctx.stroke();
+                }
 
                 ctx.globalAlpha = 0.38;
                 ctx.beginPath();
