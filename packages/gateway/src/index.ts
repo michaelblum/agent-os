@@ -14,6 +14,8 @@ import { ScriptRegistry } from './scripts.js';
 import { startSDKSocket } from './sdk-socket.js';
 import { acquirePidLock, PeerAliveError, type PidLock } from './singleton.js';
 import { registerExecutionTools } from './tools/execution.js';
+// @ts-expect-error JS adapter lives outside src so MCP hosts can exercise it directly.
+import { userSignalSurface, userSignalSurfaceTool } from '../tools/user-signal-surface.js';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const mode = detectMode(scriptPath);
@@ -66,7 +68,10 @@ router.register(engine);
 const registry = new ScriptRegistry(paths.scriptsDir);
 
 const execTools = registerExecutionTools(router, registry, paths.socketPath);
-const allHandlers: Record<string, (args: any) => any> = { ...execTools };
+const allHandlers: Record<string, (args: any) => any> = {
+  ...execTools,
+  user_signal_surface: userSignalSurface,
+};
 
 const TOOL_DEFS = [
   { name: 'run_os_script', description: 'Execute a TS/JS script against the aos SDK. Runs off-stage.',
@@ -87,6 +92,7 @@ const TOOL_DEFS = [
     } } },
   { name: 'discover_capabilities', description: 'Returns SDK namespaces and method signatures.',
     inputSchema: { type: 'object' as const, properties: { namespace: { type: 'string' } } } },
+  userSignalSurfaceTool,
 ];
 
 const server = new Server({ name: 'aos-gateway', version: '0.1.0' }, { capabilities: { tools: {} } });
@@ -100,7 +106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const result = await handler(args ?? {});
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   } catch (err: any) {
-    return { content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }] };
+    return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }] };
   }
 });
 
