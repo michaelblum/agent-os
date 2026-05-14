@@ -132,6 +132,20 @@ for role in ("gdi", "foreman", "operator"):
             raise SystemExit(f"FAIL: {role} {script_name} still contains dock hook routing")
         if "python3" in script or "resolve_session_id()" in script:
             raise SystemExit(f"FAIL: {role} {script_name} still has duplicated session-id parsing")
+
+foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
+foreman_skill_path = root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md"
+if not foreman_skill_path.exists():
+    raise SystemExit("FAIL: Foreman successor handoff skill is missing")
+foreman_skill = foreman_skill_path.read_text()
+if "name: foreman-session-handoff" not in foreman_skill:
+    raise SystemExit("FAIL: Foreman handoff skill uses the wrong name")
+if (root / ".docks" / "foreman" / "skills" / "retirement-handoff").exists():
+    raise SystemExit("FAIL: retired Foreman retirement-handoff skill path still exists")
+for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman handoff skill", foreman_skill)):
+    for forbidden in ("receives a `/goal", "`attn: GDI,", "attn: GDI, follow"):
+        if forbidden in text:
+            raise SystemExit(f"FAIL: {label} reintroduced command/addressee ceremony: {forbidden}")
 PY
 
 TMPDIR_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-dock-hook-isolation.XXXXXX")"
