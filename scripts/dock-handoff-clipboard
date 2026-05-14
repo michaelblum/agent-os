@@ -6,9 +6,11 @@ usage() {
 Usage: scripts/dock-handoff-clipboard --target-dock <dock>
 
 Reads a handoff message from stdin, copies the target-session payload to the
-system clipboard, and prints the chat-visible tail:
+system clipboard, and prints a clearly demarcated chat-visible copy:
 
+  ----- BEGIN HANDOFF -----
   <clipboard payload>
+  ----- END HANDOFF -----
 
   (copied to clipboard)
   Fri May 8 6:47AM
@@ -78,4 +80,8 @@ PY
 )"
 fi
 
-printf '%s\n\n(copied to clipboard)\n%s\n' "$payload" "$timestamp"
+printf '%s\n%s\n%s\n\n(copied to clipboard)\n%s\n' \
+  "----- BEGIN HANDOFF -----" \
+  "$payload" \
+  "----- END HANDOFF -----" \
+  "$timestamp"

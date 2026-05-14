@@ -88,5 +88,8 @@ that work.
 
 For cross-session handoffs, pipe the raw target message through
 `scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. Handoffs are plain instructions for
-every target dock; do not prepend command prefixes or addressee ceremony.
+the script output as the final chat reply. The chat reply must include the
+handoff between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----`
+markers so the human can recover it from chat if the clipboard is lost.
+Handoffs are plain instructions for every target dock; do not prepend command
+prefixes or addressee ceremony.
