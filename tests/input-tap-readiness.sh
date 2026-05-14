@@ -154,7 +154,7 @@ if [[ "$READY_TEXT" == *"Preferred permission reset sequence:"* ]] &&
    [[ "$READY_TEXT" == *"1. Run: ./aos permissions reset-runtime --mode repo"* ]] &&
    [[ "$READY_TEXT" == *"2. Run: ./aos permissions setup --once"* ]] &&
    [[ "$READY_TEXT" == *"3. Return here and run: ./aos ready --post-permission"* ]] &&
-   [[ "$READY_TEXT" == *"Manual Settings removal is only the fallback if reset-runtime reports that tccutil failed."* ]]; then
+   [[ "$READY_TEXT" == *"Manual Settings removal is only the fallback if reset-runtime reports that targeted reset is unavailable or failed."* ]]; then
   echo "PASS: ready text safe permission reset handoff"
 else
   echo "FAIL: ready text missing safe permission reset handoff:"
@@ -175,7 +175,8 @@ assert d.get("dry_run") is True, d
 assert d.get("mode") == "repo", d
 assert d.get("tcc_identifier"), d
 assert d.get("service_stop", {}).get("status") == "planned", d
-assert d.get("tcc_reset", {}).get("command") == f"tccutil reset All {d.get('tcc_identifier')}", d
+assert d.get("tcc_reset", {}).get("status") == "unavailable", d
+assert "bare repo" in (d.get("tcc_reset", {}).get("stderr") or ""), d
 assert d.get("service_resets", []) == [], d
 assert any("emergency-only" in note for note in d.get("notes", [])), d
 commands = [a.get("command") for a in d.get("next_actions", [])]

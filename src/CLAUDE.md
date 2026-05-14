@@ -66,13 +66,15 @@ Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboardi
 
 If readiness or permissions setup says repo-mode Accessibility/Input Monitoring
 must be reset, use `./aos permissions reset-runtime --mode repo` first. It stops
-the managed daemon, verifies `running=false`, and runs targeted `tccutil reset`
-for the repo `aos` identity. Then run `./aos permissions setup --once` to
-request fresh macOS prompts and `./aos ready --post-permission` to verify.
-Manual Settings removal is fallback only if reset-runtime reports that
-`tccutil` failed. Service-wide TCC reset affects other apps and is a break-glass
-capability only; do not use `--allow-service-reset --emergency-ack-other-apps`
-unless Michael explicitly asks for emergency recovery.
+the managed daemon, verifies `running=false`, and either runs a real targeted
+TCC reset for a targetable runtime identity or reports targeted reset
+unavailable for the bare repo binary. Then run
+`./aos permissions setup --once` to request fresh macOS prompts and
+`./aos ready --post-permission` to verify. Manual Settings removal is fallback
+only if reset-runtime reports targeted reset is unavailable or failed.
+Service-wide TCC reset affects other apps and is a break-glass capability only;
+do not use `--allow-service-reset --emergency-ack-other-apps` unless Michael
+explicitly asks for emergency recovery.
 
 See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped state).
 

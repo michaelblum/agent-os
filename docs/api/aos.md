@@ -820,10 +820,11 @@ Consumers:
   input tap, because those states commonly appear after a human refreshes macOS
   privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
   should use `./aos permissions reset-runtime --mode repo` before Settings: it
-  stops the managed daemon, verifies `running=false`, then runs targeted
-  `tccutil reset All <runtime-identifier>` so the next setup flow can request
-  fresh macOS prompts. Manual Settings removal is fallback only if that command
-  reports that `tccutil` failed. `--post-permission` is the explicit
+  stops the managed daemon, verifies `running=false`, then either runs a real
+  targeted TCC reset for a targetable runtime identity or reports targeted reset
+  unavailable for the bare repo binary. Manual Settings removal is fallback only
+  if that command reports targeted reset is unavailable or failed.
+  `--post-permission` is the explicit
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
@@ -832,15 +833,16 @@ Consumers:
   does not open Settings or show permission dialogs by itself.
 - `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]`
   is the preferred repo-development TCC reset transaction. It does not grant
-  permissions. It stops the managed daemon first, resets the runtime identity's
-  TCC decisions with `tccutil reset All <identifier>`, and returns next actions:
+  permissions. It stops the managed daemon first, then either resets the runtime
+  identity's TCC decisions with `tccutil reset All <identifier>` or explicitly
+  classifies targeted reset as unavailable for a bare repo binary that is not a
+  LaunchServices app bundle. It returns next actions:
   `aos permissions setup --once` to request fresh prompts and
-  `aos ready --post-permission` to verify the recovered daemon. Bare repo
-  binaries may not be LaunchServices bundles, so targeted `tccutil reset` can
-  fail with "No such bundle identifier"; service-wide TCC reset is not part of
-  normal recovery because it can affect other apps. It is a break-glass capability
-  only: `--allow-service-reset` requires `--emergency-ack-other-apps` and should
-  be used only when Michael explicitly asks for emergency recovery.
+  `aos ready --post-permission` to verify the recovered daemon. Service-wide TCC
+  reset is not part of normal recovery because it can affect other apps. It is a
+  break-glass capability only: `--allow-service-reset` requires
+  `--emergency-ack-other-apps` and should be used only when Michael explicitly
+  asks for emergency recovery.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.

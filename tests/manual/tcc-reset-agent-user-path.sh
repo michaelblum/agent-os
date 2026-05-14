@@ -156,6 +156,8 @@ if "./aos ready --post-permission" not in commands:
     raise SystemExit("dry-run omitted post-permission ready next_action")
 if data.get("service_resets", []) != []:
     raise SystemExit(f"normal dry-run unexpectedly advertised service resets: {data.get('service_resets')}")
+if data.get("tcc_reset", {}).get("status") != "unavailable":
+    raise SystemExit(f"dry-run did not classify bare repo targeted reset as unavailable: {data.get('tcc_reset')}")
 if not any("emergency-only" in note for note in data.get("notes", [])):
     raise SystemExit("dry-run did not label service-wide reset as emergency-only")
 print("PASS: dry-run reset-runtime contract is intact")
@@ -224,6 +226,9 @@ if service_stop.get("status") != "ok":
     raise SystemExit(f"targeted reset failed before safe daemon stop: {service_stop}")
 
 tcc_reset = data.get("tcc_reset", {})
+if tcc_reset.get("status") == "unavailable":
+    print("TARGETED_UNAVAILABLE")
+    raise SystemExit(0)
 if tcc_reset.get("status") == "failed":
     print("TARGETED_FAILED")
     raise SystemExit(0)

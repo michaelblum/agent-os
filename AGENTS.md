@@ -166,10 +166,11 @@ or ad hoc scripts.
 - Before telling a human to remove/re-add repo-mode Accessibility or Input
   Monitoring grants, first use the targeted reset transaction:
   `./aos permissions reset-runtime --mode repo`. It stops the managed daemon,
-  verifies `running=false`, and runs `tccutil reset All <runtime-identifier>` so
-  the next setup flow can request fresh macOS prompts. Manual Settings removal
-  is fallback only if that command reports that `tccutil` failed. Service-wide
-  TCC reset affects other apps and is a break-glass capability only; do not use
+  verifies `running=false`, and either runs a real targeted TCC reset for a
+  targetable runtime identity or reports targeted reset unavailable for the bare
+  repo binary. Manual Settings removal is fallback only if that command reports
+  targeted reset is unavailable or failed. Service-wide TCC reset affects other
+  apps and is a break-glass capability only; do not use
   `--allow-service-reset --emergency-ack-other-apps` unless Michael explicitly
   asks for emergency recovery.
 - If `./aos ready` reports blockers and the user wants repair, run
