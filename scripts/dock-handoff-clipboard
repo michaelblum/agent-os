@@ -5,8 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: scripts/dock-handoff-clipboard --target-dock <dock>
 
-Reads a handoff message from stdin, copies the target-session payload to the
-system clipboard, and prints a clearly demarcated chat-visible copy:
+Reads a handoff message from stdin, applies dock compatibility cleanup, then
+delegates clipboard and chat output to scripts/agent-handoff:
 
   ----- BEGIN HANDOFF -----
   <clipboard payload>
@@ -60,28 +60,6 @@ if [[ "$payload" == "$legacy_command_prefix"* ]]; then
   payload="${payload:${#legacy_command_prefix}}"
 fi
 
-pbcopy_bin="${AOS_HANDOFF_PBCOPY:-$(command -v pbcopy || true)}"
-if [[ -z "$pbcopy_bin" ]]; then
-  echo "FAIL: pbcopy not found; set AOS_HANDOFF_PBCOPY for tests or install pbcopy-compatible command" >&2
-  exit 1
-fi
-
-printf '%s' "$payload" | "$pbcopy_bin"
-
-timestamp="${AOS_HANDOFF_TIMESTAMP:-}"
-if [[ -z "$timestamp" ]]; then
-  timestamp="$(python3 - <<'PY'
-from datetime import datetime
-
-now = datetime.now()
-hour = now.strftime("%I").lstrip("0") or "0"
-print(f"{now:%a %b} {now.day} {hour}:{now:%M%p}")
-PY
-)"
-fi
-
-printf '%s\n%s\n%s\n\n(copied to clipboard)\n%s\n' \
-  "----- BEGIN HANDOFF -----" \
-  "$payload" \
-  "----- END HANDOFF -----" \
-  "$timestamp"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+options_json='{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+"$script_dir/agent-handoff" --text "$payload" --options-json "$options_json"

@@ -86,10 +86,20 @@ that work.
 
 ## Cross-Session Handoffs
 
-For cross-session handoffs, pipe the raw target message through
-`scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. The chat reply must include the
-handoff between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----`
-markers so the human can recover it from chat if the clipboard is lost.
-Handoffs are plain instructions for every target dock; do not prepend command
-prefixes or addressee ceremony.
+For cross-session handoffs, use the repo-level agent handoff tool from the repo
+root:
+
+```bash
+scripts/agent-handoff --text "$handoff_message" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+```
+
+The tool copies the raw handoff to the clipboard and prints the chat-visible
+append block. Use that printed block at the end of the final chat response so
+the human can recover the handoff from chat if the clipboard is lost. Handoffs
+are plain instructions for every target dock; do not prepend command prefixes or
+addressee ceremony.
+
+`scripts/dock-handoff-clipboard --target-dock <dock>` is the compatibility
+wrapper for dock-targeted handoffs. Individual docks may add thin local wrappers
+or hooks for their own default payload construction, but clipboard writes and
+chat demarcation should still go through `scripts/agent-handoff`.

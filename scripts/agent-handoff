@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/agent-handoff --text <handoff> [--options-json <json>]
+  printf '%s' "$handoff" | scripts/agent-handoff [--options-json <json>]
+
+Copies the handoff payload to the system clipboard and prints a deterministic
+chat-visible handoff block that agents can append to their final response.
+
+Default options:
+  {
+    "timestamp": true,
+    "gateStringStart": "----- BEGIN HANDOFF -----",
+    "gateStringEnd": "----- END HANDOFF -----",
+    "addPostInstructions": "(copied to clipboard)",
+    "addHRTimestamp": true
+  }
+
+Environment:
+  AOS_HANDOFF_PBCOPY       Override pbcopy command path for tests.
+  AOS_HANDOFF_TIMESTAMP    Override printed timestamp for tests.
+EOF
+}
+
+text=""
+text_set=false
+options_json="{}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --text)
+      if [[ $# -lt 2 ]]; then
+        echo "FAIL: --text requires a value" >&2
+        exit 2
+      fi
+      text="$2"
+      text_set=true
+      shift 2
+      ;;
+    --options-json)
+      if [[ $# -lt 2 ]]; then
+        echo "FAIL: --options-json requires a JSON object" >&2
+        exit 2
+      fi
+      options_json="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "FAIL: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$text_set" != true ]]; then
+  text="$(cat || true)"
+fi
+
+python3 - "$options_json" <<'PY'
+import json
+import sys
+
+try:
+    parsed = json.loads(sys.argv[1]) if sys.argv[1].strip() else {}
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"FAIL: --options-json is not valid JSON: {exc}") from exc
+if not isinstance(parsed, dict):
+    raise SystemExit("FAIL: --options-json must be a JSON object")
+PY
+
+pbcopy_bin="${AOS_HANDOFF_PBCOPY:-$(command -v pbcopy || true)}"
+if [[ -z "$pbcopy_bin" ]]; then
+  echo "FAIL: pbcopy not found; set AOS_HANDOFF_PBCOPY for tests or install pbcopy-compatible command" >&2
+  exit 1
+fi
+
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/aos-agent-handoff.XXXXXX")"
+trap 'rm -rf "$tmpdir"' EXIT
+payload_file="$tmpdir/payload"
+printf '%s' "$text" >"$payload_file"
+
+cat "$payload_file" | "$pbcopy_bin"
+
+timestamp="${AOS_HANDOFF_TIMESTAMP:-}"
+if [[ -z "$timestamp" ]]; then
+  timestamp="$(python3 - <<'PY'
+from datetime import datetime
+
+now = datetime.now()
+hour = now.strftime("%I").lstrip("0") or "0"
+print(f"{now:%a %b} {now.day} {hour}:{now:%M%p}")
+PY
+)"
+fi
+
+python3 - "$payload_file" "$options_json" "$timestamp" <<'PY'
+import json
+import pathlib
+import sys
+
+payload_path = pathlib.Path(sys.argv[1])
+options_raw = sys.argv[2]
+timestamp = sys.argv[3]
+
+try:
+    parsed = json.loads(options_raw) if options_raw.strip() else {}
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"FAIL: --options-json is not valid JSON: {exc}") from exc
+if not isinstance(parsed, dict):
+    raise SystemExit("FAIL: --options-json must be a JSON object")
+
+options = {
+    "timestamp": True,
+    "gateStringStart": "----- BEGIN HANDOFF -----",
+    "gateStringEnd": "----- END HANDOFF -----",
+    "addPostInstructions": "(copied to clipboard)",
+    "addHRTimestamp": True,
+}
+options.update(parsed)
+
+start = str(options.get("gateStringStart") or "")
+end = str(options.get("gateStringEnd") or "")
+post = options.get("addPostInstructions")
+post = "" if post is None else str(post)
+include_timestamp = bool(options.get("timestamp", True)) and bool(options.get("addHRTimestamp", True))
+
+payload = payload_path.read_text()
+parts = []
+if start:
+    parts.append(start)
+parts.append(payload)
+if end:
+    parts.append(end)
+
+output = "\n".join(parts)
+tail = []
+if post:
+    tail.append(post)
+if include_timestamp and timestamp:
+    tail.append(timestamp)
+if tail:
+    output = f"{output}\n\n" + "\n".join(tail)
+
+print(output)
+PY

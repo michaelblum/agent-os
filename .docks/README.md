@@ -85,19 +85,24 @@ stable visual differentiators.
 ## Clipboard Handoffs
 
 When a dock session produces a message intended for another session, use the
-repo handoff helper instead of letting Stop hooks infer clipboard content from
+repo handoff tool instead of letting Stop hooks infer clipboard content from
 chat text:
 
 ```bash
+scripts/agent-handoff --text "$handoff_message" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+
+# Compatibility wrappers for dock-targeted handoffs:
 printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock gdi
 printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock foreman
 printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock operator
 ```
 
-The helper copies only the target-session payload. It then prints that same raw
-payload between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----` markers
-for chat, followed by `(copied to clipboard)` and a human-readable local
-timestamp. Handoffs are plain instructions for every dock.
+`scripts/agent-handoff` copies only the handoff payload. It then prints that same
+raw payload between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----`
+markers for chat, followed by `(copied to clipboard)` and a human-readable local
+timestamp. Handoffs are plain instructions for every dock. Individual docks may
+wrap the generic tool for their own default payload construction, but formatting
+and clipboard behavior should stay centralized in the generic tool.
 
 ## Canonical Docks
 

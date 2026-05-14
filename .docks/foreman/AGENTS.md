@@ -106,8 +106,7 @@ Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
 handoff helper that adds command or addressee prefixes. Keep the copied text to
 the plain work-card instruction above. If a shared helper would inject ceremony,
 use a Foreman-specific plain clipboard copy path and report the copied payload
-plus timestamp in the same chat-visible shape, with the handoff clearly bracketed
-between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----` markers.
+plus timestamp in the dock-level chat-visible shape.
 
 Use `docs/recipes/gdi-work-card-authoring.md` as the flexible authoring shape:
 fresh context, read-first files, state rediscovery, exact files to inspect,
