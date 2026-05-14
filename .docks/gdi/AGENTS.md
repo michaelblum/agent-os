@@ -35,14 +35,52 @@ deciding whether to commit or push.
 When the active profile is `agentic_relay`, GDI has explicit git authority for
 the following operations at work card completion:
 
-1. **Branch** — create `gdi/<work-card-slug>` from current `main` before
-   starting any implementation work. If the branch already exists, use it.
-2. **Commit** — make scoped, atomic commits on the branch as work progresses.
+#### Preconditions — run these before any implementation work
+
+1. **Sync** — fetch and hard-reset to origin/main before branching:
+   ```
+   git fetch origin
+   git checkout main
+   git reset --hard origin/main
+   ```
+   Do not skip this step. Do not start implementation if local main is behind
+   or ahead of origin/main.
+
+2. **Branch** — create `gdi/<work-card-slug>` from the now-synced `main`:
+   ```
+   git checkout -b gdi/<work-card-slug>
+   ```
+   If the branch already exists on origin, check it out and rebase on main.
+
+#### Implementation
+
+3. **Commit** — make scoped, atomic commits on the branch as work progresses.
    Follow the commit message convention in the work card if provided; otherwise
    use `<type>(<scope>): <short description>`. No AI attribution trailers.
-3. **Push** — `git push origin gdi/<work-card-slug>` after all verification
-   passes. Do not push until the work card verification block is green.
-4. **Report** — include the branch name and HEAD SHA in the completion report.
+
+   Stage only the explicit files you created or modified for this work card.
+   Do not use `git add .` or `git add <directory>/`. Name every path explicitly.
+
+#### Completion — run these after all verification passes
+
+4. **Verify commit contents** — confirm your deliverables are actually in HEAD:
+   ```
+   git show --stat HEAD
+   ```
+   Include the full output of this command in your completion report. Do not
+   report a HEAD SHA without first confirming the deliverables appear in
+   `git show --stat HEAD`.
+
+5. **Push** — `git push origin gdi/<work-card-slug>` after verification.
+   Do not push until the work card verification block is green.
+
+6. **Report** — include in the completion report:
+   - Branch name
+   - HEAD SHA (`git rev-parse HEAD`)
+   - Full output of `git show --stat HEAD`
+   - Test results summary
+   - Any unrelated dirty state still present in the working tree
+
    Do not merge to main. The relay partner handles merge.
 
 GDI does not open PRs, merge branches, close issues, or rewrite branch history
