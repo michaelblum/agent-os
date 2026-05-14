@@ -2459,7 +2459,7 @@ export default function CanvasInspector() {
     manifest: {
       name: 'canvas-inspector',
       title: 'Surface Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.semantic_targets'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.annotation_open', 'canvas_inspector.semantic_targets'],
       emits: ['canvas.send'],
       channelPrefix: 'canvas-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
@@ -2535,6 +2535,11 @@ export default function CanvasInspector() {
       if (msg.type === 'canvas_inspector.annotation_toggle') {
         if (annotationState.annotation_mode.active) setAnnotationMode(false, { reason: msg.reason || 'shortcut' })
         else setAnnotationMode(true, { reason: msg.reason || 'shortcut' })
+        return
+      }
+      if (msg.type === 'canvas_inspector.annotation_open') {
+        if (!annotationState.annotation_mode.active) setAnnotationMode(true, { reason: msg.reason || 'external_open' })
+        else emitAnnotationModeState(msg.reason || 'external_open')
         return
       }
       if (msg.type === 'lifecycle' && msg.action === 'suspend') {

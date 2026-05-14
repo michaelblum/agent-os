@@ -71,6 +71,8 @@ test('Sigil radial menu preserves release context for activation adapters', () =
 test('Sigil radial menu config carries native wiki model geometry', () => {
   const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
   const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
+  const annotationItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
+  const cameraItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-camera')
   const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
 
   assert.equal(contextItem.action, 'contextMenu')
@@ -84,6 +86,16 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   assert.equal(agentTerminalItem.action, 'agentTerminal')
   assert.equal(agentTerminalItem.geometry.type, 'gltf')
   assert.match(agentTerminalItem.geometry.src, /low-poly-sci-fi-tablet\/scene\.gltf$/)
+
+  assert.equal(annotationItem.label, 'Annotate')
+  assert.equal(annotationItem.action, 'annotationMode')
+  assert.equal(annotationItem.geometry.type, 'glyph')
+  assert.equal(annotationItem.geometry.glyph, 'annotation-reticle')
+
+  assert.equal(cameraItem.label, 'Snapshot')
+  assert.equal(cameraItem.action, 'annotationSnapshot')
+  assert.equal(cameraItem.requiresLiveAnnotationAnchors, true)
+  assert.equal(cameraItem.geometry.glyph, 'annotation-camera')
 
   assert.equal(wikiItem.action, 'wikiGraph')
   assert.equal(wikiItem.geometry.type, 'gltf')
@@ -112,6 +124,23 @@ test('Sigil radial menu config carries native wiki model geometry', () => {
   })
   assert.equal(wikiItem.geometry.attribution.author, 'Versal')
   assert.equal(wikiItem.geometry.attribution.license, 'CC-BY-4.0')
+})
+
+test('Sigil radial menu hides camera affordance until live annotation anchors exist', () => {
+  const hidden = createMenu().menu.start({ x: 200, y: 200, valid: true })
+  assert.equal(hidden.items.some((item) => item.id === 'annotation-camera'), false)
+  assert.equal(hidden.items.some((item) => item.id === 'annotation-mode'), true)
+
+  const { menu } = createMenu({
+    state: {
+      annotationReticle: {
+        camera_available: true,
+        live_anchor_count: 1,
+      },
+    },
+  })
+  const visible = menu.start({ x: 200, y: 200, valid: true })
+  assert.equal(visible.items.some((item) => item.id === 'annotation-camera'), true)
 })
 
 test('Sigil radial menu normalizes stale wiki brain item geometry from saved config', () => {

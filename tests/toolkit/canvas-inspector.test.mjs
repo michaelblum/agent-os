@@ -489,6 +489,9 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /renderAnnotationModeToggleRowHTML/);
   assert.match(source, /Annotation Mode: \$\{enabled \? 'on' : 'off'\}/);
   assert.match(source, /canvas_inspector\.annotation_toggle/);
+  assert.match(source, /canvas_inspector\.annotation_open/);
+  assert.match(source, /if \(!annotationState\.annotation_mode\.active\) setAnnotationMode\(true, \{ reason: msg\.reason \|\| 'external_open' \}\)/);
+  assert.match(source, /else emitAnnotationModeState\(msg\.reason \|\| 'external_open'\)/);
   assert.match(source, /syncInputSubscription\(\{ snapshot: false \}\)/);
   assert.match(source, /const wantsInput = cursorTrackingEnabled \|\| mouseEventsEnabled \|\| annotationState\.annotation_mode\.active/);
   assert.match(source, /const inputEvents = annotationState\.annotation_mode\.active/);
