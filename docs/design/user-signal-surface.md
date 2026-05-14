@@ -1,304 +1,439 @@
-# user_signal_surface — Design Document
+# Human Input Gate — Design Document
 
 **Status:** Draft  
-**Area:** Gateway / HITL  
-**Date:** 2026-05-14
+**Area:** Daemon / Toolkit / HITL  
+**Date:** 2026-05-14  
+**Supersedes:** initial `user_signal_surface` gateway-polling sketch
 
 ---
 
 ## Overview
 
-`user_signal_surface` is a first-class MCP tool registered on the `aos-gateway` that allows an agent to request a bounded, structured decision from the user via a transient interactive canvas. The tool blocks the agent's turn for at most `timeout_seconds`, returns a terminal typed value, and always resolves — either with the user's explicit choice or with a declared `default_value` on timeout or dismissal.
+The **Human Input Gate** is the canonical AOS primitive for collecting bounded, structured human decisions during an agent turn. It is daemon-owned, adapter-extensible, and always returns a typed terminal value or `null` on timeout.
 
-This is the canonical HITL gate primitive for Agent-OS. Any agent that reaches a decision point, permission boundary, or destructive-action confirmation should route through this tool rather than producing conversational text and waiting indefinitely in the CLI.
+The gate exposes three access surfaces that share one contract:
+
+- `./aos gate ask` — shell invocation for dock sessions and CLI scripts
+- `user_signal_surface` — MCP tool on `aos-gateway` for connected agent runtimes (Claude Code, Codex, etc.)
+- Programmatic daemon API — for internal AOS subsystems
+
+From any agent's perspective the call is identical: post a structured request, receive a structured response or `null`. How the signal is collected — local canvas, Sigil panel, Slack, or anything else — is an adapter detail the agent never sees.
 
 ---
 
 ## Problem
 
-Agent runtimes (Claude Code, Codex CLI, etc.) are steered by system instructions toward human-in-the-loop checkpoints. When an agent reaches a decision gate it cannot resolve autonomously — e.g., "Should I delete these 47 files?", "Which of these four strategies should I pursue?" — its only recourse today is to emit prose into the terminal and stall. That pattern is:
+Agent runtimes (Claude Code, Codex CLI, etc.) are steered by system instructions toward human-in-the-loop checkpoints. When an agent reaches a decision gate it cannot resolve autonomously — "Should I delete these 47 files?", "Which of these three strategies?" — its only recourse today is to emit prose into the terminal and stall. That pattern is:
 
-- **Slow**: The user must notice the terminal, read context, type a response, and submit.
-- **Unsafe**: The agent may time out, retry, or make a conservative default choice that was never explicitly authorized.
-- **Opaque**: There is no structured record of the decision, who made it, or when.
-- **Non-composable**: The signal is free text; consuming code must parse intent from natural language.
-
-The aos display stack already supports interactive canvases (`createCanvas --interactive`, `evalCanvas`). The missing piece is a single gateway-level tool that wraps the canvas lifecycle, injects a structured UI appropriate to the decision type, polls for the result, enforces a deadline, and returns a typed value the agent can branch on immediately.
+- **Slow** — the user must notice the terminal, read context, type a response, submit.
+- **Unsafe** — the agent may time out, retry, or make a conservative default that was never explicitly authorized.
+- **Opaque** — no structured record of the decision, who made it, or when.
+- **Non-composable** — the signal is free text; consuming code must parse intent from natural language.
+- **Unroutable** — there is no way to redirect the request to a different surface (Sigil, Slack, mobile) without rewriting the agent.
 
 ---
 
-## Goals
+## Design Principles
 
-- Provide a single tool call that presents a decision surface, waits for user input, and always returns a typed terminal value.
-- Support common decision shapes: boolean (approve/deny), single choice (A/B/C/D), multi-select, short freetext, and structured JSON.
-- Enforce a server-side timeout so the agent's turn is never held open indefinitely.
-- Keep the implementation entirely within existing infra: `createCanvas`, `evalCanvas`, `removeCanvas` from `aos-proxy.ts`, no new IPC.
-- Register as a named MCP tool so any connected agent can call it without scripting.
-- Produce a clean audit trail: every request and its resolution (or timeout) is logged at the gateway level.
+1. **Daemon owns time, adapters own surface.** The daemon creates the gate request, holds the deadline, resolves the answer, and cleans up. Adapters only present UI and report back. The clock is never in the adapter.
 
-## Non-Goals
+2. **One agent-facing contract, many transports.** `./aos gate ask` and `user_signal_surface` are both thin shells over the same daemon gate service. Adding a new transport (Sigil, Slack, mobile) never changes what agents call.
 
-- Persistent approval queues or durable storage of decisions (out of scope for v1; see Future Work).
-- Multi-agent or cross-session decision forwarding.
-- Rich custom UI beyond the five `ui_hint` variants defined below.
-- Replacing the existing `showOverlay` / `updateOverlay` non-interactive pattern.
+3. **Polymorphic response schema, not a boolean API.** The base primitive is "return an arbitrary JSON value matching a schema." Approve/deny is a preset. So are yes/no, single choice, multi-select, freetext, coordinates, and any future shape.
+
+4. **`null` is a first-class terminal outcome.** Timeout, dismissal, and escape-hatch with no input all resolve to `null`. `null` means "no decision received — end this agent turn cleanly." It is not an error.
+
+5. **Inside AOS authority.** The daemon is the source of truth for gate lifecycle. Gateway is one possible transport, not the owner. This keeps the gate consistent with the rest of AOS's authority boundary.
+
+---
+
+## Authority Boundary
+
+```
+Inside AOS authority
+  aos daemon
+  gate request lifecycle (create, timeout, resolve, clean up)
+  local canvas / WKWebView surfaces
+  toolkit DecisionGatePanel component
+  ./aos CLI
+
+Outside AOS authority
+  connected agent runtimes (Claude Code, Codex, etc.)
+  aos-gateway (MCP server — adapter, not owner)
+  Sigil WebSocket panel
+  Slack / external channels
+  any surface whose lifecycle AOS does not own
+```
+
+Gateway is outside AOS authority. It is a transport adapter for MCP clients. It should not hold polling loops, own canvas state, or be the deadline authority for human decisions.
 
 ---
 
 ## Architecture
 
-### Placement in the Stack
+### The Adapter Pattern
 
 ```
-Agent (Claude Code / Codex / etc.)
-    │  MCP tool call: user_signal_surface(...)
-    ▼
-aos-gateway (Node, stdio MCP server)
-    │  packages/gateway/src/tools/user-signal.ts
-    ├─ createCanvas(id, html, at, interactive: true)  ──► aos binary ──► WKWebView surface
-    ├─ poll: evalCanvas(id, "window.__signalResult")   ◄── user clicks
-    └─ removeCanvas(id)  on resolution or timeout
-    │
-    Returns: typed terminal value (never hangs)
-    ▼
-Agent resumes turn with structured result
+Agent (any runtime)
+  │  ./aos gate ask <request.json>          ← shell path
+  │  user_signal_surface MCP tool call      ← MCP path (thin shell to daemon)
+  ▼
+Daemon Gate Service
+  │  owns: request ID, schema, timeout, result, cleanup
+  │  runs: deadline clock
+  ▼
+SignalCollectorAdapter  (interface — swappable at runtime)
+  ├── LocalCanvasAdapter     → createCanvas + toolkit DecisionGatePanel  [v1]
+  ├── GatewayMCPAdapter      → forwards to MCP surface (headless / remote)  [future]
+  ├── SigilPanelAdapter      → routes to Sigil over WebSocket  [future]
+  └── SlackAdapter           → posts to Slack, collects reaction/reply  [future]
+  ▼
+Adapter presents surface → user acts → adapter reports value back to daemon
+  ▼
+Daemon resolves gate: typed value or null
+  ▼
+Agent receives response and resumes turn
 ```
 
-The tool lives at `packages/gateway/src/tools/user-signal.ts` and is registered in `packages/gateway/src/index.ts` alongside the existing execution tools.
+The adapter interface is intentionally minimal:
 
-### Why Not `run_os_script`?
+```typescript
+interface SignalCollectorAdapter {
+  // Present the surface. Returns an opaque handle used for cleanup.
+  present(request: GateRequest): Promise<CollectionHandle>;
 
-The `run_os_script` path routes through the script engine, which adds subprocess overhead and is designed for perception/action scripts against the `aos` SDK. Signal surface management is a gateway-layer coordination primitive — it touches `aos-proxy.ts` functions directly and holds a polling loop for up to `timeout_seconds`. Placing it in the gateway tool layer keeps it fast, avoids engine startup latency on a latency-sensitive UX path, and keeps the session/correlation context owned by the gateway process.
+  // Dismiss/clean up regardless of how resolution happened.
+  dismiss(handle: CollectionHandle): Promise<void>;
+
+  // Declare what field kinds this adapter can render.
+  supports(kind: FieldKind): boolean;
+}
+```
+
+The daemon calls `adapter.present()`, starts the deadline clock, then waits. On resolution (user answer or timeout), the daemon calls `adapter.dismiss()` and resolves the gate. The adapter never owns the clock.
+
+### MCP Tool as Thin Shell
+
+The `user_signal_surface` MCP tool in `aos-gateway` is a one-step passthrough:
+
+```
+MCP client calls user_signal_surface(request)
+  → gateway shells to: ./aos gate ask --json <request>
+  → waits on stdout
+  → returns stdout value or null to MCP client
+```
+
+No canvas management in the gateway. No polling loop in the gateway. The daemon owns all of it. Gateway just translates MCP protocol to a CLI call and forwards the result.
 
 ---
 
-## Tool Contract
+## Request Schema
 
-### Tool Name
+Version string: `aos.gate.request.v1`
 
-`user_signal_surface`
+```jsonc
+{
+  "schema_version": "aos.gate.request.v1",
 
-### Description (as exposed to agents via MCP)
+  // Human-readable context shown on the surface
+  "prompt": {
+    "title": "Continue?",          // required — short heading
+    "body": null                   // optional — markdown body text
+  },
 
-> Request a bounded structured user signal via a transient interactive surface on the user's display. Always returns a terminal value — either the user's explicit selection or `default_value` on timeout or dismissal. `null` as `default_value` signals "no decision = abort current action". This is a synchronous approval gate from the agent's perspective; do not continue the guarded action until this tool returns.
+  // What value the agent expects back. Standard JSON Schema.
+  // The surface collects data that conforms to this shape.
+  "response_schema": {
+    "type": "object",
+    "required": ["decision"],
+    "properties": {
+      "decision": { "type": "string", "enum": ["yes", "no", "other"] },
+      "other_text": { "type": ["string", "null"] }
+    }
+  },
 
-### Input Schema
+  // How AOS should collect it
+  "ui": {
+    "variant": "yes_no_with_escape",  // named preset (see Presets)
 
-```typescript
-type UserSignalRequest = {
-  // Required
-  ui_hint: 'boolean' | 'single_choice' | 'multi_choice' | 'text' | 'structured';
-  default_value: unknown;          // Returned on timeout/dismissal. null = abort.
+    // Fields that compose the response. Order determines render order.
+    "fields": [
+      {
+        "id": "decision",
+        "kind": "exclusive_choice",
+        "style": "buttons",
+        "options": [
+          { "value": "yes",   "label": "Yes" },
+          { "value": "no",    "label": "No" },
+          { "value": "other", "label": "Something else" }
+        ]
+      },
+      {
+        "id": "other_text",
+        "kind": "text",
+        "placeholder": "Something else...",
+        "visible_when": { "field": "decision", "equals": "other" }
+      }
+    ],
 
-  // Recommended
-  title?: string;                  // Short heading shown on the surface
-  message?: string;                // Explanatory body text; markdown supported
-  timeout_seconds?: number;        // Default: 20. Min: 5. Max: 120.
+    // Timeout indicator configuration
+    "timer": {
+      "visible": true,
+      "display": "digital",         // "digital" | "pie"
+      "direction": "countDown",     // "countDown" | "countUp"
+      "flash_threshold_ms": 0,      // 0 = no flash; >0 = flash begins N ms before timeout
+      "flash_interval_ms": 1000,    // on/off cycle when flashing (default 1s)
+      "colors": {
+        "background": null,         // null = use surface default
+        "primary": null,
+        "threshold_background": null,
+        "threshold_primary": null
+      }
+    }
+  },
 
-  // Required when ui_hint is 'single_choice' or 'multi_choice'
-  choices?: Array<{
-    value: string;                 // Machine-readable key returned on selection
-    label: string;                 // Human-readable button text
-    description?: string;          // Optional subtitle shown below label
-    danger?: boolean;              // Renders in error/red color
-  }>;
-
-  // Optional when ui_hint is 'structured'
-  data_schema?: object;            // JSON Schema describing expected return shape
-  placeholder?: string;            // Placeholder text for 'text' ui_hint
-
-  // Positioning
-  at?: [x: number, y: number, width: number, height: number];
-  // Default: centered on primary display, 440×auto
-
-  // Internal (injected by gateway, not set by agent)
-  // __sessionId is forwarded from the MCP request context
-};
+  // Gate lifecycle
+  "timeout_ms": 20000              // default 20s; min 5s; max 120s; null on timeout
+}
 ```
 
-### Return Value
+### Field Kinds
 
-The tool always returns a JSON-serializable value. The specific type depends on `ui_hint`:
+The field kind registry defines what the toolkit surface layer can render. Kinds are registered — new kinds can be added without changing the gate contract.
 
-| `ui_hint` | User resolution | Timeout / dismiss |
+| Kind | Description | Returns |
 |---|---|---|
-| `boolean` | `true` (approved) or `false` (denied) | `default_value` |
-| `single_choice` | `string` — the selected `choice.value` | `default_value` |
-| `multi_choice` | `string[]` — array of selected `choice.value`s | `default_value` |
-| `text` | `string` — trimmed freetext input | `default_value` |
-| `structured` | `object` — parsed JSON matching `data_schema` | `default_value` |
+| `boolean` | Single true/false toggle | `boolean` |
+| `exclusive_choice` | Pick one from a labeled option set (radio / buttons) | `string` (selected value) |
+| `multi_choice` | Pick any from a labeled option set (checkboxes) | `string[]` |
+| `text` | Single-line freetext input | `string` |
+| `number` | Numeric input with optional min/max/step | `number` |
+| `point2d` | x,y coordinate pair | `{ x: number, y: number }` |
+| `point3d` | x,y,z coordinate triple | `{ x: number, y: number, z: number }` |
+| `object` | Grouped sub-fields | `object` |
 
-The agent should always handle the `default_value` case explicitly. The canonical pattern for a destructive-action gate is `default_value: null` and `if (result === null) return;`.
+V1 implements: `boolean`, `exclusive_choice`, `multi_choice`, `text`. Coordinate and object kinds are defined in schema now; surface rendering is deferred.
 
----
+### Escape Hatch
 
-## UI Variants
-
-Each `ui_hint` maps to a specific canvas HTML template. All variants share a common chrome: backdrop blur, dark surface, `--interactive: true`, and a countdown timer that depletes visually toward the timeout.
-
-### `boolean`
-
-Two buttons: **Approve** (green, primary) and **Deny** (red). On click, sets `window.__signalResult = true` or `false` respectively. An optional **Escape** link (small, muted) sets `window.__signalResult = null`.
-
-```
-┌─────────────────────────────────────────┐
-│  title                                  │
-│  message                                │
-│                                         │
-│  [  ✓ Approve  ]   [  ✗ Deny  ]        │
-│                         dismiss ↗       │
-│  █████████████████░░░░░ 14s              │
-└─────────────────────────────────────────┘
-```
-
-### `single_choice`
-
-Renders each `choice` as a full-width button. Up to 6 choices. Danger choices render with error coloring. Sets `window.__signalResult = choice.value` on click.
-
-### `multi_choice`
-
-Renders choices as checkboxes. A **Submit** button appears once at least one item is selected. Sets `window.__signalResult = [selectedValues]` on submit.
-
-### `text`
-
-A single-line input with placeholder and a **Submit** button. Submit is disabled when input is empty. Sets `window.__signalResult = input.value.trim()` on submit.
-
-### `structured`
-
-Renders a compact JSON textarea with optional `data_schema` displayed as a comment block. Submit validates against schema before setting `window.__signalResult`. If validation fails, an inline error is shown without dismissing the surface.
+Any field with `"id": "other_text"` and `"kind": "text"` whose `visible_when` condition references another field's `"other"` value is treated as the canonical escape hatch pattern. The surface renders it as a conditional freetext reveal. This is a convention, not a special field type — it composes naturally from existing field kinds.
 
 ---
 
-## Implementation
+## Response Contract
 
-### File: `packages/gateway/src/tools/user-signal.ts`
+The gate always produces one of:
+
+1. **User answer** — a JSON value conforming to `response_schema`. Shape varies by field configuration.
+2. **`null`** — timeout, user dismissal without input, or escape hatch submitted empty.
+
+`null` is terminal. The agent must handle it explicitly and must not continue the guarded action.
+
+### Default invocation (zero-config)
+
+```bash
+./aos gate ask "Continue?"
+```
+
+Equivalent to posting the `yes_no_with_escape` preset with a 20s timeout. Stdout:
+
+```json
+{"decision":"yes","other_text":null}
+```
+or
+```json
+{"decision":"no","other_text":null}
+```
+or
+```json
+{"decision":"other","other_text":"check the staging branch first"}
+```
+or on timeout / dismissal:
+```
+null
+```
+
+---
+
+## Presets
+
+Presets are named `ui.variant` values that expand to a full `fields` + `response_schema` configuration. They are the ergonomic layer on top of the raw schema — agents and scripts use presets; the daemon and toolkit work with expanded field configs.
+
+| Preset | Description | Default return shape |
+|---|---|---|
+| `yes_no_with_escape` | Yes / No buttons + conditional freetext escape hatch | `{ decision: "yes"\|"no"\|"other", other_text: string\|null }` |
+| `approve_deny` | Approve (green) / Deny (red) + optional escape hatch | `{ decision: "approve"\|"deny", other_text: string\|null }` |
+| `single_choice` | Labeled button set, pick one | `{ decision: string }` |
+| `multi_choice` | Labeled checkbox set, pick many | `{ decisions: string[] }` |
+| `freetext` | Text input only, no choices | `{ text: string }` |
+
+Custom variants can be composed inline by omitting `ui.variant` and specifying `ui.fields` directly.
+
+---
+
+## Toolkit Component Stack
+
+The v1 `LocalCanvasAdapter` renders gate requests using a toolkit component stack hosted in a daemon-managed interactive canvas. The component hierarchy maps directly to the gate request schema.
+
+```
+DecisionGatePanel                   ← top-level gate surface component
+  GateShell                         ← chrome: backdrop, border, positioning
+    GateHeader                      ← title + optional body text
+    GateBody                        ← field rendering region
+      FieldRenderer                 ← dispatches to field kind components
+        BooleanField
+        ExclusiveChoiceField        ← renders as buttons or radio set
+          ChoiceOption              ← individual option with danger variant
+        MultiChoiceField            ← renders as checkbox set
+          ChoiceOption
+        TextField                   ← single-line input
+        NumberField
+        Point2DField                ← (v2)
+        Point3DField                ← (v2)
+    EscapeHatch                     ← conditional freetext reveal
+      EscapeHatchTrigger            ← "Something else..." reveal button
+      EscapeHatchInput              ← text input, shown on trigger
+    GateActions                     ← submit/confirm button when needed
+    TimeoutIndicator                ← countdown display
+      DigitalTimer                  ← HH:MM.S or SS.s display
+      PieTimer                      ← SVG arc depleting to zero
+```
+
+### File Layout
+
+```
+packages/toolkit/
+  components/
+    decision-gate/
+      index.html          ← self-contained gate surface entry point
+      index.js            ← mounts DecisionGatePanel with request config
+      styles.css          ← gate-specific chrome and animation
+      model.js            ← request parsing, field state, submit logic
+      semantics.js        ← response_schema validation, null resolution
+
+  controls/
+    field-renderer.js     ← dispatches to field kind by "kind" property
+    boolean-field.js
+    exclusive-choice-field.js
+    multi-choice-field.js
+    text-field.js
+    number-field.js
+    escape-hatch.js       ← conditional reveal pattern
+    choice-option.js      ← shared option atom (button + danger variant)
+    gate-actions.js       ← submit button, disabled state logic
+    timeout-indicator.js  ← mounts digital or pie sub-component
+    digital-timer.js
+    pie-timer.js
+```
+
+### Signal Protocol
+
+The canvas communicates resolution back to the daemon by setting `window.__gateResult` to a JSON-stringified value. The daemon's `LocalCanvasAdapter` polls this via `evalCanvas` at a fixed interval. On detection, the adapter calls back into the gate service, which resolves the request, dismisses the surface, and returns the value to the caller.
+
+This is an adapter-internal detail. Future adapters use different back-channels (WebSocket message, Slack event webhook, etc.) — the gate service contract is identical regardless.
+
+---
+
+## Daemon Gate Service
+
+### Responsibilities
+
+- Accept gate requests from any caller (CLI, MCP shell-out, internal API)
+- Assign a unique `gate_id` per request
+- Select and invoke the appropriate `SignalCollectorAdapter`
+- Own the deadline clock — fire `null` resolution on timeout
+- Resolve the gate with the adapter's reported value
+- Call `adapter.dismiss()` on all resolution paths
+- Log gate lifecycle events (request, resolution, elapsed)
+
+### Adapter Selection
+
+In v1, the daemon uses `LocalCanvasAdapter` unconditionally. Future policy:
+
+- Default: `LocalCanvasAdapter` (display available)
+- Fallback: configurable — e.g., `SlackAdapter` if no display
+- Override: per-session or per-request adapter hint
+
+### Timeout Enforcement
+
+Timeout is daemon-authoritative. The countdown displayed in the canvas is cosmetic. The daemon's deadline fires at `timeout_ms` and resolves the gate with `null` regardless of canvas state. The adapter's `dismiss()` is always called — it never holds an open surface after resolution.
+
+---
+
+## Agent-Facing Surfaces
+
+### CLI: `./aos gate ask`
+
+```bash
+# Zero-config — yes/no + escape + 20s timer
+./aos gate ask "Continue?"
+
+# Full request from file
+./aos gate ask --request gate-request.json
+
+# Inline JSON
+./aos gate ask --json '{"prompt":{"title":"Delete files?"},"ui":{"variant":"approve_deny"},"timeout_ms":20000}'
+
+# Preset shorthand
+./aos gate ask --preset approve_deny --title "Run disruptive TCC test?" --timeout 30
+```
+
+Stdout is always the response value or the literal string `null`. Callers should parse stdout as JSON, treating the bare string `null` as the terminal no-response case.
+
+### MCP Tool: `user_signal_surface`
+
+Registered on `aos-gateway`. Implementation:
 
 ```typescript
-import { createCanvas, removeCanvas, evalCanvas, getDisplays } from '../aos-proxy.js';
-
-export type UserSignalRequest = { /* see Input Schema above */ };
+// packages/gateway/src/tools/user-signal.ts
+import { execFile } from 'node:child_process';
 
 export async function userSignalSurface(req: UserSignalRequest): Promise<unknown> {
-  const timeout = Math.min(Math.max((req.timeout_seconds ?? 20) * 1000, 5000), 120000);
-  const canvasId = `uss-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-
-  const at = req.at ?? (await defaultPosition());
-  const html = buildSignalHtml(req, timeout);
-
-  await createCanvas({ id: canvasId, html, at, interactive: true });
-
-  return new Promise((resolve) => {
-    const deadline = setTimeout(async () => {
-      clearInterval(poll);
-      try { await removeCanvas(canvasId); } catch {}
-      resolve(req.default_value ?? null);
-    }, timeout + 500); // slight grace over the in-canvas countdown
-
-    const poll = setInterval(async () => {
-      try {
-        const { result } = await evalCanvas(
-          canvasId,
-          'window.__signalResult !== undefined ? JSON.stringify(window.__signalResult) : null'
-        );
-        if (result !== null && result !== 'null') {
-          clearTimeout(deadline);
-          clearInterval(poll);
-          try { await removeCanvas(canvasId); } catch {}
-          try { resolve(JSON.parse(result as string)); }
-          catch { resolve(req.default_value ?? null); }
-        }
-      } catch {
-        // canvas gone (user closed window, display error) → resolve as default
-        clearTimeout(deadline);
-        clearInterval(poll);
-        resolve(req.default_value ?? null);
+  const requestJson = JSON.stringify(buildGateRequest(req));
+  return new Promise((resolve, reject) => {
+    execFile(
+      'aos',
+      ['gate', 'ask', '--json', requestJson],
+      { timeout: ((req.timeout_seconds ?? 20) + 5) * 1000 },
+      (err, stdout) => {
+        if (err) { resolve(null); return; } // treat exec error as timeout
+        const trimmed = stdout.trim();
+        resolve(trimmed === 'null' ? null : JSON.parse(trimmed));
       }
-    }, 400);
+    );
   });
-}
-
-async function defaultPosition(): Promise<[number, number, number, number]> {
-  try {
-    const displays = await getDisplays();
-    const primary = displays.find(d => d.primary) ?? displays[0];
-    const w = 440;
-    const h = 220;
-    return [
-      Math.round((primary.width - w) / 2),
-      Math.round((primary.height - h) / 2),
-      w,
-      h,
-    ];
-  } catch {
-    return [500, 350, 440, 220];
-  }
 }
 ```
 
-The `buildSignalHtml(req, timeoutMs)` function produces self-contained HTML for each `ui_hint` variant. The HTML uses only inline styles (no external resources), renders the countdown via `setInterval` decrementing a CSS `width` bar, and sets `window.__signalResult` on any terminal user action.
+No canvas management. No polling loop. No gateway-owned deadline. The daemon handles all of it.
 
-### Registration: `packages/gateway/src/index.ts`
+**Tool definition** (in `TOOL_DEFS`):
 
 ```typescript
-import { userSignalSurface } from './tools/user-signal.js';
-
-// Add to allHandlers:
-allHandlers['user_signal_surface'] = (args) => userSignalSurface(args);
-
-// Add to TOOL_DEFS:
 {
   name: 'user_signal_surface',
-  description: '...',  // see Tool Contract → Description above
+  description:
+    'Request a bounded structured human decision via a transient AOS surface. ' +
+    'Always returns a typed value or null. null means no response received — ' +
+    'end the current agent turn cleanly. Do not continue a guarded action until this returns.',
   inputSchema: {
     type: 'object' as const,
     properties: {
-      ui_hint:         { type: 'string', enum: ['boolean','single_choice','multi_choice','text','structured'] },
-      default_value:   {},
       title:           { type: 'string' },
       message:         { type: 'string' },
-      timeout_seconds: { type: 'number' },
+      preset:          { type: 'string',
+                         enum: ['yes_no_with_escape','approve_deny','single_choice','multi_choice','freetext'] },
       choices:         { type: 'array', items: { type: 'object' } },
-      data_schema:     { type: 'object' },
-      placeholder:     { type: 'string' },
-      at:              { type: 'array', items: { type: 'number' }, minItems: 4, maxItems: 4 },
+      timeout_seconds: { type: 'number' },
+      request:         { type: 'object',
+                         description: 'Full aos.gate.request.v1 object. Overrides all other params.' },
     },
-    required: ['ui_hint', 'default_value'],
+    required: ['title'],
   },
 }
 ```
 
----
-
-## Timeout and Cancellation
-
-Timeout is enforced in two places:
-
-1. **In-canvas countdown**: The HTML renders a visible depleting timer bar. When it reaches zero, the canvas sets `window.__signalResult = null` and visually freezes. This gives the user feedback without requiring them to wait for the polling cycle.
-
-2. **Gateway deadline**: A `setTimeout` in `userSignalSurface` fires at `timeout_ms + 500ms` (the grace window covers the last polling cycle). It calls `removeCanvas` and resolves with `default_value`. This is the authoritative source of truth — the in-canvas timer is cosmetic.
-
-The escape hatch button sets `window.__signalResult = null` immediately, which the poll loop picks up within 400ms. This resolves via the normal polling path and returns `default_value` (typically `null`), identical to a timeout.
-
----
-
-## Logging
-
-Every call is logged at the gateway level with the following fields:
-
-```json
-{
-  "tool": "user_signal_surface",
-  "canvasId": "uss-abc123-def4",
-  "sessionId": "...",
-  "ui_hint": "boolean",
-  "timeout_seconds": 20,
-  "resolution": "user" | "timeout" | "error",
-  "elapsed_ms": 7430,
-  "result_type": "boolean"
-}
-```
-
-The actual `result` value is not logged (privacy: the user's choice is not persisted to disk in v1). `resolution: "timeout"` and `resolution: "error"` both result in `default_value` being returned to the agent.
+For simple cases, agents pass `title` + optional `preset` + optional `choices`. For full control, agents pass a `request` object conforming to `aos.gate.request.v1`.
 
 ---
 
@@ -306,68 +441,97 @@ The actual `result` value is not logged (privacy: the user's choice is not persi
 
 ### Approve / Deny (Destructive Action Gate)
 
+```bash
+# CLI
+result=$(./aos gate ask --preset approve_deny --title "Delete 47 files in ~/Downloads/old-project?")
+if [ "$result" = "null" ] || [ "$(echo $result | jq -r .decision)" = "deny" ]; then
+  echo "aborted"; exit 0
+fi
+```
+
 ```typescript
-const approved = await gateway.callTool('user_signal_surface', {
-  ui_hint: 'boolean',
-  default_value: false,
-  title: 'Confirm File Deletion',
-  message: 'Delete 47 files in `/Users/mblum/Downloads/old-project`? This cannot be undone.',
+// MCP tool call
+const result = await callTool('user_signal_surface', {
+  title: 'Delete 47 files in ~/Downloads/old-project?',
+  message: 'This cannot be undone.',
+  preset: 'approve_deny',
   timeout_seconds: 20,
 });
-
-if (!approved) {
-  return { aborted: true, reason: 'user denied or timeout' };
-}
-// proceed with deletion
+if (result === null || result.decision === 'deny') return { aborted: true };
 ```
 
-### Strategy Selection (Single Choice)
+### Strategy Selection
 
 ```typescript
-const strategy = await gateway.callTool('user_signal_surface', {
-  ui_hint: 'single_choice',
-  default_value: null,
+const result = await callTool('user_signal_surface', {
   title: 'Choose Refactor Strategy',
-  message: 'The codebase supports three approaches. Which should I pursue?',
-  timeout_seconds: 30,
+  message: 'Which approach should I pursue?',
+  preset: 'single_choice',
   choices: [
-    { value: 'incremental', label: 'Incremental', description: 'Migrate module by module, lower risk' },
-    { value: 'big_bang',    label: 'Big Bang',    description: 'Rewrite in one pass, faster but riskier', danger: true },
-    { value: 'hybrid',      label: 'Hybrid',      description: 'Rewrite core, migrate edges incrementally' },
+    { value: 'incremental', label: 'Incremental', description: 'Module-by-module, lower risk' },
+    { value: 'big_bang',    label: 'Big Bang',    description: 'Full rewrite, faster but riskier', danger: true },
+    { value: 'hybrid',      label: 'Hybrid',      description: 'Rewrite core, migrate edges' },
   ],
+  timeout_seconds: 30,
 });
-
-if (strategy === null) return; // user dismissed or timed out
+if (result === null) return; // no decision
 ```
 
-### Freetext Clarification
+### Full Custom Request
 
 ```typescript
-const clarification = await gateway.callTool('user_signal_surface', {
-  ui_hint: 'text',
-  default_value: null,
-  title: 'Clarify Target Audience',
-  message: 'The brief mentions "enterprise users" but the tone spec says "developer-friendly." Who is the primary audience?',
-  placeholder: 'e.g., Senior engineers at F500 companies',
-  timeout_seconds: 60,
+const result = await callTool('user_signal_surface', {
+  title: 'placeholder — overridden by request object',
+  request: {
+    schema_version: 'aos.gate.request.v1',
+    prompt: { title: 'Coordinate target?', body: 'Click to select a point on the active display.' },
+    response_schema: {
+      type: 'object',
+      required: ['point'],
+      properties: { point: { type: 'object',
+        properties: { x: { type: 'number' }, y: { type: 'number' } } } }
+    },
+    ui: { variant: null, fields: [{ id: 'point', kind: 'point2d' }],
+          timer: { visible: true, display: 'digital', direction: 'countDown', flash_threshold_ms: 3000 } },
+    timeout_ms: 15000,
+  },
 });
-
-if (clarification === null) return; // no response
 ```
 
 ---
 
-## State Machine
-
-From the agent's perspective, the tool call is synchronous. Internally the tool transitions through:
+## Gate Lifecycle State Machine
 
 ```
-CREATED → POLLING → RESOLVED (user)    → returns result
-                  → RESOLVED (timeout) → returns default_value
-                  → RESOLVED (error)   → returns default_value
+REQUESTED
+  │  daemon assigns gate_id, selects adapter
+  ▼
+PRESENTING
+  │  adapter.present() called; deadline clock starts
+  ├─ user submits value ──────────────────────────────────────────► RESOLVED (answer)
+  ├─ user dismisses / escape hatch empty ────────────────────────► RESOLVED (null)
+  ├─ deadline fires ──────────────────────────────────────────────► RESOLVED (null)
+  └─ adapter error (canvas fails, display gone) ──────────────────► RESOLVED (null)
+                                                                         │
+                                                          adapter.dismiss() called
+                                                          result returned to caller
 ```
 
-There is no persistent state machine in v1. All state is in-memory in the gateway process. If the gateway restarts during a pending signal, the canvas is orphaned (the `aos` binary owns canvas lifetime independently) and the MCP tool call errors; the agent should treat any tool error from `user_signal_surface` as equivalent to `default_value`.
+All resolved paths call `adapter.dismiss()`. `null` is never an error condition — it is the designed terminal outcome for all non-answer paths.
+
+---
+
+## Logging
+
+Every gate lifecycle event is logged by the daemon:
+
+```json
+{ "event": "gate.requested",  "gate_id": "gate-abc123", "session_id": "...", "variant": "approve_deny", "timeout_ms": 20000 }
+{ "event": "gate.presented",  "gate_id": "gate-abc123", "adapter": "LocalCanvasAdapter" }
+{ "event": "gate.resolved",   "gate_id": "gate-abc123", "resolution": "user", "elapsed_ms": 7430 }
+```
+
+Resolution values: `"user"` | `"timeout"` | `"dismiss"` | `"error"`. The actual response value is not logged in v1 (privacy).
 
 ---
 
@@ -375,19 +539,44 @@ There is no persistent state machine in v1. All state is in-memory in the gatewa
 
 | Scenario | Behavior |
 |---|---|
-| Agent calls tool with `timeout_seconds: 0` or negative | Clamped to 5 seconds |
-| Canvas fails to create (display not available) | Tool returns `default_value` immediately; logs `resolution: error` |
-| User force-closes the canvas window | `evalCanvas` throws; poll catches, resolves as `default_value` |
-| Agent calls tool twice with same `canvasId` | Not possible — gateway generates unique IDs per call |
-| Display goes to sleep before user responds | Timer expires; gateway deadline fires; returns `default_value` |
-| Agent sends `ui_hint: 'single_choice'` with no `choices` | Returns `default_value` immediately; logs warning |
+| `timeout_ms` < 5000 or negative | Clamped to 5000ms |
+| `timeout_ms` > 120000 | Clamped to 120000ms |
+| No display available at gate time | `LocalCanvasAdapter` fails; resolves `null`; logs `resolution: error` |
+| Canvas window force-closed by user | Adapter poll throws; daemon resolves `null` |
+| Daemon restarts during active gate | Canvas orphaned (`aos` binary owns canvas lifetime); MCP call errors; caller treats as `null` |
+| Agent sends `single_choice` with empty `choices` | Daemon rejects request, returns `null`, logs warning |
+| `response_schema` validation fails on submit | Surface shows inline error; does not dismiss; user must correct or timeout |
+| Multiple concurrent gate requests | Each gets a unique `gate_id` and independent surface; daemon manages concurrently |
+
+---
+
+## V1 Scope
+
+The following constitutes a shippable v1:
+
+- [ ] `Daemon Gate Service` — request intake, adapter dispatch, deadline clock, resolution, logging
+- [ ] `SignalCollectorAdapter` interface
+- [ ] `LocalCanvasAdapter` — `createCanvas` + toolkit `DecisionGatePanel` + `evalCanvas` poll-back
+- [ ] `DecisionGatePanel` component stack (see Toolkit Component Stack above)
+- [ ] Field kinds: `boolean`, `exclusive_choice`, `multi_choice`, `text`
+- [ ] `EscapeHatch` conditional reveal pattern
+- [ ] `TimeoutIndicator` with `DigitalTimer` and `PieTimer`
+- [ ] All `timer` config options (display, direction, flash threshold, colors)
+- [ ] Presets: `yes_no_with_escape`, `approve_deny`, `single_choice`, `multi_choice`, `freetext`
+- [ ] `./aos gate ask` CLI verb (zero-config + `--preset` + `--json` + `--request`)
+- [ ] `user_signal_surface` MCP tool as thin shell to `./aos gate ask`
+- [ ] `aos.gate.request.v1` schema definition and validation
 
 ---
 
 ## Future Work
 
-- **Durable approval records**: Persist decision requests and responses to the gateway's SQLite store (`db.ts`) with a `decisions` table. Enables audit trail, replay, and cross-session inspection via Sigil.
-- **Remote signals**: Route `user_signal_surface` requests to a Sigil panel over the existing WebSocket bus, enabling decisions from a remote display or mobile device.
-- **Chained gates**: A `user_signal_sequence` tool that presents a wizard-style series of `UserSignalRequest` steps, returning a structured aggregate.
-- **Agent-system-prompt injection**: A standard block agents can include in system prompts to self-describe when to call `user_signal_surface`, replacing ad-hoc HITL guidance in individual agent configs.
-- **Async non-blocking variant**: `queue_user_signal_surface` that returns immediately with a `request_id` and lets the agent proceed with other work, polling `get_signal_result(request_id)` later.
+- **`GatewayMCPAdapter`** — route gate requests to a remote MCP-connected surface instead of local canvas. Enables headless and CI gate scenarios.
+- **`SigilPanelAdapter`** — route to a Sigil visualization panel over the existing WebSocket bus. Gate decision surfaces visible and actionable from Sigil.
+- **`SlackAdapter`** — post gate request to a configured Slack channel; collect response from reaction or thread reply.
+- **Adapter selection policy** — per-session or per-request adapter hint; fallback chain if primary adapter unavailable.
+- **Durable gate records** — persist request + resolution to `db.ts` SQLite store with a `gate_decisions` table. Enables audit trail, replay, Sigil inspection.
+- **`point2d` / `point3d` field kinds** — surface rendering for coordinate collection.
+- **`user_signal_sequence`** — wizard-style chained gate requests returning a structured aggregate.
+- **Async non-blocking variant** — `./aos gate queue` returns a `gate_id` immediately; agent polls `./aos gate result <gate_id>` asynchronously.
+- **System prompt injection block** — standardized agent instruction fragment that teaches any agent when and how to use `./aos gate ask` / `user_signal_surface`, replacing ad-hoc HITL guidance in per-agent configs.
