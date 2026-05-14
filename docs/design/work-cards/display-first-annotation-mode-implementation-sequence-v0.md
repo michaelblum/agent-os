@@ -115,6 +115,9 @@ Mode is display-first and not inspector-first.
 
 ### 5. Settled Reprojection
 
+Work card:
+`docs/design/work-cards/display-first-annotation-settled-reprojection-v0.md`
+
 Add settled reprojection after scroll, resize, window move, DOM mutation, AX
 stale/absent updates, and AOS semantic target refresh. During motion, keep the
 hot path cheap and mark projection stale rather than rediscovering on every
