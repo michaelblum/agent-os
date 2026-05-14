@@ -218,6 +218,29 @@ private struct PermissionsSetupResponse: Encodable {
     let notes: [String]
 }
 
+private struct PermissionsResetRuntimeStep: Encodable {
+    let command: String
+    let attempted: Bool
+    let exit_code: Int32?
+    let status: String
+    let stdout: String?
+    let stderr: String?
+}
+
+private struct PermissionsResetRuntimeResponse: Encodable {
+    let status: String
+    let mode: String
+    let dry_run: Bool
+    let target_path: String
+    let tcc_identifier: String
+    let service_stop: PermissionsResetRuntimeStep
+    let tcc_reset: PermissionsResetRuntimeStep
+    let service_resets: [PermissionsResetRuntimeStep]
+    let next_actions: [ReadyNextAction]
+    let fallback: [String]
+    let notes: [String]
+}
+
 private struct CanvasLookupResponse: Encodable {
     let status: String
     let exists: Bool
@@ -436,12 +459,11 @@ func readyCommand(args: [String]) {
             actionTrace = response.action_trace
         }
 
-        if !response.ready, let settingsBlocker = firstSettingsBlocker(in: response.blockers),
-           let url = settingsBlocker.settings_url {
+        if !response.ready, response.blockers.contains(where: { $0.kind == "permission" }) {
             actionTrace.append(ReadyActionStep(
-                step: "settings_handoff",
+                step: "runtime_tcc_reset_handoff",
                 result: "human_required",
-                detail: "\(settingsOpenReason(for: settingsBlocker)) (\(url))"
+                detail: "\(prefix) permissions reset-runtime --mode \(mode.rawValue)"
             ))
             response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
         }
@@ -505,17 +527,15 @@ private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMod
 
     print("")
     print("Human action needed:")
-    print("Safe permission reset sequence:")
+    print("Preferred permission reset sequence:")
     for line in permissionResetSafeSequenceLines(blockers: permissionBlockers, mode: mode, prefix: prefix) {
         print("  \(line)")
     }
-    print("Permissions that may need remove/re-add after the service is stopped:")
+    print("Affected permissions:")
     for line in permissionFixLines(blockers: permissionBlockers, mode: mode) {
         print("  \(line)")
     }
-
-    print("After fixing those rows, come back and say: ready")
-    print("The agent should run: \(prefix) ready --post-permission")
+    print("Manual Settings removal is only the fallback if reset-runtime reports that tccutil failed.")
 }
 
 func statusCommand(args: [String]) {
@@ -761,7 +781,7 @@ func permissionsCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup> ...",
+        exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup|reset-runtime> ...",
                   code: "MISSING_SUBCOMMAND")
     }
     switch sub {
@@ -771,6 +791,8 @@ func permissionsCommand(args: [String]) {
         permissionsCheckCommand(args: Array(args.dropFirst()), usage: "aos permissions preflight [--json]")
     case "setup":
         permissionsSetupCommand(args: Array(args.dropFirst()))
+    case "reset-runtime":
+        permissionsResetRuntimeCommand(args: Array(args.dropFirst()))
     default:
         exitError("Unknown permissions subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -1184,7 +1206,7 @@ private func permissionRecoveryNotes(missing: [String], mode: AOSRuntimeMode) ->
         mode: mode,
         prefix: prefix
     )
-    notes.append("Permissions to fix after the daemon reports running=false:")
+    notes.append("Affected permissions:")
     for id in missing {
         switch id {
         case "accessibility":
@@ -1226,7 +1248,7 @@ private func permissionEntryName(mode: AOSRuntimeMode) -> String {
 
 private func permissionAction(for blocker: ReadyBlocker, mode: AOSRuntimeMode) -> String {
     if mode == .repo, blocker.scope == "daemon" {
-        return "remove/add back"
+        return "targeted reset"
     }
     return "enable"
 }
@@ -1254,13 +1276,13 @@ private func permissionResetSafeSequenceLines(blockers: [ReadyBlocker], mode: AO
     var lines = [
         "Runtime mode: \(mode.rawValue)",
         "Target binary: \(targetPath)",
-        "1. Stop the managed daemon first: \(prefix) service stop --mode \(mode.rawValue)",
-        "2. Do not remove/re-add macOS permissions until service status reports running=false.",
-        "3. Remove/re-add \(targetPath) in Accessibility and/or Input Monitoring as listed below.",
-        "4. Return here and run: \(prefix) ready --post-permission",
+        "1. Run: \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
+        "2. Run: \(prefix) permissions setup --once",
+        "3. Return here and run: \(prefix) ready --post-permission",
+        "Manual Settings removal is fallback only if reset-runtime reports that tccutil failed.",
     ]
     if blockers.contains(where: { $0.id == "screen_recording" }) {
-        lines.insert("Screen Recording can be handled in the same Settings pass if it is listed below.", at: 5)
+        lines.insert("Screen Recording can be re-requested by permissions setup after reset.", at: 4)
     }
     return lines
 }
@@ -1428,7 +1450,7 @@ private func staleGrantGuidance(mode: AOSRuntimeMode, service: String) -> String
     let entry = permissionEntryName(mode: mode)
     switch mode {
     case .repo:
-        return "\(panel) -> \(entry) (remove/add back)"
+        return "\(panel) -> \(entry) (targeted reset via \(aosInvocationDisplayName()) permissions reset-runtime --mode repo)"
     case .installed:
         return "\(panel) -> \(entry) (enable)"
     }
@@ -1619,28 +1641,33 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         return actions
     }
 
-    if blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) || $0.kind == "permission" }) {
+    let hasPermissionBlocker = blockers.contains(where: { $0.kind == "permission" })
+    let hasRepairableRuntimeBlocker = blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
+
+    if hasPermissionBlocker {
+        append(ReadyNextAction(
+            type: "command",
+            label: "stop the managed daemon and run targeted tccutil reset for this runtime identity",
+            command: "\(prefix) permissions reset-runtime --mode \(mode.rawValue)"
+        ))
+        append(ReadyNextAction(
+            type: "command",
+            label: "request fresh macOS permission prompts after the targeted TCC reset",
+            command: "\(prefix) permissions setup --once"
+        ))
+        append(ReadyNextAction(
+            type: "command",
+            label: "bounded handoff check after permissions have been granted",
+            command: "\(prefix) ready --post-permission"
+        ))
+    }
+
+    if hasRepairableRuntimeBlocker && !hasPermissionBlocker {
         append(ReadyNextAction(
             type: "command",
             label: "run automated repair: restart/recheck, then print human instructions if needed",
             command: "\(prefix) ready --repair"
         ))
-    }
-
-    if blockers.contains(where: { $0.kind == "permission" }) {
-        append(ReadyNextAction(
-            type: "command",
-            label: "stop the managed daemon before removing/re-adding macOS permissions; wait for running=false",
-            command: "\(prefix) service stop --mode \(mode.rawValue)"
-        ))
-        append(ReadyNextAction(
-            type: "command",
-            label: "bounded handoff check after fixing macOS permissions",
-            command: "\(prefix) ready --post-permission"
-        ))
-    }
-
-    if blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
         append(ReadyNextAction(
             type: "command",
             label: "restart the managed daemon and re-check readiness",
@@ -1648,22 +1675,12 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         ))
     }
 
-    if !setup.setup_completed {
+    if !setup.setup_completed && !hasPermissionBlocker {
         append(ReadyNextAction(
             type: "command",
             label: "run permission onboarding",
             command: setup.recommended_command ?? "\(prefix) permissions setup --once"
         ))
-    }
-
-    for blocker in blockers where blocker.kind == "permission" {
-        if let settingsURL = blocker.settings_url {
-            append(ReadyNextAction(
-                type: "open_settings",
-                label: "open System Settings to \(settingsOpenReason(for: blocker))",
-                command: "open \"\(settingsURL)\""
-            ))
-        }
     }
 
     append(ReadyNextAction(
@@ -2076,6 +2093,324 @@ private func requestPostEventAccess() -> Bool {
         return CGRequestPostEventAccess()
     }
     return true
+}
+
+private struct PermissionsResetRuntimeOptions {
+    let asJSON: Bool
+    let dryRun: Bool
+    let allowServiceReset: Bool
+    let mode: AOSRuntimeMode
+}
+
+private func permissionsResetRuntimeCommand(args: [String]) {
+    let options = parsePermissionsResetRuntimeArgs(args)
+    let response = runPermissionsResetRuntime(options: options)
+    if options.asJSON {
+        print(jsonString(response))
+    } else {
+        print("status=\(response.status) mode=\(response.mode) dry_run=\(response.dry_run)")
+        print("target=\(response.target_path)")
+        print("tcc_identifier=\(response.tcc_identifier)")
+        print("service_stop=\(response.service_stop.status)")
+        print("tcc_reset=\(response.tcc_reset.status)")
+        if !response.service_resets.isEmpty {
+            print("service_resets=\(response.service_resets.map(\.status).joined(separator: ","))")
+        }
+        if !response.notes.isEmpty {
+            for note in response.notes {
+                print(note)
+            }
+        }
+        if !response.next_actions.isEmpty {
+            print("Next:")
+            for action in response.next_actions {
+                if let command = action.command {
+                    print("  \(command)  # \(action.label)")
+                } else {
+                    print("  \(action.label)")
+                }
+            }
+        }
+        if !response.fallback.isEmpty {
+            print("Fallback:")
+            for line in response.fallback {
+                print("  \(line)")
+            }
+        }
+    }
+    exit(response.status == "ok" ? 0 : 1)
+}
+
+private func parsePermissionsResetRuntimeArgs(_ args: [String]) -> PermissionsResetRuntimeOptions {
+    var asJSON = false
+    var dryRun = false
+    var allowServiceReset = false
+    var mode: AOSRuntimeMode? = nil
+    var i = 0
+
+    while i < args.count {
+        switch args[i] {
+        case "--json":
+            asJSON = true
+        case "--dry-run":
+            dryRun = true
+        case "--allow-service-reset":
+            allowServiceReset = true
+        case "--mode":
+            i += 1
+            guard i < args.count, let parsed = AOSRuntimeMode(rawValue: args[i]) else {
+                exitError("--mode must be 'repo' or 'installed'", code: "INVALID_ARG")
+            }
+            mode = parsed
+        default:
+            exitError("Unknown flag: \(args[i]). Usage: aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset] [--dry-run] [--json]",
+                      code: "UNKNOWN_FLAG")
+        }
+        i += 1
+    }
+
+    return PermissionsResetRuntimeOptions(
+        asJSON: asJSON,
+        dryRun: dryRun,
+        allowServiceReset: allowServiceReset,
+        mode: mode ?? aosCurrentRuntimeMode()
+    )
+}
+
+private func runPermissionsResetRuntime(options: PermissionsResetRuntimeOptions) -> PermissionsResetRuntimeResponse {
+    let prefix = aosInvocationDisplayName()
+    let targetPath = permissionResetTargetPath(mode: options.mode)
+    let identifier = tccIdentifierForRuntime(mode: options.mode, targetPath: targetPath)
+    let stopArgs = ["service", "stop", "--mode", options.mode.rawValue, "--json"]
+    let stopCommand = "\(prefix) \(stopArgs.joined(separator: " "))"
+    let resetArgs = ["reset", "All", identifier]
+    let resetCommand = "tccutil \(resetArgs.joined(separator: " "))"
+    let serviceResetCommands = permissionResetServiceNames().map { service in
+        PermissionsResetRuntimeStep(
+            command: "tccutil reset \(service)",
+            attempted: false,
+            exit_code: nil,
+            status: options.allowServiceReset ? "planned" : "available_with_allow_service_reset",
+            stdout: nil,
+            stderr: nil
+        )
+    }
+
+    if options.dryRun {
+        return PermissionsResetRuntimeResponse(
+            status: "ok",
+            mode: options.mode.rawValue,
+            dry_run: true,
+            target_path: targetPath,
+            tcc_identifier: identifier,
+            service_stop: PermissionsResetRuntimeStep(
+                command: stopCommand,
+                attempted: false,
+                exit_code: nil,
+                status: "planned",
+                stdout: nil,
+                stderr: nil
+            ),
+            tcc_reset: PermissionsResetRuntimeStep(
+                command: resetCommand,
+                attempted: false,
+                exit_code: nil,
+                status: "planned",
+                stdout: nil,
+                stderr: nil
+            ),
+            service_resets: serviceResetCommands,
+            next_actions: permissionResetPostActions(prefix: prefix),
+            fallback: [],
+            notes: [
+                "Dry run only; no service or TCC state was changed.",
+                "The real command stops the managed daemon before calling tccutil.",
+                options.allowServiceReset
+                    ? "If targeted bundle reset fails, the command will reset Accessibility/ListenEvent/PostEvent decisions for all apps."
+                    : "If targeted bundle reset fails for the bare repo binary, re-run with --allow-service-reset only when broad service resets are acceptable."
+            ]
+        )
+    }
+
+    let stopResult = runProcess(aosExecutablePath(), arguments: stopArgs)
+    let stopOK = stopResult.exitCode == 0 && serviceStopReportedStopped(stopResult)
+    let stopStep = PermissionsResetRuntimeStep(
+        command: stopCommand,
+        attempted: true,
+        exit_code: stopResult.exitCode,
+        status: stopOK ? "ok" : "failed",
+        stdout: trimmedOutput(stopResult.stdout),
+        stderr: trimmedOutput(stopResult.stderr)
+    )
+
+    if !stopOK {
+        return PermissionsResetRuntimeResponse(
+            status: "degraded",
+            mode: options.mode.rawValue,
+            dry_run: false,
+            target_path: targetPath,
+            tcc_identifier: identifier,
+            service_stop: stopStep,
+            tcc_reset: PermissionsResetRuntimeStep(
+                command: resetCommand,
+                attempted: false,
+                exit_code: nil,
+                status: "blocked",
+                stdout: nil,
+                stderr: nil
+            ),
+            service_resets: [],
+            next_actions: [
+                ReadyNextAction(
+                    type: "command",
+                    label: "inspect managed daemon state before changing macOS permissions",
+                    command: "\(prefix) service status --mode \(options.mode.rawValue)"
+                )
+            ],
+            fallback: [],
+            notes: [
+                "The managed daemon did not report running=false, so TCC reset was not attempted.",
+                "Do not remove or reset Accessibility/Input Monitoring while the daemon may still be running."
+            ]
+        )
+    }
+
+    let resetResult = runProcess("/usr/bin/tccutil", arguments: resetArgs)
+    let resetOK = resetResult.exitCode == 0
+    let resetStep = PermissionsResetRuntimeStep(
+        command: resetCommand,
+        attempted: true,
+        exit_code: resetResult.exitCode,
+        status: resetOK ? "ok" : "failed",
+        stdout: trimmedOutput(resetResult.stdout),
+        stderr: trimmedOutput(resetResult.stderr)
+    )
+
+    let serviceResetSteps: [PermissionsResetRuntimeStep]
+    if resetOK {
+        serviceResetSteps = []
+    } else if options.allowServiceReset {
+        serviceResetSteps = runPermissionResetServiceCommands()
+    } else {
+        serviceResetSteps = []
+    }
+    let serviceResetOK = !serviceResetSteps.isEmpty && serviceResetSteps.allSatisfy { $0.status == "ok" }
+    let completed = resetOK || serviceResetOK
+
+    return PermissionsResetRuntimeResponse(
+        status: completed ? "ok" : "degraded",
+        mode: options.mode.rawValue,
+        dry_run: false,
+        target_path: targetPath,
+        tcc_identifier: identifier,
+        service_stop: stopStep,
+        tcc_reset: resetStep,
+        service_resets: serviceResetSteps,
+        next_actions: permissionResetPostActions(prefix: prefix),
+        fallback: completed ? [] : permissionResetFallbackLines(mode: options.mode, targetPath: targetPath),
+        notes: resetOK
+            ? [
+                "Targeted TCC reset completed after the managed daemon stopped.",
+                "The next command should request fresh macOS prompts instead of asking for manual row removal."
+            ]
+            : serviceResetOK
+            ? [
+                "Targeted bundle reset failed, but broad Accessibility/ListenEvent/PostEvent resets completed after the managed daemon stopped.",
+                "The next command should request fresh macOS prompts."
+            ]
+            : [
+                "The managed daemon is stopped, but tccutil reset failed.",
+                "The repo ./aos binary is not a LaunchServices bundle, so targeted tccutil reset may be unavailable for it.",
+                "Re-run with --allow-service-reset only if resetting Accessibility/Input Monitoring decisions for all apps is acceptable."
+            ]
+    )
+}
+
+private func serviceStopReportedStopped(_ output: ProcessOutput) -> Bool {
+    let combined = [output.stdout, output.stderr]
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let data = combined.data(using: .utf8),
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let running = object["running"] as? Bool else {
+        return false
+    }
+    return !running
+}
+
+private func tccIdentifierForRuntime(mode: AOSRuntimeMode, targetPath: String) -> String {
+    if let identifier = codeSigningIdentifier(path: targetPath) {
+        return identifier
+    }
+    switch mode {
+    case .repo:
+        return "aos"
+    case .installed:
+        return Bundle(path: aosInstallAppPath())?.bundleIdentifier ?? "com.agent-os.aos"
+    }
+}
+
+private func codeSigningIdentifier(path: String) -> String? {
+    let output = runProcess("/usr/bin/codesign", arguments: ["-dv", path])
+    let combined = [output.stderr, output.stdout].joined(separator: "\n")
+    for rawLine in combined.split(whereSeparator: \.isNewline) {
+        let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard line.hasPrefix("Identifier=") else { continue }
+        let identifier = line.replacingOccurrences(of: "Identifier=", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !identifier.isEmpty {
+            return identifier
+        }
+    }
+    return nil
+}
+
+private func permissionResetPostActions(prefix: String) -> [ReadyNextAction] {
+    [
+        ReadyNextAction(
+            type: "command",
+            label: "request fresh macOS permission prompts after the targeted TCC reset",
+            command: "\(prefix) permissions setup --once"
+        ),
+        ReadyNextAction(
+            type: "command",
+            label: "bounded readiness check after permissions have been granted",
+            command: "\(prefix) ready --post-permission"
+        )
+    ]
+}
+
+private func permissionResetFallbackLines(mode: AOSRuntimeMode, targetPath: String) -> [String] {
+    [
+        "Optional broad reset: \(aosInvocationDisplayName()) permissions reset-runtime --mode \(mode.rawValue) --allow-service-reset",
+        "Confirm the managed daemon is stopped: \(aosInvocationDisplayName()) service status --mode \(mode.rawValue)",
+        "Only if running=false, remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
+        "Return and run: \(aosInvocationDisplayName()) ready --post-permission"
+    ]
+}
+
+private func permissionResetServiceNames() -> [String] {
+    ["Accessibility", "ListenEvent", "PostEvent"]
+}
+
+private func runPermissionResetServiceCommands() -> [PermissionsResetRuntimeStep] {
+    permissionResetServiceNames().map { service in
+        let args = ["reset", service]
+        let result = runProcess("/usr/bin/tccutil", arguments: args)
+        return PermissionsResetRuntimeStep(
+            command: "tccutil \(args.joined(separator: " "))",
+            attempted: true,
+            exit_code: result.exitCode,
+            status: result.exitCode == 0 ? "ok" : "failed",
+            stdout: trimmedOutput(result.stdout),
+            stderr: trimmedOutput(result.stderr)
+        )
+    }
+}
+
+private func trimmedOutput(_ value: String) -> String? {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
 }
 
 private struct PermissionsSetupOptions {

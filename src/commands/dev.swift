@@ -237,10 +237,11 @@ private func devBuildCommand(args: [String]) {
 
     let permissionNote = """
     aos dev build wraps build.sh; rebuilt repo binaries may require a fresh macOS Accessibility/Input Monitoring grant if readiness later reports stale TCC identity.
-    Safe reset sequence if readiness reports stale TCC/input tap:
-    1. ./aos service stop --mode repo
-    2. Remove/re-add \(repoRoot)/aos in Accessibility/Input Monitoring only after service stop reports running=false.
+    Preferred reset sequence if readiness reports stale TCC/input tap:
+    1. ./aos permissions reset-runtime --mode repo
+    2. ./aos permissions setup --once
     3. ./aos ready --post-permission
+    reset-runtime stops the managed daemon before calling tccutil reset; --allow-service-reset is the explicit broad fallback when the bare repo binary has no bundle identifier.
     """
     let result = runProcessCapturingOutput("/bin/bash", arguments: [buildScript] + passthrough, cwd: repoRoot)
 

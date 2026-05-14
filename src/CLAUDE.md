@@ -56,7 +56,7 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 ```bash
 ./aos permissions setup --once   # One-time Accessibility, Screen Recording, and Input Monitoring flow
 ./aos ready                      # Primary readiness gate
-./aos ready --post-permission    # Bounded check after human re-adds Accessibility/Input Monitoring
+./aos ready --post-permission    # Bounded check after human re-grants Accessibility/Input Monitoring
 ./aos ready --repair             # Safe repair loop: restart/recheck, then human instructions if needed
 ./aos status                     # Read-only runtime/session snapshot
 ./aos doctor --json              # Deeper runtime diagnostics when needed
@@ -65,10 +65,13 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
 
 If readiness or permissions setup says repo-mode Accessibility/Input Monitoring
-must be removed/re-added, stop the managed daemon first with
-`./aos service stop --mode repo` and wait for `running=false`; then remove/re-add
-`/Users/Michael/Code/agent-os/aos` and return with
-`./aos ready --post-permission`.
+must be reset, use `./aos permissions reset-runtime --mode repo` first. It stops
+the managed daemon, verifies `running=false`, and runs targeted `tccutil reset`
+for the repo `aos` identity. Then run `./aos permissions setup --once` to
+request fresh macOS prompts and `./aos ready --post-permission` to verify.
+Manual Settings removal is fallback only if reset-runtime reports that
+`tccutil` failed. Use `--allow-service-reset` only when the human accepts
+resetting Accessibility/Input Monitoring decisions for all apps.
 
 See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped state).
 

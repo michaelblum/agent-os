@@ -213,20 +213,21 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
-# --- 18. dev build warning documents the safe permission-reset sequence ---
+# --- 18. dev build warning documents the preferred permission-reset sequence ---
 if python3 - <<'PY'
 from pathlib import Path
 
 source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
-assert "Safe reset sequence if readiness reports stale TCC/input tap:" in source
-assert "1. ./aos service stop --mode repo" in source
-assert "service stop reports running=false" in source
+assert "Preferred reset sequence if readiness reports stale TCC/input tap:" in source
+assert "1. ./aos permissions reset-runtime --mode repo" in source
+assert "2. ./aos permissions setup --once" in source
 assert "3. ./aos ready --post-permission" in source
+assert "--allow-service-reset is the explicit broad fallback" in source
 PY
 then
-    pass "dev build warning includes safe permission reset sequence"
+    pass "dev build warning includes preferred permission reset sequence"
 else
-    fail "dev build warning is missing the safe permission reset sequence"
+    fail "dev build warning is missing the preferred permission reset sequence"
 fi
 
 echo

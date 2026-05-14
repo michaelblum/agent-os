@@ -1310,7 +1310,21 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             stdin: nil, constraints: nil,
             execution: execInteractive(daemon: false),
             output: outJSONFlag,
-            examples: ["aos permissions setup --once"])
+            examples: ["aos permissions setup --once"]),
+        InvocationForm(id: "permissions-reset-runtime", usage: "aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset] [--dry-run] [--json]",
+            args: [
+                flag("mode", "--mode", "Runtime identity to reset",
+                     type: .enumeration([
+                        EnumValue(value: "repo", summary: "Repo-mode ./aos identity"),
+                        EnumValue(value: "installed", summary: "Installed AOS.app identity")
+                     ])),
+                flag("allow-service-reset", "--allow-service-reset", "If targeted bundle reset fails, reset Accessibility/ListenEvent/PostEvent decisions for all apps", type: .bool),
+                flag("dry-run", "--dry-run", "Print planned daemon stop and tccutil reset without changing state", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(daemon: false),
+            output: outJSONFlag,
+            examples: ["aos permissions reset-runtime --mode repo", "aos permissions reset-runtime --mode repo --dry-run --json"])
     ]))
 
     // ── inspect ───────────────────────────────────────────

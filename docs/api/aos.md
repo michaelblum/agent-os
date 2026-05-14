@@ -819,15 +819,27 @@ Consumers:
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
   input tap, because those states commonly appear after a human refreshes macOS
   privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
-  must stop the managed daemon first with `./aos service stop --mode repo`, wait
-  for `running=false`, remove/re-add `/Users/Michael/Code/agent-os/aos`, then
-  return to `./aos ready --post-permission`. `--post-permission` is the explicit
-  agent handoff check after the human has removed/re-added Accessibility or
-  Input Monitoring grants; it is bounded and reports the remaining blocker
+  should use `./aos permissions reset-runtime --mode repo` before Settings: it
+  stops the managed daemon, verifies `running=false`, then runs targeted
+  `tccutil reset All <runtime-identifier>` so the next setup flow can request
+  fresh macOS prompts. Manual Settings removal is fallback only if that command
+  reports that `tccutil` failed. `--post-permission` is the explicit
+  agent handoff check after the human has re-granted Accessibility or
+  Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
   longer safe recovery path: restart, wait/recheck, then report plain-English
   human instructions when macOS privacy settings still require manual action. It
   does not open Settings or show permission dialogs by itself.
+- `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset] [--dry-run] [--json]`
+  is the preferred repo-development TCC reset transaction. It does not grant
+  permissions. It stops the managed daemon first, resets the runtime identity's
+  TCC decisions with `tccutil reset All <identifier>`, and returns next actions:
+  `aos permissions setup --once` to request fresh prompts and
+  `aos ready --post-permission` to verify the recovered daemon. Bare repo
+  binaries may not be LaunchServices bundles, so targeted `tccutil reset` can
+  fail with "No such bundle identifier"; `--allow-service-reset` is the explicit
+  fallback that resets Accessibility, ListenEvent, and PostEvent decisions for
+  all apps after the daemon is stopped.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
@@ -838,8 +850,8 @@ Consumers:
 - `aos permissions setup --once` checks the full CLI permission set
   (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
   post). If the CLI grant is present but the daemon reports stale or missing
-  daemon-owned grants, setup returns degraded with the same stop-daemon-first
-  remove/re-add guidance instead of silently declaring onboarding complete.
+  daemon-owned grants, setup returns degraded with the same reset-runtime
+  guidance instead of silently declaring onboarding complete.
 - The permissions onboarding marker is mode-scoped and proves the operator has
   completed the setup flow for that runtime mode. The marker's recorded
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely

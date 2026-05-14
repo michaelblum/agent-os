@@ -157,17 +157,20 @@ or ad hoc scripts.
   blockers, performs one short daemon restart/recheck for ownership mismatch or
   inactive input tap, and exits non-zero when AOS is not ready. Use
   `./aos status` for a read-only runtime snapshot after that.
-- After a human says they removed/re-added macOS Accessibility or Input
-  Monitoring permissions and comes back with "ready", run
+- After a human says they re-granted macOS Accessibility or Input Monitoring
+  permissions and comes back with "ready", run
   `./aos ready --post-permission`. That is a bounded handoff check: it
   start/checks the daemon, performs one restart/recheck for expected daemon
   drift, then either reports `ready=true` or gives the remaining concrete
   blocker. Do not run repeated ad-hoc repair loops.
 - Before telling a human to remove/re-add repo-mode Accessibility or Input
-  Monitoring grants, stop the managed daemon with
-  `./aos service stop --mode repo` and wait for `running=false`. Only then should
-  the human remove/re-add `/Users/Michael/Code/agent-os/aos`; when they return,
-  run `./aos ready --post-permission`.
+  Monitoring grants, first use the targeted reset transaction:
+  `./aos permissions reset-runtime --mode repo`. It stops the managed daemon,
+  verifies `running=false`, and runs `tccutil reset All <runtime-identifier>` so
+  the next setup flow can request fresh macOS prompts. Manual Settings removal
+  is fallback only if that command reports that `tccutil` failed. Only use
+  `--allow-service-reset` when the human accepts resetting Accessibility/Input
+  Monitoring decisions for all apps.
 - If `./aos ready` reports blockers and the user wants repair, run
   `./aos ready --repair`. It performs safe automated recovery steps, records a
   trace, and prints plain-English human instructions when macOS privacy settings
@@ -176,10 +179,10 @@ or ad hoc scripts.
 - If `./aos ready --repair --json` returns `phase=human_required`, do not dump
   raw JSON at the user. Give a concise, assertive summary. For
   `diagnosis=daemon_tcc_grant_stale_or_missing`, say the repo-mode `aos` macOS
-  permission grant is stale and must be removed/re-added only after
-  `./aos service stop --mode repo` reports `running=false`. Offer short numbered
-  choices: more detail, run the safe stop, or stop. Tell the user to come back
-  and say `ready`; when they do, run `./aos ready --post-permission`.
+  permission grant is stale and the preferred fix is
+  `./aos permissions reset-runtime --mode repo`, followed by
+  `./aos permissions setup --once` and `./aos ready --post-permission`. Do not
+  send the human to Settings unless reset-runtime reports a `tccutil` failure.
 - Use `./aos introspect review` for self-review or recovery after repeated failed
   `./aos` attempts.
 - Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not

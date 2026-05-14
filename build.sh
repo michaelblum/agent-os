@@ -110,7 +110,7 @@ printf '%s\n' "$BUILD_MODE" > "$MODE_FILE"
 echo "Done: ./aos ($(du -h "$OUTPUT_PATH" | cut -f1 | xargs))"
 
 # Restart daemon if it's running as a service
-if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | grep -q '"running"'; then
+if [[ $RESTART_DAEMON -eq 1 ]] && "$OUTPUT_PATH" service status --json 2>/dev/null | python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("running") is True else 1)'; then
     if "$OUTPUT_PATH" service restart >/dev/null 2>&1; then
         echo "Daemon restarted"
     else

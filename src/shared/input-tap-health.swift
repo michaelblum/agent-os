@@ -233,7 +233,11 @@ func inputMonitoringSubGuidance(
     }
     return """
     Daemon lacks Input Monitoring access (listen=\(render(listenAccess)), post=\(render(postAccess))).
-    Open System Settings > Privacy & Security > Input Monitoring and grant access to the daemon binary:
+    In repo mode, prefer:
+      ./aos permissions reset-runtime --mode repo
+      ./aos permissions setup --once
+      ./aos ready --post-permission
+    Manual Settings fallback: Privacy & Security > Input Monitoring for daemon binary:
       \(daemonBinaryPath)
     """
 }

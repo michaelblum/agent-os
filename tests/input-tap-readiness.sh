@@ -110,8 +110,8 @@ case "$DO_OUT" in
   *) echo "FAIL: do click error code missing INPUT_TAP_NOT_ACTIVE: $DO_OUT (rc=$DO_RC)"; exit 1 ;;
 esac
 
-# ready --json should put the safe daemon stop before any settings action when
-# stale daemon-owned TCC/input tap grants require a human reset.
+# ready --json should prefer the targeted reset transaction over direct
+# Settings actions when stale daemon-owned TCC/input tap grants require recovery.
 set +e
 READY_JSON="$(./aos ready --json)"
 READY_RC=$?
@@ -127,12 +127,14 @@ assert d.get("phase") == "human_required", d
 assert d.get("diagnosis") == "daemon_tcc_grant_stale_or_missing", d
 actions = d.get("next_actions", [])
 commands = [a.get("command", "") for a in actions]
-assert "./aos service stop --mode repo" in commands, actions
+assert "./aos permissions reset-runtime --mode repo" in commands, actions
+assert "./aos permissions setup --once" in commands, actions
 assert "./aos ready --post-permission" in commands, actions
-stop_index = commands.index("./aos service stop --mode repo")
-open_indexes = [i for i, a in enumerate(actions) if a.get("type") == "open_settings"]
-assert open_indexes, actions
-assert all(stop_index < i for i in open_indexes), actions
+reset_index = commands.index("./aos permissions reset-runtime --mode repo")
+setup_index = commands.index("./aos permissions setup --once")
+post_index = commands.index("./aos ready --post-permission")
+assert reset_index < setup_index < post_index, actions
+assert not any(a.get("type") == "open_settings" for a in actions), actions
 blockers = d.get("blockers", [])
 assert any(b.get("target_path") == target for b in blockers), blockers
 PY
@@ -146,13 +148,13 @@ set +e
 READY_TEXT="$(./aos ready 2>&1)"
 READY_TEXT_RC=$?
 set -e
-if [[ "$READY_TEXT" == *"Safe permission reset sequence:"* ]] &&
+if [[ "$READY_TEXT" == *"Preferred permission reset sequence:"* ]] &&
    [[ "$READY_TEXT" == *"Runtime mode: repo"* ]] &&
    [[ "$READY_TEXT" == *"Target binary: $ROOT/aos"* ]] &&
-   [[ "$READY_TEXT" == *"1. Stop the managed daemon first: ./aos service stop --mode repo"* ]] &&
-   [[ "$READY_TEXT" == *"Do not remove/re-add macOS permissions until service status reports running=false"* ]] &&
-   [[ "$READY_TEXT" == *"Remove/re-add $ROOT/aos in Accessibility and/or Input Monitoring"* ]] &&
-   [[ "$READY_TEXT" == *"The agent should run: ./aos ready --post-permission"* ]]; then
+   [[ "$READY_TEXT" == *"1. Run: ./aos permissions reset-runtime --mode repo"* ]] &&
+   [[ "$READY_TEXT" == *"2. Run: ./aos permissions setup --once"* ]] &&
+   [[ "$READY_TEXT" == *"3. Return here and run: ./aos ready --post-permission"* ]] &&
+   [[ "$READY_TEXT" == *"Manual Settings removal is only the fallback if reset-runtime reports that tccutil failed."* ]]; then
   echo "PASS: ready text safe permission reset handoff"
 else
   echo "FAIL: ready text missing safe permission reset handoff:"
@@ -163,5 +165,37 @@ if [[ "$READY_TEXT_RC" -eq 0 ]]; then
   echo "FAIL: ready text unexpectedly exited 0 against stale daemon permissions"
   exit 1
 fi
+
+DRY_RUN="$(./aos permissions reset-runtime --mode repo --dry-run --json)"
+python3 - "$DRY_RUN" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d.get("status") == "ok", d
+assert d.get("dry_run") is True, d
+assert d.get("mode") == "repo", d
+assert d.get("tcc_identifier"), d
+assert d.get("service_stop", {}).get("status") == "planned", d
+assert d.get("tcc_reset", {}).get("command") == f"tccutil reset All {d.get('tcc_identifier')}", d
+service_resets = d.get("service_resets", [])
+assert [s.get("command") for s in service_resets] == [
+    "tccutil reset Accessibility",
+    "tccutil reset ListenEvent",
+    "tccutil reset PostEvent",
+], d
+assert all(s.get("status") == "available_with_allow_service_reset" for s in service_resets), d
+commands = [a.get("command") for a in d.get("next_actions", [])]
+assert "./aos permissions setup --once" in commands, d
+assert "./aos ready --post-permission" in commands, d
+PY
+echo "PASS: permissions reset-runtime dry-run"
+
+BROAD_DRY_RUN="$(./aos permissions reset-runtime --mode repo --allow-service-reset --dry-run --json)"
+python3 - "$BROAD_DRY_RUN" <<'PY'
+import json, sys
+d = json.loads(sys.argv[1])
+assert d.get("status") == "ok", d
+assert all(s.get("status") == "planned" for s in d.get("service_resets", [])), d
+PY
+echo "PASS: permissions reset-runtime broad dry-run"
 
 echo "PASS"
