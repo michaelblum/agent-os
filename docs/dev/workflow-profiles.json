@@ -2,7 +2,7 @@
   "$schema": "../../shared/schemas/dev-workflow-profiles.schema.json",
   "schema_version": 1,
   "summary": "Built-in example development workflow profiles for agent-os.",
-  "active_profile": "hybrid_trunk",
+  "active_profile": "agentic_relay",
   "override_policy": "A direct user instruction for the current repo or session overrides the active profile unless it would discard work, publish externally, or perform a destructive operation.",
   "axes": {
     "dock": "Durable agent role, authority boundary, handoff contract, stop conditions, and lifecycle hooks.",
@@ -10,6 +10,42 @@
     "workflow_profile": "Development branch, commit, review, PR, and release posture."
   },
   "profiles": [
+    {
+      "id": "agentic_relay",
+      "name": "Agentic Relay",
+      "shorthand": "agentic_relay",
+      "intended_for": [
+        "single developer with a remote agentic relay partner",
+        "local GDI implementation agent coordinating with a remote review authority",
+        "workflows where the human and a remote agent share merge authority"
+      ],
+      "default_work_surface": "short-lived topic branch from main",
+      "main_role": "stable integration target; nothing lands without relay review",
+      "direct_main_default": false,
+      "pull_request_required": false,
+      "review_default": "remote relay partner reads the branch and merges or flags; no local Foreman required",
+      "commit_strategy": "scoped commits on a gdi/<slug> branch; push branch to origin at completion",
+      "branch_strategy": "one branch per work card; named gdi/<work-card-slug>; deleted after merge",
+      "branch_required_for": [
+        "every GDI implementation slice"
+      ],
+      "branch_optional_for": [
+        "docs-only or config-only changes that carry no implementation risk"
+      ],
+      "release_branching": false,
+      "environment_branches": [],
+      "relay_merge_authority": "remote relay partner (e.g. Perplexity session or any session with GitHub API access)",
+      "branch_naming_convention": "gdi/<work-card-slug>",
+      "gdi_push_authority": true,
+      "agent_guidance": [
+        "GDI creates a branch named gdi/<work-card-slug> from main before starting any implementation work.",
+        "GDI commits verified work to that branch and pushes it to origin at completion.",
+        "GDI reports the branch name and HEAD SHA in the completion report. GDI does not merge to main.",
+        "The relay partner (remote agent or human) reads the branch, evaluates the work, and merges to main or requests changes.",
+        "There is no local Foreman dock in this profile. The relay partner fills the git stewardship role from remote.",
+        "Work card Git sections should instruct GDI to push the branch and report branch name + SHA, not to push main."
+      ]
+    },
     {
       "id": "hybrid_trunk",
       "name": "Hybrid Trunk",

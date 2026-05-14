@@ -13,13 +13,31 @@ project needs a different development posture.
 
 ## Active Profile
 
-The active profile for this repo is `hybrid_trunk`.
+The active profile for this repo is `agentic_relay`.
 
 Agents should treat an explicit user instruction as stronger than the active
 profile for the current session, unless the instruction would discard work,
 publish externally, or perform a destructive operation.
 
 ## Built-In Profiles
+
+### Agentic Relay (`agentic_relay`)
+
+Use this when a local GDI implementation agent works in tandem with a remote
+relay partner (a human, another agent session, or any session with GitHub API
+access) that owns merge authority.
+
+- GDI creates a `gdi/<work-card-slug>` branch from `main` before starting work.
+- GDI commits verified work to that branch and pushes it to origin at
+  completion.
+- GDI reports the branch name and HEAD SHA in its completion report. GDI does
+  not merge to main.
+- The relay partner reads the branch remotely, evaluates the work, and merges
+  to main or requests changes — no local checkout required.
+- There is no local Foreman dock in this profile. The relay partner fills the
+  git stewardship role from remote.
+- Rollback, fix-forward, and revert are clean because main is never touched
+  until the relay partner explicitly merges.
 
 ### Hybrid Trunk (`hybrid_trunk`)
 
@@ -38,8 +56,8 @@ Use this for a single developer or very tiny team working primarily on `main`.
 
 Use this for a small or medium team using lightweight pull request review.
 
-- Create a short-lived branch from `main` for each feature, bugfix, refactor, or
-  docs change.
+- Create a short-lived branch from `main` for each feature, bugfix, refactor,
+  or docs change.
 - Merge back into `main` through a pull request when ready.
 - Treat `main` as deployable and keep branches short-lived.
 
@@ -54,14 +72,19 @@ Use this for projects with multiple environments or formal release cycles.
 
 ## Choosing A Profile
 
+Prefer `agentic_relay` when:
+
+- a local GDI agent does bounded implementation work and a remote partner
+  (human or agent) owns the merge gate;
+- you want rollback/fix-forward safety without mandatory pull requests;
+- the remote partner can evaluate and merge via GitHub API without a local
+  checkout.
+
 Prefer `hybrid_trunk` when:
 
-- one person owns the repo day to day;
+- one person owns the repo day to day without a separate remote relay;
 - branching overhead exceeds its review or safety value;
-- changes are usually completed in one sitting or less than a day;
-- incomplete behavior can be gated by flags or configuration;
-- nobody continuously deploys from `main` without human control;
-- review happens through local tests, agent relay, or direct human judgment.
+- changes are usually completed in one sitting or less than a day.
 
 Prefer `github_flow` when:
 
