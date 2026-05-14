@@ -203,4 +203,3 @@ Report:
 - exact tests and live smoke performed;
 - before/after evidence for radial jank, even if qualitative;
 - whether any symptom remains blocked on missing live evidence.
-
