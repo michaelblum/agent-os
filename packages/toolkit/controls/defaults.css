@@ -221,3 +221,152 @@
   outline: var(--aos-focus-ring, 2px solid rgba(122, 241, 255, 0.68));
   outline-offset: 2px;
 }
+
+.aos-button.danger {
+  border-color: rgba(255, 80, 80, 0.48);
+  background: rgba(120, 32, 32, 0.5);
+  color: rgba(255, 235, 235, 0.95);
+}
+
+.aos-button.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: rgba(220, 255, 255, 0.74);
+}
+
+.aos-button.ghost:hover {
+  border-color: transparent;
+  background: rgba(122, 241, 255, 0.08);
+}
+
+.aos-button:active,
+.aos-chip-button:active,
+.aos-segmented button:active {
+  transform: translateY(1px);
+}
+
+.aos-button:disabled,
+.aos-button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.44;
+}
+
+.aos-segmented button.danger {
+  color: rgba(255, 205, 205, 0.86);
+}
+
+.aos-segmented button.danger[aria-pressed="true"],
+.aos-segmented button.danger.active {
+  background: rgba(120, 32, 32, 0.55);
+  color: rgba(255, 240, 240, 0.98);
+}
+
+.aos-toggle-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.aos-toggle-switch {
+  width: 32px;
+  height: 18px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid rgba(122, 241, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(4, 14, 18, 0.9);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.aos-toggle-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(220, 255, 255, 0.76);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.aos-toggle-input:checked + .aos-toggle-switch {
+  border-color: rgba(122, 241, 255, 0.52);
+  background: rgba(30, 88, 100, 0.72);
+}
+
+.aos-toggle-input:checked + .aos-toggle-switch .aos-toggle-thumb {
+  transform: translateX(14px);
+  background: #eaffff;
+}
+
+.aos-toggle-input:focus-visible + .aos-toggle-switch {
+  outline: var(--aos-focus-ring, 2px solid rgba(122, 241, 255, 0.68));
+  outline-offset: 2px;
+}
+
+.aos-text-input.error {
+  border-color: rgba(255, 80, 80, 0.58);
+}
+
+.aos-field-error {
+  color: rgba(255, 138, 112, 0.9);
+  font: var(--aos-type-label, 650 10px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace));
+}
+
+.aos-timer-bar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aos-timer-digital {
+  min-width: 46px;
+  color: rgba(220, 255, 255, 0.82);
+  font: var(--aos-type-numeric, 12px/1.3 var(--font-mono, "SF Mono", "Menlo", monospace));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.aos-timer-pie {
+  width: 20px;
+  height: 20px;
+  transform: rotate(-90deg);
+}
+
+.aos-timer-pie circle {
+  fill: none;
+  stroke: rgba(122, 241, 255, 0.82);
+  stroke-width: 3;
+  transition: stroke-dashoffset 80ms linear;
+}
+
+.aos-timer-bar.flash .aos-timer-digital,
+.aos-timer-bar.flash .aos-timer-pie circle {
+  animation: aos-timer-flash var(--aos-timer-flash-interval, 600ms) ease-in-out infinite alternate;
+}
+
+@keyframes aos-timer-flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.42;
+  }
+}
+
+.aos-form {
+  display: grid;
+  gap: 10px;
+}
+
+.aos-form-field {
+  display: grid;
+  gap: 4px;
+}
+
+.aos-form-field.hidden {
+  display: none;
+}
