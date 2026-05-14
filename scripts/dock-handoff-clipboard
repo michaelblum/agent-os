@@ -15,7 +15,7 @@ system clipboard, and prints the chat-visible tail:
 
 Rules:
   - Handoff payloads are copied as plain instructions.
-  - One accidental "/goal " prefix is removed for every target dock.
+  - One accidental legacy command prefix is removed for every target dock.
   - The parenthetical and timestamp are printed only; they are not copied.
 
 Environment:
@@ -51,9 +51,11 @@ fi
 
 message="$(cat || true)"
 payload="$message"
+legacy_command_name="goal"
+legacy_command_prefix="/${legacy_command_name} "
 
-if [[ "$payload" == /goal\ * ]]; then
-  payload="${payload#"/goal "}"
+if [[ "$payload" == "$legacy_command_prefix"* ]]; then
+  payload="${payload:${#legacy_command_prefix}}"
 fi
 
 pbcopy_bin="${AOS_HANDOFF_PBCOPY:-$(command -v pbcopy || true)}"

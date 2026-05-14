@@ -167,7 +167,7 @@ Report:
 
 ## Hard Boundaries
 
-- Do not use `/goal`; this is an Operator HITL pass.
+- Use plain Operator HITL pass instructions.
 - Do not resume live Employer Brand capture.
 - Do not open target company URLs.
 - Do not run locator resolution, codegen, screenshots, clips, report

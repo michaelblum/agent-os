@@ -16,8 +16,8 @@ ability.
 - Preserve dock-local pre/post hook room for bespoke behavior.
 - Replace clipboard-themed stop speech with neutral stop notices:
   `Foreman finished.`, `GDI finished.`, and `Operator finished.`
-- Represent GDI-only `/goal ` handoff policy in `dock.json` metadata without
-  changing `scripts/dock-handoff-clipboard` behavior in this slice.
+- Represent GDI handoff policy in `dock.json` metadata without changing
+  `scripts/dock-handoff-clipboard` behavior in this slice.
 - Keep AOS calls bounded so hook failures do not wait for Codex's 20 second
   timeout.
 - Do not introduce OpenAI Agents SDK integration, a workflow engine, a broad
@@ -62,4 +62,4 @@ git diff --check
 ```
 
 Focused coverage should verify dock.json validation, shared harness usage, stop
-notices, bounded fake-AOS behavior, and GDI-only `/goal ` metadata.
+notices, bounded fake-AOS behavior, and GDI handoff metadata.

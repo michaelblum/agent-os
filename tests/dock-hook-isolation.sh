@@ -143,7 +143,8 @@ if "name: foreman-session-handoff" not in foreman_skill:
 if (root / ".docks" / "foreman" / "skills" / "retirement-handoff").exists():
     raise SystemExit("FAIL: retired Foreman retirement-handoff skill path still exists")
 for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman handoff skill", foreman_skill)):
-    for forbidden in ("receives a `/goal", "`attn: GDI,", "attn: GDI, follow"):
+    legacy_command_token = "/" + "goal"
+    for forbidden in (f"receives a `{legacy_command_token}", "`attn: GDI,", "attn: GDI, follow"):
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} reintroduced command/addressee ceremony: {forbidden}")
 PY

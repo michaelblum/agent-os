@@ -23,8 +23,8 @@ Keep the handoff compact and operational. Prefer bullets with file paths and
 exact commands over prose. Call out uncertainty plainly instead of smoothing it
 over.
 
-Do not call it a retirement handoff. Do not include `/goal`, `attn: GDI`, or
-other target-session command ceremony in a Foreman-to-Foreman successor handoff.
+Do not call it a retirement handoff. Write Foreman-to-Foreman successor handoffs
+as plain successor-session context, without target-session command ceremony.
 Inherited history should be labeled as reference-only unless it is still an
 active instruction.
 

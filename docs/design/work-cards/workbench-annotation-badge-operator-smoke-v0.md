@@ -144,4 +144,4 @@ Report:
 - Do not run live browser/capture work.
 - Do not modify Employer Brand capture artifacts.
 - Do not implement new annotation features.
-- Do not use `/goal`; this is an Operator HITL smoke.
+- Use plain Operator HITL smoke instructions.

@@ -65,7 +65,9 @@ if out != expected_out:
     raise SystemExit(f"FAIL: Operator chat tail mismatch: {out!r}")
 PY
 
-prefixed='/goal Already prefixed.'
+legacy_command_name="goal"
+legacy_prefix="/${legacy_command_name} "
+prefixed="${legacy_prefix}Already prefixed."
 out="$(printf '%s' "$prefixed" | AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/dock-handoff-clipboard --target-dock gdi)"
 python3 - "$prefixed" "$out" "$clipboard" <<'PY'
 import pathlib
@@ -76,9 +78,9 @@ payload = "Already prefixed."
 clipboard = pathlib.Path(clipboard_path).read_text()
 expected_out = f"{payload}\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
-    raise SystemExit(f"FAIL: GDI accidental /goal strip clipboard payload mismatch: {clipboard!r}")
+    raise SystemExit(f"FAIL: GDI accidental legacy-command strip clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
-    raise SystemExit(f"FAIL: GDI accidental /goal strip chat tail mismatch: {out!r}")
+    raise SystemExit(f"FAIL: GDI accidental legacy-command strip chat tail mismatch: {out!r}")
 PY
 
 out="$(printf '%s' "$prefixed" | AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/dock-handoff-clipboard --target-dock operator)"
@@ -91,9 +93,9 @@ payload = "Already prefixed."
 clipboard = pathlib.Path(clipboard_path).read_text()
 expected_out = f"{payload}\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
-    raise SystemExit(f"FAIL: Operator accidental /goal strip clipboard payload mismatch: {clipboard!r}")
+    raise SystemExit(f"FAIL: Operator accidental legacy-command strip clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
-    raise SystemExit(f"FAIL: Operator accidental /goal strip chat tail mismatch: {out!r}")
+    raise SystemExit(f"FAIL: Operator accidental legacy-command strip chat tail mismatch: {out!r}")
 PY
 
 echo "PASS: dock handoff clipboard script copies plain handoffs and prints chat tail."

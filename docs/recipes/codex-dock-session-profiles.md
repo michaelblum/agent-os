@@ -38,8 +38,8 @@ belong in the real repo root unless the dock says otherwise.
 - A Dock is not a Workflow.
 - A Docked Session may work on a Workflow, such as the Employer Brand
   Comparative Audit Workflow.
-- GDI receives plain assigned implementation handoffs. Do not add `/goal` or
-  addressee prefixes to clipboard payloads.
+- GDI receives plain assigned implementation handoffs. Clipboard payloads should
+  contain only the assigned work-card instruction.
 - Operator receives plain supervised instructions, so it can stop
   for clarification, visual confirmation, sign-off, or blockers instead of
   forcing autonomous goal completion.

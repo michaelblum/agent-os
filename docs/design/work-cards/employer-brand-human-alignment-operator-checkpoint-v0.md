@@ -154,4 +154,4 @@ Report:
 - Do not modify Employer Brand capture manifests, repair patches, diagnostics,
   or data bundles in this Operator pass.
 - Do not implement new annotation features.
-- Do not use `/goal`; this is an Operator HITL alignment checkpoint.
+- Use plain Operator HITL alignment-checkpoint instructions.

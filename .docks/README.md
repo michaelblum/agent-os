@@ -96,8 +96,7 @@ printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock op
 
 The helper copies only the target-session payload. It then prints that same raw
 payload for chat, followed by `(copied to clipboard)` and a human-readable local
-timestamp. Handoffs are plain instructions for every dock; the helper removes
-one accidental `/goal ` prefix if present.
+timestamp. Handoffs are plain instructions for every dock.
 
 ## Canonical Docks
 
