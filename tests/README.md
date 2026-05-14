@@ -154,6 +154,39 @@ Visual Sigil scenarios should default to launching `surface-inspector` beside th
 surface under test unless the test is specifically measuring canvas lifecycle,
 window count, or placement without auxiliary canvases.
 
+## Manual Disruptive TCC Recovery Test
+
+The repo-mode TCC reset recovery path has an explicit manual test because a full
+passing run can reset macOS Accessibility, Input Monitoring, and PostEvent grants.
+Do not add this test to broad or default test runners.
+
+Use the non-mutating preview after changing the permission handoff contract:
+
+```bash
+bash tests/manual/tcc-reset-agent-user-path.sh --dry-run
+```
+
+Run the disruptive agent/user path only when intentionally validating stale TCC
+recovery on the current Mac:
+
+```bash
+AOS_RUN_DISRUPTIVE_TCC_TEST=1 \
+  bash tests/manual/tcc-reset-agent-user-path.sh
+```
+
+If the targeted reset reaches the broad fallback boundary and the human has
+approved resetting the relevant TCC services, run the full recovery path with:
+
+```bash
+AOS_RUN_DISRUPTIVE_TCC_TEST=1 AOS_ALLOW_BROAD_TCC_RESET=1 \
+  bash tests/manual/tcc-reset-agent-user-path.sh
+```
+
+The script writes an artifact directory with the tested agent message, human
+responses, command JSON, and transcript. By default it stops the repo daemon on
+exit; set `AOS_TCC_TEST_KEEP_DAEMON=1` only when the live ready state is needed
+after the test.
+
 ## Test Authoring Discipline
 
 Test code follows the same primitives-first rule as product code. Do not create
