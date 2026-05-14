@@ -102,6 +102,18 @@ under `docs/design/work-cards/` and hand off only a thin plain instruction:
 
 `follow the instructions in docs/design/work-cards/<card>.md`
 
+Use the Foreman handoff wrapper only when routing a real cross-session handoff:
+
+```bash
+.docks/foreman/scripts/handoff --target-dock gdi --text "follow the instructions in docs/design/work-cards/<card>.md"
+```
+
+Use `--target-dock operator` for supervised/HITL handoffs and `--target-dock
+foreman` for successor-Foreman handoffs. The wrapper delegates clipboard and
+chat demarcation to the dock-level handoff tool. Do not use it for normal final
+answers, progress updates, review findings, status reports, or notes that are
+not intended to be pasted into another dock session.
+
 Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
 handoff helper that adds command or addressee prefixes. Keep the copied text to
 the plain work-card instruction above. If a shared helper would inject ceremony,

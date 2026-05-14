@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman> [--text <handoff>]
+  printf '%s' "$handoff" | .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman>
+
+Foreman-only wrapper for cross-session handoffs. It delegates clipboard writes
+and chat demarcation to the repo-level handoff tool through
+scripts/dock-handoff-clipboard.
+EOF
+}
+
+target_dock=""
+text=""
+text_set=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --target-dock)
+      if [[ $# -lt 2 ]]; then
+        echo "FAIL: --target-dock requires a value" >&2
+        exit 2
+      fi
+      target_dock="$2"
+      shift 2
+      ;;
+    --text)
+      if [[ $# -lt 2 ]]; then
+        echo "FAIL: --text requires a value" >&2
+        exit 2
+      fi
+      text="$2"
+      text_set=true
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "FAIL: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+case "$target_dock" in
+  gdi|operator|foreman) ;;
+  "")
+    echo "FAIL: --target-dock is required" >&2
+    usage >&2
+    exit 2
+    ;;
+  *)
+    echo "FAIL: unsupported Foreman handoff target: $target_dock" >&2
+    exit 2
+    ;;
+esac
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+if [[ "$text_set" == true ]]; then
+  printf '%s' "$text" | "$repo_root/scripts/dock-handoff-clipboard" --target-dock "$target_dock"
+else
+  "$repo_root/scripts/dock-handoff-clipboard" --target-dock "$target_dock"
+fi
