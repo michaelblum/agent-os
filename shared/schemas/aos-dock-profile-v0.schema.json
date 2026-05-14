@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-dock-profile-v0.schema.json",
+  "title": "AOS Dock Profile v0",
+  "description": "Machine-readable profile for an AOS docked agent session. Dock profiles describe role identity, default entry path, and capability envelope without executing or granting capabilities.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "name",
+    "role",
+    "harness",
+    "default_entry_path",
+    "allowed_entry_paths",
+    "capability_manifest",
+    "allowed_capability_classes",
+    "allowed_capabilities",
+    "handoff"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "type": {
+      "const": "aos.dock_profile"
+    },
+    "schema_version": {
+      "const": "2026-05-dock-profile-v0"
+    },
+    "name": {
+      "$ref": "#/$defs/id"
+    },
+    "role": {
+      "$ref": "#/$defs/id"
+    },
+    "harness": {
+      "$ref": "#/$defs/id"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "default_entry_path": {
+      "$ref": "#/$defs/entry_path"
+    },
+    "allowed_entry_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/entry_path"
+      }
+    },
+    "capability_manifest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_capability_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/mutability_class"
+      }
+    },
+    "allowed_capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "requires_explicit_assignment_for": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/mutability_class"
+      },
+      "default": []
+    },
+    "hook_timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 120
+    },
+    "stop_notice": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "handoff": {
+      "type": "object",
+      "required": [
+        "requires_goal_prefix"
+      ],
+      "properties": {
+        "requires_goal_prefix": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "voice": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "language": {
+          "type": "string"
+        },
+        "gender": {
+          "type": "string"
+        },
+        "voice_slot": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quality_tiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        }
+      },
+      "additionalProperties": true,
+      "default": {}
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entry_path": {
+      "enum": [
+        "agent_harness",
+        "aos_developer",
+        "testing",
+        "visual_diagnostics",
+        "user_input_diagnostics",
+        "app_specific",
+        "break_glass"
+      ]
+    },
+    "mutability_class": {
+      "enum": [
+        "read_only",
+        "repo_write",
+        "runtime_mutation",
+        "external_write",
+        "host_write",
+        "destructive"
+      ]
+    }
+  }
+}

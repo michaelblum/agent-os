@@ -1,7 +1,37 @@
 {
+  "$schema": "../../shared/schemas/aos-dock-profile-v0.schema.json",
+  "type": "aos.dock_profile",
+  "schema_version": "2026-05-dock-profile-v0",
   "name": "gdi",
   "role": "gdi",
   "harness": "codex",
+  "summary": "Goal-driven implementation for assigned deterministic slices with focused verification.",
+  "default_entry_path": "aos_developer",
+  "allowed_entry_paths": [
+    "agent_harness",
+    "aos_developer",
+    "testing",
+    "visual_diagnostics",
+    "user_input_diagnostics",
+    "app_specific"
+  ],
+  "capability_manifest": "docs/dev/agent-capabilities.json",
+  "allowed_capability_classes": [
+    "read_only",
+    "repo_write",
+    "runtime_mutation",
+    "host_write"
+  ],
+  "allowed_capabilities": [
+    "dev.github.context",
+    "dev.github.ci_inspect",
+    "dev.github.review_comments",
+    "dev.build.aos",
+    "dev.test.schema_node"
+  ],
+  "requires_explicit_assignment_for": [
+    "host_write"
+  ],
   "hook_timeout_seconds": 8,
   "stop_notice": "GDI finished.",
   "handoff": {

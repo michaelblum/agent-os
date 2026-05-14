@@ -98,5 +98,15 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/commands/dev.swift'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/shared/command-registry-data.swift'));
+  assert.equal(
+    rules.get('agent-capability-manifest')?.commands?.[0]?.command,
+    'node --test tests/schemas/aos-agent-capability-manifest-v0.test.mjs',
+  );
+  assert.ok(rules.get('agent-capability-manifest')?.patterns?.includes('docs/dev/agent-capabilities.json'));
+  assert.equal(
+    rules.get('dock-profiles')?.commands?.[0]?.command,
+    'node --test tests/schemas/aos-dock-profile-v0.test.mjs',
+  );
+  assert.ok(rules.get('dock-profiles')?.patterns?.includes('.docks/*/dock.json'));
   assert.ok(rules.get('app-subtree-local-contract')?.notes?.[0]?.includes('nearest subtree AGENTS.md'));
 });

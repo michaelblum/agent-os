@@ -129,6 +129,20 @@ HOW to deliver it. See `ARCHITECTURE.md` for the full rationale. Historical
 design context is archived at
 `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
+## Host Shell Boundary
+
+AOS is the intended agent shell. The base harness should prefer typed AOS
+primitives and control surfaces over raw host process execution. `see`, `do`,
+`show`, `tell`, and `listen` are the base agent shell; `./aos dev ...` is the
+developer control surface when the AOS developer entry path is active.
+
+Raw host shell, Node, npm, Python, and arbitrary process execution are elevated
+developer/testing capabilities, not base agent primitives. Use them only when
+the active task genuinely needs repo development or verification power, keep
+cwd and scope narrow, use timeouts where available, and inspect side effects.
+When a typed AOS surface exists, prefer it over provider-native shell snippets
+or ad hoc scripts.
+
 ## Repo-Wide Methods
 
 - `aos` CLI is the canonical interface for development inside agent-os. MCP tools

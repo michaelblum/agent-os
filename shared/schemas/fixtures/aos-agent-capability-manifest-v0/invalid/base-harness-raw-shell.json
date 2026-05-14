@@ -1,0 +1,35 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.invalid-base-shell",
+  "label": "Invalid Base Harness Shell",
+  "capabilities": [
+    {
+      "id": "agent.shell.anything",
+      "label": "Arbitrary Shell",
+      "summary": "Invalid because raw process execution is not a base harness capability.",
+      "status": "draft",
+      "entry_paths": ["agent_harness"],
+      "adapter": {
+        "kind": "shell",
+        "command": ["bash", "-lc", "<anything>"]
+      },
+      "mutability": {
+        "class": "host_write",
+        "side_effects": ["arbitrary_host_process"],
+        "requires_explicit_assignment": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 60,
+        "network": "allowed",
+        "raw_process": true,
+        "audit": "required"
+      },
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

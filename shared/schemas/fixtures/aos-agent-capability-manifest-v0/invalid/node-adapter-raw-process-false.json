@@ -1,0 +1,34 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.invalid-node-raw-process-false",
+  "label": "Invalid Node Raw Process False",
+  "capabilities": [
+    {
+      "id": "agent.node.base_harness",
+      "label": "Node In Base Harness",
+      "summary": "Invalid because Node adapters are host process execution and must be marked raw_process.",
+      "status": "draft",
+      "entry_paths": ["agent_harness"],
+      "adapter": {
+        "kind": "node",
+        "command": ["node", "scripts/example.mjs"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": false
+      },
+      "execution": {
+        "cwd_policy": "none",
+        "network": "forbidden",
+        "raw_process": false,
+        "audit": "none"
+      },
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

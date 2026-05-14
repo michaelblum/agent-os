@@ -1,0 +1,35 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.invalid-python-raw-process-false",
+  "label": "Invalid Python Raw Process False",
+  "capabilities": [
+    {
+      "id": "dev.test.python_helper",
+      "label": "Python Helper Without Raw Process",
+      "summary": "Invalid because Python adapters are host process execution and must be marked raw_process.",
+      "status": "draft",
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "python",
+        "command": ["python3", "scripts/example.py"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 60,
+        "network": "forbidden",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

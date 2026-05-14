@@ -1,0 +1,34 @@
+{
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.invalid-raw-process-timeout",
+  "label": "Invalid Raw Process Timeout",
+  "capabilities": [
+    {
+      "id": "dev.test.raw_node",
+      "label": "Raw Node Without Timeout",
+      "summary": "Invalid because raw process execution must declare timeout and audit posture.",
+      "status": "draft",
+      "entry_paths": ["testing"],
+      "adapter": {
+        "kind": "node",
+        "command": ["node", "--test", "tests/example.test.mjs"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "network": "forbidden",
+        "raw_process": true,
+        "audit": "recommended"
+      },
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}

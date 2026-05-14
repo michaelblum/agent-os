@@ -1,0 +1,20 @@
+{
+  "$schema": "../../../aos-dock-profile-v0.schema.json",
+  "type": "aos.dock_profile",
+  "schema_version": "2026-05-dock-profile-v0",
+  "name": "operator",
+  "role": "operator",
+  "harness": "codex",
+  "default_entry_path": "agent_harness",
+  "allowed_entry_paths": [
+    "agent_harness"
+  ],
+  "capability_manifest": "docs/dev/agent-capabilities.json",
+  "allowed_capability_classes": [
+    "telepathy"
+  ],
+  "allowed_capabilities": [],
+  "handoff": {
+    "requires_goal_prefix": false
+  }
+}

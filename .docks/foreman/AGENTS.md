@@ -36,7 +36,15 @@ the report as an input to Foreman's next-step loop:
 4. If exactly one next slice is implied by the active plan, create/update that
    work card and hand it off. If several plausible slices exist, recommend the
    best one and state the tradeoff instead of silently stopping.
-5. Pause only for decisions that require human judgment, irreversible git/GitHub
+5. When accepted work has a clear reversible checkpoint, take it before moving
+   on. Keep the checkpoint scoped and reviewable so the worktree stays
+   understandable for the next handoff.
+6. If live runtime verification is the next meaningful step and `./aos ready`
+   reports a repo-mode TCC/input-tap blocker, stop treating it as background
+   noise. State the blocker directly, use the safe permission handoff path from
+   the repo-wide contract, and avoid routing more live-dependent work until the
+   human has either resolved it or explicitly chosen a deterministic-only slice.
+7. Pause only for decisions that require human judgment, irreversible git/GitHub
    action, credential or permission changes, or a real ambiguity in product
    direction.
 
@@ -47,9 +55,15 @@ blocker with the safe recovery path.
 ## Work-Card Routing
 
 For non-trivial GDI implementation work, create or update a Markdown work card
-under `docs/design/work-cards/` and hand off only a thin goal line:
+under `docs/design/work-cards/` and hand off only a thin plain instruction:
 
-`attn: GDI, follow the instructions in docs/design/work-cards/<card>.md`
+`follow the instructions in docs/design/work-cards/<card>.md`
+
+Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
+handoff helper that adds command or addressee prefixes. Do not prepend `/goal`,
+`attn: GDI`, or similar ceremony to the clipboard text. If a shared helper would
+inject that preamble, use a Foreman-specific plain clipboard copy path and
+report the copied payload plus timestamp in the same chat-visible shape.
 
 Use `docs/recipes/gdi-work-card-authoring.md` as the flexible authoring shape:
 fresh context, read-first files, state rediscovery, exact files to inspect,
@@ -63,6 +77,24 @@ unless the task is genuinely small. If Foreman creates draft evidence, label it
 clearly in the work card so GDI knows whether to retain, amend, supersede, or
 revert it.
 
+When routing non-trivial GDI implementation work, keep the clipboard payload to
+the thin plain work-card instruction, then add human-facing manual steps in Foreman's
+chat response. The default helper is:
+
+- paste/send the clipboard contents to GDI;
+- after GDI reports completion, optionally send `/review` in that same GDI
+  session when the slice is complex enough to benefit from adversarial review;
+- bring the final copied GDI tail response back to Foreman, either review
+  results or the GDI work report. Do not require the human to copy separate
+  completion and review messages; Foreman should rediscover diff, status, and
+  verification evidence locally when deciding acceptance, correction routing,
+  same-session follow-up, whether to recommend another review round, or
+  next-slice selection.
+
+Do not make GDI self-accept a non-trivial review. Tiny mechanical review fixes
+may stay with GDI, but behavioral, architectural, or priority-bearing review
+findings come back to Foreman.
+
 ## Implementation Boundary
 
 Foreman may inspect, review, synthesize, write work cards, and make tiny
@@ -70,10 +102,3 @@ coordination edits. Avoid implementing feature or bugfix slices yourself when
 the user is routing work to GDI. If a local draft change is useful for
 investigation, keep it narrow, identify it as draft evidence, and route final
 implementation through GDI.
-
-For cross-session handoffs, pipe the raw target message through
-`scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. GDI is the only target dock that
-receives a `/goal ` prefix; Operator and other non-GDI docks receive plain
-instructions so supervised/HITL sessions can stop for ambiguity instead of
-forcing autonomous goal completion.

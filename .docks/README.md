@@ -26,11 +26,30 @@ Codex then discovers the dock's `AGENTS.md`, `.codex/hooks.json`, and any other
 project-local configuration from that launch root. Source edits and tests still
 belong in the real repo root unless the dock says otherwise.
 
+The active instruction ladder is root `AGENTS.md`, shared `.docks/AGENTS.md`,
+then the role-local `<dock>/AGENTS.md`. Keep common docked-session behavior in
+`.docks/AGENTS.md` and keep each role file focused on that role's authority,
+handoff contract, and stop conditions.
+
 Each dock owns its own hook scripts under `<dock>/hooks/`. Those scripts are
 thin wrappers around `.docks/harness/dock-hook-runner.sh`, with dock identity
 and policy in `<dock>/dock.json`. Do not route dock hooks through a shared
 `.docks/hooks/` script; role behavior should stay local to the dock metadata
 and optional pre/post scripts that install it.
+
+`<dock>/dock.json` is validated as an AOS Dock Profile. It declares the dock's
+durable role, default entry path, allowed entry paths, capability manifest, and
+allowed capability classes. Inspect profiles with:
+
+```bash
+./aos dev docks list --json
+./aos dev docks explain foreman --json
+./aos dev docks capabilities gdi --json
+```
+
+This profile is descriptive, not an executor. It keeps the portable dock
+metaphor inspectable while leaving task judgment and command failures with the
+active agent.
 
 Dock-local bespoke behavior belongs in executable scripts named
 `pre-session-start.sh`, `post-session-start.sh`, `pre-stop.sh`, or

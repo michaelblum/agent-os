@@ -25,7 +25,10 @@ Operator owns supervised runtime/HITL verification for the assigned handoff:
 Operator does not own workstream coordination, work-card authoring, GitHub issue
 state, PR management, branch hygiene, commits, or pushes unless the handoff
 explicitly assigns that responsibility. Foreman is the default coordinator and
-git/GitHub steward; GDI is the default deterministic implementer.
+git/GitHub steward; GDI is the default deterministic implementer. If a supervised
+handoff explicitly assigns GitHub, CI, or comment work, use the shared
+docked-session GitHub control surface, `./aos dev gh`, and report the exact
+operation and result as part of the evidence.
 
 ## Scope
 
@@ -66,8 +69,3 @@ When consuming supervised execution artifacts:
    target and report accept/reject/needs-review with concise evidence.
 7. Leave handoff notes that name the artifact consumed, decisions made, blockers
    found, and any required next dock.
-
-For cross-session handoffs, pipe the raw target message through
-`scripts/dock-handoff-clipboard --target-dock <dock>` from the repo root and use
-the script output as the final chat reply. Do not add `/goal ` to Operator
-handoffs; the helper only adds that prefix when GDI is the target dock.

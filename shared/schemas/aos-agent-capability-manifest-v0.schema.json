@@ -1,0 +1,456 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-agent-capability-manifest-v0.schema.json",
+  "title": "AOS Agent Capability Manifest v0",
+  "description": "Declarative manifest for typed agent capabilities. It separates AOS control surfaces from raw host process escapes so docks and entry paths can reason about authority without hardcoding provider-specific tools.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "capabilities"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "type": {
+      "const": "aos.agent_capability_manifest"
+    },
+    "schema_version": {
+      "const": "2026-05-agent-capability-manifest-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/id"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "applies_to": {
+      "$ref": "#/$defs/applies_to"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      },
+      "default": []
+    },
+    "entry_path": {
+      "enum": [
+        "agent_harness",
+        "aos_developer",
+        "testing",
+        "visual_diagnostics",
+        "user_input_diagnostics",
+        "app_specific",
+        "break_glass"
+      ]
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$"
+    },
+    "applies_to": {
+      "type": "object",
+      "properties": {
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/role"
+          },
+          "default": []
+        },
+        "entry_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entry_path"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "default": {}
+    },
+    "capability": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "summary",
+        "status",
+        "entry_paths",
+        "adapter",
+        "mutability",
+        "execution",
+        "failure_policy"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "summary": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "active",
+            "deprecated"
+          ]
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/role"
+          },
+          "default": []
+        },
+        "entry_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/entry_path"
+          }
+        },
+        "adapter": {
+          "$ref": "#/$defs/adapter"
+        },
+        "mutability": {
+          "$ref": "#/$defs/mutability"
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io"
+          },
+          "default": []
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/io"
+          },
+          "default": []
+        },
+        "failure_policy": {
+          "$ref": "#/$defs/failure_policy"
+        },
+        "notes": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "raw_process": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "raw_process"
+                ]
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "entry_paths": {
+                "items": {
+                  "enum": [
+                    "aos_developer",
+                    "testing",
+                    "break_glass"
+                  ]
+                }
+              },
+              "mutability": {
+                "properties": {
+                  "requires_explicit_assignment": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "requires_explicit_assignment"
+                ]
+              },
+              "execution": {
+                "required": [
+                  "timeout_seconds",
+                  "audit"
+                ],
+                "properties": {
+                  "cwd_policy": {
+                    "not": {
+                      "const": "none"
+                    }
+                  },
+                  "audit": {
+                    "enum": [
+                      "recommended",
+                      "required"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "adapter": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "shell",
+                      "node",
+                      "python"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "adapter"
+            ]
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "properties": {
+                  "raw_process": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "raw_process"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "adapter": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "aos_cli",
+            "local_cli",
+            "node",
+            "python",
+            "http",
+            "mcp",
+            "manual",
+            "shell"
+          ]
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          },
+          "default": []
+        },
+        "schema_ref": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mutability": {
+      "type": "object",
+      "required": [
+        "class",
+        "requires_explicit_assignment"
+      ],
+      "properties": {
+        "class": {
+          "enum": [
+            "read_only",
+            "repo_write",
+            "runtime_mutation",
+            "external_write",
+            "host_write",
+            "destructive"
+          ]
+        },
+        "side_effects": {
+          "$ref": "#/$defs/string_array"
+        },
+        "requires_explicit_assignment": {
+          "type": "boolean"
+        },
+        "requires_human_approval": {
+          "type": "boolean",
+          "default": false
+        },
+        "requires_body_file": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "cwd_policy",
+        "network",
+        "raw_process",
+        "audit"
+      ],
+      "properties": {
+        "cwd_policy": {
+          "enum": [
+            "none",
+            "repo_root",
+            "declared_path",
+            "current_worktree"
+          ]
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "network": {
+          "enum": [
+            "forbidden",
+            "allowed",
+            "required"
+          ]
+        },
+        "raw_process": {
+          "type": "boolean"
+        },
+        "audit": {
+          "enum": [
+            "none",
+            "recommended",
+            "required"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "io": {
+      "type": "object",
+      "required": [
+        "name",
+        "summary"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/id"
+        },
+        "summary": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "schema": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "failure_policy": {
+      "type": "object",
+      "required": [
+        "bubble_up",
+        "retry"
+      ],
+      "properties": {
+        "bubble_up": {
+          "type": "boolean"
+        },
+        "retry": {
+          "enum": [
+            "none",
+            "bounded"
+          ]
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "retry": {
+                "const": "bounded"
+              }
+            },
+            "required": [
+              "retry"
+            ]
+          },
+          "then": {
+            "required": [
+              "max_attempts"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

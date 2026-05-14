@@ -1,0 +1,296 @@
+{
+  "$schema": "../../shared/schemas/aos-agent-capability-manifest-v0.schema.json",
+  "type": "aos.agent_capability_manifest",
+  "schema_version": "2026-05-agent-capability-manifest-v0",
+  "id": "agent-os.dev-capabilities",
+  "label": "agent-os Developer Capabilities",
+  "summary": "Canonical capability manifest for typed repo-development operations exposed to docked sessions and AOS developer entry paths.",
+  "applies_to": {
+    "roles": ["foreman", "gdi", "operator"],
+    "entry_paths": ["aos_developer", "testing"]
+  },
+  "capabilities": [
+    {
+      "id": "dev.github.context",
+      "label": "GitHub Context",
+      "summary": "Inspect local git and gh authentication context through the AOS developer control surface.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "context", "--json"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": false,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "allowed",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "outputs": [
+        {
+          "name": "context_json",
+          "summary": "Repository, branch, upstream, dirty state, and gh availability/authentication status.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.issue_comment",
+      "label": "GitHub Issue Comment",
+      "summary": "Write a GitHub issue comment through a body file using ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "comment"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_comment"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Markdown file containing the comment body.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "comment_url",
+          "summary": "GitHub URL for the posted comment.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.ci_inspect",
+      "label": "GitHub CI Inspect",
+      "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer", "testing"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "ci", "inspect"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 120,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "pr",
+          "summary": "GitHub PR number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "ci_inspection_json",
+          "summary": "PR checks and failed-check log excerpts.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.review_comments",
+      "label": "GitHub Review Comments",
+      "summary": "Read thread-level PR review comment state through ./aos dev gh and gh GraphQL.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "review-comments"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 60,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "pr",
+          "summary": "GitHub PR number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "review_threads_json",
+          "summary": "Thread-level review comments and resolution state.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.build.aos",
+      "label": "AOS Developer Build",
+      "summary": "Build the repo-mode ./aos binary through the signing-aware developer control surface.",
+      "status": "active",
+      "roles": ["foreman", "gdi"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "build"]
+      },
+      "mutability": {
+        "class": "host_write",
+        "side_effects": ["repo_binary_rebuild", "possible_daemon_restart"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 900,
+        "network": "forbidden",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "outputs": [
+        {
+          "name": "build_result",
+          "summary": "Build output and readiness/TCC note.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.test.schema_node",
+      "label": "Node Schema Test",
+      "summary": "Run the schema Node test suite as an explicit developer/testing raw-process capability.",
+      "status": "active",
+      "roles": ["foreman", "gdi"],
+      "entry_paths": ["aos_developer", "testing"],
+      "adapter": {
+        "kind": "node",
+        "command": ["node", "--test", "tests/schemas/*.test.mjs"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 180,
+        "network": "forbidden",
+        "raw_process": true,
+        "audit": "recommended"
+      },
+      "outputs": [
+        {
+          "name": "tap_output",
+          "summary": "Node test TAP output.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    }
+  ]
+}
