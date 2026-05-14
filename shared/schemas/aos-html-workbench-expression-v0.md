@@ -20,3 +20,17 @@ or inline event handler execution is not supported.
 Resume/export records must not mutate source Markdown automatically. They may
 emit annotation sidecars, decision sidecars, proposed Markdown patches, or
 no-op approval records for a later step to apply.
+
+## Design Positioning
+
+The contract is Agent OS's disciplined adoption of the "HTML as richer agent
+output" pattern. HTML is not the source of truth and not a blanket replacement
+for Markdown. It is an addressable projection layer used when human review,
+annotation, reveal, comparison, or checkpoint interaction needs real DOM
+geometry and stable semantic targets.
+
+Keep new artifact kinds narrow and evidence-backed. Before expanding beyond
+`work_card` and `human_alignment_pack`, define the source expression, generated
+HTML expression, surviving structured sidecar/result, security policy, and
+cleanup/archive behavior. See
+`docs/design/html-workbench-expression-adoption-audit-2026-05-13.md`.

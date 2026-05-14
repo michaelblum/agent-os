@@ -34,7 +34,9 @@ Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
 changes through the manifest-backed developer workflow before choosing a build,
 test, canvas reload, or readiness loop. Use `./aos dev build`
 instead of raw `bash build.sh` unless `./aos` is missing or the build surface is
-itself under repair.
+itself under repair. Use `./aos dev gh` for GitHub operations from repo
+sessions; it shells out to the authenticated local `gh` CLI and does not fall
+back to connector-backed GitHub tools.
 
 ## Contract
 
@@ -142,13 +144,42 @@ Typical consumer loop:
 ./aos dev classify --json
 ./aos dev recommend --json
 ./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
+./aos dev capabilities list --json
+./aos dev capabilities explain dev.github.issue_comment --json
+./aos dev docks list --json
+./aos dev docks capabilities foreman --json
 ./aos dev build
+./aos dev gh context --json
+./aos dev gh issue comment 298 --body-file /tmp/comment.md
+./aos dev gh ci inspect --pr 298 --json
+./aos dev gh review-comments --pr 298 --json
 ```
 
 `classify` reports changed files, matched rules, classes, actions, and whether
 the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
 and verification steps. The rules live in `docs/dev/workflow-rules.json` and
 are validated by `shared/schemas/dev-workflow-rules.schema.json`.
+
+`capabilities` is read-only discovery over
+`docs/dev/agent-capabilities.json`. It lists or explains typed agent
+capabilities, including whether a capability uses a typed AOS surface or an
+explicit raw-process adapter. It does not execute capabilities or grant
+permissions.
+
+`docks` is read-only discovery over `.docks/*/dock.json`. It lists or explains
+dock profiles and can resolve a dock's profile against
+`docs/dev/agent-capabilities.json` for the active entry path. This keeps dock
+identity, entry-path defaults, and allowed capability classes explicit without
+turning the profile into a rigid executor.
+
+`dev gh` is the repo GitHub control surface. It deliberately uses the real
+`gh` executable from `PATH`, the user's existing `gh` authentication, and the
+local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
+Direct operations such as `issue view`, `issue comment`, `pr view`, `pr checks`,
+and `pr comment` forward to `gh` and preserve its exit behavior. The composite
+helpers cover repo-specific repeated loops: `ci inspect` reads PR checks and
+fetches failed GitHub Actions logs when the check links to an Actions run, while
+`review-comments` uses `gh api graphql` to read review-thread resolution state.
 
 ### 2. Create a Persistent Canvas
 
